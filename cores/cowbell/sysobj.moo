@@ -1,4 +1,4 @@
-object #0
+object SYSOBJ
     name: "System Object"
     parent: ROOT
     owner: ARCH_WIZARD
@@ -15,6 +15,7 @@ object #0
     property room (owner: HACKER, flags: "r") = ROOM;
     property root (owner: HACKER, flags: "r") = ROOT;
     property string (owner: HACKER, flags: "r") = STRING;
+    property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
     property wizard (owner: HACKER, flags: "r") = WIZARD;
 
     verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"

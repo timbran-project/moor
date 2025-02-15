@@ -1,3 +1,4 @@
+define SYSOBJ = #0;
 define ROOT = #1;
 define ARCH_WIZARD = #2;
 define ROOM = #3;
