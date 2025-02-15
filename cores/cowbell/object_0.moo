@@ -10,6 +10,6 @@ object #0
     property wizard (owner: WIZARD, flags: "r") = WIZARD;
 
     verb do_login_command (this none this) owner: WIZARD flags: "rxd"
-        return #3;
+        return #2;
     endverb
 endobject
