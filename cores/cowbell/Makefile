@@ -12,6 +12,7 @@ gen.moo-textdump: $(wildcard src/*.moo)
 # Target to generate a new objdef dump from the compilation of the local
 # directory.
 gen.objdir: $(wildcard src/*.moo)
+	rm -rf gen.objdir
 	$(MOORC) --src-objdef-dir /work/src --out-objdef-dir /work/gen.objdir
 
 # Builds a new objdef dump and then copies over the local working sources.
