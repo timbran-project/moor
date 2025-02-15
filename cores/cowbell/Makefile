@@ -24,6 +24,7 @@ rebuild: gen.objdir
 
 clean:
 	rm -f gen.moo-textdump
+	rm -rf gen.objdir
 
 output: gen.moo-textdump
 
