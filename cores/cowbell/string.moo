@@ -1,18 +1,18 @@
 object STRING
     name: "String Utilities"
     parent: ROOT
-    owner: WIZARD
+    owner: HACKER
     readable: true
 
-    property _character_set (owner: #184, flags: "rc") = "	 !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-    property _character_set_in_ascii (owner: #184, flags: "rc") = {8, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126};
-    property _character_set_in_hex_ascii (owner: #184, flags: "rc") = {"08", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "2A", "2B", "2C", "2D", "2E", "2F", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "3A", "3B", "3C", "3D", "3E", "3F", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "4A", "4B", "4C", "4D", "4E", "4F", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "5A", "5B", "5C", "5D", "5E", "5F", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "6A", "6B", "6C", "6D", "6E", "6F", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "7A", "7B", "7C", "7D", "7E"};
-    property alphabet (owner: #184, flags: "rc") = "abcdefghijklmnopqrstuvwxyz";
-    property ascii (owner: #184, flags: "rc") = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-    property digits (owner: #184, flags: "rc") = "0123456789";
-    property tab (owner: #184, flags: "rc") = "	";
+    property _character_set (owner: HACKER, flags: "rc") = "	 !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+    property _character_set_in_ascii (owner: HACKER, flags: "rc") = {8, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126};
+    property _character_set_in_hex_ascii (owner: HACKER, flags: "rc") = {"08", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "2A", "2B", "2C", "2D", "2E", "2F", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "3A", "3B", "3C", "3D", "3E", "3F", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "4A", "4B", "4C", "4D", "4E", "4F", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "5A", "5B", "5C", "5D", "5E", "5F", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "6A", "6B", "6C", "6D", "6E", "6F", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "7A", "7B", "7C", "7D", "7E"};
+    property alphabet (owner: HACKER, flags: "rc") = "abcdefghijklmnopqrstuvwxyz";
+    property ascii (owner: HACKER, flags: "rc") = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+    property digits (owner: HACKER, flags: "rc") = "0123456789";
+    property tab (owner: HACKER, flags: "rc") = "	";
 
-    verb "capitalize capitalise" (this none this) owner: WIZARD flags: "rxd"
+    verb "capitalize capitalise" (this none this) owner: HACKER flags: "rxd"
         "Capitalizes its argument.";
         if ((string = args[1]) && (i = index("abcdefghijklmnopqrstuvwxyz", string[1], 1)))
           string[1] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i];
@@ -20,7 +20,7 @@ object STRING
         return string;
     endverb
 
-    verb "centre center" (this none this) owner: WIZARD flags: "rxd"
+    verb "centre center" (this none this) owner: HACKER flags: "rxd"
         {text, len, ?lfill = " ", ?rfill = lfill} = args;
         out = tostr(text);
         abslen = abs(len);
@@ -32,7 +32,7 @@ object STRING
         return 0;
     endverb
 
-    verb space (this none this) owner: WIZARD flags: "rxd"
+    verb space (this none this) owner: HACKER flags: "rxd"
         "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
         "len has an upper limit of 100,000.";
         {n, ?fill = " "} = args;
@@ -59,7 +59,7 @@ object STRING
         return n > 0 ? fill[1..n] | fill[(f = length(fill)) + 1 + n..f];
     endverb
 
-    verb to_list (this none this) owner: #184 flags: "rxd"
+    verb to_list (this none this) owner: HACKER flags: "rxd"
         "Usage:  $string:to_list(str <subject>[, str <separator>])";
         "";
         "Returns a list of those substrings of <subject> separated by <separator>.  <separator> defaults to space.";
@@ -81,7 +81,7 @@ object STRING
         return {@parts, subject};
     endverb
 
-    verb trim (this none this) owner: WIZARD flags: "rxd"
+    verb trim (this none this) owner: HACKER flags: "rxd"
         ":trim (string [, space]) -- remove leading and trailing spaces";
         "";
         "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading and trailing copies of that character removed.  For example, $string:trim(\"***foo***\", \"*\") => \"foo\".";
@@ -90,7 +90,7 @@ object STRING
         return string[m[1]..m[2]];
     endverb
 
-    verb triml (this none this) owner: WIZARD flags: "rxd"
+    verb triml (this none this) owner: HACKER flags: "rxd"
         ":triml(string [, space]) -- remove leading spaces";
         "";
         "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading copies of that character removed.  For example, $string:triml(\"***foo***\", \"*\") => \"foo***\".";
@@ -98,7 +98,7 @@ object STRING
         return string[match(string, tostr("[^", space, "]%|$"))[1]..length(string)];
     endverb
 
-    verb trimr (this none this) owner: WIZARD flags: "rxd"
+    verb trimr (this none this) owner: HACKER flags: "rxd"
         ":trimr(string [, space]) -- remove trailing spaces";
         "";
         "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all trailing copies of that character removed.  For example, $string:trimr(\"***foo***\", \"*\") => \"***foo\".";
@@ -106,7 +106,7 @@ object STRING
         return string[1..rmatch(string, tostr("[^", space, "]%|^"))[2]];
     endverb
 
-    verb "uppercase lowercase" (this none this) owner: WIZARD flags: "rxd"
+    verb "uppercase lowercase" (this none this) owner: HACKER flags: "rxd"
         "lowercase(string) -- returns a lowercase version of the string.";
         "uppercase(string) -- returns the uppercase version of the string.";
         string = args[1];
@@ -122,7 +122,7 @@ object STRING
         return string;
     endverb
 
-    verb word_start (this none this) owner: WIZARD flags: "rxd"
+    verb word_start (this none this) owner: HACKER flags: "rxd"
         "This breaks up the argument string into words, returning a list of indices into argstr corresponding to the starting points of each of the arguments.";
         rest = args[1];
         "... find first nonspace...";
@@ -153,7 +153,7 @@ object STRING
         return rest || char != " " ? {@wslist, {wstart, wbefore + length(rest)}} | wslist;
     endverb
 
-    verb words (this none this) owner: WIZARD flags: "rxd"
+    verb words (this none this) owner: HACKER flags: "rxd"
         "This breaks up the argument string into words, the resulting list being obtained exactly the way the command line parser obtains `args' from `argstr'.";
         rest = args[1];
         "...trim leading blanks...";

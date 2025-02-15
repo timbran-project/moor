@@ -1,9 +1,7 @@
 object WIZARD
-    name: "Wizard"
-    parent: ROOT
+    name: "Generic Wizard"
+    parent: PROGRAMMER
     location: ROOM
-    owner: WIZARD
-    player: true
-    wizard: true
-    programmer: true
+    owner: ARCH_WIZARD
+    fertile: true
 endobject

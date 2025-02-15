@@ -1,15 +1,21 @@
 object #0
     name: "System Object"
     parent: ROOT
-    owner: WIZARD
+    owner: ARCH_WIZARD
     readable: true
 
-    property room (owner: WIZARD, flags: "r") = ROOM;
-    property root (owner: WIZARD, flags: "r") = ROOT;
-    property string (owner: WIZARD, flags: "r") = STRING;
-    property wizard (owner: WIZARD, flags: "r") = WIZARD;
+    property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
+    property builder (owner: HACKER, flags: "r") = BUILDER;
+    property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
+    property hacker (owner: HACKER, flags: "r") = HACKER;
+    property player (owner: HACKER, flags: "r") = PLAYER;
+    property programmer (owner: HACKER, flags: "r") = PROGRAMMER;
+    property room (owner: HACKER, flags: "r") = ROOM;
+    property root (owner: HACKER, flags: "r") = ROOT;
+    property string (owner: HACKER, flags: "r") = STRING;
+    property wizard (owner: HACKER, flags: "r") = WIZARD;
 
-    verb do_login_command (this none this) owner: WIZARD flags: "rxd"
+    verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
         return #2;
     endverb
 endobject
