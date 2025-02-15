@@ -1,9 +1,8 @@
 ## mooR cowbell
 
-This is a work-in-progress from-scratch core for `mooR`.
+This is a work-in-progress from-scratch "core" database for [mooR](http://github.com/rdaum/moor).
 
-While some utility code might get ported from Lambda or JHCore the
-intent is start from scratch to take advantage of `mooR`'s more advanced features, including:
+Goal is to build the foundation for a rich, social environment in the spirit of classic MOOs and TinyMU* systems, but future-facing.
 
   * Start with the web and rich content as first-class elements.
   * Use new language features like lexical scopes / blocks, symbols,
@@ -12,6 +11,9 @@ intent is start from scratch to take advantage of `mooR`'s more advanced feature
     managed and authored in revision control tools. While changes can
     be made in-MOO, they are meant to be merged back into the
     repository as the canonical version.
+
+While some utility code might get ported from Lambda or JHCore the
+intent is start from scratch to take advantage of `mooR`'s more advanced features, including:
 
 ## Development
 
@@ -30,4 +32,6 @@ To run a moor instance with the provided core database, first make sure you don'
 
 `docker compose up`
 
-More doc later.
+## Contribution
+
+Pull requests accepted.
