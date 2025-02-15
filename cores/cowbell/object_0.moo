@@ -8,6 +8,8 @@ object #0
     property builder (owner: HACKER, flags: "r") = BUILDER;
     property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
     property hacker (owner: HACKER, flags: "r") = HACKER;
+    property login (owner: HACKER, flags: "r") = LOGIN;
+    property password (owner: HACKER, flags: "r") = PASSWORD;
     property player (owner: HACKER, flags: "r") = PLAYER;
     property programmer (owner: HACKER, flags: "r") = PROGRAMMER;
     property room (owner: HACKER, flags: "r") = ROOM;

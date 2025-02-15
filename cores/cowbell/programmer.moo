@@ -5,7 +5,7 @@ object PROGRAMMER
     fertile: true
     readable: true
 
-    verb eval (any any any) owner: ARCH_WIZARD flags: "d"
+    verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
         set_task_perms(player);
         answer = eval("return " + argstr + ";");
         if (answer[1])

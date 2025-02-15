@@ -4,4 +4,6 @@ object PLAYER
     owner: WIZARD
     fertile: true
     readable: true
+
+    property password (owner: ARCH_WIZARD, flags: "");
 endobject

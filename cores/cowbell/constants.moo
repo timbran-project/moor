@@ -7,4 +7,6 @@ define PROGRAMMER = #6;
 define HACKER = #7;
 define WIZARD = #8;
 define STRING = #10;
-define FIRST_ROOM = #11;
+define PASSWORD = #11;
+define FIRST_ROOM = #12;
+define LOGIN = #13;
