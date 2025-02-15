@@ -13,4 +13,21 @@ intent is start from scratch to take advantage of `mooR`'s more advanced feature
     be made in-MOO, they are meant to be merged back into the
     repository as the canonical version.
 
+## Development
+
+To compile / validate your changes use the provided `Makefile`
+
+ * `make` will use the latest mooR release (via docker) to compiler /
+   import "*.moo" into a local generated old-style textdump file, for
+   the purpose of validation
+ * `make clean` will destroy said file
+ * `make gen.objdir` will build a new objdef dir from the local changes.
+ * `make rebuild` will build a new objdef dir with your local changes
+   and then (WARNING) *overwrite* your local changes. Think of this is
+   as a formatting step (for prior to commit, etc)
+ 
+To run a moor instance with the provided core database, first make sure you don't have any old database files lying around locally, and then run
+
+`docker compose up`
+
 More doc later.
