@@ -1,0 +1,55 @@
+networks:
+  moor_net:
+services:
+  moor-daemon:
+    image: ghcr.io/rdaum/moor:release
+    build:
+      context: .
+      network: host
+    container_name: "cowbell-moor-daemon"
+    environment:
+      - RUST_BACKTRACE=1
+    working_dir: /moor
+    # Keep the database on the host, not in our container
+    volumes:
+      - ./:/db
+    command: >
+      sh -c "./moor-daemon /db/cowbell.db --rpc-listen=tcp://0.0.0.0:7899 --events-listen=tcp://0.0.0.0:7898 --import-dirdump-format --export-dirdump-format --textdump=/db/ --textdump-out=/db/objdump-out --checkpoint-interval-seconds=360"
+    ports:
+      # ZMQ ports
+      - "7899:7899"
+      - "7898:7898"
+    networks:
+      - moor_net
+  moor-telnet-host:
+    image: ghcr.io/rdaum/moor:release
+    build:
+      context: .
+      network: host
+    container_name: "cowbell-moor-telnet-host"
+    environment:
+      - RUST_BACKTRACE=1
+    working_dir: /moor
+    command: >
+      sh -c "./moor-telnet-host --telnet-address=0.0.0.0 --telnet-port=8888 --rpc-address=tcp://moor-daemon:7899 --events-address=tcp://moor-daemon:7898"
+    ports:
+      # Telnet listener
+      - "8888:8888"
+    networks:
+      - moor_net
+  moor-web-host:
+    image: ghcr.io/rdaum/moor:release
+    build:
+      context: .
+      network: host
+    container_name: "cowbell-moor-web-host"
+    environment:
+      - RUST_BACKTRACE=1
+    working_dir: /moor
+    command: >
+      sh -c "./moor-web-host --listen-address=0.0.0.0:8080 --rpc-address=tcp://moor-daemon:7899 --events-address=tcp://moor-daemon:7898 --client-sources=./client"
+    ports:
+      # HTTP listener
+      - "8080:8080"
+    networks:
+      - moor_net
