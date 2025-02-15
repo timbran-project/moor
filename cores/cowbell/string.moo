@@ -1,0 +1,189 @@
+object STRING
+    name: "String Utilities"
+    parent: ROOT
+    owner: WIZARD
+    readable: true
+
+    property _character_set (owner: #184, flags: "rc") = "	 !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+    property _character_set_in_ascii (owner: #184, flags: "rc") = {8, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126};
+    property _character_set_in_hex_ascii (owner: #184, flags: "rc") = {"08", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "2A", "2B", "2C", "2D", "2E", "2F", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "3A", "3B", "3C", "3D", "3E", "3F", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "4A", "4B", "4C", "4D", "4E", "4F", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "5A", "5B", "5C", "5D", "5E", "5F", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "6A", "6B", "6C", "6D", "6E", "6F", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "7A", "7B", "7C", "7D", "7E"};
+    property alphabet (owner: #184, flags: "rc") = "abcdefghijklmnopqrstuvwxyz";
+    property ascii (owner: #184, flags: "rc") = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+    property digits (owner: #184, flags: "rc") = "0123456789";
+    property tab (owner: #184, flags: "rc") = "	";
+
+    verb "capitalize capitalise" (this none this) owner: WIZARD flags: "rxd"
+        "Capitalizes its argument.";
+        if ((string = args[1]) && (i = index("abcdefghijklmnopqrstuvwxyz", string[1], 1)))
+          string[1] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i];
+        endif
+        return string;
+    endverb
+
+    verb "centre center" (this none this) owner: WIZARD flags: "rxd"
+        {text, len, ?lfill = " ", ?rfill = lfill} = args;
+        out = tostr(text);
+        abslen = abs(len);
+        if (length(out) < abslen)
+          return this:space((abslen - length(out)) / 2, lfill) + out + this:space((abslen - length(out) + 1) / -2, rfill);
+        else
+          return len > 0 ? out | out[1..abslen];
+        endif
+        return 0;
+    endverb
+
+    verb space (this none this) owner: WIZARD flags: "rxd"
+        "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
+        "len has an upper limit of 100,000.";
+        {n, ?fill = " "} = args;
+        if (typeof(n) == str)
+          n = length(n);
+        endif
+        if ((n = abs(n)) > 100000)
+          raise(E_INVARG);
+        endif
+        if (fill != " ")
+          fill = fill + fill;
+          fill = fill + fill;
+          fill = fill + fill;
+        elseif (n < 70)
+          return "                                                                      "[1..n];
+        else
+          fill = "                                                                      ";
+        endif
+        m = (n - 1) / length(fill);
+        while (m)
+          fill = fill + fill;
+          m = m / 2;
+        endwhile
+        return n > 0 ? fill[1..n] | fill[(f = length(fill)) + 1 + n..f];
+    endverb
+
+    verb to_list (this none this) owner: #184 flags: "rxd"
+        "Usage:  $string:to_list(str <subject>[, str <separator>])";
+        "";
+        "Returns a list of those substrings of <subject> separated by <separator>.  <separator> defaults to space.";
+        "";
+        "Differs from $string:explode in that";
+        "";
+        "  * <separator> can effectively be longer than one character.";
+        "  * runs of <separator> are not treated as single occurrences.";
+        "";
+        "$string:to_list  (string, separator) is the inverse of";
+        "$string:from_list(list  , separator)";
+        {subject, ?separator = " "} = args;
+        breaklen = length(separator);
+        parts = {};
+        while (i = index(subject, separator))
+          parts = {@parts, subject[1..i - 1]};
+          subject = subject[i + breaklen..$];
+        endwhile
+        return {@parts, subject};
+    endverb
+
+    verb trim (this none this) owner: WIZARD flags: "rxd"
+        ":trim (string [, space]) -- remove leading and trailing spaces";
+        "";
+        "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading and trailing copies of that character removed.  For example, $string:trim(\"***foo***\", \"*\") => \"foo\".";
+        {string, ?space = " "} = args;
+        m = match(string, tostr("[^", space, "]%(.*[^", space, "]%)?%|$"));
+        return string[m[1]..m[2]];
+    endverb
+
+    verb triml (this none this) owner: WIZARD flags: "rxd"
+        ":triml(string [, space]) -- remove leading spaces";
+        "";
+        "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading copies of that character removed.  For example, $string:triml(\"***foo***\", \"*\") => \"foo***\".";
+        {string, ?space = " "} = args;
+        return string[match(string, tostr("[^", space, "]%|$"))[1]..length(string)];
+    endverb
+
+    verb trimr (this none this) owner: WIZARD flags: "rxd"
+        ":trimr(string [, space]) -- remove trailing spaces";
+        "";
+        "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all trailing copies of that character removed.  For example, $string:trimr(\"***foo***\", \"*\") => \"***foo\".";
+        {string, ?space = " "} = args;
+        return string[1..rmatch(string, tostr("[^", space, "]%|^"))[2]];
+    endverb
+
+    verb "uppercase lowercase" (this none this) owner: WIZARD flags: "rxd"
+        "lowercase(string) -- returns a lowercase version of the string.";
+        "uppercase(string) -- returns the uppercase version of the string.";
+        string = args[1];
+        from = caps = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        to = lower = "abcdefghijklmnopqrstuvwxyz";
+        if (verb == "uppercase")
+          from = lower;
+          to = caps;
+        endif
+        for i in [1..26]
+          string = strsub(string, from[i], to[i], 1);
+        endfor
+        return string;
+    endverb
+
+    verb word_start (this none this) owner: WIZARD flags: "rxd"
+        "This breaks up the argument string into words, returning a list of indices into argstr corresponding to the starting points of each of the arguments.";
+        rest = args[1];
+        "... find first nonspace...";
+        wstart = match(rest, "[^ ]%|$")[1];
+        wbefore = wstart - 1;
+        rest[1..wbefore] = "";
+        if (!rest)
+          return {};
+        endif
+        quote = 0;
+        wslist = {};
+        pattern = " +%|\\.?%|\"";
+        while (m = match(rest, pattern))
+          "... find the next occurence of a special character, either";
+          "... a block of spaces, a quote or a backslash escape sequence...";
+          char = rest[m[1]];
+          if (char == " ")
+            wslist = {@wslist, {wstart, wbefore + m[1] - 1}};
+            wstart = wbefore + m[2] + 1;
+          elseif (char == "\"")
+            "... beginning or end of quoted string...";
+            "... within a quoted string spaces aren't special...";
+            pattern = (quote = !quote) ? "\\.?%|\"" | " +%|\\.?%|\"";
+          endif
+          rest[1..m[2]] = "";
+          wbefore = wbefore + m[2];
+        endwhile
+        return rest || char != " " ? {@wslist, {wstart, wbefore + length(rest)}} | wslist;
+    endverb
+
+    verb words (this none this) owner: WIZARD flags: "rxd"
+        "This breaks up the argument string into words, the resulting list being obtained exactly the way the command line parser obtains `args' from `argstr'.";
+        rest = args[1];
+        "...trim leading blanks...";
+        rest[1..match(rest, "^ *")[2]] = "";
+        if (!rest)
+          return {};
+        endif
+        quote = 0;
+        toklist = {};
+        token = "";
+        pattern = " +%|\\.?%|\"";
+        while (m = match(rest, pattern))
+          "... find the next occurence of a special character, either";
+          "... a block of spaces, a quote or a backslash escape sequence...";
+          char = rest[m[1]];
+          token = token + rest[1..m[1] - 1];
+          if (char == " ")
+            toklist = {@toklist, token};
+            token = "";
+          elseif (char == "\"")
+            "... beginning or end of quoted string...";
+            "... within a quoted string spaces aren't special...";
+            pattern = (quote = !quote) ? "\\.?%|\"" | " +%|\\.?%|\"";
+          elseif (m[1] < m[2])
+            "... char has to be a backslash...";
+            "... include next char literally if there is one";
+            token = token + rest[m[2]];
+          endif
+          rest[1..m[2]] = "";
+        endwhile
+        return rest || char != " " ? {@toklist, token + rest} | toklist;
+    endverb
+endobject
