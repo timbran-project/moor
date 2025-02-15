@@ -12,8 +12,8 @@ Goal is to build the foundation for a rich, social environment in the spirit of 
     be made in-MOO, they are meant to be merged back into the
     repository as the canonical version.
 
-While some utility code might get ported from Lambda or JHCore the
-intent is start from scratch to take advantage of `mooR`'s more advanced features, including:
+(Note: While some utility code might get ported from Lambda or JHCore the
+intent is start from scratch to take advantage of `mooR`'s more advanced features. Wholesale porting of generic objects it not expected / desired)
 
 ## Development
 
