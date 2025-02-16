@@ -22,8 +22,13 @@ object ROOT
         return this.contents;
     endverb
 
-    verb description (this none this) owner: ARCH_WIZARD flags: "rxd"
+    verb description (this none this) owner: HACKER flags: "rxd"
         "Returns the external description of the object.";
         return this.description;
+    endverb
+
+    verb name (this none this) owner: HACKER flags: "rxd"
+        "Returns the presentation name of the object.";
+        return this.name;
     endverb
 endobject

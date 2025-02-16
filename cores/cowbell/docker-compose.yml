@@ -14,7 +14,7 @@ services:
     volumes:
       - ./:/db
     command: >
-      sh -c "./moor-daemon /db/cowbell.db --rpc-listen=tcp://0.0.0.0:7899 --events-listen=tcp://0.0.0.0:7898 --import-dirdump-format --export-dirdump-format --textdump=/db/ --use-symbols-in-builtins true --use-boolean-returns true --textdump-out=/db/objdump-out --checkpoint-interval-seconds=360"
+      sh -c "./moor-daemon /db/cowbell.db --rpc-listen=tcp://0.0.0.0:7899 --events-listen=tcp://0.0.0.0:7898 --import-dirdump-format --export-dirdump-format --textdump=/db/src --use-symbols-in-builtins true --use-boolean-returns true --textdump-out=/db/objdump-out --checkpoint-interval-seconds=360"
     ports:
       # ZMQ ports
       - "7899:7899"

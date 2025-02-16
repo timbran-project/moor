@@ -6,6 +6,7 @@ object SYSOBJ
 
     property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
     property builder (owner: HACKER, flags: "r") = BUILDER;
+    property event (owner: HACKER, flags: "r") = EVENT;
     property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
     property hacker (owner: HACKER, flags: "r") = HACKER;
     property login (owner: HACKER, flags: "r") = LOGIN;
@@ -15,6 +16,7 @@ object SYSOBJ
     property room (owner: HACKER, flags: "r") = ROOM;
     property root (owner: HACKER, flags: "r") = ROOT;
     property string (owner: HACKER, flags: "r") = STRING;
+    property sub (owner: HACKER, flags: "r") = SUB;
     property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
     property wizard (owner: HACKER, flags: "r") = WIZARD;
 

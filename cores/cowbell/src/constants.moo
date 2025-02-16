@@ -11,3 +11,5 @@ define STRING = #10;
 define PASSWORD = #11;
 define FIRST_ROOM = #12;
 define LOGIN = #13;
+define EVENT = #14;
+define SUB = #15;

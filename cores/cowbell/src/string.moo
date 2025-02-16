@@ -32,6 +32,11 @@ object STRING
         return 0;
     endverb
 
+    verb render_as (this none this) owner: HACKER flags: "rxd"
+        "Render the given string part down into a proper string for the given content-type. For now this just returns it back, unmodified. Future versions could do escaping etc for HTML";
+        return this;
+    endverb
+
     verb space (this none this) owner: HACKER flags: "rxd"
         "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
         "len has an upper limit of 100,000.";

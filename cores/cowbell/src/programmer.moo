@@ -9,8 +9,10 @@ object PROGRAMMER
         set_task_perms(player);
         answer = eval("return " + argstr + ";");
         if (answer[1])
-          notify(player, tostr("=> ", toliteral(answer[2])));
+          let result_event = $event:mk_eval_result(player, false, false, false, "=> ", toliteral(answer[2]));
+	  player:tell(result_event);
         else
+          "todo: multi-line events...";
           for line in (answer[2])
             notify(player, line);
           endfor
