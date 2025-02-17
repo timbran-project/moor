@@ -1,6 +1,6 @@
 object HACKER
     name: "Hacker"
-    parent: PROGRAMMER
+    parent: PROG
     owner: HACKER
     readable: true
 endobject

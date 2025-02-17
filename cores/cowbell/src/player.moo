@@ -1,7 +1,7 @@
 object PLAYER
     name: "Generic Player"
     parent: ROOT
-    owner: WIZARD
+    owner: WIZ
     fertile: true
     readable: true
 
@@ -26,9 +26,14 @@ object PLAYER
 
     verb tell (this none this) owner: ARCH_WIZARD flags: "rd"
         set_task_perms(player);
-        {event, ?content_type = "text/plain"} = args;
-        !event:validate() && raise(E_INVARG);
-        content = event:transform_to(content_type);
-        notify(player, content, content_type);
+        {events, ?content_type = "text/plain"} = args;
+        if (typeof(events) != list)
+          events = {events};
+        endif
+        for event in (events)
+          !event:validate() && raise(E_INVARG);
+          content = event:transform_to(content_type);
+          notify(player, content, content_type);
+        endfor
     endverb
 endobject

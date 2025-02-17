@@ -1,0 +1,11 @@
+// test_can_create_unrooted_object
+; $scratch = create($nothing, $nothing);
+; return $scratch.owner;
+$scratch
+
+// test_programmer_can_create_child_of_Root
+@wizard
+; $scratch = create($root);
+; return $scratch.owner;
+$arch_wizard
+

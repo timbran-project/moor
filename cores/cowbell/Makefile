@@ -1,19 +1,31 @@
 # Runs moorc from the latest docker release, mapping local working directory
-MOORC = docker run -v .:/work -i ghcr.io/rdaum/moor:release ./moorc \
-	--use-boolean-returns true \
-	--use-symbols-in-builtins true
+MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc \
+ 	--use-boolean-returns true \
+ 	--use-symbols-in-builtins true
+
+SRC_DIRECTORY = /work/src
+TEST_DIRECTORY = /work/tests
+OUTPUT_DIRECTORY = /work
+
+#MOORC = ../moor/target/release/moorc \
+#	--use-boolean-returns true \
+#	--use-symbols-in-builtins true
+#
+#SRC_DIRECTORY = src
+#TEST_DIRECTORY = tests
+#OUTPUT_DIRECTORY = .
 
 # Target to generate an old-style MOO textdump from the compilation of the
 # objdef style sources in the local directory. This is the default target,
 # and is intended mainly just to do a validation/compilation pass.
 gen.moo-textdump: $(wildcard src/*.moo)
-	$(MOORC) --src-objdef-dir /work/src --out-textdump /work/$@
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-textdump $(OUTPUT_DIRECTORY)/$@
 
 # Target to generate a new objdef dump from the compilation of the local
 # directory.
 gen.objdir: $(wildcard src/*.moo)
 	rm -rf gen.objdir
-	$(MOORC) --src-objdef-dir /work/src --out-objdef-dir /work/gen.objdir
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
 
 # Builds a new objdef dump and then copies over the local working sources.
 # WARNING: this is destructive to local changes you might have -- it *will*
@@ -21,6 +33,10 @@ gen.objdir: $(wildcard src/*.moo)
 # git commit.
 rebuild: gen.objdir
 	cp gen.objdir/*.moo ./src
+
+test:  $(wildcard src/*.moo)
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=6 --test-player=4
 
 clean:
 	rm -f gen.moo-textdump

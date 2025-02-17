@@ -1,7 +1,7 @@
-object PROGRAMMER
+object PROG
     name: "Generic Programmer"
     parent: BUILDER
-    owner: WIZARD
+    owner: WIZ
     fertile: true
     readable: true
 
@@ -10,12 +10,10 @@ object PROGRAMMER
         answer = eval("return " + argstr + ";");
         if (answer[1])
           let result_event = $event:mk_eval_result(player, false, false, false, "=> ", toliteral(answer[2]));
-	  player:tell(result_event);
+          player:tell(result_event);
         else
-          "todo: multi-line events...";
-          for line in (answer[2])
-            notify(player, line);
-          endfor
+          let error_event = $event:mk_eval_error(player, false, false, false, false, $block:mk(@answer[2]));
+          player:tell(error_event);
         endif
     endverb
 endobject

@@ -1,6 +1,6 @@
 object ARCH_WIZARD
     name: "ArchWizard"
-    parent: WIZARD
+    parent: WIZ
     location: FIRST_ROOM
     owner: ARCH_WIZARD
     player: true
