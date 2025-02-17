@@ -3,9 +3,13 @@
 ; return $scratch.owner;
 $scratch
 
-// test_programmer_can_create_child_of_Root
+// test_programmer_can_create_child_of_root
 @wizard
 ; $scratch = create($root);
 ; return $scratch.owner;
 $arch_wizard
+
+// test
+; return ($wiz in $root:descendants()) > 0;
+true
 
