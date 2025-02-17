@@ -22,6 +22,7 @@ object SUB
         this.type == 'pos_adj && return event.actor:pronoun_posessive('adj);
         this.type == 'pos_noun && return event.actor:pronoun_posessive('noun);
         this.type == 'reflexive && return event.actor:pronoun_reflexive();
+        this.type == 'self_alt && return event.actor == player ? this.for_self | this.for_others;
     endverb
 
     verb "i ic" (this none this) owner: HACKER flags: "rxd"
@@ -80,4 +81,11 @@ object SUB
         capitalize = length(verb) == 2 && verb[2] == "c";
         return <this, [type -> 'this, capitalize -> capitalize]>;
     endverb
+
+    verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = verb[length(verb)] == "c";
+        let {for_self, for_alt} = args;
+        return <this, [type -> 'self_alt, capitalize -> capitalize, for_self -> for_self, for_others -> for_alt]>;
+    endverb
+
 endobject

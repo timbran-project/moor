@@ -3,6 +3,10 @@
 "Root Prototype slams Generic Room in The First Room"
 
 // test_say_event
+@wizard
+; $scratch = $event:mk_say(player, false, false, player.location, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", "magic words", "\"");
+; return $scratch:transform_to();
+"You say, \"magic words\""
 @programmer
-; return $event:mk_say(player, false, false, player.location, $sub:nc(), " says, \"", "magic words", "\""):transform_to();
+; return $scratch:transform_to();
 "ArchWizard says, \"magic words\""

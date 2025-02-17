@@ -68,6 +68,11 @@ object ROOT
         endif
     endverb
 
+    verb contents (this none this) owner: HACKER flags: "rxd"
+        "Returns a list of the objects that are apparently inside this one.  Don't confuse this with .contents, which is a property kept consistent with .location by the server.  This verb should be used in `VR' situations, for instance when looking in a room, and does not necessarily have anything to do with the value of .contents (although the default implementation does).  `Non-VR' commands (like @contents) should look directly at .contents.";
+        return this.contents;
+    endverb
+
     verb "descendants descendents" (this none this) owner: #184 flags: "rxd"
         what = this;
         kids = children(what);
@@ -76,11 +81,6 @@ object ROOT
           result = {@result, @x:descendants()};
         endfor
         return {@kids, @result};
-    endverb
-
-    verb contents (this none this) owner: HACKER flags: "rxd"
-        "Returns a list of the objects that are apparently inside this one.  Don't confuse this with .contents, which is a property kept consistent with .location by the server.  This verb should be used in `VR' situations, for instance when looking in a room, and does not necessarily have anything to do with the value of .contents (although the default implementation does).  `Non-VR' commands (like @contents) should look directly at .contents.";
-        return this.contents;
     endverb
 
     verb description (this none this) owner: HACKER flags: "rxd"
@@ -93,10 +93,28 @@ object ROOT
         return this.name;
     endverb
 
-    verb test_all_verbs (this none this) owner: HACKER flags: "rx"
-        let all_verbs = this:all_verbs();
-        !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_NONE;
+    verb isa (this none this) owner: HACKER flags: "rxd"
+        {who} = args;
+        let what = this;
+        try
+        while (what != who)
+            what = parent(what);
+          endwhile
+          return who != #-1;
+        except (E_INVARG)
+          return false;
+        endtry
+    endverb
+
+    verb test_isa (this none this) owner: HACKER flags: "rxd"
+        !this:isa($root) && raise(E_NONE, "Should isa self");
+        !$room:isa($root) && raise(E_NONE, "$room should isa $root");
         return true;
     endverb
 
+    verb test_all_verbs (this none this) owner: HACKER flags: "rx"
+        all_verbs = this:all_verbs();
+        !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_NONE;
+        return true;
+    endverb
 endobject
