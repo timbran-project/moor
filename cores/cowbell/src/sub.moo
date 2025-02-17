@@ -6,17 +6,17 @@ object SUB
 
     override description = "Flyweight delegate and factory for template substitution in events.";
 
-    verb d (this none this) owner: HACKER flags: "rd"
+    verb d (this none this) owner: HACKER flags: "rxd"
         return <this, [type -> 'dobj]>;
     endverb
 
-    verb eval_sub (this none this) owner: HACKER flags: "rd"
+    verb eval_sub (this none this) owner: HACKER flags: "rxd"
         {event} = args;
-        this.type == 'actor && return event.actor:name();
-        this.type == 'location && return event.actor.location:name();
-        this.type == 'this && return event.this_obj:name();
-        this.type == 'dobj && return event.dobj:name();
-        this.type == 'iobj && return event.iobj:name();
+        this.type == 'actor && return this:name_sub(event.actor);
+        this.type == 'location && return this:name_sub(event.actor.location);
+        this.type == 'this && return this:name_sub(event.this_obj);
+        this.type == 'dobj && return this:name_sub(event.dobj);
+        this.type == 'iobj && return this:name_sub(event.iobj);
         this.type == 'subject && return event.actor:pronoun_subject();
         this.type == 'object && return event.actor:pronoun_object();
         this.type == 'pos_adj && return event.actor:pronoun_posessive('adj);
@@ -24,45 +24,60 @@ object SUB
         this.type == 'reflexive && return event.actor:pronoun_reflexive();
     endverb
 
-    verb i (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'iobj]>;
+    verb "i ic" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'iobj, capitalize -> capitalize]>;
     endverb
 
-    verb l (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'location]>;
+    verb "l lc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'location, capitalize -> capitalize]>;
     endverb
 
-    verb n (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'actor]>;
+    verb "n nc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'actor, capitalize -> capitalize]>;
     endverb
 
-    verb o (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'object]>;
+    verb name_sub (this none this) owner: HACKER flags: "rxd"
+        {who} = args;
+        who == player && return "you";
+        return who:name();
     endverb
 
-    verb p (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'pos_adj]>;
+    verb "o oc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'object, capitalize -> capitalize]>;
     endverb
 
-    verb q (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'pos_noun]>;
+    verb "p pc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'pos_adj, capitalize -> capitalize]>;
     endverb
 
-    verb r (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'reflexive]>;
+    verb "q qc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'pos_noun, capitalize -> capitalize]>;
     endverb
 
-    verb render_as (this none this) owner: HACKER flags: "rd"
+    verb "r rc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'reflexive, capitalize -> capitalize]>;
+    endverb
+
+    verb render_as (this none this) owner: HACKER flags: "rxd"
         {content_type, event} = args;
         content = this:eval_sub(event);
-        return this.capitalize ? content:capitalize() | content;
+        return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
     endverb
 
-    verb s (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'subject]>;
+    verb "s sc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'subject, capitalize -> capitalize]>;
     endverb
 
-    verb t (this none this) owner: HACKER flags: "rd"
-        return <this, [type -> 'this]>;
+    verb "t tc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'this, capitalize -> capitalize]>;
     endverb
 endobject

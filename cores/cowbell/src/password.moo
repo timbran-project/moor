@@ -3,7 +3,7 @@ object PASSWORD
     owner: HACKER
     readable: true
 
-    verb challenge (this none this) owner: ARCH_WIZARD flags: "rd"
+    verb challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
         if (typeof(this) != flyweight)
           raise(E_INVARG);
         endif
@@ -18,7 +18,7 @@ object PASSWORD
         return argon2_verify(encrypted, password);
     endverb
 
-    verb mk (this none this) owner: ARCH_WIZARD flags: "rd"
+    verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
         "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";
         if (typeof(this) == flyweight)
           raise(E_INVARG);
@@ -34,4 +34,12 @@ object PASSWORD
         encrypted_password = argon2(password, salt_str);
         return <this, {encrypted_password}>;
     endverb
+
+    verb test_round_trip (this none this) owner: HACKER flags: "rxd"
+        let password = this:mk("foobarbaz");
+        password:challenge("foobarbaz") != true && return E_INVARG;
+        password:challenge("notmypassword") != false && return E_INVARG;
+        return true;
+    endverb
+
 endobject

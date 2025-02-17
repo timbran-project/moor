@@ -1,0 +1,8 @@
+// test_basic_pronoun_substitutions
+; return $event:mk_test_event($arch_wizard, $root, $room, $sysobj,  $sub:d(), " slams ", $sub:i(), " in ", $sub:l() ):transform_to();
+"Root Prototype slams Generic Room in The First Room"
+
+// test_say_event
+@programmer
+; return $event:mk_say(player, false, false, player.location, $sub:nc(), " says, \"", "magic words", "\""):transform_to();
+"ArchWizard says, \"magic words\""

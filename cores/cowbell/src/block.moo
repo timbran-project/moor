@@ -4,11 +4,11 @@ object BLOCK
     owner: HACKER
     readable: true
 
-    verb mk (this none this) owner: HACKER flags: "rd"
+    verb mk (this none this) owner: HACKER flags: "rxd"
         return <this, {@args}>;
     endverb
 
-    verb render_as (this none this) owner: HACKER flags: "rd"
+    verb render_as (this none this) owner: HACKER flags: "rxd"
         {content_type, event} = args;
         result = "";
         for line_no in [1..length(this)]

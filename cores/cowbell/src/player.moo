@@ -14,7 +14,7 @@ object PLAYER
 
     override description = "You see a player who should get around to describing themself.";
 
-    verb "pronoun_*" (this none this) owner: HACKER flags: "rd"
+    verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
         ptype = tosym(verb[9..length(verb)]);
         ptype == 'subject && return this.ps;
         ptype == 'object && return this.po;
@@ -24,7 +24,7 @@ object PLAYER
         raise(E_INVARG);
     endverb
 
-    verb tell (this none this) owner: ARCH_WIZARD flags: "rd"
+    verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
         set_task_perms(player);
         {events, ?content_type = "text/plain"} = args;
         if (typeof(events) != list)
