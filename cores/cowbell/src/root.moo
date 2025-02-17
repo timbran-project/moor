@@ -31,6 +31,7 @@ object ROOT
         if (this.owner != caller_perms())
           set_task_perms(caller_perms());
         endif
+        what = this;
         verbs = {};
         while (valid(what))
           verbs = {@verbs(what) || {}, @verbs};
@@ -91,4 +92,11 @@ object ROOT
         "Returns the presentation name of the object.";
         return this.name;
     endverb
+
+    verb test_all_verbs (this none this) owner: HACKER flags: "rx"
+        let all_verbs = this:all_verbs();
+        !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_NONE;
+        return true;
+    endverb
+
 endobject

@@ -36,7 +36,7 @@ rebuild: gen.objdir
 
 test:  $(wildcard src/*.moo)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
-	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=6 --test-player=4
+	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true
 
 clean:
 	rm -f gen.moo-textdump
