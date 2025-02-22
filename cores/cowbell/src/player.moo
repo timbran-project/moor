@@ -14,6 +14,18 @@ object PLAYER
 
     override description = "You see a player who should get around to describing themself.";
 
+    verb look (any none none) owner: ARCH_WIZARD flags: "rxd"
+        "Look at an object. Collects the descriptive attributes and then emits them to the player.";
+        "If we don't have a match, that's a 'I don't see that there...'";
+        !valid(dobj) && return this:tell(this:msg_no_dobj_match());
+        look_d = dobj:look_self();
+        player:tell(look_d:into_event());
+    endverb
+
+    verb "msg_no_dobj_match msg_no_iobj_match" (this none this) owner: HACKER flags: "rxd"
+        return $event:mk_not_found(player, "I don't see that here.");
+    endverb
+
     verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
         ptype = tosym(verb[9..length(verb)]);
         ptype == 'subject && return this.ps;

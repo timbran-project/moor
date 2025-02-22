@@ -3,10 +3,17 @@ object ROOM
     parent: ROOT
     owner: HACKER
 
-    verb say (any any any) owner: HACKER flags: "rxd"
-        event = $event:mk_say(player, false, false, player.location, $sub:nc(), " ", $sub:self_alt("say", "says"), " \"", argstr, "\"");
+    verb emote (any any any) owner: HACKER flags: "rxd"
+        event = $event:mk_emote(player, $sub:nc(), " ", argstr):with_this(player.location);
         for who in (this:contents())
-            who:isa($player) && who:tell(event);
+          who:isa($player) && who:tell(event);
+        endfor
+    endverb
+
+    verb say (any any any) owner: HACKER flags: "rxd"
+        event = $event:mk_say(player, $sub:nc(), " ", $sub:self_alt("say", "says"), " \"", argstr, "\""):with_this(player.location);
+        for who in (this:contents())
+          who:isa($player) && who:tell(event);
         endfor
     endverb
 endobject

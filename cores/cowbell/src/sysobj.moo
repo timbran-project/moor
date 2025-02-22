@@ -11,6 +11,7 @@ object SYSOBJ
     property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
     property hacker (owner: HACKER, flags: "r") = HACKER;
     property login (owner: HACKER, flags: "r") = LOGIN;
+    property look (owner: HACKER, flags: "r") = LOOK;
     property nothing (owner: HACKER, flags: "r") = NOTHING;
     property password (owner: HACKER, flags: "r") = PASSWORD;
     property player (owner: HACKER, flags: "r") = PLAYER;

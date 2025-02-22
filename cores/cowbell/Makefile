@@ -1,19 +1,19 @@
 # Runs moorc from the latest docker release, mapping local working directory
-MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc \
- 	--use-boolean-returns true \
- 	--use-symbols-in-builtins true
-
-SRC_DIRECTORY = /work/src
-TEST_DIRECTORY = /work/tests
-OUTPUT_DIRECTORY = /work
-
-#MOORC = ../moor/target/release/moorc \
-#	--use-boolean-returns true \
-#	--use-symbols-in-builtins true
+#MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc \
+# 	--use-boolean-returns true \
+# 	--use-symbols-in-builtins true
 #
-#SRC_DIRECTORY = src
-#TEST_DIRECTORY = tests
-#OUTPUT_DIRECTORY = .
+#SRC_DIRECTORY = /work/src
+#TEST_DIRECTORY = /work/tests
+#OUTPUT_DIRECTORY = /work
+
+MOORC = ../moor/target/release/moorc \
+	--use-boolean-returns true \
+	--use-symbols-in-builtins true
+
+SRC_DIRECTORY = src
+TEST_DIRECTORY = tests
+OUTPUT_DIRECTORY = .
 
 # Target to generate an old-style MOO textdump from the compilation of the
 # objdef style sources in the local directory. This is the default target,

@@ -6,8 +6,9 @@ object SUB
 
     override description = "Flyweight delegate and factory for template substitution in events.";
 
-    verb d (this none this) owner: HACKER flags: "rxd"
-        return <this, [type -> 'dobj]>;
+    verb "d dc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = length(verb) == 2 && verb[2] == "c";
+        return <this, [type -> 'dobj, capitalize -> capitalize]>;
     endverb
 
     verb eval_sub (this none this) owner: HACKER flags: "rxd"
@@ -77,15 +78,14 @@ object SUB
         return <this, [type -> 'subject, capitalize -> capitalize]>;
     endverb
 
+    verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
+        capitalize = verb[length(verb)] == "c";
+        {for_self, for_alt} = args;
+        return <this, [type -> 'self_alt, capitalize -> capitalize, for_self -> for_self, for_others -> for_alt]>;
+    endverb
+
     verb "t tc" (this none this) owner: HACKER flags: "rxd"
         capitalize = length(verb) == 2 && verb[2] == "c";
         return <this, [type -> 'this, capitalize -> capitalize]>;
     endverb
-
-    verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
-        capitalize = verb[length(verb)] == "c";
-        let {for_self, for_alt} = args;
-        return <this, [type -> 'self_alt, capitalize -> capitalize, for_self -> for_self, for_others -> for_alt]>;
-    endverb
-
 endobject

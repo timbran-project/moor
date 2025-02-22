@@ -88,14 +88,9 @@ object ROOT
         return this.description;
     endverb
 
-    verb name (this none this) owner: HACKER flags: "rxd"
-        "Returns the presentation name of the object.";
-        return this.name;
-    endverb
-
     verb isa (this none this) owner: HACKER flags: "rxd"
         {who} = args;
-        let what = this;
+        what = this;
         try
         while (what != who)
             what = parent(what);
@@ -106,15 +101,24 @@ object ROOT
         endtry
     endverb
 
-    verb test_isa (this none this) owner: HACKER flags: "rxd"
-        !this:isa($root) && raise(E_NONE, "Should isa self");
-        !$room:isa($root) && raise(E_NONE, "$room should isa $root");
-        return true;
+    verb look_self (this none this) owner: HACKER flags: "rxd"
+        return $look:mk(this);
+    endverb
+
+    verb name (this none this) owner: HACKER flags: "rxd"
+        "Returns the presentation name of the object.";
+        return this.name;
     endverb
 
     verb test_all_verbs (this none this) owner: HACKER flags: "rx"
         all_verbs = this:all_verbs();
         !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_NONE;
+        return true;
+    endverb
+
+    verb test_isa (this none this) owner: HACKER flags: "rxd"
+        !this:isa($root) && raise(E_NONE, "Should isa self");
+        !$room:isa($root) && raise(E_NONE, "$room should isa $root");
         return true;
     endverb
 endobject

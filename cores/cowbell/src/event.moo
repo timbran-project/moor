@@ -7,10 +7,10 @@ object EVENT
     override description = "Flyweight delegate for events that happen in the world and which become output to send to the player. Slots must include 'action, 'actor, 'timestamp, 'dobj, 'iobj, 'this_obj. Content to display to the player is produced by iterating the contents and calling :transform_to(this, content_type) on them, appending them together, which in the end returns a string which is meant to be sent as content_type.";
 
     verb "mk_*" (this none this) owner: HACKER flags: "rxd"
-        "mk_<verb>(actor, dobj, iobj, this_obj, ... content ... )";
+        "mk_<verb>(actor, ... content ... )";
         action = verb[4..length(verb)];
-        {actor, dir_obj, ind_obj, this_obj, @content} = args;
-        return <this, [actor -> actor, verb -> action, dobj -> dir_obj, iobj -> ind_obj, timestamp -> time(), this_obj -> this_obj], {@content}>;
+        {actor, @content} = args;
+        return <this, [actor -> actor, verb -> action, dobj -> false, iobj -> false, timestamp -> time(), this_obj -> false], {@content}>;
     endverb
 
     verb transform_to (this none this) owner: HACKER flags: "rxd"
@@ -44,5 +44,12 @@ object EVENT
         except (E_PROPNF)
           return false;
         endtry
+    endverb
+
+    verb "with_dobj with_iobj with_this" (this none this) owner: HACKER flags: "rxd"
+        {value} = args;
+        wut = tosym(verb[6..length(verb)]);
+        wut = wut == 'this ? 'this_obj | wut;
+        return add_slot(this, wut, value);
     endverb
 endobject
