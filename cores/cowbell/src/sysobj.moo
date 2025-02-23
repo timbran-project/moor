@@ -10,6 +10,7 @@ object SYSOBJ
     property event (owner: HACKER, flags: "r") = EVENT;
     property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
     property hacker (owner: HACKER, flags: "r") = HACKER;
+    property list (owner: HACKER, flags: "r") = LIST;
     property login (owner: HACKER, flags: "r") = LOGIN;
     property look (owner: HACKER, flags: "r") = LOOK;
     property nothing (owner: HACKER, flags: "r") = NOTHING;
