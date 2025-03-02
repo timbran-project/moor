@@ -17,6 +17,9 @@ object PLAYER
   verb look (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
     "If we don't have a match, that's a 'I don't see that there...'";
+    if (dobjstr == "")
+      dobj = player.location;
+    endif
     !valid(dobj) && return this:tell(this:msg_no_dobj_match());
     look_d = dobj:look_self();
     player:tell(look_d:into_event());
@@ -45,7 +48,11 @@ object PLAYER
     for event in (events)
       !event:validate() && raise(E_INVARG);
       content = event:transform_to(content_type);
-      notify(player, content, content_type);
+      if (typeof(content) == list)
+        { notify(player, line, content_type) for line in (content) };
+      else
+        notify(player, content, content_type);
+      endif
     endfor
   endverb
 endobject

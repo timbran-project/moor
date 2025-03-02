@@ -16,4 +16,9 @@ object ROOM
       who:isa($player) && who:tell(event);
     endfor
   endverb
+
+  verb confunc (this none this) owner: HACKER flags: "rxd"
+    look_d = this:look_self();
+    player:tell(look_d:into_event());
+  endverb
 endobject

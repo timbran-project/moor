@@ -26,18 +26,22 @@ object EVENT
     if (!this:validate())
       raise(E_INVARG);
     endif
-    result_str = "";
+    results = {};
     for entry in (this)
+      if (typeof(entry) == flyweight)
+        entry = entry:render_as(content_type, this);
+      endif
       if (typeof(entry) == str)
-        result_str = result_str + entry;
-      elseif (typeof(entry) == flyweight)
-        let result = entry:render_as(content_type, this);
-        result_str = result_str + result;
+        results = entry:append_to_paragraph(@results);
+      elseif (typeof(entry) == list)
+        for result in (entry)
+          results = {@result:append_to_paragraph(@results), ""};
+        endfor
       else
         raise(E_TYPE, "Invalid type in event content", entry);
       endif
     endfor
-    return result_str;
+    return results;
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"

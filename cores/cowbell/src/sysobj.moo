@@ -32,4 +32,44 @@ object SYSOBJ
     args = $login:parse_command(@args);
     return $login:((args[1]))(@listdelete(args, 1));
   endverb
+
+  verb "user_created user_connected" (this none this) owner: HACKER flags: "rxd"
+    user = args[1];
+    if (callers())
+      raise(E_PERM);
+    endif
+    if (args[1] < #0)
+      return;
+    endif
+    fork (0)
+      `user:confunc() ! E_VERBNF';
+    endfork
+    `user.location:confunc(user) ! E_VERBNF';
+    `user:anyconfunc() ! E_VERBNF';
+  endverb
+
+  verb "user_disconnected user_client_disconnected" (this none this) owner: HACKER flags: "rxd"
+    if (callers())
+      return;
+    endif
+    user = args[1];
+    fork (0)
+      `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
+    endfork
+    `user:disfunc() ! E_VERBNF';
+  endverb
+
+  verb user_reconnected (this none this) owner: HACKER flags: "rxd"
+    user = args[1];
+    if (user < #0)
+      return;
+    endif
+    fork (0)
+      `user.location:reconfunc(user) ! E_INVIND, E_VERBNF';
+    endfork
+    fork (0)
+      `user:reconfunc() ! E_VERBNF';
+    endfork
+    `user:anyconfunc() ! E_VERBNF';
+  endverb
 endobject

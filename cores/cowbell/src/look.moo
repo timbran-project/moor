@@ -23,14 +23,18 @@ object LOOK
     except (E_PROPNF)
       return false;
     endtry
+    return true;
   endverb
 
   verb test_into_event (this none this) owner: HACKER flags: "rxd"
-    look = this:mk($room);
+    look = this:mk($first_room, player);
+    !look:validate() && raise(E_INVARG, "Invalid $look: " + toliteral(look));
     event = look:into_event();
+    !event:validate() && raise(E_INVARG, "Invalid event");
     !(typeof(event) == flyweight) && raise(E_NONE, "look event should be a flyweight");
-    event.dobj != $room && raise(E_NONE, "look event dobj is wrong");
+    event.dobj != $first_room && raise(E_NONE, "look event dobj is wrong");
     content = event:transform_to();
-    typeof(content) != str && raise(E_INVARG, "Produced content is invalid: " + toliteral(content));
+    typeof(content) != list && raise(E_INVARG, "Produced content is invalid: " + toliteral(content));
+    length(content) != 2 && raise(E_INVARG, "Produced content is not long enough: " + toliteral(content));
   endverb
 endobject

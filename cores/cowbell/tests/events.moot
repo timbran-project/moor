@@ -1,12 +1,12 @@
 // test_basic_pronoun_substitutions
 ; return $event:mk_test_event($arch_wizard, $sub:d(), " slams ", $sub:i(), " in ", $sub:l()):with_dobj($root):with_iobj($room):with_this($sysobj):transform_to();
-"Root Prototype slams Generic Room in The First Room"
+{ "Root Prototype slams Generic Room in The First Room" }
 
 // test_say_event
 @wizard
 ; $scratch = $event:mk_say(player, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", "magic words", "\""):with_this(player.location);
 ; return $scratch:transform_to();
-"You say, \"magic words\""
+{ "You say, \"magic words\"" }
 @programmer
 ; return $scratch:transform_to();
-"ArchWizard says, \"magic words\""
+{ "ArchWizard says, \"magic words\"" }

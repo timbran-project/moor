@@ -253,4 +253,24 @@ object STRING
     endwhile
     return rest || char != " " ? {@toklist, token + rest} | toklist;
   endverb
+
+  verb append_to_paragraph (this none this) owner: HACKER flags: "rxd"
+    "Given arguments which are list of strings, appends.";
+    "e.g.  \"dog\":append_to_paragraph() => {\"dog\"}";
+    "      \"dog\":append_to_paragraph(\"cats and\") => {\"cats and dogs\"}";
+    "      \"dog\":append_to_paragraph(\"cats get chased by:\", \"\") => { \"cats get chased by:\", \"dogs\"}";
+    length(args) == 1 && return args;
+    length(args) == 2 && return {args[2] + args[1]};
+    head = args[2..length(args) - 1];
+    tail = args[length(args)] + args[1];
+    return {@head, tail};
+  endverb
+
+  verb test_append_to_paragraph (this none this) owner: HACKER flags: "rxd"
+    "":append_to_paragraph() != {""} && raise(E_NONE, "Failed empty append");
+    "dog":append_to_paragraph("") != {"dog"} && raise(E_NONE, "Failed empty append");
+    (a = "dog":append_to_paragraph("cats and ")) != {"cats and dog"} && raise(E_NONE, "Failed single line append; got " + toliteral(a));
+    (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(E_NONE, "Failed single line append; got " + toliteral(a));
+    (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(E_NONE, "Failed single line append; got " + toliteral(a));
+  endverb
 endobject
