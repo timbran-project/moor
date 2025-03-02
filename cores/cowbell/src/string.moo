@@ -32,6 +32,63 @@ object STRING
         return 0;
     endverb
 
+    verb is_numeric (this none this) owner: HACKER flags: "rxd"
+        "Usage:  is_numeric(string)";
+        "Is string numeric (composed of one or more digits possibly preceded by a minus sign)?";
+        "Return true or false.";
+        return match(args[1], "^ *[-+]?[0-9]+ *$");
+        digits = "1234567890";
+        if (!(string = args[1]))
+          return false;
+        endif
+        if (string[1] == "-")
+          string = string[2..length(string)];
+        endif
+        for i in [1..length(string)]
+          if (!index(digits, string[i]))
+            return false;
+          endif
+        endfor
+        return true;
+    endverb
+
+    verb literal_object (this none this) owner: HACKER flags: "rxd"
+        string = args[1];
+        if (!string)
+          return $nothing;
+        elseif (string[1] == "#" && E_TYPE != (object = this:toobj()))
+          return object;
+        elseif (string[1] == "~")
+          return this:match_player(string[2..$], #0);
+        elseif (string[1] == "*")
+          return $mail_agent:match_recipient(string);
+        elseif (string[1] == "$")
+          string = string[2..$];
+          object = #0;
+        while properties(1)
+            dot = index(string, ".");
+            pn = dot ? string[1..dot - 1] | string;
+            try
+              object = object.(pn);
+            except (ANY)
+              return $failed_match;
+            endtry
+            if (dot)
+              string = string[dot + 1..$];
+            else
+              break properties;
+            endif
+          endwhile
+          if (typeof(object) == obj)
+            return object;
+          else
+            return $failed_match;
+          endif
+        else
+          return $failed_match;
+        endif
+    endverb
+
     verb render_as (this none this) owner: HACKER flags: "rxd"
         "Render the given string part down into a proper string for the given content-type. For now this just returns it back, unmodified. Future versions could do escaping etc for HTML";
         return this;
@@ -84,6 +141,11 @@ object STRING
           subject = subject[i + breaklen..$];
         endwhile
         return {@parts, subject};
+    endverb
+
+    verb toobj (this none this) owner: HACKER flags: "rxd"
+        ":toobj(objectid as string) => objectid";
+        return match(s = args[1], "^ *#[-+]?[0-9]+ *$") ? toobj(s) | E_TYPE;
     endverb
 
     verb trim (this none this) owner: HACKER flags: "rxd"

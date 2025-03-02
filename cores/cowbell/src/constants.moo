@@ -1,3 +1,5 @@
+define FAILED_MATCH = #-3;
+define AMBIGUOUS = #-2;
 define NOTHING = #-1;
 define SYSOBJ = #0;
 define ROOT = #1;
