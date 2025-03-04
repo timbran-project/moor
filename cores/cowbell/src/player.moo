@@ -40,7 +40,7 @@ object PLAYER
   endverb
 
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(player);
+    set_task_perms(this);
     {events, ?content_type = "text/plain"} = args;
     if (typeof(events) != list)
       events = {events};
@@ -49,9 +49,9 @@ object PLAYER
       !event:validate() && raise(E_INVARG);
       content = event:transform_to(content_type);
       if (typeof(content) == list)
-        { notify(player, line, content_type) for line in (content) };
+        { notify(this, line, content_type) for line in (content) };
       else
-        notify(player, content, content_type);
+        notify(this, content, content_type);
       endif
     endfor
   endverb

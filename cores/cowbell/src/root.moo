@@ -7,7 +7,7 @@ object ROOT
   property aliases (owner: HACKER, flags: "rc") = {};
   property description (owner: HACKER, flags: "rc") = "";
 
-  verb accept (this none this) owner: HACKER flags: "rxd"
+  verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     return this:acceptable(@args);
   endverb
