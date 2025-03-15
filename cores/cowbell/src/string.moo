@@ -267,10 +267,10 @@ object STRING
   endverb
 
   verb test_append_to_paragraph (this none this) owner: HACKER flags: "rxd"
-    "":append_to_paragraph() != {""} && raise(E_NONE, "Failed empty append");
-    "dog":append_to_paragraph("") != {"dog"} && raise(E_NONE, "Failed empty append");
-    (a = "dog":append_to_paragraph("cats and ")) != {"cats and dog"} && raise(E_NONE, "Failed single line append; got " + toliteral(a));
-    (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(E_NONE, "Failed single line append; got " + toliteral(a));
-    (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(E_NONE, "Failed single line append; got " + toliteral(a));
+    "":append_to_paragraph() != {""} && raise(E_ASSERT, "Failed empty append");
+    "dog":append_to_paragraph("") != {"dog"} && raise(E_ASSERT, "Failed empty append");
+    (a = "dog":append_to_paragraph("cats and ")) != {"cats and dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
+    (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
+    (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
   endverb
 endobject

@@ -112,13 +112,13 @@ object ROOT
 
   verb test_all_verbs (this none this) owner: HACKER flags: "rx"
     all_verbs = this:all_verbs();
-    !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_NONE;
+    !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_ASSERT;
     return true;
   endverb
 
   verb test_isa (this none this) owner: HACKER flags: "rxd"
-    !this:isa($root) && raise(E_NONE, "Should isa self");
-    !$room:isa($root) && raise(E_NONE, "$room should isa $root");
+    !this:isa($root) && raise(E_ASSERT, "Should isa self");
+    !$room:isa($root) && raise(E_ASSERT, "$room should isa $root");
     return true;
   endverb
 endobject

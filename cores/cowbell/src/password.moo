@@ -37,8 +37,8 @@ object PASSWORD
 
   verb test_round_trip (this none this) owner: HACKER flags: "rxd"
     password = this:mk("foobarbaz");
-    password:challenge("foobarbaz") != true && return E_INVARG;
-    password:challenge("notmypassword") != false && return E_INVARG;
+    password:challenge("foobarbaz") != true && return E_ASSERT;
+    password:challenge("notmypassword") != false && return E_ASSERT;
     return true;
   endverb
 endobject
