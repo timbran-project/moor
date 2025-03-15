@@ -23,4 +23,11 @@ object BLOCK
     endfor
     return result;
   endverb
+
+  verb test_multiline_render (this none this) owner: HACKER flags: "rxd"
+    let lines = this:mk("a", "b", "c");
+    let result = lines:render_as("text/plain", true);
+    length(result) != 3 && raise(E_ASSERT, "content wrong length: " + toliteral(result));
+  endverb
+
 endobject

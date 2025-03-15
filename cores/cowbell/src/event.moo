@@ -34,8 +34,11 @@ object EVENT
       if (typeof(entry) == str)
         results = entry:append_to_paragraph(@results);
       elseif (typeof(entry) == list)
-        for result in (entry)
-          results = {@result:append_to_paragraph(@results), ""};
+        for index in [1..length(entry)]
+          results = {@entry[index]:append_to_paragraph(@results)};
+          if (index != length(entry))
+            results = {@results, ""};
+          endif
         endfor
       else
         raise(E_TYPE, "Invalid type in event content", entry);
