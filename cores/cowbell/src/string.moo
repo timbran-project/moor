@@ -274,4 +274,44 @@ object STRING
     (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
     (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
   endverb
+
+  verb parse_verbref (this none this) owner: HACKER flags: "rxd"
+    "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
+    s = args[1];
+    colon = index(s, ":");
+    !colon && return false;
+    {object, verbname} = {s[1..colon - 1], s[colon + 1..length(s)]};
+    !(object && verbname) && return false;
+    if (object[1] == "$" && 0)
+      pname = object[2..length(object)];
+      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != obj)
+        return false;
+      endif
+      object = tostr(object);
+    endif
+    return {object, tosym(verbname)};
+  endverb
+
+  verb test_parse_verbref (this none this) owner: HACKER flags: "rxd"
+    begin
+      let {result, should} = {"#1":parse_verbref(), false};
+      result != should && raise(E_ASSERT, "#1 should be " + toliteral(should) + " was: " + toliteral(result));
+    end
+    begin
+      let {result, should} = {":":parse_verbref(), false};
+      result != should && raise(E_ASSERT, ": should be " + toliteral(should) + " was: " + toliteral(result));
+    end
+    begin
+      let {result, should} = {"$string:look_self":parse_verbref(), {"$string", 'look_self}};
+      result != should && raise(E_ASSERT, "$string:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+    end
+    begin
+      let {result, should} = {"#1:look_self":parse_verbref(), {"#1", 'look_self}};
+      result != should && raise(E_ASSERT, "#1:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+    end
+    begin
+      let {result, should} = {"honk:look_self":parse_verbref(), {"honk", 'look_self}};
+      result != should && raise(E_ASSERT, "honk:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+    end
+  endverb
 endobject
