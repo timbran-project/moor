@@ -1,5 +1,6 @@
 object PASSWORD
   name: "Password Flyweight Delegate"
+  location: FIRST_ROOM
   owner: HACKER
   readable: true
 

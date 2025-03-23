@@ -1,6 +1,7 @@
 object STRING
   name: "String Utilities"
   parent: ROOT
+  location: FIRST_ROOM
   owner: HACKER
   readable: true
 

@@ -24,6 +24,7 @@ object SYSOBJ
   property string (owner: HACKER, flags: "r") = STRING;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
+  property thing (owner: HACKER, flags: "r") = THING;
   property wiz (owner: HACKER, flags: "r") = WIZ;
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"

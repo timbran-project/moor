@@ -19,3 +19,4 @@ define SUB = #15;
 define BLOCK = #16;
 define LOOK = #17;
 define LIST = #18;
+define THING = #19;

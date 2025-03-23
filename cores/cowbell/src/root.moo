@@ -1,5 +1,6 @@
 object ROOT
   name: "Root Prototype"
+  location: FIRST_ROOM
   owner: HACKER
   fertile: true
   readable: true
@@ -15,6 +16,11 @@ object ROOT
   verb acceptable (this none this) owner: HACKER flags: "rxd"
     "Returns true if the object can accept items. Called by :accept (runtime-initiated) but can also be called elsewhere in scenarios where we are just checking in-advance.";
     return false;
+  endverb
+
+  verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(this.owner);
+    return `move(this, args[1]) ! ANY';
   endverb
 
   verb all_contents (this none this) owner: HACKER flags: "rxd"
@@ -102,7 +108,7 @@ object ROOT
   endverb
 
   verb look_self (this none this) owner: HACKER flags: "rxd"
-    return $look:mk(this);
+    return $look:mk(this, @this.contents);
   endverb
 
   verb name (this none this) owner: HACKER flags: "rxd"

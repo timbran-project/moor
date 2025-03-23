@@ -1,6 +1,7 @@
 object LIST
   name: "List Utilities"
   parent: ROOT
+  location: FIRST_ROOM
   owner: HACKER
   readable: true
 

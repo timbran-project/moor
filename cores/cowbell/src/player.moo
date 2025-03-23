@@ -1,6 +1,7 @@
 object PLAYER
   name: "Generic Player"
   parent: ROOT
+  location: FIRST_ROOM
   owner: WIZ
   fertile: true
   readable: true
@@ -14,7 +15,7 @@ object PLAYER
 
   override description = "You see a player who should get around to describing themself.";
 
-  verb look (any none none) owner: ARCH_WIZARD flags: "rxd"
+  verb "l look" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
     "If we don't have a match, that's a 'I don't see that there...'";
     if (dobjstr == "")
@@ -47,12 +48,32 @@ object PLAYER
     endif
     for event in (events)
       !event:validate() && raise(E_INVARG);
-      content = event:transform_to(content_type);
+      content = event:transform_for(this, content_type);
       if (typeof(content) == list)
         { notify(this, line, content_type) for line in (content) };
       else
         notify(this, content, content_type);
       endif
     endfor
+  endverb
+
+  verb acceptable (this none this) owner: HACKER flags: "rxd"
+    return !is_player(args[1]);
+  endverb
+
+  verb mk_emote_event (this none this) owner: HACKER flags: "rxd"
+    return $event:mk_emote(this, $sub:nc(), " ", args[1]):with_this(this.location);
+  endverb
+
+  verb mk_say_event (this none this) owner: HACKER flags: "rxd"
+    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
+  endverb
+
+  verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
+    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
+  endverb
+
+  verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
+    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " disconnected.");
   endverb
 endobject

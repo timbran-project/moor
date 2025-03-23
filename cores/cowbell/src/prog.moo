@@ -1,6 +1,7 @@
 object PROG
   name: "Generic Programmer"
   parent: BUILDER
+  location: FIRST_ROOM
   owner: WIZ
   fertile: true
   readable: true

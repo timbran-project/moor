@@ -1,10 +1,11 @@
 object EVENT
   name: "Event Flyweight Delegate"
   parent: ROOT
+  location: FIRST_ROOM
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for events that happen in the world and which become output to send to the player. Slots must include 'action, 'actor, 'timestamp, 'dobj, 'iobj, 'this_obj. Content to display to the player is produced by iterating the contents and calling :transform_to(this, content_type) on them, appending them together, which in the end returns a string which is meant to be sent as content_type.";
+  override description = "Flyweight delegate for events that happen in the world and which become output to send to the player. Slots must include 'action, 'actor, 'timestamp, 'dobj, 'iobj, 'this_obj. Content to display to the player is produced by iterating the contents and calling :transform_for(this, content_type) on them, appending them together, which in the end returns a string which is meant to be sent as content_type.";
 
   verb "mk_*" (this none this) owner: HACKER flags: "rxd"
     "mk_<verb>(actor, ... content ... )";
@@ -20,22 +21,22 @@ object EVENT
     return add_slot(this, wut, value);
   endverb
 
-  verb transform_to (this none this) owner: HACKER flags: "rxd"
+  verb transform_for (this none this) owner: HACKER flags: "rxd"
     "Call 'render_as(content_type, this)' on all content, and append into a final string.";
-    {?content_type = "text/plain"} = args;
+    {render_for, ?content_type = "text/plain"} = args;
     if (!this:validate())
       raise(E_INVARG);
     endif
     results = {};
     for entry in (this)
       if (typeof(entry) == flyweight)
-        entry = entry:render_as(content_type, this);
+        entry = entry:render_as(render_for, content_type, this);
       endif
       if (typeof(entry) == str)
         results = entry:append_to_paragraph(@results);
       elseif (typeof(entry) == list)
         for index in [1..length(entry)]
-          results = {@entry[index]:append_to_paragraph(@results)};
+          results = {@(entry[index]):append_to_paragraph(@results)};
           if (index != length(entry))
             results = {@results, ""};
           endif

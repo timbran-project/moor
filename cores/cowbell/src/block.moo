@@ -1,6 +1,7 @@
 object BLOCK
   name: "Multiline Block Content Flyweight Delegate"
   parent: ROOT
+  location: FIRST_ROOM
   owner: HACKER
   readable: true
 
@@ -25,9 +26,8 @@ object BLOCK
   endverb
 
   verb test_multiline_render (this none this) owner: HACKER flags: "rxd"
-    let lines = this:mk("a", "b", "c");
-    let result = lines:render_as("text/plain", true);
+    lines = this:mk("a", "b", "c");
+    result = lines:render_as("text/plain", true);
     length(result) != 3 && raise(E_ASSERT, "content wrong length: " + toliteral(result));
   endverb
-
 endobject
