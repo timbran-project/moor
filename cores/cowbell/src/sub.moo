@@ -1,5 +1,5 @@
 object SUB
-  name: "Event Flyweight Delegate"
+  name: "Substitutions Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
