@@ -47,8 +47,12 @@ object PLAYER
       events = {events};
     endif
     for event in (events)
-      !event:validate() && raise(E_INVARG);
-      content = event:transform_for(this, content_type);
+      if (typeof(event) == STR)
+         content = event;
+      else
+         !event:validate() && raise(E_INVARG);
+         content = event:transform_for(this, content_type);
+      endif
       if (typeof(content) == list)
         { notify(this, line, content_type) for line in (content) };
       else
