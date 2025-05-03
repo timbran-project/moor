@@ -46,21 +46,6 @@ object ROOT
     return verbs;
   endverb
 
-  verb ancestors (this none this) owner: HACKER flags: "rxd"
-    "Usage:  ancestors([]object...])";
-    "Return a list of all ancestors of this object(s), plus (optionally) the objects in in args, with no duplicates.";
-    "If called with a single object, the result will be in order ascending up the inheritance hierarchy.  If called with multiple objects, it probably won't.";
-    ret = {};
-    search_set = {this, @args};
-    for o in (search_set)
-      what = o;
-    while (valid(what = parent(what)))
-        ret = setadd(ret, what);
-      endwhile
-    endfor
-    return ret;
-  endverb
-
   verb branches (this none this) owner: #35 flags: "rxd"
     ":branches(object) => list of all descendants of this object which have children.";
     if (kids = children(object = this))
@@ -79,32 +64,9 @@ object ROOT
     return this.contents;
   endverb
 
-  verb "descendants descendents" (this none this) owner: #184 flags: "rxd"
-    what = this;
-    kids = children(what);
-    result = {};
-    for x in (kids)
-      result = {@result, @x:descendants()};
-    endfor
-    return {@kids, @result};
-  endverb
-
   verb description (this none this) owner: HACKER flags: "rxd"
     "Returns the external description of the object.";
     return this.description;
-  endverb
-
-  verb isa (this none this) owner: HACKER flags: "rxd"
-    {who} = args;
-    what = this;
-    try
-    while (what != who)
-        what = parent(what);
-      endwhile
-      return who != #-1;
-    except (E_INVARG)
-      return false;
-    endtry
   endverb
 
   verb look_self (this none this) owner: HACKER flags: "rxd"
@@ -119,12 +81,6 @@ object ROOT
   verb test_all_verbs (this none this) owner: HACKER flags: "rx"
     all_verbs = this:all_verbs();
     !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_ASSERT;
-    return true;
-  endverb
-
-  verb test_isa (this none this) owner: HACKER flags: "rxd"
-    !this:isa($root) && raise(E_ASSERT, "Should isa self");
-    !$room:isa($root) && raise(E_ASSERT, "$room should isa $root");
     return true;
   endverb
 endobject

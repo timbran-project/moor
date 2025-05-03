@@ -9,7 +9,3 @@ $scratch
 ; return $scratch.owner;
 $arch_wizard
 
-// test
-; return ($wiz in $root:descendants()) > 0;
-true
-

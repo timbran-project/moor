@@ -122,7 +122,7 @@ object LOGIN
     caller != #0 && caller != this && return E_PERM;
     !args && return {this.blank_command, @args};
     if ((verb = args[1]) && !verb:is_numeric())
-      for i in ({this, @this:ancestors()})
+      for i in ({this, @ancestors(this)})
         try
           if (verb_args(i, verb) == {"any", "none", "any"} && index(verb_info(i, verb)[2], "x"))
             return args;
