@@ -29,12 +29,12 @@ object EVENT
     endif
     results = {};
     for entry in (this)
-      if (typeof(entry) == flyweight)
+      if (typeof(entry) == FLYWEIGHT)
         entry = entry:render_as(render_for, content_type, this);
       endif
-      if (typeof(entry) == str)
+      if (typeof(entry) == STR)
         results = entry:append_to_paragraph(@results);
-      elseif (typeof(entry) == list)
+      elseif (typeof(entry) == LIST)
         for index in [1..length(entry)]
           results = {@(entry[index]):append_to_paragraph(@results)};
           if (index != length(entry))
@@ -50,7 +50,7 @@ object EVENT
 
   verb validate (this none this) owner: HACKER flags: "rxd"
     "Validate that the event has all the correct fields. Return false if not.";
-    if (typeof(this) != flyweight)
+    if (typeof(this) != FLYWEIGHT)
       return false;
     endif
     try

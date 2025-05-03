@@ -42,7 +42,7 @@ object LOOK
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"
-    if (typeof(this) != flyweight)
+    if (typeof(this) != FLYWEIGHT)
       return false;
     endif
     try
@@ -58,10 +58,10 @@ object LOOK
     !look:validate() && raise(E_ASSERT, "Invalid $look: " + toliteral(look));
     event = look:into_event();
     !event:validate() && raise(E_ASSERT, "Invalid event");
-    !(typeof(event) == flyweight) && raise(E_ASSERT, "look event should be a flyweight");
+    !(typeof(event) == FLYWEIGHT) && raise(E_ASSERT, "look event should be a flyweight");
     event.dobj != $first_room && raise(E_ASSERT, "look event dobj is wrong");
     content = event:transform_for(player);
-    typeof(content) != list && raise(E_ASSERT, "Produced content is invalid: " + toliteral(content));
+    typeof(content) != LIST && raise(E_ASSERT, "Produced content is invalid: " + toliteral(content));
     length(content) != 3 && raise(E_ASSERT, "Produced content is wrong length: " + toliteral(content) + " from " + toliteral(event));
   endverb
 endobject

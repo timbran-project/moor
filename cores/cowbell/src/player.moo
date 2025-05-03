@@ -43,17 +43,17 @@ object PLAYER
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(this);
     {events, ?content_type = "text/plain"} = args;
-    if (typeof(events) != list)
+    if (typeof(events) != LIST)
       events = {events};
     endif
     for event in (events)
       if (typeof(event) == STR)
-         content = event;
+        content = event;
       else
-         !event:validate() && raise(E_INVARG);
-         content = event:transform_for(this, content_type);
+        !event:validate() && raise(E_INVARG);
+        content = event:transform_for(this, content_type);
       endif
-      if (typeof(content) == list)
+      if (typeof(content) == LIST)
         { notify(this, line, content_type) for line in (content) };
       else
         notify(this, content, content_type);

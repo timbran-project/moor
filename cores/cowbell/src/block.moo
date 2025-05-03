@@ -14,9 +14,9 @@ object BLOCK
     result = {};
     for line_no in [1..length(this)]
       content = this[line_no];
-      if (typeof(content) == str)
+      if (typeof(content) == STR)
         result = {@result, content};
-      elseif (typeof(content) == flyweight)
+      elseif (typeof(content) == FLYWEIGHT)
         result = {@result, content:render_as(@args)};
       else
         raise(E_TYPE);

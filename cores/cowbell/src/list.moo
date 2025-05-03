@@ -24,7 +24,7 @@ object LIST
     for t in (lst)
       if (t[indx] == target)
         "... do this test first since it's the most likely to fail; this needs -d";
-        if (typeof(t) == list && length(t) >= indx)
+        if (typeof(t) == LIST && length(t) >= indx)
           return t;
         endif
       endif
@@ -36,7 +36,7 @@ object LIST
     "assoc_prefix(list, target[,index]) returns the first element of `list' whose own index-th element has target as a prefix.  Index defaults to 1.";
     {lst, target, ?indx = 1} = args;
     for t in (lst)
-      if (typeof(t) == list && (length(t) >= indx && index(t[indx], target) == 1))
+      if (typeof(t) == LIST && (length(t) >= indx && index(t[indx], target) == 1))
         return t;
       endif
     endfor
@@ -48,7 +48,7 @@ object LIST
     "Make sure all elements of <list> are of a given <type>.";
     "<type> can be either one of LIST, STR, OBJ, NUM, ERR, or a list of same.";
     "return true if all elements check, otherwise 0.";
-    typelist = typeof(args[2]) == list ? args[2] | {args[2]};
+    typelist = typeof(args[2]) == LIST ? args[2] | {args[2]};
     for element in (args[1])
       if (!(typeof(element) in typelist))
         return false;

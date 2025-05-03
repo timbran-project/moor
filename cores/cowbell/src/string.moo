@@ -80,7 +80,7 @@ object STRING
           break properties;
         endif
       endwhile
-      if (typeof(object) == obj)
+      if (typeof(object) == OBJ)
         return object;
       else
         return $failed_match;
@@ -99,7 +99,7 @@ object STRING
     "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
     "len has an upper limit of 100,000.";
     {n, ?fill = " "} = args;
-    if (typeof(n) == str)
+    if (typeof(n) == STR)
       n = length(n);
     endif
     if ((n = abs(n)) > 100000)
@@ -284,7 +284,7 @@ object STRING
     !(object && verbname) && return false;
     if (object[1] == "$" && 0)
       pname = object[2..length(object)];
-      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != obj)
+      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != OBJ)
         return false;
       endif
       object = tostr(object);
