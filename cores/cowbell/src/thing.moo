@@ -9,14 +9,14 @@ object THING
   verb get (this none none) owner: HACKER flags: "rxd"
     accept_to = player:acceptable(this);
     if (!accept_to)
-      let event = $event:mk_no_accept(player, $sub:nc(), " can't put ", $sub:d(), " in ", $sub:ic(), "."):with_dobj(this):with_iobj(player);
+      event = $event:mk_no_accept(player, $sub:nc(), " can't put ", $sub:d(), " in ", $sub:ic(), "."):with_dobj(this):with_iobj(player);
       player:tell(event);
       return;
     endif
     old_location = this.location;
     this:moveto(player);
     if (old_location:isa($room))
-      let event = $event:mk_moved(player, $sub:nc(), " picked up ", $sub:d(), "."):with_dobj(this):with_iobj(player);
+      event = $event:mk_moved(player, $sub:nc(), " picked up ", $sub:d(), "."):with_dobj(this):with_iobj(player);
       old_location:announce(event);
     endif
   endverb

@@ -19,7 +19,7 @@ object PLAYER
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
     "If we don't have a match, that's a 'I don't see that there...'";
     if (dobjstr == "")
-      dobj = player.location;
+      global dobj = player.location;
     endif
     !valid(dobj) && return this:tell(this:msg_no_dobj_match());
     look_d = dobj:look_self();
@@ -50,7 +50,6 @@ object PLAYER
       if (typeof(event) == STR)
         content = event;
       else
-        !event:validate() && raise(E_INVARG);
         content = event:transform_for(this, content_type);
       endif
       if (typeof(content) == LIST)

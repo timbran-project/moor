@@ -80,7 +80,7 @@ object ROOT
 
   verb test_all_verbs (this none this) owner: HACKER flags: "rx"
     all_verbs = this:all_verbs();
-    !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_ASSERT;
+    !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return e_assert;
     return true;
   endverb
 endobject

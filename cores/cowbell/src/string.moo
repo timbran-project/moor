@@ -268,11 +268,11 @@ object STRING
   endverb
 
   verb test_append_to_paragraph (this none this) owner: HACKER flags: "rxd"
-    "":append_to_paragraph() != {""} && raise(E_ASSERT, "Failed empty append");
-    "dog":append_to_paragraph("") != {"dog"} && raise(E_ASSERT, "Failed empty append");
-    (a = "dog":append_to_paragraph("cats and ")) != {"cats and dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
-    (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
-    (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
+    "":append_to_paragraph() != {""} && raise(e_assert, "Failed empty append");
+    "dog":append_to_paragraph("") != {"dog"} && raise(e_assert, "Failed empty append");
+    (a = "dog":append_to_paragraph("cats and ")) != {"cats and dog"} && raise(e_assert, "Failed single line append; got " + toliteral(a));
+    (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(e_assert, "Failed single line append; got " + toliteral(a));
+    (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(e_assert, "Failed single line append; got " + toliteral(a));
   endverb
 
   verb parse_verbref (this none this) owner: HACKER flags: "rxd"
@@ -295,23 +295,23 @@ object STRING
   verb test_parse_verbref (this none this) owner: HACKER flags: "rxd"
     begin
       let {result, should} = {"#1":parse_verbref(), false};
-      result != should && raise(E_ASSERT, "#1 should be " + toliteral(should) + " was: " + toliteral(result));
+      result != should && raise(e_assert, "#1 should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
       let {result, should} = {":":parse_verbref(), false};
-      result != should && raise(E_ASSERT, ": should be " + toliteral(should) + " was: " + toliteral(result));
+      result != should && raise(e_assert, ": should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
       let {result, should} = {"$string:look_self":parse_verbref(), {"$string", 'look_self}};
-      result != should && raise(E_ASSERT, "$string:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+      result != should && raise(e_assert, "$string:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
       let {result, should} = {"#1:look_self":parse_verbref(), {"#1", 'look_self}};
-      result != should && raise(E_ASSERT, "#1:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+      result != should && raise(e_assert, "#1:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
       let {result, should} = {"honk:look_self":parse_verbref(), {"honk", 'look_self}};
-      result != should && raise(E_ASSERT, "honk:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+      result != should && raise(e_assert, "honk:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
   endverb
 endobject

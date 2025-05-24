@@ -14,11 +14,21 @@ services:
     volumes:
       - ./:/db
     command: >
-      sh -c "./moor-daemon /db/cowbell.db --rpc-listen=tcp://0.0.0.0:7899 --events-listen=tcp://0.0.0.0:7898 --import-dirdump-format --export-dirdump-format --textdump=/db/src --use-symbols-in-builtins true --use-boolean-returns true --custom-errors true --textdump-out=/db/objdump-out --checkpoint-interval-seconds=360"
+      ./moor-daemon /db/cowbell.db
+        --rpc-listen=tcp://0.0.0.0:7899 
+        --events-listen=tcp://0.0.0.0:7898 
+        --workers-response-listen=tcp://0.0.0.0:7897 
+        --workers-request-listen=tcp://0.0.0.0:7896 
+        --import=/db/src --import-format=objdef
+        --export=/db/objdump-out --export-format objdef 
+        --checkpoint-interval-seconds=360
+        --custom-errors true
     ports:
       # ZMQ ports
-      - "7899:7899"
-      - "7898:7898"
+      - "7899:7899" # RPC listener
+      - "7898:7898" # Events listener
+      - "7897:7897" # Workers response listener
+      - "7896:7896" # Workers request listener      # ZMQ ports
     networks:
       - moor_net
   moor-telnet-host:
@@ -31,7 +41,10 @@ services:
       - RUST_BACKTRACE=1
     working_dir: /moor
     command: >
-      sh -c "./moor-telnet-host --telnet-address=0.0.0.0 --telnet-port=8888 --rpc-address=tcp://moor-daemon:7899 --events-address=tcp://moor-daemon:7898"
+      ./moor-telnet-host --telnet-address=0.0.0.0 
+        --telnet-port=8888 
+        --rpc-address=tcp://moor-daemon:7899 
+        --events-address=tcp://moor-daemon:7898
     ports:
       # Telnet listener
       - "8888:8888"
@@ -47,7 +60,11 @@ services:
       - RUST_BACKTRACE=1
     working_dir: /moor
     command: >
-      sh -c "./moor-web-host --listen-address=0.0.0.0:8080 --rpc-address=tcp://moor-daemon:7899 --events-address=tcp://moor-daemon:7898 --client-sources=./client"
+      ./moor-web-host 
+        --listen-address=0.0.0.0:8080 
+        --rpc-address=tcp://moor-daemon:7899 
+        --events-address=tcp://moor-daemon:7898 
+        --client-sources=./client
     ports:
       # HTTP listener
       - "8080:8080"
