@@ -12,7 +12,7 @@ object SYSOBJ
   property failed_match (owner: HACKER, flags: "r") = FAILED_MATCH;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property hacker (owner: HACKER, flags: "r") = HACKER;
-  property list (owner: HACKER, flags: "r") = LIST;
+  property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
   property nothing (owner: HACKER, flags: "r") = NOTHING;
@@ -21,7 +21,7 @@ object SYSOBJ
   property prog (owner: HACKER, flags: "r") = PROG;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;
-  property string (owner: HACKER, flags: "r") = STRING;
+  property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;

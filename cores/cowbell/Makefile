@@ -1,22 +1,32 @@
+# MOORC binary selection via environment variable MOORC_TYPE
+# Options: cargo (default), direct, docker
+MOORC_TYPE ?= cargo
+
+ifeq ($(MOORC_TYPE),cargo)
+SRC_DIRECTORY = src
+TEST_DIRECTORY = tests
+OUTPUT_DIRECTORY = .
+MOORC = cargo run -p moorc -- \
+	--use-boolean-returns true \
+	--use-symbols-in-builtins true \
+	--custom-errors true
+else ifeq ($(MOORC_TYPE),direct)
+SRC_DIRECTORY = src
+TEST_DIRECTORY = tests
+OUTPUT_DIRECTORY = .
+MOORC = ../moor/target/debug/moorc \
+	--use-boolean-returns true \
+	--use-symbols-in-builtins true \
+	--custom-errors true
+else ifeq ($(MOORC_TYPE),docker)
 SRC_DIRECTORY = /work/src
 TEST_DIRECTORY = /work/tests
 OUTPUT_DIRECTORY = /work
-#
-## Runs moorc from the latest docker release, mapping local working directory
 MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc \
 	--use-boolean-returns true \
 	--use-symbols-in-builtins true \
 	--custom-errors true
-
-
-#MOORC = ../moor/target/release/moorc \
-#	--use-boolean-returns true \
-#	--use-symbols-in-builtins true \
-#	--custom-errors true
-
-# SRC_DIRECTORY = src
-# TEST_DIRECTORY = tests
-# OUTPUT_DIRECTORY = .
+endif
 
 # Target to generate an old-style MOO textdump from the compilation of the
 # objdef style sources in the local directory. This is the default target,
