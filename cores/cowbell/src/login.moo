@@ -9,7 +9,13 @@ object LOGIN
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
-  property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {"## Welcome to the _mooR_ *Cowbell* core.", "", "connect with `archwizard` `test` to log in.", "", "You will probably want to change this text which is stored in $login.welcome_message property."};
+  property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
+    "## Welcome to the _mooR_ *Cowbell* core.",
+    "",
+    "connect with `archwizard` `test` to log in.",
+    "",
+    "You will probably want to change this text which is stored in $login.welcome_message property."
+  };
 
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Present the welcome message property to the user.";

@@ -41,23 +41,52 @@ object PLAYER
   endverb
 
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Send an event through the player's connections. Each connection has a set of preferred content-types.";
+    "The player is the owner of this verb, so we can use 'this' to refer to the player.";
+    "This runs as wizard perms, but _notify_render runs as the player's perms.";
+    "TODO: differentiate events which should only go to a *certain* connection, e.g. look, etc vs events which should go to all connections like say, emote, etc.";
+    let connections = connections(this);
+    {events, @rest} = args;
+    let contents = this:_notify_render(connections, events);
+    for content in (contents)
+      let {connection_obj, content_type, output} = content;
+      "Send the output to the connection.";
+      notify(connection_obj, output, content_type);
+    endfor
+  endverb
+
+  verb _notify_render (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(this);
-    {events, ?content_type = "text/plain"} = args;
-    if (typeof(events) != LIST)
-      events = {events};
-    endif
-    for event in (events)
-      if (typeof(event) == STR)
-        content = event;
-      else
-        content = event:transform_for(this, content_type);
+    "Render the events for the player, using the connections and their content-types.";
+    "Returns a list of { { connection_obj, content_type, { content-as-list } ... }";
+    {connections, events} = args;
+    "Connections is of form { {connection_obj, peer_addr, idle_seconds, { content_types ... }, ... }";
+    let results = {};
+    for connection in (connections)
+      let {connection_obj, peer_addr, idle_seconds, content_types} = connection;
+      "For now we'll just pick the first content-type...";
+      {?content_type = "text/plain", @others} = content_types;
+      if (typeof(events) != LIST)
+        events = {events};
       endif
-      if (typeof(content) == LIST)
-        { notify(this, line, content_type) for line in (content) };
-      else
-        notify(this, content, content_type);
+      let output = {};
+      for event in (events)
+        if (typeof(event) == STR)
+          content = event;
+        else
+          content = event:transform_for(this, content_type);
+        endif
+        if (typeof(content) == LIST)
+          let output = {@output, @content};
+        else
+          let output = {@output, content};
+        endif
+      endfor
+      if (length(output) > 0)
+        let results = {@results, {connection_obj, content_type, output}};
       endif
     endfor
+    return results;
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"

@@ -55,13 +55,13 @@ object LOOK
 
   verb test_into_event (this none this) owner: HACKER flags: "rxd"
     look = this:mk($first_room, $thing);
-    !look:validate() && raise(e_assert, "Invalid $look: " + toliteral(look));
+    !look:validate() && raise(E_ASSERT, "Invalid $look: " + toliteral(look));
     event = look:into_event();
-    !event:validate() && raise(e_assert, "Invalid event");
-    !(typeof(event) == FLYWEIGHT) && raise(e_assert, "look event should be a flyweight");
-    event.dobj != $first_room && raise(e_assert, "look event dobj is wrong");
+    !event:validate() && raise(E_ASSERT, "Invalid event");
+    !(typeof(event) == FLYWEIGHT) && raise(E_ASSERT, "look event should be a flyweight");
+    event.dobj != $first_room && raise(E_ASSERT, "look event dobj is wrong");
     content = event:transform_for(player);
-    typeof(content) != LIST && raise(e_assert, "Produced content is invalid: " + toliteral(content));
-    length(content) != 3 && raise(e_assert, "Produced content is wrong length: " + toliteral(content) + " from " + toliteral(event));
+    typeof(content) != LIST && raise(E_ASSERT, "Produced content is invalid: " + toliteral(content));
+    length(content) != 3 && raise(E_ASSERT, "Produced content is wrong length: " + toliteral(content) + " from " + toliteral(event));
   endverb
 endobject

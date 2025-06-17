@@ -28,6 +28,6 @@ object BLOCK
   verb test_multiline_render (this none this) owner: HACKER flags: "rxd"
     lines = this:mk("a", "b", "c");
     result = lines:render_as("text/plain", true);
-    length(result) != 3 && raise(e_assert, "content wrong length: " + toliteral(result));
+    length(result) != 3 && raise(E_ASSERT, "content wrong length: " + toliteral(result));
   endverb
 endobject
