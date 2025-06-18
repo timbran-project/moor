@@ -108,6 +108,22 @@ object TEXT_HTML
     return processed;
   endverb
 
+  verb test_text_html_basic (this none this) owner: HACKER flags: "rxd"
+    "Test basic TEXT_HTML functionality";
+    p_elem = $text_html:mk_element("p", {}, "Hello World");
+    typeof(p_elem) != FLYWEIGHT && raise(E_ASSERT, "mk_element should return flyweight");
+    "Test rendering single element";
+    rendered = p_elem:render();
+    typeof(rendered) != LIST && raise(E_ASSERT, "Rendered should be list");
+    length(rendered) == 1 || raise(E_ASSERT, "Should be single HTML string");
+    "<p>Hello World</p>" in rendered[1] || raise(E_ASSERT, "Should contain p element");
+    "Test element with attributes";
+    div_elem = $text_html:mk_element("div", {"class", "test", "id", "main"}, "Content");
+    div_rendered = div_elem:render();
+    "class=\"test\"" in div_rendered[1] || raise(E_ASSERT, "Should contain class attribute: " + toliteral(div_rendered[1]));
+    "id=\"main\"" in div_rendered[1] || raise(E_ASSERT, "Should contain id attribute");
+  endverb
+
   verb test_html_content (this none this) owner: HACKER flags: "rxd"
     "Test basic element creation";
     p_elem = this:mk_element("p", {}, "Hello World");
@@ -127,5 +143,78 @@ object TEXT_HTML
     "Test that it contains expected HTML";
     html_string = rendered[1];
     "<p>Hello World</p>" in html_string || raise(E_ASSERT, "Should contain p element: " + toliteral(html_string));
+  endverb
+
+  verb test_xml_structure_validation (this none this) owner: HACKER flags: "rxd"
+    "Test that generated HTML is valid XML";
+    title = $title:mk("Test Title");
+    block = $block:mk("Test content");
+    title_html = title:compose(player, 'text_html, $nothing);
+    block_html = block:compose(player, 'text_html, $nothing);
+    combined = $text_html:mk():append_element(title_html):append_element(block_html);
+    rendered = combined:render();
+    "Try to parse the generated HTML as XML";
+    try
+      wrapped = "<root>" + rendered[1] + "</root>";
+      parsed = xml_parse(wrapped);
+      typeof(parsed) == LIST || raise(E_ASSERT, "Should parse as valid XML");
+      length(parsed) >= 1 || raise(E_ASSERT, "Should have root element");
+    except (ANY)
+      raise(E_ASSERT, "Generated HTML should be valid XML: " + toliteral(rendered[1]));
+    endtry
+  endverb
+
+  verb test_nested_flyweights (this none this) owner: HACKER flags: "rxd"
+    "Test composition with nested flyweight content";
+    title = $title:mk("Page Title");
+    block = $block:mk("First line", "Second line");
+    "Test combining title and block in HTML";
+    html_content = $text_html:mk();
+    title_html = title:compose(player, 'text_html, $nothing);
+    block_html = block:compose(player, 'text_html, $nothing);
+    combined = html_content:append_element(title_html):append_element(block_html);
+    rendered = combined:render();
+    typeof(rendered) == LIST && length(rendered) == 1 || raise(E_ASSERT, "Should be single HTML string");
+    html_string = rendered[1];
+    "<em>Page Title</em>" in html_string || raise(E_ASSERT, "Should contain title em tag");
+    "<p>First line</p>" in html_string || raise(E_ASSERT, "Should contain first paragraph");
+    "<p>Second line</p>" in html_string || raise(E_ASSERT, "Should contain second paragraph");
+  endverb
+
+  verb test_block_composition (this none this) owner: HACKER flags: "rxd"
+    "Test BLOCK composition with different content types";
+    block = $block:mk("Line 1", "Line 2", "Line 3");
+    "Test text_plain composition";
+    plain_content = block:compose(player, 'text_plain, $nothing);
+    typeof(plain_content) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    length(plain_content) == 3 || raise(E_ASSERT, "Should have 3 lines");
+    "Test HTML composition";
+    html_content = block:compose(player, 'text_html, $nothing);
+    typeof(html_content) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    html_rendered = html_content:render();
+    typeof(html_rendered) == LIST && length(html_rendered) == 1 || raise(E_ASSERT, "Should be single HTML string");
+    "Verify all lines are in separate p tags";
+    html_string = html_rendered[1];
+    "<p>Line 1</p>" in html_string || raise(E_ASSERT, "Should contain Line 1 in p tag");
+    "<p>Line 2</p>" in html_string || raise(E_ASSERT, "Should contain Line 2 in p tag");
+    "<p>Line 3</p>" in html_string || raise(E_ASSERT, "Should contain Line 3 in p tag");
+    "Test markdown composition";
+    md_content = block:compose(player, 'text_markdown, $nothing);
+    typeof(md_content) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    md_rendered = md_content:render();
+    typeof(md_rendered) == LIST || raise(E_ASSERT, "Should be list");
+  endverb
+
+  verb test_content_composition (this none this) owner: HACKER flags: "rxd"
+    "Test combining different content elements";
+    html_content = $text_html:mk();
+    p1 = {"p", {}, "First paragraph"};
+    p2 = {"p", {}, "Second paragraph"};
+    combined = html_content:append_element(p1):append_element(p2);
+    length(combined) == 2 || raise(E_ASSERT, "Should have 2 elements");
+    rendered = combined:render();
+    typeof(rendered) == LIST && length(rendered) == 1 || raise(E_ASSERT, "Should be single HTML string");
+    "<p>First paragraph</p>" in rendered[1] || raise(E_ASSERT, "Should contain first paragraph");
+    "<p>Second paragraph</p>" in rendered[1] || raise(E_ASSERT, "Should contain second paragraph");
   endverb
 endobject

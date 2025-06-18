@@ -30,7 +30,6 @@ object SYSOBJ
   property text_plain (owner: HACKER, flags: "r") = TEXT_PLAIN;
   property text_html (owner: HACKER, flags: "r") = TEXT_HTML;
   property text_markdown (owner: HACKER, flags: "r") = TEXT_MARKDOWN;
-  property content_tests (owner: HACKER, flags: "r") = CONTENT_TESTS;
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "...This code should only be run as a server task...";

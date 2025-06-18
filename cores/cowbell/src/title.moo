@@ -6,8 +6,7 @@ object TITLE
   readable: true
 
   verb mk (this none this) owner: HACKER flags: "rxd"
-    length(args) == 0 && raise(E_INVARG, "Title cannot be empty");
-    length(args) != 1 && raise(E_INVARG, "Title can only have one argument");
+    length(args) != 1 && raise(E_INVARG, "Title must have one argument");
     return <this, {@args}>;
   endverb
 
@@ -71,5 +70,51 @@ object TITLE
     "Test HTML composition";
     html_result = title:compose(player, 'text_html, mock_event);
     typeof(html_result) != FLYWEIGHT && raise(E_ASSERT, "HTML result should be flyweight: " + toliteral(html_result));
+  endverb
+
+  verb test_error_handling (this none this) owner: HACKER flags: "rxd"
+    "Test empty title rejection";
+    try
+      $title:mk();
+      raise(E_ASSERT, "Should reject empty titles");
+    except (E_INVARG)
+      "Expected error";
+    endtry
+
+    "Test invalid title args";
+    try
+      $title:mk("a", "b");
+      raise(E_ASSERT, "Should reject multiple title args");
+    except (E_INVARG)
+      "Expected error";
+    endtry
+    "Test invalid HTML element";
+    try
+      $text_html:mk_element(123, {}, "content");
+      raise(E_ASSERT, "Should reject non-string tag names");
+    except (E_TYPE)
+      "Expected error";
+    endtry
+  endverb
+
+  verb test_title_composition (this none this) owner: HACKER flags: "rxd"
+    "Test TITLE composition with different content types";
+    title = $title:mk("Important Title");
+    "Test text_plain composition";
+    plain_content = title:compose(player, 'text_plain, $nothing);
+    typeof(plain_content) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    plain_rendered = plain_content:render();
+    "Important Title" in plain_rendered[1] || raise(E_ASSERT, "Should contain title text");
+    "Test HTML composition";
+    html_content = title:compose(player, 'text_html, $nothing);
+    typeof(html_content) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    html_rendered = html_content:render();
+    typeof(html_rendered) == LIST && length(html_rendered) == 1 || raise(E_ASSERT, "Should be single HTML string");
+    "<em>Important Title</em>" in html_rendered[1] || raise(E_ASSERT, "Should contain em tag");
+    "Test markdown composition";
+    md_content = title:compose(player, 'text_markdown, $nothing);
+    typeof(md_content) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    md_rendered = md_content:render();
+    "*Important Title*" in md_rendered[1] || raise(E_ASSERT, "Should contain markdown emphasis");
   endverb
 endobject

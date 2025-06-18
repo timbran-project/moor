@@ -9,6 +9,16 @@ object BLOCK
     return <this, {@args}>;
   endverb
 
+  verb append_to_flyweight (this none this) owner: HACKER flags: "rxd"
+    "Append this block to a content flyweight while preserving block structure";
+    {target_flyweight} = args;
+
+    "Just append our content to the target flyweight";
+    typeof(target_flyweight) != FLYWEIGHT && raise(E_TYPE, "Target must be a flyweight");
+    target_flyweight = target_flyweight:append_element(this);
+    return target_flyweight;
+  endverb
+
   verb compose (this none this) owner: HACKER flags: "rxd"
     {render_for, content_type, event} = args;
     result = {};

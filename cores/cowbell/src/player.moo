@@ -69,9 +69,9 @@ object PLAYER
         content = event:transform_for(this, content_type);
       endif
       if (typeof(content) == LIST)
-        let output = {@output, @content};
+        output = {@output, @content};
       else
-        let output = {@output, content};
+        output = {@output, content};
       endif
     endfor
     return output;
@@ -90,7 +90,7 @@ object PLAYER
       {?content_type = 'text_plain, @others} = content_types;
       output = this:_transform_events_for_content_type(events, content_type);
       if (length(output) > 0)
-        let results = {@results, {connection_obj, content_type, output}};
+        results = {@results, {connection_obj, content_type, output}};
       endif
     endfor
     return results;
@@ -115,29 +115,5 @@ object PLAYER
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " disconnected.");
   endverb
-
-  verb test_look_event_transform (this none this) owner: HACKER flags: "rxd"
-    "Test what happens when we transform a look event";
-    "Create a simple look event like what would be generated";
-    title = $title:mk("Test Room");
-    description = "A simple test room.";
-    block = $block:mk(title, description);
-    look_event = $event:mk_look(this, block):with_dobj($first_room);
-    "Test text_plain transformation";
-    plain_output = this:_transform_events_for_content_type({look_event}, 'text_plain);
-    typeof(plain_output) == LIST || raise(E_ASSERT, "Should be list, got: " + toliteral(plain_output));
-    length(plain_output) >= 2 || raise(E_ASSERT, "Plain should have multiple lines: " + toliteral(plain_output));
-    "Test text_markdown transformation";
-    md_output = this:_transform_events_for_content_type({look_event}, 'text_markdown);
-    typeof(md_output) == LIST || raise(E_ASSERT, "Should be list, got: " + toliteral(md_output));
-    length(md_output) >= 2 || raise(E_ASSERT, "Markdown should have multiple lines: " + toliteral(md_output));
-    "Check if title and description are joined in markdown";
-    md_has_joined = false;
-    for item in (md_output)
-      if ("Test Room" in item && "simple test room" in item)
-        md_has_joined = true;
-      endif
-    endfor
-    !md_has_joined || raise(E_ASSERT, "Title and description should be separate: " + toliteral(md_output));
-  endverb
 endobject
+

@@ -27,25 +27,44 @@ object EVENT
     if (!this:validate())
       raise(E_INVARG);
     endif
+
     "Get the appropriate content flyweight delegate";
     if (content_type == 'text_plain)
       content_flyweight = $text_plain:mk();
     elseif (content_type == 'text_html)
       content_flyweight = $text_html:mk();
     elseif (content_type == 'text_markdown || content_type == 'text_djot)
-      content_flyweight = $text_markdown:mk();
+      "Look events get block formatting, everything else gets regular formatting";
+      if (this.verb == "look")
+        content_flyweight = $text_markdown:mk_block();
+      else
+        content_flyweight = $text_markdown:mk();
+      endif
     else
       content_flyweight = $text_plain:mk();
     endif
+
     "Compose all entries and add to content flyweight";
     for entry in (this)
       if (typeof(entry) == FLYWEIGHT)
         composed_entry = entry:compose(render_for, content_type, this);
         if (typeof(composed_entry) == FLYWEIGHT)
-          "Extract elements from the composed flyweight and add them";
-          for element in (composed_entry)
-            content_flyweight = content_flyweight:append_element(element);
-          endfor
+          "Let the flyweight decide how to append itself to the content";
+          try
+            if (respond_to(composed_entry, "append_to_flyweight"))
+              content_flyweight = composed_entry:append_to_content(content_flyweight);
+            else
+              "Fallback to old behavior of extracting elements";
+              for element in (composed_entry)
+                content_flyweight = content_flyweight:append_element(element);
+              endfor
+            endif
+          except (E_TYPE, E_ARGS)
+            "In case respond_to fails, fallback to extracting elements";
+            for element in (composed_entry)
+              content_flyweight = content_flyweight:append_element(element);
+            endfor
+          endtry
         else
           "Composed entry is not a flyweight (e.g., SUB returns string), add directly";
           content_flyweight = content_flyweight:append_element(composed_entry);
@@ -56,6 +75,7 @@ object EVENT
         raise(E_TYPE, "Invalid type in event content", entry);
       endif
     endfor
+
     "Render the final content";
     return content_flyweight:render();
   endverb
@@ -73,3 +93,4 @@ object EVENT
     endtry
   endverb
 endobject
+

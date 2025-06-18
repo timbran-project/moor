@@ -48,17 +48,17 @@ object TEXT_PLAIN
     return result;
   endverb
 
-  verb test_text_plain (this none this) owner: HACKER flags: "rxd"
-    content = this:mk("Hello", "World");
+  verb test_text_content (this none this) owner: HACKER flags: "rxd"
+    content = this:mk("Root Prototype", " slams ", "Generic Room", " in ", "The First Room");
     typeof(content) != FLYWEIGHT && raise(E_ASSERT, "mk should return flyweight");
-    length(content) != 2 && raise(E_ASSERT, "Content should have 2 elements");
-    content2 = content:append_element("!");
-    length(content2) != 3 && raise(E_ASSERT, "Should have 3 elements after append");
-    rendered = content2:render();
+    rendered = content:render();
     typeof(rendered) != LIST && raise(E_ASSERT, "Rendered should be list");
-    length(rendered) != 3 && raise(E_ASSERT, "Should preserve 3 separate elements");
-    rendered[1] != "Hello" && raise(E_ASSERT, "First element wrong: " + toliteral(rendered));
-    rendered[2] != "World" && raise(E_ASSERT, "Second element wrong: " + toliteral(rendered));
-    rendered[3] != "!" && raise(E_ASSERT, "Third element wrong: " + toliteral(rendered));
+    length(rendered) != 1 && raise(E_ASSERT, "Regular content should join into a single element");
+    rendered[1] != "Root Prototype slams Generic Room in The First Room" && raise(E_ASSERT, "Content should be joined properly");
+
+    "Test block content";
+    block_content = this:mk_block("Block 1", "Block 2");
+    block_rendered = block_content:render();
+    length(block_rendered) != 2 && raise(E_ASSERT, "Block content should have separate elements");
   endverb
 endobject

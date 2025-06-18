@@ -24,4 +24,3 @@ define TITLE = #20;
 define TEXT_PLAIN = #21;
 define TEXT_HTML = #22;
 define TEXT_MARKDOWN = #23;
-define CONTENT_TESTS = #24;
