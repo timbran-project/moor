@@ -12,6 +12,12 @@ object SUB
     return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
   endverb
 
+  verb compose (this none this) owner: HACKER flags: "rxd"
+    {render_for, content_type, event} = args;
+    content = this:eval_sub(event, render_for);
+    return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
+  endverb
+
   verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
     capitalize = verb[length(verb)] == "c";
     {for_self, for_alt} = args;

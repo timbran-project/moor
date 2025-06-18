@@ -22,30 +22,42 @@ object EVENT
   endverb
 
   verb transform_for (this none this) owner: HACKER flags: "rxd"
-    "Call 'render_as(content_type, this)' on all content, and append into a final string.";
-    {render_for, ?content_type = "text/plain"} = args;
+    "Call 'compose(content_type, this)' on all content, then render to final string format.";
+    {render_for, ?content_type = 'text_plain} = args;
     if (!this:validate())
       raise(E_INVARG);
     endif
-    results = {};
+    "Get the appropriate content flyweight delegate";
+    if (content_type == 'text_plain)
+      content_flyweight = $text_plain:mk();
+    elseif (content_type == 'text_html)
+      content_flyweight = $text_html:mk();
+    elseif (content_type == 'text_markdown || content_type == 'text_djot)
+      content_flyweight = $text_markdown:mk();
+    else
+      content_flyweight = $text_plain:mk();
+    endif
+    "Compose all entries and add to content flyweight";
     for entry in (this)
       if (typeof(entry) == FLYWEIGHT)
-        entry = entry:render_as(render_for, content_type, this);
-      endif
-      if (typeof(entry) == STR)
-        results = entry:append_to_paragraph(@results);
-      elseif (typeof(entry) == LIST)
-        for index in [1..length(entry)]
-          results = {@(entry[index]):append_to_paragraph(@results)};
-          if (index != length(entry))
-            results = {@results, ""};
-          endif
-        endfor
+        composed_entry = entry:compose(render_for, content_type, this);
+        if (typeof(composed_entry) == FLYWEIGHT)
+          "Extract elements from the composed flyweight and add them";
+          for element in (composed_entry)
+            content_flyweight = content_flyweight:append_element(element);
+          endfor
+        else
+          "Composed entry is not a flyweight (e.g., SUB returns string), add directly";
+          content_flyweight = content_flyweight:append_element(composed_entry);
+        endif
+      elseif (typeof(entry) == STR)
+        content_flyweight = content_flyweight:append_element(entry);
       else
         raise(E_TYPE, "Invalid type in event content", entry);
       endif
     endfor
-    return results;
+    "Render the final content";
+    return content_flyweight:render();
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"

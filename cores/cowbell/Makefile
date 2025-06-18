@@ -1,6 +1,6 @@
 # MOORC binary selection via environment variable MOORC_TYPE
 # Options: cargo (default), direct, docker
-MOORC_TYPE ?= docker
+MOORC_TYPE ?= cargo
 
 ifeq ($(MOORC_TYPE),cargo)
 SRC_DIRECTORY = src
