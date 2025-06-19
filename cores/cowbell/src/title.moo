@@ -80,7 +80,6 @@ object TITLE
     except (E_INVARG)
       "Expected error";
     endtry
-
     "Test invalid title args";
     try
       $title:mk("a", "b");

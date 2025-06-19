@@ -27,55 +27,54 @@ object EVENT
     if (!this:validate())
       raise(E_INVARG);
     endif
-
-    "Get the appropriate content flyweight delegate";
-    if (content_type == 'text_plain)
-      content_flyweight = $text_plain:mk();
-    elseif (content_type == 'text_html)
-      content_flyweight = $text_html:mk();
-    elseif (content_type == 'text_markdown || content_type == 'text_djot)
-      "Look events get block formatting, everything else gets regular formatting";
-      if (this.verb == "look")
-        content_flyweight = $text_markdown:mk_block();
-      else
-        content_flyweight = $text_markdown:mk();
-      endif
-    else
-      content_flyweight = $text_plain:mk();
-    endif
-
-    "Compose all entries and add to content flyweight";
+    "Compose all entries first to determine content structure";
+    composed_entries = {};
+    has_block_content = false;
     for entry in (this)
       if (typeof(entry) == FLYWEIGHT)
         composed_entry = entry:compose(render_for, content_type, this);
-        if (typeof(composed_entry) == FLYWEIGHT)
-          "Let the flyweight decide how to append itself to the content";
-          try
-            if (respond_to(composed_entry, "append_to_flyweight"))
-              content_flyweight = composed_entry:append_to_content(content_flyweight);
-            else
-              "Fallback to old behavior of extracting elements";
-              for element in (composed_entry)
-                content_flyweight = content_flyweight:append_element(element);
-              endfor
-            endif
-          except (E_TYPE, E_ARGS)
-            "In case respond_to fails, fallback to extracting elements";
+        composed_entries = {@composed_entries, composed_entry};
+        if (typeof(composed_entry) == FLYWEIGHT && composed_entry.is_block)
+          has_block_content = true;
+        endif
+      else
+        composed_entries = {@composed_entries, entry};
+      endif
+    endfor
+    "Get the appropriate content flyweight delegate based on structure";
+    if (content_type == 'text_plain)
+      content_flyweight = has_block_content ? $text_pla:mk_block() | $text_plain:mk();
+    elseif (content_type == 'text_html)
+      content_flyweight = $text_html:mk();
+    elseif (content_type == 'text_markdown || content_type == 'text_djot)
+      content_flyweight = has_block_content ? $text_markdown:mk_block() | $text_markdown:mk();
+    else
+      content_flyweight = has_block_content ? $text_plain:mk_block() | $text_plain:mk();
+    endif
+    "Add all composed entries to content flyweight";
+    for composed_entry in (composed_entries)
+      if (typeof(composed_entry) == FLYWEIGHT)
+        "Let the flyweight decide how to append itself to the content";
+        try
+          if (respond_to(composed_entry, "append_to_content"))
+            content_flyweight = composed_entry:append_to_content(content_flyweight);
+          else
+            "Fallback to old behavior of extracting elements";
             for element in (composed_entry)
               content_flyweight = content_flyweight:append_element(element);
             endfor
-          endtry
-        else
-          "Composed entry is not a flyweight (e.g., SUB returns string), add directly";
-          content_flyweight = content_flyweight:append_element(composed_entry);
-        endif
-      elseif (typeof(entry) == STR)
-        content_flyweight = content_flyweight:append_element(entry);
+          endif
+        except (E_TYPE, E_ARGS)
+          "In case respond_to fails, fallback to extracting elements";
+          for element in (composed_entry)
+            content_flyweight = content_flyweight:append_element(element);
+          endfor
+        endtry
+        content_flyweight = content_flyweight:append_element(composed_entry);
       else
-        raise(E_TYPE, "Invalid type in event content", entry);
+        raise(E_TYPE, "Invalid type in event content", composed_entry);
       endif
     endfor
-
     "Render the final content";
     return content_flyweight:render();
   endverb
@@ -85,12 +84,6 @@ object EVENT
     if (typeof(this) != FLYWEIGHT)
       return false;
     endif
-    try
-      this.verb && this.actor && this.timestamp && this.this_obj && this.dobj && this.iobj;
-      return true;
-    except (E_PROPNF)
-      return false;
-    endtry
+    return true;
   endverb
 endobject
-

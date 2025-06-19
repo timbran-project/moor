@@ -57,10 +57,10 @@ object LOOK
     look = this:mk($first_room, $thing);
     !look:validate() && raise(E_ASSERT, "Invalid $look: " + toliteral(look));
     event = look:into_event();
-    !event:validate() && raise(E_ASSERT, "Invalid event");
+    event:validate() || raise(E_ASSERT, "Invalid event:" + toliteral(event));
     !(typeof(event) == FLYWEIGHT) && raise(E_ASSERT, "look event should be a flyweight");
     event.dobj != $first_room && raise(E_ASSERT, "look event dobj is wrong");
-    content = event:transform_for(player);
+    content = event:transform_for(player, 'text_markdown);
     typeof(content) != LIST && raise(E_ASSERT, "Produced content is invalid: " + toliteral(content));
     length(content) != 3 && raise(E_ASSERT, "Produced content is wrong length: " + toliteral(content) + " from " + toliteral(event));
   endverb

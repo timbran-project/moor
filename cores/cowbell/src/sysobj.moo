@@ -34,7 +34,7 @@ object SYSOBJ
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "...This code should only be run as a server task...";
     callers() && return E_PERM;
-    global args = $login:parse_command(@args);
+    args = $login:parse_command(@args);
     return $login:((args[1]))(@listdelete(args, 1));
   endverb
 

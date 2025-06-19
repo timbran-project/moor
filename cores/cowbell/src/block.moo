@@ -9,10 +9,9 @@ object BLOCK
     return <this, {@args}>;
   endverb
 
-  verb append_to_flyweight (this none this) owner: HACKER flags: "rxd"
+  verb append_to_content (this none this) owner: HACKER flags: "rxd"
     "Append this block to a content flyweight while preserving block structure";
     {target_flyweight} = args;
-
     "Just append our content to the target flyweight";
     typeof(target_flyweight) != FLYWEIGHT && raise(E_TYPE, "Target must be a flyweight");
     target_flyweight = target_flyweight:append_element(this);
@@ -34,7 +33,7 @@ object BLOCK
     endfor
     "Return appropriate content flyweight based on content type";
     if (content_type == 'text_plain)
-      return $text_plain:mk(@result);
+      return $text_plain:mk_block(@result);
     elseif (content_type == 'text_markdown || content_type == 'text_djot)
       "For markdown, pass elements but mark as block content";
       return $text_markdown:mk_block(@result);
@@ -61,7 +60,7 @@ object BLOCK
       return html_content;
     else
       "Default to text_plain";
-      return $text_plain:mk(@result);
+      return $text_plain:mk_block(@result);
     endif
   endverb
 

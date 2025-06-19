@@ -16,15 +16,14 @@ object TEXT_MARKDOWN
     return <this, [is_block -> true], {@args}>;
   endverb
 
-  verb append_to_flyweight (this none this) owner: HACKER flags: "rxd"
+  verb append_to_content (this none this) owner: HACKER flags: "rxd"
     "Append this markdown content to another flyweight while preserving block structure if needed";
     {target_flyweight} = args;
-
     if (this.is_block)
       "For block-level content, append each element separately to preserve structure";
       for item in (this)
-        if (typeof(item) == FLYWEIGHT && respond_to(item, "append_to_flyweight"))
-          target_flyweight = item:append_to_flyweight(target_flyweight);
+        if (typeof(item) == FLYWEIGHT && respond_to(item, "append_to_content"))
+          target_flyweight = item:append_to_content(target_flyweight);
         else
           target_flyweight = target_flyweight:append_element(item);
         endif
@@ -33,7 +32,6 @@ object TEXT_MARKDOWN
       "For inline content, append all elements as a single unit";
       target_flyweight = target_flyweight:append_element(this);
     endif
-
     return target_flyweight;
   endverb
 
@@ -55,11 +53,9 @@ object TEXT_MARKDOWN
   verb render (this none this) owner: HACKER flags: "rxd"
     "Convert to final markdown format";
     result = {};
-
     "First check if this content came from a block - if we have multiple top-level elements
      from different sources (like title + description), keep them separate";
     block_content = this.is_block;
-
     element_index = 1;
     while (element_index <= length(this))
       element = this[element_index];

@@ -2,14 +2,25 @@
 # Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
 
+# DEBUG controls whether to run moorc under gdb
+# Set DEBUG=1 to enable gdb debugging
+DEBUG ?= 0
+
 ifeq ($(MOORC_TYPE),cargo)
 SRC_DIRECTORY = src
 TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
+ifeq ($(DEBUG),1)
+MOORC = gdb --batch --ex "handle SIGUSR1 nostop noprint pass" --ex run --ex bt --ex quit --args cargo run -p moorc -- \
+	--use-boolean-returns true \
+	--use-symbols-in-builtins true \
+	--custom-errors true
+else
 MOORC = cargo run -p moorc -- \
 	--use-boolean-returns true \
 	--use-symbols-in-builtins true \
 	--custom-errors true
+endif
 else ifeq ($(MOORC_TYPE),direct)
 SRC_DIRECTORY = src
 TEST_DIRECTORY = tests

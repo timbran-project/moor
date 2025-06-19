@@ -19,7 +19,7 @@ object PLAYER
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
     "If we don't have a match, that's a 'I don't see that there...'";
     if (dobjstr == "")
-      global dobj = player.location;
+      dobj = player.location;
     endif
     !valid(dobj) && return this:tell(this:msg_no_dobj_match());
     look_d = dobj:look_self();
@@ -45,9 +45,9 @@ object PLAYER
     "The player is the owner of this verb, so we can use 'this' to refer to the player.";
     "This runs as wizard perms, but _notify_render runs as the player's perms.";
     "TODO: differentiate events which should only go to a *certain* connection, e.g. look, etc vs events which should go to all connections like say, emote, etc.";
-    let connections = connections(this);
+    connections = connections(this);
     {events, @rest} = args;
-    let contents = this:_notify_render(connections, events);
+    contents = this:_notify_render(connections, events);
     for content in (contents)
       let {connection_obj, content_type, output} = content;
       "Send the output to the connection in its preferred content type...";
@@ -61,7 +61,7 @@ object PLAYER
     if (typeof(events) != LIST)
       events = {events};
     endif
-    let output = {};
+    output = {};
     for event in (events)
       if (typeof(event) == STR)
         content = event;
@@ -83,7 +83,7 @@ object PLAYER
     "Returns a list of { { connection_obj, content_type, { content-as-list } ... }";
     {connections, events} = args;
     "Connections is of form { {connection_obj, peer_addr, idle_seconds, { content_types ... }, ... }";
-    let results = {};
+    results = {};
     for connection in (connections)
       let {connection_obj, peer_addr, idle_seconds, content_types} = connection;
       "For now we'll just pick the first content-type...";
@@ -116,4 +116,3 @@ object PLAYER
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " disconnected.");
   endverb
 endobject
-
