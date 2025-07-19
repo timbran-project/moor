@@ -55,7 +55,7 @@ object PLAYER
     endfor
   endverb
 
-  verb _transform_events_for_content_type (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb _transform_content (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Transform events for a specific content type - separated for testing";
     {events, content_type} = args;
     if (typeof(events) != LIST)
@@ -88,7 +88,8 @@ object PLAYER
       let {connection_obj, peer_addr, idle_seconds, content_types} = connection;
       "For now we'll just pick the first content-type...";
       {?content_type = 'text_plain, @others} = content_types;
-      output = this:_transform_events_for_content_type(events, content_type);
+      "TODO: This is what we'll replace to pseudo-jtext rendering...";
+      output = toliteral(events);
       if (length(output) > 0)
         results = {@results, {connection_obj, content_type, output}};
       endif
