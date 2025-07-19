@@ -209,8 +209,12 @@ object STR_PROTO
 
   verb "capitalize capitalise" (this none this) owner: HACKER flags: "rxd"
     "Capitalizes its argument.";
-    if ((string = args[1]) && (i = index("abcdefghijklmnopqrstuvwxyz", string[1], 1)))
-      string[1] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i];
+    string = args[1];
+    if (string)
+      let i = index("abcdefghijklmnopqrstuvwxyz", string[1], 1);
+      if (i)
+        string[1] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i];
+      endif
     endif
     return string;
   endverb
@@ -224,7 +228,6 @@ object STR_PROTO
     else
       return len > 0 ? out | out[1..abslen];
     endif
-    return 0;
   endverb
 
   verb is_numeric (this none this) owner: HACKER flags: "rxd"
@@ -232,37 +235,27 @@ object STR_PROTO
     "Is string numeric (composed of one or more digits possibly preceded by a minus sign)?";
     "Return true or false.";
     return match(args[1], "^ *[-+]?[0-9]+ *$");
-    digits = "1234567890";
-    if (!(string = args[1]))
-      return false;
-    endif
-    if (string[1] == "-")
-      string = string[2..length(string)];
-    endif
-    for i in [1..length(string)]
-      if (!index(digits, string[i]))
-        return false;
-      endif
-    endfor
-    return true;
   endverb
 
   verb literal_object (this none this) owner: HACKER flags: "rxd"
     string = args[1];
     if (!string)
       return $nothing;
-    elseif (string[1] == "#" && E_TYPE != (object = this:toobj()))
-      return object;
+    elseif (string[1] == "#")
+      let object = this:toobj();
+      if (E_TYPE != object)
+        return object;
+      endif
     elseif (string[1] == "~")
       return this:match_player(string[2..$], #0);
     elseif (string[1] == "*")
       return $mail_agent:match_recipient(string);
     elseif (string[1] == "$")
       string = string[2..$];
-      object = #0;
-    while properties(1)
-        dot = index(string, ".");
-        pn = dot ? string[1..dot - 1] | string;
+      let object = #0;
+      while properties(1)
+        let dot = index(string, ".");
+        let pn = dot ? string[1..dot - 1] | string;
         try
           object = object.(pn);
         except (ANY)
@@ -313,7 +306,8 @@ object STR_PROTO
       fill = fill + fill;
       m = m / 2;
     endwhile
-    return n > 0 ? fill[1..n] | fill[(f = length(fill)) + 1 + n..f];
+    f = length(fill);
+    return n > 0 ? fill[1..n] | fill[f + 1 + n..f];
   endverb
 
   verb to_list (this none this) owner: HACKER flags: "rxd"
@@ -331,6 +325,7 @@ object STR_PROTO
     {subject, ?separator = " "} = args;
     breaklen = length(separator);
     parts = {};
+    i = 0;
     while (i = index(subject, separator))
       parts = {@parts, subject[1..i - 1]};
       subject = subject[i + breaklen..$];
@@ -340,7 +335,8 @@ object STR_PROTO
 
   verb toobj (this none this) owner: HACKER flags: "rxd"
     ":toobj(objectid as string) => objectid";
-    return match(s = args[1], "^ *#[-+]?[0-9]+ *$") ? toobj(s) | E_TYPE;
+    s = args[1];
+    return match(s, "^ *#[-+]?[0-9]+ *$") ? toobj(s) | E_TYPE;
   endverb
 
   verb trim (this none this) owner: HACKER flags: "rxd"
@@ -372,8 +368,10 @@ object STR_PROTO
     "lowercase(string) -- returns a lowercase version of the string.";
     "uppercase(string) -- returns the uppercase version of the string.";
     string = args[1];
-    from = caps = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    to = lower = "abcdefghijklmnopqrstuvwxyz";
+    caps = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    lower = "abcdefghijklmnopqrstuvwxyz";
+    from = caps;
+    to = lower;
     if (verb == "uppercase")
       from = lower;
       to = caps;
@@ -387,7 +385,6 @@ object STR_PROTO
   verb word_start (this none this) owner: HACKER flags: "rxd"
     "This breaks up the argument string into words, returning a list of indices into argstr corresponding to the starting points of each of the arguments.";
     rest = args[1];
-    "... find first nonspace...";
     wstart = match(rest, "[^ ]%|$")[1];
     wbefore = wstart - 1;
     rest[1..wbefore] = "";
@@ -397,16 +394,14 @@ object STR_PROTO
     quote = 0;
     wslist = {};
     pattern = " +%|\\.?%|\"";
+    m = 0;
+    char = 0;
     while (m = match(rest, pattern))
-      "... find the next occurence of a special character, either";
-      "... a block of spaces, a quote or a backslash escape sequence...";
       char = rest[m[1]];
       if (char == " ")
         wslist = {@wslist, {wstart, wbefore + m[1] - 1}};
         wstart = wbefore + m[2] + 1;
       elseif (char == "\"")
-        "... beginning or end of quoted string...";
-        "... within a quoted string spaces aren't special...";
         pattern = (quote = !quote) ? "\\.?%|\"" | " +%|\\.?%|\"";
       endif
       rest[1..m[2]] = "";
@@ -418,7 +413,6 @@ object STR_PROTO
   verb words (this none this) owner: HACKER flags: "rxd"
     "This breaks up the argument string into words, the resulting list being obtained exactly the way the command line parser obtains `args' from `argstr'.";
     rest = args[1];
-    "...trim leading blanks...";
     rest[1..match(rest, "^ *")[2]] = "";
     if (!rest)
       return {};
@@ -427,21 +421,17 @@ object STR_PROTO
     toklist = {};
     token = "";
     pattern = " +%|\\.?%|\"";
+    m = 0;
+    char = 0;
     while (m = match(rest, pattern))
-      "... find the next occurence of a special character, either";
-      "... a block of spaces, a quote or a backslash escape sequence...";
       char = rest[m[1]];
       token = token + rest[1..m[1] - 1];
       if (char == " ")
         toklist = {@toklist, token};
         token = "";
       elseif (char == "\"")
-        "... beginning or end of quoted string...";
-        "... within a quoted string spaces aren't special...";
         pattern = (quote = !quote) ? "\\.?%|\"" | " +%|\\.?%|\"";
       elseif (m[1] < m[2])
-        "... char has to be a backslash...";
-        "... include next char literally if there is one";
         token = token + rest[m[2]];
       endif
       rest[1..m[2]] = "";
@@ -477,7 +467,7 @@ object STR_PROTO
     {object, verbname} = {s[1..colon - 1], s[colon + 1..length(s)]};
     !(object && verbname) && return false;
     if (object[1] == "$" && 0)
-      pname = object[2..length(object)];
+      let pname = object[2..length(object)];
       if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != OBJ)
         return false;
       endif
@@ -507,5 +497,360 @@ object STR_PROTO
       let {result, should} = {"honk:look_self":parse_verbref(), {"honk", 'look_self}};
       result != should && raise(E_ASSERT, "honk:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
+  endverb
+
+  verb split (this none this) owner: HACKER flags: "rxd"
+    "split(string, delimiter) => list of substrings split by delimiter";
+    "Example: \"a,b,c\":split(\",\") => {\"a\", \"b\", \"c\"}";
+    {string, delimiter} = args;
+    fn split_string(text, delim)
+      if (delim == "")
+        return {text};
+      endif
+      let parts = {};
+      let remaining = text;
+      let index_pos = 0;
+      while (index_pos = index(remaining, delim))
+        parts = {@parts, remaining[1..index_pos - 1]};
+        remaining = remaining[index_pos + length(delim)..$];
+      endwhile
+      return {@parts, remaining};
+    endfn
+    return split_string(string, delimiter);
+  endverb
+
+  verb join_list (this none this) owner: HACKER flags: "rxd"
+    "join_list(list, separator) => string with list elements joined by separator";
+    "Example: {\"a\", \"b\", \"c\"}:join_list(\",\") => \"a,b,c\"";
+    {lst, separator} = args;
+    return lst:join(separator);
+  endverb
+
+  verb starts_with (this none this) owner: HACKER flags: "rxd"
+    "starts_with(string, prefix) => true if string starts with prefix";
+    "Example: \"hello world\":starts_with(\"hello\") => true";
+    return length(args[2]) <= length(args[1]) && (args[1])[1..length(args[2])] == args[2];
+  endverb
+
+  verb ends_with (this none this) owner: HACKER flags: "rxd"
+    "ends_with(string, suffix) => true if string ends with suffix";
+    "Example: \"hello world\":ends_with(\"world\") => true";
+    return length(args[2]) <= length(args[1]) && (args[1])[length(args[1]) - length(args[2]) + 1..$] == args[2];
+  endverb
+
+  verb contains (this none this) owner: HACKER flags: "rxd"
+    "contains(string, substring) => true if string contains substring";
+    "Example: \"hello world\":contains(\"lo wo\") => true";
+    return index(args[1], args[2]) != 0;
+  endverb
+
+  verb replace_all (this none this) owner: HACKER flags: "rxd"
+    "replace_all(string, old, new) => string with all occurrences of old replaced with new";
+    "Example: \"hello world\":replace_all(\"l\", \"x\") => \"hexxo worxd\"";
+    s = args[1];
+    old_part = args[2];
+    new_part = args[3];
+    parts = this:split(s, old_part);
+    return parts:join(new_part);
+  endverb
+
+  verb reverse (this none this) owner: HACKER flags: "rxd"
+    "reverse(string) => string with characters in reverse order";
+    "Example: \"hello\":reverse() => \"olleh\"";
+    {instr} = args;
+    out = "";
+    for i in [1..length(instr)]
+      out = instr[i] + out;
+    endfor
+    return out;
+  endverb
+
+  verb repeat (this none this) owner: HACKER flags: "rxd"
+    "repeat(string, count) => string repeated count times";
+    "Example: \"ab\":repeat(3) => \"ababab\"";
+    {string, count} = args;
+    if (count <= 0)
+      return "";
+    endif
+    result = "";
+    for i in [1..count]
+      result = result + string;
+    endfor
+    return result;
+  endverb
+
+  verb char_count (this none this) owner: HACKER flags: "rxd"
+    "char_count(string, character) => count of character occurrences in string";
+    "Example: \"hello\":char_count(\"l\") => 2";
+    {string, char} = args;
+    count = 0;
+    for i in [1..length(string)]
+      if (string[i] == char)
+        count = count + 1;
+      endif
+    endfor
+    return count;
+  endverb
+
+  verb substring (this none this) owner: HACKER flags: "rxd"
+    "substring(string, start, length) => substring starting at start for length characters";
+    "Example: \"hello world\":substring(7, 5) => \"world\"";
+    {string, start, len} = args;
+    return string[start..start + len - 1];
+  endverb
+
+  verb pad_left (this none this) owner: HACKER flags: "rxd"
+    "pad_left(string, width, fill) => string padded on left to width with fill character";
+    "Example: \"hello\":pad_left(10, \"*\") => \"*****hello\"";
+    {string, width, ?fill = " "} = args;
+    padding_needed = width - length(string);
+    if (padding_needed <= 0)
+      return string;
+    endif
+    return this:space(padding_needed, fill) + string;
+  endverb
+
+  verb pad_right (this none this) owner: HACKER flags: "rxd"
+    "pad_right(string, width, fill) => string padded on right to width with fill character";
+    "Example: \"hello\":pad_right(10, \"*\") => \"hello*****\"";
+    {string, width, ?fill = " "} = args;
+    padding_needed = width - length(string);
+    if (padding_needed <= 0)
+      return string;
+    endif
+    return string + this:space(padding_needed, fill);
+  endverb
+
+  verb words_list (this none this) owner: HACKER flags: "rxd"
+    "words_list(string) => list of words split by whitespace using modern approach";
+    "Example: \"hello world test\":words_list() => {\"hello\", \"world\", \"test\"}";
+    string = args[1];
+    return this:split(this:trim(string), " "):filter({w} => w != "");
+  endverb
+
+  verb map_chars (this none this) owner: HACKER flags: "rxd"
+    "map_chars(string, function) => string with function applied to each character";
+    "Example: \"hello\":map_chars({c} => uppercase(c)) => \"HELLO\"";
+    {string, func} = args;
+    result = "";
+    for i in [1..length(string)]
+      result = result + func(string[i]);
+    endfor
+    return result;
+  endverb
+
+  verb filter_chars (this none this) owner: HACKER flags: "rxd"
+    "filter_chars(string, predicate) => string with only characters matching predicate";
+    "Example: \"abc123def\":filter_chars({c} => c in \"abcdefghijklmnopqrstuvwxyz\") => \"abcdef\"";
+    {string, pred} = args;
+    result = "";
+    for i in [1..length(string)]
+      if (pred(string[i]))
+        result = result + string[i];
+      endif
+    endfor
+    return result;
+  endverb
+
+  verb title_case (this none this) owner: HACKER flags: "rxd"
+    "title_case(string) => string with first letter of each word capitalized";
+    "Example: \"hello world\":title_case() => \"Hello World\"";
+    string = args[1];
+    words = this:words_list(string);
+    result = {};
+    for word in (words)
+      result = {@result, this:capitalize(word)};
+    endfor
+    return result:join(" ");
+  endverb
+
+  verb test_split (this none this) owner: HACKER flags: "rxd"
+    "Test the split function";
+    result = 0;
+    result = "a,b,c":split(",");
+    result != {"a", "b", "c"} && raise(E_ASSERT, "Basic split failed, got " + toliteral(result));
+    result = "a,,c":split(",");
+    result != {"a", "", "c"} && raise(E_ASSERT, "Empty parts split failed, got " + toliteral(result));
+    result = "hello":split(",");
+    result != {"hello"} && raise(E_ASSERT, "No delimiter split failed, got " + toliteral(result));
+    result = "":split(",");
+    result != {""} && raise(E_ASSERT, "Empty string split failed, got " + toliteral(result));
+    result = "a::b::c":split("::");
+    result != {"a", "b", "c"} && raise(E_ASSERT, "Multi-char delimiter split failed, got " + toliteral(result));
+  endverb
+
+  verb test_starts_with (this none this) owner: HACKER flags: "rxd"
+    "Test the starts_with function";
+    result = 0;
+    result = "hello world":starts_with("hello");
+    result != true && raise(E_ASSERT, "Positive starts_with failed, got " + toliteral(result));
+    result = "hello world":starts_with("world");
+    result != false && raise(E_ASSERT, "Negative starts_with failed, got " + toliteral(result));
+    result = "hello":starts_with("");
+    result != true && raise(E_ASSERT, "Empty prefix starts_with failed, got " + toliteral(result));
+    result = "hi":starts_with("hello");
+    result != false && raise(E_ASSERT, "Long prefix starts_with failed, got " + toliteral(result));
+    result = "hello":starts_with("hello");
+    result != true && raise(E_ASSERT, "Exact match starts_with failed, got " + toliteral(result));
+  endverb
+
+  verb test_ends_with (this none this) owner: HACKER flags: "rxd"
+    "Test the ends_with function";
+    result = 0;
+    result = "hello world":ends_with("world");
+    result != true && raise(E_ASSERT, "Positive ends_with failed, got " + toliteral(result));
+    result = "hello world":ends_with("hello");
+    result != false && raise(E_ASSERT, "Negative ends_with failed, got " + toliteral(result));
+    result = "hello":ends_with("");
+    result != true && raise(E_ASSERT, "Empty suffix ends_with failed, got " + toliteral(result));
+    result = "hi":ends_with("hello");
+    result != false && raise(E_ASSERT, "Long suffix ends_with failed, got " + toliteral(result));
+    result = "hello":ends_with("hello");
+    result != true && raise(E_ASSERT, "Exact match ends_with failed, got " + toliteral(result));
+  endverb
+
+  verb test_contains (this none this) owner: HACKER flags: "rxd"
+    "Test the contains function";
+    result = 0;
+    result = "hello world":contains("lo wo");
+    result != true && raise(E_ASSERT, "Positive contains failed, got " + toliteral(result));
+    result = "hello world":contains("xyz");
+    result != false && raise(E_ASSERT, "Negative contains failed, got " + toliteral(result));
+    result = "hello":contains("");
+    result != true && raise(E_ASSERT, "Empty substring contains failed, got " + toliteral(result));
+    result = "hello":contains("hello");
+    result != true && raise(E_ASSERT, "Exact match contains failed, got " + toliteral(result));
+  endverb
+
+  verb test_replace_all (this none this) owner: HACKER flags: "rxd"
+    "Test the replace_all function";
+    result = 0;
+    result = "hello world":replace_all("l", "x");
+    result != "hexxo worxd" && raise(E_ASSERT, "Basic replace_all failed, got " + toliteral(result));
+    result = "hello":replace_all("z", "x");
+    result != "hello" && raise(E_ASSERT, "No matches replace_all failed, got " + toliteral(result));
+    result = "hello":replace_all("l", "");
+    result != "heo" && raise(E_ASSERT, "Empty replacement replace_all failed, got " + toliteral(result));
+    result = "hello":replace_all("", "x");
+    result != "hello" && raise(E_ASSERT, "Empty old string replace_all failed, got " + toliteral(result));
+    result = "hello world":replace_all("llo", "y");
+    result != "hey world" && raise(E_ASSERT, "Multi-char replace_all failed, got " + toliteral(result));
+  endverb
+
+  verb test_reverse (this none this) owner: HACKER flags: "rxd"
+    "Test the reverse function";
+    result = 0;
+    result = "hello":reverse();
+    result != "olleh" && raise(E_ASSERT, "Basic reverse failed, got " + toliteral(result));
+    result = "":reverse();
+    result != "" && raise(E_ASSERT, "Empty string reverse failed, got " + toliteral(result));
+    result = "a":reverse();
+    result != "a" && raise(E_ASSERT, "Single char reverse failed, got " + toliteral(result));
+    result = "aba":reverse();
+    result != "aba" && raise(E_ASSERT, "Palindrome reverse failed, got " + toliteral(result));
+  endverb
+
+  verb test_repeat (this none this) owner: HACKER flags: "rxd"
+    "Test the repeat function";
+    result = 0;
+    result = "ab":repeat(3);
+    result != "ababab" && raise(E_ASSERT, "Basic repeat failed, got " + toliteral(result));
+    result = "hello":repeat(0);
+    result != "" && raise(E_ASSERT, "Zero repeat failed, got " + toliteral(result));
+    result = "hello":repeat(-1);
+    result != "" && raise(E_ASSERT, "Negative repeat failed, got " + toliteral(result));
+    result = "hello":repeat(1);
+    result != "hello" && raise(E_ASSERT, "One repeat failed, got " + toliteral(result));
+    result = "":repeat(5);
+    result != "" && raise(E_ASSERT, "Empty string repeat failed, got " + toliteral(result));
+  endverb
+
+  verb test_char_count (this none this) owner: HACKER flags: "rxd"
+    "Test the char_count function";
+    result = 0;
+    result = "hello":char_count("l");
+    result != 2 && raise(E_ASSERT, "Basic char_count failed, got " + toliteral(result));
+    result = "hello":char_count("z");
+    result != 0 && raise(E_ASSERT, "No matches char_count failed, got " + toliteral(result));
+    result = "aaa":char_count("a");
+    result != 3 && raise(E_ASSERT, "All matches char_count failed, got " + toliteral(result));
+    result = "":char_count("a");
+    result != 0 && raise(E_ASSERT, "Empty string char_count failed, got " + toliteral(result));
+  endverb
+
+  verb test_substring (this none this) owner: HACKER flags: "rxd"
+    "Test the substring function";
+    result = 0;
+    result = "hello world":substring(7, 5);
+    result != "world" && raise(E_ASSERT, "Basic substring failed, got " + toliteral(result));
+    result = "hello":substring(1, 3);
+    result != "hel" && raise(E_ASSERT, "From beginning substring failed, got " + toliteral(result));
+    result = "hello":substring(2, 1);
+    result != "e" && raise(E_ASSERT, "Single char substring failed, got " + toliteral(result));
+    result = "hello":substring(1, 5);
+    result != "hello" && raise(E_ASSERT, "Whole string substring failed, got " + toliteral(result));
+  endverb
+
+  verb test_pad_left (this none this) owner: HACKER flags: "rxd"
+    "Test the pad_left function";
+    result = 0;
+    result = "hello":pad_left(10, "*");
+    result != "*****hello" && raise(E_ASSERT, "Basic pad_left failed, got " + toliteral(result));
+    result = "hello":pad_left(3, "*");
+    result != "hello" && raise(E_ASSERT, "No padding pad_left failed, got " + toliteral(result));
+    result = "hi":pad_left(5);
+    result != "   hi" && raise(E_ASSERT, "Default padding pad_left failed, got " + toliteral(result));
+    result = "hello":pad_left(5, "*");
+    result != "hello" && raise(E_ASSERT, "Exact width pad_left failed, got " + toliteral(result));
+  endverb
+
+  verb test_pad_right (this none this) owner: HACKER flags: "rxd"
+    "Test the pad_right function";
+    result = 0;
+    result = "hello":pad_right(10, "*");
+    result != "hello*****" && raise(E_ASSERT, "Basic pad_right failed, got " + toliteral(result));
+    result = "hello":pad_right(3, "*");
+    result != "hello" && raise(E_ASSERT, "No padding pad_right failed, got " + toliteral(result));
+    result = "hi":pad_right(5);
+    result != "hi   " && raise(E_ASSERT, "Default padding pad_right failed, got " + toliteral(result));
+    result = "hello":pad_right(5, "*");
+    result != "hello" && raise(E_ASSERT, "Exact width pad_right failed, got " + toliteral(result));
+  endverb
+
+  verb test_title_case (this none this) owner: HACKER flags: "rxd"
+    "Test the title_case function";
+    result = 0;
+    result = "hello world":title_case();
+    result != "Hello World" && raise(E_ASSERT, "Basic title_case failed, got " + toliteral(result));
+    result = "hello":title_case();
+    result != "Hello" && raise(E_ASSERT, "Single word title_case failed, got " + toliteral(result));
+    result = "Hello World":title_case();
+    result != "Hello World" && raise(E_ASSERT, "Already capitalized title_case failed, got " + toliteral(result));
+    result = "hELLo WoRLd":title_case();
+    result != "Hello World" && raise(E_ASSERT, "Mixed case title_case failed, got " + toliteral(result));
+  endverb
+
+  verb test_map_chars (this none this) owner: HACKER flags: "rxd"
+    "Test the map_chars function";
+    result = 0;
+    result = "hello":map_chars({c0} => this:uppercase(c0));
+    result != "HELLO" && raise(E_ASSERT, "Uppercase map_chars failed, got " + toliteral(result));
+    result = "abc":map_chars({c1} => c1 == "b" ? "X" | c1);
+    result != "aXc" && raise(E_ASSERT, "Character replacement map_chars failed, got " + toliteral(result));
+    result = "":map_chars({c2} => c2);
+    result != "" && raise(E_ASSERT, "Empty string map_chars failed, got " + toliteral(result));
+  endverb
+
+  verb test_filter_chars (this none this) owner: HACKER flags: "rxd"
+    "Test the filter_chars function";
+    result = 0;
+    result = "abc123def":filter_chars({c3} => c3 in "abcdefghijklmnopqrstuvwxyz");
+    result != "abcdef" && raise(E_ASSERT, "Letter filtering failed, got " + toliteral(result));
+    result = "abc123def":filter_chars({c4} => c4 in "0123456789");
+    result != "123" && raise(E_ASSERT, "Digit filtering failed, got " + toliteral(result));
+    result = "abc":filter_chars({c5} => c5 in "123");
+    result != "" && raise(E_ASSERT, "No matches filter_chars failed, got " + toliteral(result));
+    result = "abc":filter_chars({c6} => c6 in "abcdef");
+    result != "abc" && raise(E_ASSERT, "All matches filter_chars failed, got " + toliteral(result));
   endverb
 endobject
