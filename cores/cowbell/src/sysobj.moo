@@ -4,27 +4,27 @@ object SYSOBJ
   owner: ARCH_WIZARD
   readable: true
 
-  property failed_match (owner: HACKER, flags: "r") = FAILED_MATCH;
   property ambiguous (owner: HACKER, flags: "r") = AMBIGUOUS;
-  property nothing (owner: HACKER, flags: "r") = NOTHING;
-  property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
-  property root (owner: HACKER, flags: "r") = ROOT;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
-  property room (owner: HACKER, flags: "r") = ROOM;
-  property player (owner: HACKER, flags: "r") = PLAYER;
   property builder (owner: HACKER, flags: "r") = BUILDER;
-  property prog (owner: HACKER, flags: "r") = PROG;
-  property hacker (owner: HACKER, flags: "r") = HACKER;
-  property wiz (owner: HACKER, flags: "r") = WIZ;
-  property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
-  property password (owner: HACKER, flags: "r") = PASSWORD;
-  property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
-  property login (owner: HACKER, flags: "r") = LOGIN;
   property event (owner: HACKER, flags: "r") = EVENT;
-  property sub (owner: HACKER, flags: "r") = SUB;
-  property look (owner: HACKER, flags: "r") = LOOK;
+  property failed_match (owner: HACKER, flags: "r") = FAILED_MATCH;
+  property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
+  property hacker (owner: HACKER, flags: "r") = HACKER;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
+  property login (owner: HACKER, flags: "r") = LOGIN;
+  property look (owner: HACKER, flags: "r") = LOOK;
+  property nothing (owner: HACKER, flags: "r") = NOTHING;
+  property password (owner: HACKER, flags: "r") = PASSWORD;
+  property player (owner: HACKER, flags: "r") = PLAYER;
+  property prog (owner: HACKER, flags: "r") = PROG;
+  property room (owner: HACKER, flags: "r") = ROOM;
+  property root (owner: HACKER, flags: "r") = ROOT;
+  property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
+  property sub (owner: HACKER, flags: "r") = SUB;
+  property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;
+  property wiz (owner: HACKER, flags: "r") = WIZ;
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "...This code should only be run as a server task...";

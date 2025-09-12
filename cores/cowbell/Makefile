@@ -6,37 +6,31 @@ MOORC_TYPE ?= cargo
 # Set DEBUG=1 to enable gdb debugging
 DEBUG ?= 0
 
+OPTIONS = --use-boolean-returns true \
+          --use-symbols-in-builtins true \
+          --custom-errors true \
+          --use-uuobjids true
+
 ifeq ($(MOORC_TYPE),cargo)
 SRC_DIRECTORY = src
 TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 ifeq ($(DEBUG),1)
 MOORC = gdb --batch --ex "handle SIGUSR1 nostop noprint pass" --ex run --ex bt --ex quit --args cargo run -p moorc -- \
-	--use-boolean-returns true \
-	--use-symbols-in-builtins true \
-	--custom-errors true
+	$(OPTIONS)
 else
-MOORC = cargo run -p moorc -- \
-	--use-boolean-returns true \
-	--use-symbols-in-builtins true \
-	--custom-errors true
+MOORC = cargo run -p moorc -- $(OPTIONS)
 endif
 else ifeq ($(MOORC_TYPE),direct)
 SRC_DIRECTORY = src
 TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
-MOORC = ../moor/target/debug/moorc \
-	--use-boolean-returns true \
-	--use-symbols-in-builtins true \
-	--custom-errors true
+MOORC = ../moor/target/debug/moorc $(OPTIONS)
 else ifeq ($(MOORC_TYPE),docker)
 SRC_DIRECTORY = /work/src
 TEST_DIRECTORY = /work/tests
 OUTPUT_DIRECTORY = /work
-MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc \
-	--use-boolean-returns true \
-	--use-symbols-in-builtins true \
-	--custom-errors true
+MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc $(OPTIONS)
 endif
 
 # Target to generate an old-style MOO textdump from the compilation of the

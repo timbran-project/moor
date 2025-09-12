@@ -1,6 +1,3 @@
-define FAILED_MATCH = #-3;
-define AMBIGUOUS = #-2;
-define NOTHING = #-1;
 define SYSOBJ = #0;
 define ROOT = #1;
 define ARCH_WIZARD = #2;
@@ -19,3 +16,6 @@ define SUB = #15;
 define LOOK = #17;
 define LIST_PROTO = #18;
 define THING = #19;
+define FAILED_MATCH = #-3;
+define AMBIGUOUS = #-2;
+define NOTHING = #-1;

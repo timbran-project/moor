@@ -5,8 +5,8 @@ object ROOT
   fertile: true
   readable: true
 
-  property description (owner: HACKER, flags: "rc") = "";
   property aliases (owner: HACKER, flags: "rc") = {};
+  property description (owner: HACKER, flags: "rc") = "";
 
   verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
@@ -80,7 +80,7 @@ object ROOT
 
   verb test_all_verbs (this none this) owner: HACKER flags: "rx"
     all_verbs = this:all_verbs();
-    !("all_verbs" in all_verbs) || !("test_all_verbs" in all_verbs) && return E_ASSERT;
+    !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
     return true;
   endverb
 endobject
