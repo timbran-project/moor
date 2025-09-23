@@ -70,7 +70,7 @@ object PLAYER
         transformed = event:transform_for(connection_obj, content_type);
       except e (ANY)
         transformed = "FAILED EVENT: " + toliteral(event) + "
-    " + toliteral(e);
+                            " + toliteral(e);
       endtry
       "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
       output = {};

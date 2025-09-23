@@ -16,6 +16,7 @@ object SYSOBJ
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
+  property match (owner: HACKER, flags: "r") = MATCH;
   property nothing (owner: HACKER, flags: "r") = NOTHING;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;

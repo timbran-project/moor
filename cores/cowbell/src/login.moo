@@ -7,6 +7,7 @@ object LOGIN
 
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
+  property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
   property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
@@ -16,6 +17,7 @@ object LOGIN
     "",
     "You will probably want to change this text which is stored in $login.welcome_message property."
   };
+  property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
 
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Present the welcome message property to the user.";

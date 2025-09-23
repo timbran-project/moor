@@ -246,10 +246,8 @@ object STR_PROTO
       if (E_TYPE != object)
         return object;
       endif
-    elseif (string[1] == "~")
+    elseif (string[1] == "@")
       return this:match_player(string[2..$], #0);
-    elseif (string[1] == "*")
-      return $mail_agent:match_recipient(string);
     elseif (string[1] == "$")
       string = string[2..$];
       let object = #0;
@@ -662,6 +660,24 @@ object STR_PROTO
       result = {@result, this:capitalize(word)};
     endfor
     return result:join(" ");
+  endverb
+
+  verb parse_verbref (this none this) owner: HACKER flags: "rxd"
+    "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
+    s = args[1];
+    colon = index(s, ":");
+    colon || return false;
+    object = s[1..colon - 1];
+    verbname = s[colon + 1..$];
+    object && verbname || return false;
+    if (object[1] == "$")
+      pname = object[2..$];
+      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != OBJ)
+        return false;
+      endif
+      object = tostr(object);
+    endif
+    return {object, tosym(verbname)};
   endverb
 
   verb test_split (this none this) owner: HACKER flags: "rxd"
