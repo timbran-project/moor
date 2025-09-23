@@ -6,11 +6,13 @@ object SYSOBJ
 
   property ambiguous (owner: HACKER, flags: "r") = AMBIGUOUS;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
+  property block (owner: HACKER, flags: "r") = BLOCK;
   property builder (owner: HACKER, flags: "r") = BUILDER;
   property event (owner: HACKER, flags: "r") = EVENT;
   property failed_match (owner: HACKER, flags: "r") = FAILED_MATCH;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property hacker (owner: HACKER, flags: "r") = HACKER;
+  property html (owner: HACKER, flags: "r") = HTML;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
@@ -24,6 +26,7 @@ object SYSOBJ
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;
+  property title (owner: HACKER, flags: "r") = TITLE;
   property wiz (owner: HACKER, flags: "r") = WIZ;
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"

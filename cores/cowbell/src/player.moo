@@ -46,50 +46,41 @@ object PLAYER
     "This runs as wizard perms, but _notify_render runs as the player's perms.";
     "TODO: differentiate events which should only go to a *certain* connection, e.g. look, etc vs events which should go to all connections like say, emote, etc.";
     connections = connections(this);
-    {events, @rest} = args;
-    contents = this:_notify_render(connections, events);
+    {event, @rest} = args;
+    contents = this:_notify_render(connections, event);
     for content in (contents)
       let {connection_obj, content_type, output} = content;
       "Send the output to the connection in its preferred content type...";
-      notify(connection_obj, output, content_type);
+      notify(connection_obj, output, false, false, content_type);
     endfor
-  endverb
-
-  verb _transform_content (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Transform events for a specific content type - separated for testing";
-    {events, content_type} = args;
-    if (typeof(events) != LIST)
-      events = {events};
-    endif
-    output = {};
-    for event in (events)
-      if (typeof(event) == STR)
-        content = event;
-      else
-        content = event:transform_for(this, content_type);
-      endif
-      if (typeof(content) == LIST)
-        output = {@output, @content};
-      else
-        output = {@output, content};
-      endif
-    endfor
-    return output;
   endverb
 
   verb _notify_render (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(this);
     "Render the events for the player, using the connections and their content-types.";
     "Returns a list of { { connection_obj, content_type, { content-as-list } ... }";
-    {connections, events} = args;
+    {connections, event} = args;
     "Connections is of form { {connection_obj, peer_addr, idle_seconds, { content_types ... }, ... }";
     results = {};
     for connection in (connections)
-      let {connection_obj, peer_addr, idle_seconds, content_types} = connection;
+      let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
       "For now we'll just pick the first content-type...";
       {?content_type = 'text_plain, @others} = content_types;
-      "TODO: This is what we'll replace to pseudo-jtext rendering...";
-      output = toliteral(events);
+      try
+        transformed = event:transform_for(connection_obj, content_type);
+      except e (ANY)
+        transformed = "FAILED EVENT: " + toliteral(event) + "
+    " + toliteral(e);
+      endtry
+      "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
+      output = {};
+      for entry in (transformed)
+        if (typeof(entry) == STR)
+          output = {@output, entry};
+        else
+          output = {@output, entry:render(content_type)};
+        endif
+      endfor
       if (length(output) > 0)
         results = {@results, {connection_obj, content_type, output}};
       endif

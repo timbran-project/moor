@@ -27,56 +27,20 @@ object EVENT
     if (!this:validate())
       raise(E_INVARG);
     endif
-    "Compose all entries first to determine content structure";
-    composed_entries = {};
-    has_block_content = false;
+    composed = {};
     for entry in (this)
       if (typeof(entry) == FLYWEIGHT)
-        composed_entry = entry:compose(render_for, content_type, this);
-        composed_entries = {@composed_entries, composed_entry};
-        if (typeof(composed_entry) == FLYWEIGHT && composed_entry.is_block)
-          has_block_content = true;
-        endif
+        entry = entry:compose(render_for, content_type, this);
+      endif
+      "If previous entry was either non-existent or a flyweight, or our result was a flyweight, we append a new element";
+      "If previous entry was a string, and we're a string, we append to it.";
+      if (typeof(entry) == STR && length(composed) > 0 && typeof(composed[$]) == STR)
+        composed[$] = composed[$] + " " + entry;
       else
-        composed_entries = {@composed_entries, entry};
+        composed = {@composed, entry};
       endif
     endfor
-    "Get the appropriate content flyweight delegate based on structure";
-    if (content_type == 'text_plain)
-      content_flyweight = has_block_content ? $text_pla:mk_block() | $text_plain:mk();
-    elseif (content_type == 'text_html)
-      content_flyweight = $text_html:mk();
-    elseif (content_type == 'text_markdown || content_type == 'text_djot)
-      content_flyweight = has_block_content ? $text_markdown:mk_block() | $text_markdown:mk();
-    else
-      content_flyweight = has_block_content ? $text_plain:mk_block() | $text_plain:mk();
-    endif
-    "Add all composed entries to content flyweight";
-    for composed_entry in (composed_entries)
-      if (typeof(composed_entry) == FLYWEIGHT)
-        "Let the flyweight decide how to append itself to the content";
-        try
-          if (respond_to(composed_entry, "append_to_content"))
-            content_flyweight = composed_entry:append_to_content(content_flyweight);
-          else
-            "Fallback to old behavior of extracting elements";
-            for element in (composed_entry)
-              content_flyweight = content_flyweight:append_element(element);
-            endfor
-          endif
-        except (E_TYPE, E_ARGS)
-          "In case respond_to fails, fallback to extracting elements";
-          for element in (composed_entry)
-            content_flyweight = content_flyweight:append_element(element);
-          endfor
-        endtry
-        content_flyweight = content_flyweight:append_element(composed_entry);
-      else
-        raise(E_TYPE, "Invalid type in event content", composed_entry);
-      endif
-    endfor
-    "Render the final content";
-    return content_flyweight:render();
+    return composed;
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"
