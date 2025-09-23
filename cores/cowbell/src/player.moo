@@ -15,7 +15,7 @@ object PLAYER
 
   override description = "You see a player who should get around to describing themself.";
 
-  verb "l look" (any none none) owner: ARCH_WIZARD flags: "rxd"
+  verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
     "If we don't have a match, that's a 'I don't see that there...'";
     if (dobjstr == "")
@@ -70,7 +70,7 @@ object PLAYER
         transformed = event:transform_for(connection_obj, content_type);
       except e (ANY)
         transformed = "FAILED EVENT: " + toliteral(event) + "
-                            " + toliteral(e);
+                                                " + toliteral(e);
       endtry
       "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
       output = {};

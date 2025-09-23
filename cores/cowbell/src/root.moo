@@ -83,4 +83,28 @@ object ROOT
     !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
     return true;
   endverb
+
+  verb find_verb_definer (this none this) owner: HACKER flags: "rxd"
+    "Find verb on object or its ancestors, returning the object that actually defines the verb.";
+    "Uses ancestors() builtin and verb_info() to handle aliases, wildcards, and inheritance.";
+    "Usage: obj:find_verb_definer(verb_name)";
+    {verb_name} = args;
+    "Check this object first";
+    try
+      verb_info(this, verb_name);
+      return this;
+    except (E_VERBNF)
+    endtry
+    "Then check ancestors";
+    ancestor_list = ancestors(this);
+    for ancestor in (ancestor_list)
+      try
+        verb_info(ancestor, verb_name);
+        return ancestor;
+      except (E_VERBNF)
+        continue;
+      endtry
+    endfor
+    return #-1;
+  endverb
 endobject

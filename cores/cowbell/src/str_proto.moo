@@ -471,7 +471,7 @@ object STR_PROTO
       endif
       object = tostr(object);
     endif
-    return {object, tosym(verbname)};
+    return {object, verbname};
   endverb
 
   verb test_parse_verbref (this none this) owner: HACKER flags: "rxd"
@@ -484,15 +484,15 @@ object STR_PROTO
       result != should && raise(E_ASSERT, ": should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
-      let {result, should} = {"$string:look_self":parse_verbref(), {"$string", 'look_self}};
+      let {result, should} = {"$string:look_self":parse_verbref(), {"$string", "look_self"}};
       result != should && raise(E_ASSERT, "$string:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
-      let {result, should} = {"#1:look_self":parse_verbref(), {"#1", 'look_self}};
+      let {result, should} = {"#1:look_self":parse_verbref(), {"#1", "look_self"}};
       result != should && raise(E_ASSERT, "#1:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
-      let {result, should} = {"honk:look_self":parse_verbref(), {"honk", 'look_self}};
+      let {result, should} = {"honk:look_self":parse_verbref(), {"honk", "look_self"}};
       result != should && raise(E_ASSERT, "honk:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
   endverb
@@ -677,7 +677,7 @@ object STR_PROTO
       endif
       object = tostr(object);
     endif
-    return {object, tosym(verbname)};
+    return {object, verbname};
   endverb
 
   verb test_split (this none this) owner: HACKER flags: "rxd"
