@@ -5,7 +5,7 @@ object STR_PROTO
   owner: HACKER
   readable: true
 
-  property _character_set (owner: HACKER, flags: "rc") = "	 !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+  property _character_set (owner: HACKER, flags: "rc") = "\t !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
   property _character_set_in_ascii (owner: HACKER, flags: "rc") = {
     8,
     32,
@@ -205,7 +205,7 @@ object STR_PROTO
   property alphabet (owner: HACKER, flags: "rc") = "abcdefghijklmnopqrstuvwxyz";
   property ascii (owner: HACKER, flags: "rc") = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
   property digits (owner: HACKER, flags: "rc") = "0123456789";
-  property tab (owner: HACKER, flags: "rc") = "	";
+  property tab (owner: HACKER, flags: "rc") = "\t";
 
   verb "capitalize capitalise" (this none this) owner: HACKER flags: "rxd"
     "Capitalizes its argument.";

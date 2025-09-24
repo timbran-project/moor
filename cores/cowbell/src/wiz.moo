@@ -40,7 +40,7 @@ object WIZ
     after_cnt = db_counters();
     cnt_summary = this:counter_summary(before_cnt, after_cnt);
     for value, key in (cnt_summary)
-      player:tell(tostr(key) + " => " + tostr(value[1]) + "μs mean " + tostr(value[2] / 1000.0) + "ms total");
+      player:tell(tostr(key) + " => " + tostr(value[1]) + "\u03BCs mean " + tostr(value[2] / 1000.0) + "ms total");
     endfor
     player:tell("Took " + tostr(end - start) + "s to write " + tostr(length(this.test)) + " tuples in property in 100 transactions");
     this.test = {};
