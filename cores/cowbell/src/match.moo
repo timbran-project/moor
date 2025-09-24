@@ -88,7 +88,7 @@ object MATCH
     "Match player by name using complex_match builtin.";
     {player_name} = args;
     players = players();
-    result = complex_match(player_name, players, false, true);
+    result = complex_match(player_name, players);
     if (result == $failed_match)
       return E_INVARG("No player found matching '" + player_name + "'");
     endif
@@ -120,7 +120,7 @@ object MATCH
       search_objects = {@search_objects, @context.contents};
     endif
     "Let complex_match auto-detect object names";
-    result = complex_match(name_string, search_objects, false, true);
+    result = complex_match(name_string, search_objects);
     if (result == $failed_match)
       return E_INVARG("No object found matching '" + name_string + "'");
     endif
