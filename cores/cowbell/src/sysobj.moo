@@ -13,6 +13,7 @@ object SYSOBJ
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property html (owner: HACKER, flags: "r") = HTML;
+  property list (owner: HACKER, flags: "r") = LIST;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;

@@ -19,6 +19,7 @@ define THING = #19;
 define BLOCK = #20;
 define TITLE = #21;
 define HTML = #22;
+define LIST = #24;
 define MATCH = #23;
 define FAILED_MATCH = #-3;
 define AMBIGUOUS = #-2;
