@@ -26,6 +26,53 @@ object PLAYER
     player:tell(look_d:into_event());
   endverb
 
+  verb "i*nventory" (any none none) owner: HACKER flags: "rxd"
+    "Display player's inventory using list format";
+    caller != player && return E_PERM;
+    items = this.contents;
+    !items && return this:tell($event:mk_inventory(player, "You are not carrying anything."));
+    "Get item names";
+    item_names = {};
+    for item in (items)
+      item_names = {@item_names, item:name()};
+    endfor
+    "Create and display the inventory list";
+    list_obj = $list:mk(item_names);
+    title_obj = $title:mk("Inventory");
+    content = $block:mk(title_obj, list_obj);
+    event = $event:mk_inventory(player, content);
+    this:tell(event);
+  endverb
+
+  verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "Display list of connected players using table format";
+    caller != player && return E_PERM;
+    players = connected_players();
+    !players && return this:tell($event:mk_not_found(this, "No players are currently connected."));
+    "Build table data";
+    headers = {"Name", "Idle", "Connected", "Location"};
+    rows = {};
+    for p in (players)
+      if (typeof(idle_time = idle_seconds(p)) != ERR)
+        name = p:name();
+        idle_str = idle_time:format_time_seconds();
+        conn_str = connected_seconds(p):format_time_seconds();
+        location_name = valid(p.location) ? p.location:name() | "(nowhere)";
+        rows = {@rows, {name, idle_str, conn_str, location_name}};
+      endif
+    endfor
+    "Create and display the table";
+    if (rows)
+      table_obj = $table:mk(headers, rows);
+      title_obj = $title:mk("Who's Online");
+      content = $block:mk(title_obj, table_obj);
+      event = $event:mk_who(player, content);
+      this:tell(event);
+    else
+      this:tell($event:mk_who(this, "No connected players found."));
+    endif
+  endverb
+
   verb "msg_no_dobj_match msg_no_iobj_match" (this none this) owner: HACKER flags: "rxd"
     return $event:mk_not_found(player, "I don't see that here.");
   endverb
@@ -105,34 +152,5 @@ object PLAYER
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " disconnected.");
-  endverb
-
-  verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rxd"
-    "Display list of connected players using table format";
-    caller != player && return E_PERM;
-    players = connected_players();
-    !players && return this:tell($event:mk_not_found(this, "No players are currently connected."));
-    "Build table data";
-    headers = {"Name", "Idle", "Connected", "Location"};
-    rows = {};
-    for p in (players)
-      if (typeof(idle_time = idle_seconds(p)) != ERR)
-        name = p:name();
-        idle_str = idle_time:format_time_seconds();
-        conn_str = connected_seconds(p):format_time_seconds();
-        location_name = valid(p.location) ? p.location:name() | "(nowhere)";
-        rows = {@rows, {name, idle_str, conn_str, location_name}};
-      endif
-    endfor
-    "Create and display the table";
-    if (rows)
-      table_obj = $table:mk(headers, rows);
-      title_obj = $title:mk("Who's Online");
-      content = $block:mk(title_obj, table_obj);
-      event = $event:mk_who(player, content);
-      this:tell(event);
-    else
-      this:tell($event:mk_not_found(this, "No connected players found."));
-    endif
   endverb
 endobject
