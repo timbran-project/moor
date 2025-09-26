@@ -72,10 +72,8 @@ object LIST
     items = {"Apple", "Banana", "Cherry"};
     unordered = this:mk(items);
     ordered = this:mk(items, true);
-
     plain_unordered = unordered:compose($nothing, 'text_plain, $nothing);
     plain_ordered = ordered:compose($nothing, 'text_plain, $nothing);
-
     plain_unordered != "* Apple\n* Banana\n* Cherry" && return E_ASSERT;
     plain_ordered != "1. Apple\n1. Banana\n1. Cherry" && return E_ASSERT;
     return true;

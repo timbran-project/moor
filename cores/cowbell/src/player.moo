@@ -106,4 +106,33 @@ object PLAYER
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " disconnected.");
   endverb
+
+  verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "Display list of connected players using table format";
+    caller != player && return E_PERM;
+    players = connected_players();
+    !players && return this:tell($event:mk_not_found(this, "No players are currently connected."));
+    "Build table data";
+    headers = {"Name", "Idle", "Connected", "Location"};
+    rows = {};
+    for p in (players)
+      if (typeof(idle_time = idle_seconds(p)) != ERR)
+        name = p:name();
+        idle_str = idle_time:format_time_seconds();
+        conn_str = connected_seconds(p):format_time_seconds();
+        location_name = valid(p.location) ? p.location:name() | "(nowhere)";
+        rows = {@rows, {name, idle_str, conn_str, location_name}};
+      endif
+    endfor
+    "Create and display the table";
+    if (rows)
+      table_obj = $table:mk(headers, rows);
+      title_obj = $title:mk("Who's Online");
+      content = $block:mk(title_obj, table_obj);
+      event = $event:mk_who(player, content);
+      this:tell(event);
+    else
+      this:tell($event:mk_not_found(this, "No connected players found."));
+    endif
+  endverb
 endobject
