@@ -114,7 +114,7 @@ object PLAYER
       "For now we'll just pick the first content-type...";
       {?content_type = 'text_plain, @others} = content_types;
       try
-        transformed = event:transform_for(connection_obj, content_type);
+        transformed = event:transform_for(this, content_type);
       except e (ANY)
         transformed = "FAILED EVENT: " + toliteral(event) + "\n                                                " + toliteral(e);
       endtry
