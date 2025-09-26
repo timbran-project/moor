@@ -32,10 +32,7 @@ object PLAYER
     items = this.contents;
     !items && return this:tell($event:mk_inventory(player, "You are not carrying anything."));
     "Get item names";
-    item_names = {};
-    for item in (items)
-      item_names = {@item_names, item:name()};
-    endfor
+    item_names = {item:name() for item in (items)};
     "Create and display the inventory list";
     list_obj = $list:mk(item_names);
     title_obj = $title:mk("Inventory");
