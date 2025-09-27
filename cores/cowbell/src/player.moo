@@ -32,7 +32,7 @@ object PLAYER
     items = this.contents;
     !items && return this:tell($event:mk_inventory(player, "You are not carrying anything."));
     "Get item names";
-    item_names = {item:name() for item in (items)};
+    item_names = { item:name() for item in (items) };
     "Create and display the inventory list";
     list_obj = $list:mk(item_names);
     title_obj = $title:mk("Inventory");
@@ -78,8 +78,8 @@ object PLAYER
     ptype = tosym(verb[9..length(verb)]);
     ptype == 'subject && return this.ps;
     ptype == 'object && return this.po;
-    ptype == 'posessive && args[1] == 'adj && return this.pp;
-    ptype == 'posessive && args[2] == 'noun && return this.pq;
+    ptype == 'possessive && args[1] == 'adj && return this.pp;
+    ptype == 'possessive && args[2] == 'noun && return this.pq;
     ptype == 'reflexive && return this.pr;
     raise(E_INVARG);
   endverb

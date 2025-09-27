@@ -33,14 +33,13 @@ object LIST
       endfor
       tag = this.ordered ? "ol" | "ul";
       return <$html, {tag, {}, li_items}>;
-    else
-      prefix = this.ordered ? "1. " | "* ";
-      formatted = {};
-      for item in (result)
-        formatted = {@formatted, prefix + item};
-      endfor
-      return formatted:join("\n");
     endif
+    prefix = this.ordered ? "1. " | "* ";
+    formatted = {};
+    for item in (result)
+      formatted = {@formatted, prefix + item};
+    endfor
+    return formatted:join("\n");
   endverb
 
   verb test_unordered_list (this none this) owner: HACKER flags: "rxd"

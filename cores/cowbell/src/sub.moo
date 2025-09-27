@@ -33,8 +33,8 @@ object SUB
     this.type == 'iobj && return this:name_sub(event.iobj, render_for);
     this.type == 'subject && return event.actor:pronoun_subject();
     this.type == 'object && return event.actor:pronoun_object();
-    this.type == 'pos_adj && return event.actor:pronoun_posessive('adj);
-    this.type == 'pos_noun && return event.actor:pronoun_posessive('noun);
+    this.type == 'pos_adj && return event.actor:pronoun_possessive('adj);
+    this.type == 'pos_noun && return event.actor:pronoun_possessive('noun);
     this.type == 'reflexive && return event.actor:pronoun_reflexive();
     this.type == 'self_alt && return event.actor == render_for ? this.for_self | this.for_others;
   endverb

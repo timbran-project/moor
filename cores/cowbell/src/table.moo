@@ -63,54 +63,53 @@ object TABLE
       tbody = <$html, {"tbody", {}, body_rows}>;
       table_children = {@table_children, tbody};
       return <$html, {"table", {}, table_children}>;
-    else
-      "Plain text table output";
-      result = {};
-      "Calculate column widths";
-      widths = {};
-      for i in [1..length(headers)]
-        widths = {@widths, length(tostr(headers[i]))};
+    endif
+    "Plain text table output";
+    result = {};
+    "Calculate column widths";
+    widths = {};
+    for i in [1..length(headers)]
+      widths = {@widths, length(tostr(headers[i]))};
+    endfor
+    for row in (rows)
+      for i in [1..min(length(row), length(widths))]
+        cell_width = length(tostr(row[i]));
+        if (cell_width > widths[i])
+          widths[i] = cell_width;
+        endif
       endfor
-      for row in (rows)
-        for i in [1..min(length(row), length(widths))]
-          cell_width = length(tostr(row[i]));
-          if (cell_width > widths[i])
-            widths[i] = cell_width;
-          endif
-        endfor
-      endfor
-      "Build header line";
+    endfor
+    "Build header line";
+    line = "";
+    for i in [1..length(headers)]
+      if (i > 1)
+        line = line + " | ";
+      endif
+      line = line + $str_proto:pad_right(tostr(headers[i]), widths[i]);
+    endfor
+    result = {@result, line};
+    "Build separator";
+    line = "";
+    for i in [1..length(headers)]
+      if (i > 1)
+        line = line + "-+-";
+      endif
+      line = line + $str_proto:space(widths[i], "-");
+    endfor
+    result = {@result, line};
+    "Build data rows";
+    for row in (rows)
       line = "";
       for i in [1..length(headers)]
         if (i > 1)
           line = line + " | ";
         endif
-        line = line + $str_proto:pad_right(tostr(headers[i]), widths[i]);
+        cell = i <= length(row) ? tostr(row[i]) | "";
+        line = line + $str_proto:pad_right(cell, widths[i]);
       endfor
       result = {@result, line};
-      "Build separator";
-      line = "";
-      for i in [1..length(headers)]
-        if (i > 1)
-          line = line + "-+-";
-        endif
-        line = line + $str_proto:space(widths[i], "-");
-      endfor
-      result = {@result, line};
-      "Build data rows";
-      for row in (rows)
-        line = "";
-        for i in [1..length(headers)]
-          if (i > 1)
-            line = line + " | ";
-          endif
-          cell = i <= length(row) ? tostr(row[i]) | "";
-          line = line + $str_proto:pad_right(cell, widths[i]);
-        endfor
-        result = {@result, line};
-      endfor
-      return result:join("\n");
-    endif
+    endfor
+    return result:join("\n");
   endverb
 
   verb test_simple_table (this none this) owner: HACKER flags: "rxd"
