@@ -41,11 +41,10 @@ object SYSOBJ
   endverb
 
   verb "user_created user_connected" (this none this) owner: HACKER flags: "rxd"
+    "...This code should only be run as a server task...";
+    callers() && return E_PERM;    
     user = args[1];
-    if (callers())
-      raise(E_PERM);
-    endif
-    if (args[1] < #0)
+    if (user < #0)
       return;
     endif
     fork (0)
@@ -56,10 +55,12 @@ object SYSOBJ
   endverb
 
   verb "user_disconnected user_client_disconnected" (this none this) owner: HACKER flags: "rxd"
-    if (callers())
+    "...This code should only be run as a server task...";
+    callers() && return E_PERM;    
+    user = args[1];
+    if (user < #0)
       return;
     endif
-    user = args[1];
     fork (0)
       `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
     endfork
@@ -67,6 +68,8 @@ object SYSOBJ
   endverb
 
   verb user_reconnected (this none this) owner: HACKER flags: "rxd"
+    "...This code should only be run as a server task...";
+    callers() && return E_PERM;    
     user = args[1];
     if (user < #0)
       return;
