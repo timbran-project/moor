@@ -5,6 +5,7 @@ object SUB
   readable: true
 
   override description = "Flyweight delegate and factory for template substitution in events.";
+  override import_export_id = "sub";
 
   verb render_as (this none this) owner: HACKER flags: "rxd"
     {render_for, content_type, event} = args;

@@ -4,12 +4,12 @@ object SYSOBJ
   owner: ARCH_WIZARD
   readable: true
 
-  property ambiguous (owner: HACKER, flags: "r") = AMBIGUOUS;
+  property ambiguous (owner: HACKER, flags: "r") = #-2;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property block (owner: HACKER, flags: "r") = BLOCK;
   property builder (owner: HACKER, flags: "r") = BUILDER;
   property event (owner: HACKER, flags: "r") = EVENT;
-  property failed_match (owner: HACKER, flags: "r") = FAILED_MATCH;
+  property failed_match (owner: HACKER, flags: "r") = #-3;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property html (owner: HACKER, flags: "r") = HTML;
@@ -19,7 +19,7 @@ object SYSOBJ
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;
-  property nothing (owner: HACKER, flags: "r") = NOTHING;
+  property nothing (owner: HACKER, flags: "r") = #-1;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog (owner: HACKER, flags: "r") = PROG;
@@ -33,6 +33,8 @@ object SYSOBJ
   property title (owner: HACKER, flags: "r") = TITLE;
   property wiz (owner: HACKER, flags: "r") = WIZ;
 
+  override import_export_id = "sysobj";
+
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "...This code should only be run as a server task...";
     callers() && return E_PERM;
@@ -42,7 +44,7 @@ object SYSOBJ
 
   verb "user_created user_connected" (this none this) owner: HACKER flags: "rxd"
     "...This code should only be run as a server task...";
-    callers() && return E_PERM;    
+    callers() && return E_PERM;
     user = args[1];
     if (user < #0)
       return;
@@ -56,7 +58,7 @@ object SYSOBJ
 
   verb "user_disconnected user_client_disconnected" (this none this) owner: HACKER flags: "rxd"
     "...This code should only be run as a server task...";
-    callers() && return E_PERM;    
+    callers() && return E_PERM;
     user = args[1];
     if (user < #0)
       return;
@@ -69,7 +71,7 @@ object SYSOBJ
 
   verb user_reconnected (this none this) owner: HACKER flags: "rxd"
     "...This code should only be run as a server task...";
-    callers() && return E_PERM;    
+    callers() && return E_PERM;
     user = args[1];
     if (user < #0)
       return;

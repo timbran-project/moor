@@ -4,6 +4,7 @@ object LOOK
   owner: HACKER
 
   override description = "The $look flyweight delegate holds the attributes involved in looking at an object, and can be transformed into output events. It always has mandatory 'title and 'description slots, and then optional contents which are a series of integration descriptions.";
+  override import_export_id = "look";
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     {what, @contents} = args;

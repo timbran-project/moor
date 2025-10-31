@@ -5,4 +5,6 @@ object BUILDER
   owner: HACKER
   fertile: true
   readable: true
+
+  override import_export_id = "builder";
 endobject

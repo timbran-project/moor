@@ -9,6 +9,8 @@ object WIZ
 
   property test (owner: WIZ, flags: "r") = {};
 
+  override import_export_id = "wiz";
+
   verb counter_summary (this none this) owner: HACKER flags: "rxd"
     {before, after} = args;
     result = [];

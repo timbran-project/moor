@@ -6,6 +6,7 @@ object MATCH
   readable: true
 
   override description = "Object matching system with support for numbered, UUID, and flyweight objects. Provides flexible matching with fuzzy search and enhanced error reporting.";
+  override import_export_id = "match";
 
   verb parse_object_ref (this none this) owner: HACKER flags: "rxd"
     "Parse object reference string into components. Handles #123, #UUID-style, $system, @player formats.";

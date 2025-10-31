@@ -4,6 +4,8 @@ object PASSWORD
   owner: HACKER
   readable: true
 
+  property import_export_id (owner: HACKER, flags: "r") = "password";
+
   verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
     "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";
     if (typeof(this) == FLYWEIGHT)

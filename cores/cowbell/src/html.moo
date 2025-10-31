@@ -3,6 +3,8 @@ object HTML
   parent: ROOT
   owner: HACKER
 
+  override import_export_id = "html";
+
   verb render (this none this) owner: HACKER flags: "rxd"
     {content_type} = args;
     tags = this:to_xml_tag();

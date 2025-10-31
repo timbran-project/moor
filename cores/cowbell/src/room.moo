@@ -6,6 +6,8 @@ object ROOM
   fertile: true
   readable: true
 
+  override import_export_id = "room";
+
   verb emote (any any any) owner: HACKER flags: "rxd"
     this:announce(player:mk_emote_event(argstr));
   endverb

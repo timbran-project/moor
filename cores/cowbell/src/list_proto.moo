@@ -5,6 +5,8 @@ object LIST_PROTO
   owner: HACKER
   readable: true
 
+  override import_export_id = "list_proto";
+
   verb append (this none this) owner: HACKER flags: "rxd"
     "append({a,b,c},{d,e},{},{f,g,h},...) =>  {a,b,c,d,e,f,g,h}";
     n = length(args);

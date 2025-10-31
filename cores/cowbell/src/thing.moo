@@ -6,6 +6,8 @@ object THING
   fertile: true
   readable: true
 
+  override import_export_id = "thing";
+
   verb get (this none none) owner: HACKER flags: "rxd"
     accept_to = player:acceptable(this);
     if (!accept_to)

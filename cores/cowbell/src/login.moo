@@ -19,10 +19,12 @@ object LOGIN
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
 
+  override import_export_id = "login";
+
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Present the welcome message property to the user.";
     caller != #0 && caller != this && raise(E_PERM);
-    { notify(player, line) for line in (this.welcome_message) };
+    notify(player, this.welcome_message, false, false, this.welcome_message_content_type);
   endverb
 
   verb "co*nnect @co*nnect" (any none any) owner: ARCH_WIZARD flags: "rxd"

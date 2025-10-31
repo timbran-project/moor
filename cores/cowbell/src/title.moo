@@ -5,6 +5,8 @@ object TITLE
   owner: HACKER
   readable: true
 
+  override import_export_id = "title";
+
   verb mk (this none this) owner: HACKER flags: "rxd"
     length(args) != 1 && raise(E_INVARG, "Title must have one argument");
     return <this, {@args}>;

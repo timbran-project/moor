@@ -5,6 +5,8 @@ object TABLE
   owner: HACKER
   readable: true
 
+  override import_export_id = "table";
+
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create table flyweight with headers and rows";
     {headers, rows} = args;

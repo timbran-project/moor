@@ -8,6 +8,8 @@ object PROG
   fertile: true
   readable: true
 
+  override import_export_id = "prog";
+
   verb eval (any any any) owner: ARCH_WIZARD flags: "rxd"
     if (player != caller)
       raise(E_PERMS);

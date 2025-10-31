@@ -14,6 +14,7 @@ object PLAYER
   property ps (owner: HACKER, flags: "rc") = "it";
 
   override description = "You see a player who should get around to describing themself.";
+  override import_export_id = "player";
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";

@@ -5,6 +5,8 @@ object BLOCK
   owner: HACKER
   readable: true
 
+  override import_export_id = "block";
+
   verb mk (this none this) owner: HACKER flags: "rxd"
     return <this, {@args}>;
   endverb

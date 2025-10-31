@@ -5,6 +5,8 @@ object LIST
   owner: HACKER
   readable: true
 
+  override import_export_id = "list";
+
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create list flyweight with optional ordered attribute";
     {content, ?ordered = false} = args;

@@ -23,6 +23,3 @@ define MATCH = #23;
 define LIST = #24;
 define TABLE = #25;
 define INT_PROTO = #26;
-define FAILED_MATCH = #-3;
-define AMBIGUOUS = #-2;
-define NOTHING = #-1;

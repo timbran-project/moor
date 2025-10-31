@@ -5,6 +5,8 @@ object INT_PROTO
   owner: HACKER
   readable: true
 
+  override import_export_id = "int_proto";
+
   verb format_time_seconds (this none this) owner: HACKER flags: "rxd"
     "Convert integer seconds to human-readable time format";
     "Usage: seconds_value:format_time_seconds()";
