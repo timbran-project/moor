@@ -147,8 +147,4 @@ object PLAYER
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
   endverb
-
-  verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " disconnected.");
-  endverb
 endobject
