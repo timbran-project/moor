@@ -38,6 +38,7 @@ object SUB
     this.type == 'pos_noun && return event.actor:pronoun_possessive('noun);
     this.type == 'reflexive && return event.actor:pronoun_reflexive();
     this.type == 'self_alt && return event.actor == render_for ? this.for_self | this.for_others;
+    raise(E_INVARG("Unknown substitution type: " + toliteral(this.type)));
   endverb
 
   verb name_sub (this none this) owner: HACKER flags: "rxd"

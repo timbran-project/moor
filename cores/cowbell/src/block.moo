@@ -15,7 +15,7 @@ object BLOCK
     "Append this block to a content flyweight while preserving block structure";
     {target_flyweight} = args;
     "Just append our content to the target flyweight";
-    typeof(target_flyweight) != FLYWEIGHT && raise(E_TYPE, "Target must be a flyweight");
+    typeof(target_flyweight) == FLYWEIGHT || raise(E_TYPE, "Target must be a flyweight");
     target_flyweight = target_flyweight:append_element(this);
     return target_flyweight;
   endverb
@@ -30,13 +30,10 @@ object BLOCK
       elseif (typeof(content) == FLYWEIGHT)
         result = {@result, content:compose(@args)};
       else
-        raise(E_TYPE);
+        raise(E_TYPE("Invalid type for block content"));
       endif
     endfor
-    if (content_type == 'text_html)
-      return <$html, {"p", {}, result}>;
-    else
-      return result;
-    endif
+    content_type == 'text_html && return <$html, {"p", {}, result}>;
+    return result;
   endverb
 endobject

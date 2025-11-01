@@ -88,15 +88,15 @@ object PLAYER
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Send an event through the player's connections. Each connection has a set of preferred content-types.";
     "The player is the owner of this verb, so we can use 'this' to refer to the player.";
-    "This runs as wizard perms, but _notify_render runs as the player's perms.";
     "TODO: differentiate events which should only go to a *certain* connection, e.g. look, etc vs events which should go to all connections like say, emote, etc.";
     connections = connections(this);
     {event, @rest} = args;
     contents = this:_notify_render(connections, event);
     for content in (contents)
       let {connection_obj, content_type, output} = content;
-      "Send the output to the connection in its preferred content type...";
-      notify(connection_obj, output, false, false, content_type);
+      "Send the output to the connection in its preferred content type; pass the original event as metadata";
+      let event_slots = slots(event);
+      this:_notify(connection_obj, output, false, false, content_type, {{'event, event_slots}});
     endfor
   endverb
 
@@ -111,11 +111,7 @@ object PLAYER
       let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
       "For now we'll just pick the first content-type...";
       {?content_type = 'text_plain, @others} = content_types;
-      try
-        transformed = event:transform_for(this, content_type);
-      except e (ANY)
-        transformed = "FAILED EVENT: " + toliteral(event) + "\n                                                " + toliteral(e);
-      endtry
+      transformed = event:transform_for(this, content_type);
       "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
       output = {};
       for entry in (transformed)
@@ -146,5 +142,10 @@ object PLAYER
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
+  endverb
+
+  verb _notify (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    notify(@args);
   endverb
 endobject
