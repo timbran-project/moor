@@ -12,6 +12,7 @@ object PLAYER
   property pq (owner: HACKER, flags: "rc") = "its";
   property pr (owner: HACKER, flags: "rc") = "itself";
   property ps (owner: HACKER, flags: "rc") = "it";
+  property profile_picture (owner: HACKER, flags: "rc") = false;
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -148,4 +149,19 @@ object PLAYER
     caller == this || raise(E_PERM);
     notify(@args);
   endverb
+
+  verb profile_picture (this none this) owner: HACKER flags: "rxd"
+    return this.profile_picture;
+  endverb
+
+  verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
+    (caller == #-1 || caller == this) || raise(E_PERM);
+    set_task_perms(this);
+    {content_type, picbin} = args;
+    (length(picbin) > (5 * (1 << 23))) && raise(E_INVARG("Profile picture too large"));
+    (typeof(content_type) == STR && content_type:starts_with("image/")) || raise(E_TYPE);
+    typeof(picbin) == BINARY || raise(E_TYPE);
+    this.profile_picture = {content_type, picbin};
+  endverb
+
 endobject
