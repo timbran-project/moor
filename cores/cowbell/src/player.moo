@@ -155,7 +155,7 @@ object PLAYER
   endverb
 
   verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
-    (caller == #-1 || caller == this) || raise(E_PERM);
+    (caller == #-1 || caller == this || caller.wizard) || raise(E_PERM);
     set_task_perms(this);
     {content_type, picbin} = args;
     (length(picbin) > (5 * (1 << 23))) && raise(E_INVARG("Profile picture too large"));

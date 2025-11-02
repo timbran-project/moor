@@ -70,6 +70,13 @@ object ROOT
     return this.description;
   endverb
 
+  verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+    (caller == #-1 || caller == this || caller.wizard) || raise(E_PERM);
+    set_task_perms(this);
+    {description} = args;
+    this.description = description;
+  endverb
+
   verb look_self (this none this) owner: HACKER flags: "rxd"
     return $look:mk(this, @this.contents);
   endverb
@@ -108,4 +115,5 @@ object ROOT
     endfor
     return #-1;
   endverb
+
 endobject
