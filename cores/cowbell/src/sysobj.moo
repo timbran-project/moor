@@ -84,4 +84,40 @@ object SYSOBJ
     endfork
     `user:anyconfunc() ! E_VERBNF';
   endverb
+
+  verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+    command = args:join(" ");
+    pc = parse_command(command, {player, @player.contents, player.location, @player.location.contents}, true);
+    env = {player, @player.contents, player.location, @player.location.contents};
+    if (pc["dobj"] == #-2)
+      dobj_candidates = pc["ambiguous_dobj"];
+    else
+      dobj_candidates = {pc["dobj"]};
+    endif
+    if (pc["iobj"] == #-2)
+      iobj_candidates = pc["ambiguous_iobj"];
+    else
+      iobj_candidates = {pc["iobj"]};
+    endif
+    for dobj in (dobj_candidates)
+      for iobj in (iobj_candidates)
+        test_pc = pc;
+        test_pc["dobj"] = dobj;
+        test_pc["iobj"] = iobj;
+        vm_matches = find_command_verb(test_pc, env);
+        if (vm_matches)
+          for m in (vm_matches)
+            {target, verbspec} = m;
+            {def, flags, verbnames, v} = verbspec;
+            dispatch_command_verb(target, v, test_pc);
+            return true;
+          endfor
+          return;
+        endif
+      endfor
+    endfor
+    notify(connection(), "I don't understand that.");
+    return true;
+  endverb
+
 endobject
