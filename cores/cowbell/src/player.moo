@@ -7,6 +7,8 @@ object PLAYER
   readable: true
 
   property password (owner: ARCH_WIZARD, flags: "");
+  property email_address (owner: ARCH_WIZARD, flags: "") = "";
+  property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property po (owner: HACKER, flags: "rc") = "it";
   property pp (owner: HACKER, flags: "rc") = "its";
   property pq (owner: HACKER, flags: "rc") = "its";
@@ -110,23 +112,53 @@ object PLAYER
     results = {};
     for connection in (connections)
       let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
-      "For now we'll just pick the first content-type...";
-      {?content_type = 'text_plain, @others} = content_types;
+      preferred_types = event:preferred_content_types();
+      if (typeof(preferred_types) != LIST)
+        preferred_types = {};
+      endif
+      if (!preferred_types)
+        preferred_types = {'text_html, 'text_plain};
+      endif
+      content_type = 0;
+      for desired in (preferred_types)
+        if (desired in content_types)
+          content_type = desired;
+          break;
+        endif
+      endfor
+      if (!content_type)
+        content_type = length(content_types) >= 1 ? content_types[1] | 'text_plain;
+      endif
       transformed = event:transform_for(this, content_type);
       "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
       output = {};
       for entry in (transformed)
-        if (typeof(entry) == STR)
-          output = {@output, entry};
-        else
-          output = {@output, entry:render(content_type)};
-        endif
+        output = this:_extend_output(output, entry, content_type);
       endfor
       if (length(output) > 0)
         results = {@results, {connection_obj, content_type, output}};
       endif
     endfor
     return results;
+  endverb
+
+  verb _extend_output (this none this) owner: ARCH_WIZARD flags: "rxd"
+    {acc, entry, content_type} = args;
+    if (typeof(entry) == STR)
+      return {@acc, entry};
+    elseif (typeof(entry) == LIST)
+      for element in (entry)
+        acc = this:_extend_output(acc, element, content_type);
+      endfor
+      return acc;
+    elseif (typeof(entry) == FLYWEIGHT)
+      rendered = entry:render(content_type);
+      return this:_extend_output(acc, rendered, content_type);
+    elseif (typeof(entry) == ERR)
+      return {@acc, toliteral(entry)};
+    else
+      return {@acc, tostr(entry)};
+    endif
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"

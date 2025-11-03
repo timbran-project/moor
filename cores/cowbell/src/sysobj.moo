@@ -4,7 +4,7 @@ object SYSOBJ
   owner: ARCH_WIZARD
   readable: true
 
-  property ambiguous (owner: HACKER, flags: "r") = #-2;
+  property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property block (owner: HACKER, flags: "r") = BLOCK;
   property builder (owner: HACKER, flags: "r") = BUILDER;
@@ -20,6 +20,7 @@ object SYSOBJ
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;
   property nothing (owner: HACKER, flags: "r") = #-1;
+  property local (owner: HACKER, flags: "r") = #-1;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog (owner: HACKER, flags: "r") = PROG;

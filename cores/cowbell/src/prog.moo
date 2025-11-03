@@ -11,9 +11,7 @@ object PROG
   override import_export_id = "prog";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rxd"
-    if (player != caller)
-      raise(E_PERMS);
-    endif
+    caller == this || raise(E_PERM);
     set_task_perms(player);
     answer = eval("return " + argstr + ";");
     if (answer[1])

@@ -39,7 +39,7 @@ object LOOK
       block_elements = {@block_elements, "You see " + contents:english_list() + " here."};
     endif
     b = $block:mk(@block_elements);
-    return $event:mk_look(player, b):with_dobj(this.what);
+    return $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain});
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"
