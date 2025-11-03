@@ -86,8 +86,12 @@ object SYSOBJ
   endverb
 
   verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Custom command handler which is capable of handling ambiguous object matches by attempting to find matching verb candidates.";
+    "...This code should only be run as a server task...";
+    callers() && return E_PERM;
+    "Just choose to ignore empty commands...";
     length(args) == 0 && return true;
-    command = args:join(" ");
+    command = argstr;
     pc = parse_command(command, {player, @player.contents, player.location, @player.location.contents}, true);
     env = {player, @player.contents, player.location, @player.location.contents};
     if (pc["dobj"] == #-2)
