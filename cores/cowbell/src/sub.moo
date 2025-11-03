@@ -19,6 +19,25 @@ object SUB
     return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
   endverb
 
+  verb phrase (this none this) owner: HACKER flags: "rxd"
+    {text, ?options = []} = args;
+    typeof(text) == STR || return "";
+    strip_period = false;
+    initial_lowercase = false;
+    if (typeof(options) == LIST)
+      strip_period = 'strip_period in options;
+      initial_lowercase = 'initial_lowercase in options;
+    endif
+    if (strip_period && length(text) && text[length(text)] == ".")
+      text = text[1..length(text) - 1];
+    endif
+    if (initial_lowercase && length(text))
+      first = text[1..1]:lowercase();
+      text = first + (length(text) >= 2 ? text[2..$] | "");
+    endif
+    return text;
+  endverb
+
   verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
     capitalize = verb[length(verb)] == "c";
     {for_self, for_alt} = args;

@@ -29,7 +29,7 @@ object AREA
 
   verb set_passage (this none this) owner: HACKER flags: "rxd"
     {room_a, room_b, passage} = args;
-    typeof(passage) == OBJ || raise(E_TYPE);
+    typeof(passage) == OBJ || typeof(passage) == FLYWEIGHT || raise(E_TYPE);
     prop = this:passage_key(room_a, room_b);
     this.(prop) = passage;
     return passage;
@@ -51,7 +51,7 @@ object AREA
         continue;
       endif
       passage = `this.(prop) ! E_PROPNF => 0';
-      if (typeof(passage) == OBJ)
+      if (typeof(passage) == OBJ || typeof(passage) == FLYWEIGHT)
         edges = {@edges, passage};
       endif
     endfor

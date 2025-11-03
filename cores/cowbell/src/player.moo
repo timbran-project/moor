@@ -11,6 +11,7 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property pronouns (owner: HACKER, flags: "rc") = PRONOUNS_THEY_THEM;
+  property travel_context (owner: HACKER, flags: "") = 0;
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -155,6 +156,68 @@ object PLAYER
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
+  endverb
+
+  verb _set_travel_context (this none this) owner: HACKER flags: "rxd"
+    {context} = args;
+    this.travel_context = context;
+    return context;
+  endverb
+
+  verb _peek_travel_context (this none this) owner: HACKER flags: "rxd"
+    context = this.travel_context;
+    return context ? context | 0;
+  endverb
+
+  verb _clear_travel_context (this none this) owner: HACKER flags: "rxd"
+    this.travel_context = 0;
+    return true;
+  endverb
+
+  verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
+    {from_room, ?direction = "", ?passage_desc = "", ?to_room = #-1} = args;
+    typeof(direction) == STR || (direction = "");
+    typeof(passage_desc) == STR || (passage_desc = "");
+    passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
+    parts = {$sub:nc(), " ", $sub:self_alt("head", "heads")};
+    if (direction)
+      parts = {@parts, " ", direction};
+    else
+      parts = {@parts, " out"};
+    endif
+    if (passage_desc)
+      parts = {@parts, " through ", passage_desc};
+    endif
+    parts = {@parts, "."};
+    event = $event:mk_move(this, @parts);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    valid(from_room) && (event = event:with_this(from_room));
+    if (valid(to_room))
+      event = event:with_iobj(to_room);
+    endif
+    return event;
+  endverb
+
+  verb mk_arrival_event (this none this) owner: HACKER flags: "rxd"
+    {to_room, ?direction = "", ?passage_desc = "", ?from_room = #-1} = args;
+    typeof(direction) == STR || (direction = "");
+    typeof(passage_desc) == STR || (passage_desc = "");
+    passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
+    parts = {$sub:nc(), " ", $sub:self_alt("arrive", "arrives")};
+    if (direction)
+      parts = {@parts, " from the ", direction};
+    endif
+    if (passage_desc)
+      parts = {@parts, ", emerging from ", passage_desc};
+    endif
+    parts = {@parts, "."};
+    event = $event:mk_move(this, @parts);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    valid(to_room) && (event = event:with_this(to_room));
+    if (valid(from_room))
+      event = event:with_iobj(from_room);
+    endif
+    return event;
   endverb
 
   verb profile_picture (this none this) owner: HACKER flags: "rxd"
@@ -478,8 +541,12 @@ object PLAYER
   endverb
 
   verb _passage_areas (this none this) owner: HACKER flags: "rxd"
+    room = this.location;
+    if (!valid(room))
+      return {};
+    endif
     areas = {};
-    area = this.location;
+    area = room.location;
     if (valid(area))
       areas = {area};
     endif
@@ -500,9 +567,11 @@ object PLAYER
         continue;
       endif
       for entry in (area_entries)
-        if (entry)
-          entries = {@entries, entry};
+        normalized = this:_normalize_command_scope_entry(entry);
+        if (!normalized)
+          continue;
         endif
+        entries = {@entries, normalized};
       endfor
     endfor
     return entries;
@@ -522,9 +591,11 @@ object PLAYER
         continue;
       endif
       for entry in (area_entries)
-        if (entry)
-          entries = {@entries, entry};
+        normalized = this:_normalize_command_scope_entry(entry);
+        if (!normalized)
+          continue;
         endif
+        entries = {@entries, normalized};
       endfor
     endfor
     return entries;
