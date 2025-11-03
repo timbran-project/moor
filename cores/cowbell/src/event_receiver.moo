@@ -6,6 +6,7 @@ object EVENT_RECEIVER
   fertile: true
   readable: true
 
+  override description = "Generic event receiver prototype providing event broadcasting and connection notification capabilities.";
   override import_export_id = "event_receiver";
 
   verb tell (this none this) owner: HACKER flags: "rxd"

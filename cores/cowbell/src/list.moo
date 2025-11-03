@@ -5,6 +5,7 @@ object LIST
   owner: HACKER
   readable: true
 
+  override description = "Flyweight delegate for list content in events.";
   override import_export_id = "list";
 
   verb mk (this none this) owner: HACKER flags: "rxd"

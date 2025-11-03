@@ -5,6 +5,7 @@ object TABLE
   owner: HACKER
   readable: true
 
+  override description = "Flyweight delegate for table content in events.";
   override import_export_id = "table";
 
   verb mk (this none this) owner: HACKER flags: "rxd"

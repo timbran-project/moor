@@ -5,6 +5,7 @@ object TITLE
   owner: HACKER
   readable: true
 
+  override description = "Flyweight delegate for title/heading content in events.";
   override import_export_id = "title";
 
   verb mk (this none this) owner: HACKER flags: "rxd"

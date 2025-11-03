@@ -8,6 +8,7 @@ object PROG
   fertile: true
   readable: true
 
+  override description = "Generic programmer character prototype with code evaluation and editing capabilities.";
   override import_export_id = "prog";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rxd"

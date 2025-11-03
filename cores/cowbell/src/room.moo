@@ -6,6 +6,7 @@ object ROOM
   fertile: true
   readable: true
 
+  override description = "Parent prototype for all rooms in the system, defining room behavior and event broadcasting.";
   override import_export_id = "room";
 
   verb emote (any any any) owner: HACKER flags: "rxd"

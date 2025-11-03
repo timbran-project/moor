@@ -7,6 +7,7 @@ object ROOT
 
   property aliases (owner: HACKER, flags: "rc") = {};
   property description (owner: HACKER, flags: "rc") = "";
+  override description = "Root prototype object from which all other objects inherit.";
   property import_export_id (owner: HACKER, flags: "r") = "root";
 
   verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"

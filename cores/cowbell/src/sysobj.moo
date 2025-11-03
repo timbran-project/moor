@@ -34,6 +34,7 @@ object SYSOBJ
   property title (owner: HACKER, flags: "r") = TITLE;
   property wiz (owner: HACKER, flags: "r") = WIZ;
 
+  override description = "System object containing global properties and core server event handlers.";
   override import_export_id = "sysobj";
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"

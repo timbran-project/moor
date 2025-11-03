@@ -5,6 +5,7 @@ object BLOCK
   owner: HACKER
   readable: true
 
+  override description = "Flyweight delegate for multiline block content in events. Used to compose paragraphs and structured text that can be rendered to both plain text and HTML.";
   override import_export_id = "block";
 
   verb mk (this none this) owner: HACKER flags: "rxd"

@@ -4,6 +4,7 @@ object PASSWORD
   owner: HACKER
   readable: true
 
+  override description = "Flyweight delegate for password storage using Argon2 encryption.";
   property import_export_id (owner: HACKER, flags: "r") = "password";
 
   verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"

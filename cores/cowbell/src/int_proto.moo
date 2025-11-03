@@ -5,6 +5,7 @@ object INT_PROTO
   owner: HACKER
   readable: true
 
+  override description = "Prototype object for integer utility methods.";
   override import_export_id = "int_proto";
 
   verb format_time_seconds (this none this) owner: HACKER flags: "rxd"

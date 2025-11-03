@@ -6,6 +6,7 @@ object THING
   fertile: true
   readable: true
 
+  override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_id = "thing";
 
   verb get (this none none) owner: HACKER flags: "rxd"

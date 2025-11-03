@@ -19,6 +19,7 @@ object LOGIN
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
 
+  override description = "Login service handling player authentication, character creation, and OAuth2 integration.";
   override import_export_id = "login";
 
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"

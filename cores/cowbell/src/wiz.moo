@@ -3,12 +3,11 @@ object WIZ
   parent: PROG
   location: FIRST_ROOM
   owner: ARCH_WIZARD
-  wizard: true
-  programmer: true
   fertile: true
 
   property test (owner: WIZ, flags: "r") = {};
 
+  override description = "Generic wizard, parent of all wizards";
   override import_export_id = "wiz";
 
   verb counter_summary (this none this) owner: HACKER flags: "rxd"

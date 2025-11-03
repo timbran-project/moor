@@ -3,6 +3,7 @@ object HTML
   parent: ROOT
   owner: HACKER
 
+  override description = "Flyweight delegate for HTML tree structures.";
   override import_export_id = "html";
 
   verb render (this none this) owner: HACKER flags: "rxd"

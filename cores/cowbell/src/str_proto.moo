@@ -207,6 +207,7 @@ object STR_PROTO
   property digits (owner: HACKER, flags: "rc") = "0123456789";
   property tab (owner: HACKER, flags: "rc") = "\t";
 
+  override description = "Prototype object for string utility methods and text manipulation operations.";
   override import_export_id = "str_proto";
 
   verb "capitalize capitalise" (this none this) owner: HACKER flags: "rxd"

@@ -5,6 +5,7 @@ object LIST_PROTO
   owner: HACKER
   readable: true
 
+  override description = "Prototype object for list utility methods and functional programming operations.";
   override import_export_id = "list_proto";
 
   verb append (this none this) owner: HACKER flags: "rxd"
