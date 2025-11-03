@@ -17,10 +17,16 @@ object ROOM
   endverb
 
   verb confunc (this none this) owner: HACKER flags: "rxd"
-    discon_event = player:mk_connected_event();
-    this:announce(discon_event);
+    arrival_event = player:mk_connected_event();
+    for who in (this:contents())
+      if (who == player)
+        continue;
+      endif
+      `who:tell(arrival_event) ! E_VERBNF';
+    endfor
+    player:inform_current(player:mk_connected_event():with_audience('utility));
     look_d = this:look_self();
-    player:tell(look_d:into_event());
+    player:inform_current(look_d:into_event():with_audience('utility));
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"

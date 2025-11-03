@@ -87,6 +87,7 @@ object SYSOBJ
   endverb
 
   verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+    length(args) == 0 && return true;
     command = args:join(" ");
     pc = parse_command(command, {player, @player.contents, player.location, @player.location.contents}, true);
     env = {player, @player.contents, player.location, @player.location.contents};

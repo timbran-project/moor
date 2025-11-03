@@ -23,3 +23,4 @@ define MATCH = #23;
 define LIST = #24;
 define TABLE = #25;
 define INT_PROTO = #26;
+define EVENT_RECEIVER = #27;

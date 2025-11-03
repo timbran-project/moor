@@ -159,4 +159,33 @@ object EVENT
     endfor
     return {};
   endverb
+
+  verb audience (this none this) owner: HACKER flags: "rxd"
+    "Return the audience classification stored on this event.";
+    metadata = `this.metadata ! E_PROPNF => {}';
+    for pair in (metadata)
+      if (pair[1] == 'audience)
+        return pair[2];
+      endif
+    endfor
+    return 'narrative;
+  endverb
+
+  verb with_audience (this none this) owner: WIZ flags: "rxd"
+    "Attach an audience classification to the event.";
+    {audience} = args;
+    return this:with_metadata('audience, audience);
+  endverb
+
+  verb ensure_audience (this none this) owner: WIZ flags: "rxd"
+    "Ensure the event has an audience classification, using the provided default if missing.";
+    {audience} = args;
+    metadata = `this.metadata ! E_PROPNF => {}';
+    for pair in (metadata)
+      if (pair[1] == 'audience)
+        return this;
+      endif
+    endfor
+    return this:with_metadata('audience, audience);
+  endverb
 endobject

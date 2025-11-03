@@ -1,6 +1,6 @@
 object PLAYER
   name: "Generic Player"
-  parent: ROOT
+  parent: EVENT_RECEIVER
   location: FIRST_ROOM
   owner: WIZ
   fertile: true
@@ -25,16 +25,16 @@ object PLAYER
     if (dobjstr == "")
       dobj = player.location;
     endif
-    !valid(dobj) && return this:tell(this:msg_no_dobj_match());
+    !valid(dobj) && return this:inform_current(this:msg_no_dobj_match());
     look_d = dobj:look_self();
-    player:tell(look_d:into_event());
+    player:inform_current(look_d:into_event():with_audience('utility));
   endverb
 
   verb "i*nventory" (any none none) owner: HACKER flags: "rxd"
     "Display player's inventory using list format";
     caller != player && return E_PERM;
     items = this.contents;
-    !items && return this:tell($event:mk_inventory(player, "You are not carrying anything."));
+    !items && return this:inform_current($event:mk_inventory(player, "You are not carrying anything."):with_audience('utility));
     "Get item names";
     item_names = { item:name() for item in (items) };
     "Create and display the inventory list";
@@ -42,14 +42,14 @@ object PLAYER
     title_obj = $title:mk("Inventory");
     content = $block:mk(title_obj, list_obj);
     event = $event:mk_inventory(player, content);
-    this:tell(event);
+    this:inform_current(event:with_audience('utility));
   endverb
 
   verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Display list of connected players using table format";
     caller != player && return E_PERM;
     players = connected_players();
-    !players && return this:tell($event:mk_not_found(this, "No players are currently connected."));
+    !players && return this:inform_current($event:mk_not_found(this, "No players are currently connected."):with_audience('utility));
     "Build table data";
     headers = {"Name", "Idle", "Connected", "Location"};
     rows = {};
@@ -68,14 +68,14 @@ object PLAYER
       title_obj = $title:mk("Who's Online");
       content = $block:mk(title_obj, table_obj);
       event = $event:mk_who(player, content);
-      this:tell(event);
+      this:inform_current(event:with_audience('utility));
     else
-      this:tell($event:mk_who(this, "No connected players found."));
+      this:inform_current($event:mk_who(this, "No connected players found."):with_audience('utility));
     endif
   endverb
 
   verb "msg_no_dobj_match msg_no_iobj_match" (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_not_found(player, "I don't see that here.");
+    return $event:mk_not_found(player, "I don't see that here."):with_audience('utility);
   endverb
 
   verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
@@ -86,79 +86,6 @@ object PLAYER
     ptype == 'possessive && args[2] == 'noun && return this.pq;
     ptype == 'reflexive && return this.pr;
     raise(E_INVARG);
-  endverb
-
-  verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Send an event through the player's connections. Each connection has a set of preferred content-types.";
-    "The player is the owner of this verb, so we can use 'this' to refer to the player.";
-    "TODO: differentiate events which should only go to a *certain* connection, e.g. look, etc vs events which should go to all connections like say, emote, etc.";
-    connections = connections(this);
-    {event, @rest} = args;
-    contents = this:_notify_render(connections, event);
-    for content in (contents)
-      let {connection_obj, content_type, output} = content;
-      "Send the output to the connection in its preferred content type; pass the original event as metadata";
-      let event_slots = slots(event);
-      this:_notify(connection_obj, output, false, false, content_type, {{'event, event_slots}});
-    endfor
-  endverb
-
-  verb _notify_render (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this);
-    "Render the events for the player, using the connections and their content-types.";
-    "Returns a list of { { connection_obj, content_type, { content-as-list } ... }";
-    {connections, event} = args;
-    "Connections is of form { {connection_obj, peer_addr, idle_seconds, { content_types ... }, ... }";
-    results = {};
-    for connection in (connections)
-      let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
-      preferred_types = event:preferred_content_types();
-      if (typeof(preferred_types) != LIST)
-        preferred_types = {};
-      endif
-      if (!preferred_types)
-        preferred_types = {'text_html, 'text_plain};
-      endif
-      content_type = 0;
-      for desired in (preferred_types)
-        if (desired in content_types)
-          content_type = desired;
-          break;
-        endif
-      endfor
-      if (!content_type)
-        content_type = length(content_types) >= 1 ? content_types[1] | 'text_plain;
-      endif
-      transformed = event:transform_for(this, content_type);
-      "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
-      output = {};
-      for entry in (transformed)
-        output = this:_extend_output(output, entry, content_type);
-      endfor
-      if (length(output) > 0)
-        results = {@results, {connection_obj, content_type, output}};
-      endif
-    endfor
-    return results;
-  endverb
-
-  verb _extend_output (this none this) owner: ARCH_WIZARD flags: "rxd"
-    {acc, entry, content_type} = args;
-    if (typeof(entry) == STR)
-      return {@acc, entry};
-    elseif (typeof(entry) == LIST)
-      for element in (entry)
-        acc = this:_extend_output(acc, element, content_type);
-      endfor
-      return acc;
-    elseif (typeof(entry) == FLYWEIGHT)
-      rendered = entry:render(content_type);
-      return this:_extend_output(acc, rendered, content_type);
-    elseif (typeof(entry) == ERR)
-      return {@acc, toliteral(entry)};
-    else
-      return {@acc, tostr(entry)};
-    endif
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
@@ -175,11 +102,6 @@ object PLAYER
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
-  endverb
-
-  verb _notify (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
-    notify(@args);
   endverb
 
   verb profile_picture (this none this) owner: HACKER flags: "rxd"
