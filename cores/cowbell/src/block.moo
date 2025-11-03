@@ -26,13 +26,7 @@ object BLOCK
     result = {};
     for line_no in [1..length(this)]
       content = this[line_no];
-      if (typeof(content) == STR)
-        result = {@result, content};
-      elseif (typeof(content) == FLYWEIGHT)
-        result = {@result, content:compose(@args)};
-      else
-        raise(E_TYPE("Invalid type for block content"));
-      endif
+      result = {@result, content:compose(@args)};
     endfor
     content_type == 'text_html && return <$html, {"p", {}, result}>;
     return result;

@@ -151,4 +151,18 @@ object PLAYER
     typeof(picbin) == BINARY || raise(E_TYPE);
     this.profile_picture = {content_type, picbin};
   endverb
+
+  verb look_self (this none this) owner: HACKER flags: "rxd"
+    base_desc = this.description;
+    if (!(this in connected_players()))
+      activity_parts = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " sleeping."};
+    elseif ((idle = idle_seconds(this)) < 60)
+      activity_parts = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake and ", $sub:verb_look_dobj(), " alert."};
+    else
+      time = $str_proto:from_seconds(idle);
+      activity_parts = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
+    endif
+    description = $block:mk(activity_parts);
+    return <$look, [what -> this, title -> this:name(), description -> description], {@this.contents}>;
+  endverb
 endobject

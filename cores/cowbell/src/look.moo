@@ -15,7 +15,6 @@ object LOOK
     "Three lines -- title, description, contents.";
     "Description is the item description but is also appended to with integrations. Objects with an :integrate_description verb are put there.";
     "The remainder go into the contents block.";
-    "Title is the direct-object-capitalized";
     title = $title:mk($sub:dc());
     integrated_contents = {};
     contents = {};
@@ -32,7 +31,9 @@ object LOOK
     endfor
     description = this.description;
     if (length(integrated_contents))
-      description = description + " " + { ic + "." for ic in (integrated_contents) }:to_list();
+      "Append integrated contents to description";
+      integrated_str = { ic + "." for ic in (integrated_contents) }:join("");
+      description = $block:mk(description, " ", integrated_str);
     endif
     block_elements = {title, description};
     if (length(contents))

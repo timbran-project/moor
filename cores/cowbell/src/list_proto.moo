@@ -233,6 +233,15 @@ object LIST_PROTO
     return groups;
   endverb
 
+  verb compose (this none this) owner: HACKER flags: "rxd"
+    "Runs :compose on all elements in turn then joins them together into a result";
+    results = {};
+    for x in (args[1])
+        results = {@results, x:compose(@args[2..$])};
+    endfor
+    return results:join("");
+  endverb
+
   verb test_map (this none this) owner: HACKER flags: "rxd"
     "Test the map function";
     result = 0;
