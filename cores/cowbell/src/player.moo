@@ -10,7 +10,7 @@ object PLAYER
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = PRONOUNS_THEY_THEM;
+  property pronouns (owner: HACKER, flags: "rc") = <PRONOUNS, [display -> "they/them", ps -> "they", po -> "them", pp -> "their", pq -> "theirs", pr -> "themselves", is_plural -> true, verb_be -> "are", verb_have -> "have"]>;
   property travel_context (owner: HACKER, flags: "") = 0;
 
   override description = "You see a player who should get around to describing themself.";
@@ -111,7 +111,7 @@ object PLAYER
     endif
     "Try to look up the pronoun set";
     pronoun_set = $pronouns:lookup(argstr:trim());
-    if (typeof(pronoun_set) != OBJ)
+    if (typeof(pronoun_set) != FLYWEIGHT)
       event = $event:mk_error(this, "Unknown pronoun set: " + argstr, "", "Available: " + $pronouns:list_presets():join(", "));
       this:inform_current(event:with_audience('utility));
       return;

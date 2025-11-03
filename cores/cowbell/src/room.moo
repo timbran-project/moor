@@ -110,7 +110,7 @@ object ROOM
     if (from_room != this)
       return;
     endif
-    departure_event = `who:mk_departure_event(this, direction, passage_desc, to_room) ! E_VERBNF => 0';
+    departure_event = `who:mk_departure_event(this, direction, passage_desc, to_room) ! E_VERBNF => false';
     if (!departure_event)
       fallback_departure = $event:mk_move(who, $sub:nc(), " ", $sub:self_alt("leave", "leaves"), "."):with_this(this);
       valid(to_room) && (fallback_departure = fallback_departure:with_iobj(to_room));
