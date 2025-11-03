@@ -6,15 +6,11 @@ object PLAYER
   fertile: true
   readable: true
 
-  property password (owner: ARCH_WIZARD, flags: "");
   property email_address (owner: ARCH_WIZARD, flags: "") = "";
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
-  property po (owner: HACKER, flags: "rc") = "it";
-  property pp (owner: HACKER, flags: "rc") = "its";
-  property pq (owner: HACKER, flags: "rc") = "its";
-  property pr (owner: HACKER, flags: "rc") = "itself";
-  property ps (owner: HACKER, flags: "rc") = "it";
+  property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
+  property pronouns (owner: HACKER, flags: "rc") = PRONOUNS_THEY_THEM;
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -78,14 +74,52 @@ object PLAYER
     return $event:mk_not_found(player, "I don't see that here."):with_audience('utility);
   endverb
 
+  verb pronouns (this none this) owner: HACKER flags: "rxd"
+    "Return the pronoun set for this player (object or flyweight).";
+    return this.pronouns;
+  endverb
+
   verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
+    "Get pronoun from either preset object or custom flyweight.";
     ptype = tosym(verb[9..length(verb)]);
-    ptype == 'subject && return this.ps;
-    ptype == 'object && return this.po;
-    ptype == 'possessive && args[1] == 'adj && return this.pp;
-    ptype == 'possessive && args[2] == 'noun && return this.pq;
-    ptype == 'reflexive && return this.pr;
+    p = this:pronouns();
+    ptype == 'subject && return p.ps;
+    ptype == 'object && return p.po;
+    ptype == 'possessive && args[1] == 'adj && return p.pp;
+    ptype == 'possessive && args[2] == 'noun && return p.pq;
+    ptype == 'reflexive && return p.pr;
     raise(E_INVARG);
+  endverb
+
+  verb "@pronouns" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "Set or view your pronouns.";
+    "Usage: @pronouns [pronoun-set]";
+    "Examples: @pronouns they/them, @pronouns she/her, @pronouns";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    if (!argstr)
+      "Show current pronouns and available options";
+      current = $pronouns:display(this:pronouns());
+      available = $pronouns:list_presets();
+      title = $title:mk("Your Pronouns");
+      lines = {"Current: " + current, "", "Available presets: " + available:join(", ")};
+      content = $block:mk(title, @lines);
+      event = $event:mk_info(this, content);
+      this:inform_current(event:with_audience('utility));
+      return;
+    endif
+    "Try to look up the pronoun set";
+    pronoun_set = $pronouns:lookup(argstr:trim());
+    if (typeof(pronoun_set) != OBJ)
+      event = $event:mk_error(this, "Unknown pronoun set: " + argstr, "", "Available: " + $pronouns:list_presets():join(", "));
+      this:inform_current(event:with_audience('utility));
+      return;
+    endif
+    "Set the pronouns";
+    this.pronouns = pronoun_set;
+    display = $pronouns:display(pronoun_set);
+    event = $event:mk_info(this, "Pronouns set to: " + display);
+    this:inform_current(event:with_audience('utility));
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
@@ -109,13 +143,12 @@ object PLAYER
   endverb
 
   verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
-    (caller == #-1 || caller == this || caller.wizard) || raise(E_PERM);
+    caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(this);
     {content_type, picbin} = args;
-    (length(picbin) > (5 * (1 << 23))) && raise(E_INVARG("Profile picture too large"));
-    (typeof(content_type) == STR && content_type:starts_with("image/")) || raise(E_TYPE);
+    length(picbin) > 5 * (1 << 23) && raise(E_INVARG("Profile picture too large"));
+    typeof(content_type) == STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == BINARY || raise(E_TYPE);
     this.profile_picture = {content_type, picbin};
   endverb
-
 endobject

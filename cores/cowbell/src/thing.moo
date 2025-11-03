@@ -6,8 +6,27 @@ object THING
   fertile: true
   readable: true
 
+  property pronouns (owner: HACKER, flags: "rc") = PRONOUNS_IT_ITS;
+
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_id = "thing";
+
+  verb pronouns (this none this) owner: HACKER flags: "rxd"
+    "Return the pronoun set for this object (object or flyweight).";
+    return this.pronouns;
+  endverb
+
+  verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
+    "Get pronoun from either preset object or custom flyweight.";
+    ptype = tosym(verb[9..length(verb)]);
+    p = this:pronouns();
+    ptype == 'subject && return p.ps;
+    ptype == 'object && return p.po;
+    ptype == 'possessive && args[1] == 'adj && return p.pp;
+    ptype == 'possessive && args[2] == 'noun && return p.pq;
+    ptype == 'reflexive && return p.pr;
+    raise(E_INVARG);
+  endverb
 
   verb get (this none none) owner: HACKER flags: "rxd"
     accept_to = player:acceptable(this);

@@ -6,8 +6,7 @@ object ROOT
   readable: true
 
   property aliases (owner: HACKER, flags: "rc") = {};
-  property description (owner: HACKER, flags: "rc") = "";
-  override description = "Root prototype object from which all other objects inherit.";
+  property description (owner: HACKER, flags: "rc") = "Root prototype object from which all other objects inherit.";
   property import_export_id (owner: HACKER, flags: "r") = "root";
 
   verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -72,7 +71,7 @@ object ROOT
   endverb
 
   verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
-    (caller == #-1 || caller == this || caller.wizard) || raise(E_PERM);
+    caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(this);
     {description} = args;
     this.description = description;
@@ -116,5 +115,4 @@ object ROOT
     endfor
     return #-1;
   endverb
-
 endobject

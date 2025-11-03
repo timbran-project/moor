@@ -16,14 +16,15 @@ object SYSOBJ
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property list (owner: HACKER, flags: "r") = LIST;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
+  property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;
   property nothing (owner: HACKER, flags: "r") = #-1;
-  property local (owner: HACKER, flags: "r") = #-1;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog (owner: HACKER, flags: "r") = PROG;
+  property pronouns (owner: HACKER, flags: "r") = PRONOUNS;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
@@ -122,5 +123,4 @@ object SYSOBJ
     notify(connection(), "I don't understand that.");
     return true;
   endverb
-
 endobject

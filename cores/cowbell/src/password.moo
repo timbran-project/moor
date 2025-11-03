@@ -1,11 +1,12 @@
 object PASSWORD
   name: "Password Flyweight Delegate"
+  parent: ROOT
   location: FIRST_ROOM
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for password storage using Argon2 encryption.";
-  property import_export_id (owner: HACKER, flags: "r") = "password";
+  override import_export_id = "password";
 
   verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
     "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";
