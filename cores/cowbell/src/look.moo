@@ -15,7 +15,7 @@ object LOOK
     "Three lines -- title, description, contents.";
     "Description is the item description but is also appended to with integrations. Objects with an :integrate_description verb are put there.";
     "The remainder go into the contents block.";
-    title = $title:mk($sub:dc());
+    title = $format.title:mk($sub:dc());
     integrated_contents = {};
     contents = {};
     for o in (this)
@@ -33,13 +33,13 @@ object LOOK
     if (length(integrated_contents))
       "Append integrated contents to description";
       integrated_str = { ic + "." for ic in (integrated_contents) }:join("");
-      description = $block:mk(description, " ", integrated_str);
+      description = $format.block:mk(description, " ", integrated_str);
     endif
     block_elements = {title, description};
     if (length(contents))
       block_elements = {@block_elements, "You see " + contents:english_list() + " here."};
     endif
-    b = $block:mk(@block_elements);
+    b = $format.block:mk(@block_elements);
     return $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain});
   endverb
 

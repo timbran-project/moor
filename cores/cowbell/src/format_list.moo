@@ -1,4 +1,4 @@
-object LIST
+object FORMAT_LIST
   name: "List Content Flyweight Delegate"
   parent: ROOT
   location: FIRST_ROOM
@@ -6,7 +6,7 @@ object LIST
   readable: true
 
   override description = "Flyweight delegate for list content in events.";
-  override import_export_id = "list";
+  override import_export_id = "format_list";
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create list flyweight with optional ordered attribute";
@@ -20,13 +20,7 @@ object LIST
     {render_for, content_type, event} = args;
     result = {};
     for item in (this)
-      if (typeof(item) == STR)
-        result = {@result, item};
-      elseif (typeof(item) == FLYWEIGHT)
-        result = {@result, item:compose(@args)};
-      else
-        raise(E_TYPE, "List items must be strings or composable flyweights");
-      endif
+      result = {@result, item:compose(@args)};
     endfor
     if (content_type == 'text_html)
       "Create li-wrapped items for HTML";

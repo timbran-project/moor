@@ -34,9 +34,9 @@ object PLAYER
     "Get item names";
     item_names = { item:name() for item in (items) };
     "Create and display the inventory list";
-    list_obj = $list:mk(item_names);
-    title_obj = $title:mk("Inventory");
-    content = $block:mk(title_obj, list_obj);
+    list_obj = $format.list:mk(item_names);
+    title_obj = $format.title:mk("Inventory");
+    content = $format.block:mk(title_obj, list_obj);
     event = $event:mk_inventory(player, content);
     this:inform_current(event:with_audience('utility));
   endverb
@@ -60,9 +60,9 @@ object PLAYER
     endfor
     "Create and display the table";
     if (rows)
-      table_obj = $table:mk(headers, rows);
-      title_obj = $title:mk("Who's Online");
-      content = $block:mk(title_obj, table_obj);
+      table_obj = $format.table:mk(headers, rows);
+      title_obj = $format.title:mk("Who's Online");
+      content = $format.block:mk(title_obj, table_obj);
       event = $event:mk_who(player, content);
       this:inform_current(event:with_audience('utility));
     else
@@ -101,9 +101,9 @@ object PLAYER
       "Show current pronouns and available options";
       current = $pronouns:display(this:pronouns());
       available = $pronouns:list_presets();
-      title = $title:mk("Your Pronouns");
+      title = $format.title:mk("Your Pronouns");
       lines = {"Current: " + current, "", "Available presets: " + available:join(", ")};
-      content = $block:mk(title, @lines);
+      content = $format.block:mk(title, @lines);
       event = $event:mk_info(this, content);
       this:inform_current(event:with_audience('utility));
       return;
@@ -155,14 +155,13 @@ object PLAYER
   verb look_self (this none this) owner: HACKER flags: "rxd"
     base_desc = this.description;
     if (!(this in connected_players()))
-      activity_parts = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " sleeping."};
+      description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " sleeping."};
     elseif ((idle = idle_seconds(this)) < 60)
-      activity_parts = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake and ", $sub:verb_look_dobj(), " alert."};
+      description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake and ", $sub:verb_look_dobj(), " alert."};
     else
       time = $str_proto:from_seconds(idle);
-      activity_parts = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
+      description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
     endif
-    description = $block:mk(activity_parts);
     return <$look, [what -> this, title -> this:name(), description -> description], {@this.contents}>;
   endverb
 endobject

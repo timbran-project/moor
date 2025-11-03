@@ -31,12 +31,12 @@ object HTML
             " Need to handle nested lists recursively ";
             e = {@e, subentry};
           else
-            e = {@e, {"p", {}, subentry}};
+            e = {@e, subentry};
           endif
         endfor
         result = e;
       else
-        result = {"p", {}, entry};
+        result = entry;
       endif
       results = {@results, result};
     endfor

@@ -18,7 +18,7 @@ object PROG
     if (answer[1])
       result_event = $event:mk_eval_result(player, "=> ", toliteral(answer[2]));
     else
-      result_event = $event:mk_eval_error(player, $block:mk(@answer[2]));
+      result_event = $event:mk_eval_error(player, $format.block:mk(@answer[2]));
     endif
     player:tell(result_event);
   endverb

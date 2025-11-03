@@ -1,4 +1,4 @@
-object TABLE
+object FORMAT_TABLE
   name: "Table Content Flyweight Delegate"
   parent: ROOT
   location: FIRST_ROOM
@@ -6,7 +6,7 @@ object TABLE
   readable: true
 
   override description = "Flyweight delegate for table content in events.";
-  override import_export_id = "table";
+  override import_export_id = "format_table";
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create table flyweight with headers and rows";
@@ -35,13 +35,7 @@ object TABLE
       if (headers)
         header_cells = {};
         for header in (headers)
-          if (typeof(header) == STR)
-            header_content = header;
-          elseif (typeof(header) == FLYWEIGHT)
-            header_content = header:compose(@args);
-          else
-            header_content = tostr(header);
-          endif
+          header_content = `header:compose(@args) ! E_VERBNF => tostr(header)';
           header_cells = {@header_cells, <$html, {"th", {}, {header_content}}>};
         endfor
         thead = <$html, {"thead", {}, {<$html, {"tr", {}, header_cells}>}}>;
@@ -52,13 +46,7 @@ object TABLE
       for row in (rows)
         row_cells = {};
         for cell in (row)
-          if (typeof(cell) == STR)
-            cell_content = cell;
-          elseif (typeof(cell) == FLYWEIGHT)
-            cell_content = cell:compose(@args);
-          else
-            cell_content = tostr(cell);
-          endif
+          cell_content = `cell:compose(@args) ! E_VERBNF => tostr(cell)';
           row_cells = {@row_cells, <$html, {"td", {}, {cell_content}}>};
         endfor
         body_rows = {@body_rows, <$html, {"tr", {}, row_cells}>};

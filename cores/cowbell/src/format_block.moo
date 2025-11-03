@@ -1,4 +1,4 @@
-object BLOCK
+object FORMAT_BLOCK
   name: "Multiline Block Content Flyweight Delegate"
   parent: ROOT
   location: FIRST_ROOM
@@ -6,7 +6,7 @@ object BLOCK
   readable: true
 
   override description = "Flyweight delegate for multiline block content in events. Used to compose paragraphs and structured text that can be rendered to both plain text and HTML.";
-  override import_export_id = "block";
+  override import_export_id = "format_block";
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     return <this, {@args}>;
@@ -26,9 +26,15 @@ object BLOCK
     result = {};
     for line_no in [1..length(this)]
       content = this[line_no];
-      result = {@result, content:compose(@args)};
+      composed = content:compose(@args);
+      if (content_type == 'text_html && typeof(composed) == STR)
+        "Wrap bare text in paragraph tags for HTML";
+        result = {@result, <$html, {"p", {}, {composed}}>};
+      else
+        result = {@result, composed};
+      endif
     endfor
-    content_type == 'text_html && return <$html, {"p", {}, result}>;
+    content_type == 'text_html && return <$html, {"div", {}, result}>;
     return result;
   endverb
 endobject

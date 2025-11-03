@@ -6,15 +6,14 @@ object SYSOBJ
 
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
-  property block (owner: HACKER, flags: "r") = BLOCK;
   property builder (owner: HACKER, flags: "r") = BUILDER;
   property event (owner: HACKER, flags: "r") = EVENT;
   property failed_match (owner: HACKER, flags: "r") = #-3;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
+  property format (owner: HACKER, flags: "r") = FORMAT;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
-  property list (owner: HACKER, flags: "r") = LIST;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
@@ -30,9 +29,7 @@ object SYSOBJ
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
-  property table (owner: HACKER, flags: "r") = TABLE;
   property thing (owner: HACKER, flags: "r") = THING;
-  property title (owner: HACKER, flags: "r") = TITLE;
   property wiz (owner: HACKER, flags: "r") = WIZ;
 
   override description = "System object containing global properties and core server event handlers.";
