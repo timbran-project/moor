@@ -31,3 +31,7 @@ define PRONOUNS_IT_ITS = #31;
 define PRONOUNS_E_EM = #32;
 define PRONOUNS_THEY_THEM = #33;
 define FORMAT = #35;
+define AREA = #36;
+define PASSAGE = #37;
+define FIRST_AREA = #38;
+define SECOND_ROOM = #39;

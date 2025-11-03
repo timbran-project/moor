@@ -1,6 +1,7 @@
 object FIRST_ROOM
   name: "The First Room"
   parent: ROOM
+  location: FIRST_AREA
   owner: ARCH_WIZARD
   readable: true
 

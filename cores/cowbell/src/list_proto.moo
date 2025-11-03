@@ -237,7 +237,7 @@ object LIST_PROTO
     "Runs :compose on all elements in turn then joins them together into a result";
     results = {};
     for x in (args[1])
-        results = {@results, x:compose(@args[2..$])};
+      results = {@results, x:compose(@args[2..$])};
     endfor
     return results:join("");
   endverb

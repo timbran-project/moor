@@ -52,10 +52,10 @@ object SUB
     this.type == 'verb_look && return event.actor:pronouns().is_plural ? "look" | "looks";
     this.type == 'dobj_verb_be && return valid(event.dobj) ? event.dobj:pronouns().verb_be | "<no-dobj>";
     this.type == 'dobj_verb_have && return valid(event.dobj) ? event.dobj:pronouns().verb_have | "<no-dobj>";
-    this.type == 'dobj_verb_look && return valid(event.dobj) ? (event.dobj:pronouns().is_plural ? "look" | "looks") | "<no-dobj>";
+    this.type == 'dobj_verb_look && return valid(event.dobj) ? event.dobj:pronouns().is_plural ? "look" | "looks" | "<no-dobj>";
     this.type == 'iobj_verb_be && return valid(event.iobj) ? event.iobj:pronouns().verb_be | "<no-iobj>";
     this.type == 'iobj_verb_have && return valid(event.iobj) ? event.iobj:pronouns().verb_have | "<no-iobj>";
-    this.type == 'iobj_verb_look && return valid(event.iobj) ? (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
+    this.type == 'iobj_verb_look && return valid(event.iobj) ? event.iobj:pronouns().is_plural ? "look" | "looks" | "<no-iobj>";
     this.type == 'self_alt && return event.actor == render_for ? this.for_self | this.for_others;
     server_log(tostr("Unknown substitution type ", toliteral(this.type), " for event ", toliteral(event)));
     return "<invalid-sub>";

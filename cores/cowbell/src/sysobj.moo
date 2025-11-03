@@ -6,9 +6,11 @@ object SYSOBJ
 
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
+  property area (owner: HACKER, flags: "r") = AREA;
   property builder (owner: HACKER, flags: "r") = BUILDER;
   property event (owner: HACKER, flags: "r") = EVENT;
   property failed_match (owner: HACKER, flags: "r") = #-3;
+  property first_area (owner: HACKER, flags: "r") = FIRST_AREA;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property format (owner: HACKER, flags: "r") = FORMAT;
   property hacker (owner: HACKER, flags: "r") = HACKER;
@@ -20,6 +22,7 @@ object SYSOBJ
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;
   property nothing (owner: HACKER, flags: "r") = #-1;
+  property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog (owner: HACKER, flags: "r") = PROG;
@@ -121,6 +124,9 @@ object SYSOBJ
         endif
       endfor
     endfor
+    if (player:handle_passage_command(pc))
+      return true;
+    endif
     notify(connection(), "I don't understand that.");
     return true;
   endverb

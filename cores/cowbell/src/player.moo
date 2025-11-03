@@ -237,7 +237,11 @@ object PLAYER
         environment = this:_merge_scope_environment(environment, normalized);
       endfor
     endwhile
-    "Recreate the classic MOO ordering: player → inventory → room → room contents.";
+    area_scope_entries = this:_collect_area_scope_entries(context);
+    for entry in (area_scope_entries)
+      environment = this:_merge_scope_environment(environment, entry);
+    endfor
+    "Recreate the classic MOO ordering: player \u2192 inventory \u2192 room \u2192 room contents.";
     actor_entry = 0;
     location_entry = 0;
     ambient_extras = {};
@@ -259,6 +263,12 @@ object PLAYER
     endif
     inventory_entries = this:_select_entries_by_location(environment, this);
     location_entries = valid(location) ? this:_select_entries_by_location(environment, location) | {};
+    area_ambient_entries = this:_collect_area_ambient_entries(context);
+    for entry in (area_ambient_entries)
+      if (entry)
+        ambient_extras = {@ambient_extras, entry};
+      endif
+    endfor
     final_env = {};
     final_env = this:_merge_scope_environment(final_env, actor_entry);
     for entry in (inventory_entries)
@@ -467,4 +477,70 @@ object PLAYER
     return 0;
   endverb
 
+  verb _passage_areas (this none this) owner: HACKER flags: "rxd"
+    areas = {};
+    area = this.location;
+    if (valid(area))
+      areas = {area};
+    endif
+    return areas;
+  endverb
+
+  verb _collect_area_scope_entries (this none this) owner: HACKER flags: "rxd"
+    {context} = args;
+    room = this.location;
+    valid(room) || return {};
+    entries = {};
+    for area in (this:_passage_areas())
+      if (!valid(area))
+        continue;
+      endif
+      area_entries = `area:scope_entries_for(room) ! E_TYPE, E_VERBNF => {}';
+      if (typeof(area_entries) != LIST)
+        continue;
+      endif
+      for entry in (area_entries)
+        if (entry)
+          entries = {@entries, entry};
+        endif
+      endfor
+    endfor
+    return entries;
+  endverb
+
+  verb _collect_area_ambient_entries (this none this) owner: HACKER flags: "rxd"
+    {context} = args;
+    room = this.location;
+    valid(room) || return {};
+    entries = {};
+    for area in (this:_passage_areas())
+      if (!valid(area))
+        continue;
+      endif
+      area_entries = `area:ambient_entries_for(room) ! E_TYPE, E_VERBNF => {}';
+      if (typeof(area_entries) != LIST)
+        continue;
+      endif
+      for entry in (area_entries)
+        if (entry)
+          entries = {@entries, entry};
+        endif
+      endfor
+    endfor
+    return entries;
+  endverb
+
+  verb handle_passage_command (this none this) owner: HACKER flags: "rxd"
+    {parsed} = args;
+    for area in (this:_passage_areas())
+      if (!valid(area))
+        continue;
+      endif
+      handled = `area:handle_passage_command(this, parsed) ! E_TYPE, E_VERBNF => false';
+      if (handled)
+        return true;
+      endif
+    endfor
+    return false;
+  endverb
 endobject

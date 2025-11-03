@@ -47,7 +47,7 @@ object ROOT
     return verbs;
   endverb
 
-  verb branches (this none this) owner: #35 flags: "rxd"
+  verb branches (this none this) owner: FORMAT flags: "rxd"
     ":branches(object) => list of all descendants of this object which have children.";
     if (kids = children(object = this))
       s = {object};

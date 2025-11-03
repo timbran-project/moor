@@ -1,7 +1,7 @@
 object ROOM
   name: "Generic Room"
   parent: ROOT
-  location: FIRST_ROOM
+  location: FIRST_AREA
   owner: HACKER
   fertile: true
   readable: true
