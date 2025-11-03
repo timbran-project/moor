@@ -92,8 +92,8 @@ object SYSOBJ
     "Just choose to ignore empty commands...";
     length(args) == 0 && return true;
     command = argstr;
-    pc = parse_command(command, {player, @player.contents, player.location, @player.location.contents}, true);
-    env = {player, @player.contents, player.location, @player.location.contents};
+    env = player:command_environment(command, ['complex -> true]);
+    pc = parse_command(command, env, true);
     if (pc["dobj"] == #-2)
       dobj_candidates = pc["ambiguous_dobj"];
     else

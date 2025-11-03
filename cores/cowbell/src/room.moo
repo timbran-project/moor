@@ -35,6 +35,22 @@ object ROOM
     return true;
   endverb
 
+  verb command_scope_for (this none this) owner: HACKER flags: "rxd"
+    "Expose the room and visible occupants to the command scope.";
+    {actor, ?context = []} = args;
+    "In case we have a parent that wants to establish initial occupancy, ask it first...";
+    entries = `pass(@args) ! E_TYPE, E_VERBNF => {this}';
+    "Add every visible occupant so they can be matched as direct objects.";
+    visible = this:contents();
+    for visible_obj in (visible)
+      if (!valid(visible_obj))
+        continue;
+      endif
+      entries = {@entries, visible_obj};
+    endfor
+    return entries;
+  endverb
+
   verb announce (this none this) owner: HACKER flags: "rxd"
     {event} = args;
     for who in (this:contents())
