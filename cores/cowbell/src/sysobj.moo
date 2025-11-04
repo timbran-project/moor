@@ -8,6 +8,7 @@ object SYSOBJ
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property area (owner: HACKER, flags: "r") = AREA;
   property builder (owner: HACKER, flags: "r") = BUILDER;
+  property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
   property failed_match (owner: HACKER, flags: "r") = #-3;
   property first_area (owner: HACKER, flags: "r") = FIRST_AREA;

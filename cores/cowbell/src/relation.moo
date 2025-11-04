@@ -18,9 +18,13 @@ object RELATION
     tuple_prop = "tuple_" + tuple_id;
     "Store the tuple";
     add_property(this, tuple_prop, tuple, {this.owner, "r"});
-    "Index each element in the tuple";
+    "Index each element in the tuple (skip flyweights - can't be map keys)";
     for i in [1..length(tuple)]
       element = tuple[i];
+      "Skip flyweights - they cannot be map keys";
+      if (typeof(element) == FLYWEIGHT)
+        continue;
+      endif
       hash = value_hash(element);
       index_prop = "index_" + hash;
       "Get or create index map for this hash - try to get it first";
@@ -48,9 +52,13 @@ object RELATION
     "Find the tuple's UUID by checking if it exists";
     tuple_id = this:_find_tuple_id(tuple);
     !tuple_id && return false;
-    "Remove from all indexes";
+    "Remove from all indexes (skip flyweights)";
     for i in [1..length(tuple)]
       element = tuple[i];
+      "Skip flyweights - they weren't indexed";
+      if (typeof(element) == FLYWEIGHT)
+        continue;
+      endif
       hash = value_hash(element);
       index_prop = "index_" + hash;
       if (index_prop in properties(this))
@@ -338,6 +346,125 @@ object RELATION
     length(from_39) != 2 && raise(E_ASSERT, "Room #39 should have 2 passages");
     {#12, #39, "north"} in from_39 || raise(E_ASSERT, "Missing north passage (pos 2)");
     {#39, #40, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
+    recycle(rel);
+  endverb
+
+  verb query (this none this) owner: HACKER flags: "rxd"
+    "Match pattern with variables against tuples, return bindings. Variables are created with $dvar:mk_name().";
+    {pattern} = args;
+    typeof(pattern) == LIST || raise(E_TYPE);
+    "Find first concrete (non-variable) value to narrow search";
+    concrete_value = false;
+    for elem in (pattern)
+      if (typeof(elem) != FLYWEIGHT || !valid(elem.delegate) || elem.delegate != $dvar)
+        concrete_value = elem;
+        break;
+      endif
+    endfor
+    "Get candidates";
+    candidates = concrete_value ? this:select_containing(concrete_value) | this:tuples();
+    "Match and build bindings";
+    results = {};
+    for tuple in (candidates)
+      bindings = this:_unify(pattern, tuple);
+      if (bindings)
+        results = {@results, bindings};
+      endif
+    endfor
+    return results;
+  endverb
+
+  verb _unify (this none this) owner: HACKER flags: "rxd"
+    "Internal: Unify pattern with tuple, returning bindings map or false.";
+    {pattern, tuple} = args;
+    length(pattern) != length(tuple) && return false;
+    bindings = [];
+    for i in [1..length(pattern)]
+      p = pattern[i];
+      if (typeof(p) == FLYWEIGHT && valid(p.delegate) && p.delegate == $dvar)
+        "Variable - bind or check consistency";
+        var_name = p[1];
+        if (maphaskey(bindings, var_name))
+          bindings[var_name] != tuple[i] && return false;
+        else
+          bindings[var_name] = tuple[i];
+        endif
+      else
+        "Concrete - must match exactly";
+        p != tuple[i] && return false;
+      endif
+    endfor
+    return bindings;
+  endverb
+
+  verb reachable_from (this none this) owner: HACKER flags: "rxd"
+    "Find all values reachable via transitive closure from start value. Assumes binary relation.";
+    {start} = args;
+    visited = [start -> true];
+    frontier = {start};
+    while (length(frontier) > 0)
+      current = frontier[1];
+      frontier = listdelete(frontier, 1);
+      "Find all tuples containing current";
+      tuples = this:select_containing(current);
+      for tuple in (tuples)
+        length(tuple) != 2 && raise(E_INVARG, "reachable_from requires binary relation");
+        {val_a, val_b} = tuple;
+        "Get the other value";
+        other = val_a == current ? val_b | val_a;
+        if (!maphaskey(visited, other))
+          visited[other] = true;
+          frontier = {@frontier, other};
+        endif
+      endfor
+    endwhile
+    return mapkeys(visited);
+  endverb
+
+  verb test_query_basic (this none this) owner: HACKER flags: "rxd"
+    "Test basic pattern matching with variables";
+    rel = create($relation);
+    rel:assert({#12, #39, "north"});
+    rel:assert({#12, #40, "east"});
+    rel:assert({#39, #40, "south"});
+    "Query for all passages from #12";
+    results = rel:query({#12, $dvar:mk_dest(), $dvar:mk_label()});
+    length(results) != 2 && raise(E_ASSERT, "Expected 2 results from #12");
+    ['dest -> #39, 'label -> "north"] in results || raise(E_ASSERT, "Missing north binding");
+    ['dest -> #40, 'label -> "east"] in results || raise(E_ASSERT, "Missing east binding");
+    "Query for passages to #39";
+    results = rel:query({$dvar:mk_src(), #39, $dvar:mk_label()});
+    length(results) != 1 && raise(E_ASSERT, "Expected 1 result to #39");
+    ['src -> #12, 'label -> "north"] in results || raise(E_ASSERT, "Missing binding");
+    "Query all tuples";
+    results = rel:query({$dvar:mk_a(), $dvar:mk_b(), $dvar:mk_c()});
+    length(results) != 3 && raise(E_ASSERT, "Expected 3 results for all tuples");
+    recycle(rel);
+  endverb
+
+  verb test_reachable (this none this) owner: HACKER flags: "rxd"
+    "Test transitive closure - note: relation is bidirectional";
+    rel = create($relation);
+    "Build a chain: 1 <-> 2 <-> 3 <-> 4";
+    rel:assert({#1, #2});
+    rel:assert({#2, #3});
+    rel:assert({#3, #4});
+    "Add a branch: 2 <-> 5";
+    rel:assert({#2, #5});
+    reachable = rel:reachable_from(#1);
+    length(reachable) != 5 && raise(E_ASSERT, "Should reach 5 nodes from #1");
+    #1 in reachable || raise(E_ASSERT, "Should include start node");
+    #2 in reachable || raise(E_ASSERT, "Should reach #2");
+    #3 in reachable || raise(E_ASSERT, "Should reach #3");
+    #4 in reachable || raise(E_ASSERT, "Should reach #4");
+    #5 in reachable || raise(E_ASSERT, "Should reach #5");
+    "From #3 reaches all nodes (bidirectional graph)";
+    reachable = rel:reachable_from(#3);
+    length(reachable) != 5 && raise(E_ASSERT, "Should reach all 5 nodes from #3");
+    #1 in reachable || raise(E_ASSERT, "Should reach #1 via bidirectional edges");
+    #2 in reachable || raise(E_ASSERT, "Should reach #2");
+    #4 in reachable || raise(E_ASSERT, "Should reach #4");
+    #5 in reachable || raise(E_ASSERT, "Should reach #5 via #2");
     recycle(rel);
   endverb
 endobject

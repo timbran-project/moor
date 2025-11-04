@@ -47,7 +47,9 @@ object AREA
   verb set_passage (this none this) owner: HACKER flags: "rxd"
     "Set or update the passage between two rooms.";
     {room_a, room_b, passage} = args;
-    this:initialize();
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      this.passages_rel = create($relation);
+    endif
     "Remove existing passage if any";
     this:clear_passage(room_a, room_b);
     "Add new passage as canonical tuple";
@@ -59,7 +61,9 @@ object AREA
   verb clear_passage (this none this) owner: HACKER flags: "rxd"
     "Remove the passage between two rooms.";
     {room_a, room_b} = args;
-    this:initialize();
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      return false;
+    endif
     "Find and retract the tuple";
     candidates = this.passages_rel:select_containing(room_a);
     for tuple in (candidates)
@@ -72,7 +76,9 @@ object AREA
 
   verb passages (this none this) owner: HACKER flags: "rxd"
     "Return all passage objects.";
-    this:initialize();
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      return {};
+    endif
     tuples = this.passages_rel:tuples();
     return { tuple[3] for tuple in (tuples) };
   endverb
@@ -81,7 +87,9 @@ object AREA
     "Return all passages connected to a room.";
     {room} = args;
     typeof(room) == OBJ || raise(E_TYPE);
-    this:initialize();
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      return {};
+    endif
     tuples = this.passages_rel:select_containing(room);
     return { tuple[3] for tuple in (tuples) };
   endverb
@@ -130,5 +138,166 @@ object AREA
       endif
     endfor
     return false;
+  endverb
+
+  verb rooms_from (this none this) owner: HACKER flags: "rxd"
+    "Find all rooms transitively reachable from the starting room.";
+    {start_room} = args;
+    typeof(start_room) == OBJ || raise(E_TYPE);
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      return {start_room};
+    endif
+    visited = [start_room -> true];
+    frontier = {start_room};
+    while (length(frontier) > 0)
+      current = frontier[1];
+      frontier = listdelete(frontier, 1);
+      "Find passages from current room using datalog query";
+      results = this.passages_rel:query({current, $dvar:mk_dest(), $dvar:mk_passage()});
+      for binding in (results)
+        dest = binding['dest];
+        if (!maphaskey(visited, dest))
+          visited[dest] = true;
+          frontier = {@frontier, dest};
+        endif
+      endfor
+      "Check reverse direction too (dest to current)";
+      results = this.passages_rel:query({$dvar:mk_src(), current, $dvar:mk_passage()});
+      for binding in (results)
+        src = binding['src];
+        if (!maphaskey(visited, src))
+          visited[src] = true;
+          frontier = {@frontier, src};
+        endif
+      endfor
+    endwhile
+    return mapkeys(visited);
+  endverb
+
+  verb connected (this none this) owner: HACKER flags: "rxd"
+    "Check if two rooms are transitively connected via passages.";
+    {room_a, room_b} = args;
+    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
+    reachable = this:rooms_from(room_a);
+    return room_b in reachable;
+  endverb
+
+  verb find_path (this none this) owner: HACKER flags: "rxd"
+    "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
+    {start_room, goal_room} = args;
+    typeof(start_room) == OBJ && typeof(goal_room) == OBJ || raise(E_TYPE);
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      return start_room == goal_room ? {{start_room, false}} | false;
+    endif
+    start_room == goal_room && return {{start_room, false}};
+    visited = [start_room -> true];
+    "Queue entries: {current_room, path_so_far}";
+    queue = {{start_room, {}}};
+    while (length(queue) > 0)
+      {current, path} = queue[1];
+      queue = listdelete(queue, 1);
+      "Try forward edges: current -> next";
+      results = this.passages_rel:query({current, $dvar:mk_next(), $dvar:mk_passage()});
+      for binding in (results)
+        next = binding['next];
+        passage = binding['passage];
+        if (next == goal_room)
+          return {@path, {current, passage}, {goal_room, false}};
+        endif
+        if (!maphaskey(visited, next))
+          visited[next] = true;
+          queue = {@queue, {next, {@path, {current, passage}}}};
+        endif
+      endfor
+      "Try reverse edges: next -> current";
+      results = this.passages_rel:query({$dvar:mk_next(), current, $dvar:mk_passage()});
+      for binding in (results)
+        next = binding['next];
+        passage = binding['passage];
+        if (next == goal_room)
+          return {@path, {current, passage}, {goal_room, false}};
+        endif
+        if (!maphaskey(visited, next))
+          visited[next] = true;
+          queue = {@queue, {next, {@path, {current, passage}}}};
+        endif
+      endfor
+    endwhile
+    return false;
+  endverb
+
+  verb test_connectivity (this none this) owner: HACKER flags: "rxd"
+    "Test connectivity checking between rooms";
+    area = create($area);
+    "Initialize manually since create() doesn't call :initialize()";
+    area.passages_rel = create($relation);
+    "Create three rooms in a chain: 1 <-> 2 <-> 3";
+    passage1 = <$passage, [side_a_room -> #1, side_b_room -> #2, is_open -> true]>;
+    passage2 = <$passage, [side_a_room -> #2, side_b_room -> #3, is_open -> true]>;
+    area:set_passage(#1, #2, passage1);
+    area:set_passage(#2, #3, passage2);
+    "#1 and #2 are directly connected";
+    !area:connected(#1, #2) && raise(E_ASSERT, "#1 and #2 should be connected");
+    "#1 and #3 are transitively connected";
+    !area:connected(#1, #3) && raise(E_ASSERT, "#1 and #3 should be transitively connected");
+    "#3 and #1 are connected (bidirectional)";
+    !area:connected(#3, #1) && raise(E_ASSERT, "#3 and #1 should be connected");
+    "#4 is not connected";
+    area:connected(#1, #4) && raise(E_ASSERT, "#4 should not be connected");
+    recycle(area);
+  endverb
+
+  verb test_rooms_from (this none this) owner: HACKER flags: "rxd"
+    "Test finding all reachable rooms";
+    area = create($area);
+    "Initialize manually since create() doesn't call :initialize()";
+    area.passages_rel = create($relation);
+    "Create a small network";
+    area:set_passage(#1, #2, <$passage, [is_open -> true]>);
+    area:set_passage(#2, #3, <$passage, [is_open -> true]>);
+    area:set_passage(#1, #4, <$passage, [is_open -> true]>);
+    reachable = area:rooms_from(#1);
+    length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from #1");
+    #1 in reachable || raise(E_ASSERT, "Should include starting room");
+    #2 in reachable || raise(E_ASSERT, "Should reach #2");
+    #3 in reachable || raise(E_ASSERT, "Should reach #3");
+    #4 in reachable || raise(E_ASSERT, "Should reach #4");
+    "From #3 should reach all via bidirectional edges";
+    reachable = area:rooms_from(#3);
+    length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from #3");
+    recycle(area);
+  endverb
+
+  verb test_find_path (this none this) owner: HACKER flags: "rxd"
+    "Test pathfinding between rooms";
+    area = create($area);
+    "Initialize manually since create() doesn't call :initialize()";
+    area.passages_rel = create($relation);
+    p1 = <$passage, [is_open -> true]>;
+    p2 = <$passage, [is_open -> true]>;
+    "Create chain: 1 <-> 2 <-> 3";
+    area:set_passage(#1, #2, p1);
+    area:set_passage(#2, #3, p2);
+    "Direct path";
+    path = area:find_path(#1, #2);
+    path || raise(E_ASSERT, "Should find path from #1 to #2");
+    length(path) != 2 && raise(E_ASSERT, "Path length should be 2");
+    path[1][1] != #1 && raise(E_ASSERT, "Path should start at #1");
+    path[2][1] != #2 && raise(E_ASSERT, "Path should end at #2");
+    "Multi-hop path";
+    path = area:find_path(#1, #3);
+    path || raise(E_ASSERT, "Should find path from #1 to #3");
+    length(path) != 3 && raise(E_ASSERT, "Path should have 3 nodes");
+    path[1][1] != #1 && raise(E_ASSERT, "Path should start at #1");
+    path[2][1] != #2 && raise(E_ASSERT, "Path should go through #2");
+    path[3][1] != #3 && raise(E_ASSERT, "Path should end at #3");
+    "No path to disconnected room";
+    path = area:find_path(#1, #99);
+    path && raise(E_ASSERT, "Should not find path to disconnected room");
+    "Same room";
+    path = area:find_path(#1, #1);
+    path || raise(E_ASSERT, "Should find path from room to itself");
+    length(path) != 1 && raise(E_ASSERT, "Same-room path should have 1 node");
+    recycle(area);
   endverb
 endobject

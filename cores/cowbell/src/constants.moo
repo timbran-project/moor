@@ -32,3 +32,4 @@ define FIRST_AREA = #38;
 define SECOND_ROOM = #39;
 define RELATION = #40;
 define FIRST_AREA_PASSAGES = #41;
+define DVAR = #42;
