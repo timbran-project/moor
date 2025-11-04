@@ -12,9 +12,29 @@ object AREA
 
   verb initialize (this none this) owner: HACKER flags: "rx"
     "Called after creation to set up the passages relation.";
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
-      this.passages_rel = create($relation);
+    this:_ensure_passages_relation();
+  endverb
+
+  verb _ensure_passages_relation (this none this) owner: HACKER flags: "rxd"
+    "Ensure this.passages_rel references a valid relation owned by the area's owner.";
+    if (typeof(this.passages_rel) == OBJ && valid(this.passages_rel))
+      return this.passages_rel;
     endif
+    prior_perms = caller_perms();
+    target_perms = valid(this.owner) ? this.owner | prior_perms;
+    perms_changed = target_perms && target_perms != prior_perms;
+    if (perms_changed)
+      set_task_perms(target_perms);
+    endif
+    try
+      rel = create($relation);
+      this.passages_rel = rel;
+    finally
+      if (perms_changed)
+        set_task_perms(prior_perms);
+      endif
+    endtry
+    return this.passages_rel;
   endverb
 
   verb _canonical_tuple (this none this) owner: HACKER flags: "rxd"
@@ -47,9 +67,7 @@ object AREA
   verb set_passage (this none this) owner: HACKER flags: "rxd"
     "Set or update the passage between two rooms.";
     {room_a, room_b, passage} = args;
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
-      this.passages_rel = create($relation);
-    endif
+    this:_ensure_passages_relation();
     "Remove existing passage if any";
     this:clear_passage(room_a, room_b);
     "Add new passage as canonical tuple";
@@ -94,41 +112,15 @@ object AREA
     return { tuple[3] for tuple in (tuples) };
   endverb
 
-  verb scope_entries_for (this none this) owner: HACKER flags: "rxd"
-    {room} = args;
-    entries = {};
-    for passage in (this:passages_from(room))
-      entry = passage:scope_entry_for(room);
-      if (entry)
-        entries = {@entries, entry};
-      endif
-    endfor
-    return entries;
-  endverb
-
-  verb ambient_entries_for (this none this) owner: HACKER flags: "rxd"
-    {room} = args;
-    entries = {};
-    for passage in (this:passages_from(room))
-      entry = passage:ambient_entry_for(room);
-      if (entry)
-        entries = {@entries, entry};
-      endif
-    endfor
-    return entries;
-  endverb
-
   verb handle_passage_command (this none this) owner: HACKER flags: "rxd"
-    {player, parsed} = args;
-    typeof(player) == OBJ || return false;
+    {parsed} = args;
     room = player.location;
     valid(room) || return false;
     passages = this:passages_from(room);
     passages || return false;
-    verb_name = parsed["verb"];
-    verb_name = typeof(verb_name) == STR ? verb_name:lowercase() | "";
+    verb_name = tostr(parsed["verb"]);
+    `length(verb) ! ANY => false' || return false;
     dobj_name = parsed["dobjstr"];
-    dobj_name = typeof(dobj_name) == STR ? dobj_name:lowercase() | "";
     for passage in (passages)
       if (passage:matches_command(room, verb_name))
         return passage:travel_from(player, room, parsed);
@@ -229,8 +221,6 @@ object AREA
   verb test_connectivity (this none this) owner: HACKER flags: "rxd"
     "Test connectivity checking between rooms";
     area = create($area);
-    "Initialize manually since create() doesn't call :initialize()";
-    area.passages_rel = create($relation);
     "Create three rooms in a chain: 1 <-> 2 <-> 3";
     passage1 = <$passage, [side_a_room -> #1, side_b_room -> #2, is_open -> true]>;
     passage2 = <$passage, [side_a_room -> #2, side_b_room -> #3, is_open -> true]>;
@@ -250,8 +240,6 @@ object AREA
   verb test_rooms_from (this none this) owner: HACKER flags: "rxd"
     "Test finding all reachable rooms";
     area = create($area);
-    "Initialize manually since create() doesn't call :initialize()";
-    area.passages_rel = create($relation);
     "Create a small network";
     area:set_passage(#1, #2, <$passage, [is_open -> true]>);
     area:set_passage(#2, #3, <$passage, [is_open -> true]>);
@@ -271,8 +259,6 @@ object AREA
   verb test_find_path (this none this) owner: HACKER flags: "rxd"
     "Test pathfinding between rooms";
     area = create($area);
-    "Initialize manually since create() doesn't call :initialize()";
-    area.passages_rel = create($relation);
     p1 = <$passage, [is_open -> true]>;
     p2 = <$passage, [is_open -> true]>;
     "Create chain: 1 <-> 2 <-> 3";

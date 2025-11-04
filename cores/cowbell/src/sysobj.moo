@@ -126,10 +126,9 @@ object SYSOBJ
         endif
       endfor
     endfor
-    if (player:handle_passage_command(pc))
-      return true;
-    endif
-    notify(connection(), "I don't understand that.");
+    "Dispatch any unmatched action out to the room for potential special handling (furniture, passages, etc.)";
+    player.location:maybe_handle_command(pc) && return true;
+    player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility));
     return true;
   endverb
 endobject

@@ -301,6 +301,7 @@ object LOGIN
     {player_name, password_value, email, oauth_entries} = args;
     new_player = create($prog, $nothing);
     set_player_flag(new_player, 1);
+    new_player.owner = new_player;
     new_player.name = player_name;
     new_player.aliases = {player_name};
     new_player.programmer = 1;

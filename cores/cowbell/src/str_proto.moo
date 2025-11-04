@@ -1088,11 +1088,11 @@ object STR_PROTO
     if (!result)
       raise(E_ASSERT("no numeric match: " + toliteral(result)));
     endif
-    (result['type] != 'numbered || result['text] != "#42" || result['start] != 1 || result['end] != 3) && raise(E_ASSERT("numeric mismatch: " + toliteral(result)));
+    result['type] != 'numbered || result['text] != "#42" || result['start] != 1 || result['end] != 3 && raise(E_ASSERT("numeric mismatch: " + toliteral(result)));
     result = this:match_objid("Before #123 after");
-    (!result || result['type] != 'numbered || result['text] != "#123" || result['start] != 8 || result['end] != 11) && raise(E_ASSERT("context mismatch: " + toliteral(result)));
+    !result || result['type] != 'numbered || result['text] != "#123" || result['start] != 8 || result['end] != 11 && raise(E_ASSERT("context mismatch: " + toliteral(result)));
     result = this:match_objid("   #77   ", true);
-    (!result || result['type] != 'numbered || result['start] != 4 || result['end] != 6) && raise(E_ASSERT("anchored mismatch: " + toliteral(result)));
+    !result || result['type] != 'numbered || result['start] != 4 || result['end] != 6 && raise(E_ASSERT("anchored mismatch: " + toliteral(result)));
     this:match_objid("no ids here") && raise(E_ASSERT);
     this:match_objid("#notanumber") && raise(E_ASSERT);
     return true;
@@ -1102,10 +1102,10 @@ object STR_PROTO
     "Ensure match_objid identifies UUID-style object identifiers.";
     uuid_str = "#00007D-99E53ABE55";
     result = this:match_objid(uuid_str);
-    (!result || result['type] != 'uuid || result['text] != uuid_str || result['start] != 1 || result['end] != 18) && raise(E_ASSERT("uuid mismatch: " + toliteral(result)));
+    !result || result['type] != 'uuid || result['text] != uuid_str || result['start] != 1 || result['end] != 18 && raise(E_ASSERT("uuid mismatch: " + toliteral(result)));
     mixed = "prefix " + uuid_str + " suffix";
     result = this:match_objid(mixed);
-    (!result || result['start] != 8 || result['end] != 25) && raise(E_ASSERT);
+    !result || result['start] != 8 || result['end] != 25 && raise(E_ASSERT);
     result = this:match_objid(uuid_str[2..$]);
     result && raise(E_ASSERT);
     return true;

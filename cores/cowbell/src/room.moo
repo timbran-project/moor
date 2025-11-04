@@ -145,6 +145,21 @@ object ROOM
     return entries;
   endverb
 
+  verb maybe_handle_passage (this none this) owner: HACKER flags: "rxd"
+    "Let our location (area) potentially handle passage commands...";
+    {parsed} = args;
+    if (!valid(this.location) || !respond_to(this.location, 'handle_passage_command))
+      return false;
+    endif
+    return this.location:handle_passage_command(parsed);
+  endverb
+
+  verb maybe_handle_command (this none this) owner: HACKER flags: "rxd"
+    "Handle any potential commands that the command matcher didn't already handle on the player, for example for furniture or exits";
+    {pc} = args;
+    return this:maybe_handle_passage(pc);
+  endverb
+
   verb announce (this none this) owner: HACKER flags: "rxd"
     {event} = args;
     for who in (this:contents())

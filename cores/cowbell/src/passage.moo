@@ -194,32 +194,6 @@ object PASSAGE
     endif
   endverb
 
-  verb ambient_for (this none this) owner: HACKER flags: "rxd"
-    {room} = args;
-    if (room == this:_side_lookup('a, 'room))
-      return this:_side_lookup('a, 'ambient) ? true | false;
-    elseif (room == this:_side_lookup('b, 'room))
-      return this:_side_lookup('b, 'ambient) ? true | false;
-    else
-      return false;
-    endif
-  endverb
-
-  verb scope_entry_for (this none this) owner: HACKER flags: "rxd"
-    {room} = args;
-    aliases = this:aliases_for(room);
-    if (!aliases)
-      return this;
-    endif
-    return {this, @aliases};
-  endverb
-
-  verb ambient_entry_for (this none this) owner: HACKER flags: "rxd"
-    {room} = args;
-    this:ambient_for(room) || return 0;
-    return this:scope_entry_for(room);
-  endverb
-
   verb matches_command (this none this) owner: HACKER flags: "rxd"
     {room, command} = args;
     typeof(command) == STR || return false;
