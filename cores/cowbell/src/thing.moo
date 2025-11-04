@@ -6,7 +6,7 @@ object THING
   fertile: true
   readable: true
 
-  property pronouns (owner: HACKER, flags: "rc") = <PRONOUNS, [display -> "it/its", ps -> "it", po -> "it", pp -> "its", pq -> "its", pr -> "itself", is_plural -> false, verb_be -> "is", verb_have -> "has"]>;
+  property pronouns (owner: HACKER, flags: "rc") = <#28, [display -> "it/its", ps -> "it", po -> "it", pp -> "its", pq -> "its", pr -> "itself", is_plural -> false, verb_be -> "is", verb_have -> "has"]>;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_id = "thing";

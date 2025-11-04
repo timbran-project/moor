@@ -6,6 +6,5 @@ object FIRST_AREA
 
   override description = "Default area container for the initial rooms.";
   override import_export_id = "first_area";
-  override passages_rel (owner: ARCH_WIZARD, flags: "rc") = FIRST_AREA_PASSAGES;
-
+  override passages_rel (owner: ARCH_WIZARD, flags: "rc") = #41;
 endobject
