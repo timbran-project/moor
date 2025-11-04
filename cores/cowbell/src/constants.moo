@@ -30,3 +30,4 @@ define AREA = #36;
 define PASSAGE = #37;
 define FIRST_AREA = #38;
 define SECOND_ROOM = #39;
+define RELATION = #40;
