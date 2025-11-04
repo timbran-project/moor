@@ -340,6 +340,103 @@ object STR_PROTO
     return match(s, "^ *#[-+]?[0-9]+ *$") ? toobj(s) | E_TYPE;
   endverb
 
+  verb match_objid (this none this) owner: HACKER flags: "rxd"
+    "Find the first object identifier (#number or #uuid) within the given string.";
+    "Returns a map with start/end offsets (1-based, inclusive), the matched text, and the identifier type.";
+    "If no object identifier is present, returns false.";
+    {s, ?anchored = false} = args;
+    typeof(s) == STR || raise(E_TYPE, "match_objid expects a string argument");
+    len = length(s);
+    if (len == 0)
+      return false;
+    endif
+    fn is_digit(digit_char)
+      return typeof(digit_char) == STR && length(digit_char) == 1 && index("0123456789", digit_char) != 0;
+    endfn
+    fn is_hex(hex_char)
+      return typeof(hex_char) == STR && length(hex_char) == 1 && index("0123456789ABCDEFabcdef", hex_char) != 0;
+    endfn
+    fn is_alnum(alnum_char)
+      return typeof(alnum_char) == STR && length(alnum_char) == 1 && index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", alnum_char) != 0;
+    endfn
+    for idx in [1..len]
+      if (s[idx] != "#")
+        continue;
+      endif
+      if (idx > 1 && is_alnum(s[idx - 1]))
+        continue;
+      endif
+      let uuid_bounds = this:match_uuobjid_at(s, idx);
+      let end_index = 0;
+      let match_type = 'numbered;
+      if (uuid_bounds)
+        end_index = uuid_bounds[2];
+        match_type = 'uuid;
+      else
+        let pos = idx + 1;
+        if (pos <= len && index("+-", s[pos]))
+          pos = pos + 1;
+        endif
+        let digits_start = pos;
+        while (pos <= len && is_digit(s[pos]))
+          pos = pos + 1;
+        endwhile
+        if (pos > digits_start)
+          end_index = pos - 1;
+          match_type = 'numbered;
+        endif
+      endif
+      if (!end_index)
+        continue;
+      endif
+      if (end_index < len && is_alnum(s[end_index + 1]))
+        continue;
+      endif
+      if (anchored)
+        let prefix = idx > 1 ? s[1..idx - 1] | "";
+        let suffix = end_index < len ? s[end_index + 1..$] | "";
+        if (prefix:trim() || suffix:trim())
+          continue;
+        endif
+      endif
+      return ['text -> s[idx..end_index], 'start -> idx, 'end -> end_index, 'type -> match_type];
+    endfor
+    return false;
+  endverb
+
+  verb match_uuobjid_at (this none this) owner: HACKER flags: "rxd"
+    "Check for a uuobjid starting at position start_index, returning {start,end} or false.";
+    {s, start_index} = args;
+    typeof(s) == STR || raise(E_TYPE, "Source must be string");
+    typeof(start_index) == INT || raise(E_TYPE, "Start index must be integer");
+    start_index >= 1 || raise(E_INVARG);
+    len = length(s);
+    end_index = start_index + 17;
+    if (end_index > len)
+      return false;
+    endif
+    for offset in [1..6]
+      if (!index("0123456789ABCDEFabcdef", s[start_index + offset]))
+        return false;
+      endif
+    endfor
+    if (s[start_index + 7] != "-")
+      return false;
+    endif
+    for offset in [8..17]
+      if (!index("0123456789ABCDEFabcdef", s[start_index + offset]))
+        return false;
+      endif
+    endfor
+    if (end_index < len && index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", s[end_index + 1]))
+      return false;
+    endif
+    if (start_index > 1 && index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", s[start_index - 1]))
+      return false;
+    endif
+    return {start_index, end_index};
+  endverb
+
   verb trim (this none this) owner: HACKER flags: "rxd"
     ":trim (string [, space]) -- remove leading and trailing spaces";
     "";
@@ -908,5 +1005,34 @@ object STR_PROTO
     result != "" && raise(E_ASSERT, "No matches filter_chars failed, got " + toliteral(result));
     result = "abc":filter_chars({c6} => c6 in "abcdef");
     result != "abc" && raise(E_ASSERT, "All matches filter_chars failed, got " + toliteral(result));
+  endverb
+
+  verb test_match_objid_numeric (this none this) owner: HACKER flags: "rxd"
+    "Ensure match_objid identifies numeric object identifiers.";
+    result = this:match_objid("#42");
+    if (!result)
+      raise(E_ASSERT("no numeric match: " + toliteral(result)));
+    endif
+    (result['type] != 'numbered || result['text] != "#42" || result['start] != 1 || result['end] != 3) && raise(E_ASSERT("numeric mismatch: " + toliteral(result)));
+    result = this:match_objid("Before #123 after");
+    (!result || result['type] != 'numbered || result['text] != "#123" || result['start] != 8 || result['end] != 11) && raise(E_ASSERT("context mismatch: " + toliteral(result)));
+    result = this:match_objid("   #77   ", true);
+    (!result || result['type] != 'numbered || result['start] != 4 || result['end] != 6) && raise(E_ASSERT("anchored mismatch: " + toliteral(result)));
+    this:match_objid("no ids here") && raise(E_ASSERT);
+    this:match_objid("#notanumber") && raise(E_ASSERT);
+    return true;
+  endverb
+
+  verb test_match_objid_uuid (this none this) owner: HACKER flags: "rxd"
+    "Ensure match_objid identifies UUID-style object identifiers.";
+    uuid_str = "#00007D-99E53ABE55";
+    result = this:match_objid(uuid_str);
+    (!result || result['type] != 'uuid || result['text] != uuid_str || result['start] != 1 || result['end] != 18) && raise(E_ASSERT("uuid mismatch: " + toliteral(result)));
+    mixed = "prefix " + uuid_str + " suffix";
+    result = this:match_objid(mixed);
+    (!result || result['start] != 8 || result['end] != 25) && raise(E_ASSERT);
+    result = this:match_objid(uuid_str[2..$]);
+    result && raise(E_ASSERT);
+    return true;
   endverb
 endobject
