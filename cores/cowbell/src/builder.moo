@@ -143,17 +143,12 @@ object BUILDER
 
   verb _create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create the child object, apply naming, and move it into the builder's inventory.";
+    caller == this || caller.wizard || raise(E_PERM);
     {parent_obj, primary_name, alias_list} = args;
-    prior_perms = caller_perms();
-    set_task_perms(this);
-    try
-      new_obj = create(parent_obj, this);
-      move(new_obj, this);
-      new_obj.name = primary_name;
-      new_obj.aliases = alias_list;
-    finally
-      set_task_perms(prior_perms);
-    endtry
+    new_obj = create(parent_obj, this);
+    new_obj.name = primary_name;
+    new_obj.aliases = alias_list;
+    move(new_obj, this);
     return new_obj;
   endverb
 
@@ -210,7 +205,7 @@ object BUILDER
     return true;
   endverb
 
-  verb test_create_child_object (this none this) owner: HACKER flags: "rxd"
+  verb test_create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     new_obj = this:_create_child_object($thing, "Widget", {"gadget"});
     typeof(new_obj) == OBJ || raise(E_ASSERT("Returned value was not an object: " + toliteral(new_obj)));
     new_obj.owner != this && raise(E_ASSERT("Builder should own created object"));
