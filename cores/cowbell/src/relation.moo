@@ -134,6 +134,35 @@ object RELATION
     return result;
   endverb
 
+  verb select_containing (this none this) owner: HACKER flags: "rxd"
+    "Find all tuples containing value in any position.";
+    {value} = args;
+
+    hash = value_hash(value);
+    index_prop = "index_" + hash;
+
+    "Get index map for this hash";
+    index_map = `this.(index_prop) ! E_PROPNF => 0';
+    if (typeof(index_map) != MAP)
+      return {};
+    endif
+
+    "Get UUIDs for this specific value";
+    uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
+
+    "Fetch all tuples";
+    result = {};
+    for tuple_id in (uuid_list)
+      tuple_prop = "tuple_" + tuple_id;
+      tuple = `this.(tuple_prop) ! E_PROPNF => 0';
+      if (tuple)
+        result = {@result, tuple};
+      endif
+    endfor
+
+    return result;
+  endverb
+
   verb tuples (this none this) owner: HACKER flags: "rxd"
     "Return all tuples in the relation.";
     result = {};
@@ -332,6 +361,57 @@ object RELATION
 
     "Both should be present as member check is equality based";
     !rel:member({#1, #2, "edge"}) && raise(E_ASSERT, "Tuple should be present");
+
+    recycle(rel);
+  endverb
+
+  verb test_bidirectional_indexing (this none this) owner: HACKER flags: "rxd"
+    "Test that a single tuple is indexed under all its values.";
+    rel = create($relation);
+
+    "Assert a passage-like tuple";
+    rel:assert({#12, #39, "north"});
+
+    "Find tuples containing #12";
+    results_from_12 = rel:select_containing(#12);
+    length(results_from_12) != 1 && raise(E_ASSERT, "Should find 1 tuple via #12");
+    {#12, #39, "north"} in results_from_12 || raise(E_ASSERT, "Wrong tuple via #12");
+
+    "Find tuples containing #39";
+    results_from_39 = rel:select_containing(#39);
+    length(results_from_39) != 1 && raise(E_ASSERT, "Should find 1 tuple via #39");
+    {#12, #39, "north"} in results_from_39 || raise(E_ASSERT, "Wrong tuple via #39");
+
+    "Find tuples containing 'north'";
+    results_from_north = rel:select_containing("north");
+    length(results_from_north) != 1 && raise(E_ASSERT, "Should find 1 tuple via 'north'");
+    {#12, #39, "north"} in results_from_north || raise(E_ASSERT, "Wrong tuple via 'north'");
+
+    "Verify it's the SAME tuple found three different ways";
+    results_from_12 == results_from_39 || raise(E_ASSERT, "Results should be identical");
+    results_from_39 == results_from_north || raise(E_ASSERT, "Results should be identical");
+
+    "Test with multiple passages";
+    rel:assert({#12, #40, "east"});
+    rel:assert({#39, #40, "south"});
+
+    "Find all passages from #12";
+    from_12 = rel:select_containing(#12);
+    length(from_12) != 2 && raise(E_ASSERT, "Room #12 should have 2 passages");
+    {#12, #39, "north"} in from_12 || raise(E_ASSERT, "Missing north passage");
+    {#12, #40, "east"} in from_12 || raise(E_ASSERT, "Missing east passage");
+
+    "Find all passages from #40";
+    from_40 = rel:select_containing(#40);
+    length(from_40) != 2 && raise(E_ASSERT, "Room #40 should have 2 passages");
+    {#12, #40, "east"} in from_40 || raise(E_ASSERT, "Missing east passage");
+    {#39, #40, "south"} in from_40 || raise(E_ASSERT, "Missing south passage");
+
+    "Room #39 appears in different positions but both found";
+    from_39 = rel:select_containing(#39);
+    length(from_39) != 2 && raise(E_ASSERT, "Room #39 should have 2 passages");
+    {#12, #39, "north"} in from_39 || raise(E_ASSERT, "Missing north passage (pos 2)");
+    {#39, #40, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
 
     recycle(rel);
   endverb

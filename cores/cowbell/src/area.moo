@@ -5,69 +5,85 @@ object AREA
   fertile: true
   readable: true
 
-  override description = "Area container that manages passages between rooms.";
+  property passages_rel (owner: HACKER, flags: "r") = 0;
+
+  override description = "Area container that manages passages between rooms using a relation.";
   override import_export_id = "area";
 
-  verb passage_key (this none this) owner: HACKER flags: "rxd"
-    {room_a, room_b} = args;
-    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
-    key_a = toliteral(room_a);
-    key_b = toliteral(room_b);
-    if (key_a > key_b)
-      temp = key_a;
-      key_a = key_b;
-      key_b = temp;
+  verb initialize (this none this) owner: HACKER flags: "rx"
+    "Called after creation to set up the passages relation.";
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      this.passages_rel = create($relation);
     endif
-    return "passage_edge_" + key_a + "_" + key_b;
+  endverb
+
+  verb _canonical_tuple (this none this) owner: HACKER flags: "rxd"
+    "Build canonical tuple {min_room, max_room, passage} for storage.";
+    {room_a, room_b, passage} = args;
+    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
+    typeof(passage) == OBJ || typeof(passage) == FLYWEIGHT || raise(E_TYPE);
+    if (room_a < room_b)
+      return {room_a, room_b, passage};
+    else
+      return {room_b, room_a, passage};
+    endif
   endverb
 
   verb passage_for (this none this) owner: HACKER flags: "rxd"
+    "Find the passage between two rooms.";
     {room_a, room_b} = args;
-    prop = this:passage_key(room_a, room_b);
-    return `this.(prop) ! E_PROPNF => 0';
+    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
+    this:initialize();
+    "Find all tuples containing room_a, then filter for room_b";
+    candidates = this.passages_rel:select_containing(room_a);
+    for tuple in (candidates)
+      if (room_b in tuple)
+        return tuple[3];
+      endif
+    endfor
+    return false;
   endverb
 
   verb set_passage (this none this) owner: HACKER flags: "rxd"
+    "Set or update the passage between two rooms.";
     {room_a, room_b, passage} = args;
-    typeof(passage) == OBJ || typeof(passage) == FLYWEIGHT || raise(E_TYPE);
-    prop = this:passage_key(room_a, room_b);
-    this.(prop) = passage;
+    this:initialize();
+    "Remove existing passage if any";
+    this:clear_passage(room_a, room_b);
+    "Add new passage as canonical tuple";
+    tuple = this:_canonical_tuple(room_a, room_b, passage);
+    this.passages_rel:assert(tuple);
     return passage;
   endverb
 
   verb clear_passage (this none this) owner: HACKER flags: "rxd"
+    "Remove the passage between two rooms.";
     {room_a, room_b} = args;
-    prop = this:passage_key(room_a, room_b);
-    if (prop in properties(this))
-      this.(prop) = 0;
-    endif
-    return true;
+    this:initialize();
+    "Find and retract the tuple";
+    candidates = this.passages_rel:select_containing(room_a);
+    for tuple in (candidates)
+      if (room_b in tuple)
+        return this.passages_rel:retract(tuple);
+      endif
+    endfor
+    return false;
   endverb
 
   verb passages (this none this) owner: HACKER flags: "rxd"
-    edges = {};
-    for prop in (properties(this))
-      if (!prop:starts_with("passage_edge_"))
-        continue;
-      endif
-      passage = `this.(prop) ! E_PROPNF => 0';
-      if (typeof(passage) == OBJ || typeof(passage) == FLYWEIGHT)
-        edges = {@edges, passage};
-      endif
-    endfor
-    return edges;
+    "Return all passage objects.";
+    this:initialize();
+    tuples = this.passages_rel:tuples();
+    return { tuple[3] for tuple in (tuples) };
   endverb
 
   verb passages_from (this none this) owner: HACKER flags: "rxd"
+    "Return all passages connected to a room.";
     {room} = args;
     typeof(room) == OBJ || raise(E_TYPE);
-    connected = {};
-    for passage in (this:passages())
-      if (passage:includes(room))
-        connected = {@connected, passage};
-      endif
-    endfor
-    return connected;
+    this:initialize();
+    tuples = this.passages_rel:select_containing(room);
+    return { tuple[3] for tuple in (tuples) };
   endverb
 
   verb scope_entries_for (this none this) owner: HACKER flags: "rxd"
