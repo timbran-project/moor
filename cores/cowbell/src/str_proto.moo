@@ -437,6 +437,81 @@ object STR_PROTO
     return {start_index, end_index};
   endverb
 
+  verb parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+    "Parse a name/alias specification like \"name:alias,alias\" with LambdaCore quoting.";
+    {spec} = args;
+    typeof(spec) == STR || raise(E_TYPE, "Specification must be a string");
+    trimmed = spec:trim();
+    if (!trimmed)
+      return {"", {}};
+    endif
+    fn tokenize(input)
+      let tokens = {};
+      let current = "";
+      let in_quotes = false;
+      let i = 1;
+      while (i <= length(input))
+        let ch = input[i];
+        if (ch == "\\" && i < length(input))
+          current = current + input[i + 1];
+          i = i + 2;
+          continue;
+        endif
+        if (ch == "\"")
+          in_quotes = !in_quotes;
+          i = i + 1;
+          continue;
+        endif
+        if (!in_quotes && ch == ",")
+          tokens = {@tokens, current};
+          current = "";
+          i = i + 1;
+          continue;
+        endif
+        current = current + ch;
+        i = i + 1;
+      endwhile
+      tokens = {@tokens, current};
+      return tokens;
+    endfn
+    parts = this:to_list(trimmed, ":");
+    primary = parts[1]:trim();
+    if (length(primary) >= 2 && primary[1] == "\"" && primary[$] == "\"")
+      let inner = "";
+      let i = 2;
+      let limit = length(primary) - 1;
+      while (i <= limit)
+        let ch = primary[i];
+        if (ch == "\\" && i < limit)
+          inner = inner + primary[i + 1];
+          i = i + 2;
+          continue;
+        endif
+        inner = inner + ch;
+        i = i + 1;
+      endwhile
+      primary = inner;
+    endif
+    aliases = {};
+    if (length(parts) >= 2)
+      alias_tokens = tokenize(parts[2]);
+      for alias in (alias_tokens)
+        alias = alias:trim();
+        if (!alias || alias == primary)
+          continue;
+        endif
+        if (!(alias in aliases))
+          aliases = {@aliases, alias};
+        endif
+      endfor
+    endif
+    if (!primary)
+      primary = aliases ? aliases[1] | "";
+      aliases = primary ? aliases[2..$] | {};
+    endif
+    return {primary, aliases};
+  endverb
+
   verb trim (this none this) owner: HACKER flags: "rxd"
     ":trim (string [, space]) -- remove leading and trailing spaces";
     "";
@@ -1033,6 +1108,25 @@ object STR_PROTO
     (!result || result['start] != 8 || result['end] != 25) && raise(E_ASSERT);
     result = this:match_objid(uuid_str[2..$]);
     result && raise(E_ASSERT);
+    return true;
+  endverb
+
+  verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+    {primary, aliases} = this:parse_name_aliases("lamp:light, lamp,shiny");
+    primary != "lamp" && raise(E_ASSERT, "Primary should be 'lamp': " + toliteral(primary));
+    aliases != {"light", "shiny"} && raise(E_ASSERT, "Aliases dedupe/trim failed: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases(":alpha,beta");
+    primary != "alpha" && raise(E_ASSERT, "First alias should become primary when name missing: " + toliteral(primary));
+    aliases != {"beta"} && raise(E_ASSERT, "Remaining alias list incorrect: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("Porcupine:\"Karl Porcupine\",\"You can pet this Porcupine, I bet!\"");
+    primary != "Porcupine" && raise(E_ASSERT, "Quoted name parsing wrong: " + toliteral(primary));
+    aliases != {"Karl Porcupine", "You can pet this Porcupine, I bet!"} && raise(E_ASSERT, "Quoted alias handling failed: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("\"Standalone Thing\"");
+    primary != "Standalone Thing" && raise(E_ASSERT, "Standalone quoted name parsing failed: " + toliteral(primary));
+    aliases != {} && raise(E_ASSERT, "Standalone quoted name should not record aliases: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("  ");
+    primary != "" && raise(E_ASSERT, "Blank spec should return empty primary: " + toliteral(primary));
+    aliases != {} && raise(E_ASSERT, "Blank spec should have empty alias list: " + toliteral(aliases));
     return true;
   endverb
 endobject
