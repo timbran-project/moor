@@ -234,7 +234,7 @@ object AREA
     !area:connected(#3, #1) && raise(E_ASSERT, "#3 and #1 should be connected");
     "#4 is not connected";
     area:connected(#1, #4) && raise(E_ASSERT, "#4 should not be connected");
-    recycle(area);
+    area:destroy();
   endverb
 
   verb test_rooms_from (this none this) owner: HACKER flags: "rxd"
@@ -253,7 +253,7 @@ object AREA
     "From #3 should reach all via bidirectional edges";
     reachable = area:rooms_from(#3);
     length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from #3");
-    recycle(area);
+    area:destroy();
   endverb
 
   verb test_find_path (this none this) owner: HACKER flags: "rxd"
@@ -284,6 +284,6 @@ object AREA
     path = area:find_path(#1, #1);
     path || raise(E_ASSERT, "Should find path from room to itself");
     length(path) != 1 && raise(E_ASSERT, "Same-room path should have 1 node");
-    recycle(area);
+    area:destroy();
   endverb
 endobject

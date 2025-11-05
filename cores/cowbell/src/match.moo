@@ -225,7 +225,7 @@ object MATCH
       result = this:resolve_in_scope(uuid_str, scope);
       result != temp && raise(E_ASSERT, "Literal uuobjid should resolve to created object: " + toliteral(result));
     finally
-      recycle(temp);
+      temp:destroy();
     endtry
     result = this:resolve_in_scope("#999999", scope);
     result != #-3 && raise(E_ASSERT, "Unknown literal should fail: " + toliteral(result));

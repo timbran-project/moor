@@ -215,7 +215,7 @@ object RELATION
     "Test different arities in same relation";
     rel:assert({#5, #6, #7, #8});
     !rel:member({#5, #6, #7, #8}) && raise(E_ASSERT, "Quaternary tuple not found");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_retract (this none this) owner: HACKER flags: "rxd"
@@ -234,7 +234,7 @@ object RELATION
     !rel:member({#2, #3, "edge3"}) && raise(E_ASSERT, "Other tuple incorrectly removed");
     "Retracting non-existent tuple should return false";
     rel:retract({#99, #100, "none"}) && raise(E_ASSERT, "Retract of missing tuple should be false");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_select (this none this) owner: HACKER flags: "rxd"
@@ -260,7 +260,7 @@ object RELATION
     "Select non-existent value";
     results = rel:select(1, #99);
     length(results) != 0 && raise(E_ASSERT, "Expected empty results for non-existent value");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_tuples (this none this) owner: HACKER flags: "rxd"
@@ -277,7 +277,7 @@ object RELATION
     {#1, #2} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#3, #4} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#5, #6, #7} in all_tuples || raise(E_ASSERT, "Missing tuple");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_clear (this none this) owner: HACKER flags: "rxd"
@@ -293,7 +293,7 @@ object RELATION
     "Verify empty";
     length(rel:tuples()) != 0 && raise(E_ASSERT, "Relation should be empty after clear");
     rel:member({#1, #2, "a"}) && raise(E_ASSERT, "Tuple still present after clear");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_duplicate_assert (this none this) owner: HACKER flags: "rxd"
@@ -305,7 +305,7 @@ object RELATION
     length(results) != 2 && raise(E_ASSERT, "Duplicate assert should create new tuple (UUIDs differ)");
     "Both should be present as member check is equality based";
     !rel:member({#1, #2, "edge"}) && raise(E_ASSERT, "Tuple should be present");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_bidirectional_indexing (this none this) owner: HACKER flags: "rxd"
@@ -346,7 +346,7 @@ object RELATION
     length(from_39) != 2 && raise(E_ASSERT, "Room #39 should have 2 passages");
     {#12, #39, "north"} in from_39 || raise(E_ASSERT, "Missing north passage (pos 2)");
     {#39, #40, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb query (this none this) owner: HACKER flags: "rxd"
@@ -439,7 +439,7 @@ object RELATION
     "Query all tuples";
     results = rel:query({$dvar:mk_a(), $dvar:mk_b(), $dvar:mk_c()});
     length(results) != 3 && raise(E_ASSERT, "Expected 3 results for all tuples");
-    recycle(rel);
+    rel:destroy();
   endverb
 
   verb test_reachable (this none this) owner: HACKER flags: "rxd"
@@ -465,6 +465,6 @@ object RELATION
     #2 in reachable || raise(E_ASSERT, "Should reach #2");
     #4 in reachable || raise(E_ASSERT, "Should reach #4");
     #5 in reachable || raise(E_ASSERT, "Should reach #5 via #2");
-    recycle(rel);
+    rel:destroy();
   endverb
 endobject

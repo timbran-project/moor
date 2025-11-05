@@ -37,8 +37,8 @@ object ROOT
     return new_obj;
   endverb
 
-  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Recycle this object. Permission: wizard, owner, or capability.";
+  verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Destroy this object. Permission: wizard, owner, or capability.";
     this:check_permissions('recycle);
     recycle(this);
   endverb
@@ -107,6 +107,11 @@ object ROOT
   verb name (this none this) owner: HACKER flags: "rxd"
     "Returns the presentation name of the object.";
     return this.name;
+  endverb
+
+  verb aliases (this none this) owner: HACKER flags: "rxd"
+    "Returns the aliases of the object.";
+    return this.aliases;
   endverb
 
   verb look_self (this none this) owner: HACKER flags: "rxd"

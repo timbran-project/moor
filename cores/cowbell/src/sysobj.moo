@@ -142,6 +142,32 @@ object SYSOBJ
     return true;
   endverb
 
+  verb bf_recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Intercept recycle() to enforce permission checking through :destroy.";
+    "Allows direct recycle() if: wizard, object not rooted in #1, or called from :destroy";
+    {target} = args;
+    "If not an object, let builtin raise the appropriate error";
+    if (typeof(target) != OBJ)
+      return recycle(target);
+    endif
+    "Wizards can recycle anything directly";
+    if (caller_perms().wizard)
+      return recycle(target);
+    endif
+    "Objects not rooted in #1 don't have :destroy, allow direct recycle";
+    if (!(#1 in ancestors(target)))
+      return recycle(target);
+    endif
+    "Check if we're being called from :destroy by examining call stack";
+    for frame in (callers())
+      if (frame[2] == "destroy" && frame[1] == target)
+        return recycle(target);
+      endif
+    endfor
+    "Not authorized - must go through :destroy for permission checking";
+    raise(E_PERM);
+  endverb
+
   verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"
     server_log("Core starting...");
     "Issue capability for $login to create players";

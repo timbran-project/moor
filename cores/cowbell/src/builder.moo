@@ -9,15 +9,14 @@ object BUILDER
   override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
   override import_export_id = "builder";
 
-  verb "@create" (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb "@create" (any named any) owner: ARCH_WIZARD flags: "rxd"
     caller == this || raise(E_PERM);
     set_task_perms(caller_perms());
-    spec = this:_parse_create_command(argstr);
-    if (maphaskey(spec, 'error))
-      this:_emit_create_error(spec['error]);
+    if (!dobjstr || !iobjstr)
+      this:_emit_create_error("Usage: @create <parent> named <name[:aliases]>");
       return 0;
     endif
-    parent_result = this:_resolve_create_parent(spec['parent]);
+    parent_result = this:_resolve_create_parent(dobjstr);
     if (maphaskey(parent_result, 'error))
       this:_emit_create_error(parent_result['error]);
       return 0;
@@ -28,83 +27,15 @@ object BUILDER
       this:_emit_create_error(validation['error]);
       return 0;
     endif
-    name_info = this:_parse_create_names(spec['names]);
+    name_info = this:_parse_create_names(iobjstr);
     if (maphaskey(name_info, 'error))
       this:_emit_create_error(name_info['error]);
       return 0;
     endif
     {primary_name, alias_list} = {name_info['primary], name_info['aliases]};
     new_obj = this:_create_child_object(parent_obj, primary_name, alias_list);
-    this:_announce_create_success(new_obj, parent_obj, primary_name);
+    this:_announce_create_success(new_obj, parent_obj, primary_name, alias_list);
     return new_obj;
-  endverb
-
-  verb _parse_create_command (this none this) owner: HACKER flags: "rxd"
-    "Parse raw @create argument string into parent token and name specification.";
-    {raw_args} = args;
-    trimmed = raw_args:trim();
-    if (!trimmed)
-      return ['error -> "Usage: @create <parent> named <name[:aliases]>"];
-    endif
-    {parent_token, names_clause} = this:_split_create_named_clause(trimmed);
-    if (!parent_token)
-      return ['error -> "You must specify the parent object to create from."];
-    endif
-    if (!names_clause)
-      return ['error -> "You must provide a name using 'named'."];
-    endif
-    return ['parent -> parent_token, 'names -> names_clause];
-  endverb
-
-  verb _split_create_named_clause (this none this) owner: HACKER flags: "rxd"
-    "Return {parent_part, names_part} while respecting quoted segments.";
-    {input} = args;
-    len = length(input);
-    len >= 5 || return {input, ""};
-    fn is_whitespace(ch)
-      return index(" \t", ch) != 0;
-    endfn
-    in_quotes = false;
-    named_start = 0;
-    i = 1;
-    while (i <= len)
-      ch = input[i];
-      if (ch == "\\")
-        if (i < len)
-          i = i + 2;
-          continue;
-        else
-          break;
-        endif
-      elseif (ch == "\"")
-        in_quotes = !in_quotes;
-        i = i + 1;
-        continue;
-      endif
-      if (!in_quotes && i + 4 <= len)
-        candidate = input[i..i + 4];
-        if (candidate:lowercase() == "named")
-          before_ok = i == 1 || is_whitespace(input[i - 1]);
-          after_pos = i + 5;
-          after_ok = after_pos > len || is_whitespace(input[after_pos]);
-          if (before_ok && after_ok)
-            named_start = i;
-            break;
-          endif
-        endif
-      endif
-      i = i + 1;
-    endwhile
-    if (!named_start)
-      return {input:trim(), ""};
-    endif
-    parent_part = input[1..named_start - 1]:trim();
-    remainder = input[named_start + 5..$];
-    while (remainder && is_whitespace(remainder[1]))
-      remainder = remainder[2..$];
-    endwhile
-    remainder = remainder:trim();
-    return {parent_part, remainder};
   endverb
 
   verb _resolve_create_parent (this none this) owner: HACKER flags: "rxd"
@@ -144,19 +75,24 @@ object BUILDER
     "Create the child object, apply naming, and move it into the builder's inventory.";
     caller == this || caller.wizard || raise(E_PERM);
     {parent_obj, primary_name, alias_list} = args;
-    new_obj = parent_obj:create(this);
-    new_obj.name = primary_name;
-    new_obj.aliases = alias_list;
-    move(new_obj, this);
+    set_task_perms(this);
+    new_obj = parent_obj:create();
+    new_obj:set_name_aliases(primary_name, alias_list);
+    new_obj:moveto(this);
     return new_obj;
   endverb
 
   verb _announce_create_success (this none this) owner: HACKER flags: "rxd"
     "Send a confirmation event for successful creation.";
-    {new_obj, parent_obj, primary_name} = args;
+    {new_obj, parent_obj, primary_name, alias_list} = args;
     object_id = tostr(new_obj);
     parent_id = tostr(parent_obj);
-    message = "Created " + primary_name + " (" + object_id + ") as a child of " + parent_id + ". It is now in your inventory.";
+    message = "Created \"" + primary_name + "\" (" + object_id + ") as a child of " + parent_id + ".";
+    if (alias_list)
+      alias_str = alias_list:join(", ");
+      message = message + " Aliases: " + alias_str + ".";
+    endif
+    message = message + " It is now in your inventory.";
     this:inform_current($event:mk_info(this, message));
   endverb
 
@@ -181,29 +117,6 @@ object BUILDER
     return toliteral(value);
   endverb
 
-  verb test_parse_create_command (this none this) owner: HACKER flags: "rxd"
-    spec = this:_parse_create_command("$thing named \"Sample Thing\"");
-    maphaskey(spec, 'error) && raise(E_ASSERT("Parsing quoted name failed: " + toliteral(spec)));
-    spec['parent] != "$thing" && raise(E_ASSERT("Parent token mismatch: " + toliteral(spec['parent])));
-    spec['names] != "\"Sample Thing\"" && raise(E_ASSERT("Names clause mismatch: " + toliteral(spec['names])));
-    spec = this:_parse_create_command("   ");
-    !maphaskey(spec, 'error) && raise(E_ASSERT("Blank string should return error"));
-    return true;
-  endverb
-
-  verb test_split_create_named_clause (this none this) owner: HACKER flags: "rxd"
-    {parent_part, names_part} = this:_split_create_named_clause("$thing named \"The named one\"");
-    parent_part != "$thing" && raise(E_ASSERT("Parent part parsing failed: " + toliteral(parent_part)));
-    names_part != "\"The named one\"" && raise(E_ASSERT("Names part parsing failed: " + toliteral(names_part)));
-    {parent_part, names_part} = this:_split_create_named_clause("$thing");
-    parent_part != "$thing" && raise(E_ASSERT);
-    names_part != "" && raise(E_ASSERT);
-    {parent_part, names_part} = this:_split_create_named_clause("$thing named \"Alias with named keyword\"");
-    parent_part != "$thing" && raise(E_ASSERT);
-    names_part != "\"Alias with named keyword\"" && raise(E_ASSERT("Named keyword inside quotes should be ignored"));
-    return true;
-  endverb
-
   verb test_create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     new_obj = this:_create_child_object($thing, "Widget", {"gadget"});
     typeof(new_obj) == OBJ || raise(E_ASSERT("Returned value was not an object: " + toliteral(new_obj)));
@@ -211,7 +124,7 @@ object BUILDER
     new_obj.location != this && raise(E_ASSERT("Created object should move into inventory"));
     new_obj.name != "Widget" && raise(E_ASSERT("Primary name was not applied: " + new_obj.name));
     new_obj.aliases != {"gadget"} && raise(E_ASSERT("Aliases not applied: " + toliteral(new_obj.aliases)));
-    recycle(new_obj);
+    new_obj:destroy();
     return true;
   endverb
 endobject

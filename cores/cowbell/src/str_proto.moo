@@ -438,7 +438,7 @@ object STR_PROTO
   endverb
 
   verb parse_name_aliases (this none this) owner: HACKER flags: "rxd"
-    "Parse a name/alias specification like \"name:alias,alias\" with LambdaCore quoting.";
+    "Parse a name/alias specification. Supports both 'name:alias,alias' and 'name,alias,alias' formats.";
     {spec} = args;
     typeof(spec) == STR || raise(E_TYPE, "Specification must be a string");
     trimmed = spec:trim();
@@ -474,37 +474,50 @@ object STR_PROTO
       tokens = {@tokens, current};
       return tokens;
     endfn
-    parts = this:to_list(trimmed, ":");
-    primary = parts[1]:trim();
-    if (length(primary) >= 2 && primary[1] == "\"" && primary[$] == "\"")
-      let inner = "";
-      let i = 2;
-      let limit = length(primary) - 1;
-      while (i <= limit)
-        let ch = primary[i];
-        if (ch == "\\" && i < limit)
-          inner = inner + primary[i + 1];
-          i = i + 2;
-          continue;
-        endif
-        inner = inner + ch;
-        i = i + 1;
-      endwhile
-      primary = inner;
+    fn unquote(text)
+      let s = text:trim();
+      if (length(s) >= 2 && s[1] == "\"" && s[$] == "\"")
+        let inner = "";
+        let i = 2;
+        let limit = length(s) - 1;
+        while (i <= limit)
+          let ch = s[i];
+          if (ch == "\\" && i < limit)
+            inner = inner + s[i + 1];
+            i = i + 2;
+            continue;
+          endif
+          inner = inner + ch;
+          i = i + 1;
+        endwhile
+        return inner;
+      endif
+      return s;
+    endfn
+    "Check if colon-separated format (name:alias,alias)";
+    colon_parts = this:to_list(trimmed, ":");
+    if (length(colon_parts) >= 2)
+      primary = unquote(colon_parts[1]);
+      alias_tokens = tokenize(colon_parts[2]);
+    else
+      "Comma-separated format (name,alias,alias)";
+      all_tokens = tokenize(trimmed);
+      if (!all_tokens)
+        return {"", {}};
+      endif
+      primary = unquote(all_tokens[1]);
+      alias_tokens = length(all_tokens) > 1 ? all_tokens[2..$] | {};
     endif
     aliases = {};
-    if (length(parts) >= 2)
-      alias_tokens = tokenize(parts[2]);
-      for alias in (alias_tokens)
-        alias = alias:trim();
-        if (!alias || alias == primary)
-          continue;
-        endif
-        if (!(alias in aliases))
-          aliases = {@aliases, alias};
-        endif
-      endfor
-    endif
+    for alias in (alias_tokens)
+      alias = unquote(alias);
+      if (!alias || alias == primary)
+        continue;
+      endif
+      if (!(alias in aliases))
+        aliases = {@aliases, alias};
+      endif
+    endfor
     if (!primary)
       primary = aliases ? aliases[1] | "";
       aliases = primary ? aliases[2..$] | {};
@@ -1112,6 +1125,7 @@ object STR_PROTO
   endverb
 
   verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+    "Test colon-separated format (name:alias,alias)";
     {primary, aliases} = this:parse_name_aliases("lamp:light, lamp,shiny");
     primary != "lamp" && raise(E_ASSERT, "Primary should be 'lamp': " + toliteral(primary));
     aliases != {"light", "shiny"} && raise(E_ASSERT, "Aliases dedupe/trim failed: " + toliteral(aliases));
@@ -1124,6 +1138,17 @@ object STR_PROTO
     {primary, aliases} = this:parse_name_aliases("\"Standalone Thing\"");
     primary != "Standalone Thing" && raise(E_ASSERT, "Standalone quoted name parsing failed: " + toliteral(primary));
     aliases != {} && raise(E_ASSERT, "Standalone quoted name should not record aliases: " + toliteral(aliases));
+    "Test comma-only format (name,alias,alias) - LambdaCore style";
+    {primary, aliases} = this:parse_name_aliases("test,bonk");
+    primary != "test" && raise(E_ASSERT, "Comma format: primary should be 'test': " + toliteral(primary));
+    aliases != {"bonk"} && raise(E_ASSERT, "Comma format: aliases should be {\"bonk\"}: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("lamp,light,shiny");
+    primary != "lamp" && raise(E_ASSERT, "Comma format: primary should be 'lamp': " + toliteral(primary));
+    aliases != {"light", "shiny"} && raise(E_ASSERT, "Comma format: aliases failed: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("\"Quoted Thing\",alias1,alias2");
+    primary != "Quoted Thing" && raise(E_ASSERT, "Comma format: quoted primary failed: " + toliteral(primary));
+    aliases != {"alias1", "alias2"} && raise(E_ASSERT, "Comma format: quoted with aliases failed: " + toliteral(aliases));
+    "Empty/whitespace tests";
     {primary, aliases} = this:parse_name_aliases("  ");
     primary != "" && raise(E_ASSERT, "Blank spec should return empty primary: " + toliteral(primary));
     aliases != {} && raise(E_ASSERT, "Blank spec should have empty alias list: " + toliteral(aliases));
