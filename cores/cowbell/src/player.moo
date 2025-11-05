@@ -24,7 +24,7 @@ object PLAYER
     return setup_cap;
   endverb
 
-  verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rxd"
+  verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
     if (dobjstr == "")
       target = player.location;
@@ -40,7 +40,7 @@ object PLAYER
     player:inform_current(look_d:into_event():with_audience('utility));
   endverb
 
-  verb "i*nventory" (any none none) owner: HACKER flags: "rxd"
+  verb "i*nventory" (any none none) owner: HACKER flags: "rd"
     "Display player's inventory using list format";
     caller != player && return E_PERM;
     items = this.contents;
@@ -55,7 +55,7 @@ object PLAYER
     this:inform_current(event:with_audience('utility));
   endverb
 
-  verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Display list of connected players using table format";
     caller != player && return E_PERM;
     players = connected_players();
@@ -105,7 +105,7 @@ object PLAYER
     raise(E_INVARG);
   endverb
 
-  verb "@pronouns" (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb "@pronouns" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Set or view your pronouns.";
     "Usage: @pronouns [pronoun-set]";
     "Examples: @pronouns they/them, @pronouns she/her, @pronouns";

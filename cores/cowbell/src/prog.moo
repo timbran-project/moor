@@ -10,7 +10,7 @@ object PROG
   override description = "Generic programmer character prototype with code evaluation and editing capabilities.";
   override import_export_id = "prog";
 
-  verb eval (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
     caller == this || raise(E_PERM);
     set_task_perms(player);
     answer = eval("return " + argstr + ";");
@@ -22,14 +22,10 @@ object PROG
     player:tell(result_event);
   endverb
 
-  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb "@edit" (any any any) owner: HACKER flags: "rd"
     "Edit a verb on an object using the presentation system.";
     "Usage: @edit <object>:<verb> [info]";
     "Examples: @edit #1:look_self, @edit player:tell, @edit $match:match_object info";
-    if (player != caller)
-      raise(E_PERMS);
-    endif
-    set_task_perms(player);
     "Check for usage errors";
     if (!argstr)
       player:tell($event:mk_error(player, "Usage: " + verb + " <object>:<verb> [info]"));
