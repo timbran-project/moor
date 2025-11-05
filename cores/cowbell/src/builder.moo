@@ -6,6 +6,65 @@ object BUILDER
   programmer: true
   readable: true
 
+  property area_grants (owner: HACKER, flags: "c") = [];
+  property direction_abbrevs (owner: HACKER, flags: "rc") = [
+    "d" -> "down",
+    "down" -> "d",
+    "downstairs" -> "d",
+    "e" -> "east",
+    "east" -> "e",
+    "i" -> "in",
+    "in" -> "i",
+    "n" -> "north",
+    "ne" -> "northeast",
+    "north" -> "n",
+    "northeast" -> "ne",
+    "northwest" -> "nw",
+    "nw" -> "northwest",
+    "o" -> "out",
+    "out" -> "o",
+    "s" -> "south",
+    "se" -> "southeast",
+    "south" -> "s",
+    "southeast" -> "se",
+    "southwest" -> "sw",
+    "sw" -> "southwest",
+    "u" -> "up",
+    "up" -> "u",
+    "upstairs" -> "u",
+    "w" -> "west",
+    "west" -> "w"
+  ];
+  property direction_opposites (owner: HACKER, flags: "rc") = [
+    "d" -> "u",
+    "down" -> "up",
+    "downstairs" -> "upstairs",
+    "e" -> "w",
+    "east" -> "west",
+    "i" -> "o",
+    "in" -> "out",
+    "n" -> "s",
+    "ne" -> "sw",
+    "north" -> "south",
+    "northeast" -> "southwest",
+    "northwest" -> "southeast",
+    "nw" -> "se",
+    "o" -> "i",
+    "out" -> "in",
+    "s" -> "n",
+    "se" -> "nw",
+    "south" -> "north",
+    "southeast" -> "northwest",
+    "southwest" -> "northeast",
+    "sw" -> "ne",
+    "u" -> "d",
+    "up" -> "down",
+    "upstairs" -> "downstairs",
+    "w" -> "e",
+    "west" -> "east"
+  ];
+  property room_grants (owner: HACKER, flags: "c") = [];
+
   override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
   override import_export_id = "builder";
 
@@ -102,6 +161,49 @@ object BUILDER
     return true;
   endverb
 
+  verb test_capability_building (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test building with granted capabilities";
+    "Create test objects - area, two rooms, and a builder";
+    test_area = create($area);
+    test_room1 = create($room);
+    test_room2 = create($room);
+    test_builder = create($builder);
+    test_room1:moveto(test_area);
+    test_room2:moveto(test_area);
+    "Test 1: Grant area capabilities to builder";
+    $root:grant_capability(test_area, {'add_room, 'create_passage}, test_builder, 'area);
+    typeof(test_builder.grants_area) == MAP || raise(E_ASSERT("Builder should have grants_area map"));
+    maphaskey(test_builder.grants_area, test_area) || raise(E_ASSERT("Builder should have grant for test_area"));
+    "Test 2: Grant room capabilities";
+    $root:grant_capability(test_room1, {'dig_from}, test_builder, 'room);
+    $root:grant_capability(test_room2, {'dig_into}, test_builder, 'room);
+    maphaskey(test_builder.grants_room, test_room1) || raise(E_ASSERT("Builder should have grant for room1"));
+    maphaskey(test_builder.grants_room, test_room2) || raise(E_ASSERT("Builder should have grant for room2"));
+    "Test 3: find_capability_for returns the grants";
+    area_cap = test_builder:find_capability_for(test_area, 'area);
+    typeof(area_cap) == FLYWEIGHT || raise(E_ASSERT("Should find area capability"));
+    area_cap.delegate == test_area || raise(E_ASSERT("Area cap should be for test_area"));
+    room1_cap = test_builder:find_capability_for(test_room1, 'room);
+    typeof(room1_cap) == FLYWEIGHT || raise(E_ASSERT("Should find room1 capability"));
+    room1_cap.delegate == test_room1 || raise(E_ASSERT("Room1 cap should be for test_room1"));
+    "Test 4: Verify capabilities grant expected permissions";
+    {target, perms} = area_cap:challenge_for({'add_room, 'create_passage});
+    target == test_area || raise(E_ASSERT("Area cap should grant add_room and create_passage"));
+    {target2, perms2} = room1_cap:challenge_for({'dig_from});
+    target2 == test_room1 || raise(E_ASSERT("Room1 cap should grant dig_from"));
+    "Test 5: Capability not found returns false";
+    nonexistent_room = create($room);
+    no_cap = test_builder:find_capability_for(nonexistent_room, 'room);
+    no_cap == false || raise(E_ASSERT("Should return false for room without grant"));
+    "Cleanup";
+    test_area:destroy();
+    test_room1:destroy();
+    test_room2:destroy();
+    test_builder:destroy();
+    nonexistent_room:destroy();
+    return true;
+  endverb
+
   verb "@audit @owned" (none none none) owner: ARCH_WIZARD flags: "rd"
     caller == this || raise(E_PERM);
     set_task_perms(caller_perms());
@@ -128,5 +230,214 @@ object BUILDER
       this:inform_current($event:mk_error(this, message));
       return 0;
     endtry
+  endverb
+
+  verb "@build" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Create a new room. Usage: @build <name> [in <area>] [as <parent>]";
+    caller == this || raise(E_PERM);
+    set_task_perms(caller_perms());
+    if (!argstr)
+      raise(E_INVARG, "Usage: @build <name> [in <area>] [as <parent>]");
+    endif
+    try
+      "Parse the command string";
+      result = this:_parse_build_command(argstr);
+      room_name = result['name];
+      target_area = result['area];
+      parent_obj = result['parent];
+      "TODO: Detect duplicate room names in target_area. Should we warn or prevent?";
+      "Create the room";
+      new_room = parent_obj:create();
+      new_room:set_name_aliases(room_name, {});
+      "Place in area if specified";
+      if (valid(target_area))
+        "Use capability if we have one, otherwise use area directly";
+        area_target = this:find_capability_for(target_area, 'area) || target_area;
+        area_target:add_room(new_room);
+        area_str = " in " + tostr(target_area);
+      else
+        area_str = " (free-floating)";
+      endif
+      "Report success";
+      message = "Created \"" + room_name + "\" (" + tostr(new_room) + ")" + area_str + ".";
+      this:inform_current($event:mk_info(this, message));
+      return new_room;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb _parse_build_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Parse @build command arguments. Returns map with 'name, 'area, 'parent.";
+    caller == this || raise(E_PERM);
+    {command_str} = args;
+    command_str = command_str:trim();
+    "Defaults";
+    current_room = this.location;
+    target_area = valid(current_room) ? current_room.location | #-1;
+    parent_obj = $room;
+    "Check for 'in <area>' clause first";
+    in_match = match(command_str, "(.+)\\s+in\\s+(\\S+)");
+    if (in_match)
+      name_part = in_match[2]:trim();
+      area_spec = in_match[3];
+      if (area_spec == "ether")
+        target_area = #-1;
+      else
+        target_area = $match:match_object(area_spec, this);
+        typeof(target_area) != OBJ && raise(E_INVARG, "That area reference is not an object.");
+        !valid(target_area) && raise(E_INVARG, "That area no longer exists.");
+      endif
+    else
+      name_part = command_str;
+    endif
+    "Check for 'as <parent>' clause";
+    as_match = match(name_part, "(.+)\\s+as\\s+(\\S+)");
+    if (as_match)
+      name_part = as_match[2]:trim();
+      parent_spec = as_match[3];
+      parent_obj = $match:match_object(parent_spec, this);
+      typeof(parent_obj) != OBJ && raise(E_INVARG, "That parent reference is not an object.");
+      !valid(parent_obj) && raise(E_INVARG, "That parent object no longer exists.");
+    endif
+    "Parse room name using same logic as @create";
+    parsed = $str_proto:parse_name_aliases(name_part);
+    room_name = parsed[1];
+    !room_name && raise(E_INVARG, "Room name cannot be blank.");
+    return ['name -> room_name, 'area -> target_area, 'parent -> parent_obj];
+  endverb
+
+  verb "@dig @tunnel" (any at any) owner: ARCH_WIZARD flags: "rd"
+    "Create a passage to an existing room. Usage: @dig [oneway] <dir>[|<returndir>] to <room>";
+    caller == this || raise(E_PERM);
+    set_task_perms(caller_perms());
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, "Usage: @dig [oneway] <dir>[|<returndir>] to <room>");
+    endif
+    try
+      "Parse the direction spec";
+      result = this:_parse_dig_command(dobjstr);
+      is_oneway = result['oneway];
+      from_dir = result['from_dir];
+      to_dir = result['to_dir];
+      "Find the target room - use iobj if it matched, otherwise search area by name";
+      if (typeof(iobj) == OBJ && valid(iobj))
+        target_room = iobj;
+      else
+        "Parser didn't find it, search area's rooms by name";
+        current_room = this.location;
+        area = valid(current_room) ? current_room.location | #-1;
+        if (!valid(area))
+          raise(E_INVARG, "You must be in an area to search for rooms by name.");
+        endif
+        target_room = $match:match_object(iobjstr, area);
+        typeof(target_room) != OBJ && raise(E_INVARG, "That room reference is not an object.");
+      endif
+      !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
+      "Get current room and its area";
+      current_room = this.location;
+      !valid(current_room) && raise(E_INVARG, "You must be in a room to dig passages.");
+      area = current_room.location;
+      !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
+      "Check target room is in same area";
+      target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
+      "Check permissions on both rooms using capabilities if we have them";
+      from_room_target = this:find_capability_for(current_room, 'room) || current_room;
+      from_room_target:check_can_dig_from();
+      to_room_target = this:find_capability_for(target_room, 'room) || target_room;
+      to_room_target:check_can_dig_into();
+      "TODO: Detect duplicate exit directions from current_room. Can't have two 'up' exits.";
+      "TODO: Handle alias conflicts - e.g. 'upstairs' and 'up' both expand to include 'u'.";
+      "TODO: Write heuristics for detecting and resolving direction conflicts.";
+      "Create the passage flyweight";
+      if (is_oneway)
+        passage = $passage:mk(current_room, from_dir[1], from_dir, "", true, target_room, "", {}, "", false, true);
+      else
+        passage = $passage:mk(current_room, from_dir[1], from_dir, "", true, target_room, to_dir[1], to_dir, "", true, true);
+      endif
+      "Register with area using capability if we have one";
+      area_target = this:find_capability_for(area, 'area) || area;
+      area_target:create_passage(current_room, target_room, passage);
+      "Report success";
+      if (is_oneway)
+        message = "Dug passage: " + from_dir:join(",") + " to " + tostr(target_room) + " (one-way).";
+      else
+        message = "Dug passage: " + from_dir:join(",") + " | " + to_dir:join(",") + " connecting to " + tostr(target_room) + ".";
+      endif
+      this:inform_current($event:mk_info(this, message));
+      return passage;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb _parse_dig_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Parse @dig direction spec. Returns map with 'oneway, 'from_dir, 'to_dir.";
+    caller == this || raise(E_PERM);
+    {dir_spec} = args;
+    dir_spec = dir_spec:trim();
+    "Check for oneway flag";
+    is_oneway = false;
+    if (dir_spec:starts_with("oneway "))
+      is_oneway = true;
+      dir_spec = dir_spec[8..length(dir_spec)]:trim();
+    endif
+    "Check for explicit bidirectional spec (|)";
+    if ("|" in dir_spec)
+      parts = dir_spec:split("|");
+      length(parts) == 2 || raise(E_INVARG, "Direction spec must be 'dir' or 'dir|returndir'.");
+      from_dirs = parts[1]:split(",");
+      to_dirs = parts[2]:split(",");
+      "Expand standard aliases";
+      from_dirs = this:_expand_direction_aliases(from_dirs);
+      to_dirs = this:_expand_direction_aliases(to_dirs);
+      return ['oneway -> is_oneway, 'from_dir -> from_dirs, 'to_dir -> to_dirs];
+    endif
+    "Single direction - split on commas for aliases";
+    from_dirs = dir_spec:split(",");
+    "Infer opposite direction";
+    to_dirs = this:_infer_opposite_directions(from_dirs);
+    !to_dirs && raise(E_INVARG, "Can't infer opposite direction for '" + dir_spec + "'. Use 'dir|returndir' syntax.");
+    "Expand standard aliases";
+    from_dirs = this:_expand_direction_aliases(from_dirs);
+    to_dirs = this:_expand_direction_aliases(to_dirs);
+    return ['oneway -> is_oneway, 'from_dir -> from_dirs, 'to_dir -> to_dirs];
+  endverb
+
+  verb _infer_opposite_directions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Infer opposite directions for common compass/spatial directions.";
+    caller == this || raise(E_PERM);
+    {directions} = args;
+    result = {};
+    for dir in (directions)
+      if (!maphaskey(this.direction_opposites, dir))
+        return false;
+      endif
+      opposite = this.direction_opposites[dir];
+      result = {@result, opposite};
+    endfor
+    return result;
+  endverb
+
+  verb _expand_direction_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Expand common directions to include standard aliases.";
+    caller == this || raise(E_PERM);
+    {directions} = args;
+    result = {};
+    for dir in (directions)
+      result = {@result, dir};
+      "Add abbreviation if it exists";
+      if (maphaskey(this.direction_abbrevs, dir))
+        abbrev = this.direction_abbrevs[dir];
+        if (abbrev && !(abbrev in result))
+          result = {@result, abbrev};
+        endif
+      endif
+    endfor
+    return result;
   endverb
 endobject

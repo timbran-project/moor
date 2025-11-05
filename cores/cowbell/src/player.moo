@@ -301,4 +301,22 @@ object PLAYER
     endif
     return env;
   endverb
+
+  verb find_capability_for (this none this) owner: HACKER flags: "rxd"
+    "Find a capability token for target_obj in the specified category. Returns token or false.";
+    caller == this || raise(E_PERM);
+    {target_obj, category} = args;
+    typeof(target_obj) == OBJ || return false;
+    typeof(category) == SYM || return false;
+    "Construct property name from category";
+    prop_name = "grants_" + tostr(category);
+    "Try to access the grants map for this category";
+    grants_map = `this.(prop_name) ! E_PROPNF => false';
+    typeof(grants_map) == MAP || return false;
+    "Check if we have a grant for this specific object";
+    if (maphaskey(grants_map, target_obj))
+      return grants_map[target_obj];
+    endif
+    return false;
+  endverb
 endobject

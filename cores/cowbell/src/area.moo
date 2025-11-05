@@ -64,7 +64,8 @@ object AREA
     return false;
   endverb
 
-  verb set_passage (this none this) owner: HACKER flags: "rxd"
+  verb set_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Set or update the passage between two rooms.";
     {room_a, room_b, passage} = args;
     this:_ensure_passages_relation();
@@ -76,7 +77,8 @@ object AREA
     return passage;
   endverb
 
-  verb clear_passage (this none this) owner: HACKER flags: "rxd"
+  verb clear_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Remove the passage between two rooms.";
     {room_a, room_b} = args;
     if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
@@ -92,7 +94,8 @@ object AREA
     return false;
   endverb
 
-  verb passages (this none this) owner: HACKER flags: "rxd"
+  verb passages (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Return all passage objects.";
     if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
       return {};
@@ -101,7 +104,8 @@ object AREA
     return { tuple[3] for tuple in (tuples) };
   endverb
 
-  verb passages_from (this none this) owner: HACKER flags: "rxd"
+  verb passages_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Return all passages connected to a room.";
     {room} = args;
     typeof(room) == OBJ || raise(E_TYPE);
@@ -216,6 +220,28 @@ object AREA
       endfor
     endwhile
     return false;
+  endverb
+
+  verb add_room (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Add a room to this area. Requires 'add_room capability on area.";
+    {this, perms} = this:check_permissions('add_room);
+    {room} = args;
+    typeof(room) == OBJ || raise(E_TYPE);
+    room:moveto(this);
+    return room;
+  endverb
+
+  verb create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create passage between two rooms. Requires 'create_passage on area, 'dig_from on room_a, 'dig_into on room_b.";
+    {this, perms} = this:check_permissions('create_passage);
+    set_task_perms(perms);
+    {room_a, room_b, passage} = args;
+    "Check room_a allows digging from it and room_b allows digging into it";
+    room_a:check_can_dig_from();
+    room_b:check_can_dig_into();
+    "Now create the passage";
+    this:set_passage(room_a, room_b, passage);
+    return passage;
   endverb
 
   verb test_connectivity (this none this) owner: HACKER flags: "rxd"

@@ -8,7 +8,8 @@ object RELATION
   override description = "N-ary persistent data relation.";
   override import_export_id = "relation";
 
-  verb assert (this none this) owner: HACKER flags: "rxd"
+  verb assert (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Add a tuple to the relation. Returns the UUID of the tuple.";
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
@@ -45,7 +46,8 @@ object RELATION
     return tuple_id;
   endverb
 
-  verb retract (this none this) owner: HACKER flags: "rxd"
+  verb retract (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
@@ -86,14 +88,16 @@ object RELATION
     return true;
   endverb
 
-  verb member (this none this) owner: HACKER flags: "rxd"
+  verb member (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Check if a tuple exists in the relation.";
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
     return this:_find_tuple_id(tuple) ? true | false;
   endverb
 
-  verb select (this none this) owner: HACKER flags: "rxd"
+  verb select (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
     {position, value} = args;
     typeof(position) == INT || raise(E_TYPE);
@@ -120,7 +124,8 @@ object RELATION
     return result;
   endverb
 
-  verb select_containing (this none this) owner: HACKER flags: "rxd"
+  verb select_containing (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Find all tuples containing value in any position.";
     {value} = args;
     hash = value_hash(value);
@@ -144,7 +149,8 @@ object RELATION
     return result;
   endverb
 
-  verb tuples (this none this) owner: HACKER flags: "rxd"
+  verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Return all tuples in the relation.";
     result = {};
     all_props = properties(this);
@@ -160,7 +166,8 @@ object RELATION
     return result;
   endverb
 
-  verb clear (this none this) owner: HACKER flags: "rxd"
+  verb clear (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Remove all tuples from the relation.";
     for prop in (properties(this))
       prop_str = tostr(prop);
