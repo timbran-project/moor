@@ -97,14 +97,23 @@ object SYSOBJ
     "Just choose to ignore empty commands...";
     length(args) == 0 && return true;
     command = argstr;
+    set_task_perms(player);
     env = player:command_environment(command, ['complex -> true]);
+    "Run the parts that need wizard permissions";
+    return this:_command_handler(command, env);
+  endverb
+
+  verb _command_handler (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "The wizard-permissioned portion of the custom command handler";
+    caller == this || raise(E_PERM);
+    {command, env} = args;
     pc = parse_command(command, env, true);
-    if (pc["dobj"] == #-2)
+    if (pc["dobj"] == $ambiguous_match)
       dobj_candidates = pc["ambiguous_dobj"];
     else
       dobj_candidates = {pc["dobj"]};
     endif
-    if (pc["iobj"] == #-2)
+    if (pc["iobj"] == $ambiguous_match)
       iobj_candidates = pc["ambiguous_iobj"];
     else
       iobj_candidates = {pc["iobj"]};
@@ -127,6 +136,7 @@ object SYSOBJ
       endfor
     endfor
     "Dispatch any unmatched action out to the room for potential special handling (furniture, passages, etc.)";
+    set_task_perms(player);
     player.location:maybe_handle_command(pc) && return true;
     player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility));
     return true;
