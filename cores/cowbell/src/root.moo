@@ -30,7 +30,7 @@ object ROOT
     target = typeof(this) == FLYWEIGHT ? this.delegate | this;
     is_fertile = `target.fertile ! E_PROPNF => false';
     if (!is_fertile)
-      {target, perms} = this:_perms_challenge('create_child);
+      {target, perms} = this:check_permissions('create_child);
       set_task_perms(perms);
     endif
     new_obj = create(target, caller_perms());
@@ -39,7 +39,7 @@ object ROOT
 
   verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Recycle this object. Permission: wizard, owner, or capability.";
-    this:_perms_challenge('recycle);
+    this:check_permissions('recycle);
     recycle(this);
   endverb
 
@@ -56,14 +56,14 @@ object ROOT
   verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Move this object to destination. Permission: wizard, owner, or capability.";
     {destination} = args;
-    {this, perms} = this:_perms_challenge('move);
+    {this, perms} = this:check_permissions('move);
     set_task_perms(perms);
     return `move(this, destination) ! ANY';
   endverb
 
   verb set_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this object's owner. Permission: wizard or 'set_owner capability.";
-    {target, perms} = this:_perms_challenge('set_owner);
+    {target, perms} = this:check_permissions('set_owner);
     set_task_perms(perms);
     {new_owner} = args;
     target.owner = new_owner;
@@ -71,7 +71,7 @@ object ROOT
 
   verb set_name_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this object's name and aliases. Permission: wizard, owner, or 'set_name_aliases capability.";
-    {target, perms} = this:_perms_challenge('set_name_aliases);
+    {target, perms} = this:check_permissions('set_name_aliases);
     set_task_perms(perms);
     {new_name, new_aliases} = args;
     target.name = new_name;
@@ -256,7 +256,7 @@ object ROOT
     return this:_capability_challenge(caps_list, key);
   endverb
 
-  verb _perms_challenge (this none this) owner: HACKER flags: "rxd"
+  verb check_permissions (this none this) owner: HACKER flags: "rxd"
     "Check wizard, owner, or capability permission. Returns {target, perms_object}.";
     caller == this || raise(E_PERM);
     target = typeof(this) == FLYWEIGHT ? this.delegate | this;
