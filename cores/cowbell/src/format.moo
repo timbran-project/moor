@@ -6,6 +6,7 @@ object FORMAT
   readable: true
 
   property block (owner: HACKER, flags: "r") = FORMAT_BLOCK;
+  property code (owner: HACKER, flags: "r") = FORMAT_CODE;
   property list (owner: HACKER, flags: "r") = FORMAT_LIST;
   property table (owner: HACKER, flags: "r") = FORMAT_TABLE;
   property title (owner: HACKER, flags: "r") = FORMAT_TITLE;

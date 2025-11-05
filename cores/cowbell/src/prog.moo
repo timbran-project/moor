@@ -13,13 +13,15 @@ object PROG
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
     caller == this || raise(E_PERM);
     set_task_perms(player);
-    answer = eval("return " + argstr + ";");
+    answer = eval("return " + argstr + ";", 1, 2);
     if (answer[1])
-      result_event = $event:mk_eval_result(player, "=> ", toliteral(answer[2]));
+      result_event = $event:mk_eval_result(player, "=> ", $format.code:mk(toliteral(answer[2]), 'moo));
     else
-      result_event = $event:mk_eval_error(player, $format.block:mk(@answer[2]));
+      error_content = answer[2];
+      error_text = error_content:join("\n");
+      result_event = $event:mk_eval_error(player, $format.code:mk(error_text));
     endif
-    player:tell(result_event);
+    player:inform_current(result_event);
   endverb
 
   verb "@edit" (any any any) owner: HACKER flags: "rd"
