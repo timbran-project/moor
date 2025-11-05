@@ -4,7 +4,6 @@ object BUILDER
   location: FIRST_ROOM
   owner: HACKER
   programmer: true
-  fertile: true
   readable: true
 
   override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
@@ -145,7 +144,7 @@ object BUILDER
     "Create the child object, apply naming, and move it into the builder's inventory.";
     caller == this || caller.wizard || raise(E_PERM);
     {parent_obj, primary_name, alias_list} = args;
-    new_obj = create(parent_obj, this);
+    new_obj = parent_obj:create(this);
     new_obj.name = primary_name;
     new_obj.aliases = alias_list;
     move(new_obj, this);

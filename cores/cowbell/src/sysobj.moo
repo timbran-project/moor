@@ -57,7 +57,7 @@ object SYSOBJ
     fork (0)
       `user:confunc() ! E_VERBNF';
     endfork
-    `user.location:confunc(user) ! E_VERBNF';
+    `user.location:confunc(user) ! E_INVIND, E_VERBNF';
     `user:anyconfunc() ! E_VERBNF';
   endverb
 
@@ -130,5 +130,13 @@ object SYSOBJ
     player.location:maybe_handle_command(pc) && return true;
     player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility));
     return true;
+  endverb
+
+  verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"
+    server_log("Core starting...");
+    "Issue capability for $login to create players";
+    player_class = $login.default_player_class;
+    $login.player_setup_capability = $prog:issue_capability(player_class, {'create_child, 'make_player}, 0, 0);
+    server_log("Issued player creation capability to $login");
   endverb
 endobject

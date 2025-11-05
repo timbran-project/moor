@@ -7,8 +7,10 @@ object LOGIN
 
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
+  property default_player_class (owner: ARCH_WIZARD, flags: "r") = PLAYER;
   property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
+  property player_setup_capability (owner: LOGIN, flags: "") = 0;
   property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
   property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
     "## Welcome to the _mooR_ *Cowbell* core.",
@@ -231,8 +233,7 @@ object LOGIN
       notify(player, "You must set a password for your player.");
       return;
     endif
-    password_delegate = $password:mk(password);
-    return this:_create_player(name, password_delegate, "", {});
+    return this:_create_player(name, password, "", {});
   endverb
 
   verb _match_player (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -295,24 +296,29 @@ object LOGIN
     return $failed_match;
   endverb
 
-  verb _create_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb _create_player (this none this) owner: LOGIN flags: "rxd"
     ":_create_player(name, password, email, oauth2_identities)";
     caller == #0 || caller == this || raise(E_PERM);
     {player_name, password_value, email, oauth_entries} = args;
-    new_player = create($prog, $nothing);
-    set_player_flag(new_player, 1);
-    new_player.owner = new_player;
-    new_player.name = player_name;
-    new_player.aliases = {player_name};
-    new_player.programmer = 1;
-    new_player.password = password_value;
+    cap = this.player_setup_capability;
+    "cap:make_player() returns a setup capability for the new player";
+    setup_cap = cap:make_player();
+    "Grab the actual underlying object for other uses";
+    new_player = setup_cap.delegate;
+    setup_cap:set_player_flag(1);
+    setup_cap:set_owner(new_player);
+    setup_cap:set_name_aliases(player_name, {player_name});
+    setup_cap:set_programmer(1);
+    if (password_value)
+      setup_cap:set_password(password_value);
+    endif
     if (typeof(email) == STR)
-      new_player.email_address = email;
+      setup_cap:set_email_address(email);
     endif
     if (typeof(oauth_entries) == LIST)
-      new_player.oauth2_identities = oauth_entries;
+      setup_cap:set_oauth2_identities(oauth_entries);
     endif
-    `move(new_player, $first_room) ! ANY';
+    `setup_cap:moveto($first_room) ! ANY';
     return new_player;
   endverb
 

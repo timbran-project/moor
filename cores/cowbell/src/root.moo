@@ -9,6 +9,40 @@ object ROOT
   property description (owner: HACKER, flags: "rc") = "Root prototype object from which all other objects inherit.";
   property import_export_id (owner: HACKER, flags: "r") = "root";
 
+  verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a child of this object.";
+    "";
+    "Permission is granted if any of:";
+    "  - Object is fertile";
+    "  - Caller is wizard";
+    "  - Caller is object owner";
+    "  - this is a capability flyweight granting 'create_child";
+    "";
+    "Normal usage (fertile object):";
+    "  new_obj = parent:create();";
+    "";
+    "Capability usage (non-fertile object):";
+    "  cap = parent:issue_capability(parent, {'create_child}, ?exp, parent.owner);";
+    "  new_obj = cap:create();  # Flyweight delegates to parent, validates cap";
+    "";
+    "Returns: New child object with caller_perms() as owner (or run_as from capability)";
+    "Check fertility first - object-creation specific permission";
+    target = typeof(this) == FLYWEIGHT ? this.delegate | this;
+    is_fertile = `target.fertile ! E_PROPNF => false';
+    if (!is_fertile)
+      {target, perms} = this:_perms_challenge('create_child);
+      set_task_perms(perms);
+    endif
+    new_obj = create(target, caller_perms());
+    return new_obj;
+  endverb
+
+  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Recycle this object. Permission: wizard, owner, or capability.";
+    this:_perms_challenge('recycle);
+    recycle(this);
+  endverb
+
   verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     return this:acceptable(@args);
@@ -20,8 +54,33 @@ object ROOT
   endverb
 
   verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
-    return `move(this, args[1]) ! ANY';
+    "Move this object to destination. Permission: wizard, owner, or capability.";
+    {destination} = args;
+    {this, perms} = this:_perms_challenge('move);
+    set_task_perms(perms);
+    return `move(this, destination) ! ANY';
+  endverb
+
+  verb set_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this object's owner. Permission: wizard or 'set_owner capability.";
+    {target, perms} = this:_perms_challenge('set_owner);
+    set_task_perms(perms);
+    {new_owner} = args;
+    target.owner = new_owner;
+  endverb
+
+  verb set_name_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this object's name and aliases. Permission: wizard, owner, or 'set_name_aliases capability.";
+    {target, perms} = this:_perms_challenge('set_name_aliases);
+    set_task_perms(perms);
+    {new_name, new_aliases} = args;
+    target.name = new_name;
+    target.aliases = new_aliases;
+  endverb
+
+  verb contents (this none this) owner: HACKER flags: "rxd"
+    "Returns a list of the objects that are apparently inside this one.  Don't confuse this with .contents, which is a property kept consistent with .location by the server.  This verb should be used in `VR' situations, for instance when looking in a room, and does not necessarily have anything to do with the value of .contents (although the default implementation does).  `Non-VR' commands (like @contents) should look directly at .contents.";
+    return this.contents;
   endverb
 
   verb all_contents (this none this) owner: HACKER flags: "rxd"
@@ -31,6 +90,27 @@ object ROOT
       res = {@res, y, y:all_contents()};
     endfor
     return res;
+  endverb
+
+  verb description (this none this) owner: HACKER flags: "rxd"
+    "Returns the external description of the object.";
+    return this.description;
+  endverb
+
+  verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
+    set_task_perms(this);
+    {description} = args;
+    this.description = description;
+  endverb
+
+  verb name (this none this) owner: HACKER flags: "rxd"
+    "Returns the presentation name of the object.";
+    return this.name;
+  endverb
+
+  verb look_self (this none this) owner: HACKER flags: "rxd"
+    return $look:mk(this, @this.contents);
   endverb
 
   verb all_verbs (this none this) owner: HACKER flags: "rx"
@@ -58,38 +138,6 @@ object ROOT
     else
       return {};
     endif
-  endverb
-
-  verb contents (this none this) owner: HACKER flags: "rxd"
-    "Returns a list of the objects that are apparently inside this one.  Don't confuse this with .contents, which is a property kept consistent with .location by the server.  This verb should be used in `VR' situations, for instance when looking in a room, and does not necessarily have anything to do with the value of .contents (although the default implementation does).  `Non-VR' commands (like @contents) should look directly at .contents.";
-    return this.contents;
-  endverb
-
-  verb description (this none this) owner: HACKER flags: "rxd"
-    "Returns the external description of the object.";
-    return this.description;
-  endverb
-
-  verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
-    set_task_perms(this);
-    {description} = args;
-    this.description = description;
-  endverb
-
-  verb look_self (this none this) owner: HACKER flags: "rxd"
-    return $look:mk(this, @this.contents);
-  endverb
-
-  verb name (this none this) owner: HACKER flags: "rxd"
-    "Returns the presentation name of the object.";
-    return this.name;
-  endverb
-
-  verb test_all_verbs (this none this) owner: HACKER flags: "rx"
-    all_verbs = this:all_verbs();
-    !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
-    return true;
   endverb
 
   verb find_verb_definer (this none this) owner: HACKER flags: "rxd"
@@ -128,6 +176,7 @@ object ROOT
     "  cap_list      - List of capability symbols (e.g., {'read, 'write, 'enter})";
     "  ?expiration   - Optional Unix timestamp when capability expires";
     "  ?run_as       - Optional object to elevate permissions to (caller or player only)";
+    "  ?key          - Optional custom signing key (for testing; default uses server key)";
     "";
     "Returns: Flyweight <target, [token -> paseto_token]>";
     "";
@@ -140,7 +189,10 @@ object ROOT
     "Example:";
     "  key = room:issue_capability(locked_room, {'enter), time() + 3600);";
     "  move(key, player);  # Give player a 1-hour access key";
-    {target, cap_list, ?expiration, ?run_as} = args;
+    "  ";
+    "  setup_cap = $root:issue_capability(new_player, {'set_owner, 'set_password});";
+    "  setup_cap:set_owner(new_player);  # Capability-protected setup";
+    {target, cap_list, ?expiration = 0, ?run_as = 0, ?key = 0} = args;
     "Only owner or wizard can issue";
     !caller_perms().wizard && caller_perms() != target.owner && raise(E_PERM);
     "Convert caps to literal strings for JSON encoding";
@@ -157,7 +209,7 @@ object ROOT
       claims['run_as] = toliteral(run_as);
     endif
     "Create server authority PASETO token (wizard-only builtin)";
-    token = paseto_make_local(claims);
+    token = key ? paseto_make_local(claims, key) | paseto_make_local(claims);
     return <target, [token -> token]>;
   endverb
 
@@ -166,18 +218,11 @@ object ROOT
     "";
     "Called on a capability flyweight to check if it grants specific capabilities.";
     "Performs cryptographic verification of the PASETO token, validates expiration,";
-    "checks target binding, and optionally elevates task permissions via run_as.";
+    "and checks target binding.";
     "";
     "Args: Variable number of capability symbols to require (e.g., 'read, 'write)";
     "";
-    "Returns: Decoded claims map containing:";
-    "  target      - Literal string of target object (e.g., \"#123\")";
-    "  caps        - List of granted capability literal strings (e.g., {\"'read\"})";
-    "  iat         - Issued-at timestamp";
-    "  granted_by  - Literal string of issuing object";
-    "  jti         - Unique token identifier (UUID)";
-    "  exp         - Expiration timestamp (if present)";
-    "  run_as      - Authority elevation target (if present)";
+    "Returns: {delegate, run_as_object} where run_as is from token or $hacker";
     "";
     "Raises: E_PERM if:";
     "  - this is not a flyweight";
@@ -186,13 +231,48 @@ object ROOT
     "  - target binding doesn't match flyweight delegate";
     "  - any required capability is not granted";
     "";
-    "Side effects:";
-    "  - If run_as claim present, calls set_task_perms() to elevate authority";
+    "Example:";
+    "  {target, perms} = this:challenge_for('enter);";
+    "  set_task_perms(perms);";
+    return this:_capability_challenge(args, 0);
+  endverb
+
+  verb challenge_for_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Validate a capability using a custom signing key (for testing).";
+    "";
+    "Like challenge_for() but accepts a custom PASETO signing key instead of";
+    "using the server's symmetric key. Primarily for testing scenarios.";
+    "";
+    "Args:";
+    "  caps_list  - List of capability symbols (e.g., {'read, 'write})";
+    "  key        - Custom PASETO signing key (base64-encoded 32-byte string)";
+    "";
+    "Returns: {delegate, run_as_object} where run_as is from token or $hacker";
     "";
     "Example:";
-    "  key:challenge_for('enter);  # Raises E_PERM if key doesn't grant 'enter";
-    "  claims = door:challenge_for('open, 'lock);  # Check for multiple caps";
-    required_caps = args;
+    "  test_key = \"dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=\";";
+    "  {target, perms} = cap:challenge_for_with_key({'read}, test_key);";
+    {caps_list, key} = args;
+    return this:_capability_challenge(caps_list, key);
+  endverb
+
+  verb _perms_challenge (this none this) owner: HACKER flags: "rxd"
+    "Check wizard, owner, or capability permission. Returns {target, perms_object}.";
+    caller == this || raise(E_PERM);
+    target = typeof(this) == FLYWEIGHT ? this.delegate | this;
+    if (caller_perms().wizard)
+      return {target, caller_perms()};
+    endif
+    if (caller_perms() == target.owner)
+      return {target, caller_perms()};
+    endif
+    return this:challenge_for(@args);
+  endverb
+
+  verb _capability_challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal: Validate capability with optional custom signing key.";
+    caller == this || raise(E_PERM);
+    {required_caps, key} = args;
     "Type check - this must be a flyweight";
     typeof(this) == FLYWEIGHT || raise(E_PERM);
     "Structure check - must have token slot";
@@ -200,7 +280,7 @@ object ROOT
     "Verify PASETO signature and decode";
     claims = 0;
     try
-      claims = paseto_verify_local(this.token);
+      claims = key ? paseto_verify_local(this.token, key) | paseto_verify_local(this.token);
     except (E_INVARG)
       raise(E_PERM);
     endtry
@@ -212,38 +292,65 @@ object ROOT
     for required in (required_caps)
       toliteral(required) in claims["caps"] || raise(E_PERM);
     endfor
-    "Authority elevation if capability grants it - run_as is encoded as literal";
+    "Determine run_as object";
+    run_as = $hacker;
     if (maphaskey(claims, "run_as"))
-      "Parse run_as from literal string back to object - simple objnum parse";
-      let run_as_str = claims["run_as"];
+      run_as_str = claims["run_as"];
       if (run_as_str[1] == "#")
-        let objnum = tonum(run_as_str[2..length(run_as_str)]);
-        set_task_perms(toobj(objnum));
+        objnum = tonum(run_as_str[2..length(run_as_str)]);
+        run_as = toobj(objnum);
       endif
     endif
-    return claims;
+    return {this.delegate, run_as};
+  endverb
+
+  verb test_all_verbs (this none this) owner: HACKER flags: "rx"
+    all_verbs = this:all_verbs();
+    !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
+    return true;
   endverb
 
   verb test_capabilities (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test capability issuance and challenge with custom test key";
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
-    "Test 1: Basic token creation and verification";
-    claims = ['target -> toliteral(this), 'caps -> {toliteral('read)}, 'iat -> time(), 'jti -> uuid()];
-    token = paseto_make_local(claims, test_key);
-    decoded = paseto_verify_local(token, test_key);
-    typeof(decoded) == MAP || raise(E_ASSERT);
-    decoded["target"] == toliteral(this) || raise(E_ASSERT);
-    toliteral('read) in decoded["caps"] || raise(E_ASSERT);
-    "Test 2: Flyweight capability structure";
-    cap = <this, [token -> token]>;
+    "Test 1: Issue capability with custom key";
+    cap = this:issue_capability(this, {'read}, 0, 0, test_key);
     typeof(cap) == FLYWEIGHT || raise(E_ASSERT);
     cap.delegate == this || raise(E_ASSERT);
     maphaskey(slots(cap), 'token) || raise(E_ASSERT);
-    "Test 3: Expiration check";
-    expired_claims = ['target -> toliteral(this), 'caps -> {toliteral('read)}, 'exp -> time() - 1, 'iat -> time(), 'jti -> uuid()];
-    expired_token = paseto_make_local(expired_claims, test_key);
-    exp_decoded = paseto_verify_local(expired_token, test_key);
-    time() > exp_decoded["exp"] || raise(E_ASSERT);
+    "Test 2: Challenge returns {delegate, run_as}";
+    {target, run_as} = cap:challenge_for_with_key({'read}, test_key);
+    typeof(target) == OBJ || raise(E_ASSERT);
+    target == this || raise(E_ASSERT);
+    typeof(run_as) == OBJ || raise(E_ASSERT);
+    run_as == $hacker || raise(E_ASSERT);
+    "Test 3: Multiple capabilities";
+    multi_cap = this:issue_capability(this, {'read, 'write, 'execute}, 0, 0, test_key);
+    multi_cap:challenge_for_with_key({'read, 'write}, test_key);
+    "Should succeed - all required caps present";
+    "Test 4: Expiration check";
+    expired_cap = this:issue_capability(this, {'read}, time() - 1, 0, test_key);
+    expired_valid = false;
+    try
+      expired_cap:challenge_for_with_key({'read}, test_key);
+      expired_valid = true;
+    except (E_PERM)
+    endtry
+    !expired_valid || raise(E_ASSERT("Expired capability should have raised E_PERM"));
+    "Test 5: Missing capability";
+    read_cap = this:issue_capability(this, {'read}, 0, 0, test_key);
+    write_denied = false;
+    try
+      read_cap:challenge_for_with_key({'write}, test_key);
+      write_denied = true;
+    except (E_PERM)
+    endtry
+    !write_denied || raise(E_ASSERT("Missing capability should have raised E_PERM"));
+    "Test 6: run_as claim";
+    run_as_cap = this:issue_capability(this, {'read}, 0, $arch_wizard, test_key);
+    {target2, run_as_obj} = run_as_cap:challenge_for_with_key({'read}, test_key);
+    target2 == this || raise(E_ASSERT);
+    run_as_obj == $arch_wizard || raise(E_ASSERT);
     return true;
   endverb
 endobject

@@ -3,7 +3,6 @@ object PLAYER
   parent: EVENT_RECEIVER
   location: FIRST_ROOM
   owner: WIZ
-  fertile: true
   readable: true
 
   property email_address (owner: ARCH_WIZARD, flags: "") = "";
@@ -15,6 +14,15 @@ object PLAYER
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
+
+  verb make_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a player and return a setup capability for initial configuration.";
+    {_, perms} = this:_perms_challenge('make_player);
+    set_task_perms(perms);
+    new_player = this:create(@args);
+    setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
+    return setup_cap;
+  endverb
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
@@ -213,6 +221,46 @@ object PLAYER
     typeof(content_type) == STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == BINARY || raise(E_TYPE);
     this.profile_picture = {content_type, picbin};
+  endverb
+
+  verb set_password (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Change this player's password. Permission: wizard, owner, or 'set_password capability.";
+    {this, perms} = this:_perms_challenge('set_password);
+    set_task_perms(perms);
+    {new_password} = args;
+    this.password = $password:mk(new_password);
+  endverb
+
+  verb set_player_flag (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Mark this object as a player. Permission: wizard or 'set_player_flag capability.";
+    {flag_value} = args;
+    {this, perms} = this:_perms_challenge('set_player_flag);
+    set_task_perms(perms);
+    set_player_flag(this, flag_value);
+  endverb
+
+  verb set_programmer (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this player's programmer flag. Permission: wizard, owner, or 'set_programmer capability.";
+    {this, perms} = this:_perms_challenge('set_programmer);
+    set_task_perms(perms);
+    {flag_value} = args;
+    this.programmer = flag_value;
+  endverb
+
+  verb set_email_address (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this player's email address. Permission: wizard, owner, or 'set_email_address capability.";
+    {this, perms} = this:_perms_challenge('set_email_address);
+    set_task_perms(perms);
+    {email} = args;
+    this.email_address = email;
+  endverb
+
+  verb set_oauth2_identities (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this player's OAuth2 identities. Permission: wizard, owner, or 'set_oauth2_identities capability.";
+    {this, perms} = this:_perms_challenge('set_oauth2_identities);
+    set_task_perms(perms);
+    {identities} = args;
+    this.oauth2_identities = identities;
   endverb
 
   verb look_self (this none this) owner: HACKER flags: "rxd"

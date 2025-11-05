@@ -5,7 +5,6 @@ object PROG
   owner: WIZ
   wizard: true
   programmer: true
-  fertile: true
   readable: true
 
   override description = "Generic programmer character prototype with code evaluation and editing capabilities.";

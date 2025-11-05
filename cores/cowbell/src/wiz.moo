@@ -3,7 +3,6 @@ object WIZ
   parent: PROG
   location: FIRST_ROOM
   owner: ARCH_WIZARD
-  fertile: true
 
   property test (owner: WIZ, flags: "r") = {};
 
