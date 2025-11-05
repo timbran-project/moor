@@ -26,12 +26,17 @@ object PLAYER
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Look at an object. Collects the descriptive attributes and then emits them to the player.";
-    "If we don't have a match, that's a 'I don't see that there...'";
     if (dobjstr == "")
-      dobj = player.location;
+      target = player.location;
+    else
+      try
+        target = $match:match_object(dobjstr, player);
+      except e (ANY)
+        return this:inform_current($event:mk_not_found(player, e[2]):with_audience('utility));
+      endtry
     endif
-    !valid(dobj) && return this:inform_current(this:msg_no_dobj_match());
-    look_d = dobj:look_self();
+    !valid(target) && return this:inform_current(this:msg_no_dobj_match());
+    look_d = target:look_self();
     player:inform_current(look_d:into_event():with_audience('utility));
   endverb
 

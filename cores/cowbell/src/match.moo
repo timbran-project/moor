@@ -8,91 +8,54 @@ object MATCH
   override description = "Object matching system with support for numbered, UUID, and flyweight objects. Provides flexible matching with fuzzy search and enhanced error reporting.";
   override import_export_id = "match";
 
-  verb parse_object_ref (this none this) owner: HACKER flags: "rxd"
-    "Parse object reference string into components. Handles #123, #UUID-style, $system, @player formats.";
-    "Returns {type, identifier, original} on success, or descriptive error on failure.";
-    {ref_string} = args;
-    !ref_string && return E_INVARG("Empty object reference");
-    if (ref_string[1] == "#")
-      if (ref_string:contains("-") && length(ref_string) > 10)
-        return {'uuid, ref_string, ref_string};
-      else
-        let num_part = ref_string[2..$];
-        num_part:is_numeric() || return E_INVARG("Invalid numeric object ID: " + ref_string);
-        return {'numbered, toint(num_part), ref_string};
-      endif
-    elseif (ref_string[1] == "$")
-      let prop_path = ref_string[2..$];
-      prop_path || return E_INVARG("Empty system reference after $");
-      return {'system, prop_path, ref_string};
-    elseif (ref_string[1] == "@")
-      let player_name = ref_string[2..$];
-      player_name || return E_INVARG("Empty player reference after @");
-      return {'player, player_name, ref_string};
-    else
-      return {'name, ref_string, ref_string};
-    endif
-  endverb
-
-  verb resolve_object_ref (this none this) owner: HACKER flags: "rxd"
-    "Resolve parsed object reference to actual object. Returns object or descriptive error.";
-    {ref_info} = args;
-    typeof(ref_info) != LIST && return E_TYPE("Expected parsed reference info");
-    length(ref_info) < 2 && return E_INVARG("Malformed reference info");
-    {ref_type, identifier, @rest} = ref_info;
-    if (ref_type == 'numbered)
-      let target_obj = toobj("#" + tostr(identifier));
-      valid(target_obj) || return E_INVARG("Object #" + tostr(identifier) + " does not exist");
-      return target_obj;
-    elseif (ref_type == 'uuid)
-      let target_obj = toobj(identifier);
-      valid(target_obj) || return E_INVARG("UUID object " + identifier + " does not exist");
-      return target_obj;
-    elseif (ref_type == 'system)
-      try
-        let current_obj = #0;
-        for prop_name in (identifier:split("."))
-          current_obj = current_obj.(prop_name);
-        endfor
-        typeof(current_obj) == OBJ || return E_TYPE("System reference " + identifier + " is not an object");
-        return current_obj;
-      except (E_PROPNF)
-        return E_PROPNF("System property $" + identifier + " does not exist");
-      except (ANY)
-        return E_INVARG("Invalid system reference $" + identifier);
-      endtry
-    elseif (ref_type == 'player)
-      return this:match_player(identifier);
-    elseif (ref_type == 'name)
-      return this:match_by_name(identifier);
-    else
-      return E_INVARG("Unknown reference type: " + tostr(ref_type));
-    endif
-  endverb
-
   verb match_object (this none this) owner: HACKER flags: "rxd"
-    "Main object matching interface. Returns the actual object.";
+    "Match an object reference string to an actual object.";
+    "Handles: #123, #UUID-style, $system.prop, @playername, or plain name matching.";
     "Usage: $match:match_object(ref_string [, context_object])";
     "The context_object (defaults to player) determines:";
     "  - What 'me' and 'player' resolve to (the context_object itself)";
     "  - What 'here' resolves to (context_object.location)";
     "  - Which objects to search for name matching (context_object.contents and context_object.location.contents)";
     {ref_string, ?context = player} = args;
-    typeof(ref_string) != STR && return E_TYPE("Object reference must be a string");
-    parse_result = this:parse_object_ref(ref_string);
-    typeof(parse_result) == ERR && return parse_result;
-    resolve_result = this:resolve_object_ref(parse_result);
-    return resolve_result;
+    typeof(ref_string) != STR && raise(E_TYPE, "Object reference must be a string");
+    !ref_string && raise(E_INVARG, "Empty object reference");
+    if (ref_string[1] == "#")
+      result = toobj(ref_string);
+      if (result == #0 && ref_string != "#0")
+        raise(E_INVARG, "Invalid object reference: " + ref_string);
+      endif
+      valid(result) || raise(E_INVARG, "Object " + ref_string + " does not exist");
+      return result;
+    elseif (ref_string[1] == "$")
+      let prop_path = ref_string[2..$];
+      prop_path || raise(E_INVARG, "Empty system reference after $");
+      try
+        let current_obj = #0;
+        for prop_name in (prop_path:split("."))
+          current_obj = current_obj.(prop_name);
+        endfor
+        typeof(current_obj) == OBJ || raise(E_TYPE, "System reference $" + prop_path + " is not an object");
+        return current_obj;
+      except e (E_PROPNF)
+        raise(E_PROPNF, "System property $" + prop_path + " does not exist");
+      except e (ANY)
+        raise(E_INVARG, "Invalid system reference $" + prop_path);
+      endtry
+    elseif (ref_string[1] == "@")
+      let player_name = ref_string[2..$];
+      player_name || raise(E_INVARG, "Empty player reference after @");
+      return this:match_player(player_name, context);
+    else
+      return this:match_by_name(ref_string, context);
+    endif
   endverb
 
   verb match_player (this none this) owner: HACKER flags: "rxd"
     "Match player by name using complex_match builtin.";
-    {player_name} = args;
+    {player_name, ?context = player} = args;
     players = players();
     result = complex_match(player_name, players);
-    if (result == $failed_match)
-      return E_INVARG("No player found matching '" + player_name + "'");
-    endif
+    result == $failed_match && raise(E_INVARG, "No player found matching '" + player_name + "'");
     return result;
   endverb
 
@@ -104,13 +67,13 @@ object MATCH
       if (valid(context) && valid(context.location))
         return context.location;
       else
-        return E_INVARG("No location to match 'here'");
+        raise(E_INVARG, "No location to match 'here'");
       endif
     elseif (name_string:lowercase() == "me" || name_string:lowercase() == "player")
       if (valid(context))
         return context;
       else
-        return E_INVARG("No context to match '" + name_string + "'");
+        raise(E_INVARG, "No context to match '" + name_string + "'");
       endif
     endif
     search_objects = {};
@@ -122,9 +85,7 @@ object MATCH
     endif
     "Let complex_match auto-detect object names";
     result = complex_match(name_string, search_objects);
-    if (result == $failed_match)
-      return E_INVARG("No object found matching '" + name_string + "'");
-    endif
+    result == $failed_match && raise(E_INVARG, "No object found matching '" + name_string + "'");
     return result;
   endverb
 
@@ -194,8 +155,11 @@ object MATCH
     result != #1 && raise(E_ASSERT, "Should return actual object #1: " + toliteral(result));
     result = this:match_object("$root");
     result != $root && raise(E_ASSERT, "Should return actual $root object: " + toliteral(result));
-    result = this:match_object("");
-    typeof(result) != ERR && raise(E_ASSERT, "Empty string should return error: " + toliteral(result));
+    try
+      result = this:match_object("");
+      raise(E_ASSERT, "Empty string should raise error, got: " + toliteral(result));
+    except e (E_INVARG)
+    endtry
     "Test environmental references";
     result = this:match_object("here");
     result == player.location || raise(E_ASSERT, "Should return player location for 'here': " + toliteral(result));

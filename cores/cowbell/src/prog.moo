@@ -46,15 +46,15 @@ object PROG
     endif
     {object_str, verb_name} = parsed;
     "Match the object";
-    target_obj = $match:match_object(object_str, player);
-    if (typeof(target_obj) == ERR)
-      if (target_obj == E_INVARG("No object found matching '" + object_str + "'"))
-        player:tell($event:mk_error(player, "I don't see '" + object_str + "' here."));
-      else
-        player:tell($event:mk_error(player, "Error matching object: " + tostr(target_obj)));
-      endif
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (E_INVARG)
+      player:tell($event:mk_error(player, "I don't see '" + object_str + "' here."));
       return;
-    endif
+    except e (ANY)
+      player:tell($event:mk_error(player, "Error matching object: " + e[2]));
+      return;
+    endtry
     "Find and retrieve the verb code";
     try
       "Find where the verb is actually defined";
