@@ -101,4 +101,32 @@ object BUILDER
     valid(test_obj) && raise(E_ASSERT("Object should be invalid after destruction"));
     return true;
   endverb
+
+  verb "@audit @owned" (none none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(caller_perms());
+    try
+      owned = sort(owned_objects(this));
+      if (!owned)
+        this:inform_current($event:mk_info(this, "You don't own any objects."));
+        return 0;
+      endif
+      headers = {"Object", "Name", "Parent"};
+      rows = {};
+      for o in (owned)
+        obj_id = tostr(o);
+        obj_name = `o.name ! ANY => "(no name)"';
+        parent_obj = `parent(o) ! ANY => #-1';
+        parent_str = valid(parent_obj) ? tostr(parent_obj) | "(none)";
+        rows = {@rows, {obj_id, obj_name, parent_str}};
+      endfor
+      table_result = $format.table:mk(headers, rows);
+      this:inform_current($event:mk_info(this, table_result));
+      return length(owned);
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
 endobject
