@@ -30,8 +30,7 @@ object ROOT
     target = typeof(this) == FLYWEIGHT ? this.delegate | this;
     is_fertile = `target.fertile ! E_PROPNF => false';
     if (!is_fertile)
-      {target, perms} = this:check_permissions('create_child);
-      set_task_perms(perms);
+      {_, perms} = this:check_permissions('create_child);
     endif
     new_obj = create(target, caller_perms());
     return new_obj;
@@ -263,11 +262,16 @@ object ROOT
     typeof(category) == SYM || raise(E_TYPE);
     "Construct property name from category";
     prop_name = "grants_" + tostr(category);
+    "Check that grantee has this grants bucket";
+    grants_map = 0;
+    try
+      grants_map = grantee.(prop_name);
+    except (E_PROPNF)
+      raise(E_INVARG, tostr(grantee) + " cannot accept grants of category " + tostr(category) + " (missing property: " + prop_name + ")");
+    endtry
+    typeof(grants_map) == MAP || raise(E_INVARG, tostr(grantee) + "." + prop_name + " must be a map");
     "Issue new capability";
     new_cap = target_obj:issue_capability(target_obj, cap_list);
-    "Get grants map for this category on grantee";
-    grants_map = `grantee.(prop_name) ! E_PROPNF => []';
-    typeof(grants_map) == MAP || (grants_map = []);
     "Check if grantee already has a grant for this object";
     if (maphaskey(grants_map, target_obj))
       "Merge with existing grant";
@@ -277,6 +281,13 @@ object ROOT
     "Store the grant";
     grants_map[target_obj] = new_cap;
     grantee.(prop_name) = grants_map;
+    "Notify the grantee if they're a player";
+    if (is_player(grantee))
+      cap_names = { tostr(c) for c in (cap_list) }:join(", ");
+      target_name = target_obj:name() + " (" + tostr(target_obj) + ")";
+      message = "You have been granted " + cap_names + " capabilities on " + target_name + ".";
+      notify(grantee, message);
+    endif
     return new_cap;
   endverb
 

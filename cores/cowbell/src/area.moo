@@ -222,6 +222,17 @@ object AREA
     return false;
   endverb
 
+  verb make_room_in (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a new room in this area. Requires 'add_room capability on area.";
+    set_task_perms(caller_perms());
+    {target, perms} = this:check_permissions('add_room);
+    {parent_obj} = args;
+    "Create room with caller's ownership";
+    new_room = parent_obj:create();
+    new_room:moveto(target);
+    return new_room;
+  endverb
+
   verb add_room (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Add a room to this area. Requires 'add_room capability on area.";
     {this, perms} = this:check_permissions('add_room);

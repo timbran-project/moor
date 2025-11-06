@@ -6,7 +6,6 @@ object BUILDER
   programmer: true
   readable: true
 
-  property area_grants (owner: HACKER, flags: "c") = [];
   property direction_abbrevs (owner: HACKER, flags: "rc") = [
     "d" -> "down",
     "down" -> "d",
@@ -63,7 +62,8 @@ object BUILDER
     "w" -> "e",
     "west" -> "east"
   ];
-  property room_grants (owner: HACKER, flags: "c") = [];
+  property grants_area (owner: HACKER, flags: "") = [];
+  property grants_room (owner: HACKER, flags: "") = [];
 
   override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
   override import_export_id = "builder";
@@ -144,6 +144,68 @@ object BUILDER
       target_obj:destroy();
       this:inform_current($event:mk_info(this, "Recycled \"" + obj_name + "\" (" + obj_id + ")."));
       return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb "@grant" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Grant capabilities to a player. Usage: @grant <target> <cap1,cap2,...> to <player> as <category>";
+    caller == this || raise(E_PERM);
+    set_task_perms(caller_perms());
+    try
+      if (!argstr)
+        raise(E_INVARG, "Usage: @grant <target> <cap1,cap2,...> to <player> as <category>");
+      endif
+      "Parse: <target> <caps> to <player> as <category>";
+      parts = argstr:split(" to ");
+      length(parts) == 2 || raise(E_INVARG, "Expected 'to' in grant command");
+      left_part = parts[1]:trim();
+      right_part = parts[2]:trim();
+      "Parse right side: <player> as <category>";
+      as_parts = right_part:split(" as ");
+      length(as_parts) == 2 || raise(E_INVARG, "Expected 'as' to specify category");
+      player_spec = as_parts[1]:trim();
+      category_str = as_parts[2]:trim();
+      "Convert category string to symbol";
+      category = tosym(category_str);
+      "Parse left side: <target> <caps>";
+      left_words = left_part:split(" ");
+      length(left_words) >= 2 || raise(E_INVARG, "Expected <target> <caps>");
+      target_spec = left_words[1];
+      caps_spec = left_words[2..length(left_words)]:join(" ");
+      "Match target object";
+      target_obj = $match:match_object(target_spec, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "Target must be an object.");
+      !valid(target_obj) && raise(E_INVARG, "Target object no longer exists.");
+      "Permission check - must be owner or wizard";
+      !this.wizard && target_obj.owner != this && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj) + ".");
+      "Parse capability list - convert plain words to symbols";
+      cap_parts = caps_spec:split(",");
+      cap_list = {};
+      for cap_str in (cap_parts)
+        cap_str = cap_str:trim();
+        if (length(cap_str) > 0)
+          "Convert to symbol";
+          cap_sym = tosym(cap_str);
+          cap_list = {@cap_list, cap_sym};
+        endif
+      endfor
+      length(cap_list) == 0 && raise(E_INVARG, "Must specify at least one capability");
+      "Match grantee player";
+      grantee = $match:match_object(player_spec, this);
+      typeof(grantee) != OBJ && raise(E_INVARG, "Grantee must be an object.");
+      !valid(grantee) && raise(E_INVARG, "Grantee no longer exists.");
+      "Grant the capability";
+      cap = $root:grant_capability(target_obj, cap_list, grantee, category);
+      "Report success";
+      cap_names = { tostr(c) for c in (cap_list) }:join(", ");
+      grantee_str = grantee:name() + " (" + tostr(grantee) + ")";
+      message = "Granted " + cap_names + " on " + tostr(target_obj) + " to " + grantee_str + " as " + tostr(category) + ".";
+      this:inform_current($event:mk_info(this, message));
+      return cap;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       this:inform_current($event:mk_error(this, message));
@@ -235,7 +297,7 @@ object BUILDER
   verb "@build" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Create a new room. Usage: @build <name> [in <area>] [as <parent>]";
     caller == this || raise(E_PERM);
-    set_task_perms(caller_perms());
+    set_task_perms(this);
     if (!argstr)
       raise(E_INVARG, "Usage: @build <name> [in <area>] [as <parent>]");
     endif
@@ -246,18 +308,25 @@ object BUILDER
       target_area = result['area];
       parent_obj = result['parent];
       "TODO: Detect duplicate room names in target_area. Should we warn or prevent?";
-      "Create the room";
-      new_room = parent_obj:create();
-      new_room:set_name_aliases(room_name, {});
-      "Place in area if specified";
+      "Create and place the room";
       if (valid(target_area))
         "Use capability if we have one, otherwise use area directly";
-        area_target = this:find_capability_for(target_area, 'area) || target_area;
-        area_target:add_room(new_room);
-        area_str = " in " + tostr(target_area);
+        cap = this:find_capability_for(target_area, 'area);
+        "Use capability if found, otherwise use area directly";
+        area_target = typeof(cap) == FLYWEIGHT ? cap | target_area;
+        try
+          new_room = area_target:make_room_in(parent_obj);
+          area_str = " in " + tostr(target_area);
+        except (E_PERM)
+          area_name = target_area:name() + " (" + tostr(target_area) + ")";
+          raise(E_PERM, "You don't have permission to add rooms to " + area_name + ". You need 'add_room capability, ownership, or wizard status.");
+        endtry
       else
+        "Free-floating room - create directly";
+        new_room = parent_obj:create();
         area_str = " (free-floating)";
       endif
+      new_room:set_name_aliases(room_name, {});
       "Report success";
       message = "Created \"" + room_name + "\" (" + tostr(new_room) + ")" + area_str + ".";
       this:inform_current($event:mk_info(this, message));
@@ -312,7 +381,7 @@ object BUILDER
   verb "@dig @tunnel" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Create a passage to an existing room. Usage: @dig [oneway] <dir>[|<returndir>] to <room>";
     caller == this || raise(E_PERM);
-    set_task_perms(caller_perms());
+    set_task_perms(this);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @dig [oneway] <dir>[|<returndir>] to <room>");
     endif
@@ -344,10 +413,22 @@ object BUILDER
       "Check target room is in same area";
       target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
       "Check permissions on both rooms using capabilities if we have them";
-      from_room_target = this:find_capability_for(current_room, 'room) || current_room;
-      from_room_target:check_can_dig_from();
-      to_room_target = this:find_capability_for(target_room, 'room) || target_room;
-      to_room_target:check_can_dig_into();
+      from_room_cap = this:find_capability_for(current_room, 'room);
+      from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
+      try
+        from_room_target:check_can_dig_from();
+      except (E_PERM)
+        from_name = current_room:name() + " (" + tostr(current_room) + ")";
+        raise(E_PERM, "You don't have permission to dig passages from " + from_name + ". You need 'dig_from capability, ownership, or wizard status.");
+      endtry
+      to_room_cap = this:find_capability_for(target_room, 'room);
+      to_room_target = typeof(to_room_cap) == FLYWEIGHT ? to_room_cap | target_room;
+      try
+        to_room_target:check_can_dig_into();
+      except (E_PERM)
+        to_name = target_room:name() + " (" + tostr(target_room) + ")";
+        raise(E_PERM, "You don't have permission to dig passages into " + to_name + ". You need 'dig_into capability, ownership, or wizard status.");
+      endtry
       "TODO: Detect duplicate exit directions from current_room. Can't have two 'up' exits.";
       "TODO: Handle alias conflicts - e.g. 'upstairs' and 'up' both expand to include 'u'.";
       "TODO: Write heuristics for detecting and resolving direction conflicts.";
@@ -358,7 +439,8 @@ object BUILDER
         passage = $passage:mk(current_room, from_dir[1], from_dir, "", true, target_room, to_dir[1], to_dir, "", true, true);
       endif
       "Register with area using capability if we have one";
-      area_target = this:find_capability_for(area, 'area) || area;
+      area_cap = this:find_capability_for(area, 'area);
+      area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
       area_target:create_passage(current_room, target_room, passage);
       "Report success";
       if (is_oneway)

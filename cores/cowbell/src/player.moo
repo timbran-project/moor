@@ -302,16 +302,22 @@ object PLAYER
     return env;
   endverb
 
+  verb _get_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal: Get grants map for a category. ARCH_WIZARD owned to read private property.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {category} = args;
+    prop_name = "grants_" + tostr(category);
+    return `this.(prop_name) ! E_PROPNF => false';
+  endverb
+
   verb find_capability_for (this none this) owner: HACKER flags: "rxd"
     "Find a capability token for target_obj in the specified category. Returns token or false.";
-    caller == this || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     {target_obj, category} = args;
     typeof(target_obj) == OBJ || return false;
     typeof(category) == SYM || return false;
-    "Construct property name from category";
-    prop_name = "grants_" + tostr(category);
-    "Try to access the grants map for this category";
-    grants_map = `this.(prop_name) ! E_PROPNF => false';
+    "Get the grants map via wizard-owned accessor";
+    grants_map = this:_get_grants(category);
     typeof(grants_map) == MAP || return false;
     "Check if we have a grant for this specific object";
     if (maphaskey(grants_map, target_obj))

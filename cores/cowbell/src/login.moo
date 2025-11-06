@@ -7,7 +7,7 @@ object LOGIN
 
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
-  property default_player_class (owner: ARCH_WIZARD, flags: "r") = PLAYER;
+  property default_player_class (owner: ARCH_WIZARD, flags: "r") = BUILDER;
   property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = 0;

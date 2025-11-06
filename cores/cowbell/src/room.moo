@@ -169,12 +169,14 @@ object ROOM
 
   verb check_can_dig_from (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if caller can dig passages from this room. Wizard, owner, or 'dig_from capability.";
+    set_task_perms(caller_perms());
     {this, perms} = this:check_permissions('dig_from);
     return true;
   endverb
 
   verb check_can_dig_into (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if caller can dig passages into this room. Wizard, owner, or 'dig_into capability.";
+    set_task_perms(caller_perms());
     {this, perms} = this:check_permissions('dig_into);
     return true;
   endverb
