@@ -70,8 +70,7 @@ top of the event and behaviour systems without requiring framework changes.
 - Capability-based security for fine-grained permissions (`root.moo`)
 - Object matching system (`match.moo`)
 - Permission roles: arch_wizard, wizard, builder, programmer, hacker
-- Relational/graph system for object relationships (`relation.moo`)
-- Dynamic variable system (`dvar.moo`)
+- Relational/graph system for object relationships (`relation.moo`) with datalog-style unification.
 - Basic object management: `@create`, `@recycle`
 
 **World Content:**
