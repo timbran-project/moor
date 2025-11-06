@@ -14,6 +14,7 @@ object SYSOBJ
   property first_area (owner: HACKER, flags: "r") = FIRST_AREA;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property format (owner: HACKER, flags: "r") = FORMAT;
+  property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;

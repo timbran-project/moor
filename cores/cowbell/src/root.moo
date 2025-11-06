@@ -247,7 +247,12 @@ object ROOT
     "Convert cap strings back to symbols";
     cap_symbols = {};
     for cap_str in (unique_caps)
-      cap_symbols = {@cap_symbols, eval(cap_str)};
+      "Strip leading tick from literal representation";
+      if (length(cap_str) > 0 && cap_str[1] == "'")
+        cap_symbols = {@cap_symbols, tosym(cap_str[2..length(cap_str)])};
+      else
+        cap_symbols = {@cap_symbols, tosym(cap_str)};
+      endif
     endfor
     "Issue new merged capability";
     return this:issue_capability(target, cap_symbols, exp, run_as);
@@ -283,9 +288,8 @@ object ROOT
     grantee.(prop_name) = grants_map;
     "Notify the grantee if they're a player";
     if (is_player(grantee))
-      cap_names = { tostr(c) for c in (cap_list) }:join(", ");
-      target_name = target_obj:name() + " (" + tostr(target_obj) + ")";
-      message = "You have been granted " + cap_names + " capabilities on " + target_name + ".";
+      grant_display = $grant_utils:format_grant_with_name(target_obj, category, cap_list);
+      message = "You have been granted " + grant_display + ".";
       notify(grantee, message);
     endif
     return new_cap;
@@ -334,9 +338,23 @@ object ROOT
     return this:_capability_challenge(caps_list, key);
   endverb
 
+  verb require_caller (this none this) owner: HACKER flags: "rxd"
+    "Verify that caller is the expected object (or a flyweight with that object as delegate).";
+    "Raises E_PERM if check fails, otherwise returns normally.";
+    "Usage: $root:require_caller(this);";
+    {expected} = args;
+    if (caller == expected)
+      return;
+    endif
+    if (typeof(caller) == FLYWEIGHT && caller.delegate == expected)
+      return;
+    endif
+    raise(E_PERM);
+  endverb
+
   verb check_permissions (this none this) owner: HACKER flags: "rxd"
     "Check wizard, owner, or capability permission. Returns {target, perms_object}.";
-    caller == this || raise(E_PERM);
+    "Anyone can call this - authorization is checked internally based on caller_perms()";
     target = typeof(this) == FLYWEIGHT ? this.delegate | this;
     if (caller_perms().wizard)
       return {target, caller_perms()};
@@ -349,12 +367,18 @@ object ROOT
 
   verb _capability_challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal: Validate capability with optional custom signing key.";
-    caller == this || raise(E_PERM);
+    if (!(caller == this || (typeof(this) == FLYWEIGHT && caller == this.delegate)))
+      raise(E_PERM);
+    endif
     {required_caps, key} = args;
     "Type check - this must be a flyweight";
-    typeof(this) == FLYWEIGHT || raise(E_PERM);
+    if (typeof(this) != FLYWEIGHT)
+      raise(E_PERM);
+    endif
     "Structure check - must have token slot";
-    maphaskey(slots(this), 'token) || raise(E_PERM);
+    if (!maphaskey(slots(this), 'token))
+      raise(E_PERM);
+    endif
     "Verify PASETO signature and decode";
     claims = 0;
     try
@@ -363,12 +387,18 @@ object ROOT
       raise(E_PERM);
     endtry
     "Target binding - token must match this flyweight's delegate";
-    toliteral(this.delegate) == claims["target"] || raise(E_PERM);
+    if (toliteral(this.delegate) != claims["target"])
+      raise(E_PERM);
+    endif
     "Expiration check";
-    maphaskey(claims, "exp") && time() > claims["exp"] && raise(E_PERM);
+    if (maphaskey(claims, "exp") && time() > claims["exp"])
+      raise(E_PERM);
+    endif
     "Capability subset check - convert required caps to literal strings";
     for required in (required_caps)
-      toliteral(required) in claims["caps"] || raise(E_PERM);
+      if (!(toliteral(required) in claims["caps"]))
+        raise(E_PERM);
+      endif
     endfor
     "Determine run_as object";
     run_as = $hacker;

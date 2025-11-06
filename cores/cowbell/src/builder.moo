@@ -151,59 +151,39 @@ object BUILDER
     endtry
   endverb
 
-  verb "@grant" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Grant capabilities to a player. Usage: @grant <target> <cap1,cap2,...> to <player> as <category>";
+  verb "@grant" (any to any) owner: ARCH_WIZARD flags: "rd"
+    "Grant capabilities to a player. Usage: @grant <target>.<category>(<cap1,cap2>) to <player>";
     caller == this || raise(E_PERM);
-    set_task_perms(caller_perms());
+    set_task_perms(this);
     try
-      if (!argstr)
-        raise(E_INVARG, "Usage: @grant <target> <cap1,cap2,...> to <player> as <category>");
+      if (!dobjstr || !iobjstr)
+        raise(E_INVARG, "Usage: @grant <target>.<category>(<cap1,cap2>) to <player>");
       endif
-      "Parse: <target> <caps> to <player> as <category>";
-      parts = argstr:split(" to ");
-      length(parts) == 2 || raise(E_INVARG, "Expected 'to' in grant command");
-      left_part = parts[1]:trim();
-      right_part = parts[2]:trim();
-      "Parse right side: <player> as <category>";
-      as_parts = right_part:split(" as ");
-      length(as_parts) == 2 || raise(E_INVARG, "Expected 'as' to specify category");
-      player_spec = as_parts[1]:trim();
-      category_str = as_parts[2]:trim();
-      "Convert category string to symbol";
-      category = tosym(category_str);
-      "Parse left side: <target> <caps>";
-      left_words = left_part:split(" ");
-      length(left_words) >= 2 || raise(E_INVARG, "Expected <target> <caps>");
-      target_spec = left_words[1];
-      caps_spec = left_words[2..length(left_words)]:join(" ");
-      "Match target object";
-      target_obj = $match:match_object(target_spec, this);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "Target must be an object.");
-      !valid(target_obj) && raise(E_INVARG, "Target object no longer exists.");
+      "Parse grant specification using $grant_utils";
+      {target_obj, category, cap_list} = $grant_utils:parse_grant(dobjstr);
       "Permission check - must be owner or wizard";
       !this.wizard && target_obj.owner != this && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj) + ".");
-      "Parse capability list - convert plain words to symbols";
-      cap_parts = caps_spec:split(",");
-      cap_list = {};
-      for cap_str in (cap_parts)
-        cap_str = cap_str:trim();
-        if (length(cap_str) > 0)
-          "Convert to symbol";
-          cap_sym = tosym(cap_str);
-          cap_list = {@cap_list, cap_sym};
-        endif
-      endfor
-      length(cap_list) == 0 && raise(E_INVARG, "Must specify at least one capability");
-      "Match grantee player";
-      grantee = $match:match_object(player_spec, this);
-      typeof(grantee) != OBJ && raise(E_INVARG, "Grantee must be an object.");
-      !valid(grantee) && raise(E_INVARG, "Grantee no longer exists.");
+      "Match grantee - use iobj from parser, or fall back to match_object if parser failed";
+      if (iobj == $failed_match)
+        grantee = $match:match_object(iobjstr, this);
+      else
+        grantee = iobj;
+      endif
+      if (typeof(grantee) != OBJ)
+        raise(E_INVARG, "Grantee must be an object.");
+      endif
+      if (grantee == #-1 || grantee == #-2 || grantee == #-3)
+        raise(E_INVARG, "Could not find player");
+      endif
+      if (!valid(grantee))
+        raise(E_INVARG, "Grantee no longer exists.");
+      endif
       "Grant the capability";
       cap = $root:grant_capability(target_obj, cap_list, grantee, category);
-      "Report success";
-      cap_names = { tostr(c) for c in (cap_list) }:join(", ");
+      "Report success using formatted grant spec";
+      grant_display = $grant_utils:format_grant_with_name(target_obj, category, cap_list);
       grantee_str = grantee:name() + " (" + tostr(grantee) + ")";
-      message = "Granted " + cap_names + " on " + tostr(target_obj) + " to " + grantee_str + " as " + tostr(category) + ".";
+      message = "Granted " + grant_display + " to " + grantee_str + ".";
       this:inform_current($event:mk_info(this, message));
       return cap;
     except e (ANY)
@@ -318,8 +298,8 @@ object BUILDER
           new_room = area_target:make_room_in(parent_obj);
           area_str = " in " + tostr(target_area);
         except (E_PERM)
-          area_name = target_area:name() + " (" + tostr(target_area) + ")";
-          raise(E_PERM, "You don't have permission to add rooms to " + area_name + ". You need 'add_room capability, ownership, or wizard status.");
+          message = $grant_utils:format_denial(target_area, 'area, {'add_room});
+          raise(E_PERM, message);
         endtry
       else
         "Free-floating room - create directly";
@@ -418,16 +398,16 @@ object BUILDER
       try
         from_room_target:check_can_dig_from();
       except (E_PERM)
-        from_name = current_room:name() + " (" + tostr(current_room) + ")";
-        raise(E_PERM, "You don't have permission to dig passages from " + from_name + ". You need 'dig_from capability, ownership, or wizard status.");
+        message = $grant_utils:format_denial(current_room, 'room, {'dig_from});
+        raise(E_PERM, message);
       endtry
       to_room_cap = this:find_capability_for(target_room, 'room);
       to_room_target = typeof(to_room_cap) == FLYWEIGHT ? to_room_cap | target_room;
       try
         to_room_target:check_can_dig_into();
       except (E_PERM)
-        to_name = target_room:name() + " (" + tostr(target_room) + ")";
-        raise(E_PERM, "You don't have permission to dig passages into " + to_name + ". You need 'dig_into capability, ownership, or wizard status.");
+        message = $grant_utils:format_denial(target_room, 'room, {'dig_into});
+        raise(E_PERM, message);
       endtry
       "TODO: Detect duplicate exit directions from current_room. Can't have two 'up' exits.";
       "TODO: Handle alias conflicts - e.g. 'upstairs' and 'up' both expand to include 'u'.";
@@ -441,7 +421,7 @@ object BUILDER
       "Register with area using capability if we have one";
       area_cap = this:find_capability_for(area, 'area);
       area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
-      area_target:create_passage(current_room, target_room, passage);
+      area_target:create_passage(from_room_target, to_room_target, passage);
       "Report success";
       if (is_oneway)
         message = "Dug passage: " + from_dir:join(",") + " to " + tostr(target_room) + " (one-way).";

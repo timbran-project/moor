@@ -65,7 +65,8 @@ object AREA
   endverb
 
   verb set_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    this:require_caller(this);
+    set_task_perms(this.owner);
     "Set or update the passage between two rooms.";
     {room_a, room_b, passage} = args;
     this:_ensure_passages_relation();
@@ -78,7 +79,8 @@ object AREA
   endverb
 
   verb clear_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    this:require_caller(this);
+    set_task_perms(this.owner);
     "Remove the passage between two rooms.";
     {room_a, room_b} = args;
     if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
@@ -244,13 +246,51 @@ object AREA
 
   verb create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create passage between two rooms. Requires 'create_passage on area, 'dig_from on room_a, 'dig_into on room_b.";
+    "For bidirectional passages, also requires 'dig_from on room_b and 'dig_into on room_a.";
+    "room_a and room_b should be capability flyweights or raw room objects that caller has permission for.";
     {this, perms} = this:check_permissions('create_passage);
-    set_task_perms(perms);
     {room_a, room_b, passage} = args;
+    "Extract actual room objects from capabilities if needed";
+    actual_room_a = typeof(room_a) == FLYWEIGHT ? room_a.delegate | room_a;
+    actual_room_b = typeof(room_b) == FLYWEIGHT ? room_b.delegate | room_b;
     "Check room_a allows digging from it and room_b allows digging into it";
-    room_a:check_can_dig_from();
-    room_b:check_can_dig_into();
-    "Now create the passage";
+    try
+      room_a:check_permissions('dig_from);
+    except (E_PERM)
+      message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_from});
+      raise(E_PERM, message);
+    endtry
+    try
+      room_b:check_permissions('dig_into);
+    except (E_PERM)
+      message = $grant_utils:format_denial(actual_room_b, 'room, {'dig_into});
+      raise(E_PERM, message);
+    endtry
+    "If bidirectional (has side_b label or aliases), also check the reverse direction";
+    is_bidirectional = passage.side_b_label != "" || length(passage.side_b_aliases) > 0;
+    if (is_bidirectional)
+      try
+        room_b:check_permissions('dig_from);
+      except (E_PERM)
+        message = $grant_utils:format_denial(actual_room_b, 'room, {'dig_from});
+        raise(E_PERM, message);
+      endtry
+      try
+        room_a:check_permissions('dig_into);
+      except (E_PERM)
+        message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_into});
+        raise(E_PERM, message);
+      endtry
+    endif
+    "Now create the passage with elevated area permissions";
+    return this:_do_create_passage(actual_room_a, actual_room_b, passage, perms);
+  endverb
+
+  verb _do_create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal: Actually create the passage with elevated permissions.";
+    this:require_caller(this);
+    {room_a, room_b, passage, perms} = args;
+    set_task_perms(perms);
     this:set_passage(room_a, room_b, passage);
     return passage;
   endverb
