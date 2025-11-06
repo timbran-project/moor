@@ -18,7 +18,7 @@ object FORMAT_CODE
     if (length(args) == 2)
       language = args[2];
       typeof(language) != STR && typeof(language) != SYM && raise(E_TYPE, "Language must be a string or symbol");
-      return <this, [language -> language], {code_content}>;
+      return <this, .language = language, {code_content}>;
     else
       return <this, {code_content}>;
     endif
@@ -26,7 +26,8 @@ object FORMAT_CODE
 
   verb compose (this none this) owner: HACKER flags: "rxd"
     {render_for, content_type, event} = args;
-    code_content = this[1];
+    contents = flycontents(this);
+    code_content = contents[1];
     language = `tostr(this.language) ! E_PROPNF => ""';
     if (content_type == 'text_djot)
       if (language)
@@ -49,7 +50,8 @@ object FORMAT_CODE
   verb test_code_block_no_language (this none this) owner: HACKER flags: "rxd"
     code_fw = this:mk("hello world");
     typeof(code_fw) == FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
-    code_fw[1] == "hello world" || raise(E_ASSERT("Code content should be stored"));
+    contents = flycontents(code_fw);
+    contents[1] == "hello world" || raise(E_ASSERT("Code content should be stored"));
     result = code_fw:compose($prog, 'text_djot, {});
     result == "```\nhello world\n```\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;

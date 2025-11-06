@@ -14,7 +14,7 @@ object EVENT_RECEIVER
     {event, @rest} = args;
     "Events for `tell`, the content type can only ever be text/plain or text/djot";
     output = event:transform_for(this, "text/djot");
-    event_slots = slots(event);
+    event_slots = flyslots(event);
     this:_notify(this, output, false, false, "text/djot", {{'event, event_slots}});
   endverb
 
@@ -27,7 +27,7 @@ object EVENT_RECEIVER
     contents = this:_event_render({info}, event);
     for content in (contents)
       let {conn, content_type, output} = content;
-      let event_slots = slots(event);
+      let event_slots = flyslots(event);
       this:_notify(conn, output, false, false, content_type, {{'event, event_slots}});
     endfor
     return 0;

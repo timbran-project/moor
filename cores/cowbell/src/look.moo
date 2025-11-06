@@ -8,7 +8,7 @@ object LOOK
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     {what, @contents} = args;
-    return <this, [what -> what, title -> what:name(), description -> what:description()], {@contents}>;
+    return <this, .what = what, .title = what:name(), .description = what:description(), {@contents}>;
   endverb
 
   verb into_event (this none this) owner: HACKER flags: "rxd"
@@ -18,7 +18,8 @@ object LOOK
     title = $format.title:mk($sub:dc());
     integrated_contents = {};
     contents = {};
-    for o in (this)
+    flyweight_contents = flycontents(this);
+    for o in (flyweight_contents)
       if (o == player)
         continue;
       endif

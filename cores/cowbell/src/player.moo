@@ -9,7 +9,7 @@ object PLAYER
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = <#28, [display -> "they/them", ps -> "they", po -> "them", pp -> "their", pq -> "theirs", pr -> "themselves", is_plural -> true, verb_be -> "are", verb_have -> "have"]>;
+  property pronouns (owner: HACKER, flags: "rc") = <#28, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true, .verb_be = "are", .verb_have = "have">;
   property travel_context (owner: HACKER, flags: "") = 0;
 
   override description = "You see a player who should get around to describing themself.";
@@ -278,7 +278,7 @@ object PLAYER
       time = $str_proto:from_seconds(idle);
       description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
     endif
-    return <$look, [what -> this, title -> this:name(), description -> description], {@this.contents}>;
+    return <$look, .what = this, .title = this:name(), .description = description, {@this.contents}>;
   endverb
 
   verb command_environment (this none this) owner: HACKER flags: "rxd"

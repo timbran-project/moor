@@ -16,7 +16,8 @@ object FORMAT_TITLE
   verb compose (this none this) owner: HACKER flags: "rxd"
     {render_for, content_type, event} = args;
     pieces = {};
-    for content in (this)
+    contents = flycontents(this);
+    for content in (contents)
       pieces = {@pieces, content:compose(@args)};
     endfor
     result = pieces:join(" ");

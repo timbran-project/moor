@@ -24,8 +24,9 @@ object FORMAT_BLOCK
   verb compose (this none this) owner: HACKER flags: "rxd"
     {render_for, content_type, event} = args;
     result = {};
-    for line_no in [1..length(this)]
-      content = this[line_no];
+    contents = flycontents(this);
+    for line_no in [1..length(contents)]
+      content = contents[line_no];
       composed = content:compose(@args);
       if (content_type == 'text_html && typeof(composed) == STR)
         "Wrap bare text in paragraph tags for HTML";

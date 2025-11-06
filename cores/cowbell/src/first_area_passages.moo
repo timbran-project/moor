@@ -9,7 +9,7 @@ object FIRST_AREA_PASSAGES
   property "tuple_019a4c43-597e-7731-9cd7-9ca1d73bf3ad" (owner: ARCH_WIZARD, flags: "r") = {
     FIRST_ROOM,
     SECOND_ROOM,
-    <#37, [is_open -> true, side_a_aliases -> {"east", "e"}, side_a_ambient -> true, side_a_description -> "An archway leading east.", side_a_label -> "east", side_a_room -> FIRST_ROOM, side_b_aliases -> {"west", "w"}, side_b_ambient -> true, side_b_description -> "A corridor back west.", side_b_label -> "west", side_b_room -> SECOND_ROOM]>
+    <#37, .is_open = true, .side_a_aliases = {"east", "e"}, .side_a_ambient = true, .side_a_description = "An archway leading east.", .side_a_label = "east", .side_a_room = FIRST_ROOM, .side_b_aliases = {"west", "w"}, .side_b_ambient = true, .side_b_description = "A corridor back west.", .side_b_label = "west", .side_b_room = SECOND_ROOM>
   };
 
   override import_export_id = "first_area_passages";

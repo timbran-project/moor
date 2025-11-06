@@ -15,7 +15,8 @@ object HTML
   verb to_xml_tag (this none this) owner: HACKER flags: "rxd"
     "We have to descend our tree and turn nodes into to_xml renderable elements, and then run to_xml after we're done";
     "Our form is { tag, attributes, children }, where children can be either terminal nodes, or flyweights themselves";
-    {tag, attributes, children} = {this[1], this[2], this[3]};
+    contents = flycontents(this);
+    {tag, attributes, children} = {contents[1], contents[2], contents[3]};
     results = {};
     for entry in (children)
       if (typeof(entry) == FLYWEIGHT)

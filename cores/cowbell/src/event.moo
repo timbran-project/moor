@@ -13,18 +13,18 @@ object EVENT
     action = verb[4..length(verb)];
     {actor, @content} = args;
     normalized = this:normalize_content(@content);
-    return <this, [actor -> actor, actor_name -> actor.name, verb -> action, dobj -> false, iobj -> false, timestamp -> time(), this_obj -> false, metadata -> {}], normalized>;
+    return <this, .actor = actor, .actor_name = actor.name, .verb = action, .dobj = false, .iobj = false, .timestamp = time(), .this_obj = false, .metadata = {}, normalized>;
   endverb
 
   verb "with_dobj with_iobj with_this" (this none this) owner: WIZ flags: "rxd"
     {value} = args;
     wut = tosym(verb[6..length(verb)]);
     wut = wut == 'this ? 'this_obj | wut;
-    self = add_slot(this, wut, value);
+    self = flyslotset(this, wut, value);
     "When adding attributes that have an object target, automatically add a _name for them";
     if (valid(value) && length(value.name))
       wut_name = tosym(verb[6..length(verb)] + "_name");
-      self = add_slot(self, wut_name, value.name);
+      self = flyslotset(self, wut_name, value.name);
     endif
     return self;
   endverb
@@ -36,7 +36,8 @@ object EVENT
       raise(E_INVARG);
     endif
     composed = {};
-    for raw_entry in (this)
+    event_contents = flycontents(this);
+    for raw_entry in (event_contents)
       entry = this:wrap_content_entry(raw_entry);
       {entry_type, entry_value} = entry;
       if (entry_type == 'string)
@@ -62,12 +63,13 @@ object EVENT
   verb validate (this none this) owner: HACKER flags: "rxd"
     "Validate that the event has all the correct fields. Return false if not.";
     typeof(this) == FLYWEIGHT || return false;
-    s = slots(this);
+    s = flyslots(this);
     required_keys = {'actor, 'actor_name, 'verb, 'dobj, 'iobj, 'timestamp, 'this_obj};
     for k in (required_keys)
       maphaskey(s, k) || return false;
     endfor
-    for entry in (this)
+    event_contents = flycontents(this);
+    for entry in (event_contents)
       try
         this:wrap_content_entry(entry);
       except (ANY)
@@ -146,7 +148,7 @@ object EVENT
       updated = {@updated, pair};
     endfor
     replaced || (updated = {@updated, {key, value}});
-    return add_slot(this, 'metadata, updated);
+    return flyslotset(this, 'metadata, updated);
   endverb
 
   verb preferred_content_types (this none this) owner: HACKER flags: "rxd"

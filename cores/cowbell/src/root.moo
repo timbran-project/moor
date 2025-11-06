@@ -214,7 +214,7 @@ object ROOT
     endif
     "Create server authority PASETO token (wizard-only builtin)";
     token = key ? paseto_make_local(claims, key) | paseto_make_local(claims);
-    return <target, [token -> token]>;
+    return <target, .token = token>;
   endverb
 
   verb merge_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -223,7 +223,7 @@ object ROOT
     {cap1, cap2} = args;
     "Both must be flyweights with tokens";
     typeof(cap1) == FLYWEIGHT && typeof(cap2) == FLYWEIGHT || raise(E_TYPE);
-    maphaskey(slots(cap1), 'token) && maphaskey(slots(cap2), 'token) || raise(E_INVARG);
+    maphaskey(flyslots(cap1), 'token) && maphaskey(flyslots(cap2), 'token) || raise(E_INVARG);
     "Both must be for the same target";
     cap1.delegate == cap2.delegate || raise(E_INVARG, "Capabilities must be for same target");
     target = cap1.delegate;
@@ -376,7 +376,7 @@ object ROOT
       raise(E_PERM);
     endif
     "Structure check - must have token slot";
-    if (!maphaskey(slots(this), 'token))
+    if (!maphaskey(flyslots(this), 'token))
       raise(E_PERM);
     endif
     "Verify PASETO signature and decode";
@@ -425,7 +425,7 @@ object ROOT
     cap = this:issue_capability(this, {'read}, 0, 0, test_key);
     typeof(cap) == FLYWEIGHT || raise(E_ASSERT);
     cap.delegate == this || raise(E_ASSERT);
-    maphaskey(slots(cap), 'token) || raise(E_ASSERT);
+    maphaskey(flyslots(cap), 'token) || raise(E_ASSERT);
     "Test 2: Challenge returns {delegate, run_as}";
     {target, run_as} = cap:challenge_for_with_key({'read}, test_key);
     typeof(target) == OBJ || raise(E_ASSERT);

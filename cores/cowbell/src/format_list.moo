@@ -12,14 +12,15 @@ object FORMAT_LIST
     "Create list flyweight with optional ordered attribute";
     {content, ?ordered = false} = args;
     typeof(content) != LIST && raise(E_TYPE, "List content must be a list");
-    return <this, [ordered -> ordered], {@content}>;
+    return <this, .ordered = ordered, {@content}>;
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"
     "Compose list content into appropriate format";
     {render_for, content_type, event} = args;
     result = {};
-    for item in (this)
+    contents = flycontents(this);
+    for item in (contents)
       result = {@result, item:compose(@args)};
     endfor
     if (content_type == 'text_html)

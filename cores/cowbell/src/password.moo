@@ -33,7 +33,8 @@ object PASSWORD
       raise(E_ARGS);
     endif
     {password} = args;
-    encrypted = this[1];
+    contents = flycontents(this);
+    encrypted = contents[1];
     if (typeof(encrypted) != STR)
       raise(E_PERM);
     endif

@@ -41,7 +41,7 @@ object SUB
   verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
     capitalize = verb[length(verb)] == "c";
     {for_self, for_alt} = args;
-    return <this, [type -> 'self_alt, capitalize -> capitalize, for_self -> for_self, for_others -> for_alt]>;
+    return <this, .type = 'self_alt, .capitalize = capitalize, .for_self = for_self, .for_others = for_alt>;
   endverb
 
   verb eval_sub (this none this) owner: HACKER flags: "rxd"
@@ -91,22 +91,22 @@ object SUB
 
   verb "d* dc*" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    return <this, [type -> 'dobj, capitalize -> capitalize]>;
+    return <this, .type = 'dobj, .capitalize = capitalize>;
   endverb
 
   verb "i* ic*" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    return <this, [type -> 'iobj, capitalize -> capitalize]>;
+    return <this, .type = 'iobj, .capitalize = capitalize>;
   endverb
 
   verb "l* lc*" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    return <this, [type -> 'location, capitalize -> capitalize]>;
+    return <this, .type = 'location, .capitalize = capitalize>;
   endverb
 
   verb "n* nc*" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    return <this, [type -> 'actor, capitalize -> capitalize]>;
+    return <this, .type = 'actor, .capitalize = capitalize>;
   endverb
 
   verb "o* oc* o*_dobj o*_iobj oc*_dobj oc*_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -118,7 +118,7 @@ object SUB
     else
       type = 'object;
     endif
-    return <this, [type -> type, capitalize -> capitalize]>;
+    return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "p* pc* p*_dobj p*_iobj pc*_dobj pc*_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -130,7 +130,7 @@ object SUB
     else
       type = 'pos_adj;
     endif
-    return <this, [type -> type, capitalize -> capitalize]>;
+    return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "q* qc* q*_dobj q*_iobj qc*_dobj qc*_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -142,7 +142,7 @@ object SUB
     else
       type = 'pos_noun;
     endif
-    return <this, [type -> type, capitalize -> capitalize]>;
+    return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "r* rc* r*_dobj r*_iobj rc*_dobj rc*_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -154,7 +154,7 @@ object SUB
     else
       type = 'reflexive;
     endif
-    return <this, [type -> type, capitalize -> capitalize]>;
+    return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "s* sc* s*_dobj s*_iobj sc*_dobj sc*_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -166,12 +166,12 @@ object SUB
     else
       type = 'subject;
     endif
-    return <this, [type -> type, capitalize -> capitalize]>;
+    return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "t* tc*" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    return <this, [type -> 'this, capitalize -> capitalize]>;
+    return <this, .type = 'this, .capitalize = capitalize>;
   endverb
 
   verb "verb_be verb_be_dobj verb_be_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -183,7 +183,7 @@ object SUB
     else
       type = 'verb_be;
     endif
-    return <this, [type -> type]>;
+    return <this, .type = type>;
   endverb
 
   verb "verb_have verb_have_dobj verb_have_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -195,7 +195,7 @@ object SUB
     else
       type = 'verb_have;
     endif
-    return <this, [type -> type]>;
+    return <this, .type = type>;
   endverb
 
   verb "verb_look verb_look_dobj verb_look_iobj" (this none this) owner: HACKER flags: "rxd"
@@ -207,6 +207,6 @@ object SUB
     else
       type = 'verb_look;
     endif
-    return <this, [type -> type]>;
+    return <this, .type = type>;
   endverb
 endobject

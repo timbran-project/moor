@@ -40,7 +40,7 @@ object PASSAGE
     ambient_a = ambient_a ? true | false;
     ambient_b = ambient_b ? true | false;
     is_open = is_open ? true | false;
-    return <this, [side_a_room -> room_a, side_a_label -> label_a, side_a_aliases -> aliases_a, side_a_description -> description_a, side_a_ambient -> ambient_a, side_b_room -> room_b, side_b_label -> label_b, side_b_aliases -> aliases_b, side_b_description -> description_b, side_b_ambient -> ambient_b, is_open -> is_open]>;
+    return <this, .side_a_room = room_a, .side_a_label = label_a, .side_a_aliases = aliases_a, .side_a_description = description_a, .side_a_ambient = ambient_a, .side_b_room = room_b, .side_b_label = label_b, .side_b_aliases = aliases_b, .side_b_description = description_b, .side_b_ambient = ambient_b, .is_open = is_open>;
   endverb
 
   verb _value (this none this) owner: HACKER flags: "rxd"

@@ -299,8 +299,8 @@ object AREA
     "Test connectivity checking between rooms";
     area = create($area);
     "Create three rooms in a chain: 1 <-> 2 <-> 3";
-    passage1 = <$passage, [side_a_room -> #1, side_b_room -> #2, is_open -> true]>;
-    passage2 = <$passage, [side_a_room -> #2, side_b_room -> #3, is_open -> true]>;
+    passage1 = <$passage, .side_a_room = #1, .side_b_room = #2, .is_open = true>;
+    passage2 = <$passage, .side_a_room = #2, .side_b_room = #3, .is_open = true>;
     area:set_passage(#1, #2, passage1);
     area:set_passage(#2, #3, passage2);
     "#1 and #2 are directly connected";
@@ -318,9 +318,9 @@ object AREA
     "Test finding all reachable rooms";
     area = create($area);
     "Create a small network";
-    area:set_passage(#1, #2, <$passage, [is_open -> true]>);
-    area:set_passage(#2, #3, <$passage, [is_open -> true]>);
-    area:set_passage(#1, #4, <$passage, [is_open -> true]>);
+    area:set_passage(#1, #2, <$passage, .is_open = true>);
+    area:set_passage(#2, #3, <$passage, .is_open = true>);
+    area:set_passage(#1, #4, <$passage, .is_open = true>);
     reachable = area:rooms_from(#1);
     length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from #1");
     #1 in reachable || raise(E_ASSERT, "Should include starting room");
@@ -336,8 +336,8 @@ object AREA
   verb test_find_path (this none this) owner: HACKER flags: "rxd"
     "Test pathfinding between rooms";
     area = create($area);
-    p1 = <$passage, [is_open -> true]>;
-    p2 = <$passage, [is_open -> true]>;
+    p1 = <$passage, .is_open = true>;
+    p2 = <$passage, .is_open = true>;
     "Create chain: 1 <-> 2 <-> 3";
     area:set_passage(#1, #2, p1);
     area:set_passage(#2, #3, p2);
