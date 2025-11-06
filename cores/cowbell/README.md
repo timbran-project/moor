@@ -67,11 +67,12 @@ top of the event and behaviour systems without requiring framework changes.
 **Systems:**
 
 - Authentication with argon2 password hashing (`password.moo`, `login.moo`)
-- Capability-based security for fine-grained permissions (`root.moo`)
+- Capability-based security for fine-grained permissions (`root.moo`, `grant_utils.moo`, `@grant`)
 - Object matching system (`match.moo`)
 - Permission roles: arch_wizard, wizard, builder, programmer, hacker
 - Relational/graph system for object relationships (`relation.moo`) with datalog-style unification.
 - Basic object management: `@create`, `@recycle`
+- Basic room creation and passage/tunneling: `@build`, `@dig`
 
 **World Content:**
 
@@ -80,7 +81,7 @@ top of the event and behaviour systems without requiring framework changes.
 
 **Not Yet Implemented:**
 
-- Additional building commands (`@dig`, etc.)
+- Additional building commands
 - Property and verb management commands
 - Composable behaviour/trait system (lockable, openable, container, etc.)
 - Social action verbs (hug, wave, bonk, etc.)
