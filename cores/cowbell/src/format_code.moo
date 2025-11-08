@@ -9,12 +9,13 @@ object FORMAT_CODE
   override import_export_id = "format_code";
 
   verb mk (this none this) owner: HACKER flags: "rxd"
-    "Create a code block flyweight. Args: (code_string) or (code_string, language)";
+    "Create a code block flyweight. Args: (code_content) or (code_content, language)";
+    "Code content can be a string or list of strings (one per line)";
     if (length(args) < 1 || length(args) > 2)
       raise(E_INVARG, "Code block requires 1-2 arguments: code content and optional language");
     endif
     code_content = args[1];
-    typeof(code_content) != STR && raise(E_TYPE, "Code content must be a string");
+    typeof(code_content) != STR && typeof(code_content) != LIST && raise(E_TYPE, "Code content must be a string or list");
     if (length(args) == 2)
       language = args[2];
       typeof(language) != STR && typeof(language) != SYM && raise(E_TYPE, "Language must be a string or symbol");
@@ -28,6 +29,9 @@ object FORMAT_CODE
     {render_for, content_type, event} = args;
     contents = flycontents(this);
     code_content = contents[1];
+    if (typeof(code_content) == LIST)
+      code_content = code_content:join("\n");
+    endif
     language = `tostr(this.language) ! E_PROPNF => ""';
     if (content_type == 'text_djot)
       if (language)
