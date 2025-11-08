@@ -15,7 +15,7 @@ object GRANT_UTILS
     typeof(cap_list) == LIST || raise(E_TYPE);
     target_str = tostr(target);
     category_str = tostr(category);
-    cap_names = {tostr(c) for c in (cap_list)};
+    cap_names = { tostr(c) for c in (cap_list) };
     caps_str = cap_names:join(",");
     return target_str + "." + category_str + "(" + caps_str + ")";
   endverb
@@ -29,7 +29,7 @@ object GRANT_UTILS
     target_name = valid(target) ? target:name() | "invalid object";
     target_str = target_name + " (" + tostr(target) + ")";
     category_str = tostr(category);
-    cap_names = {tostr(c) for c in (cap_list)};
+    cap_names = { tostr(c) for c in (cap_list) };
     caps_str = cap_names:join(",");
     return target_str + "." + category_str + "(" + caps_str + ")";
   endverb
@@ -95,7 +95,7 @@ object GRANT_UTILS
     target_name = valid(target) ? target:name() | "invalid object";
     target_str = "\"" + target_name + "\" (" + tostr(target) + ")";
     grant_spec = this:format_grant(target, category, required_caps);
-    cap_names = {tostr(c) for c in (required_caps)};
+    cap_names = { tostr(c) for c in (required_caps) };
     caps_str = cap_names:join(", ");
     message = "You don't have permission to perform this action on " + target_str + ".";
     message = message + " Required: " + grant_spec + " (or ownership/wizard status).";
@@ -118,9 +118,9 @@ object GRANT_UTILS
     "Test grant formatting with object names.";
     "Test with valid object";
     result = this:format_grant_with_name($first_area, 'area, {'add_room});
-    ("First Area" in result) || raise(E_ASSERT, "Name not included: " + result);
-    ("#38" in result) || raise(E_ASSERT, "Object ID not included: " + result);
-    (".area(add_room)" in result) || raise(E_ASSERT, "Grant spec malformed: " + result);
+    "First Area" in result || raise(E_ASSERT, "Name not included: " + result);
+    "#38" in result || raise(E_ASSERT, "Object ID not included: " + result);
+    ".area(add_room)" in result || raise(E_ASSERT, "Grant spec malformed: " + result);
   endverb
 
   verb test_parse_grant (this none this) owner: HACKER flags: "rxd"
@@ -166,10 +166,10 @@ object GRANT_UTILS
   verb test_format_denial (this none this) owner: HACKER flags: "rxd"
     "Test denial message formatting.";
     message = this:format_denial($first_area, 'area, {'add_room, 'create_passage});
-    ("First Area" in message) || raise(E_ASSERT, "Name not in denial: " + message);
-    ("#38" in message) || raise(E_ASSERT, "Object ID not in denial: " + message);
-    ("#38.area(add_room,create_passage)" in message) || raise(E_ASSERT, "Grant spec not in denial: " + message);
-    ("permission" in message) || raise(E_ASSERT, "No permission text in denial: " + message);
+    "First Area" in message || raise(E_ASSERT, "Name not in denial: " + message);
+    "#38" in message || raise(E_ASSERT, "Object ID not in denial: " + message);
+    "#38.area(add_room,create_passage)" in message || raise(E_ASSERT, "Grant spec not in denial: " + message);
+    "permission" in message || raise(E_ASSERT, "No permission text in denial: " + message);
   endverb
 
   verb test_round_trip (this none this) owner: HACKER flags: "rxd"

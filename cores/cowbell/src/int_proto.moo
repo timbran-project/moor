@@ -8,6 +8,11 @@ object INT_PROTO
   override description = "Prototype object for integer utility methods.";
   override import_export_id = "int_proto";
 
+  verb compose (this none this) owner: HACKER flags: "rxd"
+    "Return string representation for event composition";
+    return tostr(args[1]);
+  endverb
+
   verb format_time_seconds (this none this) owner: HACKER flags: "rxd"
     "Convert integer seconds to human-readable time format";
     "Usage: seconds_value:format_time_seconds()";

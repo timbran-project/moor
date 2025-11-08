@@ -390,7 +390,7 @@ object RELATION
       p = pattern[i];
       if (typeof(p) == FLYWEIGHT && valid(p.delegate) && p.delegate == $dvar)
         "Variable - bind or check consistency";
-        var_name = p[1];
+        var_name = p:name();
         if (maphaskey(bindings, var_name))
           bindings[var_name] != tuple[i] && return false;
         else

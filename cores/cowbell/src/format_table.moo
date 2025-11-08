@@ -13,7 +13,7 @@ object FORMAT_TABLE
     {headers, rows} = args;
     typeof(headers) != LIST && raise(E_TYPE, "Headers must be a list");
     typeof(rows) != LIST && raise(E_TYPE, "Rows must be a list");
-    return <this, [headers -> headers, rows -> rows]>;
+    return toflyweight(this, ['headers -> headers, 'rows -> rows]);
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"

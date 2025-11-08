@@ -199,18 +199,17 @@ object ROOT
     {target, cap_list, ?expiration = 0, ?run_as = 0, ?key = 0} = args;
     "Only owner or wizard can issue";
     !caller_perms().wizard && caller_perms() != target.owner && raise(E_PERM);
-    "Convert caps to literal strings for JSON encoding";
-    cap_strings = { toliteral(c) for c in (cap_list) };
-    "Build claims map";
-    claims = ['target -> toliteral(target), 'caps -> cap_strings, 'iat -> time(), 'granted_by -> toliteral(caller_perms()), 'jti -> uuid()];
+    "Build claims map - PASETO handles symbols/objects natively via __type_* tags";
+    claims = ['target -> target, 'caps -> cap_list, 'iat -> time(), 'granted_by -> caller_perms(), 'jti -> uuid()];
     "Add optional expiration";
     if (expiration)
       claims['exp] = expiration;
     endif
     "Add run_as if provided - issuer can grant run_as for self or player";
-    if (run_as)
+    "Note: Check run_as != 0, not truthiness, because objects are falsy in MOO";
+    if (run_as != 0)
       run_as == caller_perms() || run_as == player || raise(E_PERM);
-      claims['run_as] = toliteral(run_as);
+      claims['run_as] = run_as;
     endif
     "Create server authority PASETO token (wizard-only builtin)";
     token = key ? paseto_make_local(claims, key) | paseto_make_local(claims);
@@ -220,7 +219,7 @@ object ROOT
   verb merge_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Merge two capability flyweights for the same target into one with combined permissions.";
     caller_perms().wizard || raise(E_PERM);
-    {cap1, cap2} = args;
+    {cap1, cap2, ?key = 0} = args;
     "Both must be flyweights with tokens";
     typeof(cap1) == FLYWEIGHT && typeof(cap2) == FLYWEIGHT || raise(E_TYPE);
     maphaskey(flyslots(cap1), 'token) && maphaskey(flyslots(cap2), 'token) || raise(E_INVARG);
@@ -228,8 +227,8 @@ object ROOT
     cap1.delegate == cap2.delegate || raise(E_INVARG, "Capabilities must be for same target");
     target = cap1.delegate;
     "Decode both tokens";
-    claims1 = paseto_verify_local(cap1.token);
-    claims2 = paseto_verify_local(cap2.token);
+    claims1 = key ? paseto_verify_local(cap1.token, key) | paseto_verify_local(cap1.token);
+    claims2 = key ? paseto_verify_local(cap2.token, key) | paseto_verify_local(cap2.token);
     "Combine capability lists (remove duplicates)";
     all_caps = {@claims1["caps"], @claims2["caps"]};
     unique_caps = {};
@@ -240,27 +239,21 @@ object ROOT
     exp = 0;
     maphaskey(claims1, "exp") && (exp = claims1["exp"]);
     maphaskey(claims2, "exp") && claims2["exp"] > exp && (exp = claims2["exp"]);
-    "Take run_as if either has it (prefer cap1)";
+    "Take run_as if either has it (prefer cap1) - comes back as object";
     run_as = 0;
-    maphaskey(claims1, "run_as") && (run_as = claims1["run_as"]);
-    !run_as && maphaskey(claims2, "run_as") && (run_as = claims2["run_as"]);
-    "Convert cap strings back to symbols";
-    cap_symbols = {};
-    for cap_str in (unique_caps)
-      "Strip leading tick from literal representation";
-      if (length(cap_str) > 0 && cap_str[1] == "'")
-        cap_symbols = {@cap_symbols, tosym(cap_str[2..length(cap_str)])};
-      else
-        cap_symbols = {@cap_symbols, tosym(cap_str)};
-      endif
-    endfor
+    if (maphaskey(claims1, "run_as"))
+      run_as = claims1["run_as"];
+    elseif (maphaskey(claims2, "run_as"))
+      run_as = claims2["run_as"];
+    endif
+    "Caps come back as symbols directly - unique_caps is already a list of symbols";
     "Issue new merged capability";
-    return this:issue_capability(target, cap_symbols, exp, run_as);
+    return this:issue_capability(target, unique_caps, exp, run_as, key);
   endverb
 
   verb grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Grant capabilities for target_obj to grantee, storing in specified category.";
-    {target_obj, cap_list, grantee, category} = args;
+    {target_obj, cap_list, grantee, category, ?key = 0} = args;
     "Permission: wizard, owner of target_obj, or TODO: 'grant capability";
     caller_perms().wizard || caller_perms() == target_obj.owner || raise(E_PERM);
     "Validate category is a symbol";
@@ -276,12 +269,12 @@ object ROOT
     endtry
     typeof(grants_map) == MAP || raise(E_INVARG, tostr(grantee) + "." + prop_name + " must be a map");
     "Issue new capability";
-    new_cap = target_obj:issue_capability(target_obj, cap_list);
+    new_cap = target_obj:issue_capability(target_obj, cap_list, 0, 0, key);
     "Check if grantee already has a grant for this object";
     if (maphaskey(grants_map, target_obj))
       "Merge with existing grant";
       old_cap = grants_map[target_obj];
-      new_cap = $root:merge_capability(old_cap, new_cap);
+      new_cap = $root:merge_capability(old_cap, new_cap, key);
     endif
     "Store the grant";
     grants_map[target_obj] = new_cap;
@@ -387,27 +380,23 @@ object ROOT
       raise(E_PERM);
     endtry
     "Target binding - token must match this flyweight's delegate";
-    if (toliteral(this.delegate) != claims["target"])
+    if (this.delegate != claims["target"])
       raise(E_PERM);
     endif
     "Expiration check";
     if (maphaskey(claims, "exp") && time() > claims["exp"])
       raise(E_PERM);
     endif
-    "Capability subset check - convert required caps to literal strings";
+    "Capability subset check - symbols round-trip directly";
     for required in (required_caps)
-      if (!(toliteral(required) in claims["caps"]))
+      if (!(required in claims["caps"]))
         raise(E_PERM);
       endif
     endfor
-    "Determine run_as object";
+    "Determine run_as object - comes back as object directly via __type_obj";
     run_as = $hacker;
     if (maphaskey(claims, "run_as"))
-      run_as_str = claims["run_as"];
-      if (run_as_str[1] == "#")
-        objnum = tonum(run_as_str[2..length(run_as_str)]);
-        run_as = toobj(objnum);
-      endif
+      run_as = claims["run_as"];
     endif
     return {this.delegate, run_as};
   endverb
@@ -423,15 +412,15 @@ object ROOT
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Test 1: Issue capability with custom key";
     cap = this:issue_capability(this, {'read}, 0, 0, test_key);
-    typeof(cap) == FLYWEIGHT || raise(E_ASSERT);
-    cap.delegate == this || raise(E_ASSERT);
-    maphaskey(flyslots(cap), 'token) || raise(E_ASSERT);
+    typeof(cap) == FLYWEIGHT || raise(E_ASSERT, "Cap should be flyweight");
+    cap.delegate == this || raise(E_ASSERT, "Cap delegate should be this");
+    maphaskey(flyslots(cap), 'token) || raise(E_ASSERT, "Cap should have token slot");
     "Test 2: Challenge returns {delegate, run_as}";
     {target, run_as} = cap:challenge_for_with_key({'read}, test_key);
-    typeof(target) == OBJ || raise(E_ASSERT);
-    target == this || raise(E_ASSERT);
-    typeof(run_as) == OBJ || raise(E_ASSERT);
-    run_as == $hacker || raise(E_ASSERT);
+    typeof(target) == OBJ || raise(E_ASSERT, "Target should be OBJ");
+    target == this || raise(E_ASSERT, "Target should be this");
+    typeof(run_as) == OBJ || raise(E_ASSERT, "run_as should be OBJ");
+    run_as == $hacker || raise(E_ASSERT, "run_as should be $hacker");
     "Test 3: Multiple capabilities";
     multi_cap = this:issue_capability(this, {'read, 'write, 'execute}, 0, 0, test_key);
     multi_cap:challenge_for_with_key({'read, 'write}, test_key);
@@ -457,8 +446,8 @@ object ROOT
     "Test 6: run_as claim";
     run_as_cap = this:issue_capability(this, {'read}, 0, $arch_wizard, test_key);
     {target2, run_as_obj} = run_as_cap:challenge_for_with_key({'read}, test_key);
-    target2 == this || raise(E_ASSERT);
-    run_as_obj == $arch_wizard || raise(E_ASSERT);
+    target2 == this || raise(E_ASSERT, "run_as cap target should be this");
+    run_as_obj == $arch_wizard || raise(E_ASSERT, "run_as_obj should be $arch_wizard");
     return true;
   endverb
 
@@ -468,7 +457,7 @@ object ROOT
     "Test 1: Merge two capabilities with different permissions";
     cap1 = this:issue_capability(this, {'read, 'write}, 0, 0, test_key);
     cap2 = this:issue_capability(this, {'execute, 'delete}, 0, 0, test_key);
-    merged = $root:merge_capability(cap1, cap2);
+    merged = $root:merge_capability(cap1, cap2, test_key);
     typeof(merged) == FLYWEIGHT || raise(E_ASSERT("Merged result should be a flyweight"));
     merged.delegate == this || raise(E_ASSERT("Merged delegate should match original"));
     "Test 2: Verify merged capability contains all permissions";
@@ -477,14 +466,14 @@ object ROOT
     "Test 3: Merge with overlapping permissions";
     cap3 = this:issue_capability(this, {'read, 'write}, 0, 0, test_key);
     cap4 = this:issue_capability(this, {'write, 'execute}, 0, 0, test_key);
-    merged2 = $root:merge_capability(cap3, cap4);
+    merged2 = $root:merge_capability(cap3, cap4, test_key);
     {target2, perms2} = merged2:challenge_for_with_key({'read, 'write, 'execute}, test_key);
     target2 == this || raise(E_ASSERT("Merged overlapping should contain all unique permissions"));
     "Test 4: Merge with expiration - should take later expiration";
     future = time() + 3600;
     cap5 = this:issue_capability(this, {'read}, 0, 0, test_key);
     cap6 = this:issue_capability(this, {'write}, future, 0, test_key);
-    merged3 = $root:merge_capability(cap5, cap6);
+    merged3 = $root:merge_capability(cap5, cap6, test_key);
     claims = paseto_verify_local(merged3.token, test_key);
     maphaskey(claims, "exp") || raise(E_ASSERT("Merged should have expiration from cap6"));
     claims["exp"] == future || raise(E_ASSERT("Merged expiration should be later time"));
@@ -494,7 +483,7 @@ object ROOT
     cap8 = other_obj:issue_capability(other_obj, {'write}, 0, 0, test_key);
     merge_failed = false;
     try
-      $root:merge_capability(cap7, cap8);
+      $root:merge_capability(cap7, cap8, test_key);
       merge_failed = true;
     except (E_INVARG)
     endtry
@@ -505,11 +494,15 @@ object ROOT
 
   verb test_grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test granting capabilities to players with auto-merge";
+    test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Create test objects";
     test_area = create($area);
     test_player = create($player);
+    "Initialize grants properties";
+    add_property(test_player, "grants_area", [], {test_player.owner, "rw"});
+    add_property(test_player, "grants_room", [], {test_player.owner, "rw"});
     "Test 1: Grant initial capability";
-    cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area);
+    cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area, test_key);
     typeof(cap1) == FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
     cap1.delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
     "Test 2: Verify capability was stored in grants_area";
@@ -518,18 +511,18 @@ object ROOT
     stored_cap = test_player.grants_area[test_area];
     stored_cap == cap1 || raise(E_ASSERT("Stored capability should match returned one"));
     "Test 3: Grant additional capability - should auto-merge";
-    cap2 = $root:grant_capability(test_area, {'create_passage}, test_player, 'area);
+    cap2 = $root:grant_capability(test_area, {'create_passage}, test_player, 'area, test_key);
     typeof(cap2) == FLYWEIGHT || raise(E_ASSERT("Second grant should return flyweight"));
     "Test 4: Verify merged capability has both permissions";
     merged_cap = test_player.grants_area[test_area];
-    {target, perms} = merged_cap:challenge_for({'add_room, 'create_passage});
+    {target, perms} = merged_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
     target == test_area || raise(E_ASSERT("Merged cap should grant both permissions"));
     "Test 5: find_capability_for retrieves the grant";
     found_cap = test_player:find_capability_for(test_area, 'area);
     found_cap == merged_cap || raise(E_ASSERT("find_capability_for should return stored grant"));
     "Test 6: Different category (room grants)";
     test_room = create($room);
-    room_cap = $root:grant_capability(test_room, {'dig_from}, test_player, 'room);
+    room_cap = $root:grant_capability(test_room, {'dig_from}, test_player, 'room, test_key);
     typeof(test_player.grants_room) == MAP || raise(E_ASSERT("grants_room should be created"));
     maphaskey(test_player.grants_room, test_room) || raise(E_ASSERT("Should have grant for test_room"));
     found_room_cap = test_player:find_capability_for(test_room, 'room);

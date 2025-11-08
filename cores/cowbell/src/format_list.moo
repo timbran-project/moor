@@ -21,7 +21,7 @@ object FORMAT_LIST
     result = {};
     contents = flycontents(this);
     for item in (contents)
-      result = {@result, item:compose(@args)};
+      result = {@result, `item:compose(@args) ! E_VERBNF => tostr(item)'};
     endfor
     if (content_type == 'text_html)
       "Create li-wrapped items for HTML";
@@ -47,8 +47,8 @@ object FORMAT_LIST
     html_result = list_obj:compose($nothing, 'text_html, $nothing);
     xml_result = html_result:render('text_html);
     parsed = xml_parse(xml_result, LIST);
-    expected = {"ul", {"li", {"p", "Coffee"}}, {"li", {"p", "Tea"}}, {"li", {"p", "Milk"}}};
-    parsed != expected && return E_ASSERT;
+    expected = {"ul", {"li", "Coffee"}, {"li", "Tea"}, {"li", "Milk"}};
+    parsed != expected && raise(E_ASSERT, "Expected: " + toliteral(expected) + " Got: " + toliteral(parsed));
     return true;
   endverb
 
@@ -59,7 +59,7 @@ object FORMAT_LIST
     html_result = list_obj:compose($nothing, 'text_html, $nothing);
     xml_result = html_result:render('text_html);
     parsed = xml_parse(xml_result, LIST);
-    expected = {"ol", {"li", {"p", "First"}}, {"li", {"p", "Second"}}, {"li", {"p", "Third"}}};
+    expected = {"ol", {"li", "First"}, {"li", "Second"}, {"li", "Third"}};
     parsed != expected && return E_ASSERT;
     return true;
   endverb

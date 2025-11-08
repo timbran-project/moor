@@ -12,4 +12,9 @@ object DVAR
     var_name = verb[4..length(verb)];
     return <this, {tosym(var_name)}>;
   endverb
+
+  verb name (this none this) owner: HACKER flags: "rxd"
+    "Return the variable name symbol from this dvar flyweight";
+    return flycontents(this)[1];
+  endverb
 endobject

@@ -151,7 +151,7 @@ object BUILDER
     endtry
   endverb
 
-  verb "@grant" (any to any) owner: ARCH_WIZARD flags: "rd"
+  verb "@grant" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Grant capabilities to a player. Usage: @grant <target>.<category>(<cap1,cap2>) to <player>";
     caller == this || raise(E_PERM);
     set_task_perms(this);
@@ -205,6 +205,7 @@ object BUILDER
 
   verb test_capability_building (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test building with granted capabilities";
+    test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Create test objects - area, two rooms, and a builder";
     test_area = create($area);
     test_room1 = create($room);
@@ -213,12 +214,12 @@ object BUILDER
     test_room1:moveto(test_area);
     test_room2:moveto(test_area);
     "Test 1: Grant area capabilities to builder";
-    $root:grant_capability(test_area, {'add_room, 'create_passage}, test_builder, 'area);
+    $root:grant_capability(test_area, {'add_room, 'create_passage}, test_builder, 'area, test_key);
     typeof(test_builder.grants_area) == MAP || raise(E_ASSERT("Builder should have grants_area map"));
     maphaskey(test_builder.grants_area, test_area) || raise(E_ASSERT("Builder should have grant for test_area"));
     "Test 2: Grant room capabilities";
-    $root:grant_capability(test_room1, {'dig_from}, test_builder, 'room);
-    $root:grant_capability(test_room2, {'dig_into}, test_builder, 'room);
+    $root:grant_capability(test_room1, {'dig_from}, test_builder, 'room, test_key);
+    $root:grant_capability(test_room2, {'dig_into}, test_builder, 'room, test_key);
     maphaskey(test_builder.grants_room, test_room1) || raise(E_ASSERT("Builder should have grant for room1"));
     maphaskey(test_builder.grants_room, test_room2) || raise(E_ASSERT("Builder should have grant for room2"));
     "Test 3: find_capability_for returns the grants";
@@ -229,9 +230,9 @@ object BUILDER
     typeof(room1_cap) == FLYWEIGHT || raise(E_ASSERT("Should find room1 capability"));
     room1_cap.delegate == test_room1 || raise(E_ASSERT("Room1 cap should be for test_room1"));
     "Test 4: Verify capabilities grant expected permissions";
-    {target, perms} = area_cap:challenge_for({'add_room, 'create_passage});
+    {target, perms} = area_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
     target == test_area || raise(E_ASSERT("Area cap should grant add_room and create_passage"));
-    {target2, perms2} = room1_cap:challenge_for({'dig_from});
+    {target2, perms2} = room1_cap:challenge_for_with_key({'dig_from}, test_key);
     target2 == test_room1 || raise(E_ASSERT("Room1 cap should grant dig_from"));
     "Test 5: Capability not found returns false";
     nonexistent_room = create($room);
