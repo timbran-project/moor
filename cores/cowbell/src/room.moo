@@ -31,97 +31,18 @@ object ROOM
   endverb
 
   verb enterfunc (this none this) owner: HACKER flags: "rxd"
+    "Show room description to arriving players";
     {who} = args;
     valid(who) || return;
-    travel = `who:_peek_travel_context() ! E_VERBNF => 0';
-    try
-      from_room = #-1;
-      direction = "";
-      passage_desc = "";
-      try
-        if (maphaskey(travel, "from"))
-          candidate = travel["from"];
-          typeof(candidate) == OBJ && (from_room = candidate);
-        endif
-        if (maphaskey(travel, "to_label"))
-          label = travel["to_label"];
-          typeof(label) == STR && (direction = label);
-        endif
-        if (maphaskey(travel, "to_description"))
-          desc = travel["to_description"];
-          typeof(desc) == STR && (passage_desc = desc);
-        endif
-      except (E_TYPE)
-      endtry
-      is_player_who = is_player(who);
-      arrival_event = 0;
-      if (is_player_who)
-        arrival_event = `who:mk_arrival_event(this, direction, passage_desc, from_room) ! E_VERBNF => 0';
-      endif
-      if (arrival_event)
-        arrival_event = arrival_event:with_audience('narrative);
-        this:announce(arrival_event);
-      elseif (is_player_who)
-        fallback_event = $event:mk_move(who, $sub:nc(), " ", $sub:self_alt("arrive", "arrives"), "."):with_this(this);
-        valid(from_room) && (fallback_event = fallback_event:with_iobj(from_room));
-        fallback_event = fallback_event:with_audience('narrative);
-        this:announce(fallback_event);
-      endif
-      if (is_player_who)
-        look_d = this:look_self();
-        who:inform_current(look_d:into_event():with_audience('utility));
-      endif
-    finally
-      `who:_clear_travel_context() ! E_VERBNF => 0';
-    endtry
+    if (is_player(who))
+      look_d = this:look_self();
+      who:inform_current(look_d:into_event():with_audience('utility));
+    endif
   endverb
 
   verb exitfunc (this none this) owner: HACKER flags: "rxd"
-    {who} = args;
-    valid(who) || return;
-    is_player_who = is_player(who);
-    if (!is_player_who)
-      return;
-    endif
-    travel = `who:_peek_travel_context() ! E_VERBNF => 0';
-    from_room = #-1;
-    direction = "";
-    passage_desc = "";
-    to_room = #-1;
-    try
-      if (maphaskey(travel, "from"))
-        candidate = travel["from"];
-        typeof(candidate) == OBJ && (from_room = candidate);
-      endif
-      if (maphaskey(travel, "from_label"))
-        label = travel["from_label"];
-        typeof(label) == STR && (direction = label);
-      endif
-      if (maphaskey(travel, "from_description"))
-        desc = travel["from_description"];
-        typeof(desc) == STR && (passage_desc = desc);
-      endif
-      if (maphaskey(travel, "to"))
-        dest = travel["to"];
-        typeof(dest) == OBJ && (to_room = dest);
-      endif
-    except (E_TYPE)
-    endtry
-    if (from_room != this)
-      return;
-    endif
-    departure_event = `who:mk_departure_event(this, direction, passage_desc, to_room) ! E_VERBNF => false';
-    if (!departure_event)
-      fallback_departure = $event:mk_move(who, $sub:nc(), " ", $sub:self_alt("leave", "leaves"), "."):with_this(this);
-      valid(to_room) && (fallback_departure = fallback_departure:with_iobj(to_room));
-      fallback_departure = fallback_departure:with_audience('narrative);
-      this:announce(fallback_departure);
-      who:tell(fallback_departure);
-      return;
-    endif
-    departure_event = departure_event:with_audience('narrative);
-    this:announce(departure_event);
-    who:tell(departure_event);
+    "Do nothing - movement verbs handle departure announcements directly";
+    return;
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"

@@ -10,7 +10,6 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property pronouns (owner: HACKER, flags: "rc") = <#28, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true, .verb_be = "are", .verb_have = "have">;
-  property travel_context (owner: HACKER, flags: "") = 0;
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -150,22 +149,6 @@ object PLAYER
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
-  endverb
-
-  verb _set_travel_context (this none this) owner: HACKER flags: "rxd"
-    {context} = args;
-    this.travel_context = context;
-    return context;
-  endverb
-
-  verb _peek_travel_context (this none this) owner: HACKER flags: "rxd"
-    context = this.travel_context;
-    return context ? context | 0;
-  endverb
-
-  verb _clear_travel_context (this none this) owner: HACKER flags: "rxd"
-    this.travel_context = 0;
-    return true;
   endverb
 
   verb mk_departure_event (this none this) owner: HACKER flags: "rxd"

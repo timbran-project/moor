@@ -213,16 +213,32 @@ object PASSAGE
   endverb
 
   verb travel_from (this none this) owner: HACKER flags: "rxd"
+    "Handle passage traversal with direct announcement (no hidden travel context)";
     {player, from_room, parsed} = args;
     valid(player) || return false;
     valid(from_room) || return false;
     this:_value("is_open", true) || return this:_notify_blocked(player, from_room);
     to_room = this:other_room(from_room);
     valid(to_room) || return false;
-    context = ["passage" -> this, "from" -> from_room, "to" -> to_room, "from_label" -> this:label_for(from_room), "to_label" -> this:label_for(to_room), "from_description" -> this:description_for(from_room), "to_description" -> this:description_for(to_room)];
-    `player:_set_travel_context(context) ! E_VERBNF => 0';
+    "Get passage metadata for events";
+    from_label = this:label_for(from_room);
+    to_label = this:label_for(to_room);
+    from_description = this:description_for(from_room);
+    to_description = this:description_for(to_room);
+    "Create and announce departure event";
+    departure = `player:mk_departure_event(from_room, from_label, from_description, to_room) ! E_VERBNF => 0';
+    if (departure)
+      departure = departure:with_audience('narrative);
+      from_room:announce(departure);
+    endif
+    "Actually move the player";
     player:moveto(to_room);
-    `player:_clear_travel_context() ! E_VERBNF => 0';
+    "Create and announce arrival event (enterfunc will show the room)";
+    arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room) ! E_VERBNF => 0';
+    if (arrival)
+      arrival = arrival:with_audience('narrative);
+      to_room:announce(arrival);
+    endif
     return true;
   endverb
 
