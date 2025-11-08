@@ -68,9 +68,8 @@ object BUILDER
   override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
   override import_export_id = "builder";
 
-  verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
+  verb "@create" (any named any) owner: HACKER flags: "rd"
     caller == this || raise(E_PERM);
-    set_task_perms(caller_perms());
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @create <parent> named <name[:aliases]>");
     endif
@@ -502,5 +501,81 @@ object BUILDER
       endif
     endfor
     return result;
+  endverb
+
+  verb "@rename" (any at any) owner: HACKER flags: "rd"
+    "Rename an object. Usage: @rename <object> to <name[:aliases]>";
+    caller == this || raise(E_PERM);
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, "Usage: @rename <object> to <name[:aliases]>");
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      if (!this.wizard && target_obj.owner != this)
+        raise(E_PERM, "You do not have permission to rename " + tostr(target_obj) + ".");
+      endif
+      parsed = $str_proto:parse_name_aliases(iobjstr);
+      new_name = parsed[1];
+      new_aliases = parsed[2];
+      !new_name && raise(E_INVARG, "Object name cannot be blank.");
+      old_name = `target_obj.name ! ANY => "(no name)"';
+      this:_do_rename_object(target_obj, new_name, new_aliases);
+      message = "Renamed \"" + old_name + "\" (" + tostr(target_obj) + ") to \"" + new_name + "\".";
+      if (new_aliases)
+        alias_str = new_aliases:join(", ");
+        message = message + " Aliases: " + alias_str + ".";
+      endif
+      this:inform_current($event:mk_info(this, message));
+      return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb _do_rename_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to rename object with elevated permissions";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    {target_obj, new_name, new_aliases} = args;
+    target_obj:set_name_aliases(new_name, new_aliases);
+  endverb
+
+  verb "@describe" (any as any) owner: HACKER flags: "rd"
+    "Set object description. Usage: @describe <object> as <description>";
+    caller == this || raise(E_PERM);
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, "Usage: @describe <object> as <description>");
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      if (!this.wizard && target_obj.owner != this)
+        raise(E_PERM, "You do not have permission to describe " + tostr(target_obj) + ".");
+      endif
+      new_description = iobjstr:trim();
+      !new_description && raise(E_INVARG, "Description cannot be blank.");
+      this:_do_describe_object(target_obj, new_description);
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      message = "Set description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
+      this:inform_current($event:mk_info(this, message));
+      return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb _do_describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to set object description with elevated permissions";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    {target_obj, new_description} = args;
+    target_obj.description = new_description;
   endverb
 endobject
