@@ -30,7 +30,7 @@ object PROG
     "Examples: @edit #1:look_self, @edit player:tell, @edit $match:match_object info";
     "Check for usage errors";
     if (!argstr)
-      player:tell($event:mk_error(player, "Usage: " + verb + " <object>:<verb> [info]"));
+      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> [info]"));
       return;
     endif
     "Parse arguments - check for 'info' mode";
@@ -39,7 +39,7 @@ object PROG
     "Parse the verb reference";
     parsed = verbref_string:parse_verbref();
     if (!parsed)
-      player:tell($event:mk_error(player, "Invalid verb reference format. Use 'object:verb'"));
+      player:inform_current($event:mk_error(player, "Invalid verb reference format. Use 'object:verb'"));
       return;
     endif
     {object_str, verb_name} = parsed;
@@ -58,7 +58,7 @@ object PROG
       "Find where the verb is actually defined";
       verb_location = target_obj:find_verb_definer(verb_name);
       if (verb_location == #-1)
-        player:tell($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + " or its ancestors."));
+        player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + " or its ancestors."));
         return;
       endif
       "Get verb information for editor";
@@ -66,9 +66,9 @@ object PROG
       {verb_owner, verb_flags, verb_names} = verb_info_data;
       "Open the editor";
       player:present_editor(verb_location, verb_name);
-      player:tell($event:mk_info(player, "Opened verb editor for " + tostr(target_obj) + ":" + tostr(verb_name)));
+      player:inform_current($event:mk_info(player, "Opened verb editor for " + tostr(target_obj) + ":" + tostr(verb_name)));
     except (E_VERBNF)
-      player:tell($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + "."));
+      player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + "."));
       return;
     endtry
   endverb
