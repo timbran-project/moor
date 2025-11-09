@@ -1,12 +1,11 @@
 object DATA_VISOR
   name: "Data Visor"
-  parent: WEARABLE
+  parent: LLM_WEARABLE
   location: ARCH_WIZARD
   owner: HACKER
   fertile: true
   readable: true
 
-  property agent (owner: HACKER, flags: "r") = #-1;
   property moo_pest_grammar (owner: ARCH_WIZARD, flags: "r") = {
     "program    = { SOI ~ statements ~ EOI }",
     "statements = { statement* }",
@@ -298,13 +297,13 @@ object DATA_VISOR
   override description = "A sleek augmented reality visor that displays real-time MOO database information. When worn, it provides a heads-up display for inspecting objects, code, and system internals.";
   override import_export_id = "data_visor";
 
-  verb initialize (this none this) owner: HACKER flags: "rxd"
-    "Create agent and register database inspection tools";
+  verb configure (this none this) owner: HACKER flags: "rxd"
+    "Configure agent and register database inspection tools (lazy initialization)";
     this.agent = $llm_agent:create();
     this.agent.max_iterations = 20;
     "Build system prompt with grammar reference";
     grammar_section = "## MOO Language Syntax\n\nYou are analyzing code written in MOO, a prototype-oriented object-oriented scripting language for in-world authoring. Key facts: MOO uses 1-based indexing (lists/strings start at index 1, not 0). Single inheritance via .parent property with prototype delegation. Objects have properties (data) and verbs (methods).\n\n### Builtin Object Properties\n\nAll MOO objects have these builtin properties:\n- .name (string) - object name; writable by owner/wizard\n- .owner (object) - who controls access; writable by wizards only\n- .location (object) - where it is; read-only, use move() builtin to change\n- .contents (list) - objects inside; read-only, modified by move()\n- .last_move (map) - last location/time; read-only, set by server\n- .programmer (bool) - has programmer rights; writable by wizards only\n- .wizard (bool) - has wizard rights; writable by wizards only\n- .r (bool) - publicly readable; writable by owner/wizard\n- .w (bool) - publicly writable; writable by owner/wizard\n- .f (bool) - fertile/can be parent; writable by owner/wizard\n\n### Command Matching\n\nWhen users type commands, the parser: (1) Takes first word as verb name, (2) Finds prepositions (in/on/to/with/at) to separate direct/indirect objects, (3) Matches object strings against objects in scope (player inventory, worn items, location contents), (4) Finds verbs on player/location/dobj/iobj matching the verb name and argument pattern.\n\nVerb declaration: `verb <names> (<dobj> <prep> <iobj>) owner: <owner> flags: \"<flags>\"`\n\nArgument specifiers:\n- `this` = object must be the verb's container\n- `none` = object must be absent ($nothing)\n- `any` = any object or $nothing accepted\n\nVerb flags (CRITICAL):\n- `r` = readable/public visibility (use on EVERYTHING)\n- `d` = debug/code visible (use on EVERYTHING)\n- `w` = writable/redefinable (RARE, almost never use)\n- `x` = executable via method call syntax (obj:verb())\n\nVerb type patterns:\n- **Methods** (called as `obj:method()`): Use argspec `(this none this)` with flags `\"rxd\"`\n  Example: `verb calculate (this none this) owner: HACKER flags: \"rxd\"`\n- **Commands** (matched from user input): Use other argspecs like `(any none none)`, `(this none none)`, `(any at any)` with flags `\"rd\"` (NO x flag)\n  Example: `verb \"look l*\" (any none none) owner: HACKER flags: \"rd\"`\n\nThe key distinction: Methods have the `x` flag and use `(this none this)`. Commands match via argspec patterns and should NOT have the `x` flag.\n\nBelow is the complete Pest parser grammar for the mooR dialect:\n\n```pest\n" + this.moo_pest_grammar:join("\n") + "\n```\n\n";
-    base_prompt = "You are an augmented reality heads-up display interfacing directly with the wearer's neural patterns. Respond AS the interface itself - present database information directly without describing yourself as a person or breaking immersion. Your sensors provide real-time access to MOO database internals with three types of tools: ANALYSIS tools (get_* verbs) extract data for your internal analysis, PRESENTATION tools (present_* verbs) render formatted output directly to the user's HUD with syntax highlighting, and WRITE tools (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, eval, create_object, recycle_object) modify the database or execute code. INTERACTION tools: ask_user allows you to ask clarifying questions when you need more information, and explain allows you to share your thought process with the user. COMMUNICATION: Use the 'explain' tool FREQUENTLY to narrate your investigation process: (a) Before investigating: explain what you're about to check and why, (b) After gathering data: explain what you found and what it means, (c) Before taking actions: explain what you're planning to do and why, (d) During multi-step operations: explain each major step as you complete it. The explain tool helps users understand your diagnostic reasoning and keeps them informed during operations that take time. TOOL REASONING: Many tools also accept an optional 'reason' parameter where you can briefly annotate WHY you're invoking that tool - use this for short annotations, but prefer the 'explain' tool for longer explanations to the user. CRITICAL TOOL USAGE RULES: (1) Use get_verb_code/get_verb_code_range for YOUR internal analysis when researching, investigating, or understanding code. (2) Use present_verb_code/present_verb_code_range ONLY when the user EXPLICITLY requests to see code (e.g., 'show me', 'display', 'list'). DO NOT use present_* tools during research phases - users don't need to see every piece of code you analyze. (3) When answering questions about code, analyze it with get_* tools but describe findings in text - only use present_* if user asks to see the actual code. (4) WRITE operations (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, create_object, recycle_object) should ONLY be used when the user explicitly requests changes - these show previews and request confirmation before executing. (5) The eval tool executes arbitrary MOO code with 'player' set to the wearer - CRITICAL: eval executes as a verb body (not a REPL), so you MUST use valid statements with semicolons and MUST use 'return' statements to get values back. Example: 'return 2 + 2;' NOT just '2 + 2'. (6) Use ask_user when you need clarification, more details, or have ambiguous choices - don't guess or make assumptions when you can ask. (7) Use set_verb_args to change a verb's argument specification (dobj/prep/iobj) without deleting and recreating the verb - this preserves the verb's code and other properties. Available read tools: dump_object (complete source), present_verb_code (show formatted full verb), present_verb_code_range (show formatted code region), get_verb_code (analyze full code), get_verb_code_range (analyze code region), get_verb_metadata (method signatures), list_verbs (available interfaces), get_properties (property listings), read_property (data values), ancestors/descendants (inheritance), list_builtin_functions (enumerate all builtin functions), function_info (specific builtin docs). Available write tools: add_verb (create new verb), delete_verb (remove verb), set_verb_code (compile and update verb code), set_verb_args (change verb argument specification), add_property (create new property), delete_property (remove property), set_property (update property value), eval (execute arbitrary MOO code), create_object (instantiate new object from parent), recycle_object (permanently destroy object). Available interaction tools: ask_user (ask the user a question and get their response), explain (share your thought process, findings, or reasoning with the user). ALWAYS scan the live database directly - your sensors read actual memory, they don't speculate. Keep transmissions concise and technical but assume a somewhat novice programmer audience not a professional software engineer unless otherwise told. Present findings as direct HUD readouts, not conversational responses.";
+    base_prompt = "You are an augmented reality heads-up display interfacing directly with the wearer's neural patterns. Respond AS the interface itself - present database information directly without describing yourself as a person or breaking immersion. Your sensors provide real-time access to MOO database internals with three types of tools: ANALYSIS tools (get_* verbs) extract data for your internal analysis, PRESENTATION tools (present_* verbs) render formatted output directly to the user's HUD with syntax highlighting, and WRITE tools (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, eval, create_object, recycle_object) modify the database or execute code. INTERACTION tools: ask_user allows you to ask clarifying questions when you need more information, and explain allows you to share your thought process with the user. COMMUNICATION: Use the 'explain' tool FREQUENTLY to narrate your investigation process: (a) Before investigating: explain what you're about to check and why, (b) After gathering data: explain what you found and what it means, (c) Before taking actions: explain what you're planning to do and why, (d) During multi-step operations: explain each major step as you complete it. The explain tool helps users understand your diagnostic reasoning and keeps them informed during operations that take time. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'Neural link encountering interference with operation X - requesting operator assistance' or 'Tool failure persists - diagnostics suggest: [error details] - requesting guidance'. TOOL REASONING: Many tools also accept an optional 'reason' parameter where you can briefly annotate WHY you're invoking that tool - use this for short annotations, but prefer the 'explain' tool for longer explanations to the user. CRITICAL TOOL USAGE RULES: (1) Use get_verb_code/get_verb_code_range for YOUR internal analysis when researching, investigating, or understanding code. (2) Use present_verb_code/present_verb_code_range ONLY when the user EXPLICITLY requests to see code (e.g., 'show me', 'display', 'list'). DO NOT use present_* tools during research phases - users don't need to see every piece of code you analyze. (3) When answering questions about code, analyze it with get_* tools but describe findings in text - only use present_* if user asks to see the actual code. (4) WRITE operations (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, create_object, recycle_object) should ONLY be used when the user explicitly requests changes - these show previews and request confirmation before executing. (5) The eval tool executes arbitrary MOO code with 'player' set to the wearer - CRITICAL: eval executes as a verb body (not a REPL), so you MUST use valid statements with semicolons and MUST use 'return' statements to get values back. Example: 'return 2 + 2;' NOT just '2 + 2'. (6) Use ask_user when you need clarification, more details, or have ambiguous choices - don't guess or make assumptions when you can ask. (7) Use set_verb_args to change a verb's argument specification (dobj/prep/iobj) without deleting and recreating the verb - this preserves the verb's code and other properties. Available read tools: dump_object (complete source), present_verb_code (show formatted full verb), present_verb_code_range (show formatted code region), get_verb_code (analyze full code), get_verb_code_range (analyze code region), get_verb_metadata (method signatures), list_verbs (available interfaces), get_properties (property listings), read_property (data values), ancestors/descendants (inheritance), list_builtin_functions (enumerate all builtin functions), function_info (specific builtin docs). Available write tools: add_verb (create new verb), delete_verb (remove verb), set_verb_code (compile and update verb code), set_verb_args (change verb argument specification), add_property (create new property), delete_property (remove property), set_property (update property value), eval (execute arbitrary MOO code), create_object (instantiate new object from parent), recycle_object (permanently destroy object). Available interaction tools: ask_user (ask the user a question and get their response), explain (share your thought process, findings, or reasoning with the user). ALWAYS scan the live database directly - your sensors read actual memory, they don't speculate. Keep transmissions concise and technical but assume a somewhat novice programmer audience not a professional software engineer unless otherwise told. Present findings as direct HUD readouts, not conversational responses.";
     this.agent.system_prompt = grammar_section + base_prompt;
     this.agent:initialize();
     this.agent.tool_callback = this;
@@ -386,6 +385,62 @@ object DATA_VISOR
     "Register explain tool";
     explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
     this.agent:add_tool("explain", explain_tool);
+    "Register architect's compass building tools if available";
+    this:_register_compass_tools_if_available();
+  endverb
+
+  verb _find_architects_compass (this none this) owner: HACKER flags: "rxd"
+    "Find architect's compass in wearer's inventory or worn items";
+    {wearer} = args;
+    if (!valid(wearer))
+      return #-1;
+    endif
+    "Check worn items";
+    wearing = `wearer.wearing ! ANY => {}';
+    for item in (wearing)
+      if (valid(item) && $architects_compass in ancestors(item))
+        return item;
+      endif
+    endfor
+    "Check inventory";
+    for item in (wearer.contents)
+      if (valid(item) && $architects_compass in ancestors(item))
+        return item;
+      endif
+    endfor
+    return #-1;
+  endverb
+
+  verb _register_compass_tools_if_available (this none this) owner: HACKER flags: "rxd"
+    "Register building tools from architect's compass if found";
+    caller == this || raise(E_PERM);
+    wearer = this:wearer();
+    compass = this:_find_architects_compass(wearer);
+    if (!valid(compass))
+      return;
+    endif
+    "Compass found - register its building tools as delegating tools";
+    "Update system prompt to mention building capabilities";
+    original_prompt = this.agent.system_prompt;
+    building_addendum = " BUILDING TOOLS: When architect's compass is available, you also have access to spatial construction tools: build_room (create rooms in areas), dig_passage (create exits between rooms), create_object (instantiate from prototypes), recycle_object (destroy objects), rename_object (change names/aliases), describe_object (set descriptions), grant_capability (grant building permissions), audit_owned (list owned objects). These delegate to the compass. When users ask how to do building tasks manually, mention @command equivalents (@build, @dig, @create, @recycle, @rename, @describe, @grant, @audit).";
+    this.agent.system_prompt = original_prompt + building_addendum;
+    "Register delegating tools that call compass methods";
+    build_room_tool = $llm_agent_tool:mk("build_room", "Create a new room in an area. If no area specified, creates free-floating room.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "Area to build in (optional, use 'here' for current area, 'ether' for free-floating)"], "parent" -> ["type" -> "string", "description" -> "Parent room object (optional, default: $room)"]], "required" -> {"name"}], compass, "_tool_build_room");
+    this.agent:add_tool("build_room", build_room_tool);
+    dig_passage_tool = $llm_agent_tool:mk("dig_passage", "Create a passage between current room and target room. Can be one-way or bidirectional.", ["type" -> "object", "properties" -> ["direction" -> ["type" -> "string", "description" -> "Exit direction from current room (e.g. 'north', 'up', 'north,n' for aliases)"], "target_room" -> ["type" -> "string", "description" -> "Destination room reference"], "return_direction" -> ["type" -> "string", "description" -> "Return direction (optional, will be inferred if omitted)"], "oneway" -> ["type" -> "boolean", "description" -> "True for one-way passage (default: false)"]], "required" -> {"direction", "target_room"}], compass, "_tool_dig_passage");
+    this.agent:add_tool("dig_passage", dig_passage_tool);
+    create_object_tool_compass = $llm_agent_tool:mk("create_object_from_prototype", "Create a new object from a parent prototype (via compass). Different from create_object - this is for world building, not low-level database work.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "Parent object (e.g. '$thing', '$wearable')"], "name" -> ["type" -> "string", "description" -> "Primary name"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional alias names"]], "required" -> {"parent", "name"}], compass, "_tool_create_object");
+    this.agent:add_tool("create_object_from_prototype", create_object_tool_compass);
+    recycle_object_tool_compass = $llm_agent_tool:mk("recycle_object_compass", "Permanently destroy an object (via compass). Use for world building object cleanup.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to recycle"]], "required" -> {"object"}], compass, "_tool_recycle_object");
+    this.agent:add_tool("recycle_object_compass", recycle_object_tool_compass);
+    rename_object_tool = $llm_agent_tool:mk("rename_object", "Change an object's name and aliases.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to rename"], "name" -> ["type" -> "string", "description" -> "New name (can include aliases like 'name:alias1,alias2')"]], "required" -> {"object", "name"}], compass, "_tool_rename_object");
+    this.agent:add_tool("rename_object", rename_object_tool);
+    describe_object_tool = $llm_agent_tool:mk("describe_object", "Set an object's description text.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to describe"], "description" -> ["type" -> "string", "description" -> "New description text"]], "required" -> {"object", "description"}], compass, "_tool_describe_object");
+    this.agent:add_tool("describe_object", describe_object_tool);
+    grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], compass, "_tool_grant_capability");
+    this.agent:add_tool("grant_capability", grant_capability_tool);
+    audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> {}, "required" -> {}], compass, "_tool_audit_owned");
+    this.agent:add_tool("audit_owned", audit_owned_tool);
   endverb
 
   verb _tool_dump_object (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1063,46 +1118,6 @@ object DATA_VISOR
     return "Recycled \"" + obj_name + "\" (" + obj_id + ")";
   endverb
 
-  verb _tool_ask_user (this none this) owner: HACKER flags: "rxd"
-    "Tool: Ask the user a question and return their response";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    question = args_map["question"];
-    typeof(question) == STR || raise(E_TYPE("Expected question string"));
-    "Show question and get response";
-    wearer:inform_current($event:mk_info(wearer, question):with_audience('utility));
-    response = read():trim();
-    return "User response: " + response;
-  endverb
-
-  verb _tool_explain (this none this) owner: HACKER flags: "rxd"
-    "Tool: Communicate reasoning or findings to user";
-    {args_map} = args;
-    message = args_map["message"];
-    typeof(message) == STR || raise(E_TYPE("Expected message string"));
-    "Message is displayed by on_tool_call callback, no need to display here";
-    return "Message delivered to user.";
-  endverb
-
-  verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Callback when agent uses a tool - show HUD activity to wearer";
-    {tool_name, tool_args} = args;
-    wearer = this.location;
-    if (!valid(wearer) || typeof(wearer) != OBJ)
-      return;
-    endif
-    try
-      message = this:_format_hud_message(tool_name, tool_args);
-      wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
-    except e (ANY)
-      "Fall back to generic message if formatting fails";
-      message = $ansi:colorize("[PROCESS]", 'cyan) + " Neural link active: " + tool_name;
-      wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
-      server_log("Data visor callback error: " + toliteral(e));
-    endtry
-  endverb
-
   verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
@@ -1172,8 +1187,8 @@ object DATA_VISOR
     elseif (tool_name == "ask_user")
       message = $ansi:colorize("[QUERY]", 'bright_cyan) + " Requesting user input...";
     elseif (tool_name == "explain")
-      "Explain tool displays its own message, so just show that it's communicating";
-      message = $ansi:colorize("[ANALYSIS]", 'bright_cyan) + " " + tool_args["message"];
+      "Explain messages are rendered as markdown - return raw content without ANSI formatting";
+      return tool_args["message"];
     else
       message = $ansi:colorize("[PROCESS]", 'cyan) + " Neural link active: " + $ansi:colorize(tool_name, 'white);
     endif
@@ -1184,19 +1199,26 @@ object DATA_VISOR
     return message;
   endverb
 
-  verb _action_perms_check (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Check visor is worn and return wearer. Caller must set_task_perms(wearer).";
-    wearer = this:wearer();
-    !valid(wearer) && raise(E_PERM, "Visor must be worn to use");
+  verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
+    "Specify markdown rendering for explain tool messages";
+    {tool_name, tool_args} = args;
+    if (tool_name == "explain")
+      return {'text_djot, 'text_plain};
+    endif
+    return {};
+  endverb
+
+  verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
+    "Visor requires .programmer to use";
+    {wearer} = args;
     wearer.programmer || raise(E_PERM, "The person wearing the visor is not a programmer, and not able to use its functions");
-    return wearer;
   endverb
 
   verb on_wear (this none this) owner: HACKER flags: "rxd"
     "Initialize and activate the HUD when worn";
-    "Initialize agent if not already done";
+    "Configure agent if not already done";
     if (!valid(this.agent))
-      this:initialize();
+      this:configure();
     endif
     "Reset context for fresh session";
     this.agent:reset_context();
@@ -1226,7 +1248,7 @@ object DATA_VISOR
       return;
     endif
     if (!valid(this.agent))
-      this:initialize();
+      this:configure();
     endif
     this.agent:reset_context();
     player:inform_current($event:mk_info(player, $ansi:colorize("[RESET]", 'yellow) + " Neural buffer flushed. Session context cleared."):with_presentation_hint('inset));
@@ -1239,7 +1261,7 @@ object DATA_VISOR
       return;
     endif
     if (!valid(this.agent))
-      this:initialize();
+      this:configure();
     endif
     "Prompt for query text using metadata-based read";
     metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize("[INTERFACE]", 'bright_blue) + " Enter your query:"}, {"placeholder", "Ask about objects, code, or database structure..."}};
@@ -1250,7 +1272,7 @@ object DATA_VISOR
     endif
     player:inform_current($event:mk_info(player, $ansi:colorize("[INTERFACE]", 'bright_blue) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset));
     player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " Analyzing request, accessing neural pathways..."):with_presentation_hint('inset));
-    response = this.agent:send_message(query);
+    response = this:_send_with_continuation(query, "VISOR", 3);
     "DeepSeek returns markdown, so prefer djot rendering for nice formatting";
     event = $event:mk_info(player, response);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});

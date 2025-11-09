@@ -7,8 +7,10 @@ object SYSOBJ
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property ansi (owner: HACKER, flags: "r") = ANSI;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
+  property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;
   property builder (owner: HACKER, flags: "r") = BUILDER;
+  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, AREA};
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
@@ -24,6 +26,7 @@ object SYSOBJ
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
+  property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
   property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
@@ -174,6 +177,26 @@ object SYSOBJ
     endfor
     "Not authorized - must go through :destroy for permission checking";
     raise(E_PERM);
+  endverb
+
+  verb list_builder_prototypes (this none this) owner: HACKER flags: "rxd"
+    "Return list of builder prototypes with descriptions";
+    result = {};
+    for proto in (this.builder_prototypes)
+      if (valid(proto))
+        proto_name = tostr(proto);
+        "Try to get sysobj name";
+        for prop in (properties(this))
+          if (this.(prop) == proto)
+            proto_name = "$" + prop;
+            break;
+          endif
+        endfor
+        desc = `proto.description ! ANY => "(no description)"';
+        result = {@result, ["object" -> tostr(proto), "name" -> proto_name, "description" -> desc]};
+      endif
+    endfor
+    return result;
   endverb
 
   verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"

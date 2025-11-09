@@ -6,6 +6,7 @@ object THING
   fertile: true
   readable: true
 
+  property integrated_description (owner: HACKER, flags: "rc") = "";
   property pronouns (owner: HACKER, flags: "rc") = <#28, .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false, .verb_be = "is", .verb_have = "has">;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
@@ -14,6 +15,15 @@ object THING
   verb pronouns (this none this) owner: HACKER flags: "rxd"
     "Return the pronoun set for this object (object or flyweight).";
     return this.pronouns;
+  endverb
+
+  verb integrate_description (this none this) owner: HACKER flags: "rxd"
+    "Return integrated description if set, or false. Integrated descriptions become part of the room description.";
+    desc = this.integrated_description;
+    if (desc && desc != "")
+      return desc;
+    endif
+    return false;
   endverb
 
   verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"

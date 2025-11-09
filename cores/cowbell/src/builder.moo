@@ -438,6 +438,94 @@ object BUILDER
     endtry
   endverb
 
+  verb "@undig @remove-exit @delete-passage" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Remove a passage from the current room to another. Usage: @undig <room>";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    if (!dobjstr)
+      raise(E_INVARG, "Usage: @undig <room>");
+    endif
+    try
+      "Find target room - use dobj if it matched, otherwise search by name";
+      if (typeof(dobj) == OBJ && valid(dobj))
+        target_room = dobj;
+      else
+        "Parser didn't find it, search area's rooms by name";
+        current_room = this.location;
+        area = valid(current_room) ? current_room.location | #-1;
+        if (!valid(area))
+          raise(E_INVARG, "You must be in an area to search for rooms by name.");
+        endif
+        target_room = $match:match_object(dobjstr, area);
+        typeof(target_room) != OBJ && raise(E_INVARG, "That room reference is not an object.");
+      endif
+      !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
+      "Get current room and its area";
+      current_room = this.location;
+      !valid(current_room) && raise(E_INVARG, "You must be in a room to remove passages.");
+      area = current_room.location;
+      !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
+      "Check target room is in same area";
+      target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
+      "Check if passage exists and get labels for reporting";
+      passage = area:passage_for(current_room, target_room);
+      if (!passage)
+        raise(E_INVARG, "No passage found between here and " + tostr(target_room) + ".");
+      endif
+      labels = {};
+      side_a_room = `passage.side_a_room ! ANY => #-1';
+      side_b_room = `passage.side_b_room ! ANY => #-1';
+      if (current_room == side_a_room)
+        label = `passage.side_a_label ! ANY => ""';
+        if (label != "")
+          labels = {@labels, label};
+        endif
+      elseif (current_room == side_b_room)
+        label = `passage.side_b_label ! ANY => ""';
+        if (label != "")
+          labels = {@labels, label};
+        endif
+      endif
+      if (target_room == side_a_room)
+        label = `passage.side_a_label ! ANY => ""';
+        if (label != "" && !(label in labels))
+          labels = {@labels, label};
+        endif
+      elseif (target_room == side_b_room)
+        label = `passage.side_b_label ! ANY => ""';
+        if (label != "" && !(label in labels))
+          labels = {@labels, label};
+        endif
+      endif
+      "Check permissions - must have dig_from on current room";
+      from_room_cap = this:find_capability_for(current_room, 'room);
+      from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
+      try
+        from_room_target:check_can_dig_from();
+      except (E_PERM)
+        message = $grant_utils:format_denial(current_room, 'room, {'dig_from});
+        raise(E_PERM, message);
+      endtry
+      "Remove passage via area using capability if we have one";
+      area_cap = this:find_capability_for(area, 'area);
+      area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
+      result = area_target:remove_passage(from_room_target, target_room);
+      "Report success";
+      if (result)
+        label_str = length(labels) > 0 ? " (" + labels:join("/") + ")" | "";
+        message = "Removed passage" + label_str + " to " + tostr(target_room) + ".";
+        this:inform_current($event:mk_info(this, message));
+        return true;
+      else
+        raise(E_INVARG, "Failed to remove passage (may have already been removed).");
+      endif
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
   verb _parse_dig_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Parse @dig direction spec. Returns map with 'oneway, 'from_dir, 'to_dir.";
     caller == this || raise(E_PERM);
@@ -578,5 +666,43 @@ object BUILDER
     set_task_perms(this);
     {target_obj, new_description} = args;
     target_obj.description = new_description;
+  endverb
+
+  verb "@integrate" (any as any) owner: HACKER flags: "rd"
+    "Set object integrated description. Usage: @integrate <object> as <description>";
+    caller == this || raise(E_PERM);
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, "Usage: @integrate <object> as <description>");
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      if (!this.wizard && target_obj.owner != this)
+        raise(E_PERM, "You do not have permission to set integrated description on " + tostr(target_obj) + ".");
+      endif
+      new_description = iobjstr:trim();
+      this:_do_set_integrated_description(target_obj, new_description);
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      if (new_description == "")
+        message = "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
+      else
+        message = "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "): \"" + new_description + "\"";
+      endif
+      this:inform_current($event:mk_info(this, message));
+      return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb _do_set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to set object integrated description with elevated permissions";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    {target_obj, new_description} = args;
+    target_obj.integrated_description = new_description;
   endverb
 endobject

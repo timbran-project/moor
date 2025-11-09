@@ -43,3 +43,5 @@ define MR_WELCOME = #49;
 define DATA_VISOR = #50;
 define WEARABLE = #51;
 define ANSI = #52;
+define ARCHITECTS_COMPASS = #53;
+define LLM_WEARABLE = #54;

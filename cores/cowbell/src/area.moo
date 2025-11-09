@@ -227,7 +227,9 @@ object AREA
 
   verb make_room_in (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a new room in this area. Requires 'add_room capability on area.";
+    server_log("make_room_in called");
     set_task_perms(caller_perms());
+    server_log("make_room_in checking permissions");
     {target, perms} = this:check_permissions('add_room);
     {parent_obj} = args;
     "Create room with caller's ownership";
@@ -294,6 +296,32 @@ object AREA
     set_task_perms(perms);
     this:set_passage(room_a, room_b, passage);
     return passage;
+  endverb
+
+  verb remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Remove passage between two rooms. Requires 'remove_passage on area and 'dig_from on source room.";
+    {this, perms} = this:check_permissions('remove_passage);
+    {room_a, room_b} = args;
+    "Extract actual room objects from capabilities if needed";
+    actual_room_a = typeof(room_a) == FLYWEIGHT ? room_a.delegate | room_a;
+    actual_room_b = typeof(room_b) == FLYWEIGHT ? room_b.delegate | room_b;
+    "Check that source room allows digging from it (implies permission to remove passages)";
+    try
+      room_a:check_permissions('dig_from);
+    except (E_PERM)
+      message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_from});
+      raise(E_PERM, message);
+    endtry
+    "Remove the passage with elevated permissions";
+    return this:_do_remove_passage(actual_room_a, actual_room_b, perms);
+  endverb
+
+  verb _do_remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal: Actually remove the passage with elevated permissions.";
+    this:require_caller(this);
+    {room_a, room_b, perms} = args;
+    set_task_perms(perms);
+    return this:clear_passage(room_a, room_b);
   endverb
 
   verb test_connectivity (this none this) owner: HACKER flags: "rxd"

@@ -349,21 +349,47 @@ object PLAYER
     "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
-    response = read(player, metadata);
+    response = read(this, metadata);
     if (response == "yes")
-      player:inform_current($event:mk_info(player, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
       return true;
     elseif (response == "no")
-      player:inform_current($event:mk_info(player, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
       return false;
     elseif (index(response, "alternative: ") == 1)
       alt_text = response[13..$];
-      player:inform_current($event:mk_info(player, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
       return alt_text;
     else
       "Fallback for unexpected responses";
-      player:inform_current($event:mk_info(player, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
       return false;
     endif
+  endverb
+
+  verb prompt (this none this) owner: HACKER flags: "rxd"
+    "Show an open-ended prompt and return the user's text response.";
+    "Returns: string (user's response) or false if cancelled/empty";
+    "NOTE: Uses yes_no_alternative with hidden buttons to get text input until web client supports input_type: text";
+    {question, ?placeholder = "Enter your response..."} = args;
+    metadata = {{"input_type", "yes_no_alternative"}, {"prompt", question}, {"alternative_label", "Your response:"}, {"alternative_placeholder", placeholder}};
+    response = read(this, metadata);
+    "If user selected yes/no, treat as cancelled";
+    if (response == "yes" || response == "no")
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      return false;
+    endif
+    "Extract alternative text";
+    if (index(response, "alternative: ") == 1)
+      text = response[13..$];
+      if (!text || text == "")
+        this:inform_current($event:mk_info(this, "No response provided."):with_audience('utility):with_presentation_hint('inset));
+        return false;
+      endif
+      return text;
+    endif
+    "Unexpected response format";
+    this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+    return false;
   endverb
 endobject

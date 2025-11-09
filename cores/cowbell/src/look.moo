@@ -8,7 +8,7 @@ object LOOK
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     {what, @contents} = args;
-    return <this, .what = what, .title = what:name(), .description = what:description(), {@contents}>;
+    return <this, .what = what, .title = what:name(), .description = what:description(), .exits = {}, {@contents}>;
   endverb
 
   verb actor_idle_status (this none this) owner: HACKER flags: "rxd"
@@ -77,6 +77,13 @@ object LOOK
       description = $format.block:mk(description, " ", integrated_str);
     endif
     block_elements = {title, description};
+    "Add exits if present";
+    exits = `this.exits ! E_PROPNF => {}';
+    if (length(exits) > 1)
+      block_elements = {@block_elements, "Exits lead out " + exits:join(", ") + "."};
+    elseif (length(exits) == 1)
+      block_elements = {@block_elements, "An exit leads out " + exits[1] + "."};
+    endif
     if (length(things))
       block_elements = {@block_elements, "You see " + things:english_list() + " here."};
     endif

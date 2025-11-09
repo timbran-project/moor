@@ -24,8 +24,9 @@ object LLM_AGENT_TOOL
     return ["type" -> "function", "function" -> ["name" -> this.name, "description" -> this.description, "parameters" -> this.parameters]];
   endverb
 
-  verb execute (this none this) owner: HACKER flags: "rxd"
+  verb execute (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Execute the tool with given arguments";
+    server_log("LLM_AGENT_TOOL:execute START");
     {args_json} = args;
     "Parse arguments if they're JSON";
     if (typeof(args_json) == STR)
@@ -34,6 +35,8 @@ object LLM_AGENT_TOOL
       tool_args = args_json;
     endif
     "Dispatch to target verb";
-    return this.target_obj:((this.target_verb))(tool_args);
+    result = this.target_obj:((this.target_verb))(tool_args);
+    server_log("LLM_AGENT_TOOL:execute COMPLETED");
+    return result;
   endverb
 endobject

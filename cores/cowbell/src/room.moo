@@ -88,6 +88,46 @@ object ROOM
     endfor
   endverb
 
+  verb look_self (this none this) owner: HACKER flags: "rxd"
+    "Override look_self to include exit information";
+    "Get base look from parent";
+    look_data = pass(@args);
+    "Add exits if we're in an area with passages";
+    area = this.location;
+    if (!valid(area) || !respond_to(area, 'passages_from))
+      return look_data;
+    endif
+    passages = area:passages_from(this);
+    if (!passages || length(passages) == 0)
+      return look_data;
+    endif
+    "Build exits list";
+    exits = {};
+    for passage in (passages)
+      "Determine which side we're on and get the label";
+      side_a_room = `passage.side_a_room ! ANY => #-1';
+      side_b_room = `passage.side_b_room ! ANY => #-1';
+      if (this == side_a_room)
+        label = `passage.side_a_label ! ANY => "passage"';
+        is_open = `passage.is_open ! ANY => false';
+      elseif (this == side_b_room)
+        label = `passage.side_b_label ! ANY => "passage"';
+        is_open = `passage.is_open ! ANY => false';
+      else
+        continue;
+      endif
+      if (label && is_open)
+        exits = {@exits, label};
+      endif
+    endfor
+    "Set exits slot on the flyweight";
+    if (length(exits) > 0)
+      contents_list = flycontents(look_data);
+      return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = look_data.description, .exits = exits, {@contents_list}>;
+    endif
+    return look_data;
+  endverb
+
   verb check_can_dig_from (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if caller can dig passages from this room. Wizard, owner, or 'dig_from capability.";
     set_task_perms(caller_perms());
