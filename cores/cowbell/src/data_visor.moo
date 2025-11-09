@@ -355,6 +355,8 @@ object DATA_VISOR
   verb _tool_dump_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the complete source dump of an object";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
@@ -365,6 +367,8 @@ object DATA_VISOR
   verb _tool_get_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the code of a specific verb on an object";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     o = $match:match_object(obj_str);
@@ -377,6 +381,8 @@ object DATA_VISOR
   verb _tool_list_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all verb names on an object and its ancestors";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
@@ -393,6 +399,8 @@ object DATA_VISOR
   verb _tool_read_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Read a property value from an object";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
     o = $match:match_object(obj_str);
@@ -405,6 +413,8 @@ object DATA_VISOR
   verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Find an object by name, reference, or ID and return detailed information";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     ref = args_map["reference"];
     typeof(ref) == STR || raise(E_TYPE("Expected reference string"));
     try
@@ -429,6 +439,8 @@ object DATA_VISOR
   verb _tool_ancestors (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the ancestor chain of an object";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
@@ -443,6 +455,8 @@ object DATA_VISOR
   verb _tool_descendants (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get all descendants of an object";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
@@ -457,6 +471,8 @@ object DATA_VISOR
   verb _tool_function_info (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get information about a builtin function";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     func_name = args_map["function_name"];
     typeof(func_name) == STR || raise(E_TYPE("Expected function name string"));
     info = function_info(func_name);
@@ -467,6 +483,8 @@ object DATA_VISOR
   verb _tool_list_builtin_functions (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all builtin functions with signatures";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     "Get all function info";
     all_funcs = function_info();
     "Format as readable list";
@@ -502,6 +520,8 @@ object DATA_VISOR
   verb _tool_get_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get specific lines from a verb's code";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     o = $match:match_object(obj_str);
@@ -535,6 +555,8 @@ object DATA_VISOR
   verb _tool_get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get metadata about a verb";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     o = $match:match_object(obj_str);
@@ -562,6 +584,8 @@ object DATA_VISOR
   verb _tool_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get list of properties on an object";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
@@ -580,13 +604,14 @@ object DATA_VISOR
   verb _tool_present_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present formatted verb code to the user";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     show_line_numbers = maphaskey(args_map, "show_line_numbers") ? args_map["show_line_numbers"] | true;
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    wearer = this.location;
     !valid(wearer) && raise(E_INVARG("Visor has no wearer"));
     "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
@@ -629,6 +654,8 @@ object DATA_VISOR
   verb _tool_present_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present a range of verb code to the user";
     {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     start_line = args_map["start_line"];
@@ -637,8 +664,6 @@ object DATA_VISOR
     o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    wearer = this.location;
-    !valid(wearer) && raise(E_INVARG("Visor has no wearer"));
     "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
@@ -696,7 +721,7 @@ object DATA_VISOR
     endtry
   endverb
 
-  verb _format_hud_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
     "Parse JSON string to map";
@@ -736,6 +761,14 @@ object DATA_VISOR
     else
       return $ansi:colorize("[PROCESS]", 'cyan) + " Neural link active: " + $ansi:colorize(tool_name, 'white);
     endif
+  endverb
+
+  verb _action_perms_check (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check visor is worn and return wearer. Caller must set_task_perms(wearer).";
+    wearer = this:wearer();
+    !valid(wearer) && raise(E_PERM, "Visor must be worn to use");
+    wearer.programmer || raise(E_PERM, "The person wearing the visor is not a programmer, and not able to use its functions");
+    return wearer;
   endverb
 
   verb on_wear (this none this) owner: HACKER flags: "rxd"

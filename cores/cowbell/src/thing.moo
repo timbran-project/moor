@@ -32,11 +32,19 @@ object THING
     accept_to = player:acceptable(this);
     if (!accept_to)
       event = $event:mk_no_accept(player, $sub:nc(), " can't put ", $sub:d(), " in ", $sub:ic(), "."):with_dobj(this):with_iobj(player);
-      player:tell(event);
+      player:inform_current(event);
       return;
     endif
     old_location = this.location;
-    this:moveto(player);
+    try
+      this:moveto(player);
+    except e (E_PERM)
+      "Handle permission errors with friendly message";
+      msg = length(e) > 2 ? e[2] | "You don't have permission to take that.";
+      event = $event:mk_error(player, msg):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endtry
     if (isa(old_location, $room))
       event = $event:mk_moved(player, $sub:nc(), " picked up ", $sub:d(), "."):with_dobj(this):with_iobj(player);
       old_location:announce(event);
@@ -46,16 +54,24 @@ object THING
   verb drop (this none none) owner: HACKER flags: "rxd"
     if (this.location != player)
       event = $event:mk_no_drop(player, "You don't have ", $sub:d(), " to drop."):with_dobj(this):with_iobj(player);
-      player:tell(event);
+      player:inform_current(event);
       return;
     endif
     new_location = player.location;
     if (!new_location:acceptable(this))
       event = $event:mk_no_drop(player, "You can't drop ", $sub:d(), " here."):with_dobj(this):with_iobj(player);
-      player:tell(event);
+      player:inform_current(event);
       return;
     endif
-    this:moveto(new_location);
+    try
+      this:moveto(new_location);
+    except e (E_PERM)
+      "Handle permission errors with friendly message";
+      msg = length(e) > 2 ? e[2] | "You don't have permission to drop that.";
+      event = $event:mk_error(player, msg):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endtry
     event = $event:mk_moved(player, $sub:nc(), " dropped ", $sub:d(), "."):with_dobj(this):with_iobj(player);
     new_location:announce(event);
   endverb

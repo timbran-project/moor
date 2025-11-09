@@ -336,4 +336,11 @@ object PLAYER
     "Players are actors.";
     return true;
   endverb
+
+  verb is_wearing (this none this) owner: HACKER flags: "rxd"
+    "Check if player is wearing the specified item.";
+    {item} = args;
+    wearing_list = `this.wearing ! ANY => {}';
+    return typeof(wearing_list) == LIST && is_member(item, wearing_list);
+  endverb
 endobject

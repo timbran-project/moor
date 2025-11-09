@@ -72,4 +72,25 @@ object WEARABLE
     endif
     return name:with_indefinite_article();
   endverb
+
+  verb wearer (this none this) owner: HACKER flags: "rxd"
+    "Return who is wearing this item, or #-1 if not worn";
+    if (valid(this.location) && respond_to(this.location, 'is_wearing))
+      if (`this.location:is_wearing(this) ! ANY => false')
+        return this.location;
+      endif
+    endif
+    return #-1;
+  endverb
+
+  verb moveto (this none this) owner: HACKER flags: "rxd"
+    "Prevent movement of worn items - they must be removed first";
+    {destination} = args;
+    "Check if currently worn";
+    if (valid(this:wearer()))
+      raise(E_PERM, "Cannot move a worn item. Remove it first.");
+    endif
+    "Delegate to parent for permission checks and actual move";
+    return pass(@args);
+  endverb
 endobject
