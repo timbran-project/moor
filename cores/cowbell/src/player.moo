@@ -202,6 +202,11 @@ object PLAYER
     return this.profile_picture;
   endverb
 
+  verb thumbnail (this none this) owner: HACKER flags: "rxd"
+    "Return thumbnail image data for this player.";
+    return this.profile_picture;
+  endverb
+
   verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
     caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(this);

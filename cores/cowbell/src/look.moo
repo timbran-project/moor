@@ -84,7 +84,15 @@ object LOOK
       block_elements = {@block_elements, actors:english_list() + " " + (length(actors) == 1 ? "is" | "are") + " here."};
     endif
     b = $format.block:mk(@block_elements);
-    return $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset);
+    event = $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset);
+    "Add thumbnail if the target has one";
+    if (respond_to(this.what, 'thumbnail))
+      pic = `this.what:thumbnail() ! ANY => false';
+      if (pic && typeof(pic) == LIST && length(pic) == 2)
+        event = event:with_metadata('thumbnail, pic);
+      endif
+    endif
+    return event;
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"
