@@ -29,6 +29,12 @@ object THING
   endverb
 
   verb get (this none none) owner: HACKER flags: "rxd"
+    "Get/take an object";
+    if (this.location == player)
+      event = $event:mk_error(player, "You already have ", $sub:d(), "."):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endif
     accept_to = player:acceptable(this);
     if (!accept_to)
       event = $event:mk_no_accept(player, $sub:nc(), " can't put ", $sub:d(), " in ", $sub:ic(), "."):with_dobj(this):with_iobj(player);
@@ -52,14 +58,15 @@ object THING
   endverb
 
   verb drop (this none none) owner: HACKER flags: "rxd"
+    "Drop an object from inventory";
     if (this.location != player)
-      event = $event:mk_no_drop(player, "You don't have ", $sub:d(), " to drop."):with_dobj(this):with_iobj(player);
+      event = $event:mk_error(player, "You don't have ", $sub:d(), " to drop."):with_dobj(this);
       player:inform_current(event);
       return;
     endif
     new_location = player.location;
     if (!new_location:acceptable(this))
-      event = $event:mk_no_drop(player, "You can't drop ", $sub:d(), " here."):with_dobj(this):with_iobj(player);
+      event = $event:mk_error(player, "You can't drop ", $sub:d(), " here."):with_dobj(this);
       player:inform_current(event);
       return;
     endif
