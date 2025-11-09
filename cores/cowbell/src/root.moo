@@ -568,4 +568,9 @@ object ROOT
     "Return whether this object is an actor (player or NPC). Override in descendants.";
     return false;
   endverb
+
+  verb display_name (this none this) owner: HACKER flags: "rxd"
+    "Return the display name for this object. Defaults to :name() but can be overridden for richer descriptions.";
+    return this:name();
+  endverb
 endobject

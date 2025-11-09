@@ -67,7 +67,7 @@ object LOOK
           actors = {@actors, actor_name};
         endif
       else
-        things = {@things, `o:name() ! E_VERBNF => o.name'};
+        things = {@things, `o:display_name() ! E_VERBNF => o.name'};
       endif
     endfor
     description = this.description;

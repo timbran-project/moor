@@ -46,7 +46,7 @@ object PLAYER
     items = this.contents;
     !items && return this:inform_current($event:mk_inventory(player, "You are not carrying anything."):with_audience('utility));
     "Get item names";
-    item_names = { item:name() for item in (items) };
+    item_names = { item:display_name() for item in (items) };
     "Create and display the inventory list";
     list_obj = $format.list:mk(item_names);
     title_obj = $format.title:mk("Inventory");
@@ -262,7 +262,20 @@ object PLAYER
       time = $str_proto:from_seconds(idle);
       description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
     endif
-    return <$look, .what = this, .title = this:name(), .description = description, {@this.contents}>;
+    "Add wearing information if they're wearing anything";
+    if (this.wearing && length(this.wearing) > 0)
+      wearing_names = {};
+      for item in (this.wearing)
+        if (valid(item))
+          wearing_names = {@wearing_names, item:display_name()};
+        endif
+      endfor
+      if (wearing_names)
+        description = {@description, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " wearing ", wearing_names:english_list(), "."};
+      endif
+    endif
+    "Don't show inventory contents when looking at a player - that's private";
+    return <$look, .what = this, .title = this:name(), .description = description>;
   endverb
 
   verb command_environment (this none this) owner: HACKER flags: "rxd"

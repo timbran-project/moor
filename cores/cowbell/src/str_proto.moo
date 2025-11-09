@@ -1154,4 +1154,21 @@ object STR_PROTO
     aliases != {} && raise(E_ASSERT, "Blank spec should have empty alias list: " + toliteral(aliases));
     return true;
   endverb
+
+  verb indefinite_article (this none this) owner: HACKER flags: "rxd"
+    "Return the appropriate indefinite article ('a' or 'an') for this string based on first letter.";
+    s = args[1];
+    typeof(s) == STR || raise(E_TYPE("Expected string"));
+    !s && return "a";
+    first_char = s[1..1]:lowercase();
+    return first_char in {"a", "e", "i", "o", "u"} ? "an" | "a";
+  endverb
+
+  verb with_indefinite_article (this none this) owner: HACKER flags: "rxd"
+    "Return this string prefixed with the appropriate indefinite article.";
+    s = args[1];
+    typeof(s) == STR || raise(E_TYPE("Expected string"));
+    !s && return "a ";
+    return s:indefinite_article() + " " + s;
+  endverb
 endobject

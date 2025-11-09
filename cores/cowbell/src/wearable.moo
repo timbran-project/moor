@@ -47,4 +47,15 @@ object WEARABLE
     "Called when item is removed - override in children";
     return;
   endverb
+
+  verb display_name (this none this) owner: HACKER flags: "rxd"
+    "Return display name with article for wearing context. Override for custom descriptions.";
+    name = this:name();
+    "Check if name already has an article";
+    lower_name = name:lowercase();
+    if (lower_name:starts_with("the ") || lower_name:starts_with("a ") || lower_name:starts_with("an "))
+      return name;
+    endif
+    return name:with_indefinite_article();
+  endverb
 endobject
