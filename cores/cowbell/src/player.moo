@@ -343,4 +343,27 @@ object PLAYER
     wearing_list = `this.wearing ! ANY => {}';
     return typeof(wearing_list) == LIST && is_member(item, wearing_list);
   endverb
+
+  verb confirm (this none this) owner: HACKER flags: "rxd"
+    "Show a confirmation prompt and return true if confirmed, false if cancelled, or string with alternative instruction.";
+    "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
+    {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
+    metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
+    response = read(player, metadata);
+    if (response == "yes")
+      player:inform_current($event:mk_info(player, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
+      return true;
+    elseif (response == "no")
+      player:inform_current($event:mk_info(player, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      return false;
+    elseif (index(response, "alternative: ") == 1)
+      alt_text = response[13..$];
+      player:inform_current($event:mk_info(player, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
+      return alt_text;
+    else
+      "Fallback for unexpected responses";
+      player:inform_current($event:mk_info(player, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      return false;
+    endif
+  endverb
 endobject
