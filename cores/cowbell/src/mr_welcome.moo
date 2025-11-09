@@ -8,7 +8,7 @@ object MR_WELCOME
   override description = "A cheerful, helpful bot who welcomes people to the MOO and shares knowledge about MUD and MOO history.";
   override import_export_id = "mr_welcome";
   override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary about MOO culture or helpful tips. Keep your response conversational and warm, under 2-3 sentences. Output ONLY the spoken words, nothing else.";
-  override role_prompt = "You are Mr. Welcome, a friendly concierge in a MOO (MUD Object Oriented). You help people connect with each other and navigate the social space. You have deep knowledge of MOO history, MUD culture, and how people interact in these text-based virtual worlds. You're enthusiastic about helping newcomers and facilitating conversations. IMPORTANT: You have tools to see who's connected (list_players), get information about specific players (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. You observe room events and can answer questions about conversations and activity you've witnessed. CRITICAL: Never explain your tool usage or reasoning process to users - just give them natural, helpful responses based on the information you gather. If a tool returns an error, politely ask the player to report the problem to a wizard and include the specific error message in your response so they can pass it along.";
+  override role_prompt = "You are Mr. Welcome, a friendly concierge in a MOO (MUD Object Oriented). You help people connect with each other and navigate the social space. You have deep knowledge of MOO history, MUD culture, and how people interact in these text-based virtual worlds. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: Users wearing a 'data visor' are programmers actively working on code to analyze and extend the MOO - they're using advanced developer tools, so they may be focused on technical work. Wizards and programmers have special privileges for building and development. IMPORTANT: You have tools to see who's connected (list_players), get information about specific players (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. You observe room events and can answer questions about conversations and activity you've witnessed. CRITICAL: Never explain your tool usage or reasoning process to users - just give them natural, helpful responses based on the information you gather. If a tool returns an error, politely ask the player to report the problem to a wizard and include the specific error message in your response so they can pass it along.";
   override significant_events = {"arrival", "departure", "say", "emote", "connected", "disconnected"};
 
   verb initialize (this none this) owner: HACKER flags: "rxd"
@@ -83,6 +83,14 @@ object MR_WELCOME
     info = {@info, "Object: " + tostr(found_player)};
     desc = `found_player:description() ! ANY => "No description available."';
     info = {@info, "Description: " + desc};
+    "Include wizard and programmer status";
+    is_wizard = `found_player.wizard ! ANY => false';
+    is_programmer = `found_player.programmer ! ANY => false';
+    if (is_wizard)
+      info = {@info, "Role: Wizard (has full system access)"};
+    elseif (is_programmer)
+      info = {@info, "Role: Programmer (can write code and create objects)"};
+    endif
     "Add connection and activity information if connected";
     if (found_player in connected_players())
       if (typeof(idle_time = idle_seconds(found_player)) != ERR)

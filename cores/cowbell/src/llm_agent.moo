@@ -103,7 +103,7 @@ object LLM_AGENT
               try
                 "Notify callback if set";
                 if (valid(this.tool_callback))
-                  `this.tool_callback:on_tool_call(tool_name) ! ANY';
+                  this.tool_callback:on_tool_call(tool_name, tool_args);
                 endif
                 result = tool:execute(tool_args);
                 tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> tostr(result)]};

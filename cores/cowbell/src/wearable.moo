@@ -16,7 +16,14 @@ object WEARABLE
     endif
     if (!is_member(this, player.wearing))
       player.wearing = {@player.wearing, this};
-      player:inform_current($event:mk_info(player, "You put on " + this:name() + "."));
+      "Announce to room: 'You put on X' / 'Alice puts on X'";
+      item_desc = this:display_name();
+      event = $event:mk_info(player, $sub:nc(), " ", $sub:self_alt("put on", "puts on"), " ", item_desc, "."):with_this(player.location);
+      if (valid(player.location))
+        player.location:announce(event);
+      else
+        player:inform_current(event);
+      endif
       `this:on_wear() ! E_VERBNF';
     else
       player:inform_current($event:mk_error(player, "You're already wearing that."));
@@ -31,7 +38,14 @@ object WEARABLE
     endif
     if (is_member(this, player.wearing))
       player.wearing = setremove(player.wearing, this);
-      player:inform_current($event:mk_info(player, "You remove " + this:name() + "."));
+      "Announce to room: 'You remove X' / 'Alice removes X'";
+      item_desc = this:display_name();
+      event = $event:mk_info(player, $sub:nc(), " ", $sub:self_alt("remove", "removes"), " ", item_desc, "."):with_this(player.location);
+      if (valid(player.location))
+        player.location:announce(event);
+      else
+        player:inform_current(event);
+      endif
       `this:on_remove() ! E_VERBNF';
     else
       player:inform_current($event:mk_error(player, "You're not wearing that."));
