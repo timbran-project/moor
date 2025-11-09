@@ -131,6 +131,36 @@ object ROOT
     return verbs;
   endverb
 
+  verb all_command_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Get all command verbs (readable, not 'this none this') from this object and ancestors.";
+    "Returns list of {verb_name, definer_object, dobj, prep, iobj} for each command verb.";
+    if (this.owner != caller_perms())
+      set_task_perms(caller_perms());
+    endif
+    result = {};
+    "Walk inheritance chain";
+    for definer in ({this, @ancestors(this)})
+      "Get verbs defined on this specific object";
+      for verb_name in (verbs(definer))
+        "Get verb info to check flags";
+        {verb_owner, verb_flags, verb_names} = verb_info(definer, verb_name);
+        "Skip non-readable verbs";
+        if (!index(verb_flags, "r"))
+          continue;
+        endif
+        "Get verb args to check if it's a command verb";
+        {dobj, prep, iobj} = verb_args(definer, verb_name);
+        "Skip internal 'this none this' verbs";
+        if (dobj == "this" && prep == "none" && iobj == "this")
+          continue;
+        endif
+        "Add to result list";
+        result = {@result, {verb_name, definer, dobj, prep, iobj}};
+      endfor
+    endfor
+    return result;
+  endverb
+
   verb branches (this none this) owner: FORMAT flags: "rxd"
     ":branches(object) => list of all descendants of this object which have children.";
     if (kids = children(object = this))
@@ -532,5 +562,10 @@ object ROOT
     test_player:destroy();
     test_room:destroy();
     return true;
+  endverb
+
+  verb is_actor (this none this) owner: HACKER flags: "rxd"
+    "Return whether this object is an actor (player or NPC). Override in descendants.";
+    return false;
   endverb
 endobject

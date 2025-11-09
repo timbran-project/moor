@@ -15,7 +15,7 @@ object EVENT_RECEIVER
     "Events for `tell`, the content type can only ever be text/plain or text/djot";
     output = event:transform_for(this, "text/djot");
     event_slots = flyslots(event);
-    this:_notify(this, output, false, false, "text/djot", {{'event, event_slots}});
+    this:_notify(this, output, false, false, "text/djot", event_slots);
   endverb
 
   verb inform_connection (this none this) owner: HACKER flags: "rxd"
@@ -28,7 +28,7 @@ object EVENT_RECEIVER
     for content in (contents)
       let {conn, content_type, output} = content;
       let event_slots = flyslots(event);
-      this:_notify(conn, output, false, false, content_type, {{'event, event_slots}});
+      this:_notify(conn, output, false, false, content_type, event_slots);
     endfor
     return 0;
   endverb

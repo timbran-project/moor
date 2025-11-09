@@ -190,4 +190,21 @@ object EVENT
     endfor
     return this:with_metadata('audience, audience);
   endverb
+
+  verb presentation_hint (this none this) owner: HACKER flags: "rxd"
+    "Return the presentation hint stored on this event.";
+    metadata = `this.metadata ! E_PROPNF => {}';
+    for pair in (metadata)
+      if (pair[1] == 'presentation_hint)
+        return pair[2];
+      endif
+    endfor
+    return false;
+  endverb
+
+  verb with_presentation_hint (this none this) owner: HACKER flags: "rxd"
+    "Attach a presentation hint to the event.";
+    {hint} = args;
+    return this:with_metadata('presentation_hint, hint);
+  endverb
 endobject

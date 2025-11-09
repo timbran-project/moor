@@ -37,7 +37,7 @@ object THING
     endif
     old_location = this.location;
     this:moveto(player);
-    if (old_location:isa($room))
+    if (isa(old_location, $room))
       event = $event:mk_moved(player, $sub:nc(), " picked up ", $sub:d(), "."):with_dobj(this):with_iobj(player);
       old_location:announce(event);
     endif

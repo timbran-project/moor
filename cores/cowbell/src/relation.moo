@@ -9,7 +9,7 @@ object RELATION
   override import_export_id = "relation";
 
   verb assert (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Add a tuple to the relation. Returns the UUID of the tuple.";
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
@@ -47,7 +47,7 @@ object RELATION
   endverb
 
   verb retract (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
@@ -89,7 +89,7 @@ object RELATION
   endverb
 
   verb member (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Check if a tuple exists in the relation.";
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
@@ -97,7 +97,7 @@ object RELATION
   endverb
 
   verb select (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
     {position, value} = args;
     typeof(position) == INT || raise(E_TYPE);
@@ -125,7 +125,7 @@ object RELATION
   endverb
 
   verb select_containing (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Find all tuples containing value in any position.";
     {value} = args;
     hash = value_hash(value);
@@ -150,7 +150,7 @@ object RELATION
   endverb
 
   verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Return all tuples in the relation.";
     result = {};
     all_props = properties(this);
@@ -167,7 +167,7 @@ object RELATION
   endverb
 
   verb clear (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Remove all tuples from the relation.";
     for prop in (properties(this))
       prop_str = tostr(prop);

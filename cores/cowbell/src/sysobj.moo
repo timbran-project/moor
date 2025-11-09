@@ -5,9 +5,11 @@ object SYSOBJ
   readable: true
 
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
+  property ansi (owner: HACKER, flags: "r") = ANSI;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property area (owner: HACKER, flags: "r") = AREA;
   property builder (owner: HACKER, flags: "r") = BUILDER;
+  property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
   property failed_match (owner: HACKER, flags: "r") = #-3;
@@ -19,10 +21,14 @@ object SYSOBJ
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
+  property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
+  property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
+  property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
   property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;
+  property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
   property nothing (owner: HACKER, flags: "r") = #-1;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;
@@ -36,6 +42,7 @@ object SYSOBJ
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;
+  property wearable (owner: HACKER, flags: "r") = WEARABLE;
   property wiz (owner: HACKER, flags: "r") = WIZ;
 
   override description = "System object containing global properties and core server event handlers.";

@@ -87,8 +87,9 @@ object BUILDER
       !primary_name && raise(E_INVARG, "Primary object name cannot be blank.");
       new_obj = this:_create_child_object(parent_obj, primary_name, alias_list);
       object_id = tostr(new_obj);
+      parent_name = `parent_obj.name ! ANY => tostr(parent_obj)';
       parent_id = tostr(parent_obj);
-      message = "Created \"" + primary_name + "\" (" + object_id + ") as a child of " + parent_id + ".";
+      message = "Created \"" + primary_name + "\" (" + object_id + ") as a child of \"" + parent_name + "\" (" + parent_id + ").";
       if (alias_list)
         alias_str = alias_list:join(", ");
         message = message + " Aliases: " + alias_str + ".";

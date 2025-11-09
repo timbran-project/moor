@@ -1,0 +1,191 @@
+object LLM_AGENT
+  name: "LLM Agent"
+  parent: ROOT
+  owner: HACKER
+  fertile: true
+  readable: true
+
+  property compaction_threshold (owner: HACKER, flags: "rc") = 0.7;
+  property context (owner: HACKER, flags: "rc") = {};
+  property last_token_usage (owner: HACKER, flags: "rc") = [];
+  property max_iterations (owner: HACKER, flags: "rc") = 10;
+  property min_messages_to_keep (owner: HACKER, flags: "rc") = 15;
+  property system_prompt (owner: HACKER, flags: "rc") = "";
+  property token_limit (owner: HACKER, flags: "rc") = 4000;
+  property tool_callback (owner: HACKER, flags: "rc") = #-1;
+  property tools (owner: HACKER, flags: "rc") = [];
+  property total_tokens_used (owner: HACKER, flags: "rc") = 0;
+
+  override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
+  override import_export_id = "llm_agent";
+
+  verb initialize (this none this) owner: HACKER flags: "rxd"
+    "Initialize context with system prompt when agent is created";
+    if (this.system_prompt)
+      this.context = {["role" -> "system", "content" -> this.system_prompt]};
+    endif
+  endverb
+
+  verb add_tool (this none this) owner: HACKER flags: "rxd"
+    "Register a tool for this agent to use";
+    {tool_name, tool_flyweight} = args;
+    typeof(tool_name) == STR || raise(E_TYPE);
+    typeof(tool_flyweight) == FLYWEIGHT || raise(E_TYPE);
+    new_tools = this.tools;
+    new_tools[tool_name] = tool_flyweight;
+    this.tools = new_tools;
+  endverb
+
+  verb remove_tool (this none this) owner: HACKER flags: "rxd"
+    "Unregister a tool";
+    {tool_name} = args;
+    new_tools = this.tools;
+    new_tools = mapdelete(new_tools, tool_name);
+    this.tools = new_tools;
+  endverb
+
+  verb _add_message (this none this) owner: HACKER flags: "rxd"
+    "Add a message to context";
+    {role, content} = args;
+    this.context = {@this.context, ["role" -> role, "content" -> content]};
+  endverb
+
+  verb _get_tool_schemas (this none this) owner: HACKER flags: "rxd"
+    "Get OpenAI-format tool schemas from registered tools";
+    schemas = {};
+    for tool_name in (mapkeys(this.tools))
+      tool_flyweight = this.tools[tool_name];
+      schemas = {@schemas, tool_flyweight:to_schema()};
+    endfor
+    return schemas;
+  endverb
+
+  verb _find_tool (this none this) owner: HACKER flags: "rxd"
+    "Find a registered tool by name";
+    {tool_name} = args;
+    if (maphaskey(this.tools, tool_name))
+      return this.tools[tool_name];
+    endif
+    return false;
+  endverb
+
+  verb send_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Main entry point: send a message and get response, executing tools as needed";
+    {user_input} = args;
+    this:_add_message("user", user_input);
+    for iteration in [1..this.max_iterations]
+      tool_schemas = this:_get_tool_schemas();
+      response = $llm_client:chat(this.context, false, false, tool_schemas);
+      "Track token usage";
+      if (typeof(response) == MAP && maphaskey(response, "usage"))
+        this.last_token_usage = response["usage"];
+        if (maphaskey(response["usage"], "total_tokens"))
+          this.total_tokens_used = this.total_tokens_used + response["usage"]["total_tokens"];
+        endif
+        "Check if we need to compact";
+        if (this:needs_compaction())
+          this:compact_context();
+        endif
+      endif
+      "Check if response has tool calls";
+      if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+        choice = response["choices"][1];
+        message = choice["message"];
+        "Check for tool calls";
+        if (maphaskey(message, "tool_calls") && message["tool_calls"])
+          "Execute each tool call";
+          tool_results = {};
+          for tool_call in (message["tool_calls"])
+            tool_name = tool_call["function"]["name"];
+            tool_args = tool_call["function"]["arguments"];
+            tool = this:_find_tool(tool_name);
+            if (typeof(tool) == FLYWEIGHT)
+              try
+                "Notify callback if set";
+                if (valid(this.tool_callback))
+                  `this.tool_callback:on_tool_call(tool_name) ! ANY';
+                endif
+                result = tool:execute(tool_args);
+                tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> tostr(result)]};
+              except e (ANY)
+                error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
+                if (length(e) > 2 && typeof(e[3]) == LIST)
+                  error_msg = error_msg + "\nTraceback: " + toliteral(e[3]);
+                endif
+                tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> error_msg]};
+              endtry
+            else
+              tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> "Error: tool not found"]};
+            endif
+          endfor
+          "Add assistant message with tool calls to context";
+          this.context = {@this.context, message};
+          "Add tool results to context";
+          for tool_result in (tool_results)
+            this.context = {@this.context, tool_result};
+          endfor
+        else
+          "No tool calls, this is the final response";
+          final_content = message["content"];
+          this:_add_message("assistant", final_content);
+          return final_content;
+        endif
+      else
+        "Unexpected response format";
+        return tostr(response);
+      endif
+    endfor
+    return "Error: Maximum iterations exceeded";
+  endverb
+
+  verb reset_context (this none this) owner: HACKER flags: "rxd"
+    "Clear context and reinitialize with system prompt";
+    this:initialize();
+    this.total_tokens_used = 0;
+  endverb
+
+  verb needs_compaction (this none this) owner: HACKER flags: "rxd"
+    "Check if context needs compaction based on token usage";
+    if (typeof(this.last_token_usage) != MAP)
+      return false;
+    endif
+    if (!maphaskey(this.last_token_usage, "prompt_tokens"))
+      return false;
+    endif
+    prompt_tokens = this.last_token_usage["prompt_tokens"];
+    threshold = this.token_limit * this.compaction_threshold;
+    return prompt_tokens > threshold;
+  endverb
+
+  verb compact_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Compact context by summarizing old messages and keeping recent ones";
+    if (length(this.context) <= this.min_messages_to_keep + 1)
+      "Not enough messages to compact";
+      return;
+    endif
+    "Separate system prompt, old messages, and recent messages";
+    system_msg = this.context[1];
+    old_messages = (this.context)[2..$ - this.min_messages_to_keep];
+    recent_messages = (this.context)[$ - this.min_messages_to_keep + 1..$];
+    "Build summary request from old messages";
+    summary_context = {system_msg, ["role" -> "user", "content" -> "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages)]};
+    "Get summary from LLM";
+    try
+      response = $llm_client:chat(summary_context, false, false, {});
+      if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+        summary = response["choices"][1]["message"]["content"];
+        "Rebuild context with system prompt, summary, and recent messages";
+        this.context = {system_msg, ["role" -> "assistant", "content" -> "Previous conversation summary: " + summary], @recent_messages};
+        server_log("LLM agent context compacted: " + tostr(length(old_messages)) + " messages summarized, " + tostr(length(recent_messages)) + " kept");
+      else
+        "Compaction failed, fall back to sliding window";
+        this.context = {system_msg, @recent_messages};
+        server_log("LLM agent context compacted: summary failed, using sliding window");
+      endif
+    except e (ANY)
+      "Compaction failed, fall back to sliding window";
+      this.context = {system_msg, @recent_messages};
+      server_log("LLM agent context compaction error: " + toliteral(e));
+    endtry
+  endverb
+endobject

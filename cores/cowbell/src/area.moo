@@ -180,7 +180,8 @@ object AREA
     return room_b in reachable;
   endverb
 
-  verb find_path (this none this) owner: HACKER flags: "rxd"
+  verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
     {start_room, goal_room} = args;
     typeof(start_room) == OBJ && typeof(goal_room) == OBJ || raise(E_TYPE);

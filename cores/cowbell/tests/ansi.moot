@@ -1,0 +1,63 @@
+// test_red_color
+; return $ansi:red() + "red text" + $ansi:reset();
+"\x1b[31mred text\x1b[0m"
+
+// test_blue_color
+; return $ansi:blue() + "blue text" + $ansi:reset();
+"\x1b[34mblue text\x1b[0m"
+
+// test_bold
+; return $ansi:bold() + "bold" + $ansi:reset();
+"\x1b[1mbold\x1b[0m"
+
+// test_italic
+; return $ansi:italic() + "italic" + $ansi:reset();
+"\x1b[3mitalic\x1b[0m"
+
+// test_color_256
+; return $ansi:color_256(196);
+"\x1b[38;5;196m"
+
+// test_bg_color_256
+; return $ansi:bg_color_256(27);
+"\x1b[48;5;27m"
+
+// test_rgb
+; return $ansi:rgb(255, 0, 128);
+"\x1b[38;2;255;0;128m"
+
+// test_bg_rgb
+; return $ansi:bg_rgb(0, 128, 255);
+"\x1b[48;2;0;128;255m"
+
+// test_colorize_symbol
+; return $ansi:colorize("hello", 'red);
+"\x1b[31mhello\x1b[0m"
+
+// test_colorize_int
+; return $ansi:colorize("world", 196);
+"\x1b[38;5;196mworld\x1b[0m"
+
+// test_wrap
+; return $ansi:wrap("text", 'bold, 'red);
+"\x1b[1m\x1b[31mtext\x1b[0m"
+
+// test_strip_simple
+; return $ansi:strip("\x1b[31mred\x1b[0m text");
+"red text"
+
+// test_strip_complex
+; return $ansi:strip("\x1b[1m\x1b[31mbold red\x1b[0m");
+"bold red"
+
+// test_british_colour_256
+; return $ansi:colour_256(196);
+"\x1b[38;5;196m"
+
+// test_british_bg_colour_256
+; return $ansi:bg_colour_256(27);
+"\x1b[48;5;27m"
+
+// test_british_colourize
+; return $ansi:colourize("hello", 'red);
+"\x1b[31mhello\x1b[0m"

@@ -10,6 +10,7 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property pronouns (owner: HACKER, flags: "rc") = <#28, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true, .verb_be = "are", .verb_have = "have">;
+  property wearing (owner: HACKER, flags: "rwc") = {};
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -273,6 +274,10 @@ object PLAYER
     for item in (this.contents)
       valid(item) && (env = {@env, item});
     endfor
+    "Add worn items to environment so their verbs are directly accessible.";
+    for item in (this.wearing)
+      valid(item) && (env = {@env, item});
+    endfor
     "Add location and its contents.";
     if (valid(location))
       env = {@env, location};
@@ -307,5 +312,10 @@ object PLAYER
       return grants_map[target_obj];
     endif
     return false;
+  endverb
+
+  verb is_actor (this none this) owner: HACKER flags: "rxd"
+    "Players are actors.";
+    return true;
   endverb
 endobject
