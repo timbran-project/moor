@@ -35,7 +35,21 @@ object FORMAT_BLOCK
         result = {@result, composed};
       endif
     endfor
-    content_type == 'text_html && return <$html, {"div", {}, result}>;
-    return result;
+    if (content_type == 'text_html)
+      return <$html, {"div", {}, result}>;
+    endif
+    "For text_plain, join elements with newlines to prevent concatenation";
+    text_lines = {};
+    for element in (result)
+      if (typeof(element) == STR)
+        text_lines = {@text_lines, element};
+      elseif (typeof(element) == LIST)
+        "Flatten nested lists";
+        for nested in (element)
+          typeof(nested) == STR && (text_lines = {@text_lines, nested});
+        endfor
+      endif
+    endfor
+    return text_lines:join("\n");
   endverb
 endobject
