@@ -215,6 +215,14 @@ object LLM_WEARABLE
     player:inform_current($event:mk_info(player, "Agent context reset. Conversation history cleared."));
   endverb
 
+  verb recycle (this none this) owner: HACKER flags: "rxd"
+    "Clean up agent when object is destroyed";
+    if (valid(this.agent))
+      this.agent = #-1;
+    endif
+    pass(@args);
+  endverb
+
   verb "use inter*act qu*ery" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Use/interact with the wearable - prompts for input";
     caller == player || raise(E_PERM);

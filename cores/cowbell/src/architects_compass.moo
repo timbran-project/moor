@@ -568,8 +568,20 @@ object ARCHITECTS_COMPASS
     {args_map} = args;
     wearer = this:_action_perms_check();
     parent_spec = args_map["parent"];
-    primary_name = args_map["name"];
-    alias_list = maphaskey(args_map, "aliases") ? args_map["aliases"] | {};
+    name_spec = args_map["name"];
+    extra_aliases = maphaskey(args_map, "aliases") ? args_map["aliases"] | {};
+    "Parse name specification to extract primary name and aliases";
+    parsed = $str_proto:parse_name_aliases(name_spec);
+    primary_name = parsed[1];
+    parsed_aliases = parsed[2];
+    "Combine parsed aliases with any explicitly provided aliases";
+    final_aliases = parsed_aliases;
+    for alias in (extra_aliases)
+      if (!(alias in final_aliases))
+        final_aliases = {@final_aliases, alias};
+      endif
+    endfor
+    !primary_name && raise(E_INVARG, "Object name cannot be blank");
     "Execute via $builder's logic as wearer";
     set_task_perms(wearer);
     parent_obj = $match:match_object(parent_spec, wearer);
@@ -582,11 +594,11 @@ object ARCHITECTS_COMPASS
     endif
     "Create object directly without going through protected $builder method";
     new_obj = parent_obj:create();
-    new_obj:set_name_aliases(primary_name, alias_list);
+    new_obj:set_name_aliases(primary_name, final_aliases);
     new_obj:moveto(wearer);
     message = "Created \"" + primary_name + "\" (" + tostr(new_obj) + ") from " + tostr(parent_obj) + " in your inventory.";
-    if (alias_list)
-      message = message + " Aliases: " + alias_list:join(", ") + ".";
+    if (final_aliases)
+      message = message + " Aliases: " + final_aliases:join(", ") + ".";
     endif
     message = message + " (@create command available)";
     return message;

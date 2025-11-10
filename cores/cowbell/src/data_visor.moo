@@ -448,7 +448,7 @@ object DATA_VISOR
     this.agent:add_tool("describe_object", describe_object_tool);
     grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], compass, "_tool_grant_capability");
     this.agent:add_tool("grant_capability", grant_capability_tool);
-    audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> {}, "required" -> {}], compass, "_tool_audit_owned");
+    audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> [], "required" -> {}], compass, "_tool_audit_owned");
     this.agent:add_tool("audit_owned", audit_owned_tool);
   endverb
 
