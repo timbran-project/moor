@@ -181,7 +181,7 @@ object BUILDER
       max_id = owned[length(owned)];
       header = "Objects owned by " + target_name + " (from " + tostr(min_id) + " to " + tostr(max_id) + "):";
       "Build table rows";
-      headers = {"Size", "Object", "Name", "Location"};
+      headers = {"Name", "Object", "Location", "Size"};
       rows = {};
       total_bytes = 0;
       total_known = 0;
@@ -201,7 +201,7 @@ object BUILDER
         obj_name = `o.name ! ANY => "(no name)"';
         loc = `o.location ! ANY => #-1';
         loc_name = valid(loc) ? `loc.name ! ANY => tostr(loc)' | "Nowhere";
-        rows = {@rows, {size_str, obj_id, obj_name, "[" + loc_name + "]"}};
+        rows = {@rows, {obj_name, obj_id, "[" + loc_name + "]", size_str}};
       endfor
       "Build footer";
       count = length(owned);
