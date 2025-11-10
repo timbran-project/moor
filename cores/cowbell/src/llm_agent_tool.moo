@@ -26,7 +26,6 @@ object LLM_AGENT_TOOL
 
   verb execute (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Execute the tool with given arguments";
-    server_log("LLM_AGENT_TOOL:execute START");
     {args_json} = args;
     "Parse arguments if they're JSON";
     if (typeof(args_json) == STR)
@@ -36,7 +35,6 @@ object LLM_AGENT_TOOL
     endif
     "Dispatch to target verb";
     result = this.target_obj:((this.target_verb))(tool_args);
-    server_log("LLM_AGENT_TOOL:execute COMPLETED");
     return result;
   endverb
 endobject

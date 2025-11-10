@@ -35,6 +35,9 @@ object ARCHITECTS_COMPASS
     "Remove passage tool";
     remove_passage_tool = $llm_agent_tool:mk("remove_passage", "Remove/delete a passage between two rooms. Use this to fix duplicate exits or remove unwanted connections.", ["type" -> "object", "properties" -> ["source_room" -> ["type" -> "string", "description" -> "Source room object number (optional, defaults to wearer's current location)"], "target_room" -> ["type" -> "string", "description" -> "Target room object number to remove passage to"]], "required" -> {"target_room"}], this, "_tool_remove_passage");
     this.agent:add_tool("remove_passage", remove_passage_tool);
+    "Set passage description tool";
+    set_passage_description_tool = $llm_agent_tool:mk("set_passage_description", "Set the narrative description for a passage/exit. This description integrates into the room's look description when ambient mode is enabled.", ["type" -> "object", "properties" -> ["direction" -> ["type" -> "string", "description" -> "Direction/exit label (e.g. 'north', 'up')"], "description" -> ["type" -> "string", "description" -> "Narrative description for the passage (e.g. 'A dark archway opens to the north')"], "source_room" -> ["type" -> "string", "description" -> "Source room (optional, defaults to wearer's current location)"], "ambient" -> ["type" -> "boolean", "description" -> "If true, description integrates into room description. If false, shows in exits list (default: true)"]], "required" -> {"direction", "description"}], this, "_tool_set_passage_description");
+    this.agent:add_tool("set_passage_description", set_passage_description_tool);
     "Create object tool";
     create_object_tool = $llm_agent_tool:mk("create_object", "Create a new object from a parent prototype.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "Parent object (e.g. '$thing', '$wearable')"], "name" -> ["type" -> "string", "description" -> "Primary name"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional alias names"]], "required" -> {"parent", "name"}], this, "_tool_create_object");
     this.agent:add_tool("create_object", create_object_tool);
@@ -95,18 +98,58 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[DIG]", 'bright_green) + " Creating passage: " + $ansi:colorize(tool_args["direction"], 'yellow);
     elseif (tool_name == "remove_passage")
       message = $ansi:colorize("[REMOVE]", 'red) + " Removing passage to: " + $ansi:colorize(tool_args["target_room"], 'white);
+    elseif (tool_name == "set_passage_description")
+      direction = tool_args["direction"];
+      desc_snippet = tool_args["description"];
+      "Truncate long descriptions";
+      if (length(desc_snippet) > 50)
+        desc_snippet = desc_snippet[1..50] + "...";
+      endif
+      ambient = maphaskey(tool_args, "ambient") ? tool_args["ambient"] | true;
+      ambient_label = ambient ? " (ambient)" | " (explicit)";
+      message = $ansi:colorize("[PASSAGE]", 'magenta) + " Setting " + $ansi:colorize(direction, 'yellow) + " description" + ambient_label + ": \"" + desc_snippet + "\"";
     elseif (tool_name == "create_object")
       parent_spec = tool_args["parent"];
       message = $ansi:colorize("[CREATE]", 'cyan) + " Instantiating: " + $ansi:colorize(tool_args["name"], 'white) + " from parent " + $ansi:colorize(parent_spec, 'yellow);
     elseif (tool_name == "recycle_object")
-      message = $ansi:colorize("[RECYCLE]", 'red) + " Destroying: " + $ansi:colorize(tool_args["object"], 'white);
+      obj_spec = tool_args["object"];
+      "Try to resolve object name";
+      display_name = obj_spec;
+      if (obj_spec:starts_with("#"))
+        try
+          set_task_perms(wearer);
+          target_obj = $match:match_object(obj_spec, wearer);
+          if (valid(target_obj))
+            display_name = `target_obj:name() ! ANY => obj_spec';
+          endif
+        except (ANY)
+        endtry
+      endif
+      "Only show obj_spec in parens if different from display_name";
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[RECYCLE]", 'red) + " Destroying: " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "rename_object")
+      obj_spec = tool_args["object"];
+      "Try to resolve object name";
+      display_name = obj_spec;
+      if (obj_spec:starts_with("#"))
+        try
+          set_task_perms(wearer);
+          target_obj = $match:match_object(obj_spec, wearer);
+          if (valid(target_obj))
+            display_name = `target_obj:name() ! ANY => obj_spec';
+          endif
+        except (ANY)
+        endtry
+      endif
+      "Only show obj_spec in parens if different from display_name";
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       new_name = tool_args["name"];
       "Parse just the primary name from name:alias1,alias2 format";
       if (new_name:contains(":"))
         new_name = $str_proto:split(new_name, ":")[1];
       endif
-      message = $ansi:colorize("[RENAME]", 'yellow) + " Renaming " + $ansi:colorize(tool_args["object"], 'white) + " to \"" + new_name + "\"";
+      message = $ansi:colorize("[RENAME]", 'yellow) + " Renaming " + $ansi:colorize(display_name, 'white) + obj_suffix + " to \"" + new_name + "\"";
     elseif (tool_name == "describe_object")
       obj_spec = tool_args["object"];
       "Try to resolve object name";
@@ -126,7 +169,9 @@ object ARCHITECTS_COMPASS
       if (length(desc_snippet) > 50)
         desc_snippet = desc_snippet[1..50] + "...";
       endif
-      message = $ansi:colorize("[DESCRIBE]", 'cyan) + " Setting description for " + $ansi:colorize(display_name, 'white) + " (" + obj_spec + "): \"" + desc_snippet + "\"";
+      "Only show obj_spec in parens if different from display_name";
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[DESCRIBE]", 'cyan) + " Setting description for " + $ansi:colorize(display_name, 'white) + obj_suffix + ": \"" + desc_snippet + "\"";
     elseif (tool_name == "set_integrated_description")
       obj_spec = tool_args["object"];
       "Try to resolve object name";
@@ -141,15 +186,17 @@ object ARCHITECTS_COMPASS
         except (ANY)
         endtry
       endif
+      "Only show obj_spec in parens if different from display_name";
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       integrated_desc = tool_args["integrated_description"];
       if (integrated_desc == "")
-        message = $ansi:colorize("[INTEGRATE]", 'magenta) + " Clearing integrated description for " + $ansi:colorize(display_name, 'white);
+        message = $ansi:colorize("[INTEGRATE]", 'magenta) + " Clearing integrated description for " + $ansi:colorize(display_name, 'white) + obj_suffix;
       else
         "Truncate long descriptions to first 50 chars";
         if (length(integrated_desc) > 50)
           integrated_desc = integrated_desc[1..50] + "...";
         endif
-        message = $ansi:colorize("[INTEGRATE]", 'magenta) + " Setting integrated description for " + $ansi:colorize(display_name, 'white) + ": \"" + integrated_desc + "\"";
+        message = $ansi:colorize("[INTEGRATE]", 'magenta) + " Setting integrated description for " + $ansi:colorize(display_name, 'white) + obj_suffix + ": \"" + integrated_desc + "\"";
       endif
     elseif (tool_name == "grant_capability")
       message = $ansi:colorize("[GRANT]", 'bright_yellow) + " Granting permissions on: " + $ansi:colorize(tool_args["target"], 'white);
@@ -175,7 +222,22 @@ object ARCHITECTS_COMPASS
     elseif (tool_name == "list_prototypes")
       message = $ansi:colorize("[PROTOTYPES]", 'bright_magenta) + " Listing available object templates";
     elseif (tool_name == "inspect_object")
-      message = $ansi:colorize("[INSPECT]", 'bright_cyan) + " Examining: " + $ansi:colorize(tool_args["object"], 'white);
+      obj_spec = tool_args["object"];
+      "Try to resolve object name";
+      display_name = obj_spec;
+      if (obj_spec:starts_with("#"))
+        try
+          set_task_perms(wearer);
+          target_obj = $match:match_object(obj_spec, wearer);
+          if (valid(target_obj))
+            display_name = `target_obj:name() ! ANY => obj_spec';
+          endif
+        except (ANY)
+        endtry
+      endif
+      "Only show obj_spec in parens if different from display_name";
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[INSPECT]", 'bright_cyan) + " Examining: " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "ask_user")
       question = tool_args["question"];
       "Truncate long questions";
@@ -187,6 +249,13 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[PROCESS]", 'cyan) + " " + tool_name;
     endif
     return message;
+  endverb
+
+  verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
+    "Specify djot rendering for all tool messages to support markdown formatting";
+    {tool_name, tool_args} = args;
+    "All compass tool messages can contain markdown, so render as djot";
+    return {'text_djot, 'text_plain};
   endverb
 
   verb _tool_build_room (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -410,6 +479,116 @@ object ARCHITECTS_COMPASS
     else
       return "Failed to remove passage (may have already been removed).";
     endif
+  endverb
+
+  verb _tool_set_passage_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set description and ambient flag for a passage";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    direction = args_map["direction"];
+    description = args_map["description"];
+    ambient = maphaskey(args_map, "ambient") ? args_map["ambient"] | true;
+    source_spec = maphaskey(args_map, "source_room") ? args_map["source_room"] | "";
+    "Find source room - default to wearer's location if not specified";
+    if (source_spec && source_spec != "")
+      source_room = $match:match_object(source_spec, wearer);
+    else
+      source_room = wearer.location;
+    endif
+    typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
+    valid(source_room) || raise(E_INVARG, "Source room no longer exists");
+    "Get area";
+    area = source_room.location;
+    valid(area) || raise(E_INVARG, "Source room is not in an area");
+    "Find passage matching the direction";
+    passages = area:passages_from(source_room);
+    if (!passages || length(passages) == 0)
+      return "No passages from " + tostr(source_room) + ".";
+    endif
+    "Search for passage matching the direction";
+    target_passage = E_NONE;
+    for p in (passages)
+      "Check if this passage matches the direction";
+      side_a_room = `p.side_a_room ! ANY => #-1';
+      side_b_room = `p.side_b_room ! ANY => #-1';
+      if (source_room == side_a_room)
+        label = `p.side_a_label ! ANY => ""';
+        aliases = `p.side_a_aliases ! ANY => {}';
+      elseif (source_room == side_b_room)
+        label = `p.side_b_label ! ANY => ""';
+        aliases = `p.side_b_aliases ! ANY => {}';
+      else
+        continue;
+      endif
+      "Check if direction matches label or any alias (MOO has case-insensitive comparisons)";
+      if (label == direction)
+        target_passage = p;
+        break;
+      endif
+      for alias in (aliases)
+        if (typeof(alias) == STR && alias == direction)
+          target_passage = p;
+          break;
+        endif
+      endfor
+      if (typeof(target_passage) != ERR)
+        break;
+      endif
+    endfor
+    if (typeof(target_passage) == ERR)
+      return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
+    endif
+    "Check permissions";
+    from_cap = wearer:find_capability_for(source_room, 'room);
+    from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
+    try
+      from_target:check_can_dig_from();
+    except (E_PERM)
+      message = $grant_utils:format_denial(source_room, 'room, {'dig_from});
+      return "Permission denied: " + message;
+    endtry
+    "Determine which side we're on and update the passage";
+    side_a_room = `target_passage.side_a_room ! ANY => #-1';
+    side_b_room = `target_passage.side_b_room ! ANY => #-1';
+    "Passages are flyweights, so we need to rebuild them";
+    if (typeof(target_passage) == FLYWEIGHT)
+      "Get all current properties";
+      room_a = `target_passage.side_a_room ! ANY => #-1';
+      room_b = `target_passage.side_b_room ! ANY => #-1';
+      label_a = `target_passage.side_a_label ! ANY => ""';
+      label_b = `target_passage.side_b_label ! ANY => ""';
+      aliases_a = `target_passage.side_a_aliases ! ANY => {}';
+      aliases_b = `target_passage.side_b_aliases ! ANY => {}';
+      desc_a = `target_passage.side_a_description ! ANY => ""';
+      desc_b = `target_passage.side_b_description ! ANY => ""';
+      ambient_a = `target_passage.side_a_ambient ! ANY => true';
+      ambient_b = `target_passage.side_b_ambient ! ANY => true';
+      is_open = `target_passage.is_open ! ANY => true';
+      "Update the side we're on";
+      if (source_room == side_a_room)
+        desc_a = description;
+        ambient_a = ambient;
+      elseif (source_room == side_b_room)
+        desc_b = description;
+        ambient_b = ambient;
+      endif
+      "Create new passage flyweight with updated values";
+      new_passage = $passage:mk(room_a, label_a, aliases_a, desc_a, ambient_a, room_b, label_b, aliases_b, desc_b, ambient_b, is_open);
+      "Replace the passage in the area";
+      area:update_passage(source_room, room_a == source_room ? room_b | room_a, new_passage);
+    else
+      "It's an object, we can modify properties directly";
+      if (source_room == side_a_room)
+        target_passage.side_a_description = description;
+        target_passage.side_a_ambient = ambient;
+      elseif (source_room == side_b_room)
+        target_passage.side_b_description = description;
+        target_passage.side_b_ambient = ambient;
+      endif
+    endif
+    ambient_str = ambient ? " (ambient - integrates into room description)" | " (explicit - shows in exits list)";
+    return "Set description for '" + direction + "' passage" + ambient_str + ".";
   endverb
 
   verb _tool_create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -840,6 +1019,8 @@ object ARCHITECTS_COMPASS
     wearer = this.location;
     if (valid(wearer))
       wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'query compass' to interact."));
+      "Show available token budget";
+      this:_show_token_usage(wearer);
     endif
   endverb
 
@@ -847,6 +1028,8 @@ object ARCHITECTS_COMPASS
     "Deactivate when removed";
     wearer = this.location;
     if (valid(wearer))
+      "Show token usage before removal";
+      this:_show_token_usage(wearer);
       wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."));
     endif
   endverb

@@ -6,6 +6,9 @@ object PLAYER
   readable: true
 
   property email_address (owner: ARCH_WIZARD, flags: "") = "";
+  property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
+  property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
+  property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
@@ -25,19 +28,73 @@ object PLAYER
   endverb
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Look at an object. Collects the descriptive attributes and then emits them to the player.";
+    "Look at an object or passage direction.";
     if (dobjstr == "")
       target = player.location;
     else
+      "Try matching as object first";
+      target = E_NONE;
       try
         target = $match:match_object(dobjstr, player);
       except e (ANY)
-        return this:inform_current($event:mk_not_found(player, e[2]):with_audience('utility));
+        "Object match failed - try as passage direction";
       endtry
+      "If object match failed, try passage direction";
+      if (typeof(target) == ERR)
+        passage_desc = this:_look_passage(dobjstr);
+        if (passage_desc)
+          return this:inform_current($event:mk_info(player, passage_desc):with_audience('utility):with_presentation_hint('inset));
+        else
+          return this:inform_current($event:mk_not_found(player, "No object or passage found matching '" + dobjstr + "'."):with_audience('utility));
+        endif
+      endif
     endif
     !valid(target) && return this:inform_current(this:msg_no_dobj_match());
     look_d = target:look_self();
     player:inform_current(look_d:into_event():with_audience('utility));
+  endverb
+
+  verb _look_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Look at a passage direction. Returns description string or false if not found.";
+    {direction} = args;
+    current_room = this.location;
+    if (!valid(current_room))
+      return false;
+    endif
+    area = current_room.location;
+    if (!valid(area))
+      return false;
+    endif
+    passages = area:passages_from(current_room);
+    if (!passages || length(passages) == 0)
+      return false;
+    endif
+    "Search for passage matching the direction";
+    for p in (passages)
+      side_a_room = `p.side_a_room ! ANY => #-1';
+      side_b_room = `p.side_b_room ! ANY => #-1';
+      if (current_room == side_a_room)
+        label = `p.side_a_label ! ANY => ""';
+        aliases = `p.side_a_aliases ! ANY => {}';
+        description = `p.side_a_description ! ANY => ""';
+      elseif (current_room == side_b_room)
+        label = `p.side_b_label ! ANY => ""';
+        aliases = `p.side_b_aliases ! ANY => {}';
+        description = `p.side_b_description ! ANY => ""';
+      else
+        continue;
+      endif
+      "Check if direction matches label or any alias";
+      if (label == direction)
+        return description ? description | "You see a passage leading " + label + ".";
+      endif
+      for alias in (aliases)
+        if (typeof(alias) == STR && alias == direction)
+          return description ? description | "You see a passage leading " + label + ".";
+        endif
+      endfor
+    endfor
+    return false;
   endverb
 
   verb "i*nventory" (any none none) owner: HACKER flags: "rd"

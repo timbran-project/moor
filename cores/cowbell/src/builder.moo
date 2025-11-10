@@ -634,25 +634,40 @@ object BUILDER
   endverb
 
   verb "@describe" (any as any) owner: HACKER flags: "rd"
-    "Set object description. Usage: @describe <object> as <description>";
+    "Set object or passage description. Usage: @describe <object or direction> as <description>";
     caller == this || raise(E_PERM);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @describe <object> as <description>");
+      raise(E_INVARG, "Usage: @describe <object or direction> as <description>");
     endif
     try
-      target_obj = $match:match_object(dobjstr, this);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
-      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
-      if (!this.wizard && target_obj.owner != this)
-        raise(E_PERM, "You do not have permission to describe " + tostr(target_obj) + ".");
+      "Try to match as object first, but catch errors";
+      target_obj = false;
+      try
+        target_obj = $match:match_object(dobjstr, this);
+      except (ANY)
+        "Not an object - will try as passage below";
+      endtry
+      if (typeof(target_obj) == OBJ && valid(target_obj))
+        "It's an object - use existing object description logic";
+        if (!this.wizard && target_obj.owner != this)
+          raise(E_PERM, "You do not have permission to describe " + tostr(target_obj) + ".");
+        endif
+        new_description = iobjstr:trim();
+        !new_description && raise(E_INVARG, "Description cannot be blank.");
+        this:_do_describe_object(target_obj, new_description);
+        obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+        message = "Set description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
+        this:inform_current($event:mk_info(this, message));
+        return 1;
+      else
+        "Not an object - try to match as a passage direction";
+        result = this:_do_describe_passage(dobjstr, iobjstr);
+        if (result)
+          return 1;
+        else
+          raise(E_INVARG, "Could not find object or passage matching '" + dobjstr + "'.");
+        endif
       endif
-      new_description = iobjstr:trim();
-      !new_description && raise(E_INVARG, "Description cannot be blank.");
-      this:_do_describe_object(target_obj, new_description);
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      message = "Set description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
-      this:inform_current($event:mk_info(this, message));
-      return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       this:inform_current($event:mk_error(this, message));
@@ -666,6 +681,109 @@ object BUILDER
     set_task_perms(this);
     {target_obj, new_description} = args;
     target_obj.description = new_description;
+  endverb
+
+  verb _do_describe_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to set passage description with elevated permissions. Returns false if passage not found.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    {direction, description_str} = args;
+    direction = direction:trim();
+    description = description_str:trim();
+    !description && raise(E_INVARG, "Description cannot be blank.");
+    "Get current room - this is the player";
+    current_room = this.location;
+    if (!valid(current_room))
+      return false;
+    endif
+    "Get area";
+    area = current_room.location;
+    if (!valid(area))
+      return false;
+    endif
+    "Find passage matching the direction";
+    passages = area:passages_from(current_room);
+    if (!passages || length(passages) == 0)
+      return false;
+    endif
+    "Search for passage matching the direction";
+    target_passage = E_NONE;
+    for p in (passages)
+      "Check if this passage matches the direction";
+      side_a_room = `p.side_a_room ! ANY => #-1';
+      side_b_room = `p.side_b_room ! ANY => #-1';
+      if (current_room == side_a_room)
+        label = `p.side_a_label ! ANY => ""';
+        aliases = `p.side_a_aliases ! ANY => {}';
+      elseif (current_room == side_b_room)
+        label = `p.side_b_label ! ANY => ""';
+        aliases = `p.side_b_aliases ! ANY => {}';
+      else
+        continue;
+      endif
+      "Check if direction matches label or any alias (MOO has case-insensitive comparisons)";
+      if (label == direction)
+        target_passage = p;
+        break;
+      endif
+      for alias in (aliases)
+        if (typeof(alias) == STR && alias == direction)
+          target_passage = p;
+          break;
+        endif
+      endfor
+      if (typeof(target_passage) != ERR)
+        break;
+      endif
+    endfor
+    if (typeof(target_passage) == ERR)
+      return false;
+    endif
+    "Check permissions";
+    cap = this:find_capability_for(current_room, 'room);
+    room_target = typeof(cap) == FLYWEIGHT ? cap | current_room;
+    room_target:check_can_dig_from();
+    "Update passage description (ambient=true by default)";
+    side_a_room = `target_passage.side_a_room ! ANY => #-1';
+    side_b_room = `target_passage.side_b_room ! ANY => #-1';
+    if (typeof(target_passage) == FLYWEIGHT)
+      "Get all current properties";
+      room_a = `target_passage.side_a_room ! ANY => #-1';
+      room_b = `target_passage.side_b_room ! ANY => #-1';
+      label_a = `target_passage.side_a_label ! ANY => ""';
+      label_b = `target_passage.side_b_label ! ANY => ""';
+      aliases_a = `target_passage.side_a_aliases ! ANY => {}';
+      aliases_b = `target_passage.side_b_aliases ! ANY => {}';
+      desc_a = `target_passage.side_a_description ! ANY => ""';
+      desc_b = `target_passage.side_b_description ! ANY => ""';
+      ambient_a = `target_passage.side_a_ambient ! ANY => true';
+      ambient_b = `target_passage.side_b_ambient ! ANY => true';
+      is_open = `target_passage.is_open ! ANY => true';
+      "Update the side we're on";
+      if (current_room == side_a_room)
+        desc_a = description;
+        ambient_a = true;
+      elseif (current_room == side_b_room)
+        desc_b = description;
+        ambient_b = true;
+      endif
+      "Create new passage flyweight with updated values";
+      new_passage = $passage:mk(room_a, label_a, aliases_a, desc_a, ambient_a, room_b, label_b, aliases_b, desc_b, ambient_b, is_open);
+      "Replace the passage in the area";
+      area:update_passage(current_room, room_a == current_room ? room_b | room_a, new_passage);
+    else
+      "It's an object, we can modify properties directly";
+      if (current_room == side_a_room)
+        target_passage.side_a_description = description;
+        target_passage.side_a_ambient = true;
+      elseif (current_room == side_b_room)
+        target_passage.side_b_description = description;
+        target_passage.side_b_ambient = true;
+      endif
+    endif
+    message = "Set ambient description for '" + direction + "' passage: \"" + description + "\"";
+    this:inform_current($event:mk_info(this, message));
+    return true;
   endverb
 
   verb "@integrate" (any as any) owner: HACKER flags: "rd"

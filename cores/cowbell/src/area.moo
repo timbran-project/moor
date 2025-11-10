@@ -298,6 +298,25 @@ object AREA
     return passage;
   endverb
 
+  verb update_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Update an existing passage between two rooms. Requires 'dig_from permission on source room.";
+    set_task_perms(caller_perms());
+    {source_room, dest_room, new_passage} = args;
+    typeof(source_room) == OBJ && typeof(dest_room) == OBJ || raise(E_TYPE);
+    typeof(new_passage) == OBJ || typeof(new_passage) == FLYWEIGHT || raise(E_TYPE);
+    "Extract actual room objects from capabilities if needed";
+    actual_source = typeof(source_room) == FLYWEIGHT ? source_room.delegate | source_room;
+    actual_dest = typeof(dest_room) == FLYWEIGHT ? dest_room.delegate | dest_room;
+    "Check that source room allows digging from it";
+    cap = $builder:find_capability_for(actual_source, 'room);
+    room_target = typeof(cap) == FLYWEIGHT ? cap | actual_source;
+    room_target:check_can_dig_from();
+    "Update the passage using set_passage with elevated permissions";
+    set_task_perms(this.owner);
+    this:set_passage(actual_source, actual_dest, new_passage);
+    return new_passage;
+  endverb
+
   verb remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Remove passage between two rooms. Requires 'remove_passage on area and 'dig_from on source room.";
     {this, perms} = this:check_permissions('remove_passage);

@@ -8,7 +8,7 @@ object LOOK
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     {what, @contents} = args;
-    return <this, .what = what, .title = what:name(), .description = what:description(), .exits = {}, {@contents}>;
+    return <this, .what = what, .title = what:name(), .description = what:description(), .exits = {}, .ambient_passages = {}, {@contents}>;
   endverb
 
   verb actor_idle_status (this none this) owner: HACKER flags: "rxd"
@@ -71,10 +71,19 @@ object LOOK
       endif
     endfor
     description = this.description;
-    if (length(integrated_contents))
-      "Append integrated contents to description";
-      integrated_str = { ic + "." for ic in (integrated_contents) }:join("");
-      description = $format.block:mk(description, " ", integrated_str);
+    "Combine integrated object descriptions and ambient passages into the main paragraph";
+    ambient_passages = `this.ambient_passages ! E_PROPNF => {}';
+    if (length(integrated_contents) || length(ambient_passages))
+      combined_description = description;
+      "Append integrated object descriptions";
+      for ic in (integrated_contents)
+        combined_description = combined_description + "  " + ic;
+      endfor
+      "Append ambient passage descriptions with connector phrase";
+      if (length(ambient_passages))
+        combined_description = combined_description + "  You see " + ambient_passages:english_list() + ".";
+      endif
+      description = combined_description;
     endif
     block_elements = {title, description};
     "Add exits if present";

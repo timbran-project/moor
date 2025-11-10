@@ -58,8 +58,12 @@ object LLM_ROOM_OBSERVER
       poke_event = $event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("poke", "pokes"), " ", this:name(), ".");
       this.location:announce(poke_event);
     endif
+    "Set token owner for budget tracking";
+    this.agent.token_owner = player;
     "Get LLM response";
     response = this.agent:send_message(this.response_prompt);
+    "Show token usage to player";
+    this:_show_token_usage(player);
     "Announce response to room";
     if (valid(this.location))
       say_event = $event:mk_say(this, this:name(), " says, \"", response, "\"");
@@ -95,6 +99,33 @@ object LLM_ROOM_OBSERVER
     "Clear the agent's observation history";
     if (valid(this.agent))
       this.agent:reset_context();
+    endif
+  endverb
+
+  verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display token usage information to the user";
+    {user} = args;
+    if (!valid(this.agent))
+      return;
+    endif
+    set_task_perms(caller_perms());
+    budget = `user.llm_token_budget ! ANY => 20000000';
+    used = `user.llm_tokens_used ! ANY => 0';
+    last_usage = this.agent.last_token_usage;
+    if (typeof(last_usage) == MAP && maphaskey(last_usage, "total_tokens"))
+      last_tokens = last_usage["total_tokens"];
+      remaining = budget - used;
+      percent_used = used * 100 / budget;
+      "Color code based on usage";
+      if (percent_used >= 90)
+        color = 'bright_red;
+      elseif (percent_used >= 75)
+        color = 'yellow;
+      else
+        color = 'dim;
+      endif
+      usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
+      user:inform_current($event:mk_info(user, usage_msg):with_presentation_hint('inset));
     endif
   endverb
 endobject

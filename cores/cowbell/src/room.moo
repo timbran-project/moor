@@ -101,29 +101,40 @@ object ROOM
     if (!passages || length(passages) == 0)
       return look_data;
     endif
-    "Build exits list";
+    "Build exits list and ambient passage descriptions";
     exits = {};
+    ambient_passages = {};
     for passage in (passages)
       "Determine which side we're on and get the label";
       side_a_room = `passage.side_a_room ! ANY => #-1';
       side_b_room = `passage.side_b_room ! ANY => #-1';
       if (this == side_a_room)
         label = `passage.side_a_label ! ANY => "passage"';
+        description = `passage.side_a_description ! ANY => ""';
+        ambient = `passage.side_a_ambient ! ANY => true';
         is_open = `passage.is_open ! ANY => false';
       elseif (this == side_b_room)
         label = `passage.side_b_label ! ANY => "passage"';
+        description = `passage.side_b_description ! ANY => ""';
+        ambient = `passage.side_b_ambient ! ANY => true';
         is_open = `passage.is_open ! ANY => false';
       else
         continue;
       endif
       if (label && is_open)
-        exits = {@exits, label};
+        if (ambient && description)
+          "Ambient passages with descriptions integrate into room description";
+          ambient_passages = {@ambient_passages, description};
+        else
+          "Non-ambient or description-less passages show as simple exits";
+          exits = {@exits, label};
+        endif
       endif
     endfor
-    "Set exits slot on the flyweight";
-    if (length(exits) > 0)
+    "Set exits and ambient_passages slots on the flyweight";
+    if (length(exits) > 0 || length(ambient_passages) > 0)
       contents_list = flycontents(look_data);
-      return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = look_data.description, .exits = exits, {@contents_list}>;
+      return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = look_data.description, .exits = exits, .ambient_passages = ambient_passages, {@contents_list}>;
     endif
     return look_data;
   endverb

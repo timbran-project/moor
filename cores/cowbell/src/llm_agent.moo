@@ -5,6 +5,7 @@ object LLM_AGENT
   fertile: true
   readable: true
 
+  property cancel_requested (owner: HACKER, flags: "rwc") = false;
   property compaction_threshold (owner: HACKER, flags: "rc") = 0.7;
   property context (owner: HACKER, flags: "rc") = {};
   property last_token_usage (owner: HACKER, flags: "rc") = [];
@@ -12,6 +13,7 @@ object LLM_AGENT
   property min_messages_to_keep (owner: HACKER, flags: "rc") = 15;
   property system_prompt (owner: HACKER, flags: "rc") = "";
   property token_limit (owner: HACKER, flags: "rc") = 4000;
+  property token_owner (owner: HACKER, flags: "rc") = #-1;
   property tool_callback (owner: HACKER, flags: "rc") = #-1;
   property tools (owner: HACKER, flags: "rc") = [];
   property total_tokens_used (owner: HACKER, flags: "rc") = 0;
@@ -73,14 +75,58 @@ object LLM_AGENT
     "Main entry point: send a message and get response, executing tools as needed";
     {user_input} = args;
     this:_add_message("user", user_input);
+    "Clear any previous cancellation request at start of new message";
+    this.cancel_requested = false;
     for iteration in [1..this.max_iterations]
+      "Check if cancellation was requested";
+      if (this.cancel_requested)
+        this.cancel_requested = false;
+        return "Operation cancelled by user.";
+      endif
+      "Check player token budget before API call";
+      if (valid(this.token_owner) && is_player(this.token_owner))
+        set_task_perms(caller_perms());
+        budget = `this.token_owner.llm_token_budget ! ANY => 20000000';
+        used = `this.token_owner.llm_tokens_used ! ANY => 0';
+        if (used >= budget)
+          return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
+        endif
+      endif
       tool_schemas = this:_get_tool_schemas();
-      response = $llm_client:chat(this.context, false, false, tool_schemas);
+      "Retry API calls on transient errors (network issues, rate limits, etc.)";
+      max_retries = 3;
+      retry_count = 0;
+      response = false;
+      while (retry_count <= max_retries)
+        try
+          response = $llm_client:chat(this.context, false, false, tool_schemas);
+          "Yield execution after API call to avoid tick limit";
+          suspend(0);
+          break;
+        except e (ANY)
+          retry_count = retry_count + 1;
+          if (retry_count > max_retries)
+            "All retries exhausted, re-raise the error";
+            raise(e);
+          endif
+          "Wait before retrying - exponential backoff";
+          suspend(retry_count);
+        endtry
+      endwhile
       "Track token usage";
       if (typeof(response) == MAP && maphaskey(response, "usage"))
         this.last_token_usage = response["usage"];
         if (maphaskey(response["usage"], "total_tokens"))
-          this.total_tokens_used = this.total_tokens_used + response["usage"]["total_tokens"];
+          tokens_this_call = response["usage"]["total_tokens"];
+          this.total_tokens_used = this.total_tokens_used + tokens_this_call;
+          "Update player's token usage";
+          if (valid(this.token_owner) && is_player(this.token_owner))
+            set_task_perms(caller_perms());
+            this.token_owner.llm_tokens_used = this.token_owner.llm_tokens_used + tokens_this_call;
+            "Log usage with timestamp";
+            usage_entry = ["timestamp" -> time(), "tokens" -> tokens_this_call, "usage" -> response["usage"]];
+            this.token_owner.llm_usage_log = {@this.token_owner.llm_usage_log, usage_entry};
+          endif
         endif
         "Check if we need to compact";
         if (this:needs_compaction())
@@ -106,6 +152,8 @@ object LLM_AGENT
                   this.tool_callback:on_tool_call(tool_name, tool_args);
                 endif
                 result = tool:execute(tool_args);
+                "Yield execution after tool call to avoid tick limit";
+                suspend(0);
                 tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> tostr(result)]};
               except e (ANY)
                 error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
@@ -124,6 +172,8 @@ object LLM_AGENT
           for tool_result in (tool_results)
             this.context = {@this.context, tool_result};
           endfor
+          "Yield before making another API call with tool results";
+          suspend(0);
         else
           "No tool calls, this is the final response";
           final_content = message["content"];

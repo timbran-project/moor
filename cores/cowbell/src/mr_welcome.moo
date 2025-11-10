@@ -201,68 +201,78 @@ object MR_WELCOME
 
   verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Find an object by name in current room";
-    {args_map} = args;
-    object_name = args_map["object_name"];
-    typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
-    current_room = this.location;
-    if (!valid(current_room))
-      return "Error: Mr. Welcome is not in a room";
-    endif
-    "Search in room contents";
-    found = #-1;
-    for item in (current_room:contents())
-      if (valid(item) && item:name():lowercase():contains(object_name:lowercase()))
-        found = item;
-        break;
+    try
+      {args_map} = args;
+      object_name = args_map["object_name"];
+      typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
+      current_room = this.location;
+      if (!valid(current_room))
+        return "Error: Mr. Welcome is not in a room";
       endif
-    endfor
-    if (!valid(found))
-      return "Could not find '" + object_name + "' in " + current_room:name() + ".";
-    endif
-    "Build object information";
-    info = {};
-    info = {@info, "Name: " + found:name()};
-    desc = `found:description() ! ANY => "No description available."';
-    info = {@info, "Description: " + desc};
-    info = {@info, "Location: " + current_room:name()};
-    return info:join("\n");
+      "Search in room contents";
+      found = #-1;
+      room_contents = `current_room:contents() ! ANY => current_room.contents';
+      for item in (room_contents)
+        if (valid(item) && item:name():lowercase():contains(object_name:lowercase()))
+          found = item;
+          break;
+        endif
+      endfor
+      if (!valid(found))
+        return "Could not find '" + object_name + "' in " + current_room:name() + ".";
+      endif
+      "Build object information";
+      info = {};
+      info = {@info, "Name: " + found:name()};
+      desc = `found:description() ! ANY => "No description available."';
+      info = {@info, "Description: " + desc};
+      info = {@info, "Location: " + current_room:name()};
+      return info:join("\n");
+    except e (ANY)
+      return "Error finding object: " + toliteral(e);
+    endtry
   endverb
 
   verb _tool_list_commands (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List command verbs available on an object (includes inherited, readable verbs only)";
-    {args_map} = args;
-    object_name = args_map["object_name"];
-    typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
-    "Find the object first";
-    current_room = this.location;
-    if (!valid(current_room))
-      return "Error: Mr. Welcome is not in a room";
-    endif
-    found = #-1;
-    for item in (current_room:contents())
-      if (valid(item) && item:name():lowercase():contains(object_name:lowercase()))
-        found = item;
-        break;
+    try
+      {args_map} = args;
+      object_name = args_map["object_name"];
+      typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
+      "Find the object first";
+      current_room = this.location;
+      if (!valid(current_room))
+        return "Error: Mr. Welcome is not in a room";
       endif
-    endfor
-    if (!valid(found))
-      return "Could not find '" + object_name + "' in " + current_room:name() + ".";
-    endif
-    "Use ROOT's all_command_verbs to get all inherited command verbs";
-    command_verbs = found:all_command_verbs();
-    result = {};
-    result = {@result, "Commands available for " + found:name() + ":"};
-    if (length(command_verbs) == 0)
-      result = {@result, "  (No commands available)"};
-    else
-      for verb_info in (command_verbs)
-        {verb_name, definer, dobj, prep, iobj} = verb_info;
-        "Show where verb is defined if not on the object itself";
-        source_note = definer == found ? "" | " [from " + definer:name() + "]";
-        result = {@result, "  " + verb_name + " (" + dobj + " " + prep + " " + iobj + ")" + source_note};
+      found = #-1;
+      room_contents = `current_room:contents() ! ANY => current_room.contents';
+      for item in (room_contents)
+        if (valid(item) && item:name():lowercase():contains(object_name:lowercase()))
+          found = item;
+          break;
+        endif
       endfor
-    endif
-    return result:join("\n");
+      if (!valid(found))
+        return "Could not find '" + object_name + "' in " + current_room:name() + ".";
+      endif
+      "Use ROOT's all_command_verbs to get all inherited command verbs";
+      command_verbs = found:all_command_verbs();
+      result = {};
+      result = {@result, "Commands available for " + found:name() + ":"};
+      if (length(command_verbs) == 0)
+        result = {@result, "  (No commands available)"};
+      else
+        for verb_info in (command_verbs)
+          {verb_name, definer, dobj, prep, iobj} = verb_info;
+          "Show where verb is defined if not on the object itself";
+          source_note = definer == found ? "" | " [from " + definer:name() + "]";
+          result = {@result, "  " + verb_name + " (" + dobj + " " + prep + " " + iobj + ")" + source_note};
+        endfor
+      endif
+      return result:join("\n");
+    except e (ANY)
+      return "Error listing commands: " + toliteral(e);
+    endtry
   endverb
 
   verb "ask this about any" (this for any) owner: HACKER flags: "rd"
@@ -287,7 +297,7 @@ object MR_WELCOME
 
   verb on_tool_call (this none this) owner: HACKER flags: "rxd"
     "Callback when agent uses a tool - announce to room";
-    {tool_name} = args;
+    {tool_name, tool_args} = args;
     if (valid(this.location))
       tool_messages = ["list_players" -> "checks who's connected...", "player_info" -> "looks up player information...", "area_map" -> "recalls the rooms in the area...", "find_route" -> "calculates the best route...", "find_object" -> "looks around the room...", "list_commands" -> "examines what can be done..."];
       message = tool_messages[tool_name] || "thinks...";

@@ -39,6 +39,8 @@ object LLM_WEARABLE
     {message, ?tool_name = "TOOL", ?max_continuations = 3} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
+    "Set token owner for budget tracking";
+    this.agent.token_owner = wearer;
     response = this.agent:send_message(message);
     "If we hit max iterations, automatically continue";
     continuations = 0;
@@ -47,7 +49,39 @@ object LLM_WEARABLE
       wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[" + tool_name + "]", 'bright_yellow) + " Complex task detected - continuing automatically... (" + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset));
       response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
     endwhile
+    "Show token usage summary";
+    this:_show_token_usage(wearer);
     return response;
+  endverb
+
+  verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display token usage information to the user";
+    {wearer} = args;
+    if (!valid(this.agent))
+      return;
+    endif
+    set_task_perms(wearer);
+    budget = `wearer.llm_token_budget ! ANY => 20000000';
+    used = `wearer.llm_tokens_used ! ANY => 0';
+    percent_used = used * 100 / budget;
+    "Color code based on usage";
+    if (percent_used >= 90)
+      color = 'bright_red;
+    elseif (percent_used >= 75)
+      color = 'yellow;
+    else
+      color = 'dim;
+    endif
+    "Check if there's been a recent API call";
+    last_usage = this.agent.last_token_usage;
+    if (typeof(last_usage) == MAP && maphaskey(last_usage, "total_tokens"))
+      last_tokens = last_usage["total_tokens"];
+      usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
+    else
+      "No API calls yet, just show budget";
+      usage_msg = $ansi:colorize("[TOKENS]", color) + " Budget: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
+    endif
+    wearer:inform_current($event:mk_info(wearer, usage_msg):with_presentation_hint('inset));
   endverb
 
   verb _tool_explain (this none this) owner: HACKER flags: "rxd"
@@ -66,10 +100,13 @@ object LLM_WEARABLE
     question = args_map["question"];
     typeof(question) == STR || raise(E_TYPE("Expected question string"));
     set_task_perms(wearer);
-    "Use player's prompt method to ask for input";
-    response = wearer:prompt(question);
-    if (typeof(response) != STR)
-      return "User cancelled or provided no response.";
+    "Use direct read() with text input type - simple text field + cancel button";
+    metadata = {{"input_type", "text"}, {"prompt", question}, {"placeholder", "Enter your response..."}};
+    response = read(wearer, metadata);
+    if (typeof(response) != STR || response == "")
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "User cancelled.";
     endif
     return "User response: " + response;
   endverb
@@ -130,14 +167,30 @@ object LLM_WEARABLE
   endverb
 
   verb stop (this none none) owner: HACKER flags: "rd"
-    "Stop the current agent operation and reset context";
+    "Stop the current agent operation without clearing context";
     caller == player || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
     endif
-    "Reset the agent's context to interrupt current operation";
+    "Request cancellation of current operation";
+    this.agent.cancel_requested = true;
+    "Show token usage before stopping";
+    this:_show_token_usage(player);
+    player:inform_current($event:mk_info(player, "Cancellation requested. Agent will stop at next safe point."));
+  endverb
+
+  verb reset (this none none) owner: HACKER flags: "rd"
+    "Reset agent context, clearing conversation history";
+    caller == player || raise(E_PERM);
+    if (!valid(this.agent))
+      player:inform_current($event:mk_error(player, "No agent is currently configured."));
+      return;
+    endif
+    "Show token usage before resetting";
+    this:_show_token_usage(player);
+    "Clear the agent's context";
     this.agent:reset_context();
-    player:inform_current($event:mk_info(player, "Agent operation stopped and context reset."));
+    player:inform_current($event:mk_info(player, "Agent context reset. Conversation history cleared."));
   endverb
 endobject

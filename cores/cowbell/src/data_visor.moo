@@ -844,6 +844,8 @@ object DATA_VISOR
     confirmation_msg = "Delete verb " + tostr(verb_location) + ":" + verb_name + "?\n\nThis cannot be undone.\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -878,6 +880,8 @@ object DATA_VISOR
     "Request confirmation";
     result = wearer:confirm("Accept these changes?");
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -920,6 +924,8 @@ object DATA_VISOR
     confirmation_msg = "Change argument specification for " + tostr(verb_location) + ":" + verb_name + "?\n\nNew argspec: (" + dobj + " " + prep + " " + iobj + ")\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -949,6 +955,8 @@ object DATA_VISOR
     confirmation_msg = "Add property to " + tostr(o) + "?\n\nproperty " + prop_name + " (owner: " + tostr(wearer) + ", flags: \"" + permissions + "\")\nInitial value: " + value_str + "\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -973,6 +981,8 @@ object DATA_VISOR
     confirmation_msg = "Delete property " + tostr(o) + "." + prop_name + "?\n\nThis cannot be undone.\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -1001,6 +1011,8 @@ object DATA_VISOR
     confirmation_msg = "Set property " + tostr(o) + "." + prop_name + "?\n\nOld value: " + toliteral(old_value) + "\nNew value: " + value_str + "\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -1026,23 +1038,28 @@ object DATA_VISOR
     "Request confirmation";
     result = wearer:confirm("Execute this code?");
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
     endif
-    "Execute code with verbosity=1 and output_mode=0 (plain text)";
-    result = eval(code_str, 1, 0);
+    "Execute code with verbosity=1 and output_mode=2 (detailed format)";
+    result = eval(code_str, 1, 2);
     if (result[1])
-      "Success - return the value";
+      "Success - show result to user and return to LLM";
+      result_event = $event:mk_eval_result(wearer, "=> ", $format.code:mk(toliteral(result[2]), 'moo));
+      result_event = result_event:with_presentation_hint('inset);
+      wearer:inform_current(result_event);
       return "Result: " + toliteral(result[2]);
     else
-      "Error - return error details";
+      "Error - show error to user and return to LLM";
       error_content = result[2];
-      if (typeof(error_content) == LIST)
-        return "Error:\n" + error_content:join("\n");
-      else
-        return "Error: " + toliteral(error_content);
-      endif
+      error_text = typeof(error_content) == LIST ? error_content:join("\n") | toliteral(error_content);
+      error_event = $event:mk_eval_error(wearer, $format.code:mk(error_text));
+      error_event = error_event:with_presentation_hint('inset);
+      wearer:inform_current(error_event);
+      return "Error:\n" + error_text;
     endif
   endverb
 
@@ -1074,6 +1091,8 @@ object DATA_VISOR
     confirmation_msg = confirmation_msg + "\n\nObject will be created in your inventory.\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -1110,6 +1129,8 @@ object DATA_VISOR
     confirmation_msg = "Recycle object " + obj_id + " (\"" + obj_name + "\")?\n\nThis will PERMANENTLY DESTROY the object and cannot be undone.\n\nProceed?";
     result = wearer:confirm(confirmation_msg);
     if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
@@ -1200,12 +1221,10 @@ object DATA_VISOR
   endverb
 
   verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
-    "Specify markdown rendering for explain tool messages";
+    "Specify djot rendering for all tool messages to support markdown formatting";
     {tool_name, tool_args} = args;
-    if (tool_name == "explain")
-      return {'text_djot, 'text_plain};
-    endif
-    return {};
+    "All visor tool messages can contain markdown, so render as djot";
+    return {'text_djot, 'text_plain};
   endverb
 
   verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
@@ -1228,6 +1247,8 @@ object DATA_VISOR
       wearer:inform_current($event:mk_info(wearer, "The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in " + $ansi:colorize("electric blue", 'bright_blue) + " and " + $ansi:colorize("green", 'bright_green) + ". The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."));
       wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset));
       wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: query <target>, reset"):with_presentation_hint('inset));
+      "Show available token budget";
+      this:_show_token_usage(wearer);
     endif
   endverb
 
@@ -1235,6 +1256,8 @@ object DATA_VISOR
     "Deactivate the HUD when removed";
     wearer = this.location;
     if (valid(wearer))
+      "Show token usage before removal";
+      this:_show_token_usage(wearer);
       wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset));
       "Narrative visual effect for removal";
       wearer:inform_current($event:mk_info(wearer, "The luminescent display flickers and dims, data streams dissolving into static. The augmented overlay fades from your peripheral vision like phosphor afterimages. As the neural link disconnects, you hear a faint electronic hiss - then silence. The world returns to its unaugmented state."));
