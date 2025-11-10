@@ -9,40 +9,86 @@ object WIZ
   override description = "Generic wizard, parent of all wizards";
   override import_export_id = "wiz";
 
-  verb counter_summary (this none this) owner: HACKER flags: "rxd"
-    {before, after} = args;
-    result = [];
-    for value, key in (before)
-      {bcnt, btotal} = value;
-      {acnt, atotal} = after[key];
-      {cnt, total} = {acnt - bcnt, atotal - btotal};
-      if (cnt == 0)
-        continue;
+  verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "Grant programmer bit to a player";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can grant programmer privileges.");
+    if (!valid(dobj))
+      raise(E_INVARG, "Usage: @programmer <player>");
+    endif
+    if (!is_player(dobj))
+      raise(E_INVARG, tostr(dobj) + " is not a player.");
+    endif
+    if (dobj.programmer)
+      player:inform_current($event:mk_error(player, dobj:name() + " is already a programmer."));
+      return;
+    endif
+    "Check if player has a description";
+    desc = `dobj:description() ! ANY => ""';
+    if (!desc || desc == "")
+      "Get pronouns for proper grammar";
+      pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
+      possessive = `pronouns.possessive ! ANY => "their"';
+      question = "Grant " + dobj:name() + " programmer bit despite " + possessive + " lack of description?";
+      "Use read() for confirmation";
+      metadata = {{"input_type", "confirm"}, {"prompt", question}};
+      response = read(player, metadata);
+      if (typeof(response) != STR || response:lowercase() != "yes")
+        player:inform_current($event:mk_error(player, "Programmer bit not granted."));
+        return;
       endif
-      {avg, cnt} = {total / 1000.0 / cnt, total};
-      result[key] = {avg, cnt};
-    endfor
-    return result;
+    endif
+    "Grant programmer bit and reparent to $prog";
+    dobj.programmer = true;
+    chparent(dobj, $prog);
+    "Announce to room";
+    if (valid(dobj.location))
+      event = $event:mk_info(dobj, dobj:name(), " has been granted programmer privileges and has been reparented to $prog.");
+      dobj.location:announce(event);
+    endif
+    "Confirm to wizard";
+    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " programmer privileges and reparented them to $prog."));
   endverb
 
-  verb "@commit-bench" (none none none) owner: WIZ flags: "rxd"
-    player:tell("Beginning, 100 sequential transactions, writing 100x100 items...");
-    before_cnt = db_counters();
-    start = ftime();
-    this.test = {};
-    for x in [1..100]
-      for y in [1..100]
-        this.test = {@this.test, {x, y}};
-      endfor
-      commit();
-    endfor
-    end = ftime();
-    after_cnt = db_counters();
-    cnt_summary = this:counter_summary(before_cnt, after_cnt);
-    for value, key in (cnt_summary)
-      player:tell(tostr(key) + " => " + tostr(value[1]) + "\u03BCs mean " + tostr(value[2] / 1000.0) + "ms total");
-    endfor
-    player:tell("Took " + tostr(end - start) + "s to write " + tostr(length(this.test)) + " tuples in property in 100 transactions");
-    this.test = {};
+  verb "@builder" (any none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "Grant builder status to a player";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can grant builder status.");
+    if (!valid(dobj))
+      raise(E_INVARG, "Usage: @builder <player>");
+    endif
+    if (!is_player(dobj))
+      raise(E_INVARG, tostr(dobj) + " is not a player.");
+    endif
+    if (isa(dobj, $builder))
+      player:inform_current($event:mk_error(player, dobj:name() + " is already a builder (or descendant of $builder)."));
+      return;
+    endif
+    "Check if player has a description";
+    desc = `dobj:description() ! ANY => ""';
+    if (!desc || desc == "")
+      "Get pronouns for proper grammar";
+      pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
+      possessive = `pronouns.possessive ! ANY => "their"';
+      question = "Grant " + dobj:name() + " builder status despite " + possessive + " lack of description?";
+      "Use read() for confirmation";
+      metadata = {{"input_type", "confirm"}, {"prompt", question}};
+      response = read(player, metadata);
+      if (typeof(response) != STR || response:lowercase() != "yes")
+        player:inform_current($event:mk_error(player, "Builder status not granted."));
+        return;
+      endif
+    endif
+    "Reparent to $builder";
+    chparent(dobj, $builder);
+    "Announce to room";
+    if (valid(dobj.location))
+      event = $event:mk_info(dobj, dobj:name(), " has been granted builder privileges and has been reparented to $builder.");
+      dobj.location:announce(event);
+    endif
+    "Confirm to wizard";
+    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges and reparented them to $builder."));
   endverb
 endobject

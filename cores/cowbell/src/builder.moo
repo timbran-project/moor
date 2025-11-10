@@ -3,37 +3,9 @@ object BUILDER
   parent: PLAYER
   location: FIRST_ROOM
   owner: HACKER
-  programmer: true
+  programmer: false
   readable: true
 
-  property direction_abbrevs (owner: HACKER, flags: "rc") = [
-    "d" -> "down",
-    "down" -> "d",
-    "downstairs" -> "d",
-    "e" -> "east",
-    "east" -> "e",
-    "i" -> "in",
-    "in" -> "i",
-    "n" -> "north",
-    "ne" -> "northeast",
-    "north" -> "n",
-    "northeast" -> "ne",
-    "northwest" -> "nw",
-    "nw" -> "northwest",
-    "o" -> "out",
-    "out" -> "o",
-    "s" -> "south",
-    "se" -> "southeast",
-    "south" -> "s",
-    "southeast" -> "se",
-    "southwest" -> "sw",
-    "sw" -> "southwest",
-    "u" -> "up",
-    "up" -> "u",
-    "upstairs" -> "u",
-    "w" -> "west",
-    "west" -> "w"
-  ];
   property direction_opposites (owner: HACKER, flags: "rc") = [
     "d" -> "u",
     "down" -> "up",
@@ -544,8 +516,8 @@ object BUILDER
       from_dirs = parts[1]:split(",");
       to_dirs = parts[2]:split(",");
       "Expand standard aliases";
-      from_dirs = this:_expand_direction_aliases(from_dirs);
-      to_dirs = this:_expand_direction_aliases(to_dirs);
+      from_dirs = $passage:expand_direction_aliases(from_dirs);
+      to_dirs = $passage:expand_direction_aliases(to_dirs);
       return ['oneway -> is_oneway, 'from_dir -> from_dirs, 'to_dir -> to_dirs];
     endif
     "Single direction - split on commas for aliases";
@@ -554,8 +526,8 @@ object BUILDER
     to_dirs = this:_infer_opposite_directions(from_dirs);
     !to_dirs && raise(E_INVARG, "Can't infer opposite direction for '" + dir_spec + "'. Use 'dir|returndir' syntax.");
     "Expand standard aliases";
-    from_dirs = this:_expand_direction_aliases(from_dirs);
-    to_dirs = this:_expand_direction_aliases(to_dirs);
+    from_dirs = $passage:expand_direction_aliases(from_dirs);
+    to_dirs = $passage:expand_direction_aliases(to_dirs);
     return ['oneway -> is_oneway, 'from_dir -> from_dirs, 'to_dir -> to_dirs];
   endverb
 
@@ -570,24 +542,6 @@ object BUILDER
       endif
       opposite = this.direction_opposites[dir];
       result = {@result, opposite};
-    endfor
-    return result;
-  endverb
-
-  verb _expand_direction_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Expand common directions to include standard aliases.";
-    caller == this || raise(E_PERM);
-    {directions} = args;
-    result = {};
-    for dir in (directions)
-      result = {@result, dir};
-      "Add abbreviation if it exists";
-      if (maphaskey(this.direction_abbrevs, dir))
-        abbrev = this.direction_abbrevs[dir];
-        if (abbrev && !(abbrev in result))
-          result = {@result, abbrev};
-        endif
-      endif
     endfor
     return result;
   endverb

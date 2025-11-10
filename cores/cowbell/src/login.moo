@@ -7,7 +7,7 @@ object LOGIN
 
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
-  property default_player_class (owner: ARCH_WIZARD, flags: "r") = BUILDER;
+  property default_player_class (owner: ARCH_WIZARD, flags: "r") = PLAYER;
   property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = 0;
@@ -308,7 +308,6 @@ object LOGIN
     setup_cap:set_player_flag(1);
     setup_cap:set_owner(new_player);
     setup_cap:set_name_aliases(player_name, {player_name});
-    setup_cap:set_programmer(1);
     if (password_value)
       setup_cap:set_password(password_value);
     endif

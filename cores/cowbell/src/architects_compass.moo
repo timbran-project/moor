@@ -7,6 +7,13 @@ object ARCHITECTS_COMPASS
 
   override description = "A precision instrument for spatial construction and world building. When worn, it provides tools for creating rooms, passages, and objects. Can interface with neural augmentation systems for conversational operation.";
   override import_export_id = "architects_compass";
+  override placeholder_text = "Ask about building rooms, passages, objects...";
+  override processing_message = "Analyzing spatial construction request...";
+  override prompt_color = 'bright_green;
+  override prompt_label = "[COMPASS]";
+  override prompt_text = "Enter building query:";
+  override requires_wearing_only = false;
+  override tool_name = "COMPASS";
 
   verb configure (this none this) owner: HACKER flags: "rxd"
     "Configure agent for conversational use (lazy initialization)";
@@ -206,19 +213,22 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[MAP]", 'bright_cyan) + " Surveying current area";
     elseif (tool_name == "find_route")
       to_room_spec = tool_args["to_room"];
-      "Try to show name if it's an object number";
+      "Try to show name first, then object spec in brackets";
       display_name = to_room_spec;
+      obj_suffix = "";
       if (to_room_spec:starts_with("#"))
         try
           set_task_perms(wearer);
           to_obj = $match:match_object(to_room_spec, wearer);
           if (valid(to_obj))
             display_name = `to_obj:name() ! ANY => to_room_spec';
+            "Only show obj_spec in brackets if different from display_name";
+            obj_suffix = display_name != to_room_spec ? " (" + to_room_spec + ")" | "";
           endif
         except (ANY)
         endtry
       endif
-      message = $ansi:colorize("[ROUTE]", 'bright_cyan) + " Finding path to: " + $ansi:colorize(display_name, 'white);
+      message = $ansi:colorize("[ROUTE]", 'bright_cyan) + " Finding path to: " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "list_prototypes")
       message = $ansi:colorize("[PROTOTYPES]", 'bright_magenta) + " Listing available object templates";
     elseif (tool_name == "inspect_object")
@@ -333,16 +343,22 @@ object ARCHITECTS_COMPASS
     oneway_flag = maphaskey(args_map, "oneway") ? args_map["oneway"] | false;
     "Parse from direction - can include aliases like 'north,n'";
     from_dirs = $str_proto:split(direction, ",");
+    "Expand standard direction aliases (e.g., 'north' -> 'north,n')";
+    from_dirs = $passage:expand_direction_aliases(from_dirs);
     "Parse return direction - infer opposite if not specified";
     to_dirs = {};
     if (!oneway_flag)
       if (return_dir)
         to_dirs = $str_proto:split(return_dir, ",");
+        "Expand aliases for return direction";
+        to_dirs = $passage:expand_direction_aliases(to_dirs);
       else
         "Infer opposite direction";
         opposites = ["north" -> "south", "south" -> "north", "east" -> "west", "west" -> "east", "up" -> "down", "down" -> "up", "in" -> "out", "out" -> "in"];
         if (maphaskey(opposites, from_dirs[1]))
-          to_dirs = {opposites[from_dirs[1]]};
+          inferred_dir = opposites[from_dirs[1]];
+          "Expand aliases for inferred direction";
+          to_dirs = $passage:expand_direction_aliases({inferred_dir});
         else
           to_dirs = {};
         endif
@@ -985,32 +1001,6 @@ object ARCHITECTS_COMPASS
     return result:join("\n");
   endverb
 
-  verb query (this none none) owner: HACKER flags: "rd"
-    "Query the compass - prompts for input";
-    if (!is_member(this, player.wearing) && !is_member(this, player.contents))
-      player:inform_current($event:mk_error(player, "You need to be wearing or carrying the compass to use it."));
-      return;
-    endif
-    if (!valid(this.agent) || this.agent.tool_callback != this)
-      this:configure();
-    endif
-    "Prompt for query text using metadata-based read";
-    metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize("[COMPASS]", 'bright_green) + " Enter building query:"}, {"placeholder", "Ask about building rooms, passages, objects..."}};
-    query = read(player, metadata):trim();
-    if (!query)
-      player:inform_current($event:mk_error(player, "Query cancelled - no input provided."));
-      return;
-    endif
-    player:inform_current($event:mk_info(player, $ansi:colorize("[COMPASS]", 'bright_green) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset));
-    player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " Analyzing spatial construction request..."):with_presentation_hint('inset));
-    response = this:_send_with_continuation(query, "COMPASS", 3);
-    "Display final response";
-    event = $event:mk_info(player, response);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    event = event:with_presentation_hint('inset);
-    player:inform_current(event);
-  endverb
-
   verb on_wear (this none this) owner: HACKER flags: "rxd"
     "Activate when worn";
     if (!valid(this.agent))
@@ -1018,7 +1008,7 @@ object ARCHITECTS_COMPASS
     endif
     wearer = this.location;
     if (valid(wearer))
-      wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'query compass' to interact."));
+      wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'use compass' or 'interact with compass' to begin."));
       "Show available token budget";
       this:_show_token_usage(wearer);
     endif

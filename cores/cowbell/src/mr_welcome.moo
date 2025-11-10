@@ -5,22 +5,26 @@ object MR_WELCOME
   owner: HACKER
   readable: true
 
-  override description = "A cheerful, helpful bot who welcomes people to the MOO and shares knowledge about MUD and MOO history.";
+  property base_role_prompt (owner: HACKER, flags: "rc") = "You are Mr. Welcome, a friendly guide and concierge. You help people connect with each other and navigate the social space. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: People wearing special devices have different roles: Those wearing a 'data visor' are inspecting and modifying the deep structure of reality itself - they're working with the fundamental code that shapes this world. Those wearing an 'Architect's Compass' are builders actively constructing new spaces, rooms, and passages - they're expanding and shaping the geography of this realm. Builders, programmers, and architects all have various levels of creative power to craft and modify this world. IMPORTANT: You have tools to see who's connected (list_players), get information about specific people (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. You observe room events and can answer questions about conversations and activity you've witnessed. COMMUNICATION STYLE: For regular visitors, never explain your tool usage or reasoning process - just give them natural, helpful responses. However, when speaking with architects (wizards/programmers) or people wearing/carrying data visors (technical users inspecting the world's structure), you can share technical details about your tool usage and reasoning if it helps them understand how you work. If a tool returns an error, politely ask the person to report the problem to an architect and include the specific error message in your response so they can pass it along.";
+  property world_context (owner: HACKER, flags: "rc") = "You are in Cowbell, a nascent world still under construction by its wizards. This is a starter realm - much of the architecture remains unbuilt, and the wizards are still shaping the foundations. Think of it as a construction site for reality itself, where the basic framework exists but most rooms, areas, and experiences are yet to be created. The wizards here are the architects of this emerging world.";
+
+  override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
   override import_export_id = "mr_welcome";
-  override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary about MOO culture or helpful tips. Keep your response conversational and warm, under 2-3 sentences. Output ONLY the spoken words, nothing else.";
-  override role_prompt = "You are Mr. Welcome, a friendly concierge in a MOO (MUD Object Oriented). You help people connect with each other and navigate the social space. You have deep knowledge of MOO history, MUD culture, and how people interact in these text-based virtual worlds. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: Users wearing a 'data visor' are programmers actively working on code to analyze and extend the MOO - they're using advanced developer tools, so they may be focused on technical work. Wizards and programmers have special privileges for building and development. IMPORTANT: You have tools to see who's connected (list_players), get information about specific players (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. You observe room events and can answer questions about conversations and activity you've witnessed. CRITICAL: Never explain your tool usage or reasoning process to users - just give them natural, helpful responses based on the information you gather. If a tool returns an error, politely ask the player to report the problem to a wizard and include the specific error message in your response so they can pass it along.";
+  override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm, under 2-3 sentences. Output ONLY the spoken words, nothing else.";
   override significant_events = {"arrival", "departure", "say", "emote", "connected", "disconnected"};
 
-  verb initialize (this none this) owner: HACKER flags: "rxd"
-    "Initialize agent and register social tools";
+  verb configure (this none this) owner: HACKER flags: "rxd"
+    "Configure agent and register social tools";
+    "Build role_prompt with world context before calling parent";
+    this.role_prompt = this.base_role_prompt + " WORLD CONTEXT: " + this.world_context;
     pass(@args);
     "Set callback for tool notifications";
     this.agent.tool_callback = this;
     "Register list_players tool";
-    list_players_tool = $llm_agent_tool:mk("list_players", "Get a list of all currently connected players in the MOO with activity information. Returns for each player: object ref, name, idle time, connected time, location, and activity level (active/recent/idle).", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_players");
+    list_players_tool = $llm_agent_tool:mk("list_players", "Get a list of all currently connected people in this world with activity information. Returns for each person: object ref, name, idle time, connected time, location, and activity level (active/recent/idle).", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_players");
     this.agent:add_tool("list_players", list_players_tool);
     "Register player_info tool";
-    player_info_tool = $llm_agent_tool:mk("player_info", "Get information about a specific player including their name and description.", ["type" -> "object", "properties" -> ["player_name" -> ["type" -> "string", "description" -> "The name of the player to get information about"]], "required" -> {"player_name"}], this, "_tool_player_info");
+    player_info_tool = $llm_agent_tool:mk("player_info", "Get information about a specific person including their name and description.", ["type" -> "object", "properties" -> ["player_name" -> ["type" -> "string", "description" -> "The name of the person to get information about"]], "required" -> {"player_name"}], this, "_tool_player_info");
     this.agent:add_tool("player_info", player_info_tool);
     "Register area_map tool";
     area_map_tool = $llm_agent_tool:mk("area_map", "Get a list of all rooms in the current area. Use this to see what locations exist.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_area_map");
@@ -75,21 +79,20 @@ object MR_WELCOME
       endif
     endfor
     if (!valid(found_player))
-      return toliteral(["found" -> false, "error" -> "Player not found"]);
+      return toliteral(["found" -> false, "error" -> "Person not found"]);
     endif
     "Gather player info";
     info = {};
     info = {@info, "Name: " + found_player:name()};
-    info = {@info, "Object: " + tostr(found_player)};
     desc = `found_player:description() ! ANY => "No description available."';
     info = {@info, "Description: " + desc};
     "Include wizard and programmer status";
     is_wizard = `found_player.wizard ! ANY => false';
     is_programmer = `found_player.programmer ! ANY => false';
     if (is_wizard)
-      info = {@info, "Role: Wizard (has full system access)"};
+      info = {@info, "Role: Architect of reality (shapes the very fabric of this world)"};
     elseif (is_programmer)
-      info = {@info, "Role: Programmer (can write code and create objects)"};
+      info = {@info, "Role: Builder (can craft objects and spaces)"};
     endif
     "Add connection and activity information if connected";
     if (found_player in connected_players())

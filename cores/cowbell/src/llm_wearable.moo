@@ -6,6 +6,13 @@ object LLM_WEARABLE
   readable: true
 
   property agent (owner: HACKER, flags: "r") = #-1;
+  property placeholder_text (owner: HACKER, flags: "rc") = "Ask a question...";
+  property processing_message (owner: HACKER, flags: "rc") = "Processing request...";
+  property prompt_color (owner: HACKER, flags: "rc") = 'bright_cyan;
+  property prompt_label (owner: HACKER, flags: "rc") = "[TOOL]";
+  property prompt_text (owner: HACKER, flags: "rc") = "Enter your query:";
+  property requires_wearing_only (owner: HACKER, flags: "rc") = true;
+  property tool_name (owner: HACKER, flags: "rc") = "TOOL";
 
   override description = "Base prototype for AI-powered wearable tools that use LLM agents for interactive assistance.";
   override import_export_id = "llm_wearable";
@@ -192,5 +199,39 @@ object LLM_WEARABLE
     "Clear the agent's context";
     this.agent:reset_context();
     player:inform_current($event:mk_info(player, "Agent context reset. Conversation history cleared."));
+  endverb
+
+  verb "use inter*act qu*ery" (this none none) owner: HACKER flags: "rd"
+    "Use/interact with the wearable - prompts for input";
+    caller == player || raise(E_PERM);
+    "Check if wearing (and optionally carrying)";
+    wearing_check = is_member(this, player.wearing);
+    carrying_check = !this.requires_wearing_only && is_member(this, player.contents);
+    if (!wearing_check && !carrying_check)
+      error_msg = this.requires_wearing_only ? "You have to wear " + this:name() + " first." | "You have to wear or carry " + this:name() + " first.";
+      player:inform_current($event:mk_error(player, error_msg));
+      return;
+    endif
+    "Configure agent if needed";
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    "Prompt for query text using metadata-based read";
+    metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize(this.prompt_label, this.prompt_color) + " " + this.prompt_text}, {"placeholder", this.placeholder_text}};
+    query = read(player, metadata):trim();
+    if (!query)
+      player:inform_current($event:mk_error(player, "Query cancelled - no input provided."));
+      return;
+    endif
+    "Show received and processing messages";
+    player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset));
+    player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " " + this.processing_message):with_presentation_hint('inset));
+    "Send to agent with continuation support";
+    response = this:_send_with_continuation(query, this.tool_name, 3);
+    "Display final response with djot rendering";
+    event = $event:mk_info(player, response);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    event = event:with_presentation_hint('inset);
+    player:inform_current(event);
   endverb
 endobject

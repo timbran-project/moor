@@ -14,7 +14,7 @@ object LLM_ROOM_OBSERVER
   override description = "Room-observing bot powered by an LLM agent. Watches room events and responds when poked.";
   override import_export_id = "llm_room_observer";
 
-  verb initialize (this none this) owner: HACKER flags: "rxd"
+  verb configure (this none this) owner: HACKER flags: "rxd"
     "Create and configure the internal agent";
     this.agent = $llm_agent:create();
     "Combine base observation mechanics with specific role";
@@ -25,7 +25,7 @@ object LLM_ROOM_OBSERVER
   verb tell (this none this) owner: HACKER flags: "rxd"
     "Receive events from room and pass to agent as observations";
     if (!valid(this.agent))
-      this:initialize();
+      this:configure();
     endif
     {event} = args;
     "Pass event structure as literal for LLM to parse";
@@ -47,7 +47,7 @@ object LLM_ROOM_OBSERVER
   verb poke (this none none) owner: HACKER flags: "rd"
     "Trigger the observer to respond based on accumulated observations";
     if (!valid(this.agent))
-      this:initialize();
+      this:configure();
     endif
     if (length(this.agent.context) <= 1)
       player:inform_current($event:mk_error(player, "No observations to respond to yet."));
@@ -76,7 +76,7 @@ object LLM_ROOM_OBSERVER
   verb maybe_speak (this none this) owner: HACKER flags: "rxd"
     "Evaluate recent observations and speak only if something noteworthy happened";
     if (!valid(this.agent))
-      this:initialize();
+      this:configure();
     endif
     if (length(this.agent.context) <= 1)
       return;
