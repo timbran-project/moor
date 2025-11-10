@@ -47,8 +47,9 @@ object ROOT
     return this:acceptable(@args);
   endverb
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Returns true if the object can accept items. Called by :accept (runtime-initiated) but can also be called elsewhere in scenarios where we are just checking in-advance.";
+    set_task_perms(caller_perms());
     return false;
   endverb
 
@@ -77,13 +78,15 @@ object ROOT
     target.aliases = new_aliases;
   endverb
 
-  verb contents (this none this) owner: HACKER flags: "rxd"
+  verb contents (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Returns a list of the objects that are apparently inside this one.  Don't confuse this with .contents, which is a property kept consistent with .location by the server.  This verb should be used in `VR' situations, for instance when looking in a room, and does not necessarily have anything to do with the value of .contents (although the default implementation does).  `Non-VR' commands (like @contents) should look directly at .contents.";
+    set_task_perms(caller_perms());
     return this.contents;
   endverb
 
-  verb all_contents (this none this) owner: HACKER flags: "rxd"
+  verb all_contents (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return a list of all objects contained (at some level) by this object.";
+    set_task_perms(caller_perms());
     res = {};
     for y in (this.contents)
       res = {@res, y, y:all_contents()};
@@ -91,33 +94,37 @@ object ROOT
     return res;
   endverb
 
-  verb description (this none this) owner: HACKER flags: "rxd"
+  verb description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Returns the external description of the object.";
     return this.description;
   endverb
 
   verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
-    set_task_perms(this);
+    {target, perms} = this:check_permissions('set_description);
+    set_task_perms(perms);
     {description} = args;
     this.description = description;
   endverb
 
-  verb name (this none this) owner: HACKER flags: "rxd"
+  verb name (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Returns the presentation name of the object.";
     return this.name;
   endverb
 
-  verb aliases (this none this) owner: HACKER flags: "rxd"
+  verb aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Returns the aliases of the object.";
     return this.aliases;
   endverb
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     return $look:mk(this, @this.contents);
   endverb
 
-  verb all_verbs (this none this) owner: HACKER flags: "rx"
+  verb all_verbs (this none this) owner: ARCH_WIZARD flags: "rx"
+    set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all verbs.";
     if (this.owner != caller_perms())
       set_task_perms(caller_perms());
@@ -134,6 +141,7 @@ object ROOT
   verb all_command_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get all command verbs (readable, not 'this none this') from this object and ancestors.";
     "Returns list of {verb_name, definer_object, dobj, prep, iobj} for each command verb.";
+    set_task_perms(caller_perms());
     if (this.owner != caller_perms())
       set_task_perms(caller_perms());
     endif
@@ -161,8 +169,9 @@ object ROOT
     return result;
   endverb
 
-  verb branches (this none this) owner: FORMAT flags: "rxd"
+  verb branches (this none this) owner: ARCH_WIZARD flags: "rxd"
     ":branches(object) => list of all descendants of this object which have children.";
+    set_task_perms(caller_perms());
     if (kids = children(object = this))
       s = {object};
       for k in (kids)
@@ -174,10 +183,11 @@ object ROOT
     endif
   endverb
 
-  verb find_verb_definer (this none this) owner: HACKER flags: "rxd"
+  verb find_verb_definer (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find verb on object or its ancestors, returning the object that actually defines the verb.";
     "Uses ancestors() builtin and verb_info() to handle aliases, wildcards, and inheritance.";
     "Usage: obj:find_verb_definer(verb_name)";
+    set_task_perms(caller_perms());
     {verb_name} = args;
     "Check this object first";
     try
@@ -196,6 +206,14 @@ object ROOT
       endtry
     endfor
     return #-1;
+  endverb
+
+  verb estimated_size_bytes (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return a spitball estimate of the in-memory size / on-disk size of this object.";
+    "No guarantee of accuracy and this computation is relatively expensive so use sparingly.";
+    "Caller must own the object or have the arcane powers of a wizard.";
+    (caller == this.owner || caller.wizard) || raise(E_PERM);
+    return object_bytes(this);
   endverb
 
   verb issue_capability (this none this) owner: ARCH_WIZARD flags: "rxd"

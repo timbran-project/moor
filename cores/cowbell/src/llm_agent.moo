@@ -5,31 +5,33 @@ object LLM_AGENT
   fertile: true
   readable: true
 
-  property cancel_requested (owner: HACKER, flags: "rwc") = false;
-  property compaction_threshold (owner: HACKER, flags: "rc") = 0.7;
-  property context (owner: HACKER, flags: "rc") = {};
-  property last_token_usage (owner: HACKER, flags: "rc") = [];
-  property max_iterations (owner: HACKER, flags: "rc") = 10;
-  property min_messages_to_keep (owner: HACKER, flags: "rc") = 15;
-  property system_prompt (owner: HACKER, flags: "rc") = "";
-  property token_limit (owner: HACKER, flags: "rc") = 4000;
-  property token_owner (owner: HACKER, flags: "rc") = #-1;
-  property tool_callback (owner: HACKER, flags: "rc") = #-1;
-  property tools (owner: HACKER, flags: "rc") = [];
-  property total_tokens_used (owner: HACKER, flags: "rc") = 0;
+  property cancel_requested (owner: HACKER, flags: "r") = false;
+  property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
+  property context (owner: ARCH_WIZARD, flags: "") = {};
+  property last_token_usage (owner: ARCH_WIZARD, flags: "") = [];
+  property max_iterations (owner: ARCH_WIZARD, flags: "") = 10;
+  property min_messages_to_keep (owner: ARCH_WIZARD, flags: "") = 15;
+  property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
+  property token_limit (owner: ARCH_WIZARD, flags: "") = 4000;
+  property token_owner (owner: ARCH_WIZARD, flags: "") = #-1;
+  property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
+  property tools (owner: ARCH_WIZARD, flags: "") = [];
+  property total_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
 
   override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
   override import_export_id = "llm_agent";
 
-  verb initialize (this none this) owner: HACKER flags: "rxd"
+  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Initialize context with system prompt when agent is created";
+    this:_challenge_permissions(caller);
     if (this.system_prompt)
       this.context = {["role" -> "system", "content" -> this.system_prompt]};
     endif
   endverb
 
-  verb add_tool (this none this) owner: HACKER flags: "rxd"
+  verb add_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Register a tool for this agent to use";
+    this:_challenge_permissions(caller);
     {tool_name, tool_flyweight} = args;
     typeof(tool_name) == STR || raise(E_TYPE);
     typeof(tool_flyweight) == FLYWEIGHT || raise(E_TYPE);
@@ -38,7 +40,7 @@ object LLM_AGENT
     this.tools = new_tools;
   endverb
 
-  verb remove_tool (this none this) owner: HACKER flags: "rxd"
+  verb remove_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Unregister a tool";
     {tool_name} = args;
     new_tools = this.tools;
@@ -46,14 +48,16 @@ object LLM_AGENT
     this.tools = new_tools;
   endverb
 
-  verb _add_message (this none this) owner: HACKER flags: "rxd"
+  verb add_message (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Add a message to context";
+    this:_challenge_permissions(caller);
     {role, content} = args;
     this.context = {@this.context, ["role" -> role, "content" -> content]};
   endverb
 
-  verb _get_tool_schemas (this none this) owner: HACKER flags: "rxd"
+  verb _get_tool_schemas (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get OpenAI-format tool schemas from registered tools";
+    this:_challenge_permissions(caller);
     schemas = {};
     for tool_name in (mapkeys(this.tools))
       tool_flyweight = this.tools[tool_name];
@@ -62,8 +66,9 @@ object LLM_AGENT
     return schemas;
   endverb
 
-  verb _find_tool (this none this) owner: HACKER flags: "rxd"
+  verb _find_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find a registered tool by name";
+    this:_challenge_permissions(caller);
     {tool_name} = args;
     if (maphaskey(this.tools, tool_name))
       return this.tools[tool_name];
@@ -74,7 +79,8 @@ object LLM_AGENT
   verb send_message (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Main entry point: send a message and get response, executing tools as needed";
     {user_input} = args;
-    this:_add_message("user", user_input);
+    this:_challenge_permissions(caller);
+    this:add_message("user", user_input);
     "Clear any previous cancellation request at start of new message";
     this.cancel_requested = false;
     for iteration in [1..this.max_iterations]
@@ -181,7 +187,7 @@ object LLM_AGENT
         else
           "No tool calls, this is the final response";
           final_content = message["content"];
-          this:_add_message("assistant", final_content);
+          this:add_message("assistant", final_content);
           return final_content;
         endif
       else
@@ -192,14 +198,16 @@ object LLM_AGENT
     return "Error: Maximum iterations exceeded";
   endverb
 
-  verb reset_context (this none this) owner: HACKER flags: "rxd"
+  verb reset_context (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Clear context and reinitialize with system prompt";
+    this:_challenge_permissions(caller);
     this:initialize();
     this.total_tokens_used = 0;
   endverb
 
-  verb needs_compaction (this none this) owner: HACKER flags: "rxd"
+  verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if context needs compaction based on token usage";
+    this:_challenge_permissions(caller);
     if (typeof(this.last_token_usage) != MAP)
       return false;
     endif
@@ -213,6 +221,7 @@ object LLM_AGENT
 
   verb compact_context (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Compact context by summarizing old messages and keeping recent ones";
+    this:_challenge_permissions(caller);
     if (length(this.context) <= this.min_messages_to_keep + 1)
       "Not enough messages to compact";
       return;
@@ -242,4 +251,11 @@ object LLM_AGENT
       server_log("LLM agent context compaction error: " + toliteral(e));
     endtry
   endverb
+
+  verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    {who} = args;
+    who == #-1 || who == this || who.owner == this.owner || who == this.owner || who.wizard || raise(E_PERM);
+    return who;
+  endverb
+
 endobject

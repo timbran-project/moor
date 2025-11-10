@@ -13,8 +13,9 @@ object WEARABLE
     this:do_wear();
   endverb
 
-  verb do_wear (this none this) owner: HACKER flags: "rxd"
+  verb do_wear (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Implementation verb for putting on this wearable item";
+    set_task_perms(caller_perms());
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;
@@ -40,8 +41,9 @@ object WEARABLE
     this:do_remove();
   endverb
 
-  verb do_remove (this none this) owner: HACKER flags: "rxd"
+  verb do_remove (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Implementation verb for removing this wearable item";
+    set_task_perms(caller_perms());
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;
@@ -72,8 +74,9 @@ object WEARABLE
     return;
   endverb
 
-  verb display_name (this none this) owner: HACKER flags: "rxd"
+  verb display_name (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return display name with article for wearing context. Override for custom descriptions.";
+    set_task_perms(caller_perms());
     name = this:name();
     "Check if name already has an article";
     lower_name = name:lowercase();
@@ -83,8 +86,9 @@ object WEARABLE
     return name:with_indefinite_article();
   endverb
 
-  verb wearer (this none this) owner: HACKER flags: "rxd"
+  verb wearer (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return who is wearing this item, or #-1 if not worn";
+    set_task_perms(caller_perms());
     if (valid(this.location) && respond_to(this.location, 'is_wearing))
       if (`this.location:is_wearing(this) ! ANY => false')
         return this.location;
@@ -93,8 +97,9 @@ object WEARABLE
     return #-1;
   endverb
 
-  verb moveto (this none this) owner: HACKER flags: "rxd"
+  verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Prevent movement of worn items - they must be removed first";
+    set_task_perms(caller_perms());
     {destination} = args;
     "Check if currently worn";
     if (valid(this:wearer()))

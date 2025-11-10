@@ -34,11 +34,13 @@ object PROG
     return true;
   endverb
 
-  verb "@edit" (any any any) owner: HACKER flags: "rd"
+  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Edit a verb on an object using the presentation system.";
     "Usage: @edit <object>:<verb> [info]";
     "Examples: @edit #1:look_self, @edit player:tell, @edit $match:match_object info";
     "Check for usage errors";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (!argstr)
       player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> [info]"));
       return;
@@ -113,7 +115,9 @@ object PROG
     return {verb_owner, verb_flags, dobj, prep, iobj, code_lines};
   endverb
 
-  verb "@list" (any any any) owner: HACKER flags: "rd"
+  verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     "List verb code with optional formatting options";
     "Usage: @list <object>:<verb> [with parentheses] [without numbers]";
     if (!argstr)
@@ -195,7 +199,9 @@ object PROG
     add_verb(target_obj, verb_info, verb_args);
   endverb
 
-  verb "@verb" (any any any) owner: HACKER flags: "rd"
+  verb "@verb" (any any any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     "Add a new verb to an object";
     "Usage: @verb object:verb-name(s) [dobj [prep [iobj [permissions [owner]]]]]";
     if (!argstr)
@@ -268,7 +274,9 @@ object PROG
     delete_verb(target_obj, verb_name);
   endverb
 
-  verb "@rmverb" (any any any) owner: HACKER flags: "rd"
+  verb "@rmverb" (any any any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     "Remove a verb from an object";
     "Usage: @rmverb object:verb-name";
     if (!argstr)
@@ -313,7 +321,9 @@ object PROG
     return verbs(target_obj);
   endverb
 
-  verb "@verbs" (any any any) owner: HACKER flags: "rd"
+  verb "@verbs" (any any any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     "List all verbs on an object";
     "Usage: @verbs <object>";
     if (!argstr)
@@ -347,7 +357,9 @@ object PROG
     return properties(target_obj);
   endverb
 
-  verb "@properties @props" (any any any) owner: HACKER flags: "rd"
+  verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     "List all properties on an object";
     "Usage: @properties <object>";
     if (!argstr)
@@ -373,7 +385,9 @@ object PROG
     player:inform_current(listing_event);
   endverb
 
-  verb "@args" (any any any) owner: HACKER flags: "rd"
+  verb "@args" (any any any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     "Change verb argument specifications";
     "Usage: @args object:verb-name dobj [prep [iobj]]";
     if (!argstr)
@@ -447,9 +461,11 @@ object PROG
     return is_clear_property(target_obj, prop_name);
   endverb
 
-  verb "@sh*ow @d*isplay" (any any any) owner: HACKER flags: "rd"
+  verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Display detailed object/property/verb information";
     "Usage: @display <object>[.|,|:|;][property/verb]";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (!argstr)
       player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>[.|,|:|;][property/verb]"));
       return;
@@ -505,7 +521,9 @@ object PROG
     endif
   endverb
 
-  verb _display_property (this none this) owner: HACKER flags: "rxd"
+  verb _display_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, prop_name} = args;
     prop_info = this:_do_get_property_info(target_obj, prop_name);
     {owner, perms} = prop_info;
@@ -521,7 +539,9 @@ object PROG
     player:inform_current($event:mk_info(player, table));
   endverb
 
-  verb _display_inherited_property (this none this) owner: HACKER flags: "rxd"
+  verb _display_inherited_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, prop_name} = args;
     "Find where property is defined";
     current = target_obj;
@@ -539,7 +559,9 @@ object PROG
     this:_display_property(definer, prop_name);
   endverb
 
-  verb _display_all_properties (this none this) owner: HACKER flags: "rxd"
+  verb _display_all_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, include_inherited} = args;
     headers = {"Property", "Owner", "Flags", "Value"};
     rows = {};
@@ -588,7 +610,9 @@ object PROG
     player:inform_current($event:mk_info(player, table));
   endverb
 
-  verb _display_verb (this none this) owner: HACKER flags: "rxd"
+  verb _display_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, verb_name} = args;
     verb_location = target_obj:find_verb_definer(verb_name);
     if (verb_location == #-1)
@@ -604,7 +628,9 @@ object PROG
     player:inform_current($event:mk_info(player, table));
   endverb
 
-  verb _display_inherited_verb (this none this) owner: HACKER flags: "rxd"
+  verb _display_inherited_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, verb_name} = args;
     verb_location = target_obj:find_verb_definer(verb_name);
     if (verb_location == #-1)
@@ -613,7 +639,9 @@ object PROG
     this:_display_verb(verb_location, verb_name);
   endverb
 
-  verb _display_all_verbs (this none this) owner: HACKER flags: "rxd"
+  verb _display_all_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, include_inherited} = args;
     headers = {"Verb", "Owner", "Flags", "Args"};
     rows = {};
@@ -659,7 +687,9 @@ object PROG
     player:inform_current($event:mk_info(player, table));
   endverb
 
-  verb _display_object (this none this) owner: HACKER flags: "rxd"
+  verb _display_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {target_obj} = args;
     "Show object header info, then all properties and verbs";
     obj_name = target_obj.name;

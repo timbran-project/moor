@@ -54,16 +54,18 @@ object SYSOBJ
   override import_export_id = "sysobj";
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "...This code should only be run as a server task...";
-    callers() && return E_PERM;
+    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    callers() && !caller.wizard && return E_PERM;
     args = $login:parse_command(@args);
     return $login:((args[1]))(@listdelete(args, 1));
   endverb
 
-  verb "user_created user_connected" (this none this) owner: HACKER flags: "rxd"
-    "...This code should only be run as a server task...";
-    callers() && return E_PERM;
+  verb "user_created user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called by the server when a user connects...";
+    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    callers() && !caller.wizard && return E_PERM;
     user = args[1];
+    set_task_perms(user);
     if (user < #0)
       return;
     endif
@@ -74,10 +76,12 @@ object SYSOBJ
     `user:anyconfunc() ! E_VERBNF';
   endverb
 
-  verb "user_disconnected user_client_disconnected" (this none this) owner: HACKER flags: "rxd"
-    "...This code should only be run as a server task...";
-    callers() && return E_PERM;
+  verb "user_disconnected user_client_disconnected" (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called when a user disconnects...";
+    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    callers() && !caller.wizard && return E_PERM;
     user = args[1];
+    set_task_perms(user);
     if (user < #0)
       return;
     endif
@@ -87,10 +91,12 @@ object SYSOBJ
     `user:disfunc() ! E_VERBNF';
   endverb
 
-  verb user_reconnected (this none this) owner: HACKER flags: "rxd"
-    "...This code should only be run as a server task...";
-    callers() && return E_PERM;
+  verb user_reconnected (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called when a user re-connects to the system from another session... Which isn't really a thing in mooR, but here for compatibility...";
+    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    callers() && !caller.wizard && return E_PERM;
     user = args[1];
+    set_task_perms(user);
     if (user < #0)
       return;
     endif
@@ -105,8 +111,8 @@ object SYSOBJ
 
   verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Custom command handler which is capable of handling ambiguous object matches by attempting to find matching verb candidates.";
-    "...This code should only be run as a server task...";
-    callers() && return E_PERM;
+    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    callers() && !caller.wizard && return E_PERM;
     "Just choose to ignore empty commands...";
     length(args) == 0 && return true;
     command = argstr;
@@ -163,15 +169,13 @@ object SYSOBJ
     if (typeof(target) != OBJ)
       return recycle(target);
     endif
-    "Wizards can recycle anything directly";
-    if (caller_perms().wizard)
+    "IMPORTANT: Run as the caller, so that the right permissions are applied...";
+    set_task_perms(caller_perms());
+    "Objects not rooted in $root don't have :destroy, allow direct recycle";
+    if (!isa(target, $root))
       return recycle(target);
     endif
-    "Objects not rooted in #1 don't have :destroy, allow direct recycle";
-    if (!(#1 in ancestors(target)))
-      return recycle(target);
-    endif
-    "Check if we're being called from :destroy by examining call stack";
+    "Check if we're being called from :destroy by examining call stack, to avoid cyclic agony and pain...";
     for frame in (callers())
       if (frame[2] == "destroy" && frame[1] == target)
         return recycle(target);
@@ -202,6 +206,9 @@ object SYSOBJ
   endverb
 
   verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called on server start to kick off initial state after being out of existence for a bit...";
+    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    callers() && !caller.wizard && return E_PERM;
     server_log("Core starting...");
     "Issue capability for $login to create players";
     player_class = $login.default_player_class;

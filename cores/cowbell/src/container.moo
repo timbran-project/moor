@@ -14,8 +14,9 @@ object CONTAINER
     return true;
   endverb
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Custom look that shows contents with container-appropriate language";
+    set_task_perms(caller_perms());
     description = this.description;
     contents_list = {};
     for item in (this.contents)
@@ -29,8 +30,9 @@ object CONTAINER
     return <$look, .what = this, .title = this:name(), .description = description>;
   endverb
 
-  verb "get take steal grab" (any from this) owner: HACKER flags: "rd"
+  verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd"
     "Take an object from this container";
+    set_task_perms(caller_perms());
     if (!dobjstr || dobjstr == "")
       event = $event:mk_error(player, "Take what?");
       player:inform_current(event);
@@ -76,8 +78,9 @@ object CONTAINER
     endif
   endverb
 
-  verb put (any in this) owner: HACKER flags: "rd"
+  verb put (any in this) owner: ARCH_WIZARD flags: "rd"
     "Put an object in this container";
+    set_task_perms(caller_perms());
     if (!dobjstr || dobjstr == "")
       event = $event:mk_error(player, "Put what in ", $sub:i(), "?"):with_iobj(this);
       player:inform_current(event);

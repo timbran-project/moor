@@ -73,4 +73,33 @@ object INT_PROTO
     172800:format_time_seconds() != "2d0h" && return E_ASSERT;
     return true;
   endverb
+
+  verb format_bytes (this none this) owner: HACKER flags: "rxd"
+    "Format bytes as human-readable size string";
+    "Usage: bytes_value:format_bytes()";
+    {bytes} = args;
+    typeof(bytes) != INT && raise(E_TYPE, "Method must be called on integer");
+    bytes < 0 && raise(E_INVARG, "Bytes cannot be negative");
+    bytes < 1024 && return "<1K";
+    kb = bytes / 1024;
+    kb < 10 && return " " + tostr(kb) + "K";
+    return tostr(kb) + "K";
+  endverb
+
+  verb test_format_bytes (this none this) owner: HACKER flags: "rxd"
+    "Test byte formatting";
+    "Test less than 1KB";
+    0:format_bytes() != "<1K" && return E_ASSERT;
+    512:format_bytes() != "<1K" && return E_ASSERT;
+    1023:format_bytes() != "<1K" && return E_ASSERT;
+    "Test KB formatting";
+    1024:format_bytes() != " 1K" && return E_ASSERT;
+    5120:format_bytes() != " 5K" && return E_ASSERT;
+    9216:format_bytes() != " 9K" && return E_ASSERT;
+    "Test larger KB values";
+    10240:format_bytes() != "10K" && return E_ASSERT;
+    15360:format_bytes() != "15K" && return E_ASSERT;
+    1048576:format_bytes() != "1024K" && return E_ASSERT;
+    return true;
+  endverb
 endobject

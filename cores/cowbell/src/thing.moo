@@ -12,13 +12,15 @@ object THING
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_id = "thing";
 
-  verb pronouns (this none this) owner: HACKER flags: "rxd"
+  verb pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return the pronoun set for this object (object or flyweight).";
+    set_task_perms(caller_perms());
     return this.pronouns;
   endverb
 
-  verb integrate_description (this none this) owner: HACKER flags: "rxd"
+  verb integrate_description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return integrated description if set, or false. Integrated descriptions become part of the room description.";
+    set_task_perms(caller_perms());
     desc = this.integrated_description;
     if (desc && desc != "")
       return desc;
@@ -26,8 +28,9 @@ object THING
     return false;
   endverb
 
-  verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
+  verb "pronoun_*" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get pronoun from either preset object or custom flyweight.";
+    set_task_perms(caller_perms());
     ptype = tosym(verb[9..length(verb)]);
     p = this:pronouns();
     ptype == 'subject && return p.ps;
@@ -38,8 +41,9 @@ object THING
     raise(E_INVARG);
   endverb
 
-  verb get (this none none) owner: HACKER flags: "rxd"
+  verb get (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Get/take an object";
+    set_task_perms(caller_perms());
     if (this.location == player)
       event = $event:mk_error(player, "You already have ", $sub:d(), "."):with_dobj(this);
       player:inform_current(event);
@@ -67,8 +71,9 @@ object THING
     endif
   endverb
 
-  verb drop (this none none) owner: HACKER flags: "rxd"
+  verb drop (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Drop an object from inventory";
+    set_task_perms(caller_perms());
     if (this.location != player)
       event = $event:mk_error(player, "You don't have ", $sub:d(), " to drop."):with_dobj(this);
       player:inform_current(event);
@@ -93,7 +98,8 @@ object THING
     new_location:announce(event);
   endverb
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     return false;
   endverb
 endobject

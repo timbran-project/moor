@@ -39,8 +39,9 @@ object BUILDER
   override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
   override import_export_id = "builder";
 
-  verb "@create" (any named any) owner: HACKER flags: "rd"
+  verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
     caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @create <parent> named <name[:aliases]>");
     endif
@@ -84,17 +85,6 @@ object BUILDER
     new_obj:set_name_aliases(primary_name, alias_list);
     new_obj:moveto(this);
     return new_obj;
-  endverb
-
-  verb test_create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    new_obj = this:_create_child_object($thing, "Widget", {"gadget"});
-    typeof(new_obj) == OBJ || raise(E_ASSERT("Returned value was not an object: " + toliteral(new_obj)));
-    new_obj.owner != this && raise(E_ASSERT("Builder should own created object"));
-    new_obj.location != this && raise(E_ASSERT("Created object should move into inventory"));
-    new_obj.name != "Widget" && raise(E_ASSERT("Primary name was not applied: " + new_obj.name));
-    new_obj.aliases != {"gadget"} && raise(E_ASSERT("Aliases not applied: " + toliteral(new_obj.aliases)));
-    new_obj:destroy();
-    return true;
   endverb
 
   verb "@recycle @destroy" (any none none) owner: ARCH_WIZARD flags: "rd"
@@ -164,81 +154,67 @@ object BUILDER
     endtry
   endverb
 
-  verb test_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    test_obj = this:_create_child_object($thing, "TestWidget", {"testgadget"});
-    typeof(test_obj) == OBJ || raise(E_ASSERT("Setup: Failed to create test object"));
-    obj_name = test_obj.name;
-    obj_id = tostr(test_obj);
-    test_obj:destroy();
-    valid(test_obj) && raise(E_ASSERT("Object should be invalid after destruction"));
-    return true;
-  endverb
-
-  verb test_capability_building (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Test building with granted capabilities";
-    test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
-    "Create test objects - area, two rooms, and a builder";
-    test_area = create($area);
-    test_room1 = create($room);
-    test_room2 = create($room);
-    test_builder = create($builder);
-    test_room1:moveto(test_area);
-    test_room2:moveto(test_area);
-    "Test 1: Grant area capabilities to builder";
-    $root:grant_capability(test_area, {'add_room, 'create_passage}, test_builder, 'area, test_key);
-    typeof(test_builder.grants_area) == MAP || raise(E_ASSERT("Builder should have grants_area map"));
-    maphaskey(test_builder.grants_area, test_area) || raise(E_ASSERT("Builder should have grant for test_area"));
-    "Test 2: Grant room capabilities";
-    $root:grant_capability(test_room1, {'dig_from}, test_builder, 'room, test_key);
-    $root:grant_capability(test_room2, {'dig_into}, test_builder, 'room, test_key);
-    maphaskey(test_builder.grants_room, test_room1) || raise(E_ASSERT("Builder should have grant for room1"));
-    maphaskey(test_builder.grants_room, test_room2) || raise(E_ASSERT("Builder should have grant for room2"));
-    "Test 3: find_capability_for returns the grants";
-    area_cap = test_builder:find_capability_for(test_area, 'area);
-    typeof(area_cap) == FLYWEIGHT || raise(E_ASSERT("Should find area capability"));
-    area_cap.delegate == test_area || raise(E_ASSERT("Area cap should be for test_area"));
-    room1_cap = test_builder:find_capability_for(test_room1, 'room);
-    typeof(room1_cap) == FLYWEIGHT || raise(E_ASSERT("Should find room1 capability"));
-    room1_cap.delegate == test_room1 || raise(E_ASSERT("Room1 cap should be for test_room1"));
-    "Test 4: Verify capabilities grant expected permissions";
-    {target, perms} = area_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
-    target == test_area || raise(E_ASSERT("Area cap should grant add_room and create_passage"));
-    {target2, perms2} = room1_cap:challenge_for_with_key({'dig_from}, test_key);
-    target2 == test_room1 || raise(E_ASSERT("Room1 cap should grant dig_from"));
-    "Test 5: Capability not found returns false";
-    nonexistent_room = create($room);
-    no_cap = test_builder:find_capability_for(nonexistent_room, 'room);
-    no_cap == false || raise(E_ASSERT("Should return false for room without grant"));
-    "Cleanup";
-    test_area:destroy();
-    test_room1:destroy();
-    test_room2:destroy();
-    test_builder:destroy();
-    nonexistent_room:destroy();
-    return true;
-  endverb
-
-  verb "@audit @owned" (none none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@audit @owned" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show objects owned by a player. Usage: @audit [<player>]";
     caller == this || raise(E_PERM);
-    set_task_perms(caller_perms());
+    set_task_perms(this);
     try
-      owned = sort(owned_objects(this));
+      "Determine which player to audit";
+      if (dobjstr)
+        target = $match:match_object(dobjstr, this);
+        typeof(target) != OBJ && raise(E_INVARG, "That reference is not an object.");
+        !valid(target) && raise(E_INVARG, "That object no longer exists.");
+      else
+        target = this;
+      endif
+      "Get owned objects";
+      owned = sort(owned_objects(target));
       if (!owned)
-        this:inform_current($event:mk_info(this, "You don't own any objects."));
+        target_name = `target.name ! ANY => tostr(target)';
+        message = target == this ? "You don't own any objects." | target_name + " doesn't own any objects.";
+        this:inform_current($event:mk_info(this, message));
         return 0;
       endif
-      headers = {"Object", "Name", "Parent"};
+      "Build header";
+      target_name = `target.name ! ANY => tostr(target)';
+      min_id = owned[1];
+      max_id = owned[length(owned)];
+      header = "Objects owned by " + target_name + " (from " + tostr(min_id) + " to " + tostr(max_id) + "):";
+      "Build table rows";
+      headers = {"Size", "Object", "Name", "Location"};
       rows = {};
+      total_bytes = 0;
+      total_known = 0;
       for o in (owned)
+        "Get object size if available";
+        obj_bytes = `o:estimated_size_bytes() ! ANY => false';
+        "Format size";
+        if (obj_bytes == false)
+          size_str = "unknown";
+        else
+          total_bytes = total_bytes + obj_bytes;
+          total_known = total_known + 1;
+          size_str = obj_bytes:format_bytes();
+        endif
+        "Get object info";
         obj_id = tostr(o);
         obj_name = `o.name ! ANY => "(no name)"';
-        parent_obj = `parent(o) ! ANY => #-1';
-        parent_str = valid(parent_obj) ? tostr(parent_obj) | "(none)";
-        rows = {@rows, {obj_id, obj_name, parent_str}};
+        loc = `o.location ! ANY => #-1';
+        loc_name = valid(loc) ? `loc.name ! ANY => tostr(loc)' | "Nowhere";
+        rows = {@rows, {size_str, obj_id, obj_name, "[" + loc_name + "]"}};
       endfor
+      "Build footer";
+      count = length(owned);
+      footer = tostr(count) + " object" + (count == 1 ? "" | "s") + ".";
+      if (total_known > 0)
+        footer = footer + "  Total bytes: " + tostr(total_bytes) + ".";
+      endif
+      "Output results";
+      this:inform_current($event:mk_info(this, header));
       table_result = $format.table:mk(headers, rows);
       this:inform_current($event:mk_info(this, table_result));
-      return length(owned);
+      this:inform_current($event:mk_info(this, footer));
+      return count;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       this:inform_current($event:mk_error(this, message));
@@ -545,9 +521,10 @@ object BUILDER
     return result;
   endverb
 
-  verb "@rename" (any at any) owner: HACKER flags: "rd"
+  verb "@rename" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Rename an object. Usage: @rename <object> to <name[:aliases]>";
     caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @rename <object> to <name[:aliases]>");
     endif
@@ -586,9 +563,10 @@ object BUILDER
     target_obj:set_name_aliases(new_name, new_aliases);
   endverb
 
-  verb "@describe" (any as any) owner: HACKER flags: "rd"
+  verb "@describe" (any as any) owner: ARCH_WIZARD flags: "rd"
     "Set object or passage description. Usage: @describe <object or direction> as <description>";
     caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @describe <object or direction> as <description>");
     endif
@@ -739,9 +717,10 @@ object BUILDER
     return true;
   endverb
 
-  verb "@integrate" (any as any) owner: HACKER flags: "rd"
+  verb "@integrate" (any as any) owner: ARCH_WIZARD flags: "rd"
     "Set object integrated description. Usage: @integrate <object> as <description>";
     caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @integrate <object> as <description>");
     endif
@@ -775,5 +754,116 @@ object BUILDER
     set_task_perms(this);
     {target_obj, new_description} = args;
     target_obj.integrated_description = new_description;
+  endverb
+
+  verb "@move" (any at any) owner: ARCH_WIZARD flags: "rd"
+    "Move an object to a new location. Usage: @move <object> to <location>";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, "Usage: @move <object> to <location>");
+    endif
+    try
+      "Match the object to move";
+      target_obj = $match:match_object(dobjstr, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That object reference is not valid.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      "Check permissions - must own the object or be a wizard";
+      if (!this.wizard && target_obj.owner != this)
+        raise(E_PERM, "You do not have permission to move " + tostr(target_obj) + ".");
+      endif
+      "Match the destination location";
+      dest_loc = $match:match_object(iobjstr, this);
+      typeof(dest_loc) != OBJ && raise(E_INVARG, "That destination reference is not valid.");
+      !valid(dest_loc) && raise(E_INVARG, "That destination no longer exists.");
+      "Get current location for messaging";
+      old_loc = target_obj.location;
+      is_player = `target_obj.player ! ANY => false';
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      "If it's a player, notify the old location";
+      if (is_player && valid(old_loc))
+        old_loc:announce_all_but({target_obj}, obj_name + " disappears suddenly for parts unknown.");
+      endif
+      "Perform the move";
+      target_obj:moveto(dest_loc);
+      "If it's a player, notify the new location";
+      if (is_player && valid(dest_loc))
+        dest_loc:announce_all_but({target_obj}, obj_name + " materializes out of thin air.");
+      endif
+      "Report success to the builder";
+      dest_name = `dest_loc.name ! ANY => tostr(dest_loc)';
+      message = "Moved " + obj_name + " (" + tostr(target_obj) + ") to " + dest_name + " (" + tostr(dest_loc) + ").";
+      this:inform_current($event:mk_info(this, message));
+      return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return 0;
+    endtry
+  endverb
+
+  verb test_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    test_obj = this:_create_child_object($thing, "TestWidget", {"testgadget"});
+    typeof(test_obj) == OBJ || raise(E_ASSERT("Setup: Failed to create test object"));
+    obj_name = test_obj.name;
+    obj_id = tostr(test_obj);
+    test_obj:destroy();
+    valid(test_obj) && raise(E_ASSERT("Object should be invalid after destruction"));
+    return true;
+  endverb
+
+  verb test_capability_building (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test building with granted capabilities";
+    test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
+    "Create test objects - area, two rooms, and a builder";
+    test_area = create($area);
+    test_room1 = create($room);
+    test_room2 = create($room);
+    test_builder = create($builder);
+    test_room1:moveto(test_area);
+    test_room2:moveto(test_area);
+    "Test 1: Grant area capabilities to builder";
+    $root:grant_capability(test_area, {'add_room, 'create_passage}, test_builder, 'area, test_key);
+    typeof(test_builder.grants_area) == MAP || raise(E_ASSERT("Builder should have grants_area map"));
+    maphaskey(test_builder.grants_area, test_area) || raise(E_ASSERT("Builder should have grant for test_area"));
+    "Test 2: Grant room capabilities";
+    $root:grant_capability(test_room1, {'dig_from}, test_builder, 'room, test_key);
+    $root:grant_capability(test_room2, {'dig_into}, test_builder, 'room, test_key);
+    maphaskey(test_builder.grants_room, test_room1) || raise(E_ASSERT("Builder should have grant for room1"));
+    maphaskey(test_builder.grants_room, test_room2) || raise(E_ASSERT("Builder should have grant for room2"));
+    "Test 3: find_capability_for returns the grants";
+    area_cap = test_builder:find_capability_for(test_area, 'area);
+    typeof(area_cap) == FLYWEIGHT || raise(E_ASSERT("Should find area capability"));
+    area_cap.delegate == test_area || raise(E_ASSERT("Area cap should be for test_area"));
+    room1_cap = test_builder:find_capability_for(test_room1, 'room);
+    typeof(room1_cap) == FLYWEIGHT || raise(E_ASSERT("Should find room1 capability"));
+    room1_cap.delegate == test_room1 || raise(E_ASSERT("Room1 cap should be for test_room1"));
+    "Test 4: Verify capabilities grant expected permissions";
+    {target, perms} = area_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
+    target == test_area || raise(E_ASSERT("Area cap should grant add_room and create_passage"));
+    {target2, perms2} = room1_cap:challenge_for_with_key({'dig_from}, test_key);
+    target2 == test_room1 || raise(E_ASSERT("Room1 cap should grant dig_from"));
+    "Test 5: Capability not found returns false";
+    nonexistent_room = create($room);
+    no_cap = test_builder:find_capability_for(nonexistent_room, 'room);
+    no_cap == false || raise(E_ASSERT("Should return false for room without grant"));
+    "Cleanup";
+    test_area:destroy();
+    test_room1:destroy();
+    test_room2:destroy();
+    test_builder:destroy();
+    nonexistent_room:destroy();
+    return true;
+  endverb
+
+  verb test_create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    new_obj = this:_create_child_object($thing, "Widget", {"gadget"});
+    typeof(new_obj) == OBJ || raise(E_ASSERT("Returned value was not an object: " + toliteral(new_obj)));
+    new_obj.owner != this && raise(E_ASSERT("Builder should own created object"));
+    new_obj.location != this && raise(E_ASSERT("Created object should move into inventory"));
+    new_obj.name != "Widget" && raise(E_ASSERT("Primary name was not applied: " + new_obj.name));
+    new_obj.aliases != {"gadget"} && raise(E_ASSERT("Aliases not applied: " + toliteral(new_obj.aliases)));
+    new_obj:destroy();
+    return true;
   endverb
 endobject

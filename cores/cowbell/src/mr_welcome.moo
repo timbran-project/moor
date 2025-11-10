@@ -28,7 +28,7 @@ object MR_WELCOME
     item_desc = `what:description() ! ANY => "(no description)"';
     "Add observation and trigger spontaneous reaction";
     prompt = "OBSERVATION: Someone just gave you " + item_name + ". Description: " + item_desc + ". React naturally - you might thank them, comment on the item with humor or curiosity, or make a witty observation. Keep it brief and conversational.";
-    this.agent:_add_message("user", prompt);
+    this.agent:add_message("user", prompt);
     fork (1)
       this:maybe_speak();
     endfork
@@ -43,7 +43,7 @@ object MR_WELCOME
     item_name = `what:name() ! ANY => tostr(what)';
     "Add observation and trigger spontaneous reaction";
     prompt = "OBSERVATION: Someone just took " + item_name + " from you. React naturally - you might express mock dismay, joke about it, or make a playful comment. Keep it brief and conversational.";
-    this.agent:_add_message("user", prompt);
+    this.agent:add_message("user", prompt);
     fork (1)
       this:maybe_speak();
     endfork

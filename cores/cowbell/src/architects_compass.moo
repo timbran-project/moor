@@ -1,7 +1,6 @@
 object ARCHITECTS_COMPASS
   name: "Architect's Compass"
   parent: LLM_WEARABLE
-  location: ARCH_WIZARD
   owner: ARCH_WIZARD
   readable: true
 
@@ -15,8 +14,9 @@ object ARCHITECTS_COMPASS
   override requires_wearing_only = false;
   override tool_name = "COMPASS";
 
-  verb configure (this none this) owner: HACKER flags: "rxd"
+  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Configure agent for conversational use (lazy initialization)";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     this.agent = $llm_agent:create();
     this.agent.max_iterations = 15;
     base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
@@ -27,9 +27,9 @@ object ARCHITECTS_COMPASS
     this:_register_tools();
   endverb
 
-  verb _register_tools (this none this) owner: HACKER flags: "rxd"
+  verb _register_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Register building operation tools";
-    caller == this || raise(E_PERM);
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Explain tool for communicating progress and errors";
     explain_tool = $llm_agent_tool:mk("explain", "Communicate reasoning, progress updates, or error details to the user. Use this frequently to show what you're attempting and what errors you encounter.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "The message to communicate to the user"]], "required" -> {"message"}], this, "_tool_explain");
     this.agent:add_tool("explain", explain_tool);
@@ -86,12 +86,14 @@ object ARCHITECTS_COMPASS
   verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
     "Compass requires user to be a child of $builder";
     {wearer} = args;
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     isa(wearer, $builder) || raise(E_PERM, "The compass can only be used by builders");
   endverb
 
-  verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
+  verb _format_hud_message (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Parse JSON string to map";
     if (typeof(tool_args) == STR)
       tool_args = parse_json(tool_args);
@@ -264,13 +266,13 @@ object ARCHITECTS_COMPASS
   verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
     "Specify djot rendering for all tool messages to support markdown formatting";
     {tool_name, tool_args} = args;
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "All compass tool messages can contain markdown, so render as djot";
     return {'text_djot, 'text_plain};
   endverb
 
   verb _tool_build_room (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create a new room";
-    server_log("_tool_build_room called");
     {args_map} = args;
     wearer = this:_action_perms_check();
     server_log("_tool_build_room wearer validated");

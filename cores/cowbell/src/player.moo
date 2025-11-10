@@ -18,17 +18,10 @@ object PLAYER
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
 
-  verb make_player (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Create a player and return a setup capability for initial configuration.";
-    {_, perms} = this:check_permissions('make_player);
-    set_task_perms(perms);
-    new_player = this:create(@args);
-    setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
-    return setup_cap;
-  endverb
-
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Look at an object or passage direction.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     if (dobjstr == "")
       target = player.location;
     else
@@ -56,6 +49,8 @@ object PLAYER
 
   verb _look_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Look at a passage direction. Returns description string or false if not found.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     {direction} = args;
     current_room = this.location;
     if (!valid(current_room))
@@ -97,8 +92,10 @@ object PLAYER
     return false;
   endverb
 
-  verb "i*nventory" (any none none) owner: HACKER flags: "rd"
+  verb "i*nventory" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Display player's inventory using list format";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
     caller != player && return E_PERM;
     items = this.contents;
     !items && return this:inform_current($event:mk_inventory(player, "You are not carrying anything."):with_audience('utility));
@@ -141,17 +138,21 @@ object PLAYER
     endif
   endverb
 
-  verb "msg_no_dobj_match msg_no_iobj_match" (this none this) owner: HACKER flags: "rxd"
+  verb "msg_no_dobj_match msg_no_iobj_match" (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Utility verb to produce a not found event for presenting to the player...";
+    set_task_perms(this);
     return $event:mk_not_found(player, "I don't see that here."):with_audience('utility);
   endverb
 
-  verb pronouns (this none this) owner: HACKER flags: "rxd"
+  verb pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return the pronoun set for this player (object or flyweight).";
+    set_task_perms(caller_perms());
     return this.pronouns;
   endverb
 
-  verb "pronoun_*" (this none this) owner: HACKER flags: "rxd"
+  verb "pronoun_*" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get pronoun from either preset object or custom flyweight.";
+    set_task_perms(caller_perms());
     ptype = tosym(verb[9..length(verb)]);
     p = this:pronouns();
     ptype == 'subject && return p.ps;
@@ -193,20 +194,24 @@ object PLAYER
     this:inform_current(event:with_audience('utility));
   endverb
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  verb acceptable (this none this) owner: ARCH_WIZARD  flags: "rxd"
+    set_task_perms(caller_perms());
     return !is_player(args[1]);
   endverb
 
-  verb profile_picture (this none this) owner: HACKER flags: "rxd"
+  verb profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     return this.profile_picture;
   endverb
 
-  verb thumbnail (this none this) owner: HACKER flags: "rxd"
-    "Return thumbnail image data for this player.";
+  verb thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
+    "Return thumbnail (profile) image data for this player.";
     return this.profile_picture;
   endverb
 
   verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Update the profile picture of the given player.";
     caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(this);
     {content_type, picbin} = args;
@@ -256,7 +261,8 @@ object PLAYER
     this.oauth2_identities = identities;
   endverb
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     base_desc = this.description;
     if (!(this in connected_players()))
       description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " sleeping."};
@@ -282,7 +288,9 @@ object PLAYER
     return <$look, .what = this, .title = this:name(), .description = description>;
   endverb
 
-  verb command_environment (this none this) owner: HACKER flags: "rxd"
+  verb command_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+    (caller != player && caller != #0 && !caller.wizard) && return E_PERM;
+    players = connected_players();
     "Return list of objects to match commands against.";
     {command, ?options = []} = args;
     location = this.location;
@@ -315,9 +323,10 @@ object PLAYER
     return `this.(prop_name) ! E_PROPNF => false';
   endverb
 
-  verb find_capability_for (this none this) owner: HACKER flags: "rxd"
+  verb find_capability_for (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find a capability token for target_obj in the specified category. Returns token or false.";
     caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this);
     {target_obj, category} = args;
     typeof(target_obj) == OBJ || return false;
     typeof(category) == SYM || return false;
@@ -331,16 +340,19 @@ object PLAYER
     return false;
   endverb
 
-  verb is_wearing (this none this) owner: HACKER flags: "rxd"
+  verb is_wearing (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if player is wearing the specified item.";
+    set_task_perms(caller_perms());
     {item} = args;
     wearing_list = `this.wearing ! ANY => {}';
     return typeof(wearing_list) == LIST && is_member(item, wearing_list);
   endverb
 
-  verb confirm (this none this) owner: HACKER flags: "rxd"
+  verb confirm (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Show a confirmation prompt and return true if confirmed, false if cancelled, or string with alternative instruction.";
     "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this);
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
     response = read(this, metadata);
@@ -365,6 +377,8 @@ object PLAYER
     "Show an open-ended prompt and return the user's text response.";
     "Returns: string (user's response) or false if cancelled/empty";
     "NOTE: Uses yes_no_alternative with hidden buttons to get text input until web client supports input_type: text";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this);
     {question, ?placeholder = "Enter your response..."} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", question}, {"alternative_label", "Your response:"}, {"alternative_placeholder", placeholder}};
     response = read(this, metadata);
@@ -387,9 +401,21 @@ object PLAYER
     return false;
   endverb
 
-  verb put (any in this) owner: HACKER flags: "rd"
+  verb put (any in this) owner: ARCH_WIZARD flags: "rd"
     "Reject putting things in a player";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this);
     event = $event:mk_error(player, $sub:tc(), " ", $sub:verb_be(), " a person, not a container."):with_this(this);
     player:inform_current(event);
   endverb
+
+  verb make_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a player and return a setup capability for initial configuration.";
+    {_, perms} = this:check_permissions('make_player);
+    set_task_perms(perms);
+    new_player = this:create(@args);
+    setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
+    return setup_cap;
+  endverb
+
 endobject

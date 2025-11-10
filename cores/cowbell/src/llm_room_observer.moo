@@ -22,15 +22,16 @@ object LLM_ROOM_OBSERVER
     this.agent:initialize();
   endverb
 
-  verb tell (this none this) owner: HACKER flags: "rxd"
+  verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Receive events from room and pass to agent as observations";
+    set_task_perms(this.owner);
     if (!valid(this.agent))
       this:configure();
     endif
     {event} = args;
     "Pass event structure as literal for LLM to parse";
     observation = toliteral(event);
-    this.agent:_add_message("user", "OBSERVATION: " + observation);
+    this.agent:add_message("user", "OBSERVATION: " + observation);
     "Trigger maybe_speak if this event type is significant";
     if (length(this.significant_events) > 0)
       event_verb = `event.verb ! ANY => ""';
@@ -44,7 +45,7 @@ object LLM_ROOM_OBSERVER
     endif
   endverb
 
-  verb poke (this none none) owner: HACKER flags: "rd"
+  verb poke (this none none) owner: ARCH_WIZARD flags: "rd"
     "Trigger the observer to respond based on accumulated observations";
     if (!valid(this.agent))
       this:configure();
@@ -73,7 +74,7 @@ object LLM_ROOM_OBSERVER
     endif
   endverb
 
-  verb maybe_speak (this none this) owner: HACKER flags: "rxd"
+  verb maybe_speak (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Evaluate recent observations and speak only if something noteworthy happened";
     if (!valid(this.agent))
       this:configure();
@@ -95,8 +96,10 @@ object LLM_ROOM_OBSERVER
     "Otherwise stay silent";
   endverb
 
-  verb reset (this none this) owner: HACKER flags: "rxd"
+  verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Clear the agent's observation history";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    set_task_perms(caller_perms());
     if (valid(this.agent))
       this.agent:reset_context();
     endif
@@ -104,6 +107,8 @@ object LLM_ROOM_OBSERVER
 
   verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Display token usage information to the user";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    set_task_perms(caller_perms());
     {user} = args;
     if (!valid(this.agent))
       return;
