@@ -76,52 +76,56 @@ object LOGIN
 
   verb oauth2_check (any none any) owner: ARCH_WIZARD flags: "rxd"
     "$login:oauth2_check(provider, external_id)";
-    " => $failed_match (for not found)";
+    " => 0 (for not found)";
     " => objnum (for existing OAuth2 identity)";
     caller == #0 || caller == this || caller.wizard || raise(E_PERM);
     try
       {provider, external_id} = args;
     except (E_ARGS)
       notify(player, "OAuth2 check failed: invalid arguments");
-      return $failed_match;
+      return 0;
     endtry
-    if (valid(candidate = this:find_by_oauth2(provider, external_id)))
+    candidate = this:find_by_oauth2(provider, external_id);
+    server_log(tostr("OAUTH2 CHECK: candidate=", candidate, " valid=", valid(candidate), " typeof=", typeof(candidate)));
+    if (valid(candidate))
       server_log(tostr("OAUTH2 CHECK SUCCESS: ", provider, ":", external_id, " -> ", candidate));
       return candidate;
     else
-      server_log(tostr("OAUTH2 CHECK NOT FOUND: ", provider, ":", external_id));
-      return $failed_match;
+      server_log(tostr("OAUTH2 CHECK NOT FOUND: ", provider, ":", external_id, " returning 0"));
+      ret = 0;
+      server_log(tostr("OAUTH2 CHECK: about to return ", ret, " typeof=", typeof(ret)));
+      return ret;
     endif
   endverb
 
   verb oauth2_create (any none any) owner: ARCH_WIZARD flags: "rxd"
     "$login:oauth2_create(provider, external_id, email, name, username, player_name)";
-    " => $failed_match (for failed creation)";
+    " => 0 (for failed creation)";
     " => objnum (for successful creation)";
     caller == #0 || caller == this || caller.wizard || raise(E_PERM);
     if (!this.player_creation_enabled)
       notify(player, this.registration_string);
-      return $failed_match;
+      return 0;
     endif
     try
       {provider, external_id, email, name, username, player_name} = args;
       player_name = strsub(player_name, " ", "_");
     except (E_ARGS)
       notify(player, "OAuth2 create failed: invalid arguments");
-      return $failed_match;
+      return 0;
     endtry
     if (!player_name || player_name == "<>")
       notify(player, "You can't have a blank name!");
-      return $failed_match;
+      return 0;
     elseif (player_name[1] == "<" && player_name[$] == ">")
       notify(player, "Don't use angle brackets in your player name.");
-      return $failed_match;
+      return 0;
     elseif (index(player_name, " "))
       notify(player, "Sorry, no spaces are allowed in player names.  Use dashes or underscores.");
-      return $failed_match;
+      return 0;
     elseif (this:_match_player(player_name) != $failed_match)
       notify(player, "Sorry, that name is not available.  Please choose another.");
-      return $failed_match;
+      return 0;
     endif
     new = this:_create_player(player_name, 0, email || "", {{provider, external_id}});
     server_log(tostr("OAUTH2 CREATE: ", player_name, " (", new, ") via ", provider, ":", external_id));
@@ -130,7 +134,7 @@ object LOGIN
 
   verb oauth2_connect (any none any) owner: ARCH_WIZARD flags: "rxd"
     "$login:oauth2_connect(provider, external_id, email, name, username, existing_name, existing_password)";
-    " => $failed_match (for failed connection)";
+    " => 0 (for failed connection)";
     " => objnum (for successful link)";
     caller == #0 || caller == this || caller.wizard || raise(E_PERM);
     try
@@ -138,11 +142,11 @@ object LOGIN
       existing_name = strsub(existing_name, " ", "_");
     except (E_ARGS)
       notify(player, "OAuth2 connect failed: invalid arguments");
-      return $failed_match;
+      return 0;
     endtry
     if (!valid(candidate = this:_match_player(existing_name)))
       notify(player, "That player does not exist.");
-      return $failed_match;
+      return 0;
     endif
     {status, _} = this:_password_state(candidate, existing_password);
     if (status == 'ok)
@@ -151,13 +155,13 @@ object LOGIN
       "Candidate has no password; allow linking without challenge.";
     elseif (status == 'missing)
       notify(player, "Invalid password for existing account.");
-      return $failed_match;
+      return 0;
     elseif (status == 'invalid_type)
       notify(player, "Cannot link to that account.");
-      return $failed_match;
+      return 0;
     else
       notify(player, "Invalid password for existing account.");
-      return $failed_match;
+      return 0;
     endif
     try
       identities = candidate.oauth2_identities;
