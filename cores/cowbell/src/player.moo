@@ -362,10 +362,10 @@ object PLAYER
     "Show a confirmation prompt and return true if confirmed, false if cancelled, or string with alternative instruction.";
     "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    set_task_perms(this);
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
-    response = read(this, metadata);
+    response = this:read_with_prompt(metadata);
+    set_task_perms(this);
     if (response == "yes")
       this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
       return true;
@@ -388,10 +388,10 @@ object PLAYER
     "Returns: string (user's response) or false if cancelled/empty";
     "NOTE: Uses yes_no_alternative with hidden buttons to get text input until web client supports input_type: text";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    set_task_perms(this);
     {question, ?placeholder = "Enter your response..."} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", question}, {"alternative_label", "Your response:"}, {"alternative_placeholder", placeholder}};
-    response = read(this, metadata);
+    response = this:read_with_prompt(metadata);
+    set_task_perms(this);
     "If user selected yes/no, treat as cancelled";
     if (response == "yes" || response == "no")
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
@@ -409,6 +409,32 @@ object PLAYER
     "Unexpected response format";
     this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
     return false;
+  endverb
+
+  verb read_with_prompt (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Helper: Call read() with metadata, displaying prompt via notify() for telnet clients.";
+    "Args: metadata (list of {key, value} pairs for read())";
+    "Returns: result from read()";
+    {metadata} = args;
+    caller_perms().wizard || caller == this || raise(E_PERM);
+    typeof(metadata) == LIST || raise(E_TYPE, "Metadata must be list");
+    "Check if connected via telnet and display prompt explicitly";
+    conns = this:_connections();
+    conns || raise(E_INVARG("Player has no connections to prompt"));
+    current = conns[1];
+    {connection_obj, peer_addr, idle_seconds, content_types, ?host_options} = current;
+    "host_options is an alist, and we're looking for 'host-type in there";
+    ht = host_options:assoc('host_type);
+    if (ht && ht[2] == "telnet")
+      "Find and display prompt from metadata for telnet client";
+      for md_entry in (metadata)
+        if (md_entry[1] == "prompt")
+          notify(this, md_entry[2], false, false, "text/djot");
+          break;
+        endif
+      endfor
+    endif
+    return read(this, metadata);
   endverb
 
   verb put (any in this) owner: ARCH_WIZARD flags: "rd"

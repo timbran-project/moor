@@ -121,10 +121,9 @@ object LLM_WEARABLE
     wearer = this:_action_perms_check();
     question = args_map["question"];
     typeof(question) == STR || raise(E_TYPE("Expected question string"));
-    set_task_perms(wearer);
     "Use direct read() with text input type - simple text field + cancel button";
     metadata = {{"input_type", "text"}, {"prompt", question}, {"placeholder", "Enter your response..."}};
-    response = read(wearer, metadata);
+    response = wearer:read_with_prompt(metadata);
     if (typeof(response) != STR || response == "")
       "User cancelled - stop the agent flow";
       this.agent.cancel_requested = true;
@@ -216,7 +215,7 @@ object LLM_WEARABLE
     player:inform_current($event:mk_info(player, "Agent context reset. Conversation history cleared."));
   endverb
 
-  verb "use inter*act qu*ery" (this none none) owner: HACKER flags: "rd"
+  verb "use inter*act qu*ery" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Use/interact with the wearable - prompts for input";
     caller == player || raise(E_PERM);
     "Check if wearing (and optionally carrying)";
@@ -233,7 +232,8 @@ object LLM_WEARABLE
     endif
     "Prompt for query text using metadata-based read";
     metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize(this.prompt_label, this.prompt_color) + " " + this.prompt_text}, {"placeholder", this.placeholder_text}};
-    query = read(player, metadata):trim();
+    query = player:read_with_prompt(metadata):trim();
+    set_task_perms(caller_perms());
     if (!query)
       player:inform_current($event:mk_error(player, "Query cancelled - no input provided."));
       return;
