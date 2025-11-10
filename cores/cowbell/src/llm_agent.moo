@@ -257,5 +257,4 @@ object LLM_AGENT
     who == #-1 || who == this || who.owner == this.owner || who == this.owner || who.wizard || raise(E_PERM);
     return who;
   endverb
-
 endobject
