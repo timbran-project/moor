@@ -10,7 +10,7 @@ object MR_WELCOME
 
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
   override import_export_id = "mr_welcome";
-  override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm, under 2-3 sentences. Output ONLY the spoken words, nothing else.";
+  override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm and witty, usually under 2-3 sentences. Output ONLY the spoken words, nothing else.";
   override significant_events = {"arrival", "departure", "say", "emote", "connected", "disconnected"};
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
@@ -74,6 +74,15 @@ object MR_WELCOME
     "Register list_commands tool";
     list_commands_tool = $llm_agent_tool:mk("list_commands", "Get a list of commands that can be used with an object. Shows what actions players can perform.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to check"]], "required" -> {"object_name"}], this, "_tool_list_commands");
     this.agent:add_tool("list_commands", list_commands_tool);
+    "Register emote tool";
+    emote_tool = $llm_agent_tool:mk("emote", "Express an action or emotion through an emote. Use this to show physical actions, reactions, or emotions without speaking. For example: 'thoughtfully strokes his chin', 'chuckles warmly', 'gestures welcomingly'. The emote will be shown as 'Mr. Welcome <your action>.'", ["type" -> "object", "properties" -> ["action" -> ["type" -> "string", "description" -> "The action or emotion to express (e.g., 'nods approvingly', 'grins', 'looks thoughtful')"]], "required" -> {"action"}], this, "_tool_emote");
+    this.agent:add_tool("emote", emote_tool);
+    "Register directed_say tool";
+    directed_say_tool = $llm_agent_tool:mk("directed_say", "Say something directed at a specific person in the room. Use when you want to specifically address someone (like when answering their direct question, or making a pointed remark to them). The message will be shown as 'Mr. Welcome [to Person]: message'.", ["type" -> "object", "properties" -> ["target_name" -> ["type" -> "string", "description" -> "The name of the person to address"], "message" -> ["type" -> "string", "description" -> "What to say to them"]], "required" -> {"target_name", "message"}], this, "_tool_directed_say");
+    this.agent:add_tool("directed_say", directed_say_tool);
+    "Register think tool";
+    think_tool = $llm_agent_tool:mk("think", "Playfully express your internal thoughts in a visible thought bubble. Use this for whimsical observations, amusing asides, ponderings, or fun meta-commentary that adds personality and humor to the conversation. It's a delightful way to show what you're thinking without actually saying it aloud. The thought will be shown as 'Mr. Welcome . o O ( your thought )'.", ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "The thought or observation to express"]], "required" -> {"thought"}], this, "_tool_think");
+    this.agent:add_tool("think", think_tool);
   endverb
 
   verb _tool_list_players (this none this) owner: HACKER flags: "rxd"
@@ -323,27 +332,73 @@ object MR_WELCOME
     endif
     "Topic question - use the iobjstr as the topic";
     if (valid(this.location))
-      activity = $event:mk_say(this, this:name(), " thinks about ", iobjstr, "...");
-      this.location:announce(activity);
+      this.location:announce(this:mk_emote_event("thinks about " + iobjstr + "..."));
     endif
     response = this.agent:send_message(iobjstr);
     "Announce response to room";
     if (valid(this.location))
-      say_event = $event:mk_say(this, this:name(), " says, \"", response, "\"");
-      this.location:announce(say_event);
+      this.location:announce(this:mk_say_event(response));
     else
       player:inform_current($event:mk_info(player, response));
     endif
+  endverb
+
+  verb _tool_emote (this none this) owner: HACKER flags: "rxd"
+    "Tool: Express an action or emotion through an emote";
+    {args_map} = args;
+    action = args_map["action"];
+    typeof(action) == STR || raise(E_TYPE("Expected action string"));
+    if (!valid(this.location))
+      return "Error: Not in a room";
+    endif
+    this.location:announce(this:mk_emote_event(action));
+    return "Emoted: " + this:name() + " " + action;
+  endverb
+
+  verb _tool_directed_say (this none this) owner: HACKER flags: "rxd"
+    "Tool: Say something directed at a specific person";
+    {args_map} = args;
+    target_name = args_map["target_name"];
+    message = args_map["message"];
+    typeof(target_name) == STR || raise(E_TYPE("Expected target_name string"));
+    typeof(message) == STR || raise(E_TYPE("Expected message string"));
+    if (!valid(this.location))
+      return "Error: Not in a room";
+    endif
+    "Find the target in the room";
+    try
+      target = $match:match_object(target_name, this);
+    except e (ANY)
+      return "Error: Could not find '" + target_name + "' in the room";
+    endtry
+    if (!valid(target) || typeof(target) != OBJ)
+      return "Error: Could not find '" + target_name + "' in the room";
+    endif
+    this.location:announce(this:mk_directed_say_event(target, message));
+    return "Said to " + target:name() + ": " + message;
+  endverb
+
+  verb _tool_think (this none this) owner: HACKER flags: "rxd"
+    "Tool: Express an internal thought";
+    {args_map} = args;
+    thought = args_map["thought"];
+    typeof(thought) == STR || raise(E_TYPE("Expected thought string"));
+    if (!valid(this.location))
+      return "Error: Not in a room";
+    endif
+    this.location:announce(this:mk_think_event(thought));
+    return "Thought: " + thought;
   endverb
 
   verb on_tool_call (this none this) owner: HACKER flags: "rxd"
     "Callback when agent uses a tool - announce to room";
     {tool_name, tool_args} = args;
     if (valid(this.location))
-      tool_messages = ["list_players" -> "checks who's connected...", "player_info" -> "looks up player information...", "area_map" -> "recalls the rooms in the area...", "find_route" -> "calculates the best route...", "find_object" -> "looks around the room...", "list_commands" -> "examines what can be done..."];
+      tool_messages = ["list_players" -> "checks who's connected...", "player_info" -> "looks up player information...", "area_map" -> "recalls the rooms in the area...", "find_route" -> "calculates the best route...", "find_object" -> "looks around the room...", "list_commands" -> "examines what can be done...", "emote" -> "", "directed_say" -> "", "think" -> ""];
       message = tool_messages[tool_name] || "thinks...";
-      activity = $event:mk_say(this, this:name(), " ", message);
-      this.location:announce(activity);
+      if (message)
+        this.location:announce(this:mk_emote_event(message));
+      endif
     endif
   endverb
 endobject

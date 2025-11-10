@@ -17,6 +17,35 @@ object ROOM
     this:announce(player:mk_say_event(argstr));
   endverb
 
+  verb think (any any any) owner: HACKER flags: "rxd"
+    this:announce(player:mk_think_event(argstr));
+  endverb
+
+  verb "`*" (any any any) owner: HACKER flags: "rxd"
+    "Directed say - say something to a specific person";
+    "Usage: `target message";
+    if (length(verb) < 2)
+      player:inform_current($event:mk_error(player, "Usage: `target message"));
+      return;
+    endif
+    target_name = verb[2..length(verb)];
+    if (!argstr)
+      player:inform_current($event:mk_error(player, "Say what to ", target_name, "?"));
+      return;
+    endif
+    try
+      target = $match:match_object(target_name, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "I don't see '", target_name, "' here."));
+      return;
+    endtry
+    if (!valid(target) || typeof(target) != OBJ)
+      player:inform_current($event:mk_error(player, "I don't see '", target_name, "' here."));
+      return;
+    endif
+    this:announce(player:mk_directed_say_event(target, argstr));
+  endverb
+
   verb confunc (this none this) owner: HACKER flags: "rxd"
     arrival_event = player:mk_connected_event();
     for who in (this:contents())

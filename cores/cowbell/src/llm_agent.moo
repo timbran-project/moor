@@ -104,10 +104,15 @@ object LLM_AGENT
           suspend(0);
           break;
         except e (ANY)
+          server_log("ERROR: " + toliteral(e));
           retry_count = retry_count + 1;
           if (retry_count > max_retries)
             "All retries exhausted, re-raise the error";
-            raise(e);
+            if (typeof(e) == LIST && length(e) >= 1)
+              raise(@e);
+            else
+              raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
+            endif
           endif
           "Wait before retrying - exponential backoff";
           suspend(retry_count);
@@ -119,9 +124,8 @@ object LLM_AGENT
         if (maphaskey(response["usage"], "total_tokens"))
           tokens_this_call = response["usage"]["total_tokens"];
           this.total_tokens_used = this.total_tokens_used + tokens_this_call;
-          "Update player's token usage";
+          "Update player's token usage - needs owner perms to write to ARCH_WIZARD-owned properties";
           if (valid(this.token_owner) && is_player(this.token_owner))
-            set_task_perms(caller_perms());
             this.token_owner.llm_tokens_used = this.token_owner.llm_tokens_used + tokens_this_call;
             "Log usage with timestamp";
             usage_entry = ["timestamp" -> time(), "tokens" -> tokens_this_call, "usage" -> response["usage"]];

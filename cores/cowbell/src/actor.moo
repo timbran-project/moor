@@ -138,6 +138,17 @@ object ACTOR
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
   endverb
 
+  verb mk_directed_say_event (this none this) owner: HACKER flags: "rxd"
+    "Directed say: 'Name [to Target]: message'";
+    {target, message} = args;
+    return $event:mk_directed_say(this, this:name(), " [to ", $sub:i(), "]: ", message):with_iobj(target):with_this(this.location);
+  endverb
+
+  verb mk_think_event (this none this) owner: HACKER flags: "rxd"
+    "Thoughts always show the actor's name, never 'You'";
+    return $event:mk_think(this, this:name(), " . o O ( ", args[1], " )"):with_this(this.location);
+  endverb
+
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
   endverb
