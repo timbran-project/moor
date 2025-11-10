@@ -197,64 +197,6 @@ object PLAYER
     return !is_player(args[1]);
   endverb
 
-  verb mk_emote_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_emote(this, $sub:nc(), " ", args[1]):with_this(this.location);
-  endverb
-
-  verb mk_say_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
-  endverb
-
-  verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " connected.");
-  endverb
-
-  verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
-    {from_room, ?direction = "", ?passage_desc = "", ?to_room = #-1} = args;
-    typeof(direction) == STR || (direction = "");
-    typeof(passage_desc) == STR || (passage_desc = "");
-    passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
-    parts = {$sub:nc(), " ", $sub:self_alt("head", "heads")};
-    if (direction)
-      parts = {@parts, " ", direction};
-    else
-      parts = {@parts, " out"};
-    endif
-    if (passage_desc)
-      parts = {@parts, " through ", passage_desc};
-    endif
-    parts = {@parts, "."};
-    event = $event:mk_move(this, @parts);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    valid(from_room) && (event = event:with_this(from_room));
-    if (valid(to_room))
-      event = event:with_iobj(to_room);
-    endif
-    return event;
-  endverb
-
-  verb mk_arrival_event (this none this) owner: HACKER flags: "rxd"
-    {to_room, ?direction = "", ?passage_desc = "", ?from_room = #-1} = args;
-    typeof(direction) == STR || (direction = "");
-    typeof(passage_desc) == STR || (passage_desc = "");
-    passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
-    parts = {$sub:nc(), " ", $sub:self_alt("arrive", "arrives")};
-    if (direction)
-      parts = {@parts, " from the ", direction};
-    endif
-    if (passage_desc)
-      parts = {@parts, ", emerging from ", passage_desc};
-    endif
-    parts = {@parts, "."};
-    event = $event:mk_move(this, @parts);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    valid(to_room) && (event = event:with_this(to_room));
-    if (valid(from_room))
-      event = event:with_iobj(from_room);
-    endif
-    return event;
-  endverb
-
   verb profile_picture (this none this) owner: HACKER flags: "rxd"
     return this.profile_picture;
   endverb
@@ -389,11 +331,6 @@ object PLAYER
     return false;
   endverb
 
-  verb is_actor (this none this) owner: HACKER flags: "rxd"
-    "Players are actors.";
-    return true;
-  endverb
-
   verb is_wearing (this none this) owner: HACKER flags: "rxd"
     "Check if player is wearing the specified item.";
     {item} = args;
@@ -448,5 +385,11 @@ object PLAYER
     "Unexpected response format";
     this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
     return false;
+  endverb
+
+  verb put (any in this) owner: HACKER flags: "rd"
+    "Reject putting things in a player";
+    event = $event:mk_error(player, $sub:tc(), " ", $sub:verb_be(), " a person, not a container."):with_this(this);
+    player:inform_current(event);
   endverb
 endobject

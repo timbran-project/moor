@@ -45,3 +45,5 @@ define WEARABLE = #51;
 define ANSI = #52;
 define ARCHITECTS_COMPASS = #53;
 define LLM_WEARABLE = #54;
+define CONTAINER = #55;
+define ACTOR = #56;

@@ -13,6 +13,42 @@ object MR_WELCOME
   override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm, under 2-3 sentences. Output ONLY the spoken words, nothing else.";
   override significant_events = {"arrival", "departure", "say", "emote", "connected", "disconnected"};
 
+  verb acceptable (this none this) owner: HACKER flags: "rxd"
+    "Mr. Welcome accepts gifts graciously";
+    return true;
+  endverb
+
+  verb enterfunc (this none this) owner: HACKER flags: "rxd"
+    "React when someone gives Mr. Welcome something";
+    {what} = args;
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    item_name = `what:name() ! ANY => tostr(what)';
+    item_desc = `what:description() ! ANY => "(no description)"';
+    "Add observation and trigger spontaneous reaction";
+    prompt = "OBSERVATION: Someone just gave you " + item_name + ". Description: " + item_desc + ". React naturally - you might thank them, comment on the item with humor or curiosity, or make a witty observation. Keep it brief and conversational.";
+    this.agent:_add_message("user", prompt);
+    fork (1)
+      this:maybe_speak();
+    endfork
+  endverb
+
+  verb exitfunc (this none this) owner: HACKER flags: "rxd"
+    "React when someone takes something from Mr. Welcome";
+    {what} = args;
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    item_name = `what:name() ! ANY => tostr(what)';
+    "Add observation and trigger spontaneous reaction";
+    prompt = "OBSERVATION: Someone just took " + item_name + " from you. React naturally - you might express mock dismay, joke about it, or make a playful comment. Keep it brief and conversational.";
+    this.agent:_add_message("user", prompt);
+    fork (1)
+      this:maybe_speak();
+    endfork
+  endverb
+
   verb configure (this none this) owner: HACKER flags: "rxd"
     "Configure agent and register social tools";
     "Build role_prompt with world context before calling parent";
@@ -216,7 +252,8 @@ object MR_WELCOME
       found = #-1;
       room_contents = `current_room:contents() ! ANY => current_room.contents';
       for item in (room_contents)
-        if (valid(item) && item:name():lowercase():contains(object_name:lowercase()))
+        suspend(0);
+        if (valid(item) && item:name():contains(object_name))
           found = item;
           break;
         endif
@@ -250,7 +287,8 @@ object MR_WELCOME
       found = #-1;
       room_contents = `current_room:contents() ! ANY => current_room.contents';
       for item in (room_contents)
-        if (valid(item) && item:name():lowercase():contains(object_name:lowercase()))
+        suspend(0);
+        if (valid(item) && item:name():contains(object_name))
           found = item;
           break;
         endif
@@ -307,10 +345,5 @@ object MR_WELCOME
       activity = $event:mk_say(this, this:name(), " ", message);
       this.location:announce(activity);
     endif
-  endverb
-
-  verb is_actor (this none this) owner: HACKER flags: "rxd"
-    "Mr. Welcome is an NPC actor.";
-    return true;
   endverb
 endobject

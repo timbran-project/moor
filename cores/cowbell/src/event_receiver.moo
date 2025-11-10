@@ -1,6 +1,6 @@
 object EVENT_RECEIVER
   name: "Generic Event Receiver"
-  parent: ROOT
+  parent: ACTOR
   location: FIRST_ROOM
   owner: WIZ
   fertile: true

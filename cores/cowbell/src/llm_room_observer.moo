@@ -1,6 +1,6 @@
 object LLM_ROOM_OBSERVER
   name: "LLM Room Observer"
-  parent: ROOT
+  parent: ACTOR
   owner: HACKER
   fertile: true
   readable: true

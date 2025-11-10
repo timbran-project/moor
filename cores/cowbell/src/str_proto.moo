@@ -459,6 +459,7 @@ object STR_PROTO
         endif
         if (ch == "\"")
           in_quotes = !in_quotes;
+          current = current + ch;
           i = i + 1;
           continue;
         endif
@@ -523,6 +524,24 @@ object STR_PROTO
       aliases = primary ? aliases[2..$] | {};
     endif
     return {primary, aliases};
+  endverb
+
+  verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+    "Test parse_name_aliases with various formats";
+    result = $str_proto:parse_name_aliases("simple");
+    result != {"simple", {}} && raise(E_ASSERT, "Failed simple name: " + toliteral(result));
+    result = $str_proto:parse_name_aliases("box,container,chest");
+    result != {"box", {"container", "chest"}} && raise(E_ASSERT, "Failed comma-separated: " + toliteral(result));
+    result = $str_proto:parse_name_aliases("box:container,chest");
+    result != {"box", {"container", "chest"}} && raise(E_ASSERT, "Failed colon-separated: " + toliteral(result));
+    result = $str_proto:parse_name_aliases("\"secret box (totally absolutely secret, not joking)\",box");
+    result != {"secret box (totally absolutely secret, not joking)", {"box"}} && raise(E_ASSERT, "Failed quoted name with comma: " + toliteral(result));
+    result = $str_proto:parse_name_aliases("\"box with \\\"quotes\\\"\",container");
+    result != {"box with \"quotes\"", {"container"}} && raise(E_ASSERT, "Failed escaped quotes: " + toliteral(result));
+    result = $str_proto:parse_name_aliases("\"name\":alias1,alias2");
+    result != {"name", {"alias1", "alias2"}} && raise(E_ASSERT, "Failed quoted name with colon: " + toliteral(result));
+    result = $str_proto:parse_name_aliases("  spaced  ,  also  ");
+    result != {"spaced", {"also"}} && raise(E_ASSERT, "Failed whitespace trimming: " + toliteral(result));
   endverb
 
   verb trim (this none this) owner: HACKER flags: "rxd"

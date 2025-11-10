@@ -41,6 +41,22 @@ object LLM_WEARABLE
     return true;
   endverb
 
+  verb wear (this none none) owner: HACKER flags: "rd"
+    "Override parent to enforce owner-only usage";
+    caller == player || raise(E_PERM);
+    if (player != this.owner)
+      "Announce the violation to the room";
+      if (valid(player.location))
+        event = $event:mk_info(player, this:name(), " emits a sharp warning tone as ", $sub:n(), " ", $sub:self_alt("attempt", "attempts"), " to wear it, rejecting the unauthorized user."):with_this(player.location);
+        player.location:announce(event);
+      else
+        player:inform_current($event:mk_error(player, this:name(), " refuses to attune to you. The device is bonded to its rightful owner and will not respond to unauthorized use."));
+      endif
+      return;
+    endif
+    pass(@args);
+  endverb
+
   verb _send_with_continuation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Send message to agent with automatic continuation on max iterations";
     {message, ?tool_name = "TOOL", ?max_continuations = 3} = args;

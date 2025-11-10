@@ -3,7 +3,6 @@ object BUILDER
   parent: PLAYER
   location: FIRST_ROOM
   owner: HACKER
-  programmer: false
   readable: true
 
   property direction_opposites (owner: HACKER, flags: "rc") = [

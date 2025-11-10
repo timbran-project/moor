@@ -4,13 +4,15 @@ object SYSOBJ
   owner: ARCH_WIZARD
   readable: true
 
+  property actor (owner: HACKER, flags: "r") = ACTOR;
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property ansi (owner: HACKER, flags: "r") = ANSI;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;
   property builder (owner: HACKER, flags: "r") = BUILDER;
-  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, AREA};
+  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
+  property container (owner: HACKER, flags: "r") = CONTAINER;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
