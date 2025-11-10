@@ -212,7 +212,7 @@ object ROOT
     "Return a spitball estimate of the in-memory size / on-disk size of this object.";
     "No guarantee of accuracy and this computation is relatively expensive so use sparingly.";
     "Caller must own the object or have the arcane powers of a wizard.";
-    (caller == this.owner || caller.wizard) || raise(E_PERM);
+    caller == this.owner || caller.wizard || raise(E_PERM);
     return object_bytes(this);
   endverb
 

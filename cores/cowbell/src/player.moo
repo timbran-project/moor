@@ -194,7 +194,7 @@ object PLAYER
     this:inform_current(event:with_audience('utility));
   endverb
 
-  verb acceptable (this none this) owner: ARCH_WIZARD  flags: "rxd"
+  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     return !is_player(args[1]);
   endverb
@@ -288,10 +288,10 @@ object PLAYER
     return <$look, .what = this, .title = this:name(), .description = description>;
   endverb
 
-  verb command_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
-    (caller != player && caller != #0 && !caller.wizard) && return E_PERM;
+  verb match_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller != this && caller != #0 && !caller.wizard && return E_PERM;
     players = connected_players();
-    "Return list of objects to match commands against.";
+    "Return list of objects to match against for execution in commands.";
     {command, ?options = []} = args;
     location = this.location;
     env = {this};
@@ -307,11 +307,21 @@ object PLAYER
     if (valid(location))
       env = {@env, location};
       "Let the room/location contribute additional objects (e.g., its contents, and passages).";
-      if (respond_to(location, 'command_scope_for))
-        ambient = `location:command_scope_for(this) ! ANY => {}';
+      if (respond_to(location, 'match_scope_for))
+        ambient = `location:match_scope_for(this) ! ANY => {}';
         typeof(ambient) == LIST && (env = {@env, @ambient});
       endif
     endif
+    return env;
+  endverb
+
+  verb command_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return objects whose verbs can trigger as primary / ambient commands.";
+    "This is typically just the player and their location, as in the builtin-parser, but can be extended to add e.g. feature objects or ambient environmental things that require direct interaction.";
+    caller != this && caller != #0 && !caller.wizard && return E_PERM;
+    location = this.location;
+    env = {this};
+    valid(location) && (env = {@env, location});
     return env;
   endverb
 
@@ -417,5 +427,4 @@ object PLAYER
     setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
     return setup_cap;
   endverb
-
 endobject

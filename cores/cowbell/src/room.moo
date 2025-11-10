@@ -79,7 +79,7 @@ object ROOM
     return true;
   endverb
 
-  verb command_scope_for (this none this) owner: HACKER flags: "rxd"
+  verb match_scope_for (this none this) owner: HACKER flags: "rxd"
     "Expose the room and visible occupants to the command scope.";
     {actor, ?context = []} = args;
     "In case we have a parent that wants to establish initial occupancy, ask it first...";

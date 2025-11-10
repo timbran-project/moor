@@ -117,7 +117,7 @@ object SYSOBJ
     length(args) == 0 && return true;
     command = argstr;
     set_task_perms(player);
-    env = player:command_environment(command, ['complex -> true]);
+    env = player:match_environment(command, ['complex -> true]);
     "Run the parts that need wizard permissions";
     return this:_command_handler(command, env);
   endverb
@@ -125,8 +125,11 @@ object SYSOBJ
   verb _command_handler (this none this) owner: ARCH_WIZARD flags: "rxd"
     "The wizard-permissioned portion of the custom command handler";
     caller == this || raise(E_PERM);
-    {command, env} = args;
-    pc = parse_command(command, env, true);
+    {command, match_env} = args;
+    "Parse command using match environment (all visible objects for dobj/iobj matching)";
+    pc = parse_command(command, match_env, true);
+    "Get command environment (only player and location for primary verb searching)";
+    command_env = player:command_environment();
     if (pc["dobj"] == $ambiguous_match)
       dobj_candidates = pc["ambiguous_dobj"];
     else
@@ -142,7 +145,7 @@ object SYSOBJ
         test_pc = pc;
         test_pc["dobj"] = dobj;
         test_pc["iobj"] = iobj;
-        vm_matches = find_command_verb(test_pc, env);
+        vm_matches = find_command_verb(test_pc, command_env);
         if (vm_matches)
           for m in (vm_matches)
             {target, verbspec} = m;
