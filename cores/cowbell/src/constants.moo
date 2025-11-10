@@ -47,3 +47,5 @@ define ARCHITECTS_COMPASS = #53;
 define LLM_WEARABLE = #54;
 define CONTAINER = #55;
 define ACTOR = #56;
+define SCHEDULER = #57;
+define SCHEDULED_TASK = #58;

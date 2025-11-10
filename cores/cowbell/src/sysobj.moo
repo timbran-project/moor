@@ -43,6 +43,8 @@ object SYSOBJ
   property relation (owner: HACKER, flags: "r") = RELATION;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;
+  property scheduled_task (owner: HACKER, flags: "r") = SCHEDULED_TASK;
+  property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
@@ -217,5 +219,7 @@ object SYSOBJ
     player_class = $login.default_player_class;
     $login.player_setup_capability = $prog:issue_capability(player_class, {'create_child, 'make_player}, 0, 0);
     server_log("Issued player creation capability to $login");
+    "Resume scheduler if needed";
+    $scheduler:resume_if_needed();
   endverb
 endobject

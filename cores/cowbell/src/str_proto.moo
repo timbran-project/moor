@@ -920,6 +920,54 @@ object STR_PROTO
     return time;
   endverb
 
+  verb parse_time_of_day (this none this) owner: HACKER flags: "rxd"
+    "Parse HH:MM:SS time string and return next occurrence as Unix timestamp.";
+    "Example: \"14:30:00\":parse_time_of_day() returns timestamp for next 2:30 PM.";
+    {time_str} = args;
+    typeof(time_str) == STR || raise(E_TYPE, "Time must be string");
+    parts = time_str:split(":");
+    length(parts) == 3 || raise(E_INVARG, "Time must be HH:MM:SS format");
+    hours = toint(parts[1]);
+    minutes = toint(parts[2]);
+    seconds = toint(parts[3]);
+    hours >= 0 && hours < 24 || raise(E_INVARG, "Hours must be 0-23");
+    minutes >= 0 && minutes < 60 || raise(E_INVARG, "Minutes must be 0-59");
+    seconds >= 0 && seconds < 60 || raise(E_INVARG, "Seconds must be 0-59");
+    "Calculate seconds from midnight";
+    target_seconds = hours * 3600 + minutes * 60 + seconds;
+    "Get current time and calculate today's occurrence";
+    now = time();
+    ct = ctime(now);
+    current_hour = toint(ct[12..13]);
+    current_minute = toint(ct[15..16]);
+    current_second = toint(ct[18..19]);
+    current_seconds = current_hour * 3600 + current_minute * 60 + current_second;
+    "If target time has passed today, schedule for tomorrow";
+    if (target_seconds <= current_seconds)
+      return now + (86400 - current_seconds + target_seconds);
+    else
+      return now + (target_seconds - current_seconds);
+    endif
+  endverb
+
+  verb test_parse_time_of_day (this none this) owner: HACKER flags: "rxd"
+    "Test parsing daily time strings.";
+    "Test valid time";
+    next_run = "14:30:00":parse_time_of_day();
+    typeof(next_run) == INT || raise(E_ASSERT, "Should return timestamp");
+    next_run > time() || raise(E_ASSERT, "Should be in future");
+    "Test invalid formats";
+    caught = `"25:00:00":parse_time_of_day() ! E_INVARG => true';
+    caught || raise(E_ASSERT, "Should reject invalid hours");
+    caught = `"12:60:00":parse_time_of_day() ! E_INVARG => true';
+    caught || raise(E_ASSERT, "Should reject invalid minutes");
+    caught = `"12:30":parse_time_of_day() ! E_INVARG => true';
+    caught || raise(E_ASSERT, "Should reject missing seconds");
+    "Test midnight";
+    next_run = "00:00:00":parse_time_of_day();
+    typeof(next_run) == INT || raise(E_ASSERT, "Midnight should return timestamp");
+  endverb
+
   verb compose (this none this) owner: HACKER flags: "rxd"
     return args[1];
   endverb
