@@ -41,9 +41,8 @@ object LLM_WEARABLE
     return true;
   endverb
 
-  verb wear (this none none) owner: HACKER flags: "rd"
+  verb do_wear (this none this) owner: HACKER flags: "rxd"
     "Override parent to enforce owner-only usage";
-    caller == player || raise(E_PERM);
     if (player != this.owner)
       "Announce the violation to the room";
       if (valid(player.location))

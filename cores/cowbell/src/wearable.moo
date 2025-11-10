@@ -9,7 +9,12 @@ object WEARABLE
   override import_export_id = "wearable";
 
   verb wear (this none none) owner: HACKER flags: "rd"
-    "Put on this wearable item";
+    "Command verb for wearing - delegates to do_wear";
+    this:do_wear();
+  endverb
+
+  verb do_wear (this none this) owner: HACKER flags: "rxd"
+    "Implementation verb for putting on this wearable item";
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;
@@ -31,7 +36,12 @@ object WEARABLE
   endverb
 
   verb remove (this none none) owner: HACKER flags: "rd"
-    "Remove this wearable item";
+    "Command verb for removing - delegates to do_remove";
+    this:do_remove();
+  endverb
+
+  verb do_remove (this none this) owner: HACKER flags: "rxd"
+    "Implementation verb for removing this wearable item";
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;
