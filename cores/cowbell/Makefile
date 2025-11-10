@@ -1,5 +1,5 @@
 # MOORC binary selection via environment variable MOORC_TYPE
-# Options: cargo (default), direct, docker
+# Options: cargo (default), direct
 MOORC_TYPE ?= cargo
 
 # DEBUG controls whether to run moorc under gdb
@@ -26,11 +26,6 @@ SRC_DIRECTORY = src
 TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 MOORC = ../moor/target/debug/moorc $(OPTIONS)
-else ifeq ($(MOORC_TYPE),docker)
-SRC_DIRECTORY = /work/src
-TEST_DIRECTORY = /work/tests
-OUTPUT_DIRECTORY = /work
-MOORC = docker run -v .:$(OUTPUT_DIRECTORY) -i ghcr.io/rdaum/moor:release ./moorc $(OPTIONS)
 endif
 
 # Target to generate an old-style MOO textdump from the compilation of the
