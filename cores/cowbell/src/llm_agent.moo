@@ -114,11 +114,7 @@ object LLM_AGENT
           retry_count = retry_count + 1;
           if (retry_count > max_retries)
             "All retries exhausted, re-raise the error";
-            if (typeof(e) == LIST && length(e) >= 1)
-              raise(@e);
-            else
-              raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
-            endif
+            raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
           endif
           "Wait before retrying - exponential backoff";
           suspend(retry_count);
