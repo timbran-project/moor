@@ -5,7 +5,7 @@ object LLM_CLIENT
   readable: true
 
   property api_endpoint (owner: HACKER, flags: "rc") = "https://api.deepseek.com/chat/completions";
-  property api_key (owner: ARCH_WIZARD, flags: "") = "sk-4c5db0ff984944dda75e134ac296975d";
+  property api_key (owner: ARCH_WIZARD, flags: "") = false;
   property model (owner: HACKER, flags: "rc") = "deepseek-chat";
 
   override description = "OpenAI-compatible LLM API client for chat completions using worker_request.";
