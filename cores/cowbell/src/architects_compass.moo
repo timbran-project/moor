@@ -19,7 +19,7 @@ object ARCHITECTS_COMPASS
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     this.agent = $llm_agent:create();
     this.agent.max_iterations = 15;
-    base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
+    base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
     this.agent.system_prompt = base_prompt;
     this.agent:initialize();
     this.agent.tool_callback = this;
@@ -57,6 +57,9 @@ object ARCHITECTS_COMPASS
     "Describe object tool";
     describe_object_tool = $llm_agent_tool:mk("describe_object", "Set an object's description text.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to describe"], "description" -> ["type" -> "string", "description" -> "New description text"]], "required" -> {"object", "description"}], this, "_tool_describe_object");
     this.agent:add_tool("describe_object", describe_object_tool);
+    "Move object tool";
+    move_object_tool = $llm_agent_tool:mk("move_object", "Move an object to a new location. Can move objects to rooms, players, or containers.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to move (name or object number)"], "destination" -> ["type" -> "string", "description" -> "Destination location (room, player, or container - name or object number)"]], "required" -> {"object", "destination"}], this, "_tool_move_object");
+    this.agent:add_tool("move_object", move_object_tool);
     "Grant capability tool";
     grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], this, "_tool_grant_capability");
     this.agent:add_tool("grant_capability", grant_capability_tool);
@@ -88,6 +91,24 @@ object ARCHITECTS_COMPASS
     {wearer} = args;
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     isa(wearer, $builder) || raise(E_PERM, "The compass can only be used by builders");
+  endverb
+
+  verb _resolve_display_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Convert object spec to human-readable display name";
+    {obj_spec, wearer} = args;
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    display_name = obj_spec;
+    if (obj_spec:starts_with("#"))
+      try
+        set_task_perms(wearer);
+        target_obj = $match:match_object(obj_spec, wearer);
+        if (valid(target_obj))
+          display_name = `target_obj:name() ! ANY => obj_spec';
+        endif
+      except (ANY)
+      endtry
+    endif
+    return display_name;
   endverb
 
   verb _format_hud_message (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -122,36 +143,12 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[CREATE]", 'cyan) + " Instantiating: " + $ansi:colorize(tool_args["name"], 'white) + " from parent " + $ansi:colorize(parent_spec, 'yellow);
     elseif (tool_name == "recycle_object")
       obj_spec = tool_args["object"];
-      "Try to resolve object name";
-      display_name = obj_spec;
-      if (obj_spec:starts_with("#"))
-        try
-          set_task_perms(wearer);
-          target_obj = $match:match_object(obj_spec, wearer);
-          if (valid(target_obj))
-            display_name = `target_obj:name() ! ANY => obj_spec';
-          endif
-        except (ANY)
-        endtry
-      endif
-      "Only show obj_spec in parens if different from display_name";
+      display_name = this:_resolve_display_name(obj_spec, wearer);
       obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       message = $ansi:colorize("[RECYCLE]", 'red) + " Destroying: " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "rename_object")
       obj_spec = tool_args["object"];
-      "Try to resolve object name";
-      display_name = obj_spec;
-      if (obj_spec:starts_with("#"))
-        try
-          set_task_perms(wearer);
-          target_obj = $match:match_object(obj_spec, wearer);
-          if (valid(target_obj))
-            display_name = `target_obj:name() ! ANY => obj_spec';
-          endif
-        except (ANY)
-        endtry
-      endif
-      "Only show obj_spec in parens if different from display_name";
+      display_name = this:_resolve_display_name(obj_spec, wearer);
       obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       new_name = tool_args["name"];
       "Parse just the primary name from name:alias1,alias2 format";
@@ -161,41 +158,23 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[RENAME]", 'yellow) + " Renaming " + $ansi:colorize(display_name, 'white) + obj_suffix + " to \"" + new_name + "\"";
     elseif (tool_name == "describe_object")
       obj_spec = tool_args["object"];
-      "Try to resolve object name";
-      display_name = obj_spec;
-      if (obj_spec:starts_with("#"))
-        try
-          set_task_perms(wearer);
-          target_obj = $match:match_object(obj_spec, wearer);
-          if (valid(target_obj))
-            display_name = `target_obj:name() ! ANY => obj_spec';
-          endif
-        except (ANY)
-        endtry
-      endif
+      display_name = this:_resolve_display_name(obj_spec, wearer);
       desc_snippet = tool_args["description"];
       "Truncate long descriptions to first 50 chars";
       if (length(desc_snippet) > 50)
         desc_snippet = desc_snippet[1..50] + "...";
       endif
-      "Only show obj_spec in parens if different from display_name";
       obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       message = $ansi:colorize("[DESCRIBE]", 'cyan) + " Setting description for " + $ansi:colorize(display_name, 'white) + obj_suffix + ": \"" + desc_snippet + "\"";
+    elseif (tool_name == "move_object")
+      obj_spec = tool_args["object"];
+      dest_spec = tool_args["destination"];
+      obj_display_name = this:_resolve_display_name(obj_spec, wearer);
+      dest_display_name = this:_resolve_display_name(dest_spec, wearer);
+      message = $ansi:colorize("[MOVE]", 'yellow) + " Moving " + $ansi:colorize(obj_display_name, 'white) + " to " + $ansi:colorize(dest_display_name, 'white);
     elseif (tool_name == "set_integrated_description")
       obj_spec = tool_args["object"];
-      "Try to resolve object name";
-      display_name = obj_spec;
-      if (obj_spec:starts_with("#"))
-        try
-          set_task_perms(wearer);
-          target_obj = $match:match_object(obj_spec, wearer);
-          if (valid(target_obj))
-            display_name = `target_obj:name() ! ANY => obj_spec';
-          endif
-        except (ANY)
-        endtry
-      endif
-      "Only show obj_spec in parens if different from display_name";
+      display_name = this:_resolve_display_name(obj_spec, wearer);
       obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       integrated_desc = tool_args["integrated_description"];
       if (integrated_desc == "")
@@ -215,39 +194,14 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[MAP]", 'bright_cyan) + " Surveying current area";
     elseif (tool_name == "find_route")
       to_room_spec = tool_args["to_room"];
-      "Try to show name first, then object spec in brackets";
-      display_name = to_room_spec;
-      obj_suffix = "";
-      if (to_room_spec:starts_with("#"))
-        try
-          set_task_perms(wearer);
-          to_obj = $match:match_object(to_room_spec, wearer);
-          if (valid(to_obj))
-            display_name = `to_obj:name() ! ANY => to_room_spec';
-            "Only show obj_spec in brackets if different from display_name";
-            obj_suffix = display_name != to_room_spec ? " (" + to_room_spec + ")" | "";
-          endif
-        except (ANY)
-        endtry
-      endif
+      display_name = this:_resolve_display_name(to_room_spec, wearer);
+      obj_suffix = display_name != to_room_spec ? " (" + to_room_spec + ")" | "";
       message = $ansi:colorize("[ROUTE]", 'bright_cyan) + " Finding path to: " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "list_prototypes")
       message = $ansi:colorize("[PROTOTYPES]", 'bright_magenta) + " Listing available object templates";
     elseif (tool_name == "inspect_object")
       obj_spec = tool_args["object"];
-      "Try to resolve object name";
-      display_name = obj_spec;
-      if (obj_spec:starts_with("#"))
-        try
-          set_task_perms(wearer);
-          target_obj = $match:match_object(obj_spec, wearer);
-          if (valid(target_obj))
-            display_name = `target_obj:name() ! ANY => obj_spec';
-          endif
-        except (ANY)
-        endtry
-      endif
-      "Only show obj_spec in parens if different from display_name";
+      display_name = this:_resolve_display_name(obj_spec, wearer);
       obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       message = $ansi:colorize("[INSPECT]", 'bright_cyan) + " Examining: " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "ask_user")
@@ -725,6 +679,31 @@ object ARCHITECTS_COMPASS
     else
       return "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description. (@integrate command available)";
     endif
+  endverb
+
+  verb _tool_move_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Move an object to a new location";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    dest_spec = args_map["destination"];
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    if (!wearer.wizard && target_obj.owner != wearer)
+      raise(E_PERM, "You do not have permission to move " + tostr(target_obj));
+    endif
+    dest_obj = $match:match_object(dest_spec, wearer);
+    typeof(dest_obj) == OBJ || raise(E_INVARG, "Destination not found");
+    valid(dest_obj) || raise(E_INVARG, "Destination no longer exists");
+    old_location = target_obj.location;
+    old_location_name = valid(old_location) ? `old_location.name ! ANY => tostr(old_location)' | "(nowhere)";
+    "Move the object";
+    target_obj:moveto(dest_obj);
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    dest_name = `dest_obj.name ! ANY => tostr(dest_obj)';
+    return "Moved \"" + obj_name + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + dest_name + "\" (" + tostr(dest_obj) + ").";
   endverb
 
   verb _tool_grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
