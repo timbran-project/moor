@@ -130,7 +130,8 @@ object ACTOR
   endverb
 
   verb mk_emote_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_emote(this, $sub:nc(), " ", args[1]):with_this(this.location);
+    "Emotes always show the actor's name, never 'You'";
+    return $event:mk_emote(this, this:name(), " ", args[1]):with_this(this.location);
   endverb
 
   verb mk_say_event (this none this) owner: HACKER flags: "rxd"
