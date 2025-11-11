@@ -176,6 +176,10 @@ object SYSOBJ
     endif
     "IMPORTANT: Run as the caller, so that the right permissions are applied...";
     set_task_perms(caller_perms());
+    "Wizards can recycle anything";
+    if (caller_perms().wizard)
+      return recycle(target);
+    endif
     "Objects not rooted in $root don't have :destroy, allow direct recycle";
     if (!isa(target, $root))
       return recycle(target);

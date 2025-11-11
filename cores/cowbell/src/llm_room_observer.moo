@@ -15,16 +15,28 @@ object LLM_ROOM_OBSERVER
   override import_export_id = "llm_room_observer";
 
   verb configure (this none this) owner: HACKER flags: "rxd"
-    "Create and configure the internal agent";
+    "Create agent and apply configuration. Children override _setup_agent to customize.";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    "Create the agent";
     this.agent = $llm_agent:create();
+    "Set agent owner to observer owner so they can write to agent properties";
+    this.agent.owner = this.owner;
+    "Let child class configure it";
+    this:_setup_agent(this.agent);
+  endverb
+
+  verb _setup_agent (this none this) owner: HACKER flags: "rxd"
+    "Configure agent with room observer prompts. Override in children to add tools.";
+    {agent} = args;
     "Combine base observation mechanics with specific role";
-    this.agent.system_prompt = this.observation_mechanics_prompt + " " + this.role_prompt;
-    this.agent:initialize();
+    agent.system_prompt = this.observation_mechanics_prompt + " " + this.role_prompt;
+    agent:initialize();
   endverb
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Reconfigure by cleaning up old agent and creating a fresh one";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    set_task_perms(caller_perms());
     "Recycle old agent if it exists";
     if (valid(this.agent))
       recycle(this.agent);
@@ -37,7 +49,7 @@ object LLM_ROOM_OBSERVER
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Receive events from room and pass to agent as observations";
     set_task_perms(this.owner);
-    if (!valid(this.agent))
+    if (typeof(this.agent) != OBJ || !valid(this.agent))
       this:configure();
     endif
     {event} = args;

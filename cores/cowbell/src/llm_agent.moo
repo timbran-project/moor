@@ -5,21 +5,21 @@ object LLM_AGENT
   fertile: true
   readable: true
 
-  property cancel_requested (owner: HACKER, flags: "r") = false;
+  property cancel_requested (owner: HACKER, flags: "rc") = false;
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
-  property context (owner: ARCH_WIZARD, flags: "") = {};
-  property current_continuation (owner: ARCH_WIZARD, flags: "r") = 0;
-  property current_iteration (owner: ARCH_WIZARD, flags: "r") = 0;
-  property last_token_usage (owner: ARCH_WIZARD, flags: "") = [];
-  property max_iterations (owner: ARCH_WIZARD, flags: "") = 10;
-  property min_messages_to_keep (owner: ARCH_WIZARD, flags: "") = 15;
+  property context (owner: ARCH_WIZARD, flags: "c") = {};
+  property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property last_token_usage (owner: ARCH_WIZARD, flags: "c") = [];
+  property max_iterations (owner: ARCH_WIZARD, flags: "r") = 10;
+  property min_messages_to_keep (owner: ARCH_WIZARD, flags: "c") = 15;
   property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
-  property token_limit (owner: ARCH_WIZARD, flags: "") = 100000;
-  property token_owner (owner: ARCH_WIZARD, flags: "") = #-1;
+  property token_limit (owner: ARCH_WIZARD, flags: "r") = 128000;
+  property token_owner (owner: ARCH_WIZARD, flags: "c") = #-1;
   property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property tools (owner: ARCH_WIZARD, flags: "") = [];
-  property total_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
+  property tools (owner: ARCH_WIZARD, flags: "c") = [];
+  property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
   override import_export_id = "llm_agent";
@@ -29,6 +29,8 @@ object LLM_AGENT
     this:_challenge_permissions(caller);
     if (this.system_prompt)
       this.context = {["role" -> "system", "content" -> this.system_prompt]};
+    else
+      this.context = {};
     endif
   endverb
 
@@ -97,13 +99,10 @@ object LLM_AGENT
         return "Operation cancelled by user.";
       endif
       "Check player token budget before API call";
-      if (valid(this.token_owner) && is_player(this.token_owner))
-        set_task_perms(caller_perms());
-        budget = `this.token_owner.llm_token_budget ! ANY => 20000000';
-        used = `this.token_owner.llm_tokens_used ! ANY => 0';
-        if (used >= budget)
-          return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
-        endif
+      budget_check = this:_check_token_budget(this.token_owner);
+      if (typeof(budget_check) == STR)
+        "Budget exceeded, return error message";
+        return budget_check;
       endif
       tool_schemas = this:_get_tool_schemas();
       "Retry API calls on transient errors (network issues, rate limits, etc.)";
@@ -117,7 +116,7 @@ object LLM_AGENT
           suspend(0);
           break;
         except e (ANY)
-          server_log("ERROR: " + toliteral(e));
+          this:_log("ERROR: " + toliteral(e));
           retry_count = retry_count + 1;
           if (retry_count > max_retries)
             "All retries exhausted, re-raise the error";
@@ -133,13 +132,8 @@ object LLM_AGENT
         if (maphaskey(response["usage"], "total_tokens"))
           tokens_this_call = response["usage"]["total_tokens"];
           this.total_tokens_used = this.total_tokens_used + tokens_this_call;
-          "Update player's token usage - needs owner perms to write to ARCH_WIZARD-owned properties";
-          if (valid(this.token_owner) && is_player(this.token_owner))
-            this.token_owner.llm_tokens_used = this.token_owner.llm_tokens_used + tokens_this_call;
-            "Log usage with timestamp";
-            usage_entry = ["timestamp" -> time(), "tokens" -> tokens_this_call, "usage" -> response["usage"]];
-            this.token_owner.llm_usage_log = {@this.token_owner.llm_usage_log, usage_entry};
-          endif
+          "Update player's token usage via wizard-permed helper";
+          this:_update_token_usage(this.token_owner, tokens_this_call);
         endif
         "Check if we need to compact";
         if (this:needs_compaction())
@@ -261,16 +255,16 @@ object LLM_AGENT
         summary = response["choices"][1]["message"]["content"];
         "Rebuild context with system prompt, summary, and recent messages";
         this.context = {system_msg, ["role" -> "assistant", "content" -> "Previous conversation summary: " + summary], @recent_messages};
-        server_log("LLM agent context compacted: " + tostr(length(old_messages)) + " messages summarized, " + tostr(length(recent_messages)) + " kept");
+        this:_log("LLM agent context compacted: " + tostr(length(old_messages)) + " messages summarized, " + tostr(length(recent_messages)) + " kept");
       else
         "Compaction failed, fall back to sliding window";
         this.context = {system_msg, @recent_messages};
-        server_log("LLM agent context compacted: summary failed, using sliding window");
+        this:_log("LLM agent context compacted: summary failed, using sliding window");
       endif
     except e (ANY)
       "Compaction failed, fall back to sliding window";
       this.context = {system_msg, @recent_messages};
-      server_log("LLM agent context compaction error: " + toliteral(e));
+      this:_log("LLM agent context compaction error: " + toliteral(e));
     endtry
     "Notify callback that compaction is complete";
     if (valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_end))
@@ -280,7 +274,47 @@ object LLM_AGENT
 
   verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"
     {who} = args;
-    who == #-1 || who == this || who.owner == this.owner || who == this.owner || who.wizard || raise(E_PERM);
+    who == #-1 || who == this || who.owner == this.owner || who == this.owner || who.wizard || caller_perms().wizard || raise(E_PERM);
     return who;
+  endverb
+
+  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Log message to server log. Runs with wizard perms regardless of agent owner.";
+    {message} = args;
+    server_log(message);
+  endverb
+
+  verb _check_token_budget (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if token owner is within budget. Returns true if okay, error string if exceeded.";
+    "Only callable by this agent or wizards";
+    caller == this || caller.wizard || raise(E_PERM);
+    {player_obj} = args;
+    if (!valid(player_obj) || !is_player(player_obj))
+      return true;
+    endif
+    budget = `player_obj.llm_token_budget ! ANY => 20000000';
+    used = `player_obj.llm_tokens_used ! ANY => 0';
+    if (used >= budget)
+      return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
+    endif
+    return true;
+  endverb
+
+  verb _update_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Update player's token usage. Runs with wizard perms to write ARCH_WIZARD-owned properties.";
+    "Only callable by this agent or wizards";
+    caller == this || caller.wizard || raise(E_PERM);
+    {player_obj, tokens_used} = args;
+    if (!valid(player_obj) || !is_player(player_obj))
+      return;
+    endif
+    "Validate that tokens_used is reasonable (prevent abuse)";
+    typeof(tokens_used) == INT || raise(E_INVARG, "tokens_used must be an integer");
+    tokens_used >= 0 || raise(E_INVARG, "tokens_used cannot be negative");
+    tokens_used <= 1000000 || raise(E_INVARG, "tokens_used suspiciously large");
+    player_obj.llm_tokens_used = player_obj.llm_tokens_used + tokens_used;
+    "Log usage with timestamp";
+    usage_entry = ["timestamp" -> time(), "tokens" -> tokens_used, "usage" -> this.last_token_usage];
+    player_obj.llm_usage_log = {@player_obj.llm_usage_log, usage_entry};
   endverb
 endobject

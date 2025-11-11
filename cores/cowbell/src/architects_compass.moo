@@ -14,76 +14,69 @@ object ARCHITECTS_COMPASS
   override requires_wearing_only = false;
   override tool_name = "COMPASS";
 
-  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Configure agent for conversational use (lazy initialization)";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    this.agent = $llm_agent:create();
-    this.agent.max_iterations = 15;
+  verb _setup_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Configure agent with compass-specific prompts and tools";
+    {agent} = args;
+    agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
+    agent.max_iterations = 15;
     base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question with Accept/Stop/Request Change options - user can accept your proposal, stop the agent, or request modifications which will prompt them for details), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
-    this.agent.system_prompt = base_prompt;
-    this.agent:initialize();
-    this.agent.tool_callback = this;
-    "Register building tools";
-    this:_register_tools();
-  endverb
-
-  verb _register_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Register building operation tools";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    "Explain tool for communicating progress and errors";
+    agent.system_prompt = base_prompt;
+    agent:initialize();
+    agent.tool_callback = this;
+    "Register explain tool";
     explain_tool = $llm_agent_tool:mk("explain", "Communicate reasoning, progress updates, or error details to the user. Use this frequently to show what you're attempting and what errors you encounter.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "The message to communicate to the user"]], "required" -> {"message"}], this, "_tool_explain");
-    this.agent:add_tool("explain", explain_tool);
-    "Build room tool";
+    agent:add_tool("explain", explain_tool);
+    "Register build_room tool";
     build_room_tool = $llm_agent_tool:mk("build_room", "Create a new room in an area. Areas are organizational containers that group rooms. IMPORTANT: The 'area' parameter must be an AREA object (like #38), NOT a room object. To build in the same area as an existing room, omit the area parameter or use 'here'.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "AREA object number to build in (like #38). MUST be an area, NOT a room. Use 'here' for current area, 'ether' for free-floating, or omit entirely to default to current area. NEVER pass a room object here."], "parent" -> ["type" -> "string", "description" -> "Parent room object reference (optional, default: $room)"]], "required" -> {"name"}], this, "_tool_build_room");
-    this.agent:add_tool("build_room", build_room_tool);
-    "Dig passage tool";
+    agent:add_tool("build_room", build_room_tool);
+    "Register dig_passage tool";
     dig_passage_tool = $llm_agent_tool:mk("dig_passage", "Create a passage between two rooms. Can be one-way or bidirectional. ALWAYS use object numbers for room references.", ["type" -> "object", "properties" -> ["source_room" -> ["type" -> "string", "description" -> "Source room object number (optional, defaults to wearer's current location). Use object numbers like #12 or #0000EB-9A6A0BEA36"], "direction" -> ["type" -> "string", "description" -> "Exit direction from source room (e.g. 'north', 'up', 'north,n' for aliases)"], "target_room" -> ["type" -> "string", "description" -> "Destination room object number (like #12 or #0000EB-9A6A0BEA36). MUST use object number."], "return_direction" -> ["type" -> "string", "description" -> "Return direction (optional, will be inferred if omitted)"], "oneway" -> ["type" -> "boolean", "description" -> "True for one-way passage (default: false)"]], "required" -> {"direction", "target_room"}], this, "_tool_dig_passage");
-    this.agent:add_tool("dig_passage", dig_passage_tool);
-    "Remove passage tool";
+    agent:add_tool("dig_passage", dig_passage_tool);
+    "Register remove_passage tool";
     remove_passage_tool = $llm_agent_tool:mk("remove_passage", "Remove/delete a passage between two rooms. Use this to fix duplicate exits or remove unwanted connections.", ["type" -> "object", "properties" -> ["source_room" -> ["type" -> "string", "description" -> "Source room object number (optional, defaults to wearer's current location)"], "target_room" -> ["type" -> "string", "description" -> "Target room object number to remove passage to"]], "required" -> {"target_room"}], this, "_tool_remove_passage");
-    this.agent:add_tool("remove_passage", remove_passage_tool);
-    "Set passage description tool";
+    agent:add_tool("remove_passage", remove_passage_tool);
+    "Register set_passage_description tool";
     set_passage_description_tool = $llm_agent_tool:mk("set_passage_description", "Set the narrative description for a passage/exit. This description integrates into the room's look description when ambient mode is enabled.", ["type" -> "object", "properties" -> ["direction" -> ["type" -> "string", "description" -> "Direction/exit label (e.g. 'north', 'up')"], "description" -> ["type" -> "string", "description" -> "Narrative description for the passage (e.g. 'A dark archway opens to the north')"], "source_room" -> ["type" -> "string", "description" -> "Source room (optional, defaults to wearer's current location)"], "ambient" -> ["type" -> "boolean", "description" -> "If true, description integrates into room description. If false, shows in exits list (default: true)"]], "required" -> {"direction", "description"}], this, "_tool_set_passage_description");
-    this.agent:add_tool("set_passage_description", set_passage_description_tool);
-    "Create object tool";
+    agent:add_tool("set_passage_description", set_passage_description_tool);
+    "Register create_object tool";
     create_object_tool = $llm_agent_tool:mk("create_object", "Create a new object from a parent prototype.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "Parent object (e.g. '$thing', '$wearable')"], "name" -> ["type" -> "string", "description" -> "Primary name"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional alias names"]], "required" -> {"parent", "name"}], this, "_tool_create_object");
-    this.agent:add_tool("create_object", create_object_tool);
-    "Recycle object tool";
+    agent:add_tool("create_object", create_object_tool);
+    "Register recycle_object tool";
     recycle_object_tool = $llm_agent_tool:mk("recycle_object", "Permanently destroy an object. Cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to recycle"]], "required" -> {"object"}], this, "_tool_recycle_object");
-    this.agent:add_tool("recycle_object", recycle_object_tool);
-    "Rename object tool";
+    agent:add_tool("recycle_object", recycle_object_tool);
+    "Register rename_object tool";
     rename_object_tool = $llm_agent_tool:mk("rename_object", "Change an object's name and aliases.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to rename"], "name" -> ["type" -> "string", "description" -> "New name (can include aliases like 'name:alias1,alias2')"]], "required" -> {"object", "name"}], this, "_tool_rename_object");
-    this.agent:add_tool("rename_object", rename_object_tool);
-    "Describe object tool";
+    agent:add_tool("rename_object", rename_object_tool);
+    "Register describe_object tool";
     describe_object_tool = $llm_agent_tool:mk("describe_object", "Set an object's description text.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to describe"], "description" -> ["type" -> "string", "description" -> "New description text"]], "required" -> {"object", "description"}], this, "_tool_describe_object");
-    this.agent:add_tool("describe_object", describe_object_tool);
-    "Move object tool";
+    agent:add_tool("describe_object", describe_object_tool);
+    "Register move_object tool";
     move_object_tool = $llm_agent_tool:mk("move_object", "Move an object to a new location. Can move objects to rooms, players, or containers.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to move (name or object number)"], "destination" -> ["type" -> "string", "description" -> "Destination location (room, player, or container - name or object number)"]], "required" -> {"object", "destination"}], this, "_tool_move_object");
-    this.agent:add_tool("move_object", move_object_tool);
-    "Grant capability tool";
+    agent:add_tool("move_object", move_object_tool);
+    "Register grant_capability tool";
     grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], this, "_tool_grant_capability");
-    this.agent:add_tool("grant_capability", grant_capability_tool);
-    "Audit owned objects tool";
+    agent:add_tool("grant_capability", grant_capability_tool);
+    "Register audit_owned tool";
     audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_audit_owned");
-    this.agent:add_tool("audit_owned", audit_owned_tool);
-    "Area map tool";
+    agent:add_tool("audit_owned", audit_owned_tool);
+    "Register area_map tool";
     area_map_tool = $llm_agent_tool:mk("area_map", "Get a list of all rooms in the current area. Use this to see what locations already exist and understand the spatial layout.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_area_map");
-    this.agent:add_tool("area_map", area_map_tool);
-    "Find route tool";
+    agent:add_tool("area_map", area_map_tool);
+    "Register find_route tool";
     find_route_tool = $llm_agent_tool:mk("find_route", "Find the route between two rooms in the same area. Shows step-by-step directions. Useful for understanding how rooms are connected.", ["type" -> "object", "properties" -> ["from_room" -> ["type" -> "string", "description" -> "Starting room (optional, defaults to wearer's location)"], "to_room" -> ["type" -> "string", "description" -> "Destination room name or object number"]], "required" -> {"to_room"}], this, "_tool_find_route");
-    this.agent:add_tool("find_route", find_route_tool);
-    "List prototypes tool";
+    agent:add_tool("find_route", find_route_tool);
+    "Register list_prototypes tool";
     list_prototypes_tool = $llm_agent_tool:mk("list_prototypes", "List available prototype objects that can be used as parents when creating objects. Shows $thing, $wearable, $room, etc. with descriptions of what each is for.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_prototypes");
-    this.agent:add_tool("list_prototypes", list_prototypes_tool);
-    "Inspect object tool";
+    agent:add_tool("list_prototypes", list_prototypes_tool);
+    "Register inspect_object tool";
     inspect_object_tool = $llm_agent_tool:mk("inspect_object", "Examine an object to see detailed information including name, description, parent, owner, location, and properties. Useful for understanding what an object is and how it's configured.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (name or object number)"]], "required" -> {"object"}], this, "_tool_inspect_object");
-    this.agent:add_tool("inspect_object", inspect_object_tool);
-    "Set integrated description tool";
+    agent:add_tool("inspect_object", inspect_object_tool);
+    "Register set_integrated_description tool";
     set_integrated_description_tool = $llm_agent_tool:mk("set_integrated_description", "Set an object's integrated description - a description that becomes part of the room's description when the object is present. Use this for atmospheric objects like furniture, decorations, or features that should feel like part of the room. For example, a fireplace might have integrated description 'A warm fireplace crackles in the corner'. To clear, set to empty string.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to set integrated description on"], "integrated_description" -> ["type" -> "string", "description" -> "The integrated description text (or empty string to clear)"]], "required" -> {"object", "integrated_description"}], this, "_tool_set_integrated_description");
-    this.agent:add_tool("set_integrated_description", set_integrated_description_tool);
-    "Ask user tool for creative input and confirmations";
+    agent:add_tool("set_integrated_description", set_integrated_description_tool);
+    "Register ask_user tool";
     ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. User will be presented with three choices: 'Accept' (agree with your proposal), 'Stop' (cancel the agent), or 'Request Change' (provide modifications - will prompt them for details). Use this when you need user approval, clarification, decisions, or creative input. Returns 'User accepted.' if they accept, 'User cancelled.' if they stop, or 'User requested changes: <their feedback>' if they want modifications.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"]], "required" -> {"question"}], this, "_tool_ask_user");
-    this.agent:add_tool("ask_user", ask_user_tool);
+    agent:add_tool("ask_user", ask_user_tool);
   endverb
 
   verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
@@ -297,17 +290,59 @@ object ARCHITECTS_COMPASS
     target_spec = args_map["target_room"];
     return_dir = maphaskey(args_map, "return_direction") ? args_map["return_direction"] | "";
     oneway_flag = maphaskey(args_map, "oneway") ? args_map["oneway"] | false;
-    "Parse from direction - can include aliases like 'north,n'";
-    from_dirs = $str_proto:split(direction, ",");
+    "Parse from direction - handle both comma-separated ('north,n') and colon-separated ('north:n') formats";
+    if (direction:contains(":"))
+      "Handle colon-separated format by splitting on colon first, then comma";
+      colon_parts = $str_proto:split(direction, ":");
+      if (length(colon_parts) >= 2)
+        primary_dir = colon_parts[1];
+        alias_str = colon_parts[2];
+        from_dirs = $str_proto:split(alias_str, ",");
+        from_dirs = {primary_dir, @from_dirs};
+      else
+        from_dirs = {direction};
+      endif
+    else
+      "Handle comma-separated format";
+      from_dirs = $str_proto:split(direction, ",");
+    endif
+    "Remove duplicates before expanding";
+    unique_from_dirs = {};
+    for dir in (from_dirs)
+      if (!(dir in unique_from_dirs))
+        unique_from_dirs = {@unique_from_dirs, dir};
+      endif
+    endfor
     "Expand standard direction aliases (e.g., 'north' -> 'north,n')";
-    from_dirs = $passage:expand_direction_aliases(from_dirs);
-    "Parse return direction - infer opposite if not specified";
+    from_dirs = $passage:expand_direction_aliases(unique_from_dirs);
+    "Parse return direction - handle both formats";
     to_dirs = {};
     if (!oneway_flag)
       if (return_dir)
-        to_dirs = $str_proto:split(return_dir, ",");
+        if (return_dir:contains(":"))
+          "Handle colon-separated format for return direction";
+          colon_parts = $str_proto:split(return_dir, ":");
+          if (length(colon_parts) >= 2)
+            primary_dir = colon_parts[1];
+            alias_str = colon_parts[2];
+            to_dirs = $str_proto:split(alias_str, ",");
+            to_dirs = {primary_dir, @to_dirs};
+          else
+            to_dirs = {return_dir};
+          endif
+        else
+          "Handle comma-separated format for return direction";
+          to_dirs = $str_proto:split(return_dir, ",");
+        endif
+        "Remove duplicates before expanding";
+        unique_to_dirs = {};
+        for dir in (to_dirs)
+          if (!(dir in unique_to_dirs))
+            unique_to_dirs = {@unique_to_dirs, dir};
+          endif
+        endfor
         "Expand aliases for return direction";
-        to_dirs = $passage:expand_direction_aliases(to_dirs);
+        to_dirs = $passage:expand_direction_aliases(unique_to_dirs);
       else
         "Infer opposite direction";
         opposites = ["north" -> "south", "south" -> "north", "east" -> "west", "west" -> "east", "up" -> "down", "down" -> "up", "in" -> "out", "out" -> "in"];

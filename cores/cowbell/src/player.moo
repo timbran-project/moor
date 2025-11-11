@@ -12,7 +12,7 @@ object PLAYER
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = <#28, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true, .verb_be = "are", .verb_have = "have">;
+  property pronouns (owner: HACKER, flags: "rc") = <#28, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true>;
   property wearing (owner: HACKER, flags: "rwc") = {};
 
   override description = "You see a player who should get around to describing themself.";

@@ -129,14 +129,14 @@ object WIZ
     "Find all compasses and visors";
     compasses = {};
     visors = {};
-    for obj in (descendants($architects_compass))
-      if (valid(OBJ) && OBJ != $architects_compass)
-        compasses = {@compasses, OBJ};
+    for o in (descendants($architects_compass))
+      if (valid(o) && o != $architects_compass)
+        compasses = {@compasses, o};
       endif
     endfor
     for obj in (descendants($data_visor))
-      if (valid(OBJ) && OBJ != $data_visor)
-        visors = {@visors, OBJ};
+      if (valid(o) && o != $data_visor)
+        visors = {@visors, o};
       endif
     endfor
     total = length(compasses) + length(visors);
@@ -293,5 +293,102 @@ object WIZ
     target.llm_tokens_used = 0;
     target.llm_usage_log = {};
     player:inform_current($event:mk_info(player, "Reset " + target:name() + "'s LLM token usage to 0 and cleared usage log."));
+  endverb
+
+  verb "@reissue-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "Destroy all existing visors and compasses, then reissue them to all programmers and builders";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can reissue tools.");
+    "Find all existing compasses and visors";
+    compasses = {};
+    visors = {};
+    for o in (descendants($architects_compass))
+      if (valid(o) && o != $architects_compass)
+        compasses = {@compasses, o};
+      endif
+    endfor
+    for o in (descendants($data_visor))
+      if (valid(o) && o != $data_visor)
+        visors = {@visors, o};
+      endif
+    endfor
+    "Find all players who need tools";
+    "All descendants of $builder get compass (includes $prog and $wiz), but exclude prototypes";
+    compass_recipients = {};
+    for p in (descendants($builder))
+      if (valid(p) && is_player(p) && p != $builder && p != $prog && p != $hacker && p != $wiz)
+        compass_recipients = {@compass_recipients, p};
+      endif
+    endfor
+    "All descendants of $prog get visor (includes $wiz), but exclude prototypes";
+    visor_recipients = {};
+    for p in (descendants($prog))
+      if (valid(p) && is_player(p) && p != $prog && p != $hacker && p != $wiz)
+        visor_recipients = {@visor_recipients, p};
+      endif
+    endfor
+    total_destroy = length(compasses) + length(visors);
+    total_issue = length(compass_recipients) + length(visor_recipients);
+    "Confirm before proceeding";
+    question = "Destroy " + tostr(length(compasses)) + " compass(es) and " + tostr(length(visors)) + " visor(s), then reissue " + tostr(length(compass_recipients)) + " compass(es) and " + tostr(length(visor_recipients)) + " visor(s)?";
+    metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+    response = player:read_with_prompt(metadata);
+    if (response != "yes")
+      player:inform_current($event:mk_error(player, "Tool reissue cancelled."));
+      return;
+    endif
+    "Destroy all existing tools";
+    compass_count = 0;
+    for compass in (compasses)
+      try
+        compass:destroy();
+        compass_count = compass_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to destroy " + tostr(compass) + ": " + toliteral(e)));
+      endtry
+    endfor
+    visor_count = 0;
+    for visor in (visors)
+      try
+        visor:destroy();
+        visor_count = visor_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to destroy " + tostr(visor) + ": " + toliteral(e)));
+      endtry
+    endfor
+    player:inform_current($event:mk_info(player, "Destroyed " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
+    "Issue compasses to all builders/programmers/wizards";
+    compass_count = 0;
+    for recipient in (compass_recipients)
+      try
+        owner_name = recipient:name();
+        compass = create($architects_compass, recipient);
+        compass.owner = recipient;
+        compass.name = owner_name + "'s " + $architects_compass.name;
+        compass.aliases = $architects_compass.aliases;
+        compass:moveto(recipient);
+        compass_count = compass_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to issue compass to " + tostr(recipient) + ": " + toliteral(e)));
+      endtry
+    endfor
+    "Issue visors to all programmers/wizards";
+    visor_count = 0;
+    for recipient in (visor_recipients)
+      try
+        owner_name = recipient:name();
+        visor = create($data_visor, recipient);
+        visor.owner = recipient;
+        visor.name = owner_name + "'s " + $data_visor.name;
+        visor.aliases = $data_visor.aliases;
+        visor:moveto(recipient);
+        visor_count = visor_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to issue visor to " + tostr(recipient) + ": " + toliteral(e)));
+      endtry
+    endfor
+    "Report results";
+    player:inform_current($event:mk_info(player, "Issued " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
   endverb
 endobject

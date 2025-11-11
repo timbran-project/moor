@@ -1,7 +1,7 @@
 object EVENT_RECEIVER
   name: "Generic Event Receiver"
   parent: ACTOR
-  location: FIRST_ROOM
+  location: #000066-9A705E96FD
   owner: WIZ
   fertile: true
   readable: true

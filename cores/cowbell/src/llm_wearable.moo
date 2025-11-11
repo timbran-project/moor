@@ -17,9 +17,21 @@ object LLM_WEARABLE
   override description = "Base prototype for AI-powered wearable tools that use LLM agents for interactive assistance.";
   override import_export_id = "llm_wearable";
 
-  verb configure (this none this) owner: HACKER flags: "rxd"
+  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create agent and apply configuration. Children override _setup_agent to customize.";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    "Create the agent";
+    this.agent = $llm_agent:create();
+    "Set agent owner to tool owner so they can write to agent properties";
+    this.agent.owner = this.owner;
+    "Let child class configure it";
+    this:_setup_agent(this.agent);
+  endverb
+
+  verb _setup_agent (this none this) owner: HACKER flags: "rxd"
     "Override in child objects to configure agent with specific system prompt and tools";
-    raise(E_VERBNF, "Child objects must override :configure to set up their agent");
+    {agent} = args;
+    raise(E_VERBNF, "Child objects must override :_setup_agent to configure their agent");
   endverb
 
   verb _action_perms_check (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -43,17 +55,23 @@ object LLM_WEARABLE
 
   verb do_wear (this none this) owner: HACKER flags: "rxd"
     "Override parent to enforce owner-only usage";
-    if (player != this.owner)
+    this:_check_for_owner("wear");
+    pass(@args);
+  endverb
+
+  verb _check_for_owner (this none this) owner: HACKER flags: "rxd"
+    "Override parent to enforce owner-only usage";
+    action = {args};
+    if (player != this.owner && !player.wizard)
       "Announce the violation to the room";
       if (valid(player.location))
-        event = $event:mk_info(player, this:name(), " emits a sharp warning tone as ", $sub:n(), " ", $sub:self_alt("attempt", "attempts"), " to wear it, rejecting the unauthorized user."):with_this(player.location);
+        event = $event:mk_info(player, this:name(), " emits a sharp warning tone as ", $sub:n(), " ", $sub:self_alt("attempt", "attempts"), " to ", action," it, rejecting the unauthorized user."):with_this(player.location);
         player.location:announce(event);
       else
         player:inform_current($event:mk_error(player, this:name(), " refuses to attune to you. The device is bonded to its rightful owner and will not respond to unauthorized use."));
       endif
       return;
     endif
-    pass(@args);
   endverb
 
   verb _send_with_continuation (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -98,7 +116,7 @@ object LLM_WEARABLE
     if (!valid(this.agent))
       return;
     endif
-    set_task_perms(wearer);
+    "Don't downgrade perms - need ARCH_WIZARD perms to read llm_token_budget and llm_tokens_used";
     budget = `wearer.llm_token_budget ! ANY => 20000000';
     used = `wearer.llm_tokens_used ! ANY => 0';
     percent_used = used * 100 / budget;
@@ -139,7 +157,7 @@ object LLM_WEARABLE
         ctx_color = 'dim;
         status = "OK";
       endif
-      context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " Size: " + $ansi:colorize(tostr(prompt_tokens), 'white) + "/" + tostr(token_limit) + " (" + tostr(context_percent) + "%) | Compaction at " + tostr(threshold_tokens) + " (" + tostr(threshold_percent) + "%) - " + $ansi:colorize(status, ctx_color);
+      context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " Size: " + $ansi:colorize(tostr(prompt_tokens), 'white) + "/" + tostr(token_limit) + " (" + tostr(context_percent) + "%) | Compaction at " + tostr(threshold_tokens) + " (" + tostr(toint(threshold_percent)) + "% full) - " + $ansi:colorize(status, ctx_color);
       wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset));
     endif
   endverb
@@ -184,6 +202,7 @@ object LLM_WEARABLE
 
   verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Callback when agent uses a tool - children customize via _format_hud_message and _get_tool_content_types";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     {tool_name, tool_args} = args;
     wearer = this.location;
     if (!valid(wearer) || typeof(wearer) != OBJ)
@@ -251,13 +270,14 @@ object LLM_WEARABLE
     return {};
   endverb
 
-  verb stop (this none none) owner: HACKER flags: "rd"
+  verb stop (this none none) owner: ARCH_WIZARD flags: "rd"
     "Stop the current agent operation without clearing context";
-    caller == player || raise(E_PERM);
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
     endif
+    set_task_perms(this.owner);
     "Request cancellation of current operation";
     this.agent.cancel_requested = true;
     "Show token usage before stopping";
@@ -265,13 +285,14 @@ object LLM_WEARABLE
     player:inform_current($event:mk_info(player, "Cancellation requested. Agent will stop at next safe point."));
   endverb
 
-  verb reset (this none none) owner: HACKER flags: "rd"
+  verb reset (this none none) owner: ARCH_WIZARD flags: "rd"
     "Reset agent context, clearing conversation history";
-    caller == player || raise(E_PERM);
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
     endif
+    set_task_perms(this.owner);
     "Show token usage before resetting";
     this:_show_token_usage(player);
     "Clear the agent's context";
@@ -279,8 +300,35 @@ object LLM_WEARABLE
     player:inform_current($event:mk_info(player, "Agent context reset. Conversation history cleared."));
   endverb
 
-  verb recycle (this none this) owner: HACKER flags: "rxd"
+  verb debug_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Debug the status calculation to see what's happening";
+    if (!valid(this.agent))
+      return "No agent configured";
+    endif
+    last_usage = this.agent.last_token_usage;
+    if (typeof(last_usage) != MAP || !maphaskey(last_usage, "prompt_tokens"))
+      return "No prompt token data available";
+    endif
+    prompt_tokens = last_usage["prompt_tokens"];
+    token_limit = this.agent.token_limit;
+    compaction_threshold = this.agent.compaction_threshold;
+    threshold_tokens = token_limit * compaction_threshold;
+    context_percent = prompt_tokens * 100 / token_limit;
+    threshold_percent = prompt_tokens * 100 / threshold_tokens;
+    if (threshold_percent >= 100)
+      status = "COMPACTING";
+    elseif (threshold_percent >= 80)
+      status = "NEAR LIMIT";
+    else
+      status = "OK";
+    endif
+    return ["prompt_tokens" -> prompt_tokens, "token_limit" -> token_limit, "compaction_threshold" -> compaction_threshold, "threshold_tokens" -> threshold_tokens, "context_percent" -> context_percent, "threshold_percent" -> threshold_percent, "test_gte_100" -> (threshold_percent >= 100), "test_gte_80" -> (threshold_percent >= 80), "status" -> status];
+  endverb
+
+  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Clean up agent when object is destroyed";
+    caller == this || caller == this.owner || (valid(caller) && caller.wizard) || raise(E_PERM);
+    set_task_perms(this.owner);
     if (valid(this.agent))
       this.agent = #-1;
     endif
@@ -292,7 +340,7 @@ object LLM_WEARABLE
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Recycle old agent if it exists";
     if (valid(this.agent))
-      recycle(this.agent);
+      this.agent:destroy();
       this.agent = #-1;
     endif
     "Create fresh agent with current configuration";
@@ -301,7 +349,7 @@ object LLM_WEARABLE
 
   verb "use inter*act qu*ery" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Use/interact with the wearable - prompts for input";
-    caller == player || raise(E_PERM);
+    this:_check_for_owner("use");
     "Check if wearing (and optionally carrying)";
     wearing_check = is_member(this, player.wearing);
     carrying_check = !this.requires_wearing_only && is_member(this, player.contents);

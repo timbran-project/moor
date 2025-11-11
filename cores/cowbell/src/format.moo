@@ -1,7 +1,7 @@
 object FORMAT
   name: "Format Objects"
   parent: ROOT
-  location: FIRST_ROOM
+  location: #000066-9A705E96FD
   owner: HACKER
   readable: true
 

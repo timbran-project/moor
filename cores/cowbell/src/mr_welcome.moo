@@ -51,41 +51,43 @@ object MR_WELCOME
     endfork
   endverb
 
-  verb configure (this none this) owner: HACKER flags: "rxd"
-    "Configure agent and register social tools";
+  verb _setup_agent (this none this) owner: HACKER flags: "rxd"
+    "Configure agent with social tools and Mr. Welcome personality";
+    {agent} = args;
     "Build role_prompt with world context before calling parent";
     this.role_prompt = this.base_role_prompt + " WORLD CONTEXT: " + this.world_context;
+    "Call parent to set system prompt and initialize";
     pass(@args);
     "Set callbacks for tool and compaction notifications";
-    this.agent.tool_callback = this;
-    this.agent.compaction_callback = this;
+    agent.tool_callback = this;
+    agent.compaction_callback = this;
     "Register list_players tool";
     list_players_tool = $llm_agent_tool:mk("list_players", "Get a list of all currently connected people in this world with activity information. Returns for each person: object ref, name, idle time, connected time, location, and activity level (active/recent/idle).", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_players");
-    this.agent:add_tool("list_players", list_players_tool);
+    agent:add_tool("list_players", list_players_tool);
     "Register player_info tool";
     player_info_tool = $llm_agent_tool:mk("player_info", "Get information about a specific person including their name and description.", ["type" -> "object", "properties" -> ["player_name" -> ["type" -> "string", "description" -> "The name of the person to get information about"]], "required" -> {"player_name"}], this, "_tool_player_info");
-    this.agent:add_tool("player_info", player_info_tool);
+    agent:add_tool("player_info", player_info_tool);
     "Register area_map tool";
     area_map_tool = $llm_agent_tool:mk("area_map", "Get a list of all rooms in the current area. Use this to see what locations exist.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_area_map");
-    this.agent:add_tool("area_map", area_map_tool);
+    agent:add_tool("area_map", area_map_tool);
     "Register find_route tool";
     find_route_tool = $llm_agent_tool:mk("find_route", "Find the route from the current location to a destination room. Returns step-by-step directions.", ["type" -> "object", "properties" -> ["destination" -> ["type" -> "string", "description" -> "The name of the destination room"]], "required" -> {"destination"}], this, "_tool_find_route");
-    this.agent:add_tool("find_route", find_route_tool);
+    agent:add_tool("find_route", find_route_tool);
     "Register find_object tool";
     find_object_tool = $llm_agent_tool:mk("find_object", "Find an object by name in the current room and get information about it. Use this when players ask about things they can interact with.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to find (e.g. 'visor', 'welcome', 'door')"]], "required" -> {"object_name"}], this, "_tool_find_object");
-    this.agent:add_tool("find_object", find_object_tool);
+    agent:add_tool("find_object", find_object_tool);
     "Register list_commands tool";
     list_commands_tool = $llm_agent_tool:mk("list_commands", "Get a list of commands that can be used with an object. Shows what actions players can perform.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to check"]], "required" -> {"object_name"}], this, "_tool_list_commands");
-    this.agent:add_tool("list_commands", list_commands_tool);
+    agent:add_tool("list_commands", list_commands_tool);
     "Register emote tool";
     emote_tool = $llm_agent_tool:mk("emote", "Express an action or emotion through an emote. Use this to show physical actions, reactions, or emotions without speaking. For example: 'thoughtfully strokes his chin', 'chuckles warmly', 'gestures welcomingly'. The emote will be shown as 'Mr. Welcome <your action>.'", ["type" -> "object", "properties" -> ["action" -> ["type" -> "string", "description" -> "The action or emotion to express (e.g., 'nods approvingly', 'grins', 'looks thoughtful')"]], "required" -> {"action"}], this, "_tool_emote");
-    this.agent:add_tool("emote", emote_tool);
+    agent:add_tool("emote", emote_tool);
     "Register directed_say tool";
     directed_say_tool = $llm_agent_tool:mk("directed_say", "Say something directed at a specific person in the room. Use when you want to specifically address someone (like when answering their direct question, or making a pointed remark to them). The message will be shown as 'Mr. Welcome [to Person]: message'.", ["type" -> "object", "properties" -> ["target_name" -> ["type" -> "string", "description" -> "The name of the person to address"], "message" -> ["type" -> "string", "description" -> "What to say to them"]], "required" -> {"target_name", "message"}], this, "_tool_directed_say");
-    this.agent:add_tool("directed_say", directed_say_tool);
+    agent:add_tool("directed_say", directed_say_tool);
     "Register think tool";
     think_tool = $llm_agent_tool:mk("think", "Playfully express your internal thoughts in a visible thought bubble. Use this for whimsical observations, amusing asides, ponderings, or fun meta-commentary that adds personality and humor to the conversation. It's a delightful way to show what you're thinking without actually saying it aloud. The thought will be shown as 'Mr. Welcome . o O ( your thought )'.", ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "The thought or observation to express"]], "required" -> {"thought"}], this, "_tool_think");
-    this.agent:add_tool("think", think_tool);
+    agent:add_tool("think", think_tool);
   endverb
 
   verb _tool_list_players (this none this) owner: HACKER flags: "rxd"

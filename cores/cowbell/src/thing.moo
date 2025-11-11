@@ -7,7 +7,7 @@ object THING
   readable: true
 
   property integrated_description (owner: HACKER, flags: "rc") = "";
-  property pronouns (owner: HACKER, flags: "rc") = <#28, .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false, .verb_be = "is", .verb_have = "has">;
+  property pronouns (owner: HACKER, flags: "rc") = <#28, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false>;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_id = "thing";
