@@ -15,7 +15,7 @@ object LLM_AGENT
   property max_iterations (owner: ARCH_WIZARD, flags: "") = 10;
   property min_messages_to_keep (owner: ARCH_WIZARD, flags: "") = 15;
   property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
-  property token_limit (owner: ARCH_WIZARD, flags: "") = 4000;
+  property token_limit (owner: ARCH_WIZARD, flags: "") = 100000;
   property token_owner (owner: ARCH_WIZARD, flags: "") = #-1;
   property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property tools (owner: ARCH_WIZARD, flags: "") = [];
