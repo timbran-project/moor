@@ -274,7 +274,7 @@ object LLM_AGENT
 
   verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"
     {who} = args;
-    who == #-1 || who == this || who.owner == this.owner || who == this.owner || who.wizard || caller_perms().wizard || raise(E_PERM);
+    who == #-1 || who == this || who.owner == this.owner || who == this.owner || caller_perms().wizard || raise(E_PERM);
     return who;
   endverb
 
@@ -287,7 +287,7 @@ object LLM_AGENT
   verb _check_token_budget (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if token owner is within budget. Returns true if okay, error string if exceeded.";
     "Only callable by this agent or wizards";
-    caller == this || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     {player_obj} = args;
     if (!valid(player_obj) || !is_player(player_obj))
       return true;
@@ -303,7 +303,7 @@ object LLM_AGENT
   verb _update_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Update player's token usage. Runs with wizard perms to write ARCH_WIZARD-owned properties.";
     "Only callable by this agent or wizards";
-    caller == this || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     {player_obj, tokens_used} = args;
     if (!valid(player_obj) || !is_player(player_obj))
       return;

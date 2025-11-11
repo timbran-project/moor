@@ -19,7 +19,7 @@ object LLM_WEARABLE
 
   verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create agent and apply configuration. Children override _setup_agent to customize.";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     "Create the agent";
     this.agent = $llm_agent:create();
     "Set agent owner to tool owner so they can write to agent properties";
@@ -202,7 +202,7 @@ object LLM_WEARABLE
 
   verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Callback when agent uses a tool - children customize via _format_hud_message and _get_tool_content_types";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args} = args;
     wearer = this.location;
     if (!valid(wearer) || typeof(wearer) != OBJ)
@@ -272,7 +272,7 @@ object LLM_WEARABLE
 
   verb stop (this none none) owner: ARCH_WIZARD flags: "rd"
     "Stop the current agent operation without clearing context";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
@@ -287,7 +287,7 @@ object LLM_WEARABLE
 
   verb reset (this none none) owner: ARCH_WIZARD flags: "rd"
     "Reset agent context, clearing conversation history";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
@@ -327,17 +327,15 @@ object LLM_WEARABLE
 
   verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Clean up agent when object is destroyed";
-    caller == this || caller == this.owner || (valid(caller) && caller.wizard) || raise(E_PERM);
-    set_task_perms(this.owner);
+    caller == this || caller_perms() == this.owner || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
     if (valid(this.agent))
       this.agent = #-1;
     endif
-    pass(@args);
   endverb
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Reconfigure by cleaning up old agent and creating a fresh one";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     "Recycle old agent if it exists";
     if (valid(this.agent))
       this.agent:destroy();

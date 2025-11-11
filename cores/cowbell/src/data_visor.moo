@@ -182,7 +182,7 @@ object DATA_VISOR
     "endif",
     "",
     "// Permission check at verb start",
-    "caller == this || caller.wizard || raise(E_PERM);",
+    "caller == this || caller_perms().wizard || raise(E_PERM);",
     "set_task_perms(this.owner);",
     "",
     "// Early returns for validation",
@@ -312,7 +312,7 @@ object DATA_VISOR
 
   verb _find_architects_compass (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find architect's compass in wearer's inventory or worn items";
-    caller == this || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(caller_perms());
     {wearer} = args;
     if (!valid(wearer))
@@ -336,7 +336,7 @@ object DATA_VISOR
 
   verb _register_compass_tools_if_available (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Register building tools from architect's compass if found";
-    caller == this || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(caller_perms());
     wearer = this:wearer();
     compass = this:_find_architects_compass(wearer);
