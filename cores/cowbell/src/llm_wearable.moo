@@ -57,20 +57,36 @@ object LLM_WEARABLE
   endverb
 
   verb _send_with_continuation (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Send message to agent with automatic continuation on max iterations";
+    "Send message to agent with user-confirmed continuation on max iterations";
     {message, ?tool_name = "TOOL", ?max_continuations = 3} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     "Set token owner for budget tracking";
     this.agent.token_owner = wearer;
+    this.agent.current_continuation = 0;
     response = this.agent:send_message(message);
-    "If we hit max iterations, automatically continue";
+    "If we hit max iterations, ask user if they want to continue";
     continuations = 0;
     while (response:starts_with("Error: Maximum iterations exceeded") && continuations < max_continuations)
+      "Show iteration limit message";
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[" + tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset));
+      "Ask user if they want to continue";
+      metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
+      user_choice = wearer:read_with_prompt(metadata);
+      if (user_choice != "yes")
+        "User chose not to continue";
+        this.agent.current_continuation = 0;
+        this:_show_token_usage(wearer);
+        return "Agent stopped at user request after reaching iteration limit.";
+      endif
+      "User chose to continue";
       continuations = continuations + 1;
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[" + tool_name + "]", 'bright_yellow) + " Complex task detected - continuing automatically... (" + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset));
+      this.agent.current_continuation = continuations;
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[" + tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset));
       response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
     endwhile
+    "Reset continuation counter";
+    this.agent.current_continuation = 0;
     "Show token usage summary";
     this:_show_token_usage(wearer);
     return response;
@@ -116,20 +132,32 @@ object LLM_WEARABLE
   endverb
 
   verb _tool_ask_user (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Ask the wearer a question and receive their response";
+    "Tool: Ask the wearer a question with Accept/Stop/Request Change options";
     {args_map} = args;
     wearer = this:_action_perms_check();
     question = args_map["question"];
     typeof(question) == STR || raise(E_TYPE("Expected question string"));
-    "Use direct read() with text input type - simple text field + cancel button";
-    metadata = {{"input_type", "text"}, {"prompt", question}, {"placeholder", "Enter your response..."}};
+    "Present structured choices: Accept, Stop, Request Change";
+    metadata = {{"input_type", "choice"}, {"prompt", question}, {"choices", {"Accept", "Stop", "Request Change"}}};
     response = wearer:read_with_prompt(metadata);
-    if (typeof(response) != STR || response == "")
-      "User cancelled - stop the agent flow";
+    if (response == "Stop" || typeof(response) != STR || response == "")
+      "User chose to stop or cancelled - stop the agent flow";
       this.agent.cancel_requested = true;
       return "User cancelled.";
+    elseif (response == "Request Change")
+      "Follow up with text input for the requested change";
+      change_metadata = {{"input_type", "text"}, {"prompt", "What changes would you like?"}, {"placeholder", "Describe your requested changes..."}};
+      change_request = wearer:read_with_prompt(change_metadata);
+      if (typeof(change_request) != STR || change_request == "")
+        "User cancelled the change request";
+        this.agent.cancel_requested = true;
+        return "User cancelled.";
+      endif
+      return "User requested changes: " + change_request;
+    else
+      "User accepted (response is 'Accept')";
+      return "User accepted.";
     endif
-    return "User response: " + response;
   endverb
 
   verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -146,6 +174,20 @@ object LLM_WEARABLE
     try
       "Let child format the message (handles all tools including explain/ask_user)";
       message = this:_format_hud_message(tool_name, tool_args);
+      "Prepend iteration info if agent is available";
+      if (valid(this.agent))
+        iter = this.agent.current_iteration;
+        max_iter = this.agent.max_iterations;
+        cont = this.agent.current_continuation;
+        if (iter > 0)
+          iter_info = $ansi:colorize("[" + tostr(iter) + "/" + tostr(max_iter), 'dim);
+          if (cont > 0)
+            iter_info = iter_info + " cont:" + tostr(cont);
+          endif
+          iter_info = iter_info + "] ";
+          message = iter_info + message;
+        endif
+      endif
       "Get content types from child (allows markdown rendering for specific tools)";
       content_types = this:_get_tool_content_types(tool_name, tool_args);
       "Build and send event";

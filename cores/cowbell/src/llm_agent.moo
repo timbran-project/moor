@@ -8,6 +8,8 @@ object LLM_AGENT
   property cancel_requested (owner: HACKER, flags: "r") = false;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
   property context (owner: ARCH_WIZARD, flags: "") = {};
+  property current_continuation (owner: ARCH_WIZARD, flags: "r") = 0;
+  property current_iteration (owner: ARCH_WIZARD, flags: "r") = 0;
   property last_token_usage (owner: ARCH_WIZARD, flags: "") = [];
   property max_iterations (owner: ARCH_WIZARD, flags: "") = 10;
   property min_messages_to_keep (owner: ARCH_WIZARD, flags: "") = 15;
@@ -83,10 +85,14 @@ object LLM_AGENT
     this:add_message("user", user_input);
     "Clear any previous cancellation request at start of new message";
     this.cancel_requested = false;
+    this.current_iteration = 0;
     for iteration in [1..this.max_iterations]
+      "Track current iteration for visibility";
+      this.current_iteration = iteration;
       "Check if cancellation was requested";
       if (this.cancel_requested)
         this.cancel_requested = false;
+        this.current_iteration = 0;
         return "Operation cancelled by user.";
       endif
       "Check player token budget before API call";
@@ -148,6 +154,18 @@ object LLM_AGENT
           "Execute each tool call";
           tool_results = {};
           for tool_call in (message["tool_calls"])
+            "Check if cancellation was requested before executing each tool";
+            if (this.cancel_requested)
+              this.cancel_requested = false;
+              this.current_iteration = 0;
+              "Save assistant message with tool calls to context";
+              this.context = {@this.context, message};
+              "Add partial tool results if any were completed";
+              for tool_result in (tool_results)
+                this.context = {@this.context, tool_result};
+              endfor
+              return "Operation cancelled by user. " + tostr(length(tool_results)) + " of " + tostr(length(message["tool_calls"])) + " tools completed before cancellation.";
+            endif
             tool_name = tool_call["function"]["name"];
             tool_args = tool_call["function"]["arguments"];
             tool = this:_find_tool(tool_name);
@@ -184,13 +202,16 @@ object LLM_AGENT
           "No tool calls, this is the final response";
           final_content = message["content"];
           this:add_message("assistant", final_content);
+          this.current_iteration = 0;
           return final_content;
         endif
       else
         "Unexpected response format";
+        this.current_iteration = 0;
         return tostr(response);
       endif
     endfor
+    this.current_iteration = 0;
     return "Error: Maximum iterations exceeded";
   endverb
 
