@@ -75,13 +75,21 @@ object LOOK
     ambient_passages = `this.ambient_passages ! E_PROPNF => {}';
     if (length(integrated_contents) || length(ambient_passages))
       combined_description = description;
-      "Append integrated object descriptions";
+      "Append integrated object descriptions as separate sentences";
       for ic in (integrated_contents)
-        combined_description = combined_description + "  " + ic;
+        "Ensure starts with capital letter";
+        ic_formatted = ic:capitalize();
+        "Ensure ends with period";
+        if (!ic_formatted:ends_with("."))
+          ic_formatted = ic_formatted + ".";
+        endif
+        combined_description = combined_description + "  " + ic_formatted;
       endfor
       "Append ambient passage descriptions with connector phrase";
       if (length(ambient_passages))
-        combined_description = combined_description + "  You see " + ambient_passages:english_list() + ".";
+        "Lowercase first character of each passage description for mid-sentence use";
+        lowercased_passages = { desc:initial_lowercase() for desc in (ambient_passages) };
+        combined_description = combined_description + "  You see " + lowercased_passages:english_list() + ".";
       endif
       description = combined_description;
     endif

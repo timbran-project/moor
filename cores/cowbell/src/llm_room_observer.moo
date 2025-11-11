@@ -22,6 +22,18 @@ object LLM_ROOM_OBSERVER
     this.agent:initialize();
   endverb
 
+  verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Reconfigure by cleaning up old agent and creating a fresh one";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    "Recycle old agent if it exists";
+    if (valid(this.agent))
+      recycle(this.agent);
+      this.agent = #-1;
+    endif
+    "Create fresh agent with current configuration";
+    this:configure();
+  endverb
+
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Receive events from room and pass to agent as observations";
     set_task_perms(this.owner);

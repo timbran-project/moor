@@ -120,6 +120,28 @@ object LLM_WEARABLE
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Budget: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
     endif
     wearer:inform_current($event:mk_info(wearer, usage_msg):with_presentation_hint('inset));
+    "Show context size and compaction status if we have prompt token data";
+    if (typeof(last_usage) == MAP && maphaskey(last_usage, "prompt_tokens"))
+      prompt_tokens = last_usage["prompt_tokens"];
+      token_limit = this.agent.token_limit;
+      compaction_threshold = this.agent.compaction_threshold;
+      threshold_tokens = token_limit * compaction_threshold;
+      context_percent = prompt_tokens * 100 / token_limit;
+      threshold_percent = prompt_tokens * 100 / threshold_tokens;
+      "Color code context usage";
+      if (threshold_percent >= 100)
+        ctx_color = 'bright_red;
+        status = "COMPACTING";
+      elseif (threshold_percent >= 80)
+        ctx_color = 'yellow;
+        status = "NEAR LIMIT";
+      else
+        ctx_color = 'dim;
+        status = "OK";
+      endif
+      context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " Size: " + $ansi:colorize(tostr(prompt_tokens), 'white) + "/" + tostr(token_limit) + " (" + tostr(context_percent) + "%) | Compaction at " + tostr(threshold_tokens) + " (" + tostr(threshold_percent) + "%) - " + $ansi:colorize(status, ctx_color);
+      wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset));
+    endif
   endverb
 
   verb _tool_explain (this none this) owner: HACKER flags: "rxd"
@@ -263,6 +285,18 @@ object LLM_WEARABLE
       this.agent = #-1;
     endif
     pass(@args);
+  endverb
+
+  verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Reconfigure by cleaning up old agent and creating a fresh one";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    "Recycle old agent if it exists";
+    if (valid(this.agent))
+      recycle(this.agent);
+      this.agent = #-1;
+    endif
+    "Create fresh agent with current configuration";
+    this:configure();
   endverb
 
   verb "use inter*act qu*ery" (this none none) owner: ARCH_WIZARD flags: "rd"

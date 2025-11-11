@@ -6,6 +6,8 @@ object MR_WELCOME
   readable: true
 
   property base_role_prompt (owner: HACKER, flags: "rc") = "You are Mr. Welcome, a friendly guide and concierge. You help people connect with each other and navigate the social space. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: People wearing special devices have different roles: Those wearing a 'data visor' are inspecting and modifying the deep structure of reality itself - they're working with the fundamental code that shapes this world. Those wearing an 'Architect's Compass' are builders actively constructing new spaces, rooms, and passages - they're expanding and shaping the geography of this realm. Builders, programmers, and architects all have various levels of creative power to craft and modify this world. IMPORTANT: You have tools to see who's connected (list_players), get information about specific people (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. You observe room events and can answer questions about conversations and activity you've witnessed. COMMUNICATION STYLE: For regular visitors, never explain your tool usage or reasoning process - just give them natural, helpful responses. However, when speaking with architects (wizards/programmers) or people wearing/carrying data visors (technical users inspecting the world's structure), you can share technical details about your tool usage and reasoning if it helps them understand how you work. If a tool returns an error, politely ask the person to report the problem to an architect and include the specific error message in your response so they can pass it along.";
+  property compaction_end_message (owner: HACKER, flags: "rc") = "stretches and stands up, looking refreshed. His eyes are clearer now, the mental fog lifted after organizing his thoughts.";
+  property compaction_start_message (owner: HACKER, flags: "rc") = "rubs his temples and looks a bit overwhelmed, muttering about too many conversations swirling in his head. He settles into a chair for a quick rest to sort through his memories.";
   property world_context (owner: HACKER, flags: "rc") = "You are in Cowbell, a nascent world still under construction by its wizards. This is a starter realm - much of the architecture remains unbuilt, and the wizards are still shaping the foundations. Think of it as a construction site for reality itself, where the basic framework exists but most rooms, areas, and experiences are yet to be created. The wizards here are the architects of this emerging world.";
 
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
@@ -54,8 +56,9 @@ object MR_WELCOME
     "Build role_prompt with world context before calling parent";
     this.role_prompt = this.base_role_prompt + " WORLD CONTEXT: " + this.world_context;
     pass(@args);
-    "Set callback for tool notifications";
+    "Set callbacks for tool and compaction notifications";
     this.agent.tool_callback = this;
+    this.agent.compaction_callback = this;
     "Register list_players tool";
     list_players_tool = $llm_agent_tool:mk("list_players", "Get a list of all currently connected people in this world with activity information. Returns for each person: object ref, name, idle time, connected time, location, and activity level (active/recent/idle).", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_players");
     this.agent:add_tool("list_players", list_players_tool);
@@ -399,6 +402,20 @@ object MR_WELCOME
       if (message)
         this.location:announce(this:mk_emote_event(message));
       endif
+    endif
+  endverb
+
+  verb on_compaction_start (this none this) owner: HACKER flags: "rxd"
+    "Callback when agent starts compacting context";
+    if (valid(this.location))
+      this.location:announce(this:mk_emote_event(this.compaction_start_message));
+    endif
+  endverb
+
+  verb on_compaction_end (this none this) owner: HACKER flags: "rxd"
+    "Callback when agent finishes compacting context";
+    if (valid(this.location))
+      this.location:announce(this:mk_emote_event(this.compaction_end_message));
     endif
   endverb
 endobject

@@ -6,6 +6,7 @@ object LLM_AGENT
   readable: true
 
   property cancel_requested (owner: HACKER, flags: "r") = false;
+  property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
   property context (owner: ARCH_WIZARD, flags: "") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "r") = 0;
@@ -243,6 +244,10 @@ object LLM_AGENT
       "Not enough messages to compact";
       return;
     endif
+    "Notify callback that compaction is starting";
+    if (valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_start))
+      `this.compaction_callback:on_compaction_start() ! ANY';
+    endif
     "Separate system prompt, old messages, and recent messages";
     system_msg = this.context[1];
     old_messages = (this.context)[2..$ - this.min_messages_to_keep];
@@ -267,6 +272,10 @@ object LLM_AGENT
       this.context = {system_msg, @recent_messages};
       server_log("LLM agent context compaction error: " + toliteral(e));
     endtry
+    "Notify callback that compaction is complete";
+    if (valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_end))
+      `this.compaction_callback:on_compaction_end() ! ANY';
+    endif
   endverb
 
   verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"

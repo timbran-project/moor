@@ -31,10 +31,10 @@ object WIZ
       pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
       possessive = `pronouns.possessive ! ANY => "their"';
       question = "Grant " + dobj:name() + " programmer bit despite " + possessive + " lack of description?";
-      "Use read() for confirmation";
-      metadata = {{"input_type", "confirm"}, {"prompt", question}};
-      response = read(player, metadata);
-      if (typeof(response) != STR || response:lowercase() != "yes")
+      "Use yes_no for confirmation";
+      metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+      response = player:read_with_prompt(metadata);
+      if (response != "yes")
         player:inform_current($event:mk_error(player, "Programmer bit not granted."));
         return;
       endif
@@ -90,10 +90,10 @@ object WIZ
       pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
       possessive = `pronouns.possessive ! ANY => "their"';
       question = "Grant " + dobj:name() + " builder status despite " + possessive + " lack of description?";
-      "Use read() for confirmation";
-      metadata = {{"input_type", "confirm"}, {"prompt", question}};
-      response = read(player, metadata);
-      if (typeof(response) != STR || response:lowercase() != "yes")
+      "Use yes_no for confirmation";
+      metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+      response = player:read_with_prompt(metadata);
+      if (response != "yes")
         player:inform_current($event:mk_error(player, "Builder status not granted."));
         return;
       endif
@@ -119,5 +119,179 @@ object WIZ
     dobj:tell($event:mk_info(dobj, "In your inventory there is now an Architect's Compass - a powerful instrument bonded to you alone. Wear it to activate its capabilities for building and spatial construction. Guard it carefully, as it grants significant power over the world."));
     "Confirm to wizard";
     player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges and reparented them to $builder."));
+  endverb
+
+  verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "Reconfigure all Architect's Compasses and Data Visors in the database";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can reconfigure tools.");
+    "Find all compasses and visors";
+    compasses = {};
+    visors = {};
+    for obj in (descendants($architects_compass))
+      if (valid(OBJ) && OBJ != $architects_compass)
+        compasses = {@compasses, OBJ};
+      endif
+    endfor
+    for obj in (descendants($data_visor))
+      if (valid(OBJ) && OBJ != $data_visor)
+        visors = {@visors, OBJ};
+      endif
+    endfor
+    total = length(compasses) + length(visors);
+    if (total == 0)
+      player:inform_current($event:mk_info(player, "No tool instances found to reconfigure."));
+      return;
+    endif
+    "Confirm before proceeding";
+    question = "Reconfigure " + tostr(length(compasses)) + " compass(es) and " + tostr(length(visors)) + " visor(s)?";
+    metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+    response = player:read_with_prompt(metadata);
+    if (response != "yes")
+      player:inform_current($event:mk_error(player, "Reconfiguration cancelled."));
+      return;
+    endif
+    "Reconfigure all compasses";
+    compass_count = 0;
+    for compass in (compasses)
+      try
+        compass:reconfigure();
+        compass_count = compass_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(compass) + ": " + toliteral(e)));
+      endtry
+    endfor
+    "Reconfigure all visors";
+    visor_count = 0;
+    for visor in (visors)
+      try
+        visor:reconfigure();
+        visor_count = visor_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(visor) + ": " + toliteral(e)));
+      endtry
+    endfor
+    "Report results";
+    player:inform_current($event:mk_info(player, "Reconfigured " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
+  endverb
+
+  verb "@llm-budget" (any none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "View a player's LLM token budget and usage";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can view LLM budgets.");
+    "Try to resolve target player";
+    target = dobj;
+    if (!valid(target) && dobjstr)
+      target = $match:match_object(dobjstr, player);
+    endif
+    if (!valid(target))
+      raise(E_INVARG, "Usage: @llm-budget <player>");
+    endif
+    if (!is_player(target))
+      raise(E_INVARG, tostr(target) + " is not a player.");
+    endif
+    "Get budget and usage information";
+    budget = `target.llm_token_budget ! ANY => 20000000';
+    used = `target.llm_tokens_used ! ANY => 0';
+    usage_log = `target.llm_usage_log ! ANY => {}';
+    percent_used = used * 100 / budget;
+    "Build budget info as table";
+    title_obj = $format.title:mk("LLM Token Budget for " + target:name() + " (" + tostr(target) + ")");
+    budget_rows = {{"Budget", tostr(budget) + " tokens"}, {"Used", tostr(used) + " tokens"}, {"Remaining", tostr(budget - used) + " tokens"}, {"Usage", tostr(percent_used) + "%"}};
+    budget_table = $format.table:mk({"Property", "Value"}, budget_rows);
+    "Build content blocks";
+    content_blocks = {title_obj, budget_table};
+    "Add usage log if available";
+    if (length(usage_log) > 0)
+      usage_rows = {};
+      start_idx = length(usage_log) > 5 ? length(usage_log) - 4 | 1;
+      for i in [start_idx..length(usage_log)]
+        entry = usage_log[i];
+        timestamp = `entry["timestamp"] ! ANY => 0';
+        tokens = `entry["tokens"] ! ANY => 0';
+        time_str = ctime(timestamp);
+        usage_rows = {@usage_rows, {time_str, tostr(tokens) + " tokens"}};
+      endfor
+      usage_title = $format.title:mk("Recent usage (last 5 calls)");
+      usage_table = $format.table:mk({"Time", "Tokens"}, usage_rows);
+      content_blocks = {@content_blocks, usage_title, usage_table};
+    endif
+    "Send formatted output";
+    content = $format.block:mk(@content_blocks);
+    player:inform_current($event:mk_info(player, content):with_audience('utility));
+  endverb
+
+  verb "@llm-set-budget" (any at any) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "Set a player's LLM token budget";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can set LLM budgets.");
+    "Try to resolve target player";
+    target = dobj;
+    if (!valid(target) && dobjstr)
+      target = $match:match_object(dobjstr, player);
+    endif
+    if (!valid(target))
+      raise(E_INVARG, "Usage: @llm-set-budget <player> to <budget>");
+    endif
+    if (!is_player(target))
+      raise(E_INVARG, tostr(target) + " is not a player.");
+    endif
+    if (!iobjstr)
+      raise(E_INVARG, "Usage: @llm-set-budget <player> to <budget>");
+    endif
+    "Parse budget value";
+    new_budget = tonum(iobjstr);
+    typeof(new_budget) == INT || raise(E_INVARG, "Budget must be a number.");
+    new_budget > 0 || raise(E_INVARG, "Budget must be positive.");
+    "Get current values for confirmation";
+    old_budget = `target.llm_token_budget ! ANY => 20000000';
+    used = `target.llm_tokens_used ! ANY => 0';
+    "Confirm the change";
+    question = "Set " + target:name() + "'s LLM token budget to " + tostr(new_budget) + " (currently " + tostr(old_budget) + ", " + tostr(used) + " used)?";
+    metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+    response = player:read_with_prompt(metadata);
+    if (response != "yes")
+      player:inform_current($event:mk_error(player, "Budget change cancelled."));
+      return;
+    endif
+    "Set the new budget";
+    target.llm_token_budget = new_budget;
+    player:inform_current($event:mk_info(player, "Set " + target:name() + "'s LLM token budget to " + tostr(new_budget) + " tokens."));
+  endverb
+
+  verb "@llm-reset-usage" (any none none) owner: ARCH_WIZARD flags: "rd"
+    caller == this || raise(E_PERM);
+    "Reset a player's LLM token usage counter";
+    set_task_perms(this);
+    player.wizard || raise(E_PERM, "Only wizards can reset LLM usage.");
+    "Try to resolve target player";
+    target = dobj;
+    if (!valid(target) && dobjstr)
+      target = $match:match_object(dobjstr, player);
+    endif
+    if (!valid(target))
+      raise(E_INVARG, "Usage: @llm-reset-usage <player>");
+    endif
+    if (!is_player(target))
+      raise(E_INVARG, tostr(target) + " is not a player.");
+    endif
+    "Get current usage for confirmation";
+    used = `target.llm_tokens_used ! ANY => 0';
+    budget = `target.llm_token_budget ! ANY => 20000000';
+    "Confirm the reset";
+    question = "Reset " + target:name() + "'s LLM token usage from " + tostr(used) + " to 0 (budget: " + tostr(budget) + ")?";
+    metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+    response = player:read_with_prompt(metadata);
+    if (response != "yes")
+      player:inform_current($event:mk_error(player, "Usage reset cancelled."));
+      return;
+    endif
+    "Reset usage and clear log";
+    target.llm_tokens_used = 0;
+    target.llm_usage_log = {};
+    player:inform_current($event:mk_info(player, "Reset " + target:name() + "'s LLM token usage to 0 and cleared usage log."));
   endverb
 endobject

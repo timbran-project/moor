@@ -222,6 +222,18 @@ object STR_PROTO
     return string;
   endverb
 
+  verb initial_lowercase (this none this) owner: HACKER flags: "rxd"
+    "Lowercases the first character of its argument.";
+    string = args[1];
+    if (string)
+      let i = index("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string[1], 1);
+      if (i)
+        string[1] = "abcdefghijklmnopqrstuvwxyz"[i];
+      endif
+    endif
+    return string;
+  endverb
+
   verb "centre center" (this none this) owner: HACKER flags: "rxd"
     {text, len, ?lfill = " ", ?rfill = lfill} = args;
     out = tostr(text);
