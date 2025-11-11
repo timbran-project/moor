@@ -717,6 +717,68 @@ object BUILDER
     return true;
   endverb
 
+  verb "@par*ent" (this none this) owner: ARCH_WIZARD flags: "rd"
+    "Show the parent of an object.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    if (!dobjstr)
+      raise(E_INVARG, "Usage: @parent <object>");
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      let parent = parent(target_obj);
+      let obj_name = target_obj.name;
+      if (!valid(parent))
+        message = tostr(obj_name, " (#", target_obj, ") has no parent.");
+      else
+        let parent_name = parent.name;
+        message = tostr(obj_name, " (#", target_obj, ") has parent: ", parent_name, " (#", parent, ")");
+      endif
+      this:inform_current($event:mk_info(this, message));
+      return parent;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return false;
+    endtry
+  endverb
+
+  verb "@chi*ildren" (this none this) owner: ARCH_WIZARD flags: "rd"
+    "Show the children of an object.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    if (!dobjstr)
+      raise(E_INVARG, "Usage: @children <object>");
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, this);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      let children_list = children(target_obj);
+      let obj_name = target_obj.name;
+      if (!length(children_list))
+        message = tostr(obj_name, " (", target_obj, ") has no children.");
+        this:inform_current($event:mk_info(this, message));
+        return {};
+      else
+        let child_count = length(children_list);
+        let child_names = { child:display_name() for child in (children_list) };
+        let title_text = tostr(obj_name, " (", target_obj, ") has ", child_count, " child", child_count == 1 ? "" | "ren", ":");
+        let title_obj = $format.title:mk(title_text);
+        let list_obj = $format.list:mk(child_names);
+        let content = $format.block:mk(title_obj, list_obj);
+        this:inform_current($event:mk_info(this, content));
+        return children_list;
+      endif
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      this:inform_current($event:mk_error(this, message));
+      return false;
+    endtry
+  endverb
+
   verb "@integrate" (any as any) owner: ARCH_WIZARD flags: "rd"
     "Set object integrated description. Usage: @integrate <object> as <description>";
     caller == this || raise(E_PERM);
