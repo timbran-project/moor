@@ -93,7 +93,11 @@ object PROG
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
     obj_str = tostr(verb_location);
     if (obj_str[1] == "#")
-      object_curie = "oid:" + obj_str[2..$];
+      if (is_uuobjid(verb_location))
+        object_curie = "uuid:" + obj_str[2..$];
+      else
+        object_curie = "oid:" + obj_str[2..$];
+      endif
     elseif (obj_str[1] == "$")
       object_curie = "sysobj:" + obj_str[2..$];
     else
