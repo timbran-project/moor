@@ -75,7 +75,14 @@ object SUB
     this.type == 'iobj_verb_be && return valid(event.iobj) ? event.iobj == render_for ? "are" | "is" | "<no-iobj>";
     this.type == 'iobj_verb_have && return valid(event.iobj) ? event.iobj == render_for ? "have" | "has" | "<no-iobj>";
     this.type == 'iobj_verb_look && return valid(event.iobj) ? event.iobj == render_for ? "look" | "looks" | "<no-iobj>";
-    this.type == 'self_alt && return event.actor == render_for ? this.for_self | this.for_others;
+    if (this.type == 'self_alt)
+      value = event.actor == render_for ? this.for_self | this.for_others;
+      "Recursively evaluate if value is a substitution flyweight";
+      if (typeof(value) == FLYWEIGHT && `value.type ! E_PROPNF => false')
+        return value:eval_sub(event, render_for);
+      endif
+      return value;
+    endif
     server_log(tostr("Unknown substitution type ", toliteral(this.type), " for event ", toliteral(event)));
     return "<invalid-sub>";
   endverb
