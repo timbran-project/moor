@@ -1,5 +1,5 @@
 object FIRST_AREA_PASSAGES
-  name: ""
+  name: "First Area Passages"
   parent: RELATION
   owner: ARCH_WIZARD
 

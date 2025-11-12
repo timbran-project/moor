@@ -27,7 +27,8 @@ object AREA
       set_task_perms(target_perms);
     endif
     try
-      rel = create($relation);
+      rel = $relation:create();
+      rel.name = "Passages Relation for Area " + tostr(this);
       this.passages_rel = rel;
     finally
       if (perms_changed)
