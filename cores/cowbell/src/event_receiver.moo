@@ -2,7 +2,7 @@ object EVENT_RECEIVER
   name: "Generic Event Receiver"
   parent: ACTOR
   location: PROTOTYPE_BOX
-  owner: WIZ
+  owner: ARCH_WIZARD
   fertile: true
   readable: true
 

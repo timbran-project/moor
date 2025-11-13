@@ -180,9 +180,9 @@ object MATCH
   endverb
 
   verb test_resolve_in_scope_literals (this none this) owner: HACKER flags: "rxd"
-    scope = {#12, #39};
-    result = this:resolve_in_scope("#12", scope);
-    result != #12 && raise(E_ASSERT, "Literal numeric ID should resolve to #12: " + toliteral(result));
+    scope = {#49, #50};
+    result = this:resolve_in_scope("#49", scope);
+    result != #49 && raise(E_ASSERT, "Literal numeric ID should resolve to #49: " + toliteral(result));
     temp = create($root);
     try
       uuid_str = tostr(temp);
@@ -196,25 +196,25 @@ object MATCH
   endverb
 
   verb test_resolve_in_scope_aliases (this none this) owner: HACKER flags: "rxd"
-    scope = {{#12, "first room", "lobby"}, {#39, "second room"}};
+    scope = {{#49, "first room", "lobby"}, {#50, "first area"}};
     result = this:resolve_in_scope("lobby", scope);
-    result != #12 && raise(E_ASSERT, "Alias should resolve to first room: " + toliteral(result));
-    result = this:resolve_in_scope("second room", scope);
-    result != #39 && raise(E_ASSERT, "Text alias should resolve to second room: " + toliteral(result));
+    result != #49 && raise(E_ASSERT, "Alias should resolve to first room: " + toliteral(result));
+    result = this:resolve_in_scope("first area", scope);
+    result != #50 && raise(E_ASSERT, "Text alias should resolve to first area: " + toliteral(result));
   endverb
 
   verb test_resolve_in_scope_ordinals (this none this) owner: HACKER flags: "rxd"
-    scope = {{#12, "room"}, {#39, "room"}};
+    scope = {{#49, "room"}, {#50, "room"}};
     result = this:resolve_in_scope("second room", scope);
-    result != #39 && raise(E_ASSERT, "Ordinal should pick second entry: " + toliteral(result));
+    result != #50 && raise(E_ASSERT, "Ordinal should pick second entry: " + toliteral(result));
     result = this:resolve_in_scope("third room", scope);
     result != #-3 && raise(E_ASSERT, "Out-of-range ordinal should fail: " + toliteral(result));
   endverb
 
   verb test_resolve_in_scope_fuzzy (this none this) owner: HACKER flags: "rxd"
-    scope = {{#12, "lobby"}};
+    scope = {{#49, "lobby"}};
     result = this:resolve_in_scope("lobbi", scope, ['fuzzy_threshold -> 0.8]);
-    result != #12 && raise(E_ASSERT, "Fuzzy match should succeed with threshold: " + toliteral(result));
+    result != #49 && raise(E_ASSERT, "Fuzzy match should succeed with threshold: " + toliteral(result));
     result = this:resolve_in_scope("lobbi", scope, ['fuzzy_threshold -> 0.0]);
     result != #-3 && raise(E_ASSERT, "Fuzzy disabled should fail: " + toliteral(result));
   endverb

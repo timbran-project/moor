@@ -15,7 +15,7 @@ object EVENT
     return <this, .actor = actor, .actor_name = actor.name, .verb = action, .dobj = false, .iobj = false, .timestamp = time(), .this_obj = false, .metadata = {}, normalized>;
   endverb
 
-  verb "with_dobj with_iobj with_this" (this none this) owner: WIZ flags: "rxd"
+  verb "with_dobj with_iobj with_this" (this none this) owner: ARCH_WIZARD flags: "rxd"
     {value} = args;
     wut = tosym(verb[6..length(verb)]);
     wut = wut == 'this ? 'this_obj | wut;
@@ -133,7 +133,7 @@ object EVENT
     raise(E_TYPE("Unsupported rendered event content: " + toliteral(value)));
   endverb
 
-  verb with_metadata (this none this) owner: WIZ flags: "rxd"
+  verb with_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
     {key, value} = args;
     metadata = `this.metadata ! E_PROPNF => {}';
     updated = {};
@@ -172,13 +172,13 @@ object EVENT
     return 'narrative;
   endverb
 
-  verb with_audience (this none this) owner: WIZ flags: "rxd"
+  verb with_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Attach an audience classification to the event.";
     {audience} = args;
     return this:with_metadata('audience, audience);
   endverb
 
-  verb ensure_audience (this none this) owner: WIZ flags: "rxd"
+  verb ensure_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Ensure the event has an audience classification, using the provided default if missing.";
     {audience} = args;
     metadata = `this.metadata ! E_PROPNF => {}';

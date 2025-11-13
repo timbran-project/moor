@@ -1,6 +1,6 @@
 object HACKER
   name: "Hacker"
-  parent: PROG
+  parent: PLAYER
   location: PROTOTYPE_BOX
   owner: HACKER
   player: true
@@ -9,4 +9,5 @@ object HACKER
 
   override description = "System identity used as the owner of verbs that should execute with non-wizard permissions. Provides a permission boundary below wizard level but with programmer/build capabilities for verbs to run under.";
   override import_export_id = "hacker";
+  override is_builder = true;
 endobject

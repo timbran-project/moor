@@ -2,7 +2,7 @@ object PLAYER
   name: "Generic Player"
   parent: EVENT_RECEIVER
   location: PROTOTYPE_BOX
-  owner: WIZ
+  owner: ARCH_WIZARD
   readable: true
 
   property email_address (owner: ARCH_WIZARD, flags: "") = "";

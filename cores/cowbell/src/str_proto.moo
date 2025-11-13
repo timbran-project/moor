@@ -1327,14 +1327,14 @@ object STR_PROTO
     result = "sysobj:root":parse_curie();
     result != #1 && raise(E_ASSERT, "sysobj:root should resolve to #1, got " + toliteral(result));
     result = "sysobj:str_proto":parse_curie();
-    result != #10 && raise(E_ASSERT, "sysobj:str_proto should resolve to #10, got " + toliteral(result));
+    result != #13 && raise(E_ASSERT, "sysobj:str_proto should resolve to #13, got " + toliteral(result));
     "Test invalid sysobj format";
     result = "sysobj:nonexistent_property":parse_curie();
     result != false && raise(E_ASSERT, "sysobj with nonexistent property should fail, got " + toliteral(result));
     result = "sysobj:":parse_curie();
     result != false && raise(E_ASSERT, "sysobj: with no path should fail, got " + toliteral(result));
     "Test match() format with valid context";
-    result = "match(\"here\")":parse_curie(#12);
+    result = "match(\"here\")":parse_curie(#49);
     typeof(result) == OBJ || result == false || raise(E_ASSERT, "match() should return object or false, got " + toliteral(result));
     "Test match() format with invalid context";
     result = "match(\"anything\")":parse_curie(#-1);

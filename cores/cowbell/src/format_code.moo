@@ -55,7 +55,7 @@ object FORMAT_CODE
     typeof(code_fw) == FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
     contents = flycontents(code_fw);
     contents[1] == "hello world" || raise(E_ASSERT("Code content should be stored"));
-    result = code_fw:compose($prog, 'text_djot, {});
+    result = code_fw:compose($player, 'text_djot, {});
     result == "```\nhello world\n```\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;
   endverb
@@ -64,7 +64,7 @@ object FORMAT_CODE
     code_fw = this:mk("def foo():\n    pass", "python");
     typeof(code_fw) == FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
     code_fw.language == "python" || raise(E_ASSERT("Language should be stored"));
-    result = code_fw:compose($prog, 'text_djot, {});
+    result = code_fw:compose($player, 'text_djot, {});
     result == "```python\ndef foo():\n    pass\n```\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;
   endverb
@@ -73,7 +73,7 @@ object FORMAT_CODE
     code_fw = this:mk("fn main() {}", 'rust);
     typeof(code_fw) == FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
     code_fw.language == 'rust || raise(E_ASSERT("Language should be stored as symbol, got: " + toliteral(code_fw.language)));
-    result = code_fw:compose($prog, 'text_djot, {});
+    result = code_fw:compose($player, 'text_djot, {});
     result == "```rust\nfn main() {}\n```\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;
   endverb

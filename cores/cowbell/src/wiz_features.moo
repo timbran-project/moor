@@ -1,27 +1,25 @@
-object WIZ
-  name: "Generic Wizard"
-  parent: PROG
+object WIZ_FEATURES
+  name: "Wizard Features"
+  parent: ROOT
   location: PROTOTYPE_BOX
   owner: ARCH_WIZARD
+  readable: true
 
-  property test (owner: WIZ, flags: "r") = {};
+  override description = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) that can be granted to wizards via wizard_granted_features.";
+  override import_export_id = "wiz_features";
 
-  override description = "You see a player who has has administrative powers but is too lazy to set their description.";
-  override import_export_id = "wiz";
-
-  verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
+  verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "d"
     "Grant programmer bit to a player";
-    set_task_perms(this);
-    player.wizard || raise(E_PERM, "Only wizards can grant programmer privileges.");
+    this:_challenge_command_perms();
+    set_task_perms(player);
     if (!valid(dobj))
       raise(E_INVARG, "Usage: @programmer <player>");
     endif
     if (!is_player(dobj))
       raise(E_INVARG, tostr(dobj) + " is not a player.");
     endif
-    if (dobj.programmer)
-      player:inform_current($event:mk_error(player, dobj:name() + " is already a programmer."));
+    if ($prog_features in dobj.wizard_granted_features)
+      player:inform_current($event:mk_error(player, dobj:name() + " already has programming features."));
       return;
     endif
     "Check if player has a description";
@@ -39,9 +37,10 @@ object WIZ
         return;
       endif
     endif
-    "Grant programmer bit and reparent to $prog";
+    "Grant programmer features and builder features (programmers are also builders)";
+    dobj.wizard_granted_features = {@dobj.wizard_granted_features, $prog_features, $builder_features};
     dobj.programmer = true;
-    chparent(dobj, $prog);
+    dobj.is_builder = true;
     "Create personal tools for the new programmer";
     owner_name = dobj:name();
     compass = create($architects_compass, dobj);
@@ -56,7 +55,7 @@ object WIZ
     visor:moveto(dobj);
     "Announce to room";
     if (valid(dobj.location))
-      event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted programmer privileges and ", $sub:verb_have(), " been reparented to $prog."):with_this(dobj.location);
+      event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted programmer and builder privileges."):with_this(dobj.location);
       dobj.location:announce(event);
       "Announce tools being granted";
       tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass and a Data Visor."):with_this(dobj.location);
@@ -65,14 +64,13 @@ object WIZ
     "Send private instructional message to new programmer";
     dobj:tell($event:mk_info(dobj, "In your inventory there are now an Architect's Compass and a Data Visor - powerful instruments bonded to you alone. Wear them to activate their capabilities: the Compass for building and spatial construction, the Visor for analyzing, writing code, creating objects, adding properties, and shaping the world's logic. Guard them carefully, as they grant significant power over the world."));
     "Confirm to wizard";
-    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " programmer privileges and reparented them to $prog."));
+    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " programmer and builder privileges."));
   endverb
 
-  verb "@builder" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
+  verb "@builder" (any none none) owner: ARCH_WIZARD flags: "d"
     "Grant builder status to a player";
-    set_task_perms(this);
-    player.wizard || raise(E_PERM, "Only wizards can grant builder status.");
+    this:_challenge_command_perms();
+    set_task_perms(player);
     if (!valid(dobj))
       raise(E_INVARG, "Usage: @builder <player>");
     endif
@@ -122,11 +120,10 @@ object WIZ
     player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges."));
   endverb
 
-  verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
+  verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "d"
     "Reconfigure all Architect's Compasses and Data Visors in the database";
-    set_task_perms(this);
-    player.wizard || raise(E_PERM, "Only wizards can reconfigure tools.");
+    this:_challenge_command_perms();
+    set_task_perms(player);
     "Find all compasses and visors";
     compasses = {};
     visors = {};
@@ -177,11 +174,10 @@ object WIZ
     player:inform_current($event:mk_info(player, "Reconfigured " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
   endverb
 
-  verb "@llm-budget" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
+  verb "@llm-budget" (any none none) owner: ARCH_WIZARD flags: "d"
     "View a player's LLM token budget and usage";
-    set_task_perms(this);
-    player.wizard || raise(E_PERM, "Only wizards can view LLM budgets.");
+    this:_challenge_command_perms();
+    set_task_perms(player);
     "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
@@ -224,11 +220,10 @@ object WIZ
     player:inform_current($event:mk_info(player, content):with_audience('utility));
   endverb
 
-  verb "@llm-set-budget" (any at any) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
+  verb "@llm-set-budget" (any at any) owner: ARCH_WIZARD flags: "d"
     "Set a player's LLM token budget";
-    set_task_perms(this);
-    player.wizard || raise(E_PERM, "Only wizards can set LLM budgets.");
+    this:_challenge_command_perms();
+    set_task_perms(player);
     "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
@@ -263,11 +258,10 @@ object WIZ
     player:inform_current($event:mk_info(player, "Set " + target:name() + "'s LLM token budget to " + tostr(new_budget) + " tokens."));
   endverb
 
-  verb "@llm-reset-usage" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
+  verb "@llm-reset-usage" (any none none) owner: ARCH_WIZARD flags: "d"
     "Reset a player's LLM token usage counter";
-    set_task_perms(this);
-    player.wizard || raise(E_PERM, "Only wizards can reset LLM usage.");
+    this:_challenge_command_perms();
+    set_task_perms(player);
     "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
@@ -297,10 +291,10 @@ object WIZ
   endverb
 
   verb "@reissue-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this && this.wizard || raise(E_PERM);
-    "Destroy all existing visors and compasses, then reissue them to all programmers and builders";
-    set_task_perms(this);
+    this:_challenge_command_perms();
     player.wizard || raise(E_PERM, "Only wizards can reissue tools.");
+    "Destroy all existing visors and compasses, then reissue them to all programmers and builders";
+    set_task_perms(player);
     "Find all existing compasses and visors";
     compasses = {};
     visors = {};
@@ -318,14 +312,14 @@ object WIZ
     "All players with is_builder flag get compass";
     compass_recipients = {};
     for p in (players())
-      if (valid(p) && `p.is_builder ! ANY => false')
+      if (valid(p) && `p.is_builder ! ANY => false' && p != $hacker)
         compass_recipients = {@compass_recipients, p};
       endif
     endfor
     "All players with programmer flag get visor";
     visor_recipients = {};
     for p in (players())
-      if (valid(p) && `p.programmer ! ANY => false')
+      if (valid(p) && `p.programmer ! ANY => false' && p != $hacker)
         visor_recipients = {@visor_recipients, p};
       endif
     endfor
@@ -391,5 +385,9 @@ object WIZ
     endfor
     "Report results";
     player:inform_current($event:mk_info(player, "Issued " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
+  endverb
+
+  verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
+    player.programmer && player.wizard || raise(E_PERM);
   endverb
 endobject

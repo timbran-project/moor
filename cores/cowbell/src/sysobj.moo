@@ -10,6 +10,7 @@ object SYSOBJ
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;
+  property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
   property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
   property container (owner: HACKER, flags: "r") = CONTAINER;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
@@ -37,7 +38,7 @@ object SYSOBJ
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
-  property prog (owner: HACKER, flags: "r") = PROG;
+  property prog_features (owner: HACKER, flags: "r") = PROG_FEATURES;
   property pronouns (owner: HACKER, flags: "r") = PRONOUNS;
   property prototype_box (owner: HACKER, flags: "r") = PROTOTYPE_BOX;
   property relation (owner: HACKER, flags: "r") = RELATION;
@@ -47,12 +48,11 @@ object SYSOBJ
   property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
   property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
-  property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;
   property wearable (owner: HACKER, flags: "r") = WEARABLE;
-  property wiz (owner: HACKER, flags: "r") = WIZ;
+  property wiz_features (owner: HACKER, flags: "r") = WIZ_FEATURES;
 
   override description = "System object containing global properties and core server event handlers.";
   override import_export_id = "sysobj";
@@ -121,9 +121,14 @@ object SYSOBJ
     length(args) == 0 && return true;
     command = argstr;
     set_task_perms(player);
-    env = player:match_environment(command, ['complex -> true]);
-    "Run the parts that need wizard permissions";
-    return this:_command_handler(command, env);
+    try
+      env = player:match_environment(command, ['complex -> true]);
+      "Run the parts that need wizard permissions";
+      return this:_command_handler(command, env);
+    except e (ANY)
+      server_log("Failure to parse '" + command + "' for player " + toliteral(player) + "' in " + toliteral(player.location) + "': " + toliteral(e));
+      return false;
+    endtry
   endverb
 
   verb _command_handler (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -223,9 +228,14 @@ object SYSOBJ
     server_log("Core starting...");
     "Issue capability for $login to create players";
     player_class = $login.default_player_class;
-    $login.player_setup_capability = $prog:issue_capability(player_class, {'create_child, 'make_player}, 0, 0);
+    $login.player_setup_capability = $player:issue_capability(player_class, {'create_child, 'make_player}, 0, 0);
     server_log("Issued player creation capability to $login");
     "Resume scheduler if needed";
     $scheduler:resume_if_needed();
+  endverb
+
+  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || caller_perms.wizard || raise(E_PERM);
+    server_log(@args);
   endverb
 endobject
