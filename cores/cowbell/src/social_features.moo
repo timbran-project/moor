@@ -8,7 +8,7 @@ object SOCIAL_FEATURES
   override description = "Provides common social action verbs (nod, wave, bow, etc.) that can be added to a player's features to extend their ambient command environment.";
   override import_export_id = "social_features";
 
-  verb "nod n*od" (any none none) owner: HACKER flags: "rd"
+  verb "nod" (any none none) owner: HACKER flags: "rd"
     "Nod at someone or just nod.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -35,7 +35,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "wave w*ave" (any at this) owner: HACKER flags: "rd"
+  verb "wave" (any at this) owner: HACKER flags: "rd"
     "Wave at someone or just wave.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -62,7 +62,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "bow b*ow" (any at this) owner: HACKER flags: "rd"
+  verb "bow" (any at this) owner: HACKER flags: "rd"
     "Bow to someone or just bow.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -89,7 +89,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "bonk b*onk" (any none none) owner: HACKER flags: "rd"
+  verb "bonk" (any none none) owner: HACKER flags: "rd"
     "Bonk someone (playfully).";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -120,7 +120,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "smile s*mile" (any at this) owner: HACKER flags: "rd"
+  verb "smile" (any at this) owner: HACKER flags: "rd"
     "Smile at someone or just smile.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -147,7 +147,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "frown f*rown" (any none none) owner: HACKER flags: "rd"
+  verb "frown" (any none none) owner: HACKER flags: "rd"
     "Frown, showing displeasure.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -157,7 +157,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "laugh l*augh" (any none none) owner: HACKER flags: "rd"
+  verb "laugh" (any none none) owner: HACKER flags: "rd"
     "Laugh out loud.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -167,7 +167,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "dance d*ance" (any none none) owner: HACKER flags: "rd"
+  verb "dance" (any none none) owner: HACKER flags: "rd"
     "Dance joyfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -177,7 +177,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "shrug s*hrug" (any none none) owner: HACKER flags: "rd"
+  verb "shrug" (any none none) owner: HACKER flags: "rd"
     "Shrug your shoulders.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -187,7 +187,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "think t*hink" (any any any) owner: HACKER flags: "rd"
+  verb "think" (any any any) owner: HACKER flags: "rd"
     "Express a thought visibly.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -202,7 +202,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "ponder p*onder" (any none none) owner: HACKER flags: "rd"
+  verb "ponder" (any none none) owner: HACKER flags: "rd"
     "Ponder thoughtfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -222,7 +222,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "cheer c*heer" (any none none) owner: HACKER flags: "rd"
+  verb "cheer" (any none none) owner: HACKER flags: "rd"
     "Cheer enthusiastically.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -232,7 +232,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "sigh s*igh" (any none none) owner: HACKER flags: "rd"
+  verb "sigh" (any none none) owner: HACKER flags: "rd"
     "Sigh deeply.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -242,7 +242,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "yawn y*awn" (any none none) owner: HACKER flags: "rd"
+  verb "yawn" (any none none) owner: HACKER flags: "rd"
     "Yawn tiredly.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -252,7 +252,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb "stretch s*tretch" (any none none) owner: HACKER flags: "rd"
+  verb "stretch" (any none none) owner: HACKER flags: "rd"
     "Stretch your body.";
     caller != player && return E_PERM;
     if (!valid(player.location))
