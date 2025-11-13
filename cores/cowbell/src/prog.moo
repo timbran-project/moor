@@ -35,53 +35,83 @@ object PROG
   endverb
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Edit a verb on an object using the presentation system.";
-    "Usage: @edit <object>:<verb> [info]";
-    "Examples: @edit #1:look_self, @edit player:tell, @edit $match:match_object info";
-    "Check for usage errors";
+    "Edit a verb or property on an object using the presentation system.";
+    "Usage: @edit <object>:<verb> or @edit <object>.<property>";
+    "Examples: @edit #1:look_self, @edit player.name, @edit $match:match_object";
     caller == this || raise(E_PERM);
     set_task_perms(this);
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> [info]"));
+      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> or <object>.<property>"));
       return;
     endif
-    "Parse arguments - check for 'info' mode";
-    args_list = argstr:split(" ");
-    verbref_string = args_list[1];
-    "Parse the verb reference";
-    parsed = verbref_string:parse_verbref();
-    if (!parsed)
-      player:inform_current($event:mk_error(player, "Invalid verb reference format. Use 'object:verb'"));
-      return;
-    endif
-    {object_str, verb_name} = parsed;
-    "Match the object";
-    try
-      target_obj = $match:match_object(object_str, player);
-    except e (E_INVARG)
-      player:tell($event:mk_error(player, "I don't see '" + object_str + "' here."));
-      return;
-    except e (ANY)
-      player:tell($event:mk_error(player, "Error matching object: " + e[2]));
-      return;
-    endtry
-    "Find and retrieve the verb code";
-    try
-      "Find where the verb is actually defined";
-      verb_location = target_obj:find_verb_definer(verb_name);
-      if (verb_location == #-1)
-        player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + " or its ancestors."));
+    target_string = argstr:trim();
+    "Determine if this is a verb or property reference";
+    if (":" in target_string)
+      "Verb reference";
+      parsed = target_string:parse_verbref();
+      if (!parsed)
+        player:inform_current($event:mk_error(player, "Invalid verb reference format. Use 'object:verb'"));
         return;
       endif
-      "Check verb exists with elevated permissions";
-      this:_do_check_verb_exists(verb_location, verb_name);
-      "Open the editor";
-      player:present_editor(verb_location, verb_name);
-      player:inform_current($event:mk_info(player, "Opened verb editor for " + tostr(target_obj) + ":" + tostr(verb_name)));
-    except (E_VERBNF)
-      player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + "."));
-      return;
-    endtry
+      {object_str, verb_name} = parsed;
+      "Match the object";
+      try
+        target_obj = $match:match_object(object_str, player);
+      except e (E_INVARG)
+        player:tell($event:mk_error(player, "I don't see '" + object_str + "' here."));
+        return;
+      except e (ANY)
+        player:tell($event:mk_error(player, "Error matching object: " + e[2]));
+        return;
+      endtry
+      "Find and retrieve the verb code";
+      try
+        "Find where the verb is actually defined";
+        verb_location = target_obj:find_verb_definer(verb_name);
+        if (verb_location == #-1)
+          player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + " or its ancestors."));
+          return;
+        endif
+        "Check verb exists with elevated permissions";
+        this:_do_check_verb_exists(verb_location, verb_name);
+        "Open the editor";
+        this:present_editor(verb_location, verb_name);
+        player:inform_current($event:mk_info(player, "Opened verb editor for " + tostr(target_obj) + ":" + tostr(verb_name)));
+      except (E_VERBNF)
+        player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + "."));
+        return;
+      endtry
+    elseif ("." in target_string)
+      "Property reference";
+      parts = target_string:split(".");
+      if (length(parts) != 2)
+        player:inform_current($event:mk_error(player, "Invalid property reference format. Use 'object.property'"));
+        return;
+      endif
+      {object_str, prop_name} = parts;
+      "Match the object";
+      try
+        target_obj = $match:match_object(object_str, player);
+      except e (E_INVARG)
+        player:tell($event:mk_error(player, "I don't see '" + object_str + "' here."));
+        return;
+      except e (ANY)
+        player:tell($event:mk_error(player, "Error matching object: " + e[2]));
+        return;
+      endtry
+      "Check property exists and open editor";
+      try
+        this:_do_check_property_exists(target_obj, prop_name);
+        "Open the property editor";
+        this:present_property_editor(target_obj, prop_name);
+        player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
+      except (E_PROPNF)
+        player:inform_current($event:mk_error(player, "Property '" + prop_name + "' not found on " + target_obj.name + "."));
+        return;
+      endtry
+    else
+      player:inform_current($event:mk_error(player, "Invalid reference. Use 'object:verb' or 'object.property'"));
+    endif
   endverb
 
   verb present_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -463,6 +493,38 @@ object PROG
     set_task_perms(this);
     {target_obj, prop_name} = args;
     return is_clear_property(target_obj, prop_name);
+  endverb
+
+  verb _do_check_property_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to check property exists with elevated permissions";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    {target_obj, prop_name} = args;
+    "This will raise E_PROPNF if property doesn't exist";
+    prop_info_data = property_info(target_obj, prop_name);
+    return true;
+  endverb
+
+  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+    if (caller != this)
+      raise(E_PERM);
+    endif
+    {target_obj, prop_name} = args;
+    editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
+    editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
+    obj_str = tostr(target_obj);
+    if (obj_str[1] == "#")
+      if (is_uuobjid(target_obj))
+        object_curie = "uuid:" + obj_str[2..$];
+      else
+        object_curie = "oid:" + obj_str[2..$];
+      endif
+    elseif (obj_str[1] == "$")
+      object_curie = "sysobj:" + obj_str[2..$];
+    else
+      object_curie = obj_str;
+    endif
+    present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
 
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
