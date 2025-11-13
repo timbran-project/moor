@@ -80,10 +80,10 @@ object ARCHITECTS_COMPASS
   endverb
 
   verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
-    "Compass requires user to be a child of $builder";
+    "Compass requires user to have builder features";
     {wearer} = args;
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    isa(wearer, $builder) || raise(E_PERM, "The compass can only be used by builders");
+    wearer.is_builder || raise(E_PERM, "The compass can only be used by builders");
   endverb
 
   verb _resolve_display_name (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -617,7 +617,7 @@ object ARCHITECTS_COMPASS
       endif
     endfor
     !primary_name && raise(E_INVARG, "Object name cannot be blank");
-    "Execute via $builder's logic as wearer";
+    "Execute via the builder's logic as wearer";
     set_task_perms(wearer);
     parent_obj = $match:match_object(parent_spec, wearer);
     typeof(parent_obj) == OBJ || raise(E_INVARG, "Parent not found");
@@ -627,7 +627,6 @@ object ARCHITECTS_COMPASS
     if (!is_fertile && !wearer.wizard && parent_obj.owner != wearer)
       raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj));
     endif
-    "Create object directly without going through protected $builder method";
     new_obj = parent_obj:create();
     new_obj:set_name_aliases(primary_name, final_aliases);
     new_obj:moveto(wearer);

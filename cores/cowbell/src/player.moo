@@ -7,6 +7,9 @@ object PLAYER
 
   property email_address (owner: ARCH_WIZARD, flags: "") = "";
   property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES};
+  property grants_area (owner: ARCH_WIZARD, flags: "") = [];
+  property grants_room (owner: ARCH_WIZARD, flags: "") = [];
+  property is_builder (owner: ARCH_WIZARD, flags: "") = false;
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
@@ -310,7 +313,8 @@ object PLAYER
     if (typeof(features) != LIST)
       features = {};
     endif
-    valid(location) && (env = {@env, location, @wiz_granted, @features});
+    env = {@env, @wiz_granted, @features};
+    valid(location) && (env = {@env, location});
     return env;
   endverb
 

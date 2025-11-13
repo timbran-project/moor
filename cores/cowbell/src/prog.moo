@@ -1,12 +1,13 @@
 object PROG
   name: "Generic Programmer"
-  parent: BUILDER
+  parent: PLAYER
   location: PROTOTYPE_BOX
   owner: WIZ
   wizard: true
   programmer: true
   readable: true
 
+  override is_builder = true;
   override description = "You see a player who has special programming powers but really should get around to describing themself.";
   override import_export_id = "prog";
 

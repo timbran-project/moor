@@ -79,8 +79,8 @@ object WIZ
     if (!is_player(dobj))
       raise(E_INVARG, tostr(dobj) + " is not a player.");
     endif
-    if (isa(dobj, $builder))
-      player:inform_current($event:mk_error(player, dobj:name() + " is already a builder (or descendant of $builder)."));
+    if ($builder_features in dobj.wizard_granted_features)
+      player:inform_current($event:mk_error(player, dobj:name() + " already has builder features."));
       return;
     endif
     "Check if player has a description";
@@ -98,8 +98,9 @@ object WIZ
         return;
       endif
     endif
-    "Reparent to $builder";
-    chparent(dobj, $builder);
+    "Grant builder features";
+    dobj.wizard_granted_features = {@dobj.wizard_granted_features, $builder_features};
+    dobj.is_builder = true;
     "Create personal compass for the new builder";
     owner_name = dobj:name();
     compass = create($architects_compass, dobj);
@@ -109,7 +110,7 @@ object WIZ
     compass:moveto(dobj);
     "Announce to room";
     if (valid(dobj.location))
-      event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted builder privileges and ", $sub:verb_have(), " been reparented to $builder."):with_this(dobj.location);
+      event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted builder privileges."):with_this(dobj.location);
       dobj.location:announce(event);
       "Announce tool being granted";
       tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass."):with_this(dobj.location);
@@ -118,7 +119,7 @@ object WIZ
     "Send private instructional message to new builder";
     dobj:tell($event:mk_info(dobj, "In your inventory there is now an Architect's Compass - a powerful instrument bonded to you alone. Wear it to activate its capabilities for building and spatial construction. Guard it carefully, as it grants significant power over the world."));
     "Confirm to wizard";
-    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges and reparented them to $builder."));
+    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges."));
   endverb
 
   verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
@@ -314,17 +315,17 @@ object WIZ
       endif
     endfor
     "Find all players who need tools";
-    "All descendants of $builder get compass (includes $prog and $wiz), but exclude prototypes";
+    "All players with is_builder flag get compass";
     compass_recipients = {};
-    for p in (descendants($builder))
-      if (valid(p) && is_player(p) && p != $builder && p != $prog && p != $hacker && p != $wiz)
+    for p in (players())
+      if (valid(p) && `p.is_builder ! ANY => false')
         compass_recipients = {@compass_recipients, p};
       endif
     endfor
-    "All descendants of $prog get visor (includes $wiz), but exclude prototypes";
+    "All players with programmer flag get visor";
     visor_recipients = {};
-    for p in (descendants($prog))
-      if (valid(p) && is_player(p) && p != $prog && p != $hacker && p != $wiz)
+    for p in (players())
+      if (valid(p) && `p.programmer ! ANY => false')
         visor_recipients = {@visor_recipients, p};
       endif
     endfor

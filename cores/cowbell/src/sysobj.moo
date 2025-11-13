@@ -10,7 +10,6 @@ object SYSOBJ
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;
-  property builder (owner: HACKER, flags: "r") = BUILDER;
   property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
   property container (owner: HACKER, flags: "r") = CONTAINER;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
@@ -48,6 +47,7 @@ object SYSOBJ
   property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
   property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
+  property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;

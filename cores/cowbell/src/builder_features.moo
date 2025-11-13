@@ -1,6 +1,6 @@
-object BUILDER
-  name: "Generic Builder"
-  parent: PLAYER
+object BUILDER_FEATURES
+  name: "Builder Features"
+  parent: ROOT
   location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
@@ -33,31 +33,29 @@ object BUILDER
     "w" -> "e",
     "west" -> "east"
   ];
-  property grants_area (owner: HACKER, flags: "") = [];
-  property grants_room (owner: HACKER, flags: "") = [];
 
-  override description = "You see a player who has can apparently build things but not describe themself. Lazy?";
-  override import_export_id = "builder";
+  override description = "Provides building commands (@create, @build, @dig, etc.) that can be granted to players via wizard_granted_features.";
+  override import_export_id = "builder_features";
 
   verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @create <parent> named <name[:aliases]>");
     endif
     try
-      parent_obj = $match:match_object(dobjstr, this);
+      parent_obj = $match:match_object(dobjstr, player);
       typeof(parent_obj) != OBJ && raise(E_INVARG, "That parent reference is not an object.");
       !valid(parent_obj) && raise(E_INVARG, "That parent object no longer exists.");
       is_fertile = `parent_obj.fertile ! E_PROPNF => false';
-      if (!is_fertile && !this.wizard && parent_obj.owner != this)
+      if (!is_fertile && !player.wizard && parent_obj.owner != player)
         raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj) + ".");
       endif
       parsed = $str_proto:parse_name_aliases(iobjstr);
       primary_name = parsed[1];
       alias_list = parsed[2];
       !primary_name && raise(E_INVARG, "Primary object name cannot be blank.");
-      new_obj = this:_create_child_object(parent_obj, primary_name, alias_list);
+      new_obj = this:_create_child_object(player, parent_obj, primary_name, alias_list);
       object_id = tostr(new_obj);
       parent_name = `parent_obj.name ! ANY => tostr(parent_obj)';
       parent_id = tostr(parent_obj);
@@ -67,11 +65,11 @@ object BUILDER
         message = message + " Aliases: " + alias_str + ".";
       endif
       message = message + " It is now in your inventory.";
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return new_obj;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -79,43 +77,45 @@ object BUILDER
   verb _create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create the child object, apply naming, and move it into the builder's inventory.";
     caller == this || caller.wizard || raise(E_PERM);
-    {parent_obj, primary_name, alias_list} = args;
-    set_task_perms(this);
+    {builder_player, parent_obj, primary_name, alias_list} = args;
+    set_task_perms(builder_player);
     new_obj = parent_obj:create();
     new_obj:set_name_aliases(primary_name, alias_list);
-    new_obj:moveto(this);
+    new_obj:moveto(builder_player);
     return new_obj;
   endverb
 
   verb "@recycle @destroy" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(caller_perms());
     if (!dobjstr)
       raise(E_INVARG, "Usage: @recycle <object>");
     endif
     try
-      target_obj = $match:match_object(dobjstr, this);
+      target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
-      if (!this.wizard && target_obj.owner != this)
+      if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to recycle " + tostr(target_obj) + ".");
       endif
       obj_name = target_obj.name;
       obj_id = tostr(target_obj);
       target_obj:destroy();
-      this:inform_current($event:mk_info(this, "Recycled \"" + obj_name + "\" (" + obj_id + ")."));
+      player:inform_current($event:mk_info(player, "Recycled \"" + obj_name + "\" (" + obj_id + ")."));
       return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
 
   verb "@grant" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Grant capabilities to a player. Usage: @grant <target>.<category>(<cap1,cap2>) to <player>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     try
       if (!dobjstr || !iobjstr)
         raise(E_INVARG, "Usage: @grant <target>.<category>(<cap1,cap2>) to <player>");
@@ -123,10 +123,10 @@ object BUILDER
       "Parse grant specification using $grant_utils";
       {target_obj, category, cap_list} = $grant_utils:parse_grant(dobjstr);
       "Permission check - must be owner or wizard";
-      !this.wizard && target_obj.owner != this && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj) + ".");
+      !player.wizard && target_obj.owner != player && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj) + ".");
       "Match grantee - use iobj from parser, or fall back to match_object if parser failed";
       if (iobj == $failed_match)
-        grantee = $match:match_object(iobjstr, this);
+        grantee = $match:match_object(iobjstr, player);
       else
         grantee = iobj;
       endif
@@ -145,34 +145,35 @@ object BUILDER
       grant_display = $grant_utils:format_grant_with_name(target_obj, category, cap_list);
       grantee_str = grantee:name() + " (" + tostr(grantee) + ")";
       message = "Granted " + grant_display + " to " + grantee_str + ".";
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return cap;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
 
   verb "@audit @owned" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Show objects owned by a player. Usage: @audit [<player>]";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     try
       "Determine which player to audit";
       if (dobjstr)
-        target = $match:match_object(dobjstr, this);
+        target = $match:match_object(dobjstr, player);
         typeof(target) != OBJ && raise(E_INVARG, "That reference is not an object.");
         !valid(target) && raise(E_INVARG, "That object no longer exists.");
       else
-        target = this;
+        target = player;
       endif
       "Get owned objects";
       owned = sort(owned_objects(target));
       if (!owned)
         target_name = `target.name ! ANY => tostr(target)';
-        message = target == this ? "You don't own any objects." | target_name + " doesn't own any objects.";
-        this:inform_current($event:mk_info(this, message));
+        message = target == player ? "You don't own any objects." | target_name + " doesn't own any objects.";
+        player:inform_current($event:mk_info(player, message));
         return 0;
       endif
       "Build header";
@@ -210,22 +211,23 @@ object BUILDER
         footer = footer + "  Total bytes: " + tostr(total_bytes) + ".";
       endif
       "Output results";
-      this:inform_current($event:mk_info(this, header));
+      player:inform_current($event:mk_info(player, header));
       table_result = $format.table:mk(headers, rows);
-      this:inform_current($event:mk_info(this, table_result));
-      this:inform_current($event:mk_info(this, footer));
+      player:inform_current($event:mk_info(player, table_result));
+      player:inform_current($event:mk_info(player, footer));
       return count;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
 
   verb "@build" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Create a new room. Usage: @build <name> [in <area>] [as <parent>]";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @build <name> [in <area>] [as <parent>]");
     endif
@@ -239,7 +241,7 @@ object BUILDER
       "Create and place the room";
       if (valid(target_area))
         "Use capability if we have one, otherwise use area directly";
-        cap = this:find_capability_for(target_area, 'area);
+        cap = player:find_capability_for(target_area, 'area);
         "Use capability if found, otherwise use area directly";
         area_target = typeof(cap) == FLYWEIGHT ? cap | target_area;
         try
@@ -257,11 +259,11 @@ object BUILDER
       new_room:set_name_aliases(room_name, {});
       "Report success";
       message = "Created \"" + room_name + "\" (" + tostr(new_room) + ")" + area_str + ".";
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return new_room;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -272,7 +274,7 @@ object BUILDER
     {command_str} = args;
     command_str = command_str:trim();
     "Defaults";
-    current_room = this.location;
+    current_room = player.location;
     target_area = valid(current_room) ? current_room.location | #-1;
     parent_obj = $room;
     "Check for 'in <area>' clause first";
@@ -283,7 +285,7 @@ object BUILDER
       if (area_spec == "ether")
         target_area = #-1;
       else
-        target_area = $match:match_object(area_spec, this);
+        target_area = $match:match_object(area_spec, player);
         typeof(target_area) != OBJ && raise(E_INVARG, "That area reference is not an object.");
         !valid(target_area) && raise(E_INVARG, "That area no longer exists.");
       endif
@@ -295,7 +297,7 @@ object BUILDER
     if (as_match)
       name_part = as_match[2]:trim();
       parent_spec = as_match[3];
-      parent_obj = $match:match_object(parent_spec, this);
+      parent_obj = $match:match_object(parent_spec, player);
       typeof(parent_obj) != OBJ && raise(E_INVARG, "That parent reference is not an object.");
       !valid(parent_obj) && raise(E_INVARG, "That parent object no longer exists.");
     endif
@@ -308,8 +310,9 @@ object BUILDER
 
   verb "@dig @tunnel" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Create a passage to an existing room. Usage: @dig [oneway] <dir>[|<returndir>] to <room>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @dig [oneway] <dir>[|<returndir>] to <room>");
     endif
@@ -324,7 +327,7 @@ object BUILDER
         target_room = iobj;
       else
         "Parser didn't find it, search area's rooms by name";
-        current_room = this.location;
+        current_room = player.location;
         area = valid(current_room) ? current_room.location | #-1;
         if (!valid(area))
           raise(E_INVARG, "You must be in an area to search for rooms by name.");
@@ -334,14 +337,14 @@ object BUILDER
       endif
       !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
       "Get current room and its area";
-      current_room = this.location;
+      current_room = player.location;
       !valid(current_room) && raise(E_INVARG, "You must be in a room to dig passages.");
       area = current_room.location;
       !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
       "Check target room is in same area";
       target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
       "Check permissions on both rooms using capabilities if we have them";
-      from_room_cap = this:find_capability_for(current_room, 'room);
+      from_room_cap = player:find_capability_for(current_room, 'room);
       from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
       try
         from_room_target:check_can_dig_from();
@@ -349,7 +352,7 @@ object BUILDER
         message = $grant_utils:format_denial(current_room, 'room, {'dig_from});
         raise(E_PERM, message);
       endtry
-      to_room_cap = this:find_capability_for(target_room, 'room);
+      to_room_cap = player:find_capability_for(target_room, 'room);
       to_room_target = typeof(to_room_cap) == FLYWEIGHT ? to_room_cap | target_room;
       try
         to_room_target:check_can_dig_into();
@@ -367,7 +370,7 @@ object BUILDER
         passage = $passage:mk(current_room, from_dir[1], from_dir, "", true, target_room, to_dir[1], to_dir, "", true, true);
       endif
       "Register with area using capability if we have one";
-      area_cap = this:find_capability_for(area, 'area);
+      area_cap = player:find_capability_for(area, 'area);
       area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
       area_target:create_passage(from_room_target, to_room_target, passage);
       "Report success";
@@ -376,19 +379,20 @@ object BUILDER
       else
         message = "Dug passage: " + from_dir:join(",") + " | " + to_dir:join(",") + " connecting to " + tostr(target_room) + ".";
       endif
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return passage;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
 
   verb "@undig @remove-exit @delete-passage" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Remove a passage from the current room to another. Usage: @undig <room>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr)
       raise(E_INVARG, "Usage: @undig <room>");
     endif
@@ -398,7 +402,7 @@ object BUILDER
         target_room = dobj;
       else
         "Parser didn't find it, search area's rooms by name";
-        current_room = this.location;
+        current_room = player.location;
         area = valid(current_room) ? current_room.location | #-1;
         if (!valid(area))
           raise(E_INVARG, "You must be in an area to search for rooms by name.");
@@ -408,7 +412,7 @@ object BUILDER
       endif
       !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
       "Get current room and its area";
-      current_room = this.location;
+      current_room = player.location;
       !valid(current_room) && raise(E_INVARG, "You must be in a room to remove passages.");
       area = current_room.location;
       !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
@@ -445,7 +449,7 @@ object BUILDER
         endif
       endif
       "Check permissions - must have dig_from on current room";
-      from_room_cap = this:find_capability_for(current_room, 'room);
+      from_room_cap = player:find_capability_for(current_room, 'room);
       from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
       try
         from_room_target:check_can_dig_from();
@@ -454,21 +458,21 @@ object BUILDER
         raise(E_PERM, message);
       endtry
       "Remove passage via area using capability if we have one";
-      area_cap = this:find_capability_for(area, 'area);
+      area_cap = player:find_capability_for(area, 'area);
       area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
       result = area_target:remove_passage(from_room_target, target_room);
       "Report success";
       if (result)
         label_str = length(labels) > 0 ? " (" + labels:join("/") + ")" | "";
         message = "Removed passage" + label_str + " to " + tostr(target_room) + ".";
-        this:inform_current($event:mk_info(this, message));
+        player:inform_current($event:mk_info(player, message));
         return true;
       else
         raise(E_INVARG, "Failed to remove passage (may have already been removed).");
       endif
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -523,16 +527,17 @@ object BUILDER
 
   verb "@rename" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Rename an object. Usage: @rename <object> to <name[:aliases]>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @rename <object> to <name[:aliases]>");
     endif
     try
-      target_obj = $match:match_object(dobjstr, this);
+      target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
-      if (!this.wizard && target_obj.owner != this)
+      if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to rename " + tostr(target_obj) + ".");
       endif
       parsed = $str_proto:parse_name_aliases(iobjstr);
@@ -546,11 +551,11 @@ object BUILDER
         alias_str = new_aliases:join(", ");
         message = message + " Aliases: " + alias_str + ".";
       endif
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -558,15 +563,16 @@ object BUILDER
   verb _do_rename_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to rename object with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(this);
+    set_task_perms(player);
     {target_obj, new_name, new_aliases} = args;
     target_obj:set_name_aliases(new_name, new_aliases);
   endverb
 
   verb "@describe" (any as any) owner: ARCH_WIZARD flags: "rd"
     "Set object or passage description. Usage: @describe <object or direction> as <description>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @describe <object or direction> as <description>");
     endif
@@ -574,13 +580,13 @@ object BUILDER
       "Try to match as object first, but catch errors";
       target_obj = false;
       try
-        target_obj = $match:match_object(dobjstr, this);
+        target_obj = $match:match_object(dobjstr, player);
       except (ANY)
         "Not an object - will try as passage below";
       endtry
       if (typeof(target_obj) == OBJ && valid(target_obj))
         "It's an object - use existing object description logic";
-        if (!this.wizard && target_obj.owner != this)
+        if (!player.wizard && target_obj.owner != player)
           raise(E_PERM, "You do not have permission to describe " + tostr(target_obj) + ".");
         endif
         new_description = iobjstr:trim();
@@ -588,7 +594,7 @@ object BUILDER
         this:_do_describe_object(target_obj, new_description);
         obj_name = `target_obj.name ! ANY => tostr(target_obj)';
         message = "Set description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
-        this:inform_current($event:mk_info(this, message));
+        player:inform_current($event:mk_info(player, message));
         return 1;
       else
         "Not an object - try to match as a passage direction";
@@ -601,7 +607,7 @@ object BUILDER
       endif
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -609,7 +615,7 @@ object BUILDER
   verb _do_describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to set object description with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(this);
+    set_task_perms(player);
     {target_obj, new_description} = args;
     target_obj.description = new_description;
   endverb
@@ -617,13 +623,13 @@ object BUILDER
   verb _do_describe_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to set passage description with elevated permissions. Returns false if passage not found.";
     caller == this || raise(E_PERM);
-    set_task_perms(this);
+    set_task_perms(player);
     {direction, description_str} = args;
     direction = direction:trim();
     description = description_str:trim();
     !description && raise(E_INVARG, "Description cannot be blank.");
     "Get current room - this is the player";
-    current_room = this.location;
+    current_room = player.location;
     if (!valid(current_room))
       return false;
     endif
@@ -671,7 +677,7 @@ object BUILDER
       return false;
     endif
     "Check permissions";
-    cap = this:find_capability_for(current_room, 'room);
+    cap = player:find_capability_for(current_room, 'room);
     room_target = typeof(cap) == FLYWEIGHT ? cap | current_room;
     room_target:check_can_dig_from();
     "Update passage description (ambient=true by default)";
@@ -713,19 +719,20 @@ object BUILDER
       endif
     endif
     message = "Set ambient description for '" + direction + "' passage: \"" + description + "\"";
-    this:inform_current($event:mk_info(this, message));
+    player:inform_current($event:mk_info(player, message));
     return true;
   endverb
 
   verb "@par*ent" (this none this) owner: ARCH_WIZARD flags: "rd"
     "Show the parent of an object.";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr)
       raise(E_INVARG, "Usage: @parent <object>");
     endif
     try
-      target_obj = $match:match_object(dobjstr, this);
+      target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       let parent = parent(target_obj);
@@ -736,31 +743,32 @@ object BUILDER
         let parent_name = parent.name;
         message = tostr(obj_name, " (#", target_obj, ") has parent: ", parent_name, " (#", parent, ")");
       endif
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return parent;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return false;
     endtry
   endverb
 
   verb "@chi*ildren" (this none this) owner: ARCH_WIZARD flags: "rd"
     "Show the children of an object.";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr)
       raise(E_INVARG, "Usage: @children <object>");
     endif
     try
-      target_obj = $match:match_object(dobjstr, this);
+      target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       let children_list = children(target_obj);
       let obj_name = target_obj.name;
       if (!length(children_list))
         message = tostr(obj_name, " (", target_obj, ") has no children.");
-        this:inform_current($event:mk_info(this, message));
+        player:inform_current($event:mk_info(player, message));
         return {};
       else
         let child_count = length(children_list);
@@ -769,28 +777,29 @@ object BUILDER
         let title_obj = $format.title:mk(title_text);
         let list_obj = $format.list:mk(child_names);
         let content = $format.block:mk(title_obj, list_obj);
-        this:inform_current($event:mk_info(this, content));
+        player:inform_current($event:mk_info(player, content));
         return children_list;
       endif
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return false;
     endtry
   endverb
 
   verb "@integrate" (any as any) owner: ARCH_WIZARD flags: "rd"
     "Set object integrated description. Usage: @integrate <object> as <description>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @integrate <object> as <description>");
     endif
     try
-      target_obj = $match:match_object(dobjstr, this);
+      target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
-      if (!this.wizard && target_obj.owner != this)
+      if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to set integrated description on " + tostr(target_obj) + ".");
       endif
       new_description = iobjstr:trim();
@@ -801,11 +810,11 @@ object BUILDER
       else
         message = "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "): \"" + new_description + "\"";
       endif
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -813,29 +822,30 @@ object BUILDER
   verb _do_set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to set object integrated description with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(this);
+    set_task_perms(player);
     {target_obj, new_description} = args;
     target_obj.integrated_description = new_description;
   endverb
 
   verb "@move" (any at any) owner: ARCH_WIZARD flags: "rd"
     "Move an object to a new location. Usage: @move <object> to <location>";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @move <object> to <location>");
     endif
     try
       "Match the object to move";
-      target_obj = $match:match_object(dobjstr, this);
+      target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That object reference is not valid.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       "Check permissions - must own the object or be a wizard";
-      if (!this.wizard && target_obj.owner != this)
+      if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to move " + tostr(target_obj) + ".");
       endif
       "Match the destination location";
-      dest_loc = $match:match_object(iobjstr, this);
+      dest_loc = $match:match_object(iobjstr, player);
       typeof(dest_loc) != OBJ && raise(E_INVARG, "That destination reference is not valid.");
       !valid(dest_loc) && raise(E_INVARG, "That destination no longer exists.");
       "Get current location for messaging";
@@ -855,11 +865,11 @@ object BUILDER
       "Report success to the builder";
       dest_name = `dest_loc.name ! ANY => tostr(dest_loc)';
       message = "Moved " + obj_name + " (" + tostr(target_obj) + ") to " + dest_name + " (" + tostr(dest_loc) + ").";
-      this:inform_current($event:mk_info(this, message));
+      player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
-      this:inform_current($event:mk_error(this, message));
+      player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
   endverb
@@ -868,117 +878,42 @@ object BUILDER
     "Edit a property on an object using the presentation system.";
     "Usage: @edit <object>.<property>";
     "Examples: @edit player.name, @edit me.description";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
     if (!argstr)
-      this:inform_current($event:mk_error(this, "Usage: " + verb + " <object>.<property>"));
+      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>.<property>"));
       return;
     endif
     target_string = argstr:trim();
     "Property reference - must use dot notation";
     if (!("." in target_string))
-      this:inform_current($event:mk_error(this, "Invalid property reference format. Use 'object.property'"));
+      player:inform_current($event:mk_error(player, "Invalid property reference format. Use 'object.property'"));
       return;
     endif
     parts = target_string:split(".");
     if (length(parts) != 2)
-      this:inform_current($event:mk_error(this, "Invalid property reference format. Use 'object.property'"));
+      player:inform_current($event:mk_error(player, "Invalid property reference format. Use 'object.property'"));
       return;
     endif
     {object_str, prop_name} = parts;
     "Match the object";
     try
-      target_obj = $match:match_object(object_str, this);
+      target_obj = $match:match_object(object_str, player);
     except e (E_INVARG)
-      this:inform_current($event:mk_error(this, "I don't see '" + object_str + "' here."));
+      player:inform_current($event:mk_error(player, "I don't see '" + object_str + "' here."));
       return;
     except e (ANY)
-      this:inform_current($event:mk_error(this, "Error matching object: " + e[2]));
+      player:inform_current($event:mk_error(player, "Error matching object: " + e[2]));
       return;
     endtry
     "Check property exists and open editor";
     if (!target_obj:check_property_exists(prop_name))
-      this:inform_current($event:mk_error(this, "Property '" + prop_name + "' not found on " + target_obj.name + "."));
+      player:inform_current($event:mk_error(player, "Property '" + prop_name + "' not found on " + target_obj.name + "."));
       return;
     endif
     "Open the property editor";
-    this:present_property_editor(target_obj, prop_name);
-    this:inform_current($event:mk_info(this, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
-  endverb
-
-  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
-    if (caller != this)
-      raise(E_PERM);
-    endif
-    {target_obj, prop_name} = args;
-    editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
-    editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
-    object_curie = target_obj:to_curie_str();
-    present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
-  endverb
-
-  verb test_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    test_obj = this:_create_child_object($thing, "TestWidget", {"testgadget"});
-    typeof(test_obj) == OBJ || raise(E_ASSERT("Setup: Failed to create test object"));
-    obj_name = test_obj.name;
-    obj_id = tostr(test_obj);
-    test_obj:destroy();
-    valid(test_obj) && raise(E_ASSERT("Object should be invalid after destruction"));
-    return true;
-  endverb
-
-  verb test_capability_building (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Test building with granted capabilities";
-    test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
-    "Create test objects - area, two rooms, and a builder";
-    test_area = create($area);
-    test_room1 = create($room);
-    test_room2 = create($room);
-    test_builder = create($builder);
-    test_room1:moveto(test_area);
-    test_room2:moveto(test_area);
-    "Test 1: Grant area capabilities to builder";
-    $root:grant_capability(test_area, {'add_room, 'create_passage}, test_builder, 'area, test_key);
-    typeof(test_builder.grants_area) == MAP || raise(E_ASSERT("Builder should have grants_area map"));
-    maphaskey(test_builder.grants_area, test_area) || raise(E_ASSERT("Builder should have grant for test_area"));
-    "Test 2: Grant room capabilities";
-    $root:grant_capability(test_room1, {'dig_from}, test_builder, 'room, test_key);
-    $root:grant_capability(test_room2, {'dig_into}, test_builder, 'room, test_key);
-    maphaskey(test_builder.grants_room, test_room1) || raise(E_ASSERT("Builder should have grant for room1"));
-    maphaskey(test_builder.grants_room, test_room2) || raise(E_ASSERT("Builder should have grant for room2"));
-    "Test 3: find_capability_for returns the grants";
-    area_cap = test_builder:find_capability_for(test_area, 'area);
-    typeof(area_cap) == FLYWEIGHT || raise(E_ASSERT("Should find area capability"));
-    area_cap.delegate == test_area || raise(E_ASSERT("Area cap should be for test_area"));
-    room1_cap = test_builder:find_capability_for(test_room1, 'room);
-    typeof(room1_cap) == FLYWEIGHT || raise(E_ASSERT("Should find room1 capability"));
-    room1_cap.delegate == test_room1 || raise(E_ASSERT("Room1 cap should be for test_room1"));
-    "Test 4: Verify capabilities grant expected permissions";
-    {target, perms} = area_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
-    target == test_area || raise(E_ASSERT("Area cap should grant add_room and create_passage"));
-    {target2, perms2} = room1_cap:challenge_for_with_key({'dig_from}, test_key);
-    target2 == test_room1 || raise(E_ASSERT("Room1 cap should grant dig_from"));
-    "Test 5: Capability not found returns false";
-    nonexistent_room = create($room);
-    no_cap = test_builder:find_capability_for(nonexistent_room, 'room);
-    no_cap == false || raise(E_ASSERT("Should return false for room without grant"));
-    "Cleanup";
-    test_area:destroy();
-    test_room1:destroy();
-    test_room2:destroy();
-    test_builder:destroy();
-    nonexistent_room:destroy();
-    return true;
-  endverb
-
-  verb test_create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    new_obj = this:_create_child_object($thing, "Widget", {"gadget"});
-    typeof(new_obj) == OBJ || raise(E_ASSERT("Returned value was not an object: " + toliteral(new_obj)));
-    new_obj.owner != this && raise(E_ASSERT("Builder should own created object"));
-    new_obj.location != this && raise(E_ASSERT("Created object should move into inventory"));
-    new_obj.name != "Widget" && raise(E_ASSERT("Primary name was not applied: " + new_obj.name));
-    new_obj.aliases != {"gadget"} && raise(E_ASSERT("Aliases not applied: " + toliteral(new_obj.aliases)));
-    new_obj:destroy();
-    return true;
+    player:present_property_editor(target_obj, prop_name);
+    player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
   endverb
 endobject

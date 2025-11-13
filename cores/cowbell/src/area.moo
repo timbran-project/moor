@@ -126,7 +126,7 @@ object AREA
     passages = this:passages_from(room);
     passages || return false;
     verb_name = tostr(parsed["verb"]);
-    `length(verb) ! ANY => false' || return false;
+    `length(verb_name) ! ANY => false' || return false;
     dobj_name = parsed["dobjstr"];
     for passage in (passages)
       if (passage:matches_command(room, verb_name))
@@ -309,7 +309,7 @@ object AREA
     actual_source = typeof(source_room) == FLYWEIGHT ? source_room.delegate | source_room;
     actual_dest = typeof(dest_room) == FLYWEIGHT ? dest_room.delegate | dest_room;
     "Check that source room allows digging from it";
-    cap = $builder:find_capability_for(actual_source, 'room);
+    cap = caller_perms():find_capability_for(actual_source, 'room);
     room_target = typeof(cap) == FLYWEIGHT ? cap | actual_source;
     room_target:check_can_dig_from();
     "Update the passage using set_passage with elevated permissions";

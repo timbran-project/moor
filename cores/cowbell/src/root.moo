@@ -547,9 +547,6 @@ object ROOT
     "Create test objects";
     test_area = create($area);
     test_player = create($player);
-    "Initialize grants properties";
-    add_property(test_player, "grants_area", [], {test_player.owner, "rw"});
-    add_property(test_player, "grants_room", [], {test_player.owner, "rw"});
     "Test 1: Grant initial capability";
     cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area, test_key);
     typeof(cap1) == FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
