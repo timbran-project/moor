@@ -1,7 +1,7 @@
 object HACKER
   name: "Hacker"
   parent: PROG
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   player: true
   programmer: true

@@ -1,7 +1,7 @@
 object CONTAINER
   name: "Generic Container"
   parent: THING
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   fertile: true
   readable: true

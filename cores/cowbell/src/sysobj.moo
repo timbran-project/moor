@@ -40,6 +40,7 @@ object SYSOBJ
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog (owner: HACKER, flags: "r") = PROG;
   property pronouns (owner: HACKER, flags: "r") = PRONOUNS;
+  property prototype_box (owner: HACKER, flags: "r") = PROTOTYPE_BOX;
   property relation (owner: HACKER, flags: "r") = RELATION;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;

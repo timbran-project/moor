@@ -1,7 +1,7 @@
 object LOGIN
   name: "Login Service"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: ARCH_WIZARD
   readable: true
 

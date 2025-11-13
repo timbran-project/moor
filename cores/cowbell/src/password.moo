@@ -1,7 +1,6 @@
 object PASSWORD
   name: "Password Flyweight Delegate"
   parent: ROOT
-  location: FIRST_ROOM
   owner: HACKER
   readable: true
 

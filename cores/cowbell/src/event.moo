@@ -1,7 +1,6 @@
 object EVENT
   name: "Event Flyweight Delegate"
   parent: ROOT
-  location: #000066-9A705E96FD
   owner: HACKER
   readable: true
 

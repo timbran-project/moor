@@ -1,7 +1,7 @@
 object PRONOUNS
   name: "Pronoun System"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 

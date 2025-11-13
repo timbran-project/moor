@@ -1,7 +1,6 @@
 object FORMAT_BLOCK
   name: "Multiline Block Content Flyweight Delegate"
   parent: ROOT
-  location: #000066-9A705E96FD
   owner: HACKER
   readable: true
 

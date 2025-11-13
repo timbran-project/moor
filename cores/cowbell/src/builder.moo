@@ -1,7 +1,7 @@
 object BUILDER
   name: "Generic Builder"
   parent: PLAYER
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 
@@ -862,6 +862,59 @@ object BUILDER
       this:inform_current($event:mk_error(this, message));
       return 0;
     endtry
+  endverb
+
+  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Edit a property on an object using the presentation system.";
+    "Usage: @edit <object>.<property>";
+    "Examples: @edit player.name, @edit me.description";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    if (!argstr)
+      this:inform_current($event:mk_error(this, "Usage: " + verb + " <object>.<property>"));
+      return;
+    endif
+    target_string = argstr:trim();
+    "Property reference - must use dot notation";
+    if (!("." in target_string))
+      this:inform_current($event:mk_error(this, "Invalid property reference format. Use 'object.property'"));
+      return;
+    endif
+    parts = target_string:split(".");
+    if (length(parts) != 2)
+      this:inform_current($event:mk_error(this, "Invalid property reference format. Use 'object.property'"));
+      return;
+    endif
+    {object_str, prop_name} = parts;
+    "Match the object";
+    try
+      target_obj = $match:match_object(object_str, this);
+    except e (E_INVARG)
+      this:inform_current($event:mk_error(this, "I don't see '" + object_str + "' here."));
+      return;
+    except e (ANY)
+      this:inform_current($event:mk_error(this, "Error matching object: " + e[2]));
+      return;
+    endtry
+    "Check property exists and open editor";
+    if (!target_obj:check_property_exists(prop_name))
+      this:inform_current($event:mk_error(this, "Property '" + prop_name + "' not found on " + target_obj.name + "."));
+      return;
+    endif
+    "Open the property editor";
+    this:present_property_editor(target_obj, prop_name);
+    this:inform_current($event:mk_info(this, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
+  endverb
+
+  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+    if (caller != this)
+      raise(E_PERM);
+    endif
+    {target_obj, prop_name} = args;
+    editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
+    editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
+    object_curie = target_obj:to_curie_str();
+    present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
 
   verb test_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"

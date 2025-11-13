@@ -1,7 +1,7 @@
 object STR_PROTO
   name: "String Utilities"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 
@@ -1249,5 +1249,107 @@ object STR_PROTO
     typeof(s) == STR || raise(E_TYPE("Expected string"));
     !s && return "a ";
     return s:indefinite_article() + " " + s;
+  endverb
+
+  verb parse_curie (this none this) owner: HACKER flags: "rxd"
+    "Parse a CURIE string into an object reference.";
+    "Supports: oid:N, uuid:XXXXXX-XXXXXXXXXX, sysobj:name.path, match(\"string\")";
+    "Returns the object or false if parsing fails.";
+    "Usage: \"oid:42\":parse_curie() => #42";
+    "For match() strings, optional second arg provides context: \"match(\\\"sword\\\")\":parse_curie(player) => #123";
+    {curie_str, ?context = player} = args;
+    typeof(curie_str) == STR || raise(E_TYPE, "CURIE must be a string");
+    "Check for oid: prefix";
+    if (curie_str:starts_with("oid:"))
+      oid_part = curie_str[5..$];
+      if (oid_part:is_numeric())
+        return toobj("#" + oid_part);
+      endif
+      return false;
+    endif
+    "Check for uuid: prefix";
+    if (curie_str:starts_with("uuid:"))
+      uuid_part = curie_str[6..$];
+      "Try to construct uuid object reference";
+      try
+        return toobj("#" + uuid_part);
+      except (ANY)
+        return false;
+      endtry
+    endif
+    "Check for sysobj: prefix";
+    if (curie_str:starts_with("sysobj:"))
+      sysobj_part = curie_str[8..$];
+      "Navigate from #0 through property chain";
+      try
+        let target = #0;
+        parts = sysobj_part:split(".");
+        for part in (parts)
+          target = target.(part);
+        endfor
+        return typeof(target) == OBJ ? target | false;
+      except (ANY)
+        return false;
+      endtry
+    endif
+    "Check for match(\"...\") format";
+    if (curie_str:starts_with("match(\"") && curie_str:ends_with("\")"))
+      match_str = curie_str[8..length(curie_str) - 2];
+      "Use match_object with provided context";
+      if (!valid(context))
+        return false;
+      endif
+      try
+        return $match:match_object(match_str, context);
+      except (ANY)
+        return false;
+      endtry
+    endif
+    return false;
+  endverb
+
+  verb test_parse_curie (this none this) owner: HACKER flags: "rxd"
+    "Test parse_curie function with all supported formats";
+    result = 0;
+    "Test oid: format";
+    result = "oid:1":parse_curie();
+    result != #1 && raise(E_ASSERT, "oid:1 parsing failed, got " + toliteral(result));
+    result = "oid:42":parse_curie();
+    typeof(result) != OBJ && raise(E_ASSERT, "oid:42 should return object type, got " + toliteral(result));
+    result = "oid:0":parse_curie();
+    result != #0 && raise(E_ASSERT, "oid:0 parsing failed, got " + toliteral(result));
+    "Test invalid oid format";
+    result = "oid:abc":parse_curie();
+    result != false && raise(E_ASSERT, "oid:abc should fail parsing, got " + toliteral(result));
+    result = "oid:":parse_curie();
+    result != false && raise(E_ASSERT, "oid: with no number should fail, got " + toliteral(result));
+    "Test sysobj: format";
+    result = "sysobj:root":parse_curie();
+    result != #1 && raise(E_ASSERT, "sysobj:root should resolve to #1, got " + toliteral(result));
+    result = "sysobj:str_proto":parse_curie();
+    result != #10 && raise(E_ASSERT, "sysobj:str_proto should resolve to #10, got " + toliteral(result));
+    "Test invalid sysobj format";
+    result = "sysobj:nonexistent_property":parse_curie();
+    result != false && raise(E_ASSERT, "sysobj with nonexistent property should fail, got " + toliteral(result));
+    result = "sysobj:":parse_curie();
+    result != false && raise(E_ASSERT, "sysobj: with no path should fail, got " + toliteral(result));
+    "Test match() format with valid context";
+    result = "match(\"here\")":parse_curie(#12);
+    typeof(result) == OBJ || result == false || raise(E_ASSERT, "match() should return object or false, got " + toliteral(result));
+    "Test match() format with invalid context";
+    result = "match(\"anything\")":parse_curie(#-1);
+    result != false && raise(E_ASSERT, "match() with invalid context should fail, got " + toliteral(result));
+    "Test invalid formats";
+    result = "invalid":parse_curie();
+    result != false && raise(E_ASSERT, "Invalid format should return false, got " + toliteral(result));
+    result = "":parse_curie();
+    result != false && raise(E_ASSERT, "Empty string should return false, got " + toliteral(result));
+    result = "oid":parse_curie();
+    result != false && raise(E_ASSERT, "Incomplete prefix should return false, got " + toliteral(result));
+    result = "match(incomplete":parse_curie();
+    result != false && raise(E_ASSERT, "Incomplete match() format should return false, got " + toliteral(result));
+    "Test type checking";
+    caught = `123:parse_curie() ! E_VERBNF => true';
+    caught || raise(E_ASSERT, "Should raise E_VERBNF for non-string input");
   endverb
 endobject

@@ -1,7 +1,7 @@
 object ACTOR
   name: "Generic Actor"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: WIZ
   fertile: true
   readable: true

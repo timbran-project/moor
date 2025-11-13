@@ -1,7 +1,7 @@
 object WIZ
   name: "Generic Wizard"
   parent: PROG
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: ARCH_WIZARD
 
   property test (owner: WIZ, flags: "r") = {};

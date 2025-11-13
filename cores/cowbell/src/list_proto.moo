@@ -1,7 +1,7 @@
 object LIST_PROTO
   name: "List Utilities"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 

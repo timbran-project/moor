@@ -1,7 +1,7 @@
 object INT_PROTO
   name: "Integer Prototype"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 

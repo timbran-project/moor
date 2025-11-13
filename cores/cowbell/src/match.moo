@@ -1,7 +1,7 @@
 object MATCH
   name: "Object Matching Utilities"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 

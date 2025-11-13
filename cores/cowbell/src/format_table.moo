@@ -1,7 +1,6 @@
 object FORMAT_TABLE
   name: "Table Content Flyweight Delegate"
   parent: ROOT
-  location: FIRST_ROOM
   owner: HACKER
   readable: true
 

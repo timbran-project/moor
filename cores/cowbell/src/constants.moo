@@ -49,3 +49,4 @@ define CONTAINER = #55;
 define ACTOR = #56;
 define SCHEDULER = #57;
 define SCHEDULED_TASK = #58;
+define PROTOTYPE_BOX = #59;

@@ -1,7 +1,7 @@
 object PROG
   name: "Generic Programmer"
   parent: BUILDER
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: WIZ
   wizard: true
   programmer: true
@@ -75,7 +75,7 @@ object PROG
         "Check verb exists with elevated permissions";
         this:_do_check_verb_exists(verb_location, verb_name);
         "Open the editor";
-        this:present_editor(verb_location, verb_name);
+        this:present_verb_editor(verb_location, verb_name);
         player:inform_current($event:mk_info(player, "Opened verb editor for " + tostr(target_obj) + ":" + tostr(verb_name)));
       except (E_VERBNF)
         player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + "."));
@@ -100,39 +100,26 @@ object PROG
         return;
       endtry
       "Check property exists and open editor";
-      try
-        this:_do_check_property_exists(target_obj, prop_name);
-        "Open the property editor";
-        this:present_property_editor(target_obj, prop_name);
-        player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
-      except (E_PROPNF)
+      if (!target_obj:check_property_exists(prop_name))
         player:inform_current($event:mk_error(player, "Property '" + prop_name + "' not found on " + target_obj.name + "."));
         return;
-      endtry
+      endif
+      "Open the property editor";
+      this:present_property_editor(target_obj, prop_name);
+      player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
     else
       player:inform_current($event:mk_error(player, "Invalid reference. Use 'object:verb' or 'object.property'"));
     endif
   endverb
 
-  verb present_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb present_verb_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
     if (caller != this)
       raise(E_PERM);
     endif
     {verb_location, verb_name} = args;
     editor_id = "edit-" + tostr(verb_location) + "-" + verb_name;
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
-    obj_str = tostr(verb_location);
-    if (obj_str[1] == "#")
-      if (is_uuobjid(verb_location))
-        object_curie = "uuid:" + obj_str[2..$];
-      else
-        object_curie = "oid:" + obj_str[2..$];
-      endif
-    elseif (obj_str[1] == "$")
-      object_curie = "sysobj:" + obj_str[2..$];
-    else
-      object_curie = obj_str;
-    endif
+    object_curie = verb_location:to_curie_str();
     present(player, editor_id, "text/plain", "verb-editor", "", {{"object", object_curie}, {"verb", verb_name}, {"title", editor_title}});
   endverb
 
@@ -492,38 +479,6 @@ object PROG
     set_task_perms(this);
     {target_obj, prop_name} = args;
     return is_clear_property(target_obj, prop_name);
-  endverb
-
-  verb _do_check_property_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Internal helper to check property exists with elevated permissions";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
-    {target_obj, prop_name} = args;
-    "This will raise E_PROPNF if property doesn't exist";
-    prop_info_data = property_info(target_obj, prop_name);
-    return true;
-  endverb
-
-  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
-    if (caller != this)
-      raise(E_PERM);
-    endif
-    {target_obj, prop_name} = args;
-    editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
-    editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
-    obj_str = tostr(target_obj);
-    if (obj_str[1] == "#")
-      if (is_uuobjid(target_obj))
-        object_curie = "uuid:" + obj_str[2..$];
-      else
-        object_curie = "oid:" + obj_str[2..$];
-      endif
-    elseif (obj_str[1] == "$")
-      object_curie = "sysobj:" + obj_str[2..$];
-    else
-      object_curie = obj_str;
-    endif
-    present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
 
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"

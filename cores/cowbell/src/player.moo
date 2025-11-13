@@ -1,7 +1,7 @@
 object PLAYER
   name: "Generic Player"
   parent: EVENT_RECEIVER
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: WIZ
   readable: true
 

@@ -1,7 +1,7 @@
 object THING
   name: "Generic Thing"
   parent: ROOT
-  location: FIRST_ROOM
+  location: PROTOTYPE_BOX
   owner: HACKER
   fertile: true
   readable: true

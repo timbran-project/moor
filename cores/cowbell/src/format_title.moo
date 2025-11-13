@@ -1,7 +1,6 @@
 object FORMAT_TITLE
   name: "Title Content Flyweight Delegate"
   parent: ROOT
-  location: FIRST_ROOM
   owner: HACKER
   readable: true
 
