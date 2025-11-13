@@ -19,7 +19,7 @@ object LLM_WEARABLE
 
   verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create agent and apply configuration. Children override _setup_agent to customize.";
-    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Create the agent";
     this.agent = $llm_agent:create();
     "Set agent owner to tool owner so they can write to agent properties";
@@ -65,7 +65,7 @@ object LLM_WEARABLE
     if (player != this.owner && !player.wizard)
       "Announce the violation to the room";
       if (valid(player.location))
-        event = $event:mk_info(player, this:name(), " emits a sharp warning tone as ", $sub:n(), " ", $sub:self_alt("attempt", "attempts"), " to ", action," it, rejecting the unauthorized user."):with_this(player.location);
+        event = $event:mk_info(player, this:name(), " emits a sharp warning tone as ", $sub:n(), " ", $sub:self_alt("attempt", "attempts"), " to ", action, " it, rejecting the unauthorized user."):with_this(player.location);
         player.location:announce(event);
       else
         player:inform_current($event:mk_error(player, this:name(), " refuses to attune to you. The device is bonded to its rightful owner and will not respond to unauthorized use."));
@@ -272,7 +272,7 @@ object LLM_WEARABLE
 
   verb stop (this none none) owner: ARCH_WIZARD flags: "rd"
     "Stop the current agent operation without clearing context";
-    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller == this.owner || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
@@ -287,7 +287,7 @@ object LLM_WEARABLE
 
   verb reset (this none none) owner: ARCH_WIZARD flags: "rd"
     "Reset agent context, clearing conversation history";
-    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller == this.owner || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
     if (!valid(this.agent))
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
@@ -322,7 +322,7 @@ object LLM_WEARABLE
     else
       status = "OK";
     endif
-    return ["prompt_tokens" -> prompt_tokens, "token_limit" -> token_limit, "compaction_threshold" -> compaction_threshold, "threshold_tokens" -> threshold_tokens, "context_percent" -> context_percent, "threshold_percent" -> threshold_percent, "test_gte_100" -> (threshold_percent >= 100), "test_gte_80" -> (threshold_percent >= 80), "status" -> status];
+    return ["prompt_tokens" -> prompt_tokens, "token_limit" -> token_limit, "compaction_threshold" -> compaction_threshold, "threshold_tokens" -> threshold_tokens, "context_percent" -> context_percent, "threshold_percent" -> threshold_percent, "test_gte_100" -> threshold_percent >= 100, "test_gte_80" -> threshold_percent >= 80, "status" -> status];
   endverb
 
   verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -335,7 +335,7 @@ object LLM_WEARABLE
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Reconfigure by cleaning up old agent and creating a fresh one";
-    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Recycle old agent if it exists";
     if (valid(this.agent))
       this.agent:destroy();

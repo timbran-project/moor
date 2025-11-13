@@ -12,7 +12,6 @@ object PLAYER
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = <#28, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true>;
   property wearing (owner: HACKER, flags: "rwc") = {};
 
   override description = "You see a player who should get around to describing themself.";
@@ -144,25 +143,6 @@ object PLAYER
     return $event:mk_not_found(player, "I don't see that here."):with_audience('utility);
   endverb
 
-  verb pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Return the pronoun set for this player (object or flyweight).";
-    set_task_perms(caller_perms());
-    return this.pronouns;
-  endverb
-
-  verb "pronoun_*" (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Get pronoun from either preset object or custom flyweight.";
-    set_task_perms(caller_perms());
-    ptype = tosym(verb[9..length(verb)]);
-    p = this:pronouns();
-    ptype == 'subject && return p.ps;
-    ptype == 'object && return p.po;
-    ptype == 'possessive && args[1] == 'adj && return p.pp;
-    ptype == 'possessive && args[2] == 'noun && return p.pq;
-    ptype == 'reflexive && return p.pr;
-    raise(E_INVARG);
-  endverb
-
   verb "@pronouns" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Set or view your pronouns.";
     "Usage: @pronouns [pronoun-set]";
@@ -290,7 +270,6 @@ object PLAYER
 
   verb match_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
-    players = connected_players();
     "Return list of objects to match against for execution in commands.";
     {command, ?options = []} = args;
     location = this.location;

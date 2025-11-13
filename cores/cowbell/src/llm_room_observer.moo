@@ -121,12 +121,14 @@ object LLM_ROOM_OBSERVER
   endverb
 
   verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Clear the agent's observation history";
+    "Clear the agent's observation history with descriptive narrative";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     set_task_perms(caller_perms());
+    !caller.location || return E_INVARG;
     if (valid(this.agent))
       this.agent:reset_context();
     endif
+    return E_NONE;
   endverb
 
   verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -156,5 +158,15 @@ object LLM_ROOM_OBSERVER
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
       user:inform_current($event:mk_info(user, usage_msg):with_presentation_hint('inset));
     endif
+  endverb
+
+  verb "@reset" (this none none) owner: ARCH_WIZARD flags: "rx"
+    if (!player.wizard && player != this.owner)
+      player:inform_current($event:mk_error(player, "You can't do that."));
+      return;
+    endif
+    reset_event = $event:mk_emote(player, player:name(), " reaches behind ", this:name(), "'s head and flips a formerly unseen switch...");
+    caller.location:announce(reset_event);
+    this:reset();
   endverb
 endobject

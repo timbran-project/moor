@@ -6,6 +6,8 @@ object ACTOR
   fertile: true
   readable: true
 
+  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <#28, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true>;
+
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";
 
@@ -197,5 +199,22 @@ object ACTOR
       event = event:with_iobj(from_room);
     endif
     return event;
+  endverb
+
+  verb pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
+    return this.pronouns;
+  endverb
+
+  verb "pronoun_*" (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
+    ptype = tosym(verb[9..length(verb)]);
+    p = this:pronouns();
+    ptype == 'subject && return p.ps;
+    ptype == 'object && return p.po;
+    ptype == 'possessive && args[1] == 'adj && return p.pp;
+    ptype == 'possessive && args[2] == 'noun && return p.pq;
+    ptype == 'reflexive && return p.pr;
+    raise(E_INVARG);
   endverb
 endobject

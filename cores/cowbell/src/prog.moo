@@ -385,8 +385,7 @@ object PROG
 
   verb _do_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to get properties list with elevated permissions";
-    caller == this || raise(E_PERM);
-    set_task_perms(this);
+    set_task_perms(caller_perms());
     {target_obj} = args;
     return properties(target_obj);
   endverb

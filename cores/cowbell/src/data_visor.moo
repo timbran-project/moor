@@ -91,11 +91,17 @@ object DATA_VISOR
     "host = config[\"host\"];",
     "config[\"timeout\"] = 30;",
     "",
-    "// Flyweights (lightweight immutable mini-objects)",
-    "point = <$point, .x = 10, .y = 20>;",
-    "password_obj = <$password, [\"encrypted\" -> \"hash...\"]>;",
+    "// Flyweights (lightweight immutable mini-objects) have delegates, \"slots\" and \"contents\"",
+    "point = <$point, .x = 10, .y = 20>; // $point is the delegate, x and y are slots and can be accessed like properties in an object are ",
+    "password_obj = <$password, {\"hash...\"}>; // \"hash\" is the contents",
+    "",
+    "Consult your builtins list to understand operations around flyweights (flyslots, flycontents, toflyweight, etc.)",
     "",
     "## Object Operations",
+    "",
+    "objects are single inheritance, prototype inheritance. \"class\" in moo is a convention where an object gets treated as one. they're also called \"generics\" and \"prototypes\"",
+    "",
+    "parent() gets an object's parents, children() returns the list of children for an object.  ancestors() and descendants() also exist",
     "",
     "// Property access",
     "player_name = player.name;",
@@ -182,7 +188,7 @@ object DATA_VISOR
     "endif",
     "",
     "// Permission check at verb start",
-    "caller == this || caller_perms().wizard || raise(E_PERM);",
+    "caller == this || caller.wizard || raise(E_PERM);",
     "set_task_perms(this.owner);",
     "",
     "// Early returns for validation",
@@ -201,11 +207,11 @@ object DATA_VISOR
     "INT NUM FLOAT STR OBJ LIST MAP ERR BOOL FLYWEIGHT BINARY LAMBDA SYM",
     "",
     "// **CRITICAL: Type constants CANNOT be used as variable names!**",
-    "// Assigning to them (OBJ = 5;) is a COMPILE ERROR.",
-    "// Using them as variables is confusing since they resolve to numeric values.",
-    "// BAD:  INT = 42;           // Compile error",
-    "// BAD:  for OBJ in (list)   // Confusing - OBJ resolves to number",
-    "// GOOD: int_value = 42;     // Use descriptive variable names instead",
+    "Assigning to them (OBJ = 5;) is a COMPILE ERROR.",
+    "Using them as variables is confusing since they resolve to numeric values.",
+    "BAD:  INT = 42;           // Compile error",
+    "BAD:  for OBJ in (list)   // Confusing - OBJ resolves to number",
+    "GOOD: int_value = 42;     // Use descriptive variable names instead",
     ""
   };
 
@@ -336,7 +342,7 @@ object DATA_VISOR
 
   verb _register_compass_tools_if_available (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Register building tools from architect's compass if found";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(caller_perms());
     wearer = this:wearer();
     compass = this:_find_architects_compass(wearer);
@@ -894,8 +900,18 @@ object DATA_VISOR
     typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
     typeof(value_str) == STR || raise(E_TYPE("Expected value string"));
     typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
-    "Parse value from literal";
-    value = eval(value_str);
+    "Parse value from literal using eval with return statement";
+    eval_code = "return " + value_str + ";";
+    eval_result = eval(eval_code);
+    if (!eval_result[1])
+      "Compilation error - show error to user";
+      error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
+      error_event = error_event:with_presentation_hint('inset);
+      wearer:inform_current(error_event);
+      return "Error parsing value: " + error_text;
+    endif
+    value = eval_result[2];
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed property creation: " + tostr(o) + "." + prop_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
@@ -962,8 +978,18 @@ object DATA_VISOR
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
     typeof(value_str) == STR || raise(E_TYPE("Expected value string"));
-    "Parse value from literal";
-    value = eval(value_str);
+    "Parse value from literal using eval with return statement";
+    eval_code = "return " + value_str + ";";
+    eval_result = eval(eval_code);
+    if (!eval_result[1])
+      "Compilation error - show error to user";
+      error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
+      error_event = error_event:with_presentation_hint('inset);
+      wearer:inform_current(error_event);
+      return "Error parsing value: " + error_text;
+    endif
+    value = eval_result[2];
     "Get current value";
     old_value = `o.(prop_name) ! ANY => "<undefined>"';
     "Request confirmation";
