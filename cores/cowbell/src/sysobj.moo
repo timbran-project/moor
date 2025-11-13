@@ -46,6 +46,7 @@ object SYSOBJ
   property root (owner: HACKER, flags: "r") = ROOT;
   property scheduled_task (owner: HACKER, flags: "r") = SCHEDULED_TASK;
   property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
+  property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;

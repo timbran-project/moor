@@ -10,7 +10,7 @@ object WIZ
   override import_export_id = "wiz";
 
   verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "Grant programmer bit to a player";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can grant programmer privileges.");
@@ -69,7 +69,7 @@ object WIZ
   endverb
 
   verb "@builder" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "Grant builder status to a player";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can grant builder status.");
@@ -122,7 +122,7 @@ object WIZ
   endverb
 
   verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "Reconfigure all Architect's Compasses and Data Visors in the database";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can reconfigure tools.");
@@ -177,7 +177,7 @@ object WIZ
   endverb
 
   verb "@llm-budget" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "View a player's LLM token budget and usage";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can view LLM budgets.");
@@ -224,7 +224,7 @@ object WIZ
   endverb
 
   verb "@llm-set-budget" (any at any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "Set a player's LLM token budget";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can set LLM budgets.");
@@ -263,7 +263,7 @@ object WIZ
   endverb
 
   verb "@llm-reset-usage" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "Reset a player's LLM token usage counter";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can reset LLM usage.");
@@ -296,7 +296,7 @@ object WIZ
   endverb
 
   verb "@reissue-tools" (none none none) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.wizard || raise(E_PERM);
     "Destroy all existing visors and compasses, then reissue them to all programmers and builders";
     set_task_perms(this);
     player.wizard || raise(E_PERM, "Only wizards can reissue tools.");

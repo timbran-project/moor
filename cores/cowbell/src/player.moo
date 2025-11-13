@@ -6,6 +6,7 @@ object PLAYER
   readable: true
 
   property email_address (owner: ARCH_WIZARD, flags: "") = "";
+  property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES};
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
@@ -13,6 +14,7 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property wearing (owner: HACKER, flags: "rwc") = {};
+  property wizard_granted_features (owner: ARCH_WIZARD, flags: "") = {};
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -300,7 +302,15 @@ object PLAYER
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
     location = this.location;
     env = {this};
-    valid(location) && (env = {@env, location});
+    wiz_granted = this.wizard_granted_features;
+    if (typeof(wiz_granted) != LIST)
+      wiz_granted = {};
+    endif
+    features = this.features;
+    if (typeof(features) != LIST)
+      features = {};
+    endif
+    valid(location) && (env = {@env, location, @wiz_granted, @features});
     return env;
   endverb
 

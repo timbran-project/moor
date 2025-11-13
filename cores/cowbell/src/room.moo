@@ -17,10 +17,6 @@ object ROOM
     this:announce(player:mk_say_event(argstr));
   endverb
 
-  verb think (any any any) owner: HACKER flags: "rxd"
-    this:announce(player:mk_think_event(argstr));
-  endverb
-
   verb "`*" (any any any) owner: HACKER flags: "rxd"
     "Directed say - say something to a specific person";
     "Usage: `target message";

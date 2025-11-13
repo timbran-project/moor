@@ -11,7 +11,7 @@ object PROG
   override import_export_id = "prog";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     answer = eval("return " + argstr + ";", 1, 2);
     if (answer[1])
@@ -26,7 +26,7 @@ object PROG
 
   verb _do_check_verb_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to check verb exists with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {verb_location, verb_name} = args;
     "This will raise E_VERBNF if verb doesn't exist";
@@ -38,7 +38,7 @@ object PROG
     "Edit a verb or property on an object using the presentation system.";
     "Usage: @edit <object>:<verb> or @edit <object>.<property>";
     "Examples: @edit #1:look_self, @edit player.name, @edit $match:match_object";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     if (!argstr)
       player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> or <object>.<property>"));
@@ -113,9 +113,7 @@ object PROG
   endverb
 
   verb present_verb_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
-    if (caller != this)
-      raise(E_PERM);
-    endif
+    caller == this && this.programmer || raise(E_PERM);
     {verb_location, verb_name} = args;
     editor_id = "edit-" + tostr(verb_location) + "-" + verb_name;
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
@@ -125,7 +123,7 @@ object PROG
 
   verb _do_get_verb_listing (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to get verb listing with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {verb_location, verb_name, show_all_parens} = args;
     verb_info_data = verb_info(verb_location, verb_name);
@@ -137,7 +135,7 @@ object PROG
   endverb
 
   verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     "List verb code with optional formatting options";
     "Usage: @list <object>:<verb> [with parentheses] [without numbers]";
@@ -214,14 +212,14 @@ object PROG
 
   verb _do_add_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to add verb with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, verb_info, verb_args} = args;
     add_verb(target_obj, verb_info, verb_args);
   endverb
 
   verb "@verb" (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     "Add a new verb to an object";
     "Usage: @verb object:verb-name(s) [dobj [prep [iobj [permissions [owner]]]]]";
@@ -289,14 +287,14 @@ object PROG
 
   verb _do_delete_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to delete verb with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, verb_name} = args;
     delete_verb(target_obj, verb_name);
   endverb
 
   verb "@rmverb" (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     "Remove a verb from an object";
     "Usage: @rmverb object:verb-name";
@@ -328,7 +326,7 @@ object PROG
 
   verb _do_set_verb_args (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to set verb args with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, verb_name, new_args} = args;
     set_verb_args(target_obj, verb_name, new_args);
@@ -336,14 +334,14 @@ object PROG
 
   verb _do_get_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to get verb list with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj} = args;
     return verbs(target_obj);
   endverb
 
   verb "@verbs" (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     "List all verbs on an object";
     "Usage: @verbs <object>";
@@ -378,7 +376,7 @@ object PROG
   endverb
 
   verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     "List all properties on an object";
     "Usage: @properties <object>";
@@ -406,7 +404,7 @@ object PROG
   endverb
 
   verb "@args" (any any any) owner: ARCH_WIZARD flags: "rd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     "Change verb argument specifications";
     "Usage: @args object:verb-name dobj [prep [iobj]]";
@@ -459,7 +457,7 @@ object PROG
 
   verb _do_get_property_info (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to get property info with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, prop_name} = args;
     return property_info(target_obj, prop_name);
@@ -467,7 +465,7 @@ object PROG
 
   verb _do_get_property_value (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to get property value with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, prop_name} = args;
     return target_obj.(prop_name);
@@ -475,7 +473,7 @@ object PROG
 
   verb _do_is_clear_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to check if property is clear with elevated permissions";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, prop_name} = args;
     return is_clear_property(target_obj, prop_name);
@@ -484,7 +482,7 @@ object PROG
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Display detailed object/property/verb information";
     "Usage: @display <object>[.|,|:|;][property/verb]";
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     if (!argstr)
       player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>[.|,|:|;][property/verb]"));
@@ -542,7 +540,7 @@ object PROG
   endverb
 
   verb _display_property (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, prop_name} = args;
     prop_info = this:_do_get_property_info(target_obj, prop_name);
@@ -560,7 +558,7 @@ object PROG
   endverb
 
   verb _display_inherited_property (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, prop_name} = args;
     "Find where property is defined";
@@ -580,7 +578,7 @@ object PROG
   endverb
 
   verb _display_all_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, include_inherited} = args;
     headers = {"Property", "Owner", "Flags", "Value"};
@@ -631,7 +629,7 @@ object PROG
   endverb
 
   verb _display_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, verb_name} = args;
     verb_location = target_obj:find_verb_definer(verb_name);
@@ -649,7 +647,7 @@ object PROG
   endverb
 
   verb _display_inherited_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, verb_name} = args;
     verb_location = target_obj:find_verb_definer(verb_name);
@@ -660,7 +658,7 @@ object PROG
   endverb
 
   verb _display_all_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj, include_inherited} = args;
     headers = {"Verb", "Owner", "Flags", "Args"};
@@ -708,7 +706,7 @@ object PROG
   endverb
 
   verb _display_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
+    caller == this && this.programmer || raise(E_PERM);
     set_task_perms(this);
     {target_obj} = args;
     "Show object header info, then all properties and verbs";
