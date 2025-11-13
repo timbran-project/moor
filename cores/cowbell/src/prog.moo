@@ -7,7 +7,7 @@ object PROG
   programmer: true
   readable: true
 
-  override description = "Generic programmer character prototype with code evaluation and editing capabilities.";
+  override description = "You see a player who has special programming powers but really should get around to describing themself.";
   override import_export_id = "prog";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"

@@ -6,7 +6,7 @@ object WIZ
 
   property test (owner: WIZ, flags: "r") = {};
 
-  override description = "Generic wizard, parent of all wizards";
+  override description = "You see a player who has has administrative powers but is too lazy to set their description.";
   override import_export_id = "wiz";
 
   verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "rd"

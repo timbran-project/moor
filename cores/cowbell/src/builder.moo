@@ -36,7 +36,7 @@ object BUILDER
   property grants_area (owner: HACKER, flags: "") = [];
   property grants_room (owner: HACKER, flags: "") = [];
 
-  override description = "Generic builder character prototype. Builders can create and modify basic objects and rooms. Inherits from player with building permissions.";
+  override description = "You see a player who has can apparently build things but not describe themself. Lazy?";
   override import_export_id = "builder";
 
   verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
