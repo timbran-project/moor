@@ -278,30 +278,48 @@ object SUB
     this.type == 'this && return this:name_sub(event.this_obj, render_for);
     this.type == 'dobj && return this:name_sub(event.dobj, render_for);
     this.type == 'iobj && return this:name_sub(event.iobj, render_for);
-    this.type == 'subject && return event.actor:pronoun_subject();
-    this.type == 'object && return event.actor:pronoun_object();
-    this.type == 'pos_adj && return event.actor:pronoun_possessive('adj);
-    this.type == 'pos_noun && return event.actor:pronoun_possessive('noun);
-    this.type == 'reflexive && return event.actor:pronoun_reflexive();
-    this.type == 'dobj_subject && return valid(event.dobj) ? event.dobj:pronoun_subject() | "<no-dobj>";
-    this.type == 'dobj_object && return valid(event.dobj) ? event.dobj:pronoun_object() | "<no-dobj>";
-    this.type == 'dobj_pos_adj && return valid(event.dobj) ? event.dobj:pronoun_possessive('adj) | "<no-dobj>";
-    this.type == 'dobj_pos_noun && return valid(event.dobj) ? event.dobj:pronoun_possessive('noun) | "<no-dobj>";
-    this.type == 'dobj_reflexive && return valid(event.dobj) ? event.dobj:pronoun_reflexive() | "<no-dobj>";
-    this.type == 'iobj_subject && return valid(event.iobj) ? event.iobj:pronoun_subject() | "<no-iobj>";
-    this.type == 'iobj_object && return valid(event.iobj) ? event.iobj:pronoun_object() | "<no-iobj>";
-    this.type == 'iobj_pos_adj && return valid(event.iobj) ? event.iobj:pronoun_possessive('adj) | "<no-iobj>";
-    this.type == 'iobj_pos_noun && return valid(event.iobj) ? event.iobj:pronoun_possessive('noun) | "<no-iobj>";
-    this.type == 'iobj_reflexive && return valid(event.iobj) ? event.iobj:pronoun_reflexive() | "<no-iobj>";
-    this.type == 'verb_be && return event.actor == render_for ? "are" | "is";
-    this.type == 'verb_have && return event.actor == render_for ? "have" | "has";
-    this.type == 'verb_look && return event.actor == render_for ? "look" | "looks";
-    this.type == 'dobj_verb_be && return valid(event.dobj) ? event.dobj == render_for ? "are" | "is" | "<no-dobj>";
-    this.type == 'dobj_verb_have && return valid(event.dobj) ? event.dobj == render_for ? "have" | "has" | "<no-dobj>";
-    this.type == 'dobj_verb_look && return valid(event.dobj) ? event.dobj == render_for ? "look" | "looks" | "<no-dobj>";
-    this.type == 'iobj_verb_be && return valid(event.iobj) ? event.iobj == render_for ? "are" | "is" | "<no-iobj>";
-    this.type == 'iobj_verb_have && return valid(event.iobj) ? event.iobj == render_for ? "have" | "has" | "<no-iobj>";
-    this.type == 'iobj_verb_look && return valid(event.iobj) ? event.iobj == render_for ? "look" | "looks" | "<no-iobj>";
+    this.type == 'subject && return event.actor == render_for ? "you" | event.actor:pronoun_subject();
+    this.type == 'object && return event.actor == render_for ? "you" | event.actor:pronoun_object();
+    this.type == 'pos_adj && return event.actor == render_for ? "your" | event.actor:pronoun_possessive('adj);
+    this.type == 'pos_noun && return event.actor == render_for ? "yours" | event.actor:pronoun_possessive('noun);
+    this.type == 'reflexive && return event.actor == render_for ? "yourself" | event.actor:pronoun_reflexive();
+    this.type == 'dobj_subject && return valid(event.dobj) ? event.dobj == render_for ? "you" | event.dobj:pronoun_subject() | "<no-dobj>";
+    this.type == 'dobj_object && return valid(event.dobj) ? event.dobj == render_for ? "you" | event.dobj:pronoun_object() | "<no-dobj>";
+    this.type == 'dobj_pos_adj && return valid(event.dobj) ? event.dobj == render_for ? "your" | event.dobj:pronoun_possessive('adj) | "<no-dobj>";
+    this.type == 'dobj_pos_noun && return valid(event.dobj) ? event.dobj == render_for ? "yours" | event.dobj:pronoun_possessive('noun) | "<no-dobj>";
+    this.type == 'dobj_reflexive && return valid(event.dobj) ? event.dobj == render_for ? "yourself" | event.dobj:pronoun_reflexive() | "<no-dobj>";
+    this.type == 'iobj_subject && return valid(event.iobj) ? event.iobj == render_for ? "you" | event.iobj:pronoun_subject() | "<no-iobj>";
+    this.type == 'iobj_object && return valid(event.iobj) ? event.iobj == render_for ? "you" | event.iobj:pronoun_object() | "<no-iobj>";
+    this.type == 'iobj_pos_adj && return valid(event.iobj) ? event.iobj == render_for ? "your" | event.iobj:pronoun_possessive('adj) | "<no-iobj>";
+    this.type == 'iobj_pos_noun && return valid(event.iobj) ? event.iobj == render_for ? "yours" | event.iobj:pronoun_possessive('noun) | "<no-iobj>";
+    this.type == 'iobj_reflexive && return valid(event.iobj) ? event.iobj == render_for ? "yourself" | event.iobj:pronoun_reflexive() | "<no-iobj>";
+    if (this.type == 'verb_be)
+      return event.actor == render_for ? "are" | event.actor:pronouns().verb_be;
+    endif
+    if (this.type == 'verb_have)
+      return event.actor == render_for ? "have" | event.actor:pronouns().verb_have;
+    endif
+    if (this.type == 'verb_look)
+      return event.actor == render_for ? "look" | (event.actor:pronouns().is_plural ? "look" | "looks");
+    endif
+    if (this.type == 'dobj_verb_be)
+      return valid(event.dobj) ? (event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be) | "<no-dobj>";
+    endif
+    if (this.type == 'dobj_verb_have)
+      return valid(event.dobj) ? (event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have) | "<no-dobj>";
+    endif
+    if (this.type == 'dobj_verb_look)
+      return valid(event.dobj) ? (event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks")) | "<no-dobj>";
+    endif
+    if (this.type == 'iobj_verb_be)
+      return valid(event.iobj) ? (event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be) | "<no-iobj>";
+    endif
+    if (this.type == 'iobj_verb_have)
+      return valid(event.iobj) ? (event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have) | "<no-iobj>";
+    endif
+    if (this.type == 'iobj_verb_look)
+      return valid(event.iobj) ? (event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks")) | "<no-iobj>";
+    endif
     if (this.type == 'self_alt)
       value = event.actor == render_for ? this.for_self | this.for_others;
       "Recursively evaluate if value is a substitution flyweight";
