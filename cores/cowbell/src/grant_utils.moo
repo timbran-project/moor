@@ -119,7 +119,7 @@ object GRANT_UTILS
     "Test with valid object";
     result = this:format_grant_with_name($first_area, 'area, {'add_room});
     "First Area" in result || raise(E_ASSERT, "Name not included: " + result);
-    "#38" in result || raise(E_ASSERT, "Object ID not included: " + result);
+    "#50" in result || raise(E_ASSERT, "Object ID not included: " + result);
     ".area(add_room)" in result || raise(E_ASSERT, "Grant spec malformed: " + result);
   endverb
 
@@ -167,8 +167,8 @@ object GRANT_UTILS
     "Test denial message formatting.";
     message = this:format_denial($first_area, 'area, {'add_room, 'create_passage});
     "First Area" in message || raise(E_ASSERT, "Name not in denial: " + message);
-    "#38" in message || raise(E_ASSERT, "Object ID not in denial: " + message);
-    "#38.area(add_room,create_passage)" in message || raise(E_ASSERT, "Grant spec not in denial: " + message);
+    "#50" in message || raise(E_ASSERT, "Object ID not in denial: " + message);
+    "#50.area(add_room,create_passage)" in message || raise(E_ASSERT, "Grant spec not in denial: " + message);
     "permission" in message || raise(E_ASSERT, "No permission text in denial: " + message);
   endverb
 
