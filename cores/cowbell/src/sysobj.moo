@@ -16,6 +16,7 @@ object SYSOBJ
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
+  property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
   property failed_match (owner: HACKER, flags: "r") = #-3;
   property first_area (owner: HACKER, flags: "r") = FIRST_AREA;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
@@ -28,6 +29,7 @@ object SYSOBJ
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
+  property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
   property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
