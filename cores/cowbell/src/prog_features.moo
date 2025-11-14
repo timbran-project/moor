@@ -725,4 +725,26 @@ object PROG_FEATURES
   verb _challenge_command_perms (this none this) owner: HACKER flags: "rxd"
     player.programmer || raise(E_PERM);
   endverb
+
+  verb "@codep*aste" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Paste MOO code with syntax highlighting to the room";
+    this:_challenge_command_perms();
+    if (!valid(player.location))
+      return;
+    endif
+    content = player:read_multiline("Enter MOO code to paste");
+    if (content == "@abort" || typeof(content) != STR)
+      player:inform_current($event:mk_info(player, "Code paste aborted."));
+      return;
+    endif
+    lines = content:split("\n");
+    if (length(lines) > 50)
+      player:inform_current($event:mk_error(player, "Code paste is greater than 50 lines, too long."));
+      return;
+    endif
+    title = $format.title:mk({$sub:nc(), " ", $sub:self_alt("codepaste", "codepastes")}, 4);
+    code = $format.code:mk(content, 'moo);
+    event = $event:mk_paste(player, title, code):with_presentation_hint('inset);
+    player.location:announce(event);
+  endverb
 endobject
