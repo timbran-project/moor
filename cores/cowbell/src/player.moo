@@ -5,7 +5,9 @@ object PLAYER
   owner: ARCH_WIZARD
   readable: true
 
-  property email_address (owner: ARCH_WIZARD, flags: "") = "";
+  property admin_features (owner: ARCH_WIZARD, flags: "") = #-1;
+  property authoring_features (owner: ARCH_WIZARD, flags: "") = #-1;
+  property email_address (owner: ARCH_WIZARD, flags: "") = "c";
   property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
@@ -13,11 +15,10 @@ object PLAYER
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
-  property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
-  property password (owner: ARCH_WIZARD, flags: "");
+  property oauth2_identities (owner: ARCH_WIZARD, flags: "c") = {};
+  property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property wearing (owner: HACKER, flags: "rwc") = {};
-  property wizard_granted_features (owner: ARCH_WIZARD, flags: "") = {};
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -305,15 +306,13 @@ object PLAYER
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
     location = this.location;
     env = {this};
-    wiz_granted = this.wizard_granted_features;
-    if (typeof(wiz_granted) != LIST)
-      wiz_granted = {};
-    endif
     features = this.features;
     if (typeof(features) != LIST)
       features = {};
     endif
-    env = {@env, @wiz_granted, @features};
+    env = {@env, @features};
+    valid(this.authoring_features) && (env = {@env, this.authoring_features});
+    valid(this.admin_features) && (env = {@env, this.admin_features});
     valid(location) && (env = {@env, location});
     return env;
   endverb
@@ -328,7 +327,7 @@ object PLAYER
 
   verb find_capability_for (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find a capability token for target_obj in the specified category. Returns token or false.";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(this);
     {target_obj, category} = args;
     typeof(target_obj) == OBJ || return false;

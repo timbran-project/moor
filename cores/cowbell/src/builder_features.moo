@@ -34,7 +34,7 @@ object BUILDER_FEATURES
     "west" -> "east"
   ];
 
-  override description = "Provides building commands (@create, @build, @dig, etc.) that can be granted to players via wizard_granted_features.";
+  override description = "Provides building commands (@create, @build, @dig, etc.) for builders.";
   override import_export_id = "builder_features";
 
   verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
@@ -47,8 +47,7 @@ object BUILDER_FEATURES
       parent_obj = $match:match_object(dobjstr, player);
       typeof(parent_obj) != OBJ && raise(E_INVARG, "That parent reference is not an object.");
       !valid(parent_obj) && raise(E_INVARG, "That parent object no longer exists.");
-      is_fertile = `parent_obj.fertile ! E_PROPNF => false';
-      if (!is_fertile && !player.wizard && parent_obj.owner != player)
+      if (!parent_obj.f && !player.wizard && parent_obj.owner != player)
         raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj) + ".");
       endif
       parsed = $str_proto:parse_name_aliases(iobjstr);
@@ -86,8 +85,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@recycle @destroy" (any none none) owner: ARCH_WIZARD flags: "rd"
-    caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
+    player.is_builder || raise(E_PERM);
     set_task_perms(caller_perms());
     if (!dobjstr)
       raise(E_INVARG, "Usage: @recycle <object>");
@@ -225,7 +223,6 @@ object BUILDER_FEATURES
 
   verb "@build" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Create a new room. Usage: @build <name> [in <area>] [as <parent>]";
-    caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr)
@@ -913,7 +910,16 @@ object BUILDER_FEATURES
       return;
     endif
     "Open the property editor";
-    player:present_property_editor(target_obj, prop_name);
+    this:present_property_editor(target_obj, prop_name);
     player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
+  endverb
+
+  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    {target_obj, prop_name} = args;
+    editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
+    editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
+    object_curie = target_obj:to_curie_str();
+    present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
 endobject

@@ -5,11 +5,11 @@ object WIZ_FEATURES
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) that can be granted to wizards via wizard_granted_features.";
+  override description = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) for wizards.";
   override import_export_id = "wiz_features";
 
   verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "d"
-    "Grant programmer bit to a player";
+    "Grant or upgrade a player to programmer status";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!valid(dobj))
@@ -18,57 +18,77 @@ object WIZ_FEATURES
     if (!is_player(dobj))
       raise(E_INVARG, tostr(dobj) + " is not a player.");
     endif
-    if ($prog_features in dobj.wizard_granted_features)
-      player:inform_current($event:mk_error(player, dobj:name() + " already has programming features."));
+    "Check current status";
+    if (dobj.authoring_features == $prog_features)
+      player:inform_current($event:mk_error(player, dobj:name() + " is already a programmer."));
       return;
     endif
-    "Check if player has a description";
-    desc = `dobj:description() ! ANY => ""';
-    if (!desc || desc == "")
-      "Get pronouns for proper grammar";
-      pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
-      possessive = `pronouns.possessive ! ANY => "their"';
-      question = "Grant " + dobj:name() + " programmer bit despite " + possessive + " lack of description?";
-      "Use yes_no for confirmation";
-      metadata = {{"input_type", "yes_no"}, {"prompt", question}};
-      response = player:read_with_prompt(metadata);
-      if (response != "yes")
-        player:inform_current($event:mk_error(player, "Programmer bit not granted."));
-        return;
+    is_upgrade = dobj.authoring_features == $builder_features;
+    "Check if player has a description (skip for upgrades)";
+    if (!is_upgrade)
+      desc = `dobj:description() ! ANY => ""';
+      if (!desc || desc == "")
+        "Get pronouns for proper grammar";
+        pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
+        possessive = `pronouns.possessive ! ANY => "their"';
+        question = "Grant " + dobj:name() + " programmer bit despite " + possessive + " lack of description?";
+        "Use yes_no for confirmation";
+        metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+        response = player:read_with_prompt(metadata);
+        if (response != "yes")
+          player:inform_current($event:mk_error(player, "Programmer bit not granted."));
+          return;
+        endif
       endif
     endif
-    "Grant programmer features and builder features (programmers are also builders)";
-    dobj.wizard_granted_features = {@dobj.wizard_granted_features, $prog_features, $builder_features};
+    "Set features and flags";
+    dobj.authoring_features = $prog_features;
     dobj.programmer = true;
     dobj.is_builder = true;
-    "Create personal tools for the new programmer";
+    "Handle tools";
     owner_name = dobj:name();
-    compass = create($architects_compass, dobj);
-    compass.owner = dobj;
-    compass.name = owner_name + "'s " + $architects_compass.name;
-    compass.aliases = $architects_compass.aliases;
-    compass:moveto(dobj);
-    visor = create($data_visor, dobj);
-    visor.owner = dobj;
-    visor.name = owner_name + "'s " + $data_visor.name;
-    visor.aliases = $data_visor.aliases;
-    visor:moveto(dobj);
-    "Announce to room";
-    if (valid(dobj.location))
-      event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted programmer and builder privileges."):with_this(dobj.location);
-      dobj.location:announce(event);
-      "Announce tools being granted";
-      tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass and a Data Visor."):with_this(dobj.location);
-      dobj.location:announce(tools_event);
+    if (is_upgrade)
+      "Already has compass from builder, just add visor";
+      visor = create($data_visor, dobj);
+      visor.owner = dobj;
+      visor.name = owner_name + "'s " + $data_visor.name;
+      visor.aliases = $data_visor.aliases;
+      visor:moveto(dobj);
+      "Announce upgrade";
+      if (valid(dobj.location))
+        event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been upgraded to programmer privileges."):with_this(dobj.location);
+        dobj.location:announce(event);
+        tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted a Data Visor."):with_this(dobj.location);
+        dobj.location:announce(tools_event);
+      endif
+      dobj:tell($event:mk_info(dobj, "You have been upgraded to programmer. A Data Visor has been added to your inventory for code editing and advanced features."));
+      player:inform_current($event:mk_info(player, "You upgraded ", dobj:name(), " to programmer privileges."));
+    else
+      "Fresh grant - create both tools";
+      compass = create($architects_compass, dobj);
+      compass.owner = dobj;
+      compass.name = owner_name + "'s " + $architects_compass.name;
+      compass.aliases = $architects_compass.aliases;
+      compass:moveto(dobj);
+      visor = create($data_visor, dobj);
+      visor.owner = dobj;
+      visor.name = owner_name + "'s " + $data_visor.name;
+      visor.aliases = $data_visor.aliases;
+      visor:moveto(dobj);
+      "Announce fresh grant";
+      if (valid(dobj.location))
+        event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted programmer and builder privileges."):with_this(dobj.location);
+        dobj.location:announce(event);
+        tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass and a Data Visor."):with_this(dobj.location);
+        dobj.location:announce(tools_event);
+      endif
+      dobj:tell($event:mk_info(dobj, "In your inventory there are now an Architect's Compass and a Data Visor - powerful instruments bonded to you alone. Wear them to activate their capabilities: the Compass for building and spatial construction, the Visor for analyzing, writing code, creating objects, adding properties, and shaping the world's logic. Guard them carefully, as they grant significant power over the world."));
+      player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " programmer and builder privileges."));
     endif
-    "Send private instructional message to new programmer";
-    dobj:tell($event:mk_info(dobj, "In your inventory there are now an Architect's Compass and a Data Visor - powerful instruments bonded to you alone. Wear them to activate their capabilities: the Compass for building and spatial construction, the Visor for analyzing, writing code, creating objects, adding properties, and shaping the world's logic. Guard them carefully, as they grant significant power over the world."));
-    "Confirm to wizard";
-    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " programmer and builder privileges."));
   endverb
 
   verb "@builder" (any none none) owner: ARCH_WIZARD flags: "d"
-    "Grant builder status to a player";
+    "Grant builder status or downgrade from programmer";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!valid(dobj))
@@ -77,47 +97,78 @@ object WIZ_FEATURES
     if (!is_player(dobj))
       raise(E_INVARG, tostr(dobj) + " is not a player.");
     endif
-    if ($builder_features in dobj.wizard_granted_features)
-      player:inform_current($event:mk_error(player, dobj:name() + " already has builder features."));
+    "Check current status";
+    if (dobj.authoring_features == $builder_features)
+      player:inform_current($event:mk_error(player, dobj:name() + " is already a builder."));
       return;
     endif
-    "Check if player has a description";
-    desc = `dobj:description() ! ANY => ""';
-    if (!desc || desc == "")
-      "Get pronouns for proper grammar";
-      pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
-      possessive = `pronouns.possessive ! ANY => "their"';
-      question = "Grant " + dobj:name() + " builder status despite " + possessive + " lack of description?";
-      "Use yes_no for confirmation";
+    is_downgrade = dobj.authoring_features == $prog_features;
+    "Confirm downgrade if necessary";
+    if (is_downgrade)
+      question = "Downgrade " + dobj:name() + " from programmer to builder? This will remove their Data Visor and programmer flag.";
       metadata = {{"input_type", "yes_no"}, {"prompt", question}};
       response = player:read_with_prompt(metadata);
       if (response != "yes")
-        player:inform_current($event:mk_error(player, "Builder status not granted."));
+        player:inform_current($event:mk_error(player, "Downgrade cancelled."));
         return;
       endif
     endif
-    "Grant builder features";
-    dobj.wizard_granted_features = {@dobj.wizard_granted_features, $builder_features};
-    dobj.is_builder = true;
-    "Create personal compass for the new builder";
-    owner_name = dobj:name();
-    compass = create($architects_compass, dobj);
-    compass.owner = dobj;
-    compass.name = owner_name + "'s " + $architects_compass.name;
-    compass.aliases = $architects_compass.aliases;
-    compass:moveto(dobj);
-    "Announce to room";
-    if (valid(dobj.location))
-      event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted builder privileges."):with_this(dobj.location);
-      dobj.location:announce(event);
-      "Announce tool being granted";
-      tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass."):with_this(dobj.location);
-      dobj.location:announce(tools_event);
+    "Check if player has a description (skip for downgrades)";
+    if (!is_downgrade)
+      desc = `dobj:description() ! ANY => ""';
+      if (!desc || desc == "")
+        "Get pronouns for proper grammar";
+        pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
+        possessive = `pronouns.possessive ! ANY => "their"';
+        question = "Grant " + dobj:name() + " builder status despite " + possessive + " lack of description?";
+        "Use yes_no for confirmation";
+        metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+        response = player:read_with_prompt(metadata);
+        if (response != "yes")
+          player:inform_current($event:mk_error(player, "Builder status not granted."));
+          return;
+        endif
+      endif
     endif
-    "Send private instructional message to new builder";
-    dobj:tell($event:mk_info(dobj, "In your inventory there is now an Architect's Compass - a powerful instrument bonded to you alone. Wear it to activate its capabilities for building and spatial construction. Guard it carefully, as it grants significant power over the world."));
-    "Confirm to wizard";
-    player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges."));
+    "Set features and flags";
+    dobj.authoring_features = $builder_features;
+    dobj.is_builder = true;
+    "Handle tools and flags";
+    owner_name = dobj:name();
+    if (is_downgrade)
+      "Remove programmer flag and visor";
+      dobj.programmer = false;
+      "Find and destroy visor";
+      for item in (dobj.contents)
+        if (valid(item) && isa(item, $data_visor))
+          item:destroy();
+          break;
+        endif
+      endfor
+      "Announce downgrade";
+      if (valid(dobj.location))
+        event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been downgraded to builder privileges."):with_this(dobj.location);
+        dobj.location:announce(event);
+      endif
+      dobj:tell($event:mk_info(dobj, "You have been downgraded to builder. Your Data Visor has been removed, but you retain your Architect's Compass."));
+      player:inform_current($event:mk_info(player, "You downgraded ", dobj:name(), " to builder privileges."));
+    else
+      "Fresh grant - create compass";
+      compass = create($architects_compass, dobj);
+      compass.owner = dobj;
+      compass.name = owner_name + "'s " + $architects_compass.name;
+      compass.aliases = $architects_compass.aliases;
+      compass:moveto(dobj);
+      "Announce fresh grant";
+      if (valid(dobj.location))
+        event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted builder privileges."):with_this(dobj.location);
+        dobj.location:announce(event);
+        tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass."):with_this(dobj.location);
+        dobj.location:announce(tools_event);
+      endif
+      dobj:tell($event:mk_info(dobj, "In your inventory there is now an Architect's Compass - a powerful instrument bonded to you alone. Wear it to activate its capabilities for building and spatial construction. Guard it carefully, as it grants significant power over the world."));
+      player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " builder privileges."));
+    endif
   endverb
 
   verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "d"

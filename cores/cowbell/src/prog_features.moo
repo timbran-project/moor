@@ -1,11 +1,11 @@
 object PROG_FEATURES
   name: "Programmer Features"
-  parent: ROOT
+  parent: BUILDER_FEATURES
   location: PROTOTYPE_BOX
   owner: HACKER
   readable: true
 
-  override description = "Provides programming verbs (@edit, @list, @verb, etc.) that can be granted to programmers via wizard_granted_features.";
+  override description = "Provides programming verbs (@edit, @list, @verb, etc.) for programmers. Inherits from and extends builder features.";
   override import_export_id = "prog_features";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -717,15 +717,6 @@ object PROG_FEATURES
     this:_display_all_properties(target_obj, false);
     "Show verbs";
     this:_display_all_verbs(target_obj, false);
-  endverb
-
-  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || raise(E_PERM);
-    {target_obj, prop_name} = args;
-    editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
-    editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
-    object_curie = target_obj:to_curie_str();
-    present(player, editor_id, "text/plain", "property-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
 
   verb _challenge_command_perms (this none this) owner: HACKER flags: "rxd"

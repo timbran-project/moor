@@ -303,22 +303,22 @@ object SUB
       return event.actor == render_for ? "look" | (event.actor:pronouns().is_plural ? "look" | "looks");
     endif
     if (this.type == 'dobj_verb_be)
-      return valid(event.dobj) ? (event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be) | "<no-dobj>";
+      return valid(event.dobj) ? event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be | "<no-dobj>";
     endif
     if (this.type == 'dobj_verb_have)
-      return valid(event.dobj) ? (event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have) | "<no-dobj>";
+      return valid(event.dobj) ? event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have | "<no-dobj>";
     endif
     if (this.type == 'dobj_verb_look)
-      return valid(event.dobj) ? (event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks")) | "<no-dobj>";
+      return valid(event.dobj) ? event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks") | "<no-dobj>";
     endif
     if (this.type == 'iobj_verb_be)
-      return valid(event.iobj) ? (event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be) | "<no-iobj>";
+      return valid(event.iobj) ? event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be | "<no-iobj>";
     endif
     if (this.type == 'iobj_verb_have)
-      return valid(event.iobj) ? (event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have) | "<no-iobj>";
+      return valid(event.iobj) ? event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have | "<no-iobj>";
     endif
     if (this.type == 'iobj_verb_look)
-      return valid(event.iobj) ? (event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks")) | "<no-iobj>";
+      return valid(event.iobj) ? event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
     endif
     if (this.type == 'self_alt)
       value = event.actor == render_for ? this.for_self | this.for_others;

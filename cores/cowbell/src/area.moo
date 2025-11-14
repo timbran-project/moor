@@ -228,9 +228,7 @@ object AREA
 
   verb make_room_in (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a new room in this area. Requires 'add_room capability on area.";
-    server_log("make_room_in called");
     set_task_perms(caller_perms());
-    server_log("make_room_in checking permissions");
     {target, perms} = this:check_permissions('add_room);
     {parent_obj} = args;
     "Create room with caller's ownership";

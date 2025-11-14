@@ -123,14 +123,10 @@ object SYSOBJ
     length(args) == 0 && return true;
     command = argstr;
     set_task_perms(player);
-    try
-      env = player:match_environment(command, ['complex -> true]);
-      "Run the parts that need wizard permissions";
-      return this:_command_handler(command, env);
-    except e (ANY)
-      server_log("Failure to parse '" + command + "' for player " + toliteral(player) + "' in " + toliteral(player.location) + "': " + toliteral(e));
-      return false;
-    endtry
+    env = player:match_environment(command, ['complex -> true]);
+    "Run the parts that need wizard permissions";
+    "We let this throw otherwise errors in commands would not propgate.";
+    return this:_command_handler(command, env);
   endverb
 
   verb _command_handler (this none this) owner: ARCH_WIZARD flags: "rxd"
