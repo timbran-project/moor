@@ -8,8 +8,11 @@ object FORMAT_TITLE
   override import_export_id = "format_title";
 
   verb mk (this none this) owner: HACKER flags: "rxd"
-    length(args) != 1 && raise(E_INVARG, "Title must have one argument");
-    return <this, {@args}>;
+    "Create a title flyweight. Args: (content) or (content, level)";
+    {content, ?level = 3} = args;
+    typeof(level) == INT || raise(E_TYPE, "Level must be an integer");
+    level >= 1 && level <= 6 || raise(E_INVARG, "Level must be between 1 and 6");
+    return <this, .level = level, {content}>;
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"
@@ -20,10 +23,13 @@ object FORMAT_TITLE
       pieces = {@pieces, content:compose(@args)};
     endfor
     result = pieces:join(" ");
+    level = `this.level ! E_PROPNF => 2';
     if (content_type == 'text_html)
-      return <$html, {"h3", {}, {result}}>;
+      tag = "h" + tostr(level);
+      return <$html, {tag, {}, {result}}>;
     elseif (content_type == 'text_djot)
-      return "## " + result + "\n";
+      prefix = "#":repeat(level);
+      return prefix + " " + result + "\n\n";
     else
       return result + "\n";
     endif

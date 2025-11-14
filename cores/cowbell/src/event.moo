@@ -88,6 +88,9 @@ object EVENT
 
   verb wrap_content_entry (this none this) owner: HACKER flags: "rxd"
     entry = args[1];
+    if (typeof(entry) == ERR)
+      raise(E_INVARG("Event content cannot contain error values: " + toliteral(entry)));
+    endif
     if (typeof(entry) == STR)
       return {'string, entry};
     endif

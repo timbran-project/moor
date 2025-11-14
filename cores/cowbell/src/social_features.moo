@@ -261,4 +261,45 @@ object SOCIAL_FEATURES
     event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("stretch", "stretches"), "."):with_this(player.location);
     player.location:announce(event);
   endverb
+
+  verb "|*" (any any any) owner: HACKER flags: "rxd"
+    "Paste a single line of content.";
+    caller != player && return E_PERM;
+    if (!valid(player.location))
+      return;
+    endif
+    content = verb[2..$] + " " + argstr;
+    event = $event:mk_pasteline(player, $sub:nc(), " | ", content);
+    player.location:announce(event);
+  endverb
+
+  verb "http://* https://*" (any any any) owner: HACKER flags: "rxd"
+    "Paste a URL to share";
+    if (!valid(player.location))
+      return;
+    endif
+    url = verb + argstr;
+    "TODO: link markup";
+    event = $event:mk_url_share(player, $sub:nc(), " shares: ", url):with_metadata('url, url);
+    player.location:announce(event);
+  endverb
+
+  verb "@paste paste" (any any any) owner: HACKER flags: "rxd"
+    "Paste multiline content to the room";
+    if (!valid(player.location))
+      return;
+    endif
+    content = player:read_multiline("Enter content to @paste");
+    if (content == "@abort" || typeof(content) != STR)
+      player:inform_current($event:mk_info(player, "Paste aborted."));
+      return;
+    endif
+    lines = content:split("\n");
+    if (length(lines) > 25)
+      player:inform_current(player, $event:mk_error(player, "Paste content is greater than 25 lines, too long."));
+      return;
+    endif
+    event = $event:mk_paste(player, $format.title:mk({$sub:nc(), " ", $sub:self_alt("paste", "pastes")}, 4), $format.code:mk(content));
+    player.location:announce(event);
+  endverb
 endobject

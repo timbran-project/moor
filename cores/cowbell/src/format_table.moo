@@ -53,6 +53,21 @@ object FORMAT_TABLE
       tbody = <$html, {"tbody", {}, body_rows}>;
       table_children = {@table_children, tbody};
       return <$html, {"table", {}, table_children}>;
+    elseif (content_type == 'text_djot)
+      "Djot pipe table output - no padding needed";
+      result = {};
+      "Build header line";
+      header_cells = { tostr(h) for h in (headers) };
+      result = {@result, "| " + header_cells:join(" | ") + " |"};
+      "Build separator";
+      separators = { "-" for _ in (headers) };
+      result = {@result, "| " + separators:join(" | ") + " |"};
+      "Build data rows";
+      for row in (rows)
+        row_cells = { tostr(cell) for cell in (row) };
+        result = {@result, "| " + row_cells:join(" | ") + " |"};
+      endfor
+      return result:join("\n");
     endif
     "Plain text table output";
     result = {};

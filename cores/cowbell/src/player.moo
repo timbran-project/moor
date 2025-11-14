@@ -365,7 +365,7 @@ object PLAYER
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
       return false;
     elseif (index(response, "alternative: ") == 1)
-      alt_text = response[13..$];
+      alt_text = response[14..$];
       this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
       return alt_text;
     else
@@ -403,6 +403,17 @@ object PLAYER
     return false;
   endverb
 
+  verb read_multiline (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Request multiline content from the player.";
+    "Host (both web and telnet) is expected to handle this via metadata.";
+    {?prompt = 0} = args;
+    metadata = {{'input_type, "text_area"}};
+    if (typeof(prompt) == STR && length(prompt))
+      metadata = {@metadata, {'prompt, prompt}};
+    endif
+    return this:read_with_prompt(metadata);
+  endverb
+
   verb read_with_prompt (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Helper: Call read() with metadata, displaying prompt via notify() for telnet clients.";
     "Args: metadata (list of {key, value} pairs for read())";
@@ -410,22 +421,6 @@ object PLAYER
     {metadata} = args;
     caller_perms().wizard || caller == this || raise(E_PERM);
     typeof(metadata) == LIST || raise(E_TYPE, "Metadata must be list");
-    "Check if connected via telnet and display prompt explicitly";
-    conns = this:_connections();
-    conns || raise(E_INVARG("Player has no connections to prompt"));
-    current = conns[1];
-    {connection_obj, peer_addr, idle_seconds, content_types, ?host_options} = current;
-    "host_options is an alist, and we're looking for 'host-type in there";
-    ht = host_options:assoc('host_type);
-    if (ht && ht[2] == "telnet")
-      "Find and display prompt from metadata for telnet client";
-      for md_entry in (metadata)
-        if (md_entry[1] == "prompt")
-          notify(this, md_entry[2], false, false, "text/djot");
-          break;
-        endif
-      endfor
-    endif
     return read(this, metadata);
   endverb
 

@@ -37,7 +37,7 @@ object FORMAT_BLOCK
     if (content_type == 'text_html)
       return <$html, {"div", {}, result}>;
     endif
-    "For text_plain, join elements with newlines to prevent concatenation";
+    "For text formats, join elements with newlines to prevent concatenation";
     text_lines = {};
     for element in (result)
       if (typeof(element) == STR)

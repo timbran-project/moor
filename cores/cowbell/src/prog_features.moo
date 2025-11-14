@@ -13,7 +13,10 @@ object PROG_FEATURES
     set_task_perms(player);
     answer = eval("return " + argstr + ";", 1, 2);
     if (answer[1])
-      result_event = $event:mk_eval_result(player, "=> ", $format.code:mk(toliteral(answer[2]), 'moo));
+      prefix = "=> ";
+      code = $format.code:mk(toliteral(answer[2]), 'moo);
+      content = $format.block:mk(prefix, code);
+      result_event = $event:mk_eval_result(player, content);
     else
       error_content = answer[2];
       error_text = error_content:join("\n");
@@ -199,7 +202,7 @@ object PROG_FEATURES
       "Combine table and code";
       content = $format.block:mk(metadata_table, formatted_code);
       "Create and send listing event";
-      listing_event = $event:mk_eval_result(player, "", content);
+      listing_event = $event:mk_program_listing(player, "", content);
       player:inform_current(listing_event);
     except (E_VERBNF)
       player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + "."));

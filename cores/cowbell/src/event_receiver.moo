@@ -13,9 +13,14 @@ object EVENT_RECEIVER
     "Broadcast an event to all connections (via player), persisting it when the audience is narrative.";
     {event, @rest} = args;
     "Events for `tell`, the content type can only ever be text/plain or text/djot";
-    output = event:transform_for(this, "text/djot");
+    transformed = event:transform_for(this, 'text_djot);
+    "Process through _extend_output to handle flyweights";
+    output = {};
+    for entry in (transformed)
+      output = this:_extend_output(output, entry, 'text_djot);
+    endfor
     event_slots = flyslots(event);
-    this:_notify(this, output, false, false, "text/djot", event_slots);
+    this:_notify(this, output, false, false, 'text_djot, event_slots);
   endverb
 
   verb inform_connection (this none this) owner: HACKER flags: "rxd"
@@ -70,10 +75,7 @@ object EVENT_RECEIVER
         preferred_types = {};
       endif
       if (!preferred_types)
-        preferred_types = {"text/html", "text/plain", 'text_html, 'text_plain};
-      endif
-      if (audience == 'narrative)
-        preferred_types = {"text/djot", "text/plain", 'text_djot, 'text_plain, @preferred_types};
+        preferred_types = {"text/html", "text/djot", "text/plain", 'text_html, 'text_djot, 'text_plain};
       endif
       content_type = 0;
       for desired in (preferred_types)
