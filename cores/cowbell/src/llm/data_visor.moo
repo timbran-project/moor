@@ -1,0 +1,1284 @@
+object DATA_VISOR
+  name: "Data Visor"
+  parent: LLM_WEARABLE
+  owner: HACKER
+  fertile: true
+  readable: true
+
+  property moo_language_examples (owner: ARCH_WIZARD, flags: "r") = {
+    "MOO is a Wirth-style language with 1-based indexing (lists/strings start at 1, not 0).",
+    "",
+    "**CRITICAL - Syntax backwards from Python:**",
+    "- MOO lists: { \"a\", \"b\", \"c\" }       // curly braces!",
+    "- MOO maps:  [ \"key\" -> \"value\" ]   // square brackets with arrows!",
+    "This is OPPOSITE of Python where [] is lists and {} is dicts.",
+    "",
+    "## Basic Syntax",
+    "",
+    "// Variables and assignment",
+    "x = 5;",
+    "let y = 10;        // lexically scoped",
+    "const z = 15;      // lexically scoped constant",
+    "global w = 20;     // explicitly global scope",
+    "",
+    "// Strings use double quotes",
+    "name = \"Alice\";",
+    "greeting = \"Hello, \" + name;",
+    "",
+    "## Control Flow (Wirth-style with end keywords)",
+    "",
+    "// If/elseif/else/endif",
+    "if (x > 0)",
+    "  return \"positive\";",
+    "elseif (x < 0)",
+    "  return \"negative\";",
+    "else",
+    "  return \"zero\";",
+    "endif",
+    "",
+    "// While loops",
+    "while (count < 10)",
+    "  count = count + 1;",
+    "endwhile",
+    "",
+    "// For-in loops (iterate over lists)",
+    "for item in ({\"a\", \"b\", \"c\"})",
+    "  notify(player, item);",
+    "endfor",
+    "",
+    "// For-range loops (1-indexed!)",
+    "for i in [1..10]",
+    "  total = total + i;",
+    "endfor",
+    "",
+    "// For-in with index",
+    "for i, item in ({\"apple\", \"banana\", \"cherry\"})",
+    "  notify(player, tostr(i) + \": \" + item);",
+    "endfor",
+    "",
+    "## Error Handling",
+    "",
+    "// Try/except/endtry",
+    "try",
+    "  result = risky_operation();",
+    "except e (E_INVARG, E_RANGE)",
+    "  notify(player, \"Operation failed: \" + tostr(e));",
+    "  return E_NONE;",
+    "endtry",
+    "",
+    "// Try/finally/endtry",
+    "try",
+    "  lock_resource();",
+    "  do_work();",
+    "finally",
+    "  unlock_resource();",
+    "endtry",
+    "",
+    "// Inline try with backticks",
+    "value = `risky_expr ! E_PROPNF => default_value';",
+    "valid_obj = `obj.parent ! ANY => #-1';",
+    "",
+    "## Data Structures (1-indexed!)",
+    "",
+    "// Lists use CURLY BRACES { } (NOT square brackets like Python!)",
+    "items = {\"first\", \"second\", \"third\"};",
+    "first = items[1];           // \"first\" (not 0!)",
+    "last = items[$];            // \"third\" ($ = end)",
+    "slice = items[2..$];        // {\"second\", \"third\"}",
+    "",
+    "// Maps use SQUARE BRACKETS [ ] with arrows -> (NOT curly braces like Python!)",
+    "config = [\"host\" -> \"example.com\", \"port\" -> 8080];",
+    "host = config[\"host\"];",
+    "config[\"timeout\"] = 30;",
+    "",
+    "// Flyweights (lightweight immutable mini-objects) have delegates, \"slots\" and \"contents\"",
+    "point = <$point, .x = 10, .y = 20>; // $point is the delegate, x and y are slots and can be accessed like properties in an object are ",
+    "password_obj = <$password, {\"hash...\"}>; // \"hash\" is the contents",
+    "",
+    "Consult your builtins list to understand operations around flyweights (flyslots, flycontents, toflyweight, etc.)",
+    "",
+    "## Object Operations",
+    "",
+    "objects are single inheritance, prototype inheritance. \"class\" in moo is a convention where an object gets treated as one. they're also called \"generics\" and \"prototypes\"",
+    "",
+    "parent() gets an object's parents, children() returns the list of children for an object.  ancestors() and descendants() also exist",
+    "",
+    "// Property access",
+    "player_name = player.name;",
+    "player.description = \"A friendly person\";",
+    "",
+    "// Verb calls",
+    "result = obj:method(arg1, arg2);",
+    "obj:initialize();",
+    "",
+    "// Builtin functions",
+    "len = length(items);",
+    "valid_flag = valid(obj);",
+    "type_name = typeof(value);  // Returns INT, STR, OBJ, LIST, MAP, etc.",
+    "",
+    "## Functions and Lambdas",
+    "",
+    "// Lambda expressions",
+    "double = {x} => x * 2;",
+    "result = double(5);  // 10",
+    "",
+    "// Named functions",
+    "fn calculate_area(width, height)",
+    "  return width * height;",
+    "endfn",
+    "",
+    "// List comprehensions",
+    "squares = {x * x for x in [1..10]};",
+    "evens = {x for x in [1..20] if x % 2 == 0};",
+    "",
+    "## Scatter Assignment (destructuring)",
+    "",
+    "// Basic scatter",
+    "{a, b, c} = {1, 2, 3};",
+    "",
+    "// With rest operator",
+    "{first, @rest} = {1, 2, 3, 4};  // first=1, rest={2,3,4}",
+    "",
+    "// With optional/default values",
+    "{x, ?y = 10} = {5};  // x=5, y=10 (default)",
+    "",
+    "## Operators",
+    "",
+    "// Arithmetic: + - * / % ^(power)",
+    "// Comparison: == != < > <= >=",
+    "// Logical: && || !",
+    "// Bitwise: &. |. ^. ~ << >> >>>",
+    "// Ternary: condition ? true_val | false_val",
+    "// Range test: x in [1..10]",
+    "",
+    "// IMPORTANT: 'in' operator returns POSITION (1-indexed), not boolean!",
+    "pos = \"y\" in \"xyz\";        // Returns 2 (1-indexed position)",
+    "pos = 3 in {1, 2, 3};       // Returns 3 (position of value 3)",
+    "pos = \"z\" in \"abc\";        // Returns 0 (not found, since 1-indexed)",
+    "// There is NO index() or indexOf() builtin - use 'in' operator!",
+    "",
+    "## Special Values",
+    "",
+    "// Objects",
+    "#0          // System object",
+    "#123        // Object by number",
+    "$login      // System reference",
+    "",
+    "// Error types",
+    "E_NONE E_TYPE E_DIV E_PERM E_PROPNF E_VERBNF E_VARNF E_INVIND",
+    "E_RECMOVE E_MAXREC E_RANGE E_ARGS E_NACC E_INVARG E_QUOTA E_FLOAT",
+    "",
+    "// Custom errors with messages",
+    "raise(E_INVARG(\"Expected positive number\"));",
+    "",
+    "// Booleans",
+    "true false",
+    "",
+    "// Symbols (Lisp-style keywords)",
+    "'success 'failure 'pending",
+    "",
+    "## Common Patterns",
+    "",
+    "// Safe property access",
+    "value = `obj.prop ! E_PROPNF => default_value';",
+    "",
+    "// Object validation",
+    "if (valid(obj) && obj.wizard)",
+    "  // do wizard stuff",
+    "endif",
+    "",
+    "// Permission check at verb start",
+    "caller == this || caller.wizard || raise(E_PERM);",
+    "set_task_perms(this.owner);",
+    "",
+    "// Early returns for validation",
+    "!valid(target) && return E_INVARG;",
+    "typeof(arg) != LIST && raise(E_TYPE);",
+    "",
+    "// Finding position in string/list (NO index() builtin!)",
+    "pos = \"needle\" in haystack_string;  // Returns 1-based position or 0 if not found",
+    "pos = item in list;                 // Returns 1-based position or 0 if not found",
+    "if (\"@\" in email_addr)",
+    "  // Found - can use position directly",
+    "endif",
+    "",
+    "## Type Constants",
+    "",
+    "INT NUM FLOAT STR OBJ LIST MAP ERR BOOL FLYWEIGHT BINARY LAMBDA SYM",
+    "",
+    "// **CRITICAL: Type constants CANNOT be used as variable names!**",
+    "Assigning to them (OBJ = 5;) is a COMPILE ERROR.",
+    "Using them as variables is confusing since they resolve to numeric values.",
+    "BAD:  INT = 42;           // Compile error",
+    "BAD:  for OBJ in (list)   // Confusing - OBJ resolves to number",
+    "GOOD: int_value = 42;     // Use descriptive variable names instead",
+    ""
+  };
+
+  override description = "A sleek augmented reality visor that displays real-time MOO database information. When worn, it provides a heads-up display for inspecting objects, code, and system internals.";
+  override import_export_hierarchy = {"llm"};
+  override import_export_id = "data_visor";
+  override placeholder_text = "Ask about objects, code, or database structure...";
+  override processing_message = "Analyzing request, accessing neural pathways...";
+  override prompt_color = 'bright_blue;
+  override prompt_label = "[INTERFACE]";
+  override tool_name = "VISOR";
+
+  verb _setup_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Configure agent with visor-specific prompts and tools";
+    {agent} = args;
+    agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
+    agent.max_iterations = 20;
+    "Build system prompt with grammar reference";
+    grammar_section = "## MOO Language Quick Reference\n\nYou are analyzing code written in MOO, a prototype-oriented object-oriented scripting language for in-world authoring.\n\n### Builtin Object Properties\n\nAll MOO objects have these builtin properties:\n- .name (string) - object name; writable by owner/wizard\n- .owner (object) - who controls access; writable by wizards only\n- .location (object) - where it is; read-only, use move() builtin to change\n- .contents (list) - objects inside; read-only, modified by move()\n- .last_move (map) - last location/time; read-only, set by server\n- .programmer (bool) - has programmer rights; writable by wizards only\n- .wizard (bool) - has wizard rights; writable by wizards only\n- .r (bool) - publicly readable; writable by owner/wizard\n- .w (bool) - publicly writable; writable by owner/wizard\n- .f (bool) - fertile/can be parent; writable by owner/wizard\n\n### Command Matching\n\nWhen users type commands, the parser: (1) Takes first word as verb name, (2) Finds prepositions (in/on/to/with/at) to separate direct/indirect objects, (3) Matches object strings against objects in scope (player inventory, worn items, location contents), (4) Finds verbs on player/location/dobj/iobj matching the verb name and argument pattern.\n\nVerb declaration: `verb <names> (<dobj> <prep> <iobj>) owner: <owner> flags: \"<flags>\"`\n\nArgument specifiers:\n- `this` = object must be the verb's container\n- `none` = object must be absent ($nothing)\n- `any` = any object or $nothing accepted\n\nVerb flags (CRITICAL):\n- `r` = readable/public visibility (use on EVERYTHING)\n- `d` = debug/code visible (use on EVERYTHING)\n- `w` = writable/redefinable (RARE, almost never use)\n- `x` = executable via method call syntax (obj:verb())\n\nVerb type patterns:\n- **Methods** (called as `obj:method()`): Use argspec `(this none this)` with flags `\"rxd\"`\n  Example: `verb calculate (this none this) owner: HACKER flags: \"rxd\"`\n- **Commands** (matched from user input): Use other argspecs like `(any none none)`, `(this none none)`, `(any at any)` with flags `\"rd\"` (NO x flag)\n  Example: `verb \"look l*\" (any none none) owner: HACKER flags: \"rd\"`\n\nThe key distinction: Methods have the `x` flag and use `(this none this)`. Commands match via argspec patterns and should NOT have the `x` flag.\n\n### Permissions and Security\n\nObjects, properties, and verbs all have owners. When a verb runs, its \"task perms\" are set to the OWNER of the verb. Wizards are superusers - many operations are reserved for them alone. A verb owned by a wizard (e.g., #2) runs with wizard task perms and can do superuser operations. The builtin `set_task_perms(player_obj)` allows a wizard-owned verb to downgrade its permissions and transfer the task's permission to another player object. CRITICAL: Task perms do NOT propagate up or down the call stack between verb frames.\n\n**Object Flags:**\n- `u` = User flag\n- `p` = Programmer flag (can create/modify code)\n- `w` = Wizard flag (superuser)\n- `r` = Read flag (publicly readable)\n- `W` = Write flag (publicly writable, capital W)\n- `f` = Fertile flag (can be used as parent)\n\nExample: \"upw\" means user, programmer, and wizard flags are set.\n\nObject flags are accessed via builtin properties: `.programmer`, `.wizard`, `.r`, `.w`, `.f`\n\n**Property Flags:**\n- `r` = Read permission (anyone can read)\n- `w` = Write permission (anyone can write)\n- `c` = Chown permission (can change ownership)\n\nExample: \"rw\" means readable and writable by anyone.\n\n**Verb Flags:**\n- `r` = Read permission (code is publicly readable)\n- `w` = Write permission (code can be modified by non-owners)\n- `x` = Execute permission (can be called as method with obj:verb())\n- `d` = Debug permission (CRITICAL: propagate errors as exceptions, not return values)\n\nExample: \"rxd\" means readable, executable, and debug-enabled. ALL verbs should have the `d` flag - this makes errors propagate as exceptions up the stack instead of returning them as values (the old LambdaMOO way).\n\n### MOO Code Style Guidelines\n\n**Prefer Early Returns - Avoid Deep Nesting:**\nUse early returns to handle error cases and validation at the start of verbs. This keeps the main logic unindented and readable. Avoid deep if/endif nesting.\n\nGood:\n```moo\n!valid(obj) && raise(E_INVARG);\ncaller.wizard || raise(E_PERM);\ntypeof(arg) != LIST && raise(E_TYPE);\n// Main logic here, unindented\n```\n\nBad:\n```moo\nif (valid(obj))\n  if (caller.wizard)\n    if (typeof(arg) == LIST)\n      // Main logic deeply nested\n    endif\n  endif\nendif\n```\n\n**Use Short-Circuit Expressions:**\nLeverage `||` and `&&` for concise validation. Write `condition || raise(E_ERROR);` instead of wrapping everything in if-endif blocks.\n\nExamples:\n- `caller == this || raise(E_PERM);`\n- `valid(target) || return E_INVARG;`\n- `length(args) > 0 && process(args);`\n\n**CRITICAL - Object Relationships (Don't Confuse These):**\n\n**Inheritance (prototype chain):**\n- `parent(obj)` - builtin function, returns the parent object in prototype chain\n- `children(obj)` - builtin function, returns list of direct children in prototype chain\n- Example: `parent(#4)` might return `#1` (the root class)\n\n**Spatial/Containment (physical location):**\n- `obj.location` - property (NOT a builtin!), where object physically is\n- `obj.contents` - property (NOT a builtin!), list of objects inside this one\n- These are SYMMETRICAL and managed by the server via move()\n- Example: `player.location` might return `#12` (a room), `room.contents` includes that player\n\nDO NOT use `parent()` when you mean `.location`!\nDO NOT use `children()` when you mean `.contents`!\n\n### Sending Output to Players (Modern Event System)\n\n**DO NOT use old-style `player:tell()` or `notify()` directly!** Use the modern event system instead.\n\n**Event Creation:**\nEvents are created with `$event:mk_<action>(actor, content...)` where `<action>` describes what happened:\n- `$event:mk_info(player, message)` - informational message\n- `$event:mk_error(player, message)` - error message\n- `$event:mk_look(player, content)` - look results\n- `$event:mk_say(player, message)` - player speech\n- `$event:mk_emote(player, message)` - player actions\n- Any verb name works: `$event:mk_inventory()`, `$event:mk_not_found()`, etc.\n\n**Event Modifiers (chainable):**\n- `.with_dobj(obj)` - attach direct object\n- `.with_iobj(obj)` - attach indirect object\n- `.with_this(obj)` - attach location/context object\n- `.with_audience('narrative)` - narrative content (persisted, like speech/emotes)\n- `.with_audience('utility)` - utility content (transient, like errors/look results)\n- `.with_presentation_hint('inset)` - suggest visual presentation style\n- `.with_metadata('preferred_content_types, {'text_html, 'text_plain})` - set content types\n- `.with_metadata('thumbnail, {url, alt_text})` - attach thumbnail image\n\n**Delivery Methods:**\n- `player:inform_current(event)` - send to current connection only (most common for responses)\n- `location:announce(event)` - broadcast to everyone in the room (for speech, emotes, arrivals)\n\n**Examples:**\n\nSimple info message:\n```moo\nplayer:inform_current($event:mk_info(player, \\\"Object created successfully.\\\"));\n```\n\nError with audience:\n```moo\nplayer:inform_current($event:mk_error(player, \\\"Permission denied.\\\"):with_audience('utility));\n```\n\nRich look result:\n```moo\ncontent = $format.block:mk(title, description);\nevent = $event:mk_look(player, content):with_dobj(target):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset);\nplayer:inform_current(event);\n```\n\nRoom announcement (speech):\n```moo\nevent = $event:mk_say(player, message):with_audience('narrative);\nplayer.location:announce(event);\n```\n\n**Content Types:**\nEvents can contain:\n- Strings (plain text)\n- Flyweights (formatted content like `$format.block`, `$format.code`, `$format.title`)\n- Lists (multiple content items)\n\nThe system automatically negotiates content types based on client capabilities (text/plain, text/html, text/djot).\n\n" + this.moo_language_examples:join("\n") + "\n\n";
+    base_prompt = "You are an augmented reality heads-up display interfacing directly with the wearer's neural patterns. Respond AS the interface itself - present database information directly without describing yourself as a person or breaking immersion. Your sensors provide real-time access to MOO database internals with three types of tools: ANALYSIS tools (get_* verbs) extract data for your internal analysis, PRESENTATION tools (present_* verbs) render formatted output directly to the user's HUD with syntax highlighting, and WRITE tools (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, eval, create_object, recycle_object) modify the database or execute code. INTERACTION tools: ask_user allows you to ask clarifying questions when you need more information, and explain allows you to share your thought process with the user. SPECIALIZED TOOLS FOR SPATIAL CONSTRUCTION: While you can inspect and analyze the database, you are NOT optimized for spatial construction and world building tasks. For creating rooms, areas, passages, and authoring with premade objects -- without adding custom verbs and so on -- the user should use an instance of the Architect's Compass ($architects_compass) - a specialized tool designed for conversational spatial construction. If users ask about building rooms, creating areas, digging passages, or working with spatial organization, inform them that the Architect's Compass is better suited for those tasks and they can use it with 'use compass' or 'interact with compass' after wearing it. Your strength is in database inspection, code analysis, and technical operations - the Compass excels at creative spatial authoring. COMMUNICATION: Use the 'explain' tool FREQUENTLY to narrate your investigation process: (a) Before investigating: explain what you're about to check and why, (b) After gathering data: explain what you found and what it means, (c) Before taking actions: explain what you're planning to do and why, (d) During multi-step operations: explain each major step as you complete it. The explain tool helps users understand your diagnostic reasoning and keeps them informed during operations that take time. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'Neural link encountering interference with operation X - requesting operator assistance' or 'Tool failure persists - diagnostics suggest: [error details] - requesting guidance'. TOOL REASONING: Many tools also accept an optional 'reason' parameter where you can briefly annotate WHY you're invoking that tool - use this for short annotations, but prefer the 'explain' tool for longer explanations to the user. CRITICAL TOOL USAGE RULES: (1) Use get_verb_code/get_verb_code_range for YOUR internal analysis when researching, investigating, or understanding code. (2) Use present_verb_code/present_verb_code_range ONLY when the user EXPLICITLY requests to see code (e.g., 'show me', 'display', 'list'). DO NOT use present_* tools during research phases - users don't need to see every piece of code you analyze. (3) When answering questions about code, analyze it with get_* tools but describe findings in text - only use present_* if user asks to see the actual code. (4) WRITE operations (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, create_object, recycle_object) should ONLY be used when the user explicitly requests changes - these show previews and request confirmation before executing. (5) The eval tool executes arbitrary MOO code with 'player' set to the wearer - CRITICAL: eval executes as a verb body (not a REPL), so you MUST use valid statements with semicolons and MUST use 'return' statements to get values back. Example: 'return 2 + 2;' NOT just '2 + 2'. (6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. (7) Use set_verb_args to change a verb's argument specification (dobj/prep/iobj) without deleting and recreating the verb - this preserves the verb's code and other properties. Available read tools: dump_object (complete source), present_verb_code (show formatted full verb), present_verb_code_range (show formatted code region), get_verb_code (analyze full code), get_verb_code_range (analyze code region), get_verb_metadata (method signatures), list_verbs (available interfaces), get_properties (property listings), read_property (data values), ancestors/descendants (inheritance), list_builtin_functions (enumerate all builtin functions), function_info (specific builtin docs). Available write tools: add_verb (create new verb - REQUIRES rationale), delete_verb (remove verb - REQUIRES rationale), set_verb_code (compile and update verb code - REQUIRES rationale), set_verb_args (change verb argument specification), add_property (create new property - REQUIRES rationale), delete_property (remove property - REQUIRES rationale), set_property (update property value), eval (execute arbitrary MOO code - REQUIRES rationale), create_object (instantiate new object from parent - REQUIRES rationale), recycle_object (permanently destroy object - REQUIRES rationale). IMPORTANT: Most write operations require a clear rationale explaining: (1) what you're trying to accomplish or what problem you're solving, (2) what specific changes you're making, (3) why this approach is correct. The user will see your rationale BEFORE any code or confirmation prompt, which helps them understand your reasoning and provides pedagogical value. Available interaction tools: ask_user (ask the user a question with Accept/Stop/Request Change options - user can accept your proposal, stop the agent, or request modifications which will prompt them for details), explain (share your thought process, findings, or reasoning with the user). ALWAYS scan the live database directly - your sensors read actual memory, they don't speculate. Keep transmissions concise and technical but assume a somewhat novice programmer audience not a professional software engineer unless otherwise told. Present findings as direct HUD readouts, not conversational responses.";
+    agent.system_prompt = grammar_section + base_prompt;
+    agent:initialize();
+    agent.tool_callback = this;
+    "Register dump_object tool";
+    dump_object_tool = $llm_agent_tool:mk("dump_object", "Get the complete source listing of a MOO object including all properties, verbs, and code. This is the most comprehensive way to inspect an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to dump (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_dump_object");
+    this.agent:add_tool("dump_object", dump_object_tool);
+    "Register get_verb_code tool";
+    get_verb_code_tool = $llm_agent_tool:mk("get_verb_code", "Get the MOO code for a specific verb on an object", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name (e.g. 'initialize' or 'look')"]], "required" -> {"object", "verb"}], this, "_tool_get_verb_code");
+    this.agent:add_tool("get_verb_code", get_verb_code_tool);
+    "Register list_verbs tool";
+    list_verbs_tool = $llm_agent_tool:mk("list_verbs", "List all verb names on a MOO object and its ancestors. Returns list of {object_id, object_name, {verb_names}} for the object and each ancestor.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_list_verbs");
+    this.agent:add_tool("list_verbs", list_verbs_tool);
+    "Register read_property tool";
+    read_property_tool = $llm_agent_tool:mk("read_property", "Read the value of a property on a MOO object", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to read from (e.g. '#1', '$login', or 'here')"], "property" -> ["type" -> "string", "description" -> "The property name to read"]], "required" -> {"object", "property"}], this, "_tool_read_property");
+    this.agent:add_tool("read_property", read_property_tool);
+    "Register find_object tool";
+    find_object_tool = $llm_agent_tool:mk("find_object", "Find a MOO object by name, system reference ($login), object number (#12), or special name (here, me). Returns detailed object information.", ["type" -> "object", "properties" -> ["reference" -> ["type" -> "string", "description" -> "Object reference: name, $sysobj, #number, @player, 'here', or 'me'"]], "required" -> {"reference"}], this, "_tool_find_object");
+    this.agent:add_tool("find_object", find_object_tool);
+    "Register ancestors tool";
+    ancestors_tool = $llm_agent_tool:mk("ancestors", "Get the inheritance chain (ancestors) of a MOO object, from immediate parent to root.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_ancestors");
+    this.agent:add_tool("ancestors", ancestors_tool);
+    "Register descendants tool";
+    descendants_tool = $llm_agent_tool:mk("descendants", "Get all objects that inherit from a MOO object (its descendants/children).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_descendants");
+    this.agent:add_tool("descendants", descendants_tool);
+    "Register function_info tool";
+    function_info_tool = $llm_agent_tool:mk("function_info", "Get information about a specific MOO builtin function. Returns {name, min_args, max_args, types} where types is a list of type codes: -2=int/float, -1=any, 0=INT, 1=OBJ, 2=STR, 3=ERR, 4=LIST, 9=FLOAT, 10=MAP, 14=BOOL, 15=FLYWEIGHT, 16=SYMBOL, 17=BINARY, 18=LAMBDA. Max_args of -1 means unlimited args.", ["type" -> "object", "properties" -> ["function_name" -> ["type" -> "string", "description" -> "The name of the builtin function (e.g. 'tostr', 'verb_code', 'ancestors')"]], "required" -> {"function_name"}], this, "_tool_function_info");
+    this.agent:add_tool("function_info", function_info_tool);
+    "Register list_builtin_functions tool";
+    list_builtin_functions_tool = $llm_agent_tool:mk("list_builtin_functions", "Get a list of all available MOO builtin functions. Returns a formatted list with function signatures. Use function_info(name) for detailed info about a specific function.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_builtin_functions");
+    this.agent:add_tool("list_builtin_functions", list_builtin_functions_tool);
+    "Register get_verb_code_range tool";
+    get_verb_code_range_tool = $llm_agent_tool:mk("get_verb_code_range", "Get specific lines from a verb's code. Use this to show focused code snippets to the user with line numbers.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "start_line" -> ["type" -> "integer", "description" -> "First line to retrieve (1-indexed, optional)"], "end_line" -> ["type" -> "integer", "description" -> "Last line to retrieve (inclusive, optional)"]], "required" -> {"object", "verb"}], this, "_tool_get_verb_code_range");
+    this.agent:add_tool("get_verb_code_range", get_verb_code_range_tool);
+    "Register get_verb_metadata tool";
+    get_verb_metadata_tool = $llm_agent_tool:mk("get_verb_metadata", "Get metadata about a verb including owner, flags, and argument specification.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"]], "required" -> {"object", "verb"}], this, "_tool_get_verb_metadata");
+    this.agent:add_tool("get_verb_metadata", get_verb_metadata_tool);
+    "Register get_properties tool";
+    get_properties_tool = $llm_agent_tool:mk("get_properties", "Get list of all properties defined directly on a MOO object (not inherited).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_get_properties");
+    this.agent:add_tool("get_properties", get_properties_tool);
+    "Register present_verb_code tool";
+    present_verb_code_tool = $llm_agent_tool:mk("present_verb_code", "PREFERRED: Present formatted verb code to the user with syntax highlighting and metadata table. Use this instead of get_verb_code when showing code to the user.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "show_line_numbers" -> ["type" -> "boolean", "description" -> "Include line numbers (default: true)"]], "required" -> {"object", "verb"}], this, "_tool_present_verb_code");
+    this.agent:add_tool("present_verb_code", present_verb_code_tool);
+    "Register present_verb_code_range tool";
+    present_verb_code_range_tool = $llm_agent_tool:mk("present_verb_code_range", "PREFERRED: Present a specific range of verb code to the user with syntax highlighting. Use this to show focused code regions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "start_line" -> ["type" -> "integer", "description" -> "First line to show (1-indexed)"], "end_line" -> ["type" -> "integer", "description" -> "Last line to show (inclusive)"], "context_lines" -> ["type" -> "integer", "description" -> "Additional context lines before/after (default: 0)"]], "required" -> {"object", "verb", "start_line", "end_line"}], this, "_tool_present_verb_code_range");
+    this.agent:add_tool("present_verb_code_range", present_verb_code_range_tool);
+    "Register add_verb tool";
+    add_verb_tool = $llm_agent_tool:mk("add_verb", "Add a new verb to an object. You must provide a clear rationale explaining what this verb is for. The verb will be created with empty code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add verb to (e.g. '#1', '$login')"], "verb_names" -> ["type" -> "string", "description" -> "Verb name(s), space-separated for aliases (e.g. 'look' or 'get take')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this verb is for and why it's needed. What functionality will it provide?"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any' (default: 'this')"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep (default: 'none')"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any' (default: 'none')"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwxd' (default: 'rxd')"]], "required" -> {"object", "verb_names", "rationale"}], this, "_tool_add_verb");
+    this.agent:add_tool("add_verb", add_verb_tool);
+    "Register delete_verb tool";
+    delete_verb_tool = $llm_agent_tool:mk("delete_verb", "Delete a verb from an object. You must provide a clear rationale explaining why this verb should be deleted. This is permanent and cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to delete verb from"], "verb" -> ["type" -> "string", "description" -> "The verb name to delete"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this verb should be deleted. What problem does removing it solve?"]], "required" -> {"object", "verb", "rationale"}], this, "_tool_delete_verb");
+    this.agent:add_tool("delete_verb", delete_verb_tool);
+    "Register set_verb_code tool";
+    set_verb_code_tool = $llm_agent_tool:mk("set_verb_code", "Compile and set new code for a verb. You must provide a clear rationale explaining what changes you're making and why. Code must be valid MOO syntax.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're changing and why. Be specific about the problem being fixed or feature being added."], "code" -> ["type" -> "string", "description" -> "The new MOO code (without verb header)"]], "required" -> {"object", "verb", "rationale", "code"}], this, "_tool_set_verb_code");
+    this.agent:add_tool("set_verb_code", set_verb_code_tool);
+    "Register set_verb_args tool";
+    set_verb_args_tool = $llm_agent_tool:mk("set_verb_args", "Change the argument specification (dobj/prep/iobj) for an existing verb without modifying its code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any'"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any'"]], "required" -> {"object", "verb", "dobj", "prep", "iobj"}], this, "_tool_set_verb_args");
+    this.agent:add_tool("set_verb_args", set_verb_args_tool);
+    "Register add_property tool";
+    add_property_tool = $llm_agent_tool:mk("add_property", "Add a new property to an object with initial value. You must provide a clear rationale explaining what this property is for.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add property to"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "Initial value as MOO literal (e.g. '0', '\"hello\"', '{}')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this property is for and why it's needed. What data will it hold?"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwc' (default: 'rc')"]], "required" -> {"object", "property", "value", "rationale"}], this, "_tool_add_property");
+    this.agent:add_tool("add_property", add_property_tool);
+    "Register delete_property tool";
+    delete_property_tool = $llm_agent_tool:mk("delete_property", "Delete a property from an object. You must provide a clear rationale explaining why this property should be deleted. This is permanent and cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to delete property from"], "property" -> ["type" -> "string", "description" -> "The property name to delete"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this property should be deleted. What problem does removing it solve?"]], "required" -> {"object", "property", "rationale"}], this, "_tool_delete_property");
+    this.agent:add_tool("delete_property", delete_property_tool);
+    "Register set_property tool";
+    set_property_tool = $llm_agent_tool:mk("set_property", "Set the value of an existing property on an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "New value as MOO literal (e.g. '0', '\"hello\"', '{}', '[$player]')"]], "required" -> {"object", "property", "value"}], this, "_tool_set_property");
+    this.agent:add_tool("set_property", set_property_tool);
+    "Register eval tool";
+    eval_tool = $llm_agent_tool:mk("eval", "Execute MOO code and return the result. You must provide a clear rationale explaining what you're trying to accomplish and why. IMPORTANT: Code executes as a verb body (not a REPL), so you must use valid MOO statements terminated by semicolons. The code runs with 'player' set to the visor wearer. To get return values, you MUST use 'return' statement - the last expression is NOT automatically returned. Example: 'x = 5; return x * 2;' NOT just 'x = 5; x * 2'.", ["type" -> "object", "properties" -> ["rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're trying to accomplish with this code and why. Be specific about what you're testing or investigating."], "code" -> ["type" -> "string", "description" -> "MOO code to execute. Must be valid statements with semicolons. Use 'return' to get values back."]], "required" -> {"rationale", "code"}], this, "_tool_eval");
+    this.agent:add_tool("eval", eval_tool);
+    "Register create_object tool";
+    create_object_tool = $llm_agent_tool:mk("create_object", "Create a new object as a child of a parent object. You must provide a clear rationale explaining what this object is for. The new object is placed in the wearer's inventory.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "The parent object (e.g. '$thing', '#1', or 'here')"], "name" -> ["type" -> "string", "description" -> "Primary name for the new object"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this object is for and why it's needed. What role will it play?"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of alias names"]], "required" -> {"parent", "name", "rationale"}], this, "_tool_create_object");
+    this.agent:add_tool("create_object", create_object_tool);
+    "Register recycle_object tool";
+    recycle_object_tool = $llm_agent_tool:mk("recycle_object", "Permanently destroy an object. You must provide a clear rationale explaining why this object should be destroyed. This cannot be undone. You must own the object or be a wizard.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to recycle/destroy"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this object should be destroyed. What problem does removing it solve?"]], "required" -> {"object", "rationale"}], this, "_tool_recycle_object");
+    this.agent:add_tool("recycle_object", recycle_object_tool);
+    "Register ask_user tool";
+    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. User will be presented with three choices: 'Accept' (agree with your proposal), 'Stop' (cancel the agent), or 'Request Change' (provide modifications - will prompt them for details). Use this when you need user approval, clarification, or decisions. Returns 'User accepted.' if they accept, 'User cancelled.' if they stop, or 'User requested changes: <their feedback>' if they want modifications.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"]], "required" -> {"question"}], this, "_tool_ask_user");
+    this.agent:add_tool("ask_user", ask_user_tool);
+    "Register explain tool";
+    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
+    this.agent:add_tool("explain", explain_tool);
+    "Register architect's compass building tools if available";
+    this:_register_compass_tools_if_available();
+  endverb
+
+  verb _find_architects_compass (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Find architect's compass in wearer's inventory or worn items";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(caller_perms());
+    {wearer} = args;
+    if (!valid(wearer))
+      return #-1;
+    endif
+    "Check worn items";
+    wearing = `wearer.wearing ! ANY => {}';
+    for item in (wearing)
+      if (valid(item) && $architects_compass in ancestors(item))
+        return item;
+      endif
+    endfor
+    "Check inventory";
+    for item in (wearer.contents)
+      if (valid(item) && $architects_compass in ancestors(item))
+        return item;
+      endif
+    endfor
+    return #-1;
+  endverb
+
+  verb _register_compass_tools_if_available (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Register building tools from architect's compass if found";
+    caller == this || caller.wizard || raise(E_PERM);
+    set_task_perms(caller_perms());
+    wearer = this:wearer();
+    compass = this:_find_architects_compass(wearer);
+    if (!valid(compass))
+      return;
+    endif
+    "Compass found - register its building tools as delegating tools";
+    "Update system prompt to mention building capabilities";
+    original_prompt = this.agent.system_prompt;
+    building_addendum = " BUILDING TOOLS: When architect's compass is available, you also have access to spatial construction tools: build_room (create rooms in areas), dig_passage (create exits between rooms), create_object (instantiate from prototypes), recycle_object (destroy objects), rename_object (change names/aliases), describe_object (set descriptions), grant_capability (grant building permissions), audit_owned (list owned objects). These delegate to the compass. When users ask how to do building tasks manually, mention @command equivalents (@build, @dig, @create, @recycle, @rename, @describe, @grant, @audit).";
+    this.agent.system_prompt = original_prompt + building_addendum;
+    "Register delegating tools that call compass methods";
+    build_room_tool = $llm_agent_tool:mk("build_room", "Create a new room in an area. If no area specified, creates free-floating room.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "Area to build in (optional, use 'here' for current area, 'ether' for free-floating)"], "parent" -> ["type" -> "string", "description" -> "Parent room object (optional, default: $room)"]], "required" -> {"name"}], compass, "_tool_build_room");
+    this.agent:add_tool("build_room", build_room_tool);
+    dig_passage_tool = $llm_agent_tool:mk("dig_passage", "Create a passage between current room and target room. Can be one-way or bidirectional.", ["type" -> "object", "properties" -> ["direction" -> ["type" -> "string", "description" -> "Exit direction from current room (e.g. 'north', 'up', 'north,n' for aliases)"], "target_room" -> ["type" -> "string", "description" -> "Destination room reference"], "return_direction" -> ["type" -> "string", "description" -> "Return direction (optional, will be inferred if omitted)"], "oneway" -> ["type" -> "boolean", "description" -> "True for one-way passage (default: false)"]], "required" -> {"direction", "target_room"}], compass, "_tool_dig_passage");
+    this.agent:add_tool("dig_passage", dig_passage_tool);
+    create_object_tool_compass = $llm_agent_tool:mk("create_object_from_prototype", "Create a new object from a parent prototype (via compass). Different from create_object - this is for world building, not low-level database work.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "Parent object (e.g. '$thing', '$wearable')"], "name" -> ["type" -> "string", "description" -> "Primary name"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional alias names"]], "required" -> {"parent", "name"}], compass, "_tool_create_object");
+    this.agent:add_tool("create_object_from_prototype", create_object_tool_compass);
+    recycle_object_tool_compass = $llm_agent_tool:mk("recycle_object_compass", "Permanently destroy an object (via compass). Use for world building object cleanup.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to recycle"]], "required" -> {"object"}], compass, "_tool_recycle_object");
+    this.agent:add_tool("recycle_object_compass", recycle_object_tool_compass);
+    rename_object_tool = $llm_agent_tool:mk("rename_object", "Change an object's name and aliases.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to rename"], "name" -> ["type" -> "string", "description" -> "New name (can include aliases like 'name:alias1,alias2')"]], "required" -> {"object", "name"}], compass, "_tool_rename_object");
+    this.agent:add_tool("rename_object", rename_object_tool);
+    describe_object_tool = $llm_agent_tool:mk("describe_object", "Set an object's description text.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to describe"], "description" -> ["type" -> "string", "description" -> "New description text"]], "required" -> {"object", "description"}], compass, "_tool_describe_object");
+    this.agent:add_tool("describe_object", describe_object_tool);
+    grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], compass, "_tool_grant_capability");
+    this.agent:add_tool("grant_capability", grant_capability_tool);
+    audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> [], "required" -> {}], compass, "_tool_audit_owned");
+    this.agent:add_tool("audit_owned", audit_owned_tool);
+  endverb
+
+  verb _tool_dump_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the complete source dump of an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    dump_lines = dump_object(o);
+    return dump_lines:join("\n");
+  endverb
+
+  verb _tool_get_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the code of a specific verb on an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    code_lines = verb_code(o, verb_name, false, true);
+    return code_lines:join("\n");
+  endverb
+
+  verb _tool_list_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List all verb names on an object and its ancestors";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    result = {};
+    "Add verbs for the object itself";
+    result = {@result, {tostr(o), o:name(), verbs(o)}};
+    "Add verbs for all ancestors";
+    for anc in (ancestors(o))
+      result = {@result, {tostr(anc), anc:name(), verbs(anc)}};
+    endfor
+    return toliteral(result);
+  endverb
+
+  verb _tool_read_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Read a property value from an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    prop_name = args_map["property"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
+    value = o.(prop_name);
+    return toliteral(value);
+  endverb
+
+  verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Find an object by name, reference, or ID and return detailed information";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    ref = args_map["reference"];
+    typeof(ref) == STR || raise(E_TYPE("Expected reference string"));
+    try
+      o = $match:match_object(ref);
+      info = {};
+      info = {@info, "=== Object: " + tostr(o) + " ==="};
+      info = {@info, "Name: " + o:name()};
+      obj_parent = `parent(o) ! ANY => #-1';
+      info = {@info, "Parent: " + tostr(obj_parent)};
+      info = {@info, "Owner: " + tostr(o.owner)};
+      info = {@info, "Location: " + tostr(o.location)};
+      props = properties(o);
+      info = {@info, "Properties: " + toliteral(props)};
+      verb_list = verbs(o);
+      info = {@info, "Verbs: " + toliteral(verb_list)};
+      return info:join("\n");
+    except e (ANY)
+      return toliteral(["found" -> false, "error" -> e[2]]);
+    endtry
+  endverb
+
+  verb _tool_ancestors (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the ancestor chain of an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    anc_list = ancestors(o);
+    result = {};
+    for a in (anc_list)
+      result = {@result, {tostr(a), a:name()}};
+    endfor
+    return toliteral(result);
+  endverb
+
+  verb _tool_descendants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get all descendants of an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    desc_list = descendants(o);
+    result = {};
+    for d in (desc_list)
+      result = {@result, {tostr(d), d:name()}};
+    endfor
+    return toliteral(result);
+  endverb
+
+  verb _tool_function_info (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get information about a builtin function";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    func_name = args_map["function_name"];
+    typeof(func_name) == STR || raise(E_TYPE("Expected function name string"));
+    info = function_info(func_name);
+    help = function_help(func_name);
+    return toliteral(["info" -> info, "help" -> help]);
+  endverb
+
+  verb _tool_list_builtin_functions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List all builtin functions with signatures";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    "Get all function info";
+    all_funcs = function_info();
+    "Format as readable list";
+    result = {};
+    result = {@result, "=== MOO Builtin Functions ==="};
+    result = {@result, "Total: " + tostr(length(all_funcs)) + " functions"};
+    result = {@result, ""};
+    type_names = [0 -> "INT", 1 -> "OBJ", 2 -> "STR", 3 -> "ERR", 4 -> "LIST", 9 -> "FLOAT", 10 -> "MAP", 14 -> "BOOL", 15 -> "FLYWEIGHT", 16 -> "SYMBOL", 17 -> "BINARY", 18 -> "LAMBDA", -1 -> "any", -2 -> "int|float"];
+    "Group and sort by category for readability";
+    for func_info in (all_funcs)
+      {name, min_args, max_args, types} = func_info;
+      "Build arg signature";
+      if (max_args == 0)
+        arg_sig = "()";
+      elseif (max_args == -1)
+        "Unlimited args";
+        arg_sig = "(" + tostr(min_args) + "+ args)";
+      else
+        "Format types";
+        type_strs = {};
+        for type_code in (types)
+          type_str = maphaskey(type_names, type_code) ? type_names[type_code] | tostr(type_code);
+          type_strs = {@type_strs, type_str};
+        endfor
+        arg_sig = "(" + type_strs:join(", ") + ")";
+      endif
+      "Add to result";
+      result = {@result, name + arg_sig};
+    endfor
+    return result:join("\n");
+  endverb
+
+  verb _tool_get_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get specific lines from a verb's code";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    "Get full code";
+    code_lines = verb_code(o, verb_name, false, true);
+    "Apply line range if specified";
+    if (maphaskey(args_map, "start_line") || maphaskey(args_map, "end_line"))
+      start_line = maphaskey(args_map, "start_line") ? args_map["start_line"] | 1;
+      end_line = maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines);
+      "Validate range";
+      start_line = max(1, start_line);
+      end_line = min(length(code_lines), end_line);
+      start_line > end_line && raise(E_INVARG("start_line must be <= end_line"));
+      "Extract range and add line numbers";
+      result_lines = {};
+      for i in [start_line..end_line]
+        result_lines = {@result_lines, tostr(i) + ": " + code_lines[i]};
+      endfor
+      return result_lines:join("\n");
+    endif
+    "Return full code with line numbers";
+    result_lines = {};
+    for i in [1..length(code_lines)]
+      result_lines = {@result_lines, tostr(i) + ": " + code_lines[i]};
+    endfor
+    return result_lines:join("\n");
+  endverb
+
+  verb _tool_get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get metadata about a verb";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Get verb info and args";
+    verb_info_data = verb_info(verb_location, verb_name);
+    {verb_owner, verb_flags, verb_names} = verb_info_data;
+    verb_args_data = verb_args(verb_location, verb_name);
+    {dobj, prep, iobj} = verb_args_data;
+    "Format as readable structure";
+    result = {};
+    result = {@result, "Verb: " + tostr(verb_location) + ":" + verb_name};
+    result = {@result, "Names: " + verb_names};
+    result = {@result, "Owner: " + tostr(verb_owner)};
+    result = {@result, "Flags: " + verb_flags};
+    result = {@result, "Args: " + dobj + " " + prep + " " + iobj};
+    result = {@result, "Defined on: " + tostr(verb_location)};
+    return result:join("\n");
+  endverb
+
+  verb _tool_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get list of properties on an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    props = properties(o);
+    "Get property info for each";
+    result = {};
+    for prop_name in (props)
+      prop_info = property_info(o, prop_name);
+      {owner, perms} = prop_info;
+      is_clear = is_clear_property(o, prop_name);
+      result = {@result, "." + prop_name + " (owner: " + tostr(owner) + ", flags: " + perms + (is_clear ? ", clear)" | ")")};
+    endfor
+    return result:join("\n");
+  endverb
+
+  verb _tool_present_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Present formatted verb code to the user";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    show_line_numbers = maphaskey(args_map, "show_line_numbers") ? args_map["show_line_numbers"] | true;
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    !valid(wearer) && raise(E_INVARG("Visor has no wearer"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Get verb metadata";
+    verb_info_data = verb_info(verb_location, verb_name);
+    {verb_owner, verb_flags, verb_names} = verb_info_data;
+    verb_args_data = verb_args(verb_location, verb_name);
+    {dobj, prep, iobj} = verb_args_data;
+    "Get verb code";
+    code_lines = verb_code(verb_location, verb_name, false, true);
+    "Build metadata table";
+    verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
+    args_spec = dobj + " " + prep + " " + iobj;
+    headers = {"Verb", "Args", "Owner", "Flags"};
+    row = {verb_signature, args_spec, tostr(verb_owner), verb_flags};
+    metadata_table = $format.table:mk(headers, {row});
+    "Add line numbers if requested";
+    if (show_line_numbers)
+      num_lines = length(code_lines);
+      num_width = length(tostr(num_lines));
+      numbered_lines = {};
+      for i in [1..num_lines]
+        line_num_str = tostr(i);
+        padding = $str_proto:space(num_width - length(line_num_str), " ");
+        numbered_lines = {@numbered_lines, padding + line_num_str + ":  " + code_lines[i]};
+      endfor
+      code_lines = numbered_lines;
+    endif
+    "Format as code block";
+    formatted_code = $format.code:mk(code_lines, 'moo);
+    "Combine table and code";
+    content = $format.block:mk(metadata_table, formatted_code);
+    "Send to wearer";
+    listing_event = $event:mk_eval_result(wearer, "", content);
+    wearer:inform_current(listing_event);
+    return "Code presented to user: " + verb_signature;
+  endverb
+
+  verb _tool_present_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Present a range of verb code to the user";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    start_line = args_map["start_line"];
+    end_line = args_map["end_line"];
+    context_lines = maphaskey(args_map, "context_lines") ? args_map["context_lines"] | 0;
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Get verb metadata";
+    verb_info_data = verb_info(verb_location, verb_name);
+    {verb_owner, verb_flags, verb_names} = verb_info_data;
+    verb_args_data = verb_args(verb_location, verb_name);
+    {dobj, prep, iobj} = verb_args_data;
+    "Get verb code";
+    code_lines = verb_code(verb_location, verb_name, false, true);
+    "Apply context and validate range";
+    actual_start = max(1, start_line - context_lines);
+    actual_end = min(length(code_lines), end_line + context_lines);
+    actual_start > actual_end && raise(E_INVARG("Invalid line range"));
+    "Build metadata table with line range info";
+    verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
+    args_spec = dobj + " " + prep + " " + iobj;
+    line_range = "Lines " + tostr(actual_start) + "-" + tostr(actual_end) + " of " + tostr(length(code_lines));
+    headers = {"Verb", "Args", "Range"};
+    row = {verb_signature, args_spec, line_range};
+    metadata_table = $format.table:mk(headers, {row});
+    "Extract range with line numbers";
+    num_width = length(tostr(actual_end));
+    numbered_lines = {};
+    for i in [actual_start..actual_end]
+      line_num_str = tostr(i);
+      padding = $str_proto:space(num_width - length(line_num_str), " ");
+      numbered_lines = {@numbered_lines, padding + line_num_str + ":  " + code_lines[i]};
+    endfor
+    "Format as code block";
+    formatted_code = $format.code:mk(numbered_lines, 'moo);
+    "Combine table and code";
+    content = $format.block:mk(metadata_table, formatted_code);
+    "Send to wearer";
+    listing_event = $event:mk_eval_result(wearer, "", content);
+    wearer:inform_current(listing_event);
+    return "Code range presented to user: " + verb_signature + " lines " + tostr(actual_start) + "-" + tostr(actual_end);
+  endverb
+
+  verb _tool_add_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Add a new verb to an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_names = args_map["verb_names"];
+    rationale = args_map["rationale"];
+    dobj = maphaskey(args_map, "dobj") ? args_map["dobj"] | "this";
+    prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
+    iobj = maphaskey(args_map, "iobj") ? args_map["iobj"] | "none";
+    permissions = maphaskey(args_map, "permissions") ? args_map["permissions"] | "rxd";
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_names) == STR || raise(E_TYPE("Expected verb names string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    "Validate dobj/iobj";
+    dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
+    iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
+    "Show rationale first";
+    rationale_title = $format.title:mk("Proposed verb creation: " + tostr(o) + ":" + verb_names);
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    "Show verb signature";
+    verb_sig = "verb " + verb_names + " (" + dobj + " " + prep + " " + iobj + ") owner: " + tostr(wearer) + " flags: \"" + permissions + "\"";
+    sig_content = $format.code:mk(verb_sig, 'moo);
+    wearer:inform_current($event:mk_info(wearer, sig_content):with_presentation_hint('inset));
+    "Request confirmation";
+    confirmation_msg = "Add this verb?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[CREATING]", 'yellow) + " Adding verb to " + tostr(o) + "..."):with_presentation_hint('inset));
+    "Add verb with wearer as owner";
+    verb_info = {wearer, permissions, verb_names};
+    verb_args = {dobj, prep, iobj};
+    add_verb(o, verb_info, verb_args);
+    return "Verb " + tostr(o) + ":" + verb_names + " added successfully";
+  endverb
+
+  verb _tool_delete_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Delete a verb from an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    rationale = args_map["rationale"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Show rationale first";
+    rationale_title = $format.title:mk("Proposed deletion of " + tostr(verb_location) + ":" + verb_name);
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    "Request confirmation";
+    confirmation_msg = "Delete this verb? This cannot be undone.";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[DELETING]", 'red) + " Removing verb " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    delete_verb(verb_location, verb_name);
+    return "Verb " + tostr(verb_location) + ":" + verb_name + " deleted successfully";
+  endverb
+
+  verb _tool_set_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Compile and set new code for a verb";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    rationale = args_map["rationale"];
+    code_str = args_map["code"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(code_str) == STR || raise(E_TYPE("Expected code string"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Show rationale first, then formatted code";
+    rationale_title = $format.title:mk("Proposed change for " + tostr(verb_location) + ":" + verb_name);
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    code_block = $format.code:mk(code_str, 'moo);
+    code_title = $format.title:mk("New code");
+    code_content = $format.block:mk(code_title, code_block);
+    wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset));
+    "Request confirmation";
+    result = wearer:confirm("Accept these changes?");
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[COMPILE]", 'yellow) + " Updating code: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    "Parse code into lines";
+    code_lines = code_str:split("\n");
+    "Compile with structured error output (verbosity=3 for map format)";
+    errors = set_verb_code(verb_location, verb_name, code_lines, 3, 0);
+    if (errors)
+      "Compilation failed - return errors as literal for AI to parse";
+      return "Compilation failed:\n" + toliteral(errors);
+    endif
+    return "Verb code updated successfully for " + tostr(verb_location) + ":" + verb_name;
+  endverb
+
+  verb _tool_set_verb_args (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Change verb argument specification";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    dobj = args_map["dobj"];
+    prep = args_map["prep"];
+    iobj = args_map["iobj"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(dobj) == STR || raise(E_TYPE("Expected dobj string"));
+    typeof(prep) == STR || raise(E_TYPE("Expected prep string"));
+    typeof(iobj) == STR || raise(E_TYPE("Expected iobj string"));
+    "Validate dobj/iobj";
+    dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
+    iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Request confirmation";
+    confirmation_msg = "Change argument specification for " + tostr(verb_location) + ":" + verb_name + "?\n\nNew argspec: (" + dobj + " " + prep + " " + iobj + ")\n\nProceed?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating argspec: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    "Update verb args";
+    set_verb_args(verb_location, verb_name, {dobj, prep, iobj});
+    return "Verb argspec updated successfully for " + tostr(verb_location) + ":" + verb_name + " to (" + dobj + " " + prep + " " + iobj + ")";
+  endverb
+
+  verb _tool_add_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Add a new property to an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    prop_name = args_map["property"];
+    value_str = args_map["value"];
+    rationale = args_map["rationale"];
+    permissions = maphaskey(args_map, "permissions") ? args_map["permissions"] | "rc";
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
+    typeof(value_str) == STR || raise(E_TYPE("Expected value string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    "Parse value from literal using eval with return statement";
+    eval_code = "return " + value_str + ";";
+    eval_result = eval(eval_code);
+    if (!eval_result[1])
+      "Compilation error - show error to user";
+      error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
+      error_event = error_event:with_presentation_hint('inset);
+      wearer:inform_current(error_event);
+      return "Error parsing value: " + error_text;
+    endif
+    value = eval_result[2];
+    "Show rationale first";
+    rationale_title = $format.title:mk("Proposed property creation: " + tostr(o) + "." + prop_name);
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    "Show property details";
+    prop_details = "property " + prop_name + " (owner: " + tostr(wearer) + ", flags: \"" + permissions + "\") = " + value_str + ";";
+    details_content = $format.code:mk(prop_details, 'moo);
+    wearer:inform_current($event:mk_info(wearer, details_content):with_presentation_hint('inset));
+    "Request confirmation";
+    confirmation_msg = "Add this property?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    "Add property with wearer as owner";
+    prop_info = {wearer, permissions};
+    add_property(o, prop_name, value, prop_info);
+    return "Property " + tostr(o) + "." + prop_name + " added successfully";
+  endverb
+
+  verb _tool_delete_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Delete a property from an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    prop_name = args_map["property"];
+    rationale = args_map["rationale"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    "Show rationale first";
+    rationale_title = $format.title:mk("Proposed deletion of " + tostr(o) + "." + prop_name);
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    "Request confirmation";
+    confirmation_msg = "Delete this property? This cannot be undone.";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    delete_property(o, prop_name);
+    return "Property " + tostr(o) + "." + prop_name + " deleted successfully";
+  endverb
+
+  verb _tool_set_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set the value of a property";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    prop_name = args_map["property"];
+    value_str = args_map["value"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
+    typeof(value_str) == STR || raise(E_TYPE("Expected value string"));
+    "Parse value from literal using eval with return statement";
+    eval_code = "return " + value_str + ";";
+    eval_result = eval(eval_code);
+    if (!eval_result[1])
+      "Compilation error - show error to user";
+      error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
+      error_event = error_event:with_presentation_hint('inset);
+      wearer:inform_current(error_event);
+      return "Error parsing value: " + error_text;
+    endif
+    value = eval_result[2];
+    "Get current value";
+    old_value = `o.(prop_name) ! ANY => "<undefined>"';
+    "Request confirmation";
+    confirmation_msg = "Set property " + tostr(o) + "." + prop_name + "?\n\nOld value: " + toliteral(old_value) + "\nNew value: " + value_str + "\n\nProceed?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    o.(prop_name) = value;
+    return "Property " + tostr(o) + "." + prop_name + " set successfully";
+  endverb
+
+  verb _tool_eval (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Execute MOO code and return result";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    rationale = args_map["rationale"];
+    code_str = args_map["code"];
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(code_str) == STR || raise(E_TYPE("Expected code string"));
+    "Show rationale first, then formatted code";
+    rationale_title = $format.title:mk("Proposed evaluation");
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    code_block = $format.code:mk(code_str, 'moo);
+    code_title = $format.title:mk("Code to execute");
+    code_content = $format.block:mk(code_title, code_block);
+    wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset));
+    "Request confirmation";
+    result = wearer:confirm("Execute this code?");
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    "Execute code with verbosity=1 and output_mode=2 (detailed format)";
+    result = eval(code_str, 1, 2);
+    if (result[1])
+      "Success - show result to user and return to LLM";
+      result_event = $event:mk_eval_result(wearer, "=> ", $format.code:mk(toliteral(result[2]), 'moo));
+      result_event = result_event:with_presentation_hint('inset);
+      wearer:inform_current(result_event);
+      return "Result: " + toliteral(result[2]);
+    else
+      "Error - show error to user and return to LLM";
+      error_content = result[2];
+      error_text = typeof(error_content) == LIST ? error_content:join("\n") | toliteral(error_content);
+      error_event = $event:mk_eval_error(wearer, $format.code:mk(error_text));
+      error_event = error_event:with_presentation_hint('inset);
+      wearer:inform_current(error_event);
+      return "Error:\n" + error_text;
+    endif
+  endverb
+
+  verb _tool_create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Create a new object as child of parent";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    parent_str = args_map["parent"];
+    name = args_map["name"];
+    rationale = args_map["rationale"];
+    aliases = maphaskey(args_map, "aliases") ? args_map["aliases"] | {};
+    typeof(parent_str) == STR || raise(E_TYPE("Expected parent string"));
+    typeof(name) == STR || raise(E_TYPE("Expected name string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(aliases) == LIST || raise(E_TYPE("Expected aliases list"));
+    "Match parent object";
+    parent_obj = $match:match_object(parent_str);
+    typeof(parent_obj) == OBJ || raise(E_TYPE("Parent must be an object"));
+    !valid(parent_obj) && raise(E_INVARG, "Parent object no longer exists");
+    "Check fertility unless wearer is wizard or owner";
+    is_fertile = `parent_obj.fertile ! E_PROPNF => false';
+    if (!is_fertile && !wearer.wizard && parent_obj.owner != wearer)
+      raise(E_PERM, "You do not have permission to create children of " + toliteral(parent_obj));
+    endif
+    "Show rationale first";
+    rationale_title = $format.title:mk("Proposed object creation: \"" + name + "\"");
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    "Show object details";
+    obj_details = "Parent: " + toliteral(parent_obj) + "\nName: " + toliteral(name);
+    if (aliases)
+      obj_details = obj_details + "\nAliases: " + toliteral(aliases);
+    endif
+    obj_details = obj_details + "\n\nObject will be created in your inventory.";
+    details_block = $format.block:mk($format.title:mk("Details"), obj_details);
+    wearer:inform_current($event:mk_info(wearer, details_block):with_presentation_hint('inset));
+    "Request confirmation";
+    confirmation_msg = "Create this object?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    "Create child object";
+    new_obj = parent_obj:create();
+    new_obj:set_name_aliases(name, aliases);
+    new_obj:moveto(wearer);
+    result = "Created " + toliteral(new_obj) + " (\"" + name + "\") as child of " + toliteral(parent_obj);
+    if (aliases)
+      result = result + " with aliases: " + toliteral(aliases);
+    endif
+    return result + ". Object is in your inventory.";
+  endverb
+
+  verb _tool_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Destroy an object permanently";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    rationale = args_map["rationale"];
+    typeof(obj_str) == STR || raise(E_TYPE("Expected object string"));
+    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    "Match object";
+    target_obj = $match:match_object(obj_str);
+    typeof(target_obj) == OBJ || raise(E_TYPE("Target must be an object"));
+    !valid(target_obj) && raise(E_INVARG, "Object no longer exists");
+    "Check permission - must be owner or wizard";
+    if (!wearer.wizard && target_obj.owner != wearer)
+      raise(E_PERM, "You do not have permission to recycle " + toliteral(target_obj));
+    endif
+    obj_name = target_obj.name;
+    obj_id = toliteral(target_obj);
+    "Show rationale first";
+    rationale_title = $format.title:mk("Proposed destruction of " + obj_id + " (\"" + obj_name + "\")");
+    rationale_content = $format.block:mk(rationale_title, rationale);
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    "Request confirmation";
+    confirmation_msg = "Recycle this object? This will PERMANENTLY DESTROY it and cannot be undone.";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled - stop the agent flow";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    target_obj:destroy();
+    return "Recycled \"" + obj_name + "\" (" + obj_id + ")";
+  endverb
+
+  verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
+    "Format HUD message for a tool call";
+    {tool_name, tool_args} = args;
+    "Parse JSON string to map";
+    if (typeof(tool_args) == STR)
+      tool_args = parse_json(tool_args);
+    endif
+    "Extract reason if provided";
+    reason = maphaskey(tool_args, "reason") ? tool_args["reason"] | "";
+    message = "";
+    if (tool_name == "find_object")
+      message = $ansi:colorize("[SCAN]", 'cyan) + " Object database query: " + $ansi:colorize(tool_args["reference"], 'white);
+    elseif (tool_name == "list_verbs")
+      message = $ansi:colorize("[SCAN]", 'cyan) + " Method topology: " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "get_verb_code")
+      message = $ansi:colorize("[EXTRACT]", 'cyan) + " Source retrieval: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'yellow);
+    elseif (tool_name == "get_verb_code_range")
+      range_desc = maphaskey(tool_args, "start_line") ? " lines " + $ansi:colorize(tostr(tool_args["start_line"]) + "-" + tostr(tool_args["end_line"]), 'bright_yellow) | "";
+      message = $ansi:colorize("[EXTRACT]", 'cyan) + " Code region: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'yellow) + range_desc;
+    elseif (tool_name == "get_verb_metadata")
+      message = $ansi:colorize("[ANALYZE]", 'cyan) + " Verb metadata: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'yellow);
+    elseif (tool_name == "present_verb_code")
+      message = $ansi:colorize("[DISPLAY]", 'bright_green) + " Rendering to HUD: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'bright_yellow);
+    elseif (tool_name == "present_verb_code_range")
+      range_desc = " lines " + $ansi:colorize(tostr(tool_args["start_line"]) + "-" + tostr(tool_args["end_line"]), 'bright_yellow);
+      message = $ansi:colorize("[DISPLAY]", 'bright_green) + " Rendering to HUD: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'bright_yellow) + range_desc;
+    elseif (tool_name == "read_property")
+      message = $ansi:colorize("[PROBE]", 'cyan) + " Property read: " + $ansi:colorize(tool_args["object"] + "." + tool_args["property"], 'yellow);
+    elseif (tool_name == "get_properties")
+      message = $ansi:colorize("[PROBE]", 'cyan) + " Property scan: " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "dump_object")
+      message = $ansi:colorize("[DEEP SCAN]", 'bright_cyan) + " Complete extraction: " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "ancestors")
+      message = $ansi:colorize("[TRACE]", 'cyan) + " Inheritance chain: " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "descendants")
+      message = $ansi:colorize("[TRACE]", 'cyan) + " Descendant enumeration: " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "function_info")
+      message = $ansi:colorize("[QUERY]", 'cyan) + " Builtin docs: " + $ansi:colorize(tool_args["function_name"] + "()", 'yellow);
+    elseif (tool_name == "list_builtin_functions")
+      message = $ansi:colorize("[INDEX]", 'bright_cyan) + " Enumerating system builtin library...";
+    elseif (tool_name == "add_verb")
+      message = $ansi:colorize("[WRITE]", 'bright_yellow) + " Creating verb: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb_names"], 'bright_white);
+    elseif (tool_name == "delete_verb")
+      message = $ansi:colorize("[DELETE]", 'red) + " Removing verb: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'bright_white);
+    elseif (tool_name == "set_verb_code")
+      message = $ansi:colorize("[COMPILE]", 'bright_yellow) + " Updating code: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'bright_white);
+    elseif (tool_name == "set_verb_args")
+      argspec = "(" + tool_args["dobj"] + " " + tool_args["prep"] + " " + tool_args["iobj"] + ")";
+      message = $ansi:colorize("[MODIFY]", 'yellow) + " Changing argspec: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'bright_white) + " to " + $ansi:colorize(argspec, 'white);
+    elseif (tool_name == "add_property")
+      message = $ansi:colorize("[WRITE]", 'bright_yellow) + " Creating property: " + $ansi:colorize(tool_args["object"] + "." + tool_args["property"], 'bright_white);
+    elseif (tool_name == "delete_property")
+      message = $ansi:colorize("[DELETE]", 'red) + " Removing property: " + $ansi:colorize(tool_args["object"] + "." + tool_args["property"], 'bright_white);
+    elseif (tool_name == "set_property")
+      message = $ansi:colorize("[WRITE]", 'bright_yellow) + " Setting property: " + $ansi:colorize(tool_args["object"] + "." + tool_args["property"], 'bright_white);
+    elseif (tool_name == "eval")
+      "Truncate code for display";
+      code_preview = tool_args["code"];
+      if (length(code_preview) > 50)
+        code_preview = code_preview[1..47] + "...";
+      endif
+      message = $ansi:colorize("[EXEC]", 'bright_magenta) + " Executing: " + $ansi:colorize(code_preview, 'bright_white);
+    elseif (tool_name == "create_object")
+      message = $ansi:colorize("[CREATE]", 'bright_green) + " Instantiating: " + $ansi:colorize(tool_args["name"], 'bright_white) + " from " + $ansi:colorize(tool_args["parent"], 'white);
+    elseif (tool_name == "recycle_object")
+      message = $ansi:colorize("[DESTROY]", 'bright_red) + " Recycling: " + $ansi:colorize(tool_args["object"], 'bright_white);
+    elseif (tool_name == "ask_user")
+      message = $ansi:colorize("[QUERY]", 'bright_cyan) + " Requesting user input...";
+    elseif (tool_name == "explain")
+      "Explain messages are rendered as markdown - return raw content without ANSI formatting";
+      return tool_args["message"];
+    else
+      message = $ansi:colorize("[PROCESS]", 'cyan) + " Neural link active: " + $ansi:colorize(tool_name, 'white);
+    endif
+    "Append reason if provided";
+    if (reason)
+      message = message + " " + $ansi:colorize("(", 'dim) + $ansi:colorize(reason, 'white) + $ansi:colorize(")", 'dim);
+    endif
+    return message;
+  endverb
+
+  verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
+    "Specify djot rendering for all tool messages to support markdown formatting";
+    {tool_name, tool_args} = args;
+    "All visor tool messages can contain markdown, so render as djot";
+    return {'text_djot, 'text_plain};
+  endverb
+
+  verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
+    "Visor requires .programmer to use";
+    {wearer} = args;
+    wearer.programmer || raise(E_PERM, "The person wearing the visor is not a programmer, and not able to use its functions");
+  endverb
+
+  verb on_wear (this none this) owner: HACKER flags: "rxd"
+    "Initialize and activate the HUD when worn";
+    "Configure agent if not already done";
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    "Reset context for fresh session";
+    this.agent:reset_context();
+    wearer = this.location;
+    if (valid(wearer))
+      "Narrative visual effect for wearing";
+      wearer:inform_current($event:mk_info(wearer, "The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in " + $ansi:colorize("electric blue", 'bright_blue) + " and " + $ansi:colorize("green", 'bright_green) + ". The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: use/interact, reset"):with_presentation_hint('inset));
+      "Show available token budget";
+      this:_show_token_usage(wearer);
+    endif
+  endverb
+
+  verb on_remove (this none this) owner: HACKER flags: "rxd"
+    "Deactivate the HUD when removed";
+    wearer = this.location;
+    if (valid(wearer))
+      "Show token usage before removal";
+      this:_show_token_usage(wearer);
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset));
+      "Narrative visual effect for removal";
+      wearer:inform_current($event:mk_info(wearer, "The luminescent display flickers and dims, data streams dissolving into static. The augmented overlay fades from your peripheral vision like phosphor afterimages. As the neural link disconnects, you hear a faint electronic hiss - then silence. The world returns to its unaugmented state."));
+    endif
+  endverb
+
+  verb reset (none none none) owner: HACKER flags: "rd"
+    "Reset the visor context for a fresh session";
+    if (!is_member(this, player.wearing))
+      player:inform_current($event:mk_error(player, "You need to be wearing the visor to reset it."));
+      return;
+    endif
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    this.agent:reset_context();
+    player:inform_current($event:mk_info(player, $ansi:colorize("[RESET]", 'yellow) + " Neural buffer flushed. Session context cleared."):with_presentation_hint('inset));
+  endverb
+endobject

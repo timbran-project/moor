@@ -7,6 +7,7 @@ object ROOT
 
   property aliases (owner: HACKER, flags: "rc") = {};
   property description (owner: HACKER, flags: "rc") = "Root prototype object from which all other objects inherit.";
+  property import_export_hierarchy (owner: HACKER, flags: "rc") = {};
   property import_export_id (owner: HACKER, flags: "r") = "root";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
 
