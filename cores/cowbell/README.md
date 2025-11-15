@@ -82,12 +82,9 @@ top of the event and behaviour systems without requiring framework changes.
 **Not Yet Implemented:**
 
 - Additional building commands
-- Property and verb management commands
-- Composable behaviour/trait system (lockable, openable, container, etc.)
-- Social action verbs (hug, wave, bonk, etc.)
-- Rich client presentation system for UI panels
-- NPC and dialog systems
-- Web client UI components (verb palette, object browser, etc.)
+- Many property and verb management commands
+- Help system and internal documentation
+- Composable behaviour/trait system (lockable, openable, etc.)
 
 (Note: This is a from-scratch implementation. While some concepts are inspired by LambdaCore/JHCore,
 we're not porting existing code wholesale - we're building idiomatically for mooR's advanced
