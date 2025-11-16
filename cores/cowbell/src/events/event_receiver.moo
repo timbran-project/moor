@@ -17,7 +17,12 @@ object EVENT_RECEIVER
     transformed = event:transform_for(this, 'text_djot);
     "Process through _extend_output to handle flyweights";
     output = {};
+    entry_num = 0;
     for entry in (transformed)
+      entry_num = entry_num + 1;
+      if (entry_num % 50 == 0)
+        suspend_if_needed();
+      endif
       output = this:_extend_output(output, entry, 'text_djot);
     endfor
     event_slots = flyslots(event);
@@ -31,7 +36,12 @@ object EVENT_RECEIVER
     info = this:_connection_entry(connection_obj);
     event = event:with_audience('utility);
     contents = this:_event_render({info}, event);
+    entry_num = 0;
     for content in (contents)
+      entry_num = entry_num + 1;
+      if (entry_num % 50 == 0)
+        suspend_if_needed();
+      endif
       let {conn, content_type, output} = content;
       let event_slots = flyslots(event);
       this:_notify(conn, output, false, false, content_type, event_slots);

@@ -43,7 +43,12 @@ object FORMAT_TABLE
       endif
       "Add body rows";
       body_rows = {};
+      row_num = 0;
       for row in (rows)
+        row_num = row_num + 1;
+        if (row_num % 50 == 0)
+          suspend_if_needed();
+        endif
         row_cells = {};
         for cell in (row)
           cell_content = `cell:compose(@args) ! E_VERBNF => tostr(cell)';
@@ -64,7 +69,12 @@ object FORMAT_TABLE
       separators = { "-" for _ in (headers) };
       result = {@result, "| " + separators:join(" | ") + " |"};
       "Build data rows";
+      row_num = 0;
       for row in (rows)
+        row_num = row_num + 1;
+        if (row_num % 50 == 0)
+          suspend_if_needed();
+        endif
         row_cells = { tostr(cell) for cell in (row) };
         result = {@result, "| " + row_cells:join(" | ") + " |"};
       endfor
@@ -77,7 +87,12 @@ object FORMAT_TABLE
     for i in [1..length(headers)]
       widths = {@widths, length(tostr(headers[i]))};
     endfor
+    row_num = 0;
     for row in (rows)
+      row_num = row_num + 1;
+      if (row_num % 50 == 0)
+        suspend_if_needed();
+      endif
       for i in [1..min(length(row), length(widths))]
         cell_width = length(tostr(row[i]));
         if (cell_width > widths[i])
@@ -104,7 +119,12 @@ object FORMAT_TABLE
     endfor
     result = {@result, line};
     "Build data rows";
+    row_num = 0;
     for row in (rows)
+      row_num = row_num + 1;
+      if (row_num % 50 == 0)
+        suspend_if_needed();
+      endif
       line = "";
       for i in [1..length(headers)]
         if (i > 1)

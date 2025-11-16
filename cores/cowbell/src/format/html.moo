@@ -19,7 +19,12 @@ object HTML
     contents = flycontents(this);
     {tag, attributes, children} = {contents[1], contents[2], contents[3]};
     results = {};
+    entry_num = 0;
     for entry in (children)
+      entry_num = entry_num + 1;
+      if (entry_num % 10 == 0)
+        suspend_if_needed();
+      endif
       if (typeof(entry) == FLYWEIGHT)
         "Entry is a flyweight and thus something that can itself be rendered to xml tag form,, we hope...";
         result = entry:to_xml_tag();
@@ -27,7 +32,12 @@ object HTML
         "Entry is a list of things we should be able to do rendering for...";
         e = {};
         for subentry in (entry)
-          if (typeof(subentry) == FLYWEIGHT)
+      	entry_num = entry_num + 1;
+      if (entry_num % 10 == 0)
+        suspend_if_needed();
+      endif
+
+      if (typeof(subentry) == FLYWEIGHT)
             e = {@e, subentry:to_xml_tag()};
           elseif (typeof(subentry) == LIST)
             " Need to handle nested lists recursively ";

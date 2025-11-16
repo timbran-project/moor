@@ -727,6 +727,173 @@ object PROG_FEATURES
     player.programmer || raise(E_PERM);
   endverb
 
+  verb _do_grep_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns {line_number, truncated_line} or 0 if no match";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {pattern, object, vname, casematters} = args;
+    "Try to get verb code - may fail due to permissions or non-existent verb";
+    vc = `verb_code(object, vname) ! ANY';
+    if (typeof(vc) == ERR)
+      return 0;
+    endif
+    "Quick check: does pattern exist anywhere in the verb code?";
+    "This optimization from LambdaCore is much faster than checking line by line";
+    suspend_if_needed();
+    if (!index(tostr(@vc), pattern, casematters))
+      return 0;
+    endif
+    suspend_if_needed();
+    "Pattern exists somewhere, find which line";
+    line_count = 0;
+    for line in (vc)
+      line_count = line_count + 1;
+      if (line_count % 10 == 0)
+        suspend_if_needed();
+      endif
+      if (match_pos = index(line, pattern, casematters))
+        "Found the pattern - truncate and center around it";
+        max_len = 50;
+        line_len = length(line);
+        if (line_len <= max_len)
+          return {line_count, line};
+        endif
+        "Calculate window centered on the match";
+        pattern_len = length(pattern);
+        "Try to center the pattern in the window";
+        start_pos = max(1, match_pos - (max_len - pattern_len) / 2);
+        end_pos = min(line_len, start_pos + max_len - 1);
+        "Adjust start if end hit the limit";
+        if (end_pos == line_len && end_pos - start_pos < max_len - 1)
+          start_pos = max(1, end_pos - max_len + 1);
+        endif
+        truncated = line[start_pos..end_pos];
+        "Add ellipsis indicators";
+        if (start_pos > 1)
+          truncated = "..." + truncated;
+        endif
+        if (end_pos < line_len)
+          truncated = truncated + "...";
+        endif
+        return {line_count, truncated};
+      endif
+    endfor
+    return 0;
+  endverb
+
+  verb _do_grep_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to search all verbs on an object with elevated permissions";
+    "Returns list of matches: {{obj, verb_name, owner_name, owner_id, line_num, matching_line}, ...}";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {pattern, search_obj, casematters} = args;
+    if (!valid(search_obj))
+      return {};
+    endif
+    matches = {};
+    verb_count = 0;
+    "Get all verbs on this object";
+    verb_list = `verbs(search_obj) ! ANY => {}';
+    if (typeof(verb_list) != LIST)
+      return {};
+    endif
+    "Search each verb";
+    for vnum in [1..length(verb_list)]
+      verb_count = verb_count + 1;
+      if (verb_count % 5 == 0)
+        suspend_if_needed();
+      endif
+      verb_name = verb_list[vnum];
+      match_result = this:_do_grep_verb_code(pattern, search_obj, vnum, casematters);
+      if (typeof(match_result) == LIST)
+        "Found a match - get verb metadata";
+        {line_num, matching_line} = match_result;
+        verb_info_data = `verb_info(search_obj, vnum) ! ANY';
+        if (typeof(verb_info_data) == LIST)
+          {verb_owner, verb_flags, verb_names} = verb_info_data;
+          owner_name = valid(verb_owner) ? verb_owner.name | "Recycled";
+          "Add to matches list";
+          matches = {@matches, {search_obj, verb_name, owner_name, tostr(verb_owner), line_num, matching_line}};
+        endif
+      endif
+    endfor
+    return matches;
+  endverb
+
+  verb "@grep" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Search verb code across objects for a text pattern";
+    "Usage: @grep <pattern> [object]";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (!argstr)
+      player:inform_current($event:mk_error(player, "Usage: " + verb + " <pattern> [object]"));
+      return;
+    endif
+    "Parse arguments: pattern and optional object";
+    words = argstr:words();
+    if (!words)
+      player:inform_current($event:mk_error(player, "Usage: " + verb + " <pattern> [object]"));
+      return;
+    endif
+    pattern = words[1];
+    casematters = false;
+    search_objects = {};
+    "Determine what to search";
+    if (length(words) >= 2)
+      "User specified an object to search";
+      target_str = words[2];
+      try
+        target_obj = $match:match_object(target_str, player);
+        search_objects = {target_obj};
+      except (ANY)
+        player:inform_current($event:mk_error(player, "Could not find object: " + target_str));
+        return;
+      endtry
+    else
+      "No target specified - search all objects using objects() builtin";
+      search_objects = objects();
+    endif
+    "Inform user we're starting";
+    player:inform_current($event:mk_info(player, "Searching for \"" + pattern + "\" in " + tostr(length(search_objects)) + " objects..."));
+    "Search all selected objects and collect matches";
+    all_matches = {};
+    obj_count = 0;
+    for o in (search_objects)
+      obj_count = obj_count + 1;
+      if (obj_count % 3 == 0)
+        suspend_if_needed();
+      endif
+      matches = this:_do_grep_object(pattern, o, casematters);
+      all_matches = {@all_matches, @matches};
+    endfor
+    "Format and display results";
+    if (!all_matches)
+      player:inform_current($event:mk_info(player, "No matches found."));
+      return;
+    endif
+    "Build table rows";
+    headers = {"Verb", "Line", "Owner", "Code"};
+    rows = {};
+    row_count = 0;
+    for match in (all_matches)
+      row_count = row_count + 1;
+      if (row_count % 5 == 0)
+        suspend_if_needed();
+      endif
+      {o, verb_name, owner_name, owner_id, line_num, code_snippet} = match;
+      verb_ref = toliteral(o) + ":" + verb_name;
+      owner_str = owner_name + " (" + owner_id + ")";
+      code_cell = $format.code:mk(code_snippet, 'moo);
+      rows = {@rows, {verb_ref, tostr(line_num), owner_str, code_cell}};
+    endfor
+    suspend_if_needed();
+    "Create and send table";
+    result_table = $format.table:mk(headers, rows);
+    summary = tostr("Found ", length(all_matches), " match", length(all_matches) != 1 ? "es" | "", " for \"", pattern, "\"");
+    content = $format.block:mk(summary, result_table);
+    player:inform_current($event:mk_info(player, content));
+  endverb
+
   verb "@codep*aste" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Paste MOO code with syntax highlighting to the room";
     this:_challenge_command_perms();
