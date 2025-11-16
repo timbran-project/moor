@@ -10,6 +10,7 @@ object SYSOBJ
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;
+  property bg_ticks (owner: HACKER, flags: "r") = 300000;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
   property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
   property container (owner: HACKER, flags: "r") = CONTAINER;
@@ -18,6 +19,7 @@ object SYSOBJ
   property event (owner: HACKER, flags: "r") = EVENT;
   property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
   property failed_match (owner: HACKER, flags: "r") = #-3;
+  property fg_ticks (owner: HACKER, flags: "r") = 600000;
   property first_area (owner: HACKER, flags: "r") = FIRST_AREA;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property format (owner: HACKER, flags: "r") = FORMAT;
@@ -48,6 +50,7 @@ object SYSOBJ
   property root (owner: HACKER, flags: "r") = ROOT;
   property scheduled_task (owner: HACKER, flags: "r") = SCHEDULED_TASK;
   property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
+  property server_options (owner: ARCH_WIZARD, flags: "r") = SERVER_OPTIONS;
   property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;
