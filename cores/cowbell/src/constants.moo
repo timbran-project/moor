@@ -6,6 +6,7 @@ define PLAYER = #5;
 define HACKER = #6;
 define LOOK = #20;
 define PRONOUNS = #22;
+define SERVER_OPTIONS = #52;
 
 // auth
 define PASSWORD = #16;
