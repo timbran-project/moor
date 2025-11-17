@@ -42,7 +42,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @create <parent> named <name[:aliases]>");
+      raise(E_INVARG, $format.code:mk("@create PARENT named NAME[:ALIASES]"));
     endif
     try
       parent_obj = $match:match_object(dobjstr, player);
@@ -89,7 +89,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM);
     set_task_perms(caller_perms());
     if (!dobjstr)
-      raise(E_INVARG, "Usage: @recycle <object>");
+      raise(E_INVARG, $format.code:mk("@recycle OBJECT"));
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -117,7 +117,7 @@ object BUILDER_FEATURES
     set_task_perms(player);
     try
       if (!dobjstr || !iobjstr)
-        raise(E_INVARG, "Usage: @grant <target>.<category>(<cap1,cap2>) to <player>");
+        raise(E_INVARG, toliteral($format.code:mk("@grant TARGET.CATEGORY(CAP1,CAP2) to PLAYER")));
       endif
       "Parse grant specification using $grant_utils";
       {target_obj, category, cap_list} = $grant_utils:parse_grant(dobjstr);
@@ -227,7 +227,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr)
-      raise(E_INVARG, "Usage: @build <name> [in <area>] [as <parent>]");
+      raise(E_INVARG, $format.code:mk("@build NAME [in AREA] [as PARENT]"));
     endif
     try
       "Parse the command string";
@@ -312,7 +312,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @dig [oneway] <dir>[|<returndir>] to <room>");
+      raise(E_INVARG, $format.code:mk("@dig [oneway] DIR[|RETURNDIR] to ROOM"));
     endif
     try
       "Parse the direction spec";
@@ -392,7 +392,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, "Usage: @undig <room>");
+      raise(E_INVARG, $format.code:mk("@undig ROOM"));
     endif
     try
       "Find target room - use dobj if it matched, otherwise search by name";
@@ -529,7 +529,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @rename <object> to <name[:aliases]>");
+      raise(E_INVARG, $format.code:mk("@rename OBJECT to NAME[:ALIASES]"));
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -572,7 +572,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @describe <object or direction> as <description>");
+      raise(E_INVARG, $format.code:mk("@describe OBJECT_OR_DIRECTION as DESCRIPTION"));
     endif
     try
       "Try to match as object first, but catch errors";
@@ -727,7 +727,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, "Usage: @parent <object>");
+      raise(E_INVARG, $format.code:mk("@parent OBJECT"));
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -756,7 +756,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, "Usage: @children <object>");
+      raise(E_INVARG, $format.code:mk("@children OBJECT"));
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -791,7 +791,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @integrate <object> as <description>");
+      raise(E_INVARG, $format.code:mk("@integrate OBJECT as DESCRIPTION"));
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -831,7 +831,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr || !iobjstr)
-      raise(E_INVARG, "Usage: @move <object> to <location>");
+      raise(E_INVARG, $format.code:mk("@move OBJECT to LOCATION"));
     endif
     try
       "Match the object to move";

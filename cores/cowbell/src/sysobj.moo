@@ -43,7 +43,9 @@ object SYSOBJ
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog_features (owner: HACKER, flags: "r") = PROG_FEATURES;
+  property prog_utils (owner: HACKER, flags: "r") = PROG_UTILS;
   property pronouns (owner: HACKER, flags: "r") = PRONOUNS;
+  property property (owner: HACKER, flags: "r") = PROPERTY;
   property prototype_box (owner: HACKER, flags: "r") = PROTOTYPE_BOX;
   property relation (owner: HACKER, flags: "r") = RELATION;
   property room (owner: HACKER, flags: "r") = ROOM;
@@ -56,6 +58,7 @@ object SYSOBJ
   property sub (owner: HACKER, flags: "r") = SUB;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property thing (owner: HACKER, flags: "r") = THING;
+  property verb (owner: HACKER, flags: "r") = VERB;
   property wearable (owner: HACKER, flags: "r") = WEARABLE;
   property wiz_features (owner: HACKER, flags: "r") = WIZ_FEATURES;
 

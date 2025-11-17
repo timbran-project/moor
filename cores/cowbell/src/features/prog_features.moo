@@ -31,17 +31,17 @@ object PROG_FEATURES
     caller == this || raise(E_PERM);
     {verb_location, verb_name} = args;
     "This will raise E_VERBNF if verb doesn't exist";
-    verb_info_data = verb_info(verb_location, verb_name);
+    $prog_utils:get_verb_metadata(verb_location, verb_name);
     return true;
   endverb
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Edit a verb or property on an object using the presentation system.";
-    "Usage: @edit <object>:<verb> or @edit <object>.<property>";
+    "Edit a verb or property";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> or <object>.<property>"));
+      player:inform_current($event:mk_error(player, $format.code:mk("@edit OBJECT:VERB\n@edit OBJECT.PROPERTY")));
       return;
     endif
     target_string = argstr:trim();
@@ -126,12 +126,9 @@ object PROG_FEATURES
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {verb_location, verb_name, show_all_parens} = args;
-    verb_info_data = verb_info(verb_location, verb_name);
-    {verb_owner, verb_flags, verb_names} = verb_info_data;
-    verb_args_data = verb_args(verb_location, verb_name);
-    {dobj, prep, iobj} = verb_args_data;
+    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
     code_lines = verb_code(verb_location, verb_name, show_all_parens, true);
-    return {verb_owner, verb_flags, dobj, prep, iobj, code_lines};
+    return {metadata:verb_owner(), metadata:flags(), metadata:dobj(), metadata:prep(), metadata:iobj(), code_lines};
   endverb
 
   verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -140,7 +137,7 @@ object PROG_FEATURES
     "List verb code with optional formatting options";
     "Usage: @list <object>:<verb> [with parentheses] [without numbers]";
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>:<verb> [with parentheses] [without numbers]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB [with parentheses] [without numbers]")));
       return;
     endif
     "Parse options from argstr";
@@ -187,16 +184,7 @@ object PROG_FEATURES
       metadata_table = $format.table:mk(headers, {row});
       "Add line numbers if requested";
       if (!hide_numbers)
-        num_lines = length(code_lines);
-        num_width = length(tostr(num_lines));
-        numbered_lines = {};
-        for i in [1..num_lines]
-          line_num_str = tostr(i);
-          "Pad line number to align";
-          padding = $str_proto:space(num_width - length(line_num_str), " ");
-          numbered_lines = {@numbered_lines, padding + line_num_str + ":  " + code_lines[i]};
-        endfor
-        code_lines = numbered_lines;
+        code_lines = $prog_utils:format_line_numbers(code_lines);
       endif
       "Format as code block";
       formatted_code = $format.code:mk(code_lines, 'moo);
@@ -224,13 +212,13 @@ object PROG_FEATURES
     "Add a new verb to an object";
     "Usage: @verb object:verb-name(s) [dobj [prep [iobj [permissions [owner]]]]]";
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " object:verb-name(s) [dobj [prep [iobj [permissions [owner]]]]]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME(S) [DOBJ [PREP [IOBJ [PERMISSIONS [OWNER]]]]]")));
       return;
     endif
     "Parse the arguments";
     words = argstr:words();
     if (length(words) < 1)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " object:verb-name(s) [dobj [prep [iobj [permissions [owner]]]]]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME(S) [DOBJ [PREP [IOBJ [PERMISSIONS [OWNER]]]]]")));
       return;
     endif
     "Parse object:verb-name(s)";
@@ -263,6 +251,11 @@ object PROG_FEATURES
     endif
     if (!(iobj in {"none", "this", "any"}))
       player:inform_current($event:mk_error(player, "Indirect object must be 'none', 'this', or 'any'"));
+      return;
+    endif
+    "Validate preposition";
+    if (!$prog_utils:is_valid_prep(prep))
+      player:inform_current($event:mk_error(player, "Invalid preposition: '" + prep + "'. Use 'none', 'any', or a valid preposition."));
       return;
     endif
     "Validate permissions if provided";
@@ -346,7 +339,7 @@ object PROG_FEATURES
     "List all verbs on an object";
     "Usage: @verbs <object>";
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT")));
       return;
     endif
     "Match the object";
@@ -381,7 +374,7 @@ object PROG_FEATURES
     "List all properties on an object";
     "Usage: @properties <object>";
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT")));
       return;
     endif
     "Match the object";
@@ -403,19 +396,145 @@ object PROG_FEATURES
     player:inform_current(listing_event);
   endverb
 
+  verb "@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Add a property to an object";
+    "Usage: @property OBJECT.PROP-NAME [VALUE [PERMS [OWNER]]]";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (!argstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@property OBJECT.PROP-NAME [VALUE [PERMS [OWNER]]]")));
+      return;
+    endif
+    "Parse arguments - first word is target spec";
+    words = argstr:words();
+    target_spec = words[1];
+    "Parse property reference";
+    parsed = $prog_utils:parse_target_spec(target_spec);
+    if (!parsed || parsed['type] != 'property)
+      player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
+      return;
+    endif
+    object_str = parsed['object_str];
+    prop_name = parsed['item_name];
+    "Match the target object";
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
+      return;
+    endtry
+    "Get initial value and remaining args";
+    value = 0;
+    perms = "rw";
+    owner = player;
+    if (length(words) > 1)
+      "Get remainder after target spec";
+      offset = index(argstr, target_spec) + length(target_spec);
+      remainder = argstr[offset..length(argstr)]:trim();
+      if (remainder)
+        "Try to evaluate a literal from the start of remainder";
+        eval_result = $prog_utils:eval_literal(remainder);
+        if (eval_result[1])
+          value = eval_result[2];
+          remainder = eval_result[3]:trim();
+        endif
+        "If there's still something left, try to parse perms and owner";
+        if (remainder)
+          remaining_words = remainder:words();
+          if (length(remaining_words) > 0)
+            "Check if first word looks like perms (short string of r, w, c)";
+            maybe_perms = remaining_words[1];
+            if (length(maybe_perms) <= 3 && (match(maybe_perms, "^[rwc]+$")))
+              perms = maybe_perms;
+              if (length(remaining_words) > 1)
+                "Try to match owner";
+                try
+                  owner = $match:match_object(remaining_words[2], player);
+                  if (!valid(owner) || typeof(owner) != OBJ)
+                    player:inform_current($event:mk_error(player, "Invalid owner object"));
+                    return;
+                  endif
+                except e (ANY)
+                  player:inform_current($event:mk_error(player, "Could not match owner: " + tostr(e[2])));
+                  return;
+                endtry
+              endif
+            else
+              "First remaining word doesn't look like valid perms";
+              player:inform_current($event:mk_error(player, "Invalid permissions string: " + maybe_perms + ". Must be combination of r, w, c."));
+              return;
+            endif
+          endif
+        endif
+      endif
+    endif
+    "Try to add the property";
+    try
+      add_property(target_obj, prop_name, value, {owner, perms});
+      player:inform_current($event:mk_info(player, "Property " + tostr(target_obj) + "." + prop_name + " added with initial value " + toliteral(value) + " and permissions " + perms + "."));
+    except e (E_INVARG)
+      if (index(tostr(e[2]), "already exists"))
+        player:inform_current($event:mk_error(player, "Property " + prop_name + " already exists on " + tostr(target_obj) + "."));
+      else
+        player:inform_current($event:mk_error(player, "Error adding property: " + tostr(e[2])));
+      endif
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Error adding property: " + tostr(e[2])));
+    endtry
+  endverb
+
+  verb "@rmprop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Remove a property from an object";
+    "Usage: @rmproperty OBJECT.PROP-NAME";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (!argstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@rmproperty OBJECT.PROP-NAME")));
+      return;
+    endif
+    target_spec = argstr:trim();
+    "Parse property reference";
+    parsed = $prog_utils:parse_target_spec(target_spec);
+    if (!parsed || parsed['type] != 'property)
+      player:inform_current($event:mk_error(player, "Usage: @rmproperty <object>.<prop-name>"));
+      return;
+    endif
+    object_str = parsed['object_str];
+    prop_name = parsed['item_name];
+    "Match the target object";
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
+      return;
+    endtry
+    "Check property exists";
+    if (!(prop_name in properties(target_obj)))
+      player:inform_current($event:mk_error(player, "Property " + prop_name + " not found on " + tostr(target_obj) + "."));
+      return;
+    endif
+    "Try to delete the property";
+    try
+      delete_property(target_obj, prop_name);
+      player:inform_current($event:mk_info(player, "Property " + tostr(target_obj) + "." + prop_name + " deleted."));
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Error deleting property: " + tostr(e[2])));
+    endtry
+  endverb
+
   verb "@args" (any any any) owner: ARCH_WIZARD flags: "rd"
     this:_challenge_command_perms();
     set_task_perms(player);
     "Change verb argument specifications";
     "Usage: @args object:verb-name dobj [prep [iobj]]";
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " object:verb-name dobj [prep [iobj]]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME DOBJ [PREP [IOBJ]]")));
       return;
     endif
     "Parse the arguments";
     words = argstr:words();
     if (length(words) < 2)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " object:verb-name dobj [prep [iobj]]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME DOBJ [PREP [IOBJ]]")));
       return;
     endif
     "Parse object:verb-name";
@@ -432,11 +551,14 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "I don't see '" + object_str + "' here."));
       return;
     except e (ANY)
-      player:inform_current($event:mk_error(player, "Error matching object: " + e[2]));
+      player:inform_current($event:mk_error(player, "Error matching object: " + tostr(e[2])));
       return;
     endtry
-    "Get current args";
-    {current_dobj, current_prep, current_iobj} = verb_args(target_obj, verb_name);
+    "Get current args from metadata";
+    metadata = $prog_utils:get_verb_metadata(target_obj, verb_name);
+    current_dobj = metadata:dobj();
+    current_prep = metadata:prep();
+    current_iobj = metadata:iobj();
     "Parse new args, using current values as defaults";
     new_dobj = length(words) >= 2 ? words[2] | current_dobj;
     new_prep = length(words) >= 3 ? words[3] | current_prep;
@@ -455,12 +577,12 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, "Verb args updated: " + tostr(target_obj) + ":" + verb_name + " " + new_dobj + " " + new_prep + " " + new_iobj));
   endverb
 
-  verb _do_get_property_info (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Internal helper to get property info with elevated permissions";
+  verb _do_get_property_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to get property metadata with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, prop_name} = args;
-    return property_info(target_obj, prop_name);
+    return $prog_utils:get_property_metadata(target_obj, prop_name);
   endverb
 
   verb _do_get_property_value (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -471,52 +593,50 @@ object PROG_FEATURES
     return target_obj.(prop_name);
   endverb
 
-  verb _do_is_clear_property (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Internal helper to check if property is clear with elevated permissions";
-    caller == this || raise(E_PERM);
-    set_task_perms(player);
-    {target_obj, prop_name} = args;
-    return is_clear_property(target_obj, prop_name);
-  endverb
-
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Display detailed object/property/verb information";
     "Usage: @display <object>[.|,|:|;][property/verb]";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>[.|,|:|;][property/verb]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT[.|,|:|;][property/verb]")));
       return;
     endif
     spec = argstr:trim();
     "Parse the display specification";
-    display_mode = 'object;
-    target_spec = spec;
-    item_name = "";
-    "Check for property/verb specifiers";
-    if ("." in spec)
-      parts = spec:split(".");
-      target_spec = parts[1];
-      item_name = length(parts) > 1 ? parts[2] | "";
-      display_mode = item_name ? 'property | 'all_properties;
-    elseif ("," in spec)
-      parts = spec:split(",");
-      target_spec = parts[1];
-      item_name = length(parts) > 1 ? parts[2] | "";
-      display_mode = item_name ? 'inherited_property | 'all_inherited_properties;
-    elseif (":" in spec)
-      parts = spec:split(":");
-      target_spec = parts[1];
-      item_name = length(parts) > 1 ? parts[2] | "";
-      display_mode = item_name ? 'verb | 'all_verbs;
-    elseif (";" in spec)
-      parts = spec:split(";");
-      target_spec = parts[1];
-      item_name = length(parts) > 1 ? parts[2] | "";
-      display_mode = item_name ? 'inherited_verb | 'all_inherited_verbs;
+    parsed = $prog_utils:parse_target_spec(spec);
+    if (!parsed)
+      "If parsing failed, try as plain object";
+      parsed = $prog_utils:parse_target_spec(spec);
+      if (!parsed)
+        player:inform_current($event:mk_error(player, "Invalid specification"));
+        return;
+      endif
+    endif
+    "Map parsed type to display mode, supporting all-properties/verbs when no item specified";
+    type = parsed['type];
+    object_str = parsed['object_str];
+    item_name = parsed['item_name];
+    display_mode = type;
+    if (!item_name)
+      "No specific item - show all of that type";
+      if (type == 'property)
+        display_mode = 'all_properties;
+      elseif (type == 'verb)
+        display_mode = 'all_verbs;
+      elseif (type == 'inherited_property)
+        display_mode = 'all_inherited_properties;
+      elseif (type == 'inherited_verb)
+        display_mode = 'all_inherited_verbs;
+      endif
     endif
     "Match the target object";
-    target_obj = $match:match_object(target_spec, player);
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find object: " + e[2]));
+      return;
+    endtry
     "Dispatch based on display mode";
     if (display_mode == 'property)
       this:_display_property(target_obj, item_name);
@@ -543,16 +663,14 @@ object PROG_FEATURES
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, prop_name} = args;
-    prop_info = this:_do_get_property_info(target_obj, prop_name);
-    {owner, perms} = prop_info;
-    is_clear = this:_do_is_clear_property(target_obj, prop_name);
-    prop_value = is_clear ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
+    metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
+    prop_value = metadata:is_clear() ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
     "Truncate long values";
     if (length(prop_value) > 50)
       prop_value = prop_value[1..47] + "...";
     endif
     headers = {"Property", "Owner", "Flags", "Value"};
-    row = {"." + prop_name, tostr(owner), perms, prop_value};
+    row = {"." + prop_name, tostr(metadata:owner()), metadata:perms(), prop_value};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
   endverb
@@ -594,15 +712,13 @@ object PROG_FEATURES
             continue;
           endif
           seen = {@seen, prop_name};
-          prop_info = this:_do_get_property_info(current, prop_name);
-          {owner, perms} = prop_info;
-          is_clear = this:_do_is_clear_property(target_obj, prop_name);
-          prop_value = is_clear ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
+          metadata = $prog_utils:get_property_metadata(current, prop_name);
+          prop_value = metadata:is_clear() ? "(clear)" | toliteral(this:_do_get_property_value(current, prop_name));
           if (length(prop_value) > 50)
             prop_value = prop_value[1..47] + "...";
           endif
           definer_prefix = current == target_obj ? "" | tostr(current) + ":";
-          rows = {@rows, {definer_prefix + "." + prop_name, tostr(owner), perms, prop_value}};
+          rows = {@rows, {definer_prefix + "." + prop_name, tostr(metadata:owner()), metadata:perms(), prop_value}};
         endfor
         current = `parent(current) ! ANY => #-1';
       endwhile
@@ -610,14 +726,12 @@ object PROG_FEATURES
       "Just properties on this object";
       props = this:_do_get_properties(target_obj);
       for prop_name in (props)
-        prop_info = this:_do_get_property_info(target_obj, prop_name);
-        {owner, perms} = prop_info;
-        is_clear = this:_do_is_clear_property(target_obj, prop_name);
-        prop_value = is_clear ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
+        metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
+        prop_value = metadata:is_clear() ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
         if (length(prop_value) > 50)
           prop_value = prop_value[1..47] + "...";
         endif
-        rows = {@rows, {"." + prop_name, tostr(owner), perms, prop_value}};
+        rows = {@rows, {"." + prop_name, tostr(metadata:owner()), metadata:perms(), prop_value}};
       endfor
     endif
     if (!rows)
@@ -668,33 +782,27 @@ object PROG_FEATURES
       seen = [];
       current = target_obj;
       while (valid(current))
-        verb_list = this:_do_get_verbs(current);
-        for verb_name in (verb_list)
+        verbs_metadata = $prog_utils:get_verbs_metadata(current);
+        for metadata in (verbs_metadata)
+          verb_name = metadata:name();
           if (verb_name in seen)
             continue;
           endif
           seen = {@seen, verb_name};
-          verb_info_data = verb_info(current, verb_name);
-          {verb_owner, verb_flags, verb_names} = verb_info_data;
-          verb_args_data = verb_args(current, verb_name);
-          {dobj, prep, iobj} = verb_args_data;
-          args_spec = dobj + " " + prep + " " + iobj;
+          args_spec = metadata:args_spec();
           verb_spec = tostr(current) + ":" + verb_name;
-          rows = {@rows, {verb_spec, tostr(verb_owner), verb_flags, args_spec}};
+          rows = {@rows, {verb_spec, tostr(metadata:verb_owner()), metadata:flags(), args_spec}};
         endfor
         current = `parent(current) ! ANY => #-1';
       endwhile
     else
       "Just verbs on this object";
-      verb_list = this:_do_get_verbs(target_obj);
-      for verb_name in (verb_list)
-        verb_info_data = verb_info(target_obj, verb_name);
-        {verb_owner, verb_flags, verb_names} = verb_info_data;
-        verb_args_data = verb_args(target_obj, verb_name);
-        {dobj, prep, iobj} = verb_args_data;
-        args_spec = dobj + " " + prep + " " + iobj;
+      verbs_metadata = $prog_utils:get_verbs_metadata(target_obj);
+      for metadata in (verbs_metadata)
+        verb_name = metadata:name();
+        args_spec = metadata:args_spec();
         verb_spec = tostr(target_obj) + ":" + verb_name;
-        rows = {@rows, {verb_spec, tostr(verb_owner), verb_flags, args_spec}};
+        rows = {@rows, {verb_spec, tostr(metadata:verb_owner()), metadata:flags(), args_spec}};
       endfor
     endif
     if (!rows)
@@ -727,97 +835,141 @@ object PROG_FEATURES
     player.programmer || raise(E_PERM);
   endverb
 
-  verb _do_grep_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Returns {line_number, truncated_line} or 0 if no match";
-    caller == this || raise(E_PERM);
+  verb "@chmod" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Change permissions on objects, properties, or verbs";
+    "Usage: @chmod <object> <perms> - change object read/write flags";
+    "Usage: @chmod <object>.<prop> <perms> - change property r/w/c flags";
+    "Usage: @chmod <object>:<verb> <perms> - change verb r/w/x/d flags";
+    this:_challenge_command_perms();
     set_task_perms(player);
-    {pattern, object, vname, casematters} = args;
-    "Try to get verb code - may fail due to permissions or non-existent verb";
-    vc = `verb_code(object, vname) ! ANY';
-    if (typeof(vc) == ERR)
-      return 0;
+    if (!argstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@chmod OBJECT[.PROPERTY|:VERB] PERMISSIONS")));
+      return;
     endif
-    "Quick check: does pattern exist anywhere in the verb code?";
-    "This optimization from LambdaCore is much faster than checking line by line";
-    suspend_if_needed();
-    if (!index(tostr(@vc), pattern, casematters))
-      return 0;
+    "Parse arguments";
+    words = argstr:words();
+    if (length(words) < 2)
+      player:inform_current($event:mk_error(player, $format.code:mk("@chmod OBJECT[.PROPERTY|:VERB] PERMISSIONS")));
+      return;
     endif
-    suspend_if_needed();
-    "Pattern exists somewhere, find which line";
-    line_count = 0;
-    for line in (vc)
-      line_count = line_count + 1;
-      if (line_count % 10 == 0)
-        suspend_if_needed();
+    target_spec = words[1];
+    perms_str = words[2];
+    "Parse the target specification";
+    parsed = $prog_utils:parse_target_spec(target_spec);
+    if (!parsed)
+      player:inform_current($event:mk_error(player, "Invalid target reference. Use 'object', 'object.property', or 'object:verb'"));
+      return;
+    endif
+    type = parsed['type];
+    object_str = parsed['object_str];
+    item_name = parsed['item_name];
+    "Match the target object";
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find object: " + e[2]));
+      return;
+    endtry
+    "Dispatch based on type";
+    if (type == 'property)
+      "Validate property permissions";
+      for i in [1..length(perms_str)]
+        char = perms_str[i];
+        if (!(char in {"r", "w", "c", ""}))
+          player:inform_current($event:mk_error(player, "Property permissions must be subset of 'rwc' (or empty to clear)"));
+          return;
+        endif
+      endfor
+      try
+        metadata = $prog_utils:get_property_metadata(target_obj, item_name);
+        current_owner = metadata:owner();
+        metadata:set_perms(current_owner, perms_str);
+        player:inform_current($event:mk_info(player, "Property ." + item_name + " permissions set to " + (perms_str == "" ? "(cleared)" | perms_str) + " on " + tostr(target_obj) + "."));
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error setting property permissions: " + e[2]));
+      endtry
+    elseif (type == 'verb)
+      "Validate verb permissions";
+      for i in [1..length(perms_str)]
+        char = perms_str[i];
+        if (!(char in {"r", "w", "x", "d", ""}))
+          player:inform_current($event:mk_error(player, "Verb permissions must be subset of 'rwxd' (or empty to clear)"));
+          return;
+        endif
+      endfor
+      try
+        metadata = $prog_utils:get_verb_metadata(target_obj, item_name);
+        current_owner = metadata:verb_owner();
+        metadata:set_perms(current_owner, perms_str);
+        player:inform_current($event:mk_info(player, "Verb :" + item_name + " permissions set to " + (perms_str == "" ? "(cleared)" | perms_str) + " on " + tostr(target_obj) + "."));
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error setting verb permissions: " + e[2]));
+      endtry
+    elseif (type == 'object)
+      "Object flags: only r and w are allowed";
+      for i in [1..length(perms_str)]
+        char = perms_str[i];
+        if (!(char in {"r", "w", ""}))
+          player:inform_current($event:mk_error(player, "Object permissions must be subset of 'rw' (or empty to clear)"));
+          return;
+        endif
+      endfor
+      "Objects don't have a set_flags builtin, so we use set_property on f flag";
+      if (perms_str == "")
+        "Clear all flags";
+        target_obj.f = 0;
+      else
+        flags = 0;
+        if (index(perms_str, "r"))
+          flags = flags + 1;
+        endif
+        if (index(perms_str, "w"))
+          flags = flags + 2;
+        endif
+        target_obj.f = flags;
       endif
-      if (match_pos = index(line, pattern, casematters))
-        "Found the pattern - truncate and center around it";
-        max_len = 50;
-        line_len = length(line);
-        if (line_len <= max_len)
-          return {line_count, line};
-        endif
-        "Calculate window centered on the match";
-        pattern_len = length(pattern);
-        "Try to center the pattern in the window";
-        start_pos = max(1, match_pos - (max_len - pattern_len) / 2);
-        end_pos = min(line_len, start_pos + max_len - 1);
-        "Adjust start if end hit the limit";
-        if (end_pos == line_len && end_pos - start_pos < max_len - 1)
-          start_pos = max(1, end_pos - max_len + 1);
-        endif
-        truncated = line[start_pos..end_pos];
-        "Add ellipsis indicators";
-        if (start_pos > 1)
-          truncated = "..." + truncated;
-        endif
-        if (end_pos < line_len)
-          truncated = truncated + "...";
-        endif
-        return {line_count, truncated};
-      endif
-    endfor
-    return 0;
+      player:inform_current($event:mk_info(player, "Object " + tostr(target_obj) + " permissions set to " + (perms_str == "" ? "(cleared)" | perms_str) + "."));
+    else
+      "Inherited references not supported for @chmod";
+      player:inform_current($event:mk_error(player, "@chmod only works on direct object properties and verbs, not inherited ones."));
+    endif
   endverb
 
   verb _do_grep_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Internal helper to search all verbs on an object with elevated permissions";
-    "Returns list of matches: {{obj, verb_name, owner_name, owner_id, line_num, matching_line}, ...}";
+    "UI wrapper around prog_utils:grep_object - adds owner metadata for display";
+    "Returns matches with owner information added for formatting";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {pattern, search_obj, casematters} = args;
-    if (!valid(search_obj))
-      return {};
-    endif
-    matches = {};
-    verb_count = 0;
-    "Get all verbs on this object";
-    verb_list = `verbs(search_obj) ! ANY => {}';
-    if (typeof(verb_list) != LIST)
-      return {};
-    endif
-    "Search each verb";
-    for vnum in [1..length(verb_list)]
-      verb_count = verb_count + 1;
-      if (verb_count % 5 == 0)
-        suspend_if_needed();
+    "Get base matches from prog_utils (returns {obj, verb_name, line_num, matching_line})";
+    base_matches = $prog_utils:grep_object(pattern, search_obj, casematters);
+    "Add owner metadata to each match for display";
+    display_matches = {};
+    "Build lookup map of verb metadata for efficient access";
+    verb_metadata_map = {};
+    for match in (base_matches)
+      {o, verb_name, line_num, matching_line} = match;
+      obj_key = tostr(o);
+      if (!(obj_key in verb_metadata_map))
+        "First time seeing this object - build metadata map for it";
+        verbs_metadata = $prog_utils:get_verbs_metadata(o);
+        obj_metadata_map = {};
+        for metadata in (verbs_metadata)
+          obj_metadata_map[metadata:name()] = metadata;
+        endfor
+        verb_metadata_map[obj_key] = obj_metadata_map;
       endif
-      verb_name = verb_list[vnum];
-      match_result = this:_do_grep_verb_code(pattern, search_obj, vnum, casematters);
-      if (typeof(match_result) == LIST)
-        "Found a match - get verb metadata";
-        {line_num, matching_line} = match_result;
-        verb_info_data = `verb_info(search_obj, vnum) ! ANY';
-        if (typeof(verb_info_data) == LIST)
-          {verb_owner, verb_flags, verb_names} = verb_info_data;
-          owner_name = valid(verb_owner) ? verb_owner.name | "Recycled";
-          "Add to matches list";
-          matches = {@matches, {search_obj, verb_name, owner_name, tostr(verb_owner), line_num, matching_line}};
-        endif
+      "Look up verb metadata by name";
+      obj_metadata_map = verb_metadata_map[obj_key];
+      if (verb_name in obj_metadata_map)
+        metadata = obj_metadata_map[verb_name];
+        verb_owner = metadata:verb_owner();
+        owner_name = valid(verb_owner) ? verb_owner.name | "Recycled";
+        "Append owner info to match for display";
+        display_matches = {@display_matches, {o, verb_name, owner_name, tostr(verb_owner), line_num, matching_line}};
       endif
     endfor
-    return matches;
+    return display_matches;
   endverb
 
   verb "@grep" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -826,13 +978,13 @@ object PROG_FEATURES
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <pattern> [object]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " PATTERN [OBJECT]")));
       return;
     endif
     "Parse arguments: pattern and optional object";
     words = argstr:words();
     if (!words)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <pattern> [object]"));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " PATTERN [OBJECT]")));
       return;
     endif
     pattern = words[1];

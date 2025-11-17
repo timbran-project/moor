@@ -289,6 +289,9 @@ object DATA_VISOR
     "Register set_verb_args tool";
     set_verb_args_tool = $llm_agent_tool:mk("set_verb_args", "Change the argument specification (dobj/prep/iobj) for an existing verb without modifying its code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any'"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any'"]], "required" -> {"object", "verb", "dobj", "prep", "iobj"}], this, "_tool_set_verb_args");
     this.agent:add_tool("set_verb_args", set_verb_args_tool);
+    "Register set_verb_perms tool";
+    set_verb_perms_tool = $llm_agent_tool:mk("set_verb_perms", "Change the permissions and/or owner of a verb. Permission flags are 'r' (readable), 'w' (writable), 'x' (executable), 'd' (debug). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwxd', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "verb", "permissions"}], this, "_tool_set_verb_perms");
+    this.agent:add_tool("set_verb_perms", set_verb_perms_tool);
     "Register add_property tool";
     add_property_tool = $llm_agent_tool:mk("add_property", "Add a new property to an object with initial value. You must provide a clear rationale explaining what this property is for.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add property to"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "Initial value as MOO literal (e.g. '0', '\"hello\"', '{}')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this property is for and why it's needed. What data will it hold?"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwc' (default: 'rc')"]], "required" -> {"object", "property", "value", "rationale"}], this, "_tool_add_property");
     this.agent:add_tool("add_property", add_property_tool);
@@ -298,6 +301,9 @@ object DATA_VISOR
     "Register set_property tool";
     set_property_tool = $llm_agent_tool:mk("set_property", "Set the value of an existing property on an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "New value as MOO literal (e.g. '0', '\"hello\"', '{}', '[$player]')"]], "required" -> {"object", "property", "value"}], this, "_tool_set_property");
     this.agent:add_tool("set_property", set_property_tool);
+    "Register set_property_perms tool";
+    set_property_perms_tool = $llm_agent_tool:mk("set_property_perms", "Change the permissions and/or owner of a property. Permission flags are 'r' (readable), 'w' (writable), 'c' (chown). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwc', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "property", "permissions"}], this, "_tool_set_property_perms");
+    this.agent:add_tool("set_property_perms", set_property_perms_tool);
     "Register eval tool";
     eval_tool = $llm_agent_tool:mk("eval", "Execute MOO code and return the result. You must provide a clear rationale explaining what you're trying to accomplish and why. IMPORTANT: Code executes as a verb body (not a REPL), so you must use valid MOO statements terminated by semicolons. The code runs with 'player' set to the visor wearer. To get return values, you MUST use 'return' statement - the last expression is NOT automatically returned. Example: 'x = 5; return x * 2;' NOT just 'x = 5; x * 2'.", ["type" -> "object", "properties" -> ["rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're trying to accomplish with this code and why. Be specific about what you're testing or investigating."], "code" -> ["type" -> "string", "description" -> "MOO code to execute. Must be valid statements with semicolons. Use 'return' to get values back."]], "required" -> {"rationale", "code"}], this, "_tool_eval");
     this.agent:add_tool("eval", eval_tool);
@@ -313,6 +319,9 @@ object DATA_VISOR
     "Register explain tool";
     explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
     this.agent:add_tool("explain", explain_tool);
+    "Register grep tool";
+    grep_tool = $llm_agent_tool:mk("grep", "Search verb code across objects for patterns. Returns matching lines with context. Useful for finding where specific functionality is implemented or understanding existing code.", ["type" -> "object", "properties" -> ["pattern" -> ["type" -> "string", "description" -> "Text pattern to search for (e.g., 'fire', 'parse_verb', or regex patterns)"], "object" -> ["type" -> "string", "description" -> "Optional: specific object to search (e.g., '#1', '$login', 'here'). If omitted, searches all objects."]], "required" -> {"pattern"}], this, "_tool_grep");
+    this.agent:add_tool("grep", grep_tool);
     "Register architect's compass building tools if available";
     this:_register_compass_tools_if_available();
   endverb
@@ -587,18 +596,14 @@ object DATA_VISOR
     "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
-    "Get verb info and args";
-    verb_info_data = verb_info(verb_location, verb_name);
-    {verb_owner, verb_flags, verb_names} = verb_info_data;
-    verb_args_data = verb_args(verb_location, verb_name);
-    {dobj, prep, iobj} = verb_args_data;
+    "Get verb metadata";
+    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
     "Format as readable structure";
     result = {};
     result = {@result, "Verb: " + tostr(verb_location) + ":" + verb_name};
-    result = {@result, "Names: " + verb_names};
-    result = {@result, "Owner: " + tostr(verb_owner)};
-    result = {@result, "Flags: " + verb_flags};
-    result = {@result, "Args: " + dobj + " " + prep + " " + iobj};
+    result = {@result, "Owner: " + tostr(metadata:verb_owner())};
+    result = {@result, "Flags: " + metadata:flags()};
+    result = {@result, "Args: " + metadata:args_spec()};
     result = {@result, "Defined on: " + tostr(verb_location)};
     return result:join("\n");
   endverb
@@ -615,10 +620,8 @@ object DATA_VISOR
     "Get property info for each";
     result = {};
     for prop_name in (props)
-      prop_info = property_info(o, prop_name);
-      {owner, perms} = prop_info;
-      is_clear = is_clear_property(o, prop_name);
-      result = {@result, "." + prop_name + " (owner: " + tostr(owner) + ", flags: " + perms + (is_clear ? ", clear)" | ")")};
+      metadata = $prog_utils:get_property_metadata(o, prop_name);
+      result = {@result, "." + prop_name + " (owner: " + tostr(metadata:owner()) + ", flags: " + metadata:perms() + (metadata:is_clear() ? ", clear)" | ")")};
     endfor
     return result:join("\n");
   endverb
@@ -639,29 +642,21 @@ object DATA_VISOR
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Get verb metadata";
-    verb_info_data = verb_info(verb_location, verb_name);
-    {verb_owner, verb_flags, verb_names} = verb_info_data;
-    verb_args_data = verb_args(verb_location, verb_name);
-    {dobj, prep, iobj} = verb_args_data;
+    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
+    if (!metadata)
+      raise(E_VERBNF("Could not retrieve verb metadata"));
+    endif
     "Get verb code";
     code_lines = verb_code(verb_location, verb_name, false, true);
     "Build metadata table";
     verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
-    args_spec = dobj + " " + prep + " " + iobj;
+    args_spec = metadata:args_spec();
     headers = {"Verb", "Args", "Owner", "Flags"};
-    row = {verb_signature, args_spec, tostr(verb_owner), verb_flags};
+    row = {verb_signature, args_spec, tostr(metadata:verb_owner()), metadata:flags()};
     metadata_table = $format.table:mk(headers, {row});
     "Add line numbers if requested";
     if (show_line_numbers)
-      num_lines = length(code_lines);
-      num_width = length(tostr(num_lines));
-      numbered_lines = {};
-      for i in [1..num_lines]
-        line_num_str = tostr(i);
-        padding = $str_proto:space(num_width - length(line_num_str), " ");
-        numbered_lines = {@numbered_lines, padding + line_num_str + ":  " + code_lines[i]};
-      endfor
-      code_lines = numbered_lines;
+      code_lines = $prog_utils:format_line_numbers(code_lines);
     endif
     "Format as code block";
     formatted_code = $format.code:mk(code_lines, 'moo);
@@ -690,10 +685,11 @@ object DATA_VISOR
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Get verb metadata";
-    verb_info_data = verb_info(verb_location, verb_name);
-    {verb_owner, verb_flags, verb_names} = verb_info_data;
-    verb_args_data = verb_args(verb_location, verb_name);
-    {dobj, prep, iobj} = verb_args_data;
+    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
+    if (!metadata)
+      raise(E_VERBNF("Could not retrieve verb metadata"));
+    endif
+    {verb_owner, verb_flags, dobj, prep, iobj} = metadata;
     "Get verb code";
     code_lines = verb_code(verb_location, verb_name, false, true);
     "Apply context and validate range";
@@ -707,14 +703,9 @@ object DATA_VISOR
     headers = {"Verb", "Args", "Range"};
     row = {verb_signature, args_spec, line_range};
     metadata_table = $format.table:mk(headers, {row});
-    "Extract range with line numbers";
-    num_width = length(tostr(actual_end));
-    numbered_lines = {};
-    for i in [actual_start..actual_end]
-      line_num_str = tostr(i);
-      padding = $str_proto:space(num_width - length(line_num_str), " ");
-      numbered_lines = {@numbered_lines, padding + line_num_str + ":  " + code_lines[i]};
-    endfor
+    "Extract range and add line numbers";
+    range_lines = code_lines[actual_start..actual_end];
+    numbered_lines = $prog_utils:format_line_numbers(range_lines);
     "Format as code block";
     formatted_code = $format.code:mk(numbered_lines, 'moo);
     "Combine table and code";
@@ -744,6 +735,8 @@ object DATA_VISOR
     "Validate dobj/iobj";
     dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
     iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
+    "Validate prep using prog_utils";
+    $prog_utils:is_valid_prep(prep) || raise(E_INVARG("prep must be 'none', 'any', or a valid preposition"));
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed verb creation: " + tostr(o) + ":" + verb_names);
     rationale_content = $format.block:mk(rationale_title, rationale);
@@ -867,6 +860,8 @@ object DATA_VISOR
     "Validate dobj/iobj";
     dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
     iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
+    "Validate prep using prog_utils";
+    $prog_utils:is_valid_prep(prep) || raise(E_INVARG("prep must be 'none', 'any', or a valid preposition"));
     "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
@@ -1007,6 +1002,99 @@ object DATA_VISOR
     return "Property " + tostr(o) + "." + prop_name + " set successfully";
   endverb
 
+  verb _tool_set_verb_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Change verb permissions";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    verb_name = args_map["verb"];
+    perms_str = args_map["permissions"];
+    owner_str = args_map["owner"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(perms_str) == STR || raise(E_TYPE("Expected permissions string"));
+    "Find where verb is defined";
+    verb_location = o:find_verb_definer(verb_name);
+    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    "Get current metadata";
+    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
+    current_owner = metadata:verb_owner();
+    current_perms = metadata:flags();
+    "Determine new owner";
+    new_owner = current_owner;
+    if (owner_str)
+      typeof(owner_str) == STR || raise(E_TYPE("Expected owner string"));
+      new_owner = $match:match_object(owner_str);
+      typeof(new_owner) == OBJ || raise(E_TYPE("Owner must be valid object"));
+    endif
+    "Validate permissions";
+    for i in [1..length(perms_str)]
+      char = perms_str[i];
+      char in {"r", "w", "x", "d"} || raise(E_INVARG("Verb permissions must be subset of 'rwxd'"));
+    endfor
+    "Request confirmation";
+    confirmation_msg = "Change verb permissions for " + tostr(verb_location) + ":" + verb_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating verb permissions: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    "Apply the change";
+    metadata:set_perms(new_owner, perms_str);
+    return "Verb permissions updated: " + tostr(verb_location) + ":" + verb_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
+  endverb
+
+  verb _tool_set_property_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Change property permissions";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    prop_name = args_map["property"];
+    perms_str = args_map["permissions"];
+    owner_str = args_map["owner"];
+    o = $match:match_object(obj_str);
+    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
+    typeof(perms_str) == STR || raise(E_TYPE("Expected permissions string"));
+    "Get current metadata";
+    metadata = $prog_utils:get_property_metadata(o, prop_name);
+    current_owner = metadata:owner();
+    current_perms = metadata:perms();
+    "Determine new owner";
+    new_owner = current_owner;
+    if (owner_str)
+      typeof(owner_str) == STR || raise(E_TYPE("Expected owner string"));
+      new_owner = $match:match_object(owner_str);
+      typeof(new_owner) == OBJ || raise(E_TYPE("Owner must be valid object"));
+    endif
+    "Validate permissions";
+    for i in [1..length(perms_str)]
+      char = perms_str[i];
+      char in {"r", "w", "c"} || raise(E_INVARG("Property permissions must be subset of 'rwc'"));
+    endfor
+    "Request confirmation";
+    confirmation_msg = "Change property permissions for " + tostr(o) + "." + prop_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
+    result = wearer:confirm(confirmation_msg);
+    if (result == false)
+      "User cancelled";
+      this.agent.cancel_requested = true;
+      return "Operation cancelled by user.";
+    elseif (typeof(result) == STR)
+      return "User provided alternative: " + result;
+    endif
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating property permissions: " + tostr(o) + "." + prop_name + "..."):with_presentation_hint('inset));
+    "Apply the change";
+    metadata:set_perms(new_owner, perms_str);
+    return "Property permissions updated: " + tostr(o) + "." + prop_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
+  endverb
+
   verb _tool_eval (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Execute MOO code and return result";
     {args_map} = args;
@@ -1144,6 +1232,52 @@ object DATA_VISOR
     return "Recycled \"" + obj_name + "\" (" + obj_id + ")";
   endverb
 
+  verb _tool_grep (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Search verb code for patterns";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    pattern = args_map["pattern"];
+    object_spec = maphaskey(args_map, "object") ? args_map["object"] | false;
+    typeof(pattern) == STR || raise(E_TYPE("Pattern must be string"));
+    "Determine search scope";
+    search_objects = {};
+    if (object_spec)
+      "Search specific object";
+      try
+        target_obj = $match:match_object(object_spec, wearer);
+        search_objects = {target_obj};
+      except (ANY)
+        return "Could not find object: " + object_spec;
+      endtry
+    else
+      "Search all objects";
+      search_objects = objects();
+    endif
+    "Perform grep search using prog_utils";
+    all_matches = {};
+    obj_count = 0;
+    for o in (search_objects)
+      obj_count = obj_count + 1;
+      if (obj_count % 5 == 0)
+        suspend_if_needed();
+      endif
+      matches = $prog_utils:grep_object(pattern, o, false);
+      all_matches = {@all_matches, @matches};
+    endfor
+    "Format results for LLM";
+    if (!all_matches)
+      return "No matches found for pattern: " + pattern;
+    endif
+    "Build result summary with context";
+    result_lines = {"Found " + tostr(length(all_matches)) + " matches for pattern: " + pattern, ""};
+    for match in (all_matches)
+      {o, verb_name, line_num, matching_line} = match;
+      result_lines = {@result_lines, tostr(o) + ":" + verb_name + " line " + tostr(line_num) + ": " + matching_line};
+    endfor
+    return result_lines:join("\n");
+  endverb
+
   verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
@@ -1215,6 +1349,9 @@ object DATA_VISOR
     elseif (tool_name == "explain")
       "Explain messages are rendered as markdown - return raw content without ANSI formatting";
       return tool_args["message"];
+    elseif (tool_name == "grep")
+      obj_spec = maphaskey(tool_args, "object") ? " in " + tool_args["object"] | " globally";
+      message = $ansi:colorize("[SEARCH]", 'bright_cyan) + " Pattern matching: " + $ansi:colorize(tool_args["pattern"], 'bright_white) + obj_spec;
     else
       message = $ansi:colorize("[PROCESS]", 'cyan) + " Neural link active: " + $ansi:colorize(tool_name, 'white);
     endif

@@ -439,6 +439,76 @@ object WIZ_FEATURES
     player:inform_current($event:mk_info(player, "Issued " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
   endverb
 
+  verb "@chown" (any at any) owner: ARCH_WIZARD flags: "rd"
+    "Change ownership of objects, properties, or verbs";
+    "Usage: @chown <object> to <new_owner>";
+    "Usage: @chown <object>.<property> to <new_owner>";
+    "Usage: @chown <object>:<verb> to <new_owner>";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (!dobjstr || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@chown TARGET to NEW_OWNER")));
+      return;
+    endif
+    target_spec = dobjstr:trim();
+    owner_str = iobjstr:trim();
+    "Match the new owner";
+    try
+      new_owner = $match:match_object(owner_str, player);
+      typeof(new_owner) != OBJ && raise(E_INVARG, "Owner must be an object.");
+      !valid(new_owner) && raise(E_INVARG, "Owner object no longer exists.");
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find owner: " + e[2]));
+      return;
+    endtry
+    "Parse the target specification";
+    parsed = $prog_utils:parse_target_spec(target_spec);
+    if (!parsed)
+      player:inform_current($event:mk_error(player, "Invalid target reference. Use 'object', 'object.property', or 'object:verb'"));
+      return;
+    endif
+    type = parsed['type];
+    object_str = parsed['object_str];
+    item_name = parsed['item_name];
+    "Match the target object";
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find object: " + e[2]));
+      return;
+    endtry
+    "Dispatch based on type";
+    if (type == 'property)
+      try
+        metadata = $prog_utils:get_property_metadata(target_obj, item_name);
+        current_perms = metadata:perms();
+        metadata:set_perms(new_owner, current_perms);
+        player:inform_current($event:mk_info(player, "Property ." + item_name + " on " + tostr(target_obj) + " now owned by " + tostr(new_owner) + "."));
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error changing property owner: " + e[2]));
+      endtry
+    elseif (type == 'verb)
+      try
+        metadata = $prog_utils:get_verb_metadata(target_obj, item_name);
+        current_perms = metadata:flags();
+        metadata:set_perms(new_owner, current_perms);
+        player:inform_current($event:mk_info(player, "Verb :" + item_name + " on " + tostr(target_obj) + " now owned by " + tostr(new_owner) + "."));
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error changing verb owner: " + e[2]));
+      endtry
+    elseif (type == 'object)
+      try
+        target_obj.owner = new_owner;
+        player:inform_current($event:mk_info(player, "Object " + tostr(target_obj) + " now owned by " + tostr(new_owner) + "."));
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error changing object owner: " + e[2]));
+      endtry
+    else
+      "Inherited references not supported for @chown";
+      player:inform_current($event:mk_error(player, "@chown only works on direct object properties and verbs, not inherited ones."));
+    endif
+  endverb
+
   verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
     player.programmer && player.wizard || raise(E_PERM);
   endverb
