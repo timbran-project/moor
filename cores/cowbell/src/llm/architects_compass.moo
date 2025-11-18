@@ -80,10 +80,10 @@ object ARCHITECTS_COMPASS
     agent:add_tool("ask_user", ask_user_tool);
   endverb
 
-  verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
+  verb _check_user_eligible (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Compass requires user to have builder features";
     {wearer} = args;
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller == this.owner || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     wearer.is_builder || raise(E_PERM, "The compass can only be used by builders");
   endverb
 
