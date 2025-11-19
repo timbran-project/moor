@@ -44,16 +44,15 @@ object ROOM
   endverb
 
   verb confunc (this none this) owner: HACKER flags: "rxd"
-    arrival_event = player:mk_connected_event();
-    for who in (this:contents())
-      if (who == player)
-        continue;
-      endif
-      `who:tell(arrival_event) ! E_VERBNF';
-    endfor
-    player:inform_current(player:mk_connected_event():with_audience('utility));
+    arrival_event = player:mk_connected_event():with_audience('utility);
+    this:announce(arrival_event);
     look_d = this:look_self();
     player:inform_current(look_d:into_event():with_audience('utility));
+  endverb
+
+  verb disfunc (this none this) owner: HACKER flags: "rxd"
+    discon_event = player:mk_disconnected_event():with_audience('utility);
+    this:announce(discon_event);
   endverb
 
   verb enterfunc (this none this) owner: HACKER flags: "rxd"
