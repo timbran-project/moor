@@ -112,6 +112,31 @@ object PROG_FEATURES
     endif
   endverb
 
+  verb "@browse" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Browse an object in the object browser.";
+    "Browse a specific object";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (!argstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@browse OBJECT")));
+      return;
+    endif
+    target_string = argstr:trim();
+    "Match the object";
+    try
+      target_obj = $match:match_object(target_string, player);
+    except e (E_INVARG)
+      player:tell($event:mk_error(player, "I don't see '" + target_string + "' here."));
+      return;
+    except e (ANY)
+      player:tell($event:mk_error(player, "Error matching object: " + e[2]));
+      return;
+    endtry
+    "Open the browser";
+    this:present_object_browser(target_obj);
+    player:inform_current($event:mk_info(player, "Opened object browser for " + tostr(target_obj)));
+  endverb
+
   verb present_verb_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
     caller == this || raise(E_PERM);
     {verb_location, verb_name} = args;
@@ -119,6 +144,15 @@ object PROG_FEATURES
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
     object_curie = verb_location:to_curie_str();
     present(player, editor_id, "text/plain", "verb-editor", "", {{"object", object_curie}, {"verb", verb_name}, {"title", editor_title}});
+  endverb
+
+  verb present_object_browser (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    {target_obj} = args;
+    browser_id = "browse-" + tostr(target_obj);
+    browser_title = "Browse " + tostr(target_obj);
+    object_curie = target_obj:to_curie_str();
+    present(player, browser_id, "text/plain", "object-browser", "", {{"object", object_curie}, {"title", browser_title}});
   endverb
 
   verb _do_get_verb_listing (this none this) owner: ARCH_WIZARD flags: "rxd"
