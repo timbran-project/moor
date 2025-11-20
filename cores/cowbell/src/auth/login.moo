@@ -17,6 +17,8 @@ object LOGIN
     "",
     "connect with `archwizard` `test` to log in.",
     "",
+    "Server version: {VERSION}",
+    "",
     "You will probably want to change this text which is stored in $login.welcome_message property."
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
@@ -27,15 +29,17 @@ object LOGIN
 
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Present the welcome message property to the user.";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
-    notify(player, this.welcome_message, false, false, this.welcome_message_content_type);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    message = this.welcome_message:join("\n");
+    message = message:replace_all("{VERSION}", server_version());
+    notify(player, message, false, false, this.welcome_message_content_type);
   endverb
 
   verb "co*nnect @co*nnect" (any none any) owner: ARCH_WIZARD flags: "rxd"
     "$login:connect(player-name [, password])";
     " => 0 (for failed connections)";
     " => objnum (for successful connections)";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     "Check arguments, print usage notice if necessary";
     try
       {name, ?password = 0} = args;
@@ -79,7 +83,7 @@ object LOGIN
     "$login:oauth2_check(provider, external_id)";
     " => 0 (for not found)";
     " => objnum (for existing OAuth2 identity)";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     try
       {provider, external_id} = args;
     except (E_ARGS)
@@ -103,7 +107,7 @@ object LOGIN
     "$login:oauth2_create(provider, external_id, email, name, username, player_name)";
     " => 0 (for failed creation)";
     " => objnum (for successful creation)";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     if (!this.player_creation_enabled)
       notify(player, this.registration_string);
       return 0;
@@ -137,7 +141,7 @@ object LOGIN
     "$login:oauth2_connect(provider, external_id, email, name, username, existing_name, existing_password)";
     " => 0 (for failed connection)";
     " => objnum (for successful link)";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     try
       {provider, external_id, email, name, username, existing_name, existing_password} = args;
       existing_name = strsub(existing_name, " ", "_");
@@ -198,7 +202,7 @@ object LOGIN
   endverb
 
   verb "cr*eate @cr*eate" (any none any) owner: ARCH_WIZARD flags: "rxd"
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     if (!this.player_creation_enabled)
       notify(player, this.registration_string);
       return;
@@ -261,7 +265,7 @@ object LOGIN
     "Given the args from #0:do_login_command,";
     "  returns the actual $login verb to call and the args to use.";
     "Commands available to not-logged-in users should be located on this object and given the verb_args \"any none any\"";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     !args && return {this.blank_command, @args};
     if ((verb = args[1]) && !verb:is_numeric())
       for i in ({this, @ancestors(this)})
@@ -280,7 +284,7 @@ object LOGIN
   verb find_by_oauth2 (this none this) owner: ARCH_WIZARD flags: "rxd"
     ":find_by_oauth2(provider, external_id)";
     "Search all players for matching oauth2_identities entry";
-    caller == #0 || caller == this || caller.wizard || raise(E_PERM);
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     {provider, external_id} = args;
     for candidate in (players())
       if (is_player(candidate))
@@ -301,7 +305,7 @@ object LOGIN
 
   verb _create_player (this none this) owner: LOGIN flags: "rxd"
     ":_create_player(name, password, email, oauth2_identities)";
-    caller == this || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     {player_name, password_value, email, oauth_entries} = args;
     cap = this.player_setup_capability;
     "cap:make_player() returns a setup capability for the new player";
@@ -326,7 +330,7 @@ object LOGIN
 
   verb _password_state (this none this) owner: ARCH_WIZARD flags: "rxd"
     ":_password_state(candidate, attempt) => {status, stored_password}";
-    caller == this || caller.wizard || raise(E_PERM);
+    caller == this || caller_perms().wizard || raise(E_PERM);
     {candidate, attempt} = args;
     try
       stored = candidate.password;

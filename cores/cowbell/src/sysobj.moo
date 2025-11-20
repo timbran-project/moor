@@ -67,7 +67,7 @@ object SYSOBJ
 
   verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
-    callers() && !caller.wizard && return E_PERM;
+    callers() && !caller_perms().wizard && return E_PERM;
     args = $login:parse_command(@args);
     return $login:((args[1]))(@listdelete(args, 1));
   endverb
@@ -75,7 +75,7 @@ object SYSOBJ
   verb "user_created user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called by the server when a user connects...";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
-    callers() && !caller.wizard && return E_PERM;
+    callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
     set_task_perms(user);
     if (user < #0)
@@ -91,7 +91,7 @@ object SYSOBJ
   verb "user_disconnected user_client_disconnected" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called when a user disconnects...";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
-    callers() && !caller.wizard && return E_PERM;
+    callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
     set_task_perms(user);
     if (user < #0)
@@ -106,7 +106,7 @@ object SYSOBJ
   verb user_reconnected (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called when a user re-connects to the system from another session... Which isn't really a thing in mooR, but here for compatibility...";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
-    callers() && !caller.wizard && return E_PERM;
+    callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
     set_task_perms(user);
     if (user < #0)
@@ -124,7 +124,7 @@ object SYSOBJ
   verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Custom command handler which is capable of handling ambiguous object matches by attempting to find matching verb candidates.";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
-    callers() && !caller.wizard && return E_PERM;
+    callers() && !caller_perms().wizard && return E_PERM;
     "Just choose to ignore empty commands...";
     length(args) == 0 && return true;
     command = argstr;
@@ -228,7 +228,7 @@ object SYSOBJ
   verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called on server start to kick off initial state after being out of existence for a bit...";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
-    callers() && !caller.wizard && return E_PERM;
+    callers() && !caller_perms().wizard && return E_PERM;
     server_log("Core starting...");
     "Issue capability for $login to create players";
     player_class = $login.default_player_class;
@@ -239,7 +239,7 @@ object SYSOBJ
   endverb
 
   verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
-    caller == this || caller_perms.wizard || raise(E_PERM);
+    callers() && !caller_perms().wizard && return E_PERM;
     server_log(@args);
   endverb
 endobject
