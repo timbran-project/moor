@@ -215,6 +215,30 @@ object PLAYER
     this.password = $password:mk(new_password);
   endverb
 
+  verb "@password" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Change your password. Usage: @password <old-password> <new-password>";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    "If password not set, only need new password";
+    if (typeof(this.password) != FLYWEIGHT)
+      if (length(args) != 1)
+        return this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <new-password>")):with_audience('utility));
+      endif
+      new_password = args[1];
+    elseif (length(args) != 2)
+      this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <old-password> <new-password>")):with_audience('utility));
+      return;
+    elseif (!this.password:challenge(tostr(args[1])))
+      this:inform_current($event:mk_error(this, "That's not your old password."):with_audience('utility));
+      return;
+    else
+      new_password = args[2];
+    endif
+    "Set the new password";
+    this.password = $password:mk(tostr(new_password));
+    this:inform_current($event:mk_info(this, "New password set."):with_audience('utility));
+  endverb
+
   verb set_player_flag (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Mark this object as a player. Permission: wizard or 'set_player_flag capability.";
     {flag_value} = args;
