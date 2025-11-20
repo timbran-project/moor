@@ -465,7 +465,7 @@ object PLAYER
     return setup_cap;
   endverb
 
-  verb "e*xamine exam" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "exam*ine" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Display detailed information about an object.";
     "Syntax: examine <object>";
     "";
