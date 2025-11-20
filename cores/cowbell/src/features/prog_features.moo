@@ -1101,4 +1101,70 @@ object PROG_FEATURES
     event = $event:mk_paste(player, title, code):with_presentation_hint('inset);
     player.location:announce(event);
   endverb
+
+  verb "@doc*umentation" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Display developer documentation for objects, verbs, or properties.";
+    "Usage: @doc OBJECT, @doc OBJECT:VERB, or @doc OBJECT.PROPERTY";
+    "this:_challenge_command_perms();
+    set_task_perms(player);";
+    if (!argstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@doc OBJECT\n@doc OBJECT:VERB\n@doc OBJECT.PROPERTY")));
+      return;
+    endif
+    target_spec = argstr:trim();
+    "Parse the target specification";
+    parsed = $prog_utils:parse_target_spec(target_spec);
+    if (!parsed)
+      player:inform_current($event:mk_error(player, "Invalid format. Use 'object', 'object:verb', or 'object.property'"));
+      return;
+    endif
+    type = parsed['type];
+    object_str = parsed['object_str];
+    item_name = parsed['item_name];
+    "Match the target object";
+    try
+      target_obj = $match:match_object(object_str, player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
+      return;
+    endtry
+    "Dispatch based on type";
+    if (type == 'object)
+      "Get object documentation";
+      obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
+      server_log(toliteral(target_obj) +" " + toliteral(obj_display));
+      doc_text = $help_utils:get_object_documentation(target_obj);
+      title = "Documentation for " + obj_display + " (" + toliteral(target_obj) + ")";
+      content = $help_utils:format_documentation_display(title, doc_text);
+      player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+    elseif (type == 'verb)
+      "Find where the verb is actually defined";
+      verb_location = target_obj:find_verb_definer(item_name);
+      if (verb_location == #-1)
+        player:inform_current($event:mk_error(player, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj) + " or its ancestors."));
+        return;
+      endif
+      "Get verb documentation";
+      verb_obj_display = `verb_location:display_name() ! E_VERBNF => verb_location.name';
+      doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
+      title = "Documentation for " + verb_obj_display + " (" +toliteral(verb_location)+ "):" + tostr(item_name);
+      content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
+      player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+    elseif (type == 'property)
+      "Check if property exists";
+      if (!(item_name in properties(target_obj)))
+        player:inform_current($event:mk_error(player, "Property '" + item_name + "' not found on " + tostr(target_obj) + "."));
+        return;
+      endif
+      "Get property documentation";
+      obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
+      doc_text = $help_utils:property_documentation(target_obj, item_name);
+      title = "Documentation for " + obj_display + " (" + toliteral(target_obj)+ ")." + item_name;
+      content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
+      player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+    else
+      player:inform_current($event:mk_error(player, "Invalid reference type"));
+    endif
+  endverb
+
 endobject

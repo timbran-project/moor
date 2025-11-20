@@ -12,6 +12,7 @@ object LOGIN
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = <#5, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
   property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
+  property new_player_welcome_message (owner: ARCH_WIZARD, flags: "rc") = "#### Welcome to {TITLE}!\n\nTry entering `help` to see what you kind of things can do where you are.";
   property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
     "## Welcome to the _mooR_ *Cowbell* core.",
     "",
@@ -31,8 +32,17 @@ object LOGIN
     "Present the welcome message property to the user.";
     caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     message = this.welcome_message:join("\n");
-    message = message:replace_all("{VERSION}", server_version());
+    message = this:_apply_template(message);
     notify(player, message, false, false, this.welcome_message_content_type);
+  endverb
+
+  verb _apply_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Apply template substitutions (TITLE, VERSION) to a message string.";
+    set_task_perms(caller_perms());
+    {message} = args;
+    message = message:replace_all("{TITLE}", this.moo_title);
+    message = message:replace_all("{VERSION}", server_version());
+    return message;
   endverb
 
   verb "co*nnect @co*nnect" (any none any) owner: ARCH_WIZARD flags: "rxd"
@@ -342,5 +352,18 @@ object LOGIN
     attempt || return {'missing, stored};
     stored:challenge(attempt) || return {'mismatch, stored};
     return {'ok, stored};
+  endverb
+
+  verb welcome_new_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Welcome a new player and show them available commands.";
+    "Args: {player_obj}";
+    {new_player} = args;
+    !valid(new_player) && return;
+    set_task_perms(new_player);
+    "Welcome them to the MUD and show the what command";
+    welcome_msg = this:_apply_template(this.new_player_welcome_message);
+    event = $event:mk_info(new_player, welcome_msg):with_audience('utility);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    new_player:inform_current(event);
   endverb
 endobject

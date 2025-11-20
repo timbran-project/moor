@@ -530,92 +530,151 @@ object PLAYER
     this:inform_current(event);
   endverb
 
-  verb what (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Display available commands and actions. Shows targetable verbs on nearby objects and ambient commands.";
-    "Syntax: help [search-term]";
+  verb "what help" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Tell the player where they are and what's around.";
+    "Display available commands and actions. If a target object is specified, show help for that object.";
+    "Syntax: what [target]";
     caller != this && raise(E_PERM);
     set_task_perms(this);
-    "Get targetable verbs from match_environment (things you can do with objects)";
+    if (dobjstr && dobjstr != "")
+      try
+        target_obj = $match:match_object(dobjstr, this);
+      except e (ANY)
+        this:inform_current($event:mk_error(this, "I can't find that."):with_audience('utility));
+        return;
+      endtry
+      result = this:_show_targeted_help(target_obj);
+      lines = result[1];
+      "Show developer documentation hint for programmers";
+      if (this.programmer)
+        lines = {@lines, $format.title:mk("Try programmer documentation with:")};
+        lines = {@lines, $format.code:mk("@doc " + dobjstr + "\n@doc " + dobjstr + ":verb")};
+      endif
+      content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
+      event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+      this:inform_current(event);
+      return;
+    endif
+    lines = this:_show_location_help();
+    content = $format.block:mk($format.title:mk("Help"), @lines);
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+    this:inform_current(event);
+  endverb
+
+  verb _show_location_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Show help for current location context. Returns modified lines list.";
+    context_block = `$help_utils:display_location_context(this) ! ANY => 0';
+    lines = {};
+    if (context_block && context_block != 0)
+      lines = {@lines, context_block};
+    endif
     match_env = this:match_environment("");
     targetable_verbs = $obj_utils:collect_targetable_verbs(match_env);
-    "Get ambient verbs from command_environment (things you can do without targeting)";
     cmd_env = this:command_environment();
     ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
-    "Build help display";
-    lines = {};
-    lines = {@lines, $format.title:mk("Available Actions")};
-    "Display targetable verbs grouped by object";
-    if (targetable_verbs && length(targetable_verbs) > 0)
-      lines = {@lines, ""};
-      for obj_info in (targetable_verbs)
-        obj_name = obj_info["object_name"];
-        verbs = obj_info["verbs"];
-        heading = "Things you can do with " + obj_name;
-        lines = {@lines, $format.title:mk(heading, 4)};
-        verb_str = "";
-        first = true;
-        for sig in (verbs)
-          if (!first)
-            verb_str = verb_str + ", ";
-          endif
-          verb_str = verb_str + sig;
-          first = false;
-        endfor
-        lines = {@lines, "  " + verb_str};
-      endfor
-    endif
-    "Display ambient verbs, separated into player and room verbs";
-    if (ambient_verbs && length(ambient_verbs) > 0)
-      player_verbs = {};
-      room_verbs = {};
-      location = this.location;
-      "Separate verbs by source object";
-      for verb_info in (ambient_verbs)
-        verb_name = verb_info["verb"];
-        from_obj = verb_info["from_object"];
-        "Room verbs are from the location, everything else is player/features";
-        if (from_obj == location)
-          room_verbs = {@room_verbs, verb_name};
-        else
-          player_verbs = {@player_verbs, verb_name};
-        endif
-      endfor
-      "Display player commands (including features)";
-      if (player_verbs && length(player_verbs) > 0)
-        lines = {@lines, ""};
-        lines = {@lines, $format.title:mk("Things you can do", 4)};
-        verb_str = "";
-        first = true;
-        for verb_name in (player_verbs)
-          if (!first)
-            verb_str = verb_str + ", ";
-          endif
-          verb_str = verb_str + verb_name;
-          first = false;
-        endfor
-        lines = {@lines, "  " + verb_str};
-      endif
-      "Display room commands";
-      if (room_verbs && length(room_verbs) > 0)
-        lines = {@lines, ""};
-        lines = {@lines, $format.title:mk("Things you can do in this room", 4)};
-        verb_str = "";
-        first = true;
-        for verb_name in (room_verbs)
-          if (!first)
-            verb_str = verb_str + ", ";
-          endif
-          verb_str = verb_str + verb_name;
-          first = false;
-        endfor
-        lines = {@lines, "  " + verb_str};
-      endif
-    endif
+    lines = this:_display_targetable_verbs(targetable_verbs, lines);
+    lines = this:_display_ambient_verbs(ambient_verbs, lines);
     if (length(targetable_verbs) == 0 && length(ambient_verbs) == 0)
       lines = {@lines, "(No commands available)"};
     endif
-    content = $format.block:mk(@lines);
-    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
-    this:inform_current(event);
+    "Show developer documentation hint for programmers";
+    if (this.programmer)
+      lines = {@lines, $format.title:mk("To look for programmer documentation...")};
+      lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
+    endif
+    return lines;
+  endverb
+
+  verb _show_targeted_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Show help for a targeted object. Returns {lines_list, has_documentation_flag}.";
+    {target_obj} = args;
+    target_obj = #-1;
+    has_doc = false;
+    cmd_env = this:command_environment();
+    lines = {};
+    "If target is in command environment, show ambient verbs";
+    if (cmd_env && target_obj in cmd_env)
+      ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
+      if (ambient_verbs && length(ambient_verbs) > 0)
+        lines = {@lines, ""};
+        lines = {@lines, $format.title:mk("Things you can do", 4)};
+        verbs = {};
+        for verb_info in (ambient_verbs)
+          verbs = {@verbs, verb_info["verb"]};
+        endfor
+        lines = {@lines, $format.code:mk(verbs:join(", "))};
+      else
+        lines = {@lines, "(No commands available)"};
+      endif
+      return {lines, has_doc};
+    endif
+    "Show help for target object";
+    help_content = `target_obj:object_help() ! ANY => 0';
+    if (help_content && help_content != 0)
+      has_doc = true;
+      if (typeof(help_content) == LIST)
+        lines = {@lines, @help_content};
+      else
+        lines = {@lines, help_content};
+      endif
+    endif
+    "Get targetable verbs for this object";
+    targetable_verbs = $obj_utils:collect_targetable_verbs({target_obj});
+    if (targetable_verbs && length(targetable_verbs) > 0)
+      lines = {@lines, ""};
+      for obj_info in (targetable_verbs)
+        lines = {@lines, $format.title:mk("Things you can do with " + obj_info["object_name"], 4)};
+        lines = {@lines, $format.code:mk(obj_info["verbs"]:join(", "))};
+      endfor
+    else
+      lines = {@lines, "(No commands available for this object)"};
+    endif
+    return {lines, has_doc};
+  endverb
+
+  verb _display_targetable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display targetable verbs grouped by object. Returns modified lines list.";
+    {targetable_verbs, lines} = args;
+    if (!(targetable_verbs && length(targetable_verbs) > 0))
+      return lines;
+    endif
+    lines = {@lines, ""};
+    for obj_info in (targetable_verbs)
+      lines = {@lines, $format.title:mk("Things you can do with " + obj_info["object_name"], 4)};
+      lines = {@lines, $format.code:mk(obj_info["verbs"]:join(", "))};
+    endfor
+    return lines;
+  endverb
+
+  verb _display_ambient_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display ambient verbs, separated into player and room verbs. Returns modified lines list.";
+    {ambient_verbs, lines} = args;
+    if (!(ambient_verbs && length(ambient_verbs) > 0))
+      return lines;
+    endif
+    player_verbs = {};
+    room_verbs = {};
+    location = this.location;
+    "Separate verbs by source object";
+    for verb_info in (ambient_verbs)
+      if (verb_info["from_object"] == location)
+        room_verbs = {@room_verbs, verb_info["verb"]};
+      else
+        player_verbs = {@player_verbs, verb_info["verb"]};
+      endif
+    endfor
+    "Display player commands (including features)";
+    if (player_verbs && length(player_verbs) > 0)
+      lines = {@lines, ""};
+      lines = {@lines, $format.title:mk("Things you can do", 4)};
+      lines = {@lines, $format.code:mk(player_verbs:join(", "))};
+    endif
+    "Display room commands";
+    if (room_verbs && length(room_verbs) > 0)
+      lines = {@lines, ""};
+      lines = {@lines, $format.title:mk("Things you can do in this room", 4)};
+      lines = {@lines, $format.code:mk(room_verbs:join(", "))};
+    endif
+    return lines;
   endverb
 endobject

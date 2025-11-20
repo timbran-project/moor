@@ -668,4 +668,20 @@ object ROOT
     test_room:destroy();
     return true;
   endverb
+
+  verb object_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return formatted help for this object. Returns a $format flyweight or 0 if no help available.";
+    "Checks for .object_help property and formats it if found.";
+    set_task_perms(caller_perms());
+    help_text = `this.object_help ! ANY => 0';
+    if (!help_text || help_text == 0)
+      return 0;
+    endif
+    "Format as djot content";
+    if (typeof(help_text) == LIST)
+      return $format.block:mk(this:display_name(), @help_text);
+    else
+      return $format.block:mk(this:display_name(), {help_text});
+    endif
+  endverb
 endobject

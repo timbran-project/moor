@@ -26,6 +26,7 @@ object SYSOBJ
   property format (owner: HACKER, flags: "r") = FORMAT;
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
+  property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
@@ -87,6 +88,10 @@ object SYSOBJ
       `user:confunc() ! E_VERBNF';
     endfork
     `user.location:confunc(user) ! E_INVIND, E_VERBNF';
+    "Welcome new players after room setup";
+    if (verb == "user_created")
+      `$login:welcome_new_player(user) ! E_VERBNF';
+    endif
     `user:anyconfunc() ! E_VERBNF';
   endverb
 
