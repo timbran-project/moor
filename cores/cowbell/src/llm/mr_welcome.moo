@@ -91,6 +91,9 @@ object MR_WELCOME
     "Register think tool";
     think_tool = $llm_agent_tool:mk("think", "Playfully express your internal thoughts in a visible thought bubble. Use this for whimsical observations, amusing asides, ponderings, or fun meta-commentary that adds personality and humor to the conversation. It's a delightful way to show what you're thinking without actually saying it aloud. The thought will be shown as 'Mr. Welcome . o O ( your thought )'.", ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "The thought or observation to express"]], "required" -> {"thought"}], this, "_tool_think");
     agent:add_tool("think", think_tool);
+    "Register inspect_object tool";
+    inspect_object_tool = $llm_agent_tool:mk("inspect_object", "Examine an object in detail to get comprehensive information about it. Shows name, description, owner, parent, location, and available commands. Use this when you want detailed information about what an object is and what players can do with it.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to inspect (e.g., 'compass', 'welcome', 'chair')"]], "required" -> {"object_name"}], this, "_tool_inspect_object");
+    agent:add_tool("inspect_object", inspect_object_tool);
   endverb
 
   verb _tool_list_players (this none this) owner: HACKER flags: "rxd"
@@ -398,11 +401,67 @@ object MR_WELCOME
     return "Thought: " + thought;
   endverb
 
+  verb _tool_inspect_object (this none this) owner: HACKER flags: "rxd"
+    "Tool: Inspect an object and return detailed information using examination flyweight";
+    {args_map} = args;
+    object_name = args_map["object_name"];
+    typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
+    "Find the object first";
+    current_room = this.location;
+    if (!valid(current_room))
+      return "Error: Mr. Welcome is not in a room";
+    endif
+    found = #-1;
+    room_contents = `current_room:contents() ! ANY => current_room.contents';
+    for item in (room_contents)
+      suspend(0);
+      if (valid(item) && item:name():contains(object_name))
+        found = item;
+        break;
+      endif
+    endfor
+    if (!valid(found))
+      return "Could not find '" + object_name + "' in " + current_room:name() + ".";
+    endif
+    "Get examination flyweight";
+    exam = found:examination();
+    if (typeof(exam) != FLYWEIGHT)
+      return "Error: Could not examine '" + object_name + "'.";
+    endif
+    "Build detailed information from examination";
+    result = {};
+    result = {@result, "Object: " + exam.name + " (" + tostr(exam.object_ref) + ")"};
+    if (exam.aliases && length(exam.aliases) > 0)
+      result = {@result, "Aliases: " + exam.aliases:join(", ")};
+    endif
+    if (exam.description && exam.description != "")
+      result = {@result, "Description: " + exam.description};
+    endif
+    if (valid(exam.owner))
+      owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
+      result = {@result, "Owner: " + owner_name + " (" + tostr(exam.owner) + ")"};
+    endif
+    if (valid(exam.parent))
+      parent_name = `exam.parent:name() ! ANY => tostr(exam.parent)';
+      result = {@result, "Parent: " + parent_name + " (" + tostr(exam.parent) + ")"};
+    endif
+    "Show available commands";
+    if (exam.verbs && length(exam.verbs) > 0)
+      result = {@result, ""};
+      result = {@result, "Available commands:"};
+      for verb_info in (exam.verbs)
+        {verb_name, definer, dobj, prep, iobj} = verb_info;
+        result = {@result, "  * " + verb_name + " (" + dobj + " " + prep + " " + iobj + ")"};
+      endfor
+    endif
+    return result:join("\n");
+  endverb
+
   verb on_tool_call (this none this) owner: HACKER flags: "rxd"
     "Callback when agent uses a tool - announce to room";
     {tool_name, tool_args} = args;
     if (valid(this.location))
-      tool_messages = ["list_players" -> "checks who's connected...", "player_info" -> "looks up player information...", "area_map" -> "recalls the rooms in the area...", "find_route" -> "calculates the best route...", "find_object" -> "looks around the room...", "list_commands" -> "examines what can be done...", "emote" -> "", "directed_say" -> "", "think" -> ""];
+      tool_messages = ["list_players" -> "checks who's connected...", "player_info" -> "looks up player information...", "area_map" -> "recalls the rooms in the area...", "find_route" -> "calculates the best route...", "find_object" -> "looks around the room...", "list_commands" -> "examines what can be done...", "inspect_object" -> "examines an object closely...", "emote" -> "", "directed_say" -> "", "think" -> ""];
       message = tool_messages[tool_name] || "thinks...";
       if (message)
         this.location:announce(this:mk_emote_event(message));

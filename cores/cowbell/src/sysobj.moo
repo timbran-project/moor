@@ -18,6 +18,7 @@ object SYSOBJ
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
   property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
+  property examination (owner: HACKER, flags: "r") = EXAMINATION;
   property failed_match (owner: HACKER, flags: "r") = #-3;
   property fg_ticks (owner: HACKER, flags: "r") = 600000;
   property first_area (owner: HACKER, flags: "r") = FIRST_AREA;

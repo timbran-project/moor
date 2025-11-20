@@ -440,4 +440,89 @@ object PLAYER
     setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
     return setup_cap;
   endverb
+
+  verb "e*xamine exam" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Display detailed information about an object.";
+    "Syntax: examine <object>";
+    "";
+    "Shows the object's name, aliases, owner, description, parent, location, contents, and available verbs.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    if (dobjstr == "")
+      return this:inform_current($event:mk_not_found(this, "Examine what?"):with_audience('utility));
+    endif
+    "Try to match the object";
+    target = E_NONE;
+    try
+      target = $match:match_object(dobjstr, player);
+    except e (ANY)
+      return this:inform_current($event:mk_not_found(player, "Could not find '\" + dobjstr + \"' to examine."):with_audience('utility));
+    endtry
+    if (typeof(target) == ERR)
+      return this:inform_current($event:mk_not_found(player, "No object found matching '\" + dobjstr + \"'."):with_audience('utility));
+    endif
+    !valid(target) && return this:inform_current(this:msg_no_dobj_match());
+    "Get the examination flyweight";
+    exam = target:examination();
+    if (typeof(exam) != FLYWEIGHT)
+      return this:inform_current($event:mk_error(this, "Could not examine that object."):with_audience('utility));
+    endif
+    "Build the display output following LambdaCore style";
+    lines = {};
+    "Header with object name, aliases, and number";
+    header_parts = {exam.name};
+    if (exam.aliases && length(exam.aliases) > 0)
+      header_parts = {@header_parts, "aka " + exam.aliases:join(" and ")};
+    endif
+    header_parts = {@header_parts, "and", tostr(exam.object_ref)};
+    header = header_parts:join(" ");
+    lines = {@lines, $format.title:mk(header)};
+    "Ownership";
+    if (valid(exam.owner))
+      owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
+      lines = {@lines, "Owned by " + owner_name + "."};
+    else
+      lines = {@lines, "(Unowned)"};
+    endif
+    "Description";
+    if (exam.description && exam.description != "")
+      lines = {@lines, exam.description};
+    else
+      lines = {@lines, "(No description set.)"};
+    endif
+    "Obvious verbs if any";
+    if (exam.verbs && length(exam.verbs) > 0)
+      lines = {@lines, ""};
+      "Build user-friendly verb signatures";
+      verb_sigs = {};
+      for verb_info in (exam.verbs)
+        {verb_name, definer, dobj, prep, iobj} = verb_info;
+        verb_sig = verb_name;
+        "Add dobj: use object name for 'this', placeholder for 'any'";
+        if (dobj == "any")
+          verb_sig = verb_sig + " <anything>";
+        elseif (dobj == "this")
+          verb_sig = verb_sig + " " + exam.name;
+        endif
+        "Add iobj if there's a preposition: use object name for 'this', placeholder for 'any'";
+        if (prep != "none")
+          verb_sig = verb_sig + " " + prep;
+          if (iobj == "any")
+            verb_sig = verb_sig + " <anything>";
+          elseif (iobj == "this")
+            verb_sig = verb_sig + " " + exam.name;
+          endif
+        endif
+        verb_sigs = {@verb_sigs, verb_sig};
+      endfor
+      "Create formatted verb list";
+      verb_list = $format.list:mk(verb_sigs);
+      verb_title = $format.title:mk("Obvious verbs");
+      lines = {@lines, verb_title, verb_list};
+    endif
+    "Create formatted block and send as event";
+    content = $format.block:mk(@lines);
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+    this:inform_current(event);
+  endverb
 endobject

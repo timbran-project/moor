@@ -451,6 +451,94 @@ object ROOT
     return {this.delegate, run_as};
   endverb
 
+  verb is_actor (this none this) owner: HACKER flags: "rxd"
+    "Return whether this object is an actor (player or NPC). Override in descendants.";
+    return false;
+  endverb
+
+  verb display_name (this none this) owner: HACKER flags: "rxd"
+    "Return the display name for this object. Defaults to :name() but can be overridden for richer descriptions.";
+    return this:name();
+  endverb
+
+  verb check_property_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if a property exists on this object.";
+    "Returns false if property doesn't exist or if the user does not have permissions to view it. Otherwise returns true.";
+    "Usage: $root:check_property_exists(target_obj, prop_name)";
+    {prop_name} = args;
+    set_task_perms(caller_perms());
+    return `property_info(this, prop_name) ! ANY => false' || true;
+  endverb
+
+  verb to_curie_str (this none this) owner: HACKER flags: "rxd"
+    "Convert this object reference to a CURIE string for web-host RESTful paths.";
+    "Returns strings like 'uuid:...', 'oid:...', or 'sysobj:...' depending on object type.";
+    "Usage: obj:to_curie_str()";
+    "Rejects where this is a flyweight by raising E_TYPE";
+    typeof(this) == OBJ || raise(E_TYPE);
+    obj_str = tostr(this);
+    if (is_uuobjid(this))
+      return "uuid:" + obj_str[2..$];
+    else
+      return "oid:" + obj_str[2..$];
+    endif
+  endverb
+
+  verb usable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Get verbs that can use this object as a target (dobj or iobj).";
+    "Returns list of {verb_name, definer_object, dobj, prep, iobj} for verbs that accept 'any' or 'this'.";
+    "Useful for determine what commands a player can perform on/with an object.";
+    set_task_perms(caller_perms());
+    result = {};
+    "Walk inheritance chain starting from this object";
+    for definer in ({this, @ancestors(this)})
+      "Get all verbs defined on this level";
+      for verb_name in (verbs(definer))
+        "Get verb info to check flags and signature";
+        {verb_owner, verb_flags, verb_names} = verb_info(definer, verb_name);
+        "Skip non-readable verbs";
+        if (!index(verb_flags, "r"))
+          continue;
+        endif
+        "Get verb signature";
+        {dobj, prep, iobj} = verb_args(definer, verb_name);
+        "Skip internal utility verbs like 'this none this' (methods, not commands)";
+        if (dobj == "this" && prep == "none" && iobj == "this")
+          continue;
+        endif
+        "Include verbs that have 'this' as dobj or iobj - excludes 'any any any' verbs";
+        if (dobj == "this" || iobj == "this" || dobj == "any" || iobj == "any")
+          "But exclude verbs that are 'any any any' (not useful for examining this object)";
+          if (!(dobj == "any" && iobj == "any"))
+            result = {@result, {verb_name, definer, dobj, prep, iobj}};
+          endif
+        endif
+      endfor
+    endfor
+    return result;
+  endverb
+
+  verb examination (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return structured examination data about this object as a flyweight.";
+    "Contains slots: object_ref, name, aliases, owner, parent, description, verbs (usable ones), location, contents.";
+    "Subclasses should override this to customize or extend the examination data.";
+    "Usage: examination = obj:examination();";
+    "Returns: <$examination, [slots...]>";
+    set_task_perms(caller_perms());
+    "Get basic properties";
+    obj_name = `this:name() ! ANY => this.name';
+    obj_aliases = `this:aliases() ! ANY => this.aliases';
+    obj_description = `this:description() ! ANY => this.description';
+    obj_owner = `this.owner ! ANY => #-1';
+    obj_parent = `parent(this) ! ANY => #-1';
+    obj_location = `this.location ! ANY => #-1';
+    "Get verbs that can use this object as a target";
+    usable = this:usable_verbs();
+    "Get contents";
+    obj_contents = `this:contents() ! E_PROPNF => {}';
+    return <$examination, .object_ref = this, .name = obj_name, .aliases = obj_aliases, .description = obj_description, .owner = obj_owner, .parent = obj_parent, .location = obj_location, .verbs = usable, .contents = obj_contents>;
+  endverb
+
   verb test_all_verbs (this none this) owner: HACKER flags: "rx"
     all_verbs = this:all_verbs();
     !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
@@ -579,38 +667,5 @@ object ROOT
     test_player:destroy();
     test_room:destroy();
     return true;
-  endverb
-
-  verb is_actor (this none this) owner: HACKER flags: "rxd"
-    "Return whether this object is an actor (player or NPC). Override in descendants.";
-    return false;
-  endverb
-
-  verb display_name (this none this) owner: HACKER flags: "rxd"
-    "Return the display name for this object. Defaults to :name() but can be overridden for richer descriptions.";
-    return this:name();
-  endverb
-
-  verb check_property_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Check if a property exists on this object.";
-    "Returns false if property doesn't exist or if the user does not have permissions to view it. Otherwise returns true.";
-    "Usage: $root:check_property_exists(target_obj, prop_name)";
-    {prop_name} = args;
-    set_task_perms(caller_perms());
-    return `property_info(this, prop_name) ! ANY => false' || true;
-  endverb
-
-  verb to_curie_str (this none this) owner: HACKER flags: "rxd"
-    "Convert this object reference to a CURIE string for web-host RESTful paths.";
-    "Returns strings like 'uuid:...', 'oid:...', or 'sysobj:...' depending on object type.";
-    "Usage: obj:to_curie_str()";
-    "Rejects where this is a flyweight by raising E_TYPE";
-    typeof(this) == OBJ || raise(E_TYPE);
-    obj_str = tostr(this);
-    if (is_uuobjid(this))
-      return "uuid:" + obj_str[2..$];
-    else
-      return "oid:" + obj_str[2..$];
-    endif
   endverb
 endobject
