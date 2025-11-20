@@ -130,23 +130,17 @@ object ROOM
     exits = {};
     ambient_passages = {};
     for passage in (passages)
-      "Determine which side we're on and get the label";
-      side_a_room = `passage.side_a_room ! ANY => #-1';
-      side_b_room = `passage.side_b_room ! ANY => #-1';
-      if (this == side_a_room)
-        label = `passage.side_a_label ! ANY => "passage"';
-        description = `passage.side_a_description ! ANY => ""';
-        ambient = `passage.side_a_ambient ! ANY => true';
-        is_open = `passage.is_open ! ANY => false';
-      elseif (this == side_b_room)
-        label = `passage.side_b_label ! ANY => "passage"';
-        description = `passage.side_b_description ! ANY => ""';
-        ambient = `passage.side_b_ambient ! ANY => true';
-        is_open = `passage.is_open ! ANY => false';
-      else
+      is_open = `passage.is_open ! ANY => false';
+      if (!is_open)
         continue;
       endif
-      if (label && is_open)
+      "Get label, description, and ambient flag for this room's side of the passage";
+      info = passage:side_info_for(this);
+      if (length(info) == 0)
+        continue;
+      endif
+      {label, description, ambient} = info;
+      if (label)
         if (ambient && description)
           "Ambient passages with descriptions integrate into room description";
           ambient_passages = {@ambient_passages, description};
@@ -176,5 +170,47 @@ object ROOM
     set_task_perms(caller_perms());
     {this, perms} = this:check_permissions('dig_into);
     return true;
+  endverb
+
+  verb "exits ways" (none none none) owner: ARCH_WIZARD flags: "rd"
+    "List the ways out of this room.";
+    set_task_perms(caller_perms());
+    "Get passages from our area";
+    area = this.location;
+    if (!valid(area) || !respond_to(area, 'passages_from))
+      player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
+      return;
+    endif
+    passages = area:passages_from(this);
+    if (!passages || length(passages) == 0)
+      player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
+      return;
+    endif
+    "Collect exit information";
+    exit_lines = {};
+    for passage in (passages)
+      is_open = `passage.is_open ! ANY => false';
+      if (!is_open)
+        continue;
+      endif
+      info = passage:side_info_for(this);
+      if (length(info) == 0)
+        continue;
+      endif
+      {label, description, ambient} = info;
+      if (label)
+        exit_lines = {@exit_lines, label};
+      endif
+    endfor
+    if (length(exit_lines) == 0)
+      player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
+      return;
+    endif
+    "Format and display exits";
+    exit_list = $format.list:mk(exit_lines);
+    exit_title = $format.title:mk("Ways out");
+    content = $format.block:mk(exit_title, exit_list);
+    event = $event:mk_info(player, content):with_audience('utility):with_presentation_hint('inset);
+    player:inform_current(event);
   endverb
 endobject

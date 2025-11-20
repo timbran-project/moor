@@ -298,4 +298,18 @@ object PASSAGE
     endfor
     return result;
   endverb
+
+  verb side_info_for (this none this) owner: HACKER flags: "rxd"
+    "Get label, description, and ambient flag for a given room side.";
+    "Returns [label, description, ambient] or empty list if room not found.";
+    {room} = args;
+    label = this:label_for(room);
+    description = this:description_for(room);
+    side = this:side_for(room);
+    if (side == 'none)
+      return {};
+    endif
+    ambient = this:_side_lookup(side, 'ambient);
+    return {label, description, ambient};
+  endverb
 endobject
