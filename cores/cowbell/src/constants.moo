@@ -74,6 +74,7 @@ define PROPERTY = #55;
 define MATCH = #21;
 define GRANT_UTILS = #25;
 define PROG_UTILS = #53;
+define OBJ_UTILS = #57;
 
 // world
 define ROOM = #7;

@@ -465,7 +465,7 @@ object PLAYER
     return setup_cap;
   endverb
 
-  verb "exam*ine" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "exam*ine x" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Display detailed information about an object.";
     "Syntax: examine <object>";
     "";
@@ -517,34 +517,103 @@ object PLAYER
     "Obvious verbs if any";
     if (exam.verbs && length(exam.verbs) > 0)
       lines = {@lines, ""};
-      "Build user-friendly verb signatures";
-      verb_sigs = {};
-      for verb_info in (exam.verbs)
-        {verb_name, definer, dobj, prep, iobj} = verb_info;
-        verb_sig = verb_name;
-        "Add dobj: use object name for 'this', placeholder for 'any'";
-        if (dobj == "any")
-          verb_sig = verb_sig + " <anything>";
-        elseif (dobj == "this")
-          verb_sig = verb_sig + " " + exam.name;
-        endif
-        "Add iobj if there's a preposition: use object name for 'this', placeholder for 'any'";
-        if (prep != "none")
-          verb_sig = verb_sig + " " + prep;
-          if (iobj == "any")
-            verb_sig = verb_sig + " <anything>";
-          elseif (iobj == "this")
-            verb_sig = verb_sig + " " + exam.name;
-          endif
-        endif
-        verb_sigs = {@verb_sigs, verb_sig};
-      endfor
+      "Build user-friendly verb signatures using obj_utils";
+      verb_sigs = $obj_utils:format_verb_signatures(exam.verbs, exam.name);
       "Create formatted verb list";
       verb_list = $format.list:mk(verb_sigs);
       verb_title = $format.title:mk("Obvious verbs");
       lines = {@lines, verb_title, verb_list};
     endif
     "Create formatted block and send as event";
+    content = $format.block:mk(@lines);
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+    this:inform_current(event);
+  endverb
+
+  verb what (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Display available commands and actions. Shows targetable verbs on nearby objects and ambient commands.";
+    "Syntax: help [search-term]";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    "Get targetable verbs from match_environment (things you can do with objects)";
+    match_env = this:match_environment("");
+    targetable_verbs = $obj_utils:collect_targetable_verbs(match_env);
+    "Get ambient verbs from command_environment (things you can do without targeting)";
+    cmd_env = this:command_environment();
+    ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
+    "Build help display";
+    lines = {};
+    lines = {@lines, $format.title:mk("Available Actions")};
+    "Display targetable verbs grouped by object";
+    if (targetable_verbs && length(targetable_verbs) > 0)
+      lines = {@lines, ""};
+      for obj_info in (targetable_verbs)
+        obj_name = obj_info["object_name"];
+        verbs = obj_info["verbs"];
+        heading = "Things you can do with " + obj_name;
+        lines = {@lines, $format.title:mk(heading, 4)};
+        verb_str = "";
+        first = true;
+        for sig in (verbs)
+          if (!first)
+            verb_str = verb_str + ", ";
+          endif
+          verb_str = verb_str + sig;
+          first = false;
+        endfor
+        lines = {@lines, "  " + verb_str};
+      endfor
+    endif
+    "Display ambient verbs, separated into player and room verbs";
+    if (ambient_verbs && length(ambient_verbs) > 0)
+      player_verbs = {};
+      room_verbs = {};
+      location = this.location;
+      "Separate verbs by source object";
+      for verb_info in (ambient_verbs)
+        verb_name = verb_info["verb"];
+        from_obj = verb_info["from_object"];
+        "Room verbs are from the location, everything else is player/features";
+        if (from_obj == location)
+          room_verbs = {@room_verbs, verb_name};
+        else
+          player_verbs = {@player_verbs, verb_name};
+        endif
+      endfor
+      "Display player commands (including features)";
+      if (player_verbs && length(player_verbs) > 0)
+        lines = {@lines, ""};
+        lines = {@lines, $format.title:mk("Things you can do", 4)};
+        verb_str = "";
+        first = true;
+        for verb_name in (player_verbs)
+          if (!first)
+            verb_str = verb_str + ", ";
+          endif
+          verb_str = verb_str + verb_name;
+          first = false;
+        endfor
+        lines = {@lines, "  " + verb_str};
+      endif
+      "Display room commands";
+      if (room_verbs && length(room_verbs) > 0)
+        lines = {@lines, ""};
+        lines = {@lines, $format.title:mk("Things you can do in this room", 4)};
+        verb_str = "";
+        first = true;
+        for verb_name in (room_verbs)
+          if (!first)
+            verb_str = verb_str + ", ";
+          endif
+          verb_str = verb_str + verb_name;
+          first = false;
+        endfor
+        lines = {@lines, "  " + verb_str};
+      endif
+    endif
+    if (length(targetable_verbs) == 0 && length(ambient_verbs) == 0)
+      lines = {@lines, "(No commands available)"};
+    endif
     content = $format.block:mk(@lines);
     event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
     this:inform_current(event);

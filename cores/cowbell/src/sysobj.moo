@@ -40,6 +40,7 @@ object SYSOBJ
   property match (owner: HACKER, flags: "r") = MATCH;
   property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
   property nothing (owner: HACKER, flags: "r") = #-1;
+  property obj_utils (owner: HACKER, flags: "r") = OBJ_UTILS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
