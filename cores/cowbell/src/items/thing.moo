@@ -11,6 +11,8 @@ object THING
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_countable_noun (owner: HACKER, flags: "rc") = true;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
+  property drop_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " dropped ", <SUB, .capitalize = false, .type = 'dobj>, "."};
+  property get_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " picked up ", <SUB, .capitalize = false, .type = 'dobj>, "."};
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};
@@ -88,7 +90,9 @@ object THING
       return;
     endtry
     if (isa(old_location, $room))
-      event = $event:mk_moved(player, $sub:nc(), " picked up ", $sub:d(), "."):with_dobj(this):with_iobj(player);
+      "Use custom message if available, otherwise use default";
+      message_content = this.get_msg;
+      event = $event:mk_moved(player, @message_content):with_dobj(this):with_iobj(player);
       old_location:announce(event);
     endif
   endverb
@@ -116,7 +120,9 @@ object THING
       player:inform_current(event);
       return;
     endtry
-    event = $event:mk_moved(player, $sub:nc(), " dropped ", $sub:d(), "."):with_dobj(this):with_iobj(player);
+    "Use custom message if available, otherwise use default";
+    message_content = this.drop_msg;
+    event = $event:mk_moved(player, @message_content):with_dobj(this):with_iobj(player);
     new_location:announce(event);
   endverb
 

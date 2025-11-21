@@ -17,6 +17,7 @@ define LOGIN = #17;
 define EVENT_RECEIVER = #4;
 define EVENT = #18;
 define SUB = #19;
+define SUB_UTILS = #59;
 
 // features
 define SOCIAL_FEATURES = #36;

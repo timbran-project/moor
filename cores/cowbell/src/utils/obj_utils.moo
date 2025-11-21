@@ -150,4 +150,79 @@ object OBJ_UTILS
     return result;
   endverb
 
+  verb validate_and_compile_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Compile a template string into a $sub flyweight list. Returns {success, result}.";
+    "If success is true, result is the compiled list.";
+    "If success is false, result is the error message.";
+    {template_string} = args;
+    typeof(template_string) != STR && raise(E_TYPE, "template_string must be string");
+    try
+      compiled = $sub_utils:compile(template_string);
+      return {true, compiled};
+    except e (ANY)
+      error_msg = length(e) > 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      return {false, error_msg};
+    endtry
+  endverb
+
+  verb check_message_property_writable (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if a player can write to a message property on an object.";
+    "Returns {writable, error_msg} where writable is true/false.";
+    {target_obj, prop_name, player} = args;
+    typeof(target_obj) != OBJ && raise(E_TYPE, "target_obj must be object");
+    typeof(prop_name) != STR && raise(E_TYPE, "prop_name must be string");
+    typeof(player) != OBJ && raise(E_TYPE, "player must be object");
+    "Check property exists";
+    if (!(prop_name in target_obj:all_properties()))
+      return {false, "Property '" + prop_name + "' does not exist on " + tostr(target_obj) + "."};
+    endif
+    "Get property metadata to check permissions";
+    try
+      metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
+      owner = metadata:owner();
+      perms = metadata:perms();
+      "Check if player owns it or is wizard";
+      if (player.wizard || owner == player)
+        "Check if w permission is set";
+        if (index(perms, "w"))
+          return {true, ""};
+        else
+          return {false, "Property '" + prop_name + "' is not writable."};
+        endif
+      else
+        return {false, "You do not have permission to modify property '" + prop_name + "' on " + tostr(target_obj) + "."};
+      endif
+    except e (ANY)
+      return {false, "Error checking property: " + toliteral(e)};
+    endtry
+  endverb
+
+  verb set_compiled_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set a compiled message property with elevated permissions.";
+    "Args: {target_obj, prop_name, compiled_list, player}";
+    {target_obj, prop_name, compiled_list, player} = args;
+    set_task_perms(player);
+    target_obj.(prop_name) = compiled_list;
+  endverb
+
+  verb message_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return list of readable message properties (ending with _msg) on an object.";
+    "Args: {target_obj}";
+    "Returns: list of {property_name, current_value}";
+    set_task_perms(caller_perms());
+    {target_obj} = args;
+    !valid(target_obj) && return {};
+    result = {};
+    all_props = target_obj:all_properties();
+    typeof(all_props) != LIST && return {};
+    for prop_name in (all_props)
+      "Check if property ends with _msg";
+      if (prop_name:ends_with("_msg"))
+        prop_value = target_obj.(prop_name);
+        result = {@result, {prop_name, prop_value}};
+      endif
+    endfor
+    return result;
+  endverb
+
 endobject

@@ -210,4 +210,22 @@ object EVENT
     {hint} = args;
     return this:with_metadata('presentation_hint, hint);
   endverb
+
+  verb get_binding (this none this) owner: HACKER flags: "rxd"
+    "Resolve a binding name to a value from the event context.";
+    {name} = args;
+    "Handle both abbreviated and full names for substitutions";
+    if (name == 'dobj || name == 'd || name == 'dc)
+      return this.dobj;
+    elseif (name == 'iobj || name == 'i || name == 'ic)
+      return this.iobj;
+    elseif (name == 'actor || name == 'n || name == 'nc)
+      return this.actor;
+    elseif (name == 'location || name == 'l || name == 'lc)
+      return this.actor.location;
+    elseif (name == 'this || name == 't || name == 'tc)
+      return this.this_obj;
+    endif
+    return false;
+  endverb
 endobject

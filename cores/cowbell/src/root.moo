@@ -29,8 +29,12 @@ object ROOT
     "";
     "Returns: New child object with caller_perms() as owner (or run_as from capability)";
     "Check fertility first - object-creation specific permission";
-    target = typeof(this) == FLYWEIGHT ? this.delegate | this;
-    is_fertile = `target.fertile ! E_PROPNF => false';
+    if (typeof(this) == FLYWEIGHT)
+      target = this.delegate;
+    else
+      target = this;
+    endif
+    is_fertile = target.f;
     if (!is_fertile)
       {_, perms} = this:check_permissions('create_child);
     endif
@@ -148,13 +152,24 @@ object ROOT
   verb all_verbs (this none this) owner: ARCH_WIZARD flags: "rx"
     set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all verbs.";
-    if (this.owner != caller_perms())
-      set_task_perms(caller_perms());
-    endif
+    set_task_perms(caller_perms());
     what = this;
     verbs = {};
     while (valid(what))
       verbs = {@verbs(what) || {}, @verbs};
+      what = parent(what);
+    endwhile
+    return verbs;
+  endverb
+
+  verb all_properties (this none this) owner: ARCH_WIZARD flags: "rx"
+    set_task_perms(caller_perms());
+    "Recurse up the inheritance hierarchy, getting a list of all verbs.";
+    set_task_perms(caller_perms());
+    what = this;
+    verbs = {};
+    while (valid(what))
+      verbs = {@properties(what) || {}, @verbs};
       what = parent(what);
     endwhile
     return verbs;

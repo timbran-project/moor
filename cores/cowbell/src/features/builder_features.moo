@@ -862,4 +862,111 @@ object BUILDER_FEATURES
     object_curie = target_obj:to_curie_str();
     present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
+
+  verb "@set-m*essage @setm" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Set a custom message template on an object property.";
+    "Usage: @set-message OBJECT.PROPERTY template string...";
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!argstr || length(args) < 2)
+      raise(E_INVARG, $format.code:mk("@set-message OBJECT.PROPERTY template string..."));
+    endif
+    try
+     target_spec = args[1];
+     "Parse property reference";
+     parsed = $prog_utils:parse_target_spec(target_spec);
+     if (!parsed || parsed['type] != 'property)
+        player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
+        return;
+     endif
+     object_str = parsed['object_str];
+     prop_name = parsed['item_name];
+     "Match the target object";
+     try
+          target_obj = $match:match_object(object_str, player);
+         except e (ANY)
+           player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
+           return;
+      endtry
+      "Get initial value and remaining args";
+      value = 0;
+      perms = "rw";
+      owner = player;
+      "Get remainder after target spec";
+      offset = index(argstr, target_spec) + length(target_spec);
+      template_string = argstr[offset..length(argstr)]:trim();
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
+      "Check if property is writable";
+      {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, player);
+      if (!writable)
+        raise(E_PERM, error_msg);
+      endif
+      "Compile and validate the template";
+      {success, result} = $obj_utils:validate_and_compile_template(template_string);
+      if (!success)
+        raise(E_INVARG, "Template compilation failed: " + result);
+      endif
+      compiled_list = result;
+      "Set the compiled message";
+      $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      message = "Set message template on " + obj_name + " (" + tostr(target_obj) + ")." + prop_name + ".";
+      player:inform_current($event:mk_info(player, message));
+      return true;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
+  verb "@mes*sages @msg" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show all customizable message properties on an object.";
+    "Usage: @messages <object>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!dobjstr)
+      raise(E_INVARG, $format.code:mk("@messages OBJECT"));
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      "Get message properties";
+      msg_props = $obj_utils:message_properties(target_obj);
+      if (!msg_props || length(msg_props) == 0)
+        obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+        message = obj_name + " (" + tostr(target_obj) + ") has no message properties.";
+        player:inform_current($event:mk_info(player, message));
+        return 0;
+      endif
+      "Build table";
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      headers = {"Property Name", "Current Value"};
+      rows = {};
+      for prop_info in (msg_props)
+        {prop_name, prop_value} = prop_info;
+        "Summarize the value - decompile if it's a compiled template list";
+        if (typeof(prop_value) == LIST)
+          value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
+        else
+          value_summary = toliteral(prop_value);
+        endif
+        rows = {@rows, {prop_name, value_summary}};
+      endfor
+      "Output results";
+      header = "Message properties for " + obj_name + " (" + tostr(target_obj) + "):";
+      player:inform_current($event:mk_info(player, header));
+      table_result = $format.table:mk(headers, rows);
+      player:inform_current($event:mk_info(player, table_result));
+      return length(msg_props);
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
 endobject

@@ -439,9 +439,7 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, $format.code:mk("@property OBJECT.PROP-NAME [VALUE [PERMS [OWNER]]]")));
       return;
     endif
-    "Parse arguments - first word is target spec";
-    words = argstr:words();
-    target_spec = words[1];
+    target_spec = args[1];
     "Parse property reference";
     parsed = $prog_utils:parse_target_spec(target_spec);
     if (!parsed || parsed['type] != 'property)
@@ -461,7 +459,7 @@ object PROG_FEATURES
     value = 0;
     perms = "rw";
     owner = player;
-    if (length(words) > 1)
+    if (length(args) > 1)
       "Get remainder after target spec";
       offset = index(argstr, target_spec) + length(target_spec);
       remainder = argstr[offset..length(argstr)]:trim();

@@ -10,6 +10,10 @@ object CONTAINER
   override import_export_hierarchy = {"items"};
   override import_export_id = "container";
 
+  property take_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "take", .for_others = "takes", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, " from ", <SUB, .capitalize = false, .type = 'iobj>, "."};
+  property put_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "put", .for_others = "puts", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, " in ", <SUB, .capitalize = false, .type = 'iobj>, "."};
+
+
   verb acceptable (this none this) owner: HACKER flags: "rxd"
     "Containers accept items by default";
     return true;
@@ -74,7 +78,7 @@ object CONTAINER
     endtry
     "Announce to room";
     if (valid(player.location))
-      event = $event:mk_info(player, $sub:nc(), " ", $sub:self_alt("take", "takes"), " ", $sub:d(), " from ", $sub:i(), "."):with_dobj(dobj):with_iobj(this):with_this(player.location);
+      event = $event:mk_info(player, @this.take_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
       player.location:announce(event);
     endif
   endverb
@@ -127,7 +131,7 @@ object CONTAINER
     endtry
     "Announce to room";
     if (valid(player.location))
-      event = $event:mk_info(player, $sub:nc(), " ", $sub:self_alt("put", "puts"), " ", $sub:d(), " in ", $sub:i(), "."):with_dobj(dobj):with_iobj(this):with_this(player.location);
+      event = $event:mk_info(player, @this.put_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
       player.location:announce(event);
     endif
   endverb

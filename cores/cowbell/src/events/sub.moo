@@ -228,6 +228,7 @@ object SUB
     "## Article Substitutions",
     "",
     "Articles (a, an, the) are determined by the object's noun properties and the builder's template choice.",
+    "Article substitutions render both the article and the binding's name (e.g., `{the d}` → \"the sword\"). Proper nouns or self-targets drop the article.",
     "",
     "### Indefinite Articles (a/an)",
     "",
@@ -413,7 +414,7 @@ object SUB
     endif
     if (this.type == 'binding)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      if (!binding_value)
+      if (binding_value == false)
         return "<no-binding>";
       endif
       "If binding is an object and matches render_for, return 'you'";
@@ -426,36 +427,54 @@ object SUB
     endif
     if (this.type == 'article_a)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      if (!binding_value || typeof(binding_value) != OBJ)
+      if (binding_value == false || typeof(binding_value) != OBJ)
         return "";
       endif
+      capitalize_name = `this.capitalize_binding ! E_PROPNF => false';
+      is_self = binding_value == render_for;
       is_proper = `binding_value:is_proper_noun() ! E_VERBNF => false';
       is_plural = `binding_value:is_plural() ! E_VERBNF => false';
-      if (is_proper || is_plural)
+      name = is_self ? "you" | `binding_value:name() ! E_VERBNF => tostr(binding_value)';
+      if (is_proper || is_plural || is_self)
         article = "";
       else
         "singular countable - need a/an";
-        name = `binding_value:name() ! E_VERBNF => tostr(binding_value)';
         article = this:a_or_an(name);
       endif
-      if (this.capitalize && length(article))
-        article = article:capitalize();
+      if (this.capitalize)
+        if (length(article))
+          article = article:capitalize();
+        endif
       endif
-      return article;
+      if (capitalize_name)
+        if (length(name))
+          name = name:capitalize();
+        endif
+      endif
+      return length(article) ? article + " " + name | name;
     endif
     if (this.type == 'article_the)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      if (!binding_value || typeof(binding_value) != OBJ)
+      if (binding_value == false || typeof(binding_value) != OBJ)
         return "";
       endif
+      capitalize_name = `this.capitalize_binding ! E_PROPNF => false';
+      is_self = binding_value == render_for;
       is_proper = `binding_value:is_proper_noun() ! E_VERBNF => false';
-      article = is_proper ? "" | "the";
-      if (this.capitalize && length(article))
-        article = article:capitalize();
+      article = (is_proper || is_self) ? "" | "the";
+      name = is_self ? "you" | `binding_value:name() ! E_VERBNF => tostr(binding_value)';
+      if (this.capitalize)
+        if (length(article))
+          article = article:capitalize();
+        endif
       endif
-      return article;
+      if (capitalize_name)
+        if (length(name))
+          name = name:capitalize();
+        endif
+      endif
+      return length(article) ? article + " " + name | name;
     endif
-    server_log(tostr("Unknown substitution type ", toliteral(this.type), " for event ", toliteral(event)));
     return "<invalid-sub>";
   endverb
 
@@ -598,16 +617,26 @@ object SUB
 
   verb "a*c" (this none this) owner: HACKER flags: "rxd"
     "Get indefinite article (a/an) for a binding. Returns article flyweight.";
-    capitalize = index(verb, "c") != 0;
+    capitalize_article = index(verb, "c") != 0;
     {binding_name} = args;
-    return <this, .type = 'article_a, .binding_name = binding_name, .capitalize = capitalize>;
+    name_str = tostr(binding_name);
+    capitalize_binding = name_str:ends_with("c") && length(name_str) > 1;
+    if (capitalize_binding)
+      binding_name = tosym(name_str[1..length(name_str) - 1]);
+    endif
+    return <this, .type = 'article_a, .binding_name = binding_name, .capitalize = capitalize_article, .capitalize_binding = capitalize_binding>;
   endverb
 
   verb "the*c" (this none this) owner: HACKER flags: "rxd"
     "Get definite article (the) for a binding. Returns article flyweight.";
-    capitalize = index(verb, "c") != 0;
+    capitalize_article = index(verb, "c") != 0;
     {binding_name} = args;
-    return <this, .type = 'article_the, .binding_name = binding_name, .capitalize = capitalize>;
+    name_str = tostr(binding_name);
+    capitalize_binding = name_str:ends_with("c") && length(name_str) > 1;
+    if (capitalize_binding)
+      binding_name = tosym(name_str[1..length(name_str) - 1]);
+    endif
+    return <this, .type = 'article_the, .binding_name = binding_name, .capitalize = capitalize_article, .capitalize_binding = capitalize_binding>;
   endverb
 
   verb a_or_an (this none this) owner: HACKER flags: "rxd"
@@ -700,6 +729,7 @@ object SUB
     fw.type != 'article_the && return E_ASSERT;
     fw.binding_name != 'test_binding && return E_ASSERT;
     fw.capitalize != false && return E_ASSERT;
+    `fw.capitalize_binding ! E_PROPNF => false' != false && return E_ASSERT;
     return true;
   endverb
 
@@ -708,6 +738,36 @@ object SUB
     fwc = this:thec('test_binding);
     fwc.type != 'article_the && return E_ASSERT;
     fwc.capitalize != true && return E_ASSERT;
+    `fwc.capitalize_binding ! E_PROPNF => false' != false && return E_ASSERT;
+    return true;
+  endverb
+
+  verb test_article_the_eval (this none this) owner: HACKER flags: "rxd"
+    "Test article_the() renders with binding name.";
+    event = $event:mk_test(this):with_dobj(this);
+    fw = this:the('d);
+    result = fw:eval_sub(event, #0);
+    result != "the " + this.name && return E_ASSERT;
+    return true;
+  endverb
+
+  verb test_article_a_eval (this none this) owner: HACKER flags: "rxd"
+    "Test article_a() renders with binding name.";
+    event = $event:mk_test(this):with_dobj(this);
+    fw = this:a('d);
+    result = fw:eval_sub(event, #0);
+    expected_prefix = this:a_or_an(this.name);
+    result != expected_prefix + " " + this.name && return E_ASSERT;
+    return true;
+  endverb
+
+  verb test_article_with_capitalized_binding (this none this) owner: HACKER flags: "rxd"
+    "Test binding suffix c capitalizes the noun, not the article.";
+    event = $event:mk_test(this):with_dobj(this);
+    fw = this:the('dc);
+    result = fw:eval_sub(event, #0);
+    expected = "the " + this.name:capitalize();
+    result != expected && return E_ASSERT("Expected '" + expected + "', got '" + result + "'");
     return true;
   endverb
 
