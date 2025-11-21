@@ -8,6 +8,9 @@ object THING
 
   property integrated_description (owner: HACKER, flags: "rc") = "";
   property pronouns (owner: HACKER, flags: "rc") = <#28, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false>;
+  property is_plural_noun (owner: HACKER, flags: "rc") = false;
+  property is_countable_noun (owner: HACKER, flags: "rc") = true;
+  property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};
@@ -17,6 +20,24 @@ object THING
     "Return the pronoun set for this object (object or flyweight).";
     set_task_perms(caller_perms());
     return this.pronouns;
+  endverb
+
+  verb is_plural (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns whether this object should be treated as a plural noun.";
+    "Things are singular by default but can be set to plural.";
+    return this.is_plural_noun;
+  endverb
+
+  verb is_countable (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns whether this object is countable in English grammar.";
+    "Things are countable by default (can use 'a' or 'the').";
+    return this.is_countable_noun;
+  endverb
+
+  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns whether this object should be treated as a proper noun.";
+    "Things are common nouns by default, not proper nouns.";
+    return this.is_proper_noun_name;
   endverb
 
   verb integrate_description (this none this) owner: ARCH_WIZARD flags: "rxd"

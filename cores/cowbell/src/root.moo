@@ -12,7 +12,7 @@ object ROOT
   property object_documentation (owner: HACKER, flags: "rc") = 0;
 
   verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Create a child of this object.";
+    "Create a non-garbage collected (UUobjid) child of this object.";
     "";
     "Permission is granted if any of:";
     "  - Object is fertile";
@@ -34,12 +34,14 @@ object ROOT
     if (!is_fertile)
       {_, perms} = this:check_permissions('create_child);
     endif
-    new_obj = create(target, caller_perms());
+    {?anon = false} = args;
+    new_obj = create(target, caller_perms(), anon);
     return new_obj;
   endverb
 
   verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Destroy this object. Permission: wizard, owner, or capability.";
+    is_anonymous(this) && raise(E_INVARG("this object is anonymous and cannot be recycled"));
     this:check_permissions('recycle);
     recycle(this);
   endverb
@@ -118,6 +120,24 @@ object ROOT
     set_task_perms(caller_perms());
     "Returns the aliases of the object.";
     return this.aliases;
+  endverb
+
+  verb is_plural (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns whether this object should be treated as a plural noun.";
+    "Default for system objects: false (singular).";
+    return false;
+  endverb
+
+  verb is_countable (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns whether this object is countable in English grammar.";
+    "Default for system objects: false (mass nouns, proper nouns, etc).";
+    return false;
+  endverb
+
+  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Returns whether this object should be treated as a proper noun.";
+    "Default for system objects: true (all system objects are proper nouns).";
+    return true;
   endverb
 
   verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"

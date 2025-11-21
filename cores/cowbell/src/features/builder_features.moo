@@ -641,81 +641,20 @@ object BUILDER_FEATURES
     if (!passages || length(passages) == 0)
       return false;
     endif
-    "Search for passage matching the direction";
-    target_passage = E_NONE;
-    for p in (passages)
-      "Check if this passage matches the direction";
-      side_a_room = `p.side_a_room ! ANY => #-1';
-      side_b_room = `p.side_b_room ! ANY => #-1';
-      if (current_room == side_a_room)
-        label = `p.side_a_label ! ANY => ""';
-        aliases = `p.side_a_aliases ! ANY => {}';
-      elseif (current_room == side_b_room)
-        label = `p.side_b_label ! ANY => ""';
-        aliases = `p.side_b_aliases ! ANY => {}';
-      else
-        continue;
-      endif
-      "Check if direction matches label or any alias (MOO has case-insensitive comparisons)";
-      if (label == direction)
-        target_passage = p;
-        break;
-      endif
-      for alias in (aliases)
-        if (typeof(alias) == STR && alias == direction)
-          target_passage = p;
-          break;
-        endif
-      endfor
-      if (typeof(target_passage) != ERR)
-        break;
-      endif
-    endfor
-    if (typeof(target_passage) == ERR)
+    "Find passage matching the direction";
+    target_passage = area:find_passage_by_direction(current_room, direction);
+    if (!target_passage)
       return false;
     endif
     "Check permissions";
     cap = player:find_capability_for(current_room, 'room);
     room_target = typeof(cap) == FLYWEIGHT ? cap | current_room;
     room_target:check_can_dig_from();
-    "Update passage description (ambient=true by default)";
-    side_a_room = `target_passage.side_a_room ! ANY => #-1';
-    side_b_room = `target_passage.side_b_room ! ANY => #-1';
-    if (typeof(target_passage) == FLYWEIGHT)
-      "Get all current properties";
-      room_a = `target_passage.side_a_room ! ANY => #-1';
-      room_b = `target_passage.side_b_room ! ANY => #-1';
-      label_a = `target_passage.side_a_label ! ANY => ""';
-      label_b = `target_passage.side_b_label ! ANY => ""';
-      aliases_a = `target_passage.side_a_aliases ! ANY => {}';
-      aliases_b = `target_passage.side_b_aliases ! ANY => {}';
-      desc_a = `target_passage.side_a_description ! ANY => ""';
-      desc_b = `target_passage.side_b_description ! ANY => ""';
-      ambient_a = `target_passage.side_a_ambient ! ANY => true';
-      ambient_b = `target_passage.side_b_ambient ! ANY => true';
-      is_open = `target_passage.is_open ! ANY => true';
-      "Update the side we're on";
-      if (current_room == side_a_room)
-        desc_a = description;
-        ambient_a = true;
-      elseif (current_room == side_b_room)
-        desc_b = description;
-        ambient_b = true;
-      endif
-      "Create new passage flyweight with updated values";
-      new_passage = $passage:mk(room_a, label_a, aliases_a, desc_a, ambient_a, room_b, label_b, aliases_b, desc_b, ambient_b, is_open);
-      "Replace the passage in the area";
-      area:update_passage(current_room, room_a == current_room ? room_b | room_a, new_passage);
-    else
-      "It's an object, we can modify properties directly";
-      if (current_room == side_a_room)
-        target_passage.side_a_description = description;
-        target_passage.side_a_ambient = true;
-      elseif (current_room == side_b_room)
-        target_passage.side_b_description = description;
-        target_passage.side_b_ambient = true;
-      endif
-    endif
+    "Update passage description and set ambient flag";
+    new_passage = target_passage:with_description_from(current_room, description);
+    new_passage = new_passage:with_ambient_from(current_room, true);
+    other_room = target_passage:other_room(current_room);
+    area:update_passage(current_room, other_room, new_passage);
     message = "Set ambient description for '" + direction + "' passage: \"" + description + "\"";
     player:inform_current($event:mk_info(player, message));
     return true;

@@ -119,38 +119,11 @@ object ROOM
     look_data = pass(@args);
     "Add exits if we're in an area with passages";
     area = this.location;
-    if (!valid(area) || !respond_to(area, 'passages_from))
+    if (!valid(area) || !respond_to(area, 'get_exit_info))
       return look_data;
     endif
-    passages = area:passages_from(this);
-    if (!passages || length(passages) == 0)
-      return look_data;
-    endif
-    "Build exits list and ambient passage descriptions";
-    exits = {};
-    ambient_passages = {};
-    for passage in (passages)
-      is_open = `passage.is_open ! ANY => false';
-      if (!is_open)
-        continue;
-      endif
-      "Get label, description, and ambient flag for this room's side of the passage";
-      info = passage:side_info_for(this);
-      if (length(info) == 0)
-        continue;
-      endif
-      {label, description, ambient} = info;
-      if (label)
-        if (ambient && description)
-          "Ambient passages with descriptions integrate into room description";
-          ambient_passages = {@ambient_passages, description};
-        else
-          "Non-ambient or description-less passages show as simple exits";
-          exits = {@exits, label};
-        endif
-      endif
-    endfor
-    "Set exits and ambient_passages slots on the flyweight";
+    {exits, ambient_passages} = area:get_exit_info(this);
+    "Set exits and ambient_passages slots on the flyweight if we have any";
     if (length(exits) > 0 || length(ambient_passages) > 0)
       contents_list = flycontents(look_data);
       return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = look_data.description, .exits = exits, .ambient_passages = ambient_passages, {@contents_list}>;
@@ -175,33 +148,13 @@ object ROOM
   verb "exits ways" (none none none) owner: ARCH_WIZARD flags: "rd"
     "List the ways out of this room.";
     set_task_perms(caller_perms());
-    "Get passages from our area";
+    "Get exits from our area";
     area = this.location;
-    if (!valid(area) || !respond_to(area, 'passages_from))
+    if (!valid(area) || !respond_to(area, 'get_exit_info))
       player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
       return;
     endif
-    passages = area:passages_from(this);
-    if (!passages || length(passages) == 0)
-      player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
-      return;
-    endif
-    "Collect exit information";
-    exit_lines = {};
-    for passage in (passages)
-      is_open = `passage.is_open ! ANY => false';
-      if (!is_open)
-        continue;
-      endif
-      info = passage:side_info_for(this);
-      if (length(info) == 0)
-        continue;
-      endif
-      {label, description, ambient} = info;
-      if (label)
-        exit_lines = {@exit_lines, label};
-      endif
-    endfor
+    {exit_lines, ambient_passages} = area:get_exit_info(this);
     if (length(exit_lines) == 0)
       player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
       return;

@@ -343,6 +343,50 @@ object AREA
     return this:clear_passage(room_a, room_b);
   endverb
 
+  verb find_passage_by_direction (this none this) owner: HACKER flags: "rxd"
+    "Find a passage from a room matching a direction/label/alias. Returns passage or false.";
+    {room, direction} = args;
+    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(direction) == STR || raise(E_TYPE);
+    passages = this:passages_from(room);
+    for p in (passages)
+      if (p:matches_command(room, direction))
+        return p;
+      endif
+    endfor
+    return false;
+  endverb
+
+  verb get_exit_info (this none this) owner: HACKER flags: "rxd"
+    "Get exit labels and ambient passage descriptions for a room. Returns {exits, ambient_passages}.";
+    {room} = args;
+    typeof(room) == OBJ || raise(E_TYPE);
+    passages = this:passages_from(room);
+    exits = {};
+    ambient_passages = {};
+    for passage in (passages)
+      is_open = `passage.is_open ! ANY => false';
+      if (!is_open)
+        continue;
+      endif
+      info = passage:side_info_for(room);
+      if (length(info) == 0)
+        continue;
+      endif
+      {label, description, ambient} = info;
+      if (label)
+        if (ambient && description)
+          "Ambient passages with descriptions integrate into room description";
+          ambient_passages = {@ambient_passages, description};
+        else
+          "Non-ambient or description-less passages show as simple exits";
+          exits = {@exits, label};
+        endif
+      endif
+    endfor
+    return {exits, ambient_passages};
+  endverb
+
   verb test_connectivity (this none this) owner: HACKER flags: "rxd"
     "Test connectivity checking between rooms";
     area = create($area);

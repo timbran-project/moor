@@ -514,37 +514,9 @@ object ARCHITECTS_COMPASS
     if (!passages || length(passages) == 0)
       return "No passages from " + tostr(source_room) + ".";
     endif
-    "Search for passage matching the direction";
-    target_passage = E_NONE;
-    for p in (passages)
-      "Check if this passage matches the direction";
-      side_a_room = `p.side_a_room ! ANY => #-1';
-      side_b_room = `p.side_b_room ! ANY => #-1';
-      if (source_room == side_a_room)
-        label = `p.side_a_label ! ANY => ""';
-        aliases = `p.side_a_aliases ! ANY => {}';
-      elseif (source_room == side_b_room)
-        label = `p.side_b_label ! ANY => ""';
-        aliases = `p.side_b_aliases ! ANY => {}';
-      else
-        continue;
-      endif
-      "Check if direction matches label or any alias (MOO has case-insensitive comparisons)";
-      if (label == direction)
-        target_passage = p;
-        break;
-      endif
-      for alias in (aliases)
-        if (typeof(alias) == STR && alias == direction)
-          target_passage = p;
-          break;
-        endif
-      endfor
-      if (typeof(target_passage) != ERR)
-        break;
-      endif
-    endfor
-    if (typeof(target_passage) == ERR)
+    "Find passage matching the direction";
+    target_passage = area:find_passage_by_direction(source_room, direction);
+    if (!target_passage)
       return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
     endif
     "Check permissions";
@@ -556,45 +528,11 @@ object ARCHITECTS_COMPASS
       message = $grant_utils:format_denial(source_room, 'room, {'dig_from});
       return "Permission denied: " + message;
     endtry
-    "Determine which side we're on and update the passage";
-    side_a_room = `target_passage.side_a_room ! ANY => #-1';
-    side_b_room = `target_passage.side_b_room ! ANY => #-1';
-    "Passages are flyweights, so we need to rebuild them";
-    if (typeof(target_passage) == FLYWEIGHT)
-      "Get all current properties";
-      room_a = `target_passage.side_a_room ! ANY => #-1';
-      room_b = `target_passage.side_b_room ! ANY => #-1';
-      label_a = `target_passage.side_a_label ! ANY => ""';
-      label_b = `target_passage.side_b_label ! ANY => ""';
-      aliases_a = `target_passage.side_a_aliases ! ANY => {}';
-      aliases_b = `target_passage.side_b_aliases ! ANY => {}';
-      desc_a = `target_passage.side_a_description ! ANY => ""';
-      desc_b = `target_passage.side_b_description ! ANY => ""';
-      ambient_a = `target_passage.side_a_ambient ! ANY => true';
-      ambient_b = `target_passage.side_b_ambient ! ANY => true';
-      is_open = `target_passage.is_open ! ANY => true';
-      "Update the side we're on";
-      if (source_room == side_a_room)
-        desc_a = description;
-        ambient_a = ambient;
-      elseif (source_room == side_b_room)
-        desc_b = description;
-        ambient_b = ambient;
-      endif
-      "Create new passage flyweight with updated values";
-      new_passage = $passage:mk(room_a, label_a, aliases_a, desc_a, ambient_a, room_b, label_b, aliases_b, desc_b, ambient_b, is_open);
-      "Replace the passage in the area";
-      area:update_passage(source_room, room_a == source_room ? room_b | room_a, new_passage);
-    else
-      "It's an object, we can modify properties directly";
-      if (source_room == side_a_room)
-        target_passage.side_a_description = description;
-        target_passage.side_a_ambient = ambient;
-      elseif (source_room == side_b_room)
-        target_passage.side_b_description = description;
-        target_passage.side_b_ambient = ambient;
-      endif
-    endif
+    "Update passage description and ambient flag using transformer verbs";
+    new_passage = target_passage:with_description_from(source_room, description);
+    new_passage = new_passage:with_ambient_from(source_room, ambient);
+    other_room = target_passage:other_room(source_room);
+    area:update_passage(source_room, other_room, new_passage);
     ambient_str = ambient ? " (ambient - integrates into room description)" | " (explicit - shows in exits list)";
     return "Set description for '" + direction + "' passage" + ambient_str + ".";
   endverb
