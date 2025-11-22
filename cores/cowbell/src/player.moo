@@ -435,15 +435,15 @@ object PLAYER
     "Args: metadata (list of {key, value} pairs for read())";
     "Returns: result from read()";
     {metadata} = args;
-    caller_perms().wizard || caller == this || raise(E_PERM);
+    perms = caller_perms();
+    "Allow if caller is wizard, the player, or the task perms already match the player (after set_task_perms)";
+    perms.wizard || caller == this || perms == this || raise(E_PERM);
     typeof(metadata) == LIST || raise(E_TYPE, "Metadata must be list");
     return read(this, metadata);
   endverb
 
   verb put (any in this) owner: ARCH_WIZARD flags: "rd"
     "Reject putting things in a player";
-    caller == this || caller_perms().wizard || raise(E_PERM);
-    set_task_perms(this);
     event = $event:mk_error(player, $sub:tc(), " ", $sub:verb_be(), " a person, not a container."):with_this(this);
     player:inform_current(event);
   endverb
