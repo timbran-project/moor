@@ -9,81 +9,81 @@ object SOCIAL_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "social_features";
 
-  verb nod (any none none) owner: HACKER flags: "rd"
-    "Nod at someone or just nod.";
+  verb nod (none any any) owner: HACKER flags: "rd"
+    "Nod at/to someone or just nod.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
     endif
-    if (dobjstr && dobjstr != "")
+    if (iobjstr && iobjstr != "" && (prepstr == "at" || prepstr == "to"))
       "Try to match the target";
       try
-        target = $match:match_object(dobjstr, player);
+        target = $match:match_object(iobjstr, player);
       except e (ANY)
-        event = $event:mk_error(player, "Nod at whom?");
+        event = $event:mk_error(player, "Nod at/to whom?");
         player:inform_current(event);
         return;
       endtry
       if (!valid(target) || typeof(target) != OBJ)
-        event = $event:mk_error(player, "Nod at whom?");
+        event = $event:mk_error(player, "Nod at/to whom?");
         player:inform_current(event);
         return;
       endif
-      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("nod", "nods"), " at ", $sub:i(), "."):with_iobj(target):with_this(player.location);
+      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("nod", "nods"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("nod", "nods"), "."):with_this(player.location);
     endif
     player.location:announce(event);
   endverb
 
-  verb wave (any at this) owner: HACKER flags: "rd"
-    "Wave at someone or just wave.";
+  verb wave (none any any) owner: HACKER flags: "rd"
+    "Wave at/to someone or just wave.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
     endif
-    if (iobjstr && iobjstr != "")
+    if (iobjstr && iobjstr != "" && (prepstr == "at" || prepstr == "to"))
       "Try to match the target";
       try
         target = $match:match_object(iobjstr, player);
       except e (ANY)
-        event = $event:mk_error(player, "Wave at whom?");
+        event = $event:mk_error(player, "Wave at/to whom?");
         player:inform_current(event);
         return;
       endtry
       if (!valid(target) || typeof(target) != OBJ)
-        event = $event:mk_error(player, "Wave at whom?");
+        event = $event:mk_error(player, "Wave at/to whom?");
         player:inform_current(event);
         return;
       endif
-      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("wave", "waves"), " at ", $sub:i(), "."):with_iobj(target):with_this(player.location);
+      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("wave", "waves"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("wave", "waves"), "."):with_this(player.location);
     endif
     player.location:announce(event);
   endverb
 
-  verb bow (any at this) owner: HACKER flags: "rd"
-    "Bow to someone or just bow.";
+  verb bow (none any any) owner: HACKER flags: "rd"
+    "Bow to/at someone or just bow.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
     endif
-    if (iobjstr && iobjstr != "")
+    if (iobjstr && iobjstr != "" && (prepstr == "to" || prepstr == "at"))
       "Try to match the target";
       try
         target = $match:match_object(iobjstr, player);
       except e (ANY)
-        event = $event:mk_error(player, "Bow to whom?");
+        event = $event:mk_error(player, "Bow to/at whom?");
         player:inform_current(event);
         return;
       endtry
       if (!valid(target) || typeof(target) != OBJ)
-        event = $event:mk_error(player, "Bow to whom?");
+        event = $event:mk_error(player, "Bow to/at whom?");
         player:inform_current(event);
         return;
       endif
-      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("bow", "bows"), " to ", $sub:i(), "."):with_iobj(target):with_this(player.location);
+      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("bow", "bows"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("bow", "bows"), "."):with_this(player.location);
     endif
@@ -121,27 +121,27 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb smile (any at this) owner: HACKER flags: "rd"
-    "Smile at someone or just smile.";
+  verb smile (none any any) owner: HACKER flags: "rd"
+    "Smile at/to someone or just smile.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
     endif
-    if (iobjstr && iobjstr != "")
+    if (iobjstr && iobjstr != "" && (prepstr == "at" || prepstr == "to"))
       "Try to match the target";
       try
         target = $match:match_object(iobjstr, player);
       except e (ANY)
-        event = $event:mk_error(player, "Smile at whom?");
+        event = $event:mk_error(player, "Smile at/to whom?");
         player:inform_current(event);
         return;
       endtry
       if (!valid(target) || typeof(target) != OBJ)
-        event = $event:mk_error(player, "Smile at whom?");
+        event = $event:mk_error(player, "Smile at/to whom?");
         player:inform_current(event);
         return;
       endif
-      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("smile", "smiles"), " at ", $sub:i(), "."):with_iobj(target):with_this(player.location);
+      event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("smile", "smiles"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("smile", "smiles"), "."):with_this(player.location);
     endif
