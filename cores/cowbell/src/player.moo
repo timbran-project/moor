@@ -568,15 +568,15 @@ object PLAYER
     if (context_block && context_block != 0)
       lines = {@lines, context_block};
     endif
-    match_env = this:match_environment("");
-    targetable_verbs = $obj_utils:collect_targetable_verbs(match_env);
     cmd_env = this:command_environment();
     ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
-    lines = this:_display_targetable_verbs(targetable_verbs, lines);
     lines = this:_display_ambient_verbs(ambient_verbs, lines);
-    if (length(targetable_verbs) == 0 && length(ambient_verbs) == 0)
+    if (length(ambient_verbs) == 0)
       lines = {@lines, "(No commands available)"};
     endif
+    lines = {@lines, $format.title:mk("Need more detail?", 4)};
+    lines = {@lines, $format.code:mk("help <thing>\nexamine <thing>")};
+    lines = {@lines, "Use these on anything listed above to see its specific commands or description."};
     "Show developer documentation hint for programmers";
     if (this.programmer)
       lines = {@lines, $format.title:mk("To look for programmer documentation...")};
