@@ -271,6 +271,9 @@ object DATA_VISOR
     "Register get_properties tool";
     get_properties_tool = $llm_agent_tool:mk("get_properties", "Get list of all properties defined directly on a MOO object (not inherited).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_get_properties");
     this.agent:add_tool("get_properties", get_properties_tool);
+    "Register documentation lookup tool";
+    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
+    this.agent:add_tool("doc_lookup", doc_tool);
     "Register present_verb_code tool";
     present_verb_code_tool = $llm_agent_tool:mk("present_verb_code", "PREFERRED: Present formatted verb code to the user with syntax highlighting and metadata table. Use this instead of get_verb_code when showing code to the user.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "show_line_numbers" -> ["type" -> "boolean", "description" -> "Include line numbers (default: true)"]], "required" -> {"object", "verb"}], this, "_tool_present_verb_code");
     this.agent:add_tool("present_verb_code", present_verb_code_tool);
@@ -304,6 +307,13 @@ object DATA_VISOR
     "Register set_property_perms tool";
     set_property_perms_tool = $llm_agent_tool:mk("set_property_perms", "Change the permissions and/or owner of a property. Permission flags are 'r' (readable), 'w' (writable), 'c' (chown). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwc', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "property", "permissions"}], this, "_tool_set_property_perms");
     this.agent:add_tool("set_property_perms", set_property_perms_tool);
+    "Register message template tools (@messages/@getm/@setm equivalents)";
+    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (*_msg) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
+    this.agent:add_tool("list_messages", list_messages_tool);
+    get_message_tool = $llm_agent_tool:mk("get_message_template", "Read a single message template on an object. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
+    this.agent:add_tool("get_message_template", get_message_tool);
+    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. Compiles {sub} templates. Equivalent to @setm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
+    this.agent:add_tool("set_message_template", set_message_tool);
     "Register eval tool";
     eval_tool = $llm_agent_tool:mk("eval", "Execute MOO code and return the result. You must provide a clear rationale explaining what you're trying to accomplish and why. IMPORTANT: Code executes as a verb body (not a REPL), so you must use valid MOO statements terminated by semicolons. The code runs with 'player' set to the visor wearer. To get return values, you MUST use 'return' statement - the last expression is NOT automatically returned. Example: 'x = 5; return x * 2;' NOT just 'x = 5; x * 2'.", ["type" -> "object", "properties" -> ["rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're trying to accomplish with this code and why. Be specific about what you're testing or investigating."], "code" -> ["type" -> "string", "description" -> "MOO code to execute. Must be valid statements with semicolons. Use 'return' to get values back."]], "required" -> {"rationale", "code"}], this, "_tool_eval");
     this.agent:add_tool("eval", eval_tool);
@@ -439,6 +449,129 @@ object DATA_VISOR
     typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
     value = o.(prop_name);
     return toliteral(value);
+  endverb
+
+  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Fetch developer documentation for object/verb/property (like @doc)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    target_spec = args_map["target"];
+    set_task_perms(wearer);
+    alias_obj = false;
+    if (typeof(target_spec) == STR)
+      alias_name = target_spec;
+      if (alias_name:starts_with("$"))
+        alias_name = alias_name[2..$];
+      endif
+      if (alias_name == "sub_utils")
+        alias_obj = $sub_utils;
+      elseif (alias_name == "sub")
+        alias_obj = $sub;
+      endif
+    endif
+    if (alias_obj)
+      type = 'object;
+      target_obj = alias_obj;
+      item_name = "";
+    else
+      parsed = $prog_utils:parse_target_spec(target_spec);
+      parsed || raise(E_INVARG, "Invalid format. Use object, object:verb, or object.property");
+      type = parsed['type];
+      object_str = parsed['object_str];
+      item_name = parsed['item_name];
+      target_obj = $match:match_object(object_str, wearer);
+      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+      valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    endif
+    if (type == 'object)
+      doc_text = $help_utils:get_object_documentation(target_obj);
+      title = "Documentation for " + tostr(target_obj);
+      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+      doc_body = doc_body ? doc_body | "(No documentation available)";
+      return title + "\n\n" + doc_body;
+    elseif (type == 'verb)
+      verb_location = target_obj:find_verb_definer(item_name);
+      verb_location == #-1 && raise(E_INVARG, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj));
+      doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
+      title = "Documentation for " + tostr(target_obj) + ":" + tostr(item_name);
+      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+      doc_body = doc_body ? doc_body | "(No documentation available)";
+      return title + "\n\n" + doc_body;
+    elseif (type == 'property)
+      doc_text = $help_utils:property_documentation(target_obj, item_name);
+      title = "Documentation for " + tostr(target_obj) + "." + tostr(item_name);
+      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+      doc_body = doc_body ? doc_body | "(No documentation available)";
+      return title + "\n\n" + doc_body;
+    endif
+    raise(E_INVARG, "Unknown target type");
+  endverb
+
+  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List *_msg properties on an object (like @messages)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    msg_props = $obj_utils:message_properties(target_obj);
+    if (!msg_props || length(msg_props) == 0)
+      return tostr(target_obj) + " has no message properties. (@messages command available)";
+    endif
+    lines = {"Message properties for " + tostr(target_obj) + ":"};
+    for prop_info in (msg_props)
+      {prop_name, prop_value} = prop_info;
+      if (typeof(prop_value) == LIST)
+        value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
+      else
+        value_summary = toliteral(prop_value);
+      endif
+      lines = {@lines, " - " + prop_name + ": " + value_summary};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Read a single message template (like @getm)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with _msg");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    if (!(prop_name in target_obj:all_properties()))
+      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    endif
+    value = target_obj.(prop_name);
+    display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+    return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
+  endverb
+
+  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set a message template (like @setm)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    template = args_map["template"];
+    prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with _msg");
+    !template && raise(E_INVARG, "Template string required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
+    writable || raise(E_PERM, error_msg);
+    {success, compiled} = $obj_utils:validate_and_compile_template(template);
+    success || raise(E_INVARG, "Template compilation failed: " + compiled);
+    $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
   endverb
 
   verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1306,6 +1439,14 @@ object DATA_VISOR
       message = $ansi:colorize("[DISPLAY]", 'bright_green) + " Rendering to HUD: " + $ansi:colorize(tool_args["object"] + ":" + tool_args["verb"], 'bright_yellow) + range_desc;
     elseif (tool_name == "read_property")
       message = $ansi:colorize("[PROBE]", 'cyan) + " Property read: " + $ansi:colorize(tool_args["object"] + "." + tool_args["property"], 'yellow);
+    elseif (tool_name == "doc_lookup")
+      message = $ansi:colorize("[DOC]", 'bright_blue) + " Loading docs for " + $ansi:colorize(tool_args["target"], 'white);
+    elseif (tool_name == "list_messages")
+      message = $ansi:colorize("[MSG]", 'bright_magenta) + " Listing message templates on " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "get_message_template")
+      message = $ansi:colorize("[MSG]", 'bright_magenta) + " Reading " + $ansi:colorize(tool_args["property"], 'yellow) + " on " + $ansi:colorize(tool_args["object"], 'white);
+    elseif (tool_name == "set_message_template")
+      message = $ansi:colorize("[MSG]", 'bright_magenta) + " Setting " + $ansi:colorize(tool_args["property"], 'yellow) + " on " + $ansi:colorize(tool_args["object"], 'white);
     elseif (tool_name == "get_properties")
       message = $ansi:colorize("[PROBE]", 'cyan) + " Property scan: " + $ansi:colorize(tool_args["object"], 'white);
     elseif (tool_name == "dump_object")

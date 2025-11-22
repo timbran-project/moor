@@ -35,6 +35,16 @@ object LLM_AGENT
     endif
   endverb
 
+  verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Log tool execution errors to server_log. Accessible internally by agent calls.";
+    {tool_name, tool_args, error_msg} = args;
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    "Do not downgrade perms; server_log requires wizard perms.";
+    safe_args = typeof(tool_args) == STR ? tool_args | toliteral(tool_args);
+    server_log("LLM tool error [" + toliteral(tool_name) + "]: " + toliteral(error_msg) + " args=" + toliteral(safe_args));
+    return true;
+  endverb
+
   verb add_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Register a tool for this agent to use";
     this:_challenge_permissions(caller);
@@ -174,15 +184,18 @@ object LLM_AGENT
                 result = tool:execute(tool_args);
                 "Yield execution after tool call to avoid tick limit";
                 suspend(0);
-                tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> tostr(result)]};
+                content_out = typeof(result) == STR ? result | toliteral(result);
+                tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> content_out]};
               except e (ANY)
                 error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
                 if (length(e) > 2 && typeof(e[3]) == LIST)
                   error_msg = error_msg + "\nTraceback: " + toliteral(e[3]);
                 endif
+                this:log_tool_error(tool_name, tool_args, error_msg);
                 tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> error_msg]};
               endtry
             else
+              this:log_tool_error(tool_name, tool_args, "Tool not found");
               tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> "Error: tool not found"]};
             endif
           endfor

@@ -20,7 +20,7 @@ object ARCHITECTS_COMPASS
     {agent} = args;
     agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
     agent.max_iterations = 15;
-    base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question with Accept/Stop/Request Change options - user can accept your proposal, stop the agent, or request modifications which will prompt them for details), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
+    base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. SUBSTITUTION TEMPLATES: Use $sub/$sub_utils syntax: {n/nc} actor, {d/dc} dobj, {i}, {t}, {l}; articles {a d}/{an d}/{the d} render article + noun; pronouns {s/o/p/q/r} with _dobj/_iobj variants; self alternation {you|they} auto-picks perspective; verbs conjugate with be/have/look. ALWAYS use self-alternation for verbs that differ by person (e.g., {set|sets}, {place|places}) so the actor sees second-person grammar. Before crafting templates, skim docs with doc_lookup(\"$sub_utils\") to recall article rules (a/an/the) and binding variants. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question with Accept/Stop/Request Change options - user can accept your proposal, stop the agent, or request modifications which will prompt them for details), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
     agent.system_prompt = base_prompt;
     agent:initialize();
     agent.tool_callback = this;
@@ -75,6 +75,16 @@ object ARCHITECTS_COMPASS
     "Register set_integrated_description tool";
     set_integrated_description_tool = $llm_agent_tool:mk("set_integrated_description", "Set an object's integrated description - a description that becomes part of the room's description when the object is present. Use this for atmospheric objects like furniture, decorations, or features that should feel like part of the room. For example, a fireplace might have integrated description 'A warm fireplace crackles in the corner'. To clear, set to empty string.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to set integrated description on"], "integrated_description" -> ["type" -> "string", "description" -> "The integrated description text (or empty string to clear)"]], "required" -> {"object", "integrated_description"}], this, "_tool_set_integrated_description");
     agent:add_tool("set_integrated_description", set_integrated_description_tool);
+    "Register documentation lookup tool";
+    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
+    agent:add_tool("doc_lookup", doc_tool);
+    "Register message tools (@messages/@getm/@setm equivalents)";
+    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties ( *_msg ) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
+    agent:add_tool("list_messages", list_messages_tool);
+    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template on an object. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
+    agent:add_tool("get_message_template", get_message_tool);
+    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. Compiles {sub} templates. Equivalent to @setm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
+    agent:add_tool("set_message_template", set_message_tool);
     "Register ask_user tool";
     ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. User will be presented with three choices: 'Accept' (agree with your proposal), 'Stop' (cancel the agent), or 'Request Change' (provide modifications - will prompt them for details). Use this when you need user approval, clarification, decisions, or creative input. Returns 'User accepted.' if they accept, 'User cancelled.' if they stop, or 'User requested changes: <their feedback>' if they want modifications.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"]], "required" -> {"question"}], this, "_tool_ask_user");
     agent:add_tool("ask_user", ask_user_tool);
@@ -108,6 +118,7 @@ object ARCHITECTS_COMPASS
   verb _format_hud_message (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
+    wearer = this:wearer();
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Parse JSON string to map";
     if (typeof(tool_args) == STR)
@@ -180,6 +191,23 @@ object ARCHITECTS_COMPASS
         endif
         message = $ansi:colorize("[INTEGRATE]", 'magenta) + " Setting integrated description for " + $ansi:colorize(display_name, 'white) + obj_suffix + ": \"" + integrated_desc + "\"";
       endif
+    elseif (tool_name == "doc_lookup")
+      message = $ansi:colorize("[DOC]", 'bright_blue) + " Loading docs for " + $ansi:colorize(tool_args["target"], 'white);
+    elseif (tool_name == "list_messages")
+      obj_spec = tool_args["object"];
+      display_name = this:_resolve_display_name(obj_spec, wearer);
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[MSG]", 'bright_magenta) + " Listing message templates on " + $ansi:colorize(display_name, 'white) + obj_suffix;
+    elseif (tool_name == "get_message_template")
+      obj_spec = tool_args["object"];
+      display_name = this:_resolve_display_name(obj_spec, wearer);
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[MSG]", 'bright_magenta) + " Reading " + $ansi:colorize(tool_args["property"], 'yellow) + " on " + $ansi:colorize(display_name, 'white) + obj_suffix;
+    elseif (tool_name == "set_message_template")
+      obj_spec = tool_args["object"];
+      display_name = this:_resolve_display_name(obj_spec, wearer);
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[MSG]", 'bright_magenta) + " Setting " + $ansi:colorize(tool_args["property"], 'yellow) + " on " + $ansi:colorize(display_name, 'white) + obj_suffix;
     elseif (tool_name == "grant_capability")
       message = $ansi:colorize("[GRANT]", 'bright_yellow) + " Granting permissions on: " + $ansi:colorize(tool_args["target"], 'white);
     elseif (tool_name == "audit_owned")
@@ -664,6 +692,129 @@ object ARCHITECTS_COMPASS
     else
       return "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description. (@integrate command available)";
     endif
+  endverb
+
+  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List *_msg properties on an object (like @messages)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    msg_props = $obj_utils:message_properties(target_obj);
+    if (!msg_props || length(msg_props) == 0)
+      return tostr(target_obj) + " has no message properties. (@messages command available)";
+    endif
+    lines = {"Message properties for " + tostr(target_obj) + ":"};
+    for prop_info in (msg_props)
+      {prop_name, prop_value} = prop_info;
+      if (typeof(prop_value) == LIST)
+        value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
+      else
+        value_summary = toliteral(prop_value);
+      endif
+      lines = {@lines, " - " + prop_name + ": " + value_summary};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Read a single message template (like @getm)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with _msg");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    if (!(prop_name in target_obj:all_properties()))
+      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    endif
+    value = target_obj.(prop_name);
+    display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+    return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
+  endverb
+
+  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set a message template (like @setm)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    template = args_map["template"];
+    prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with _msg");
+    !template && raise(E_INVARG, "Template string required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
+    writable || raise(E_PERM, error_msg);
+    {success, compiled} = $obj_utils:validate_and_compile_template(template);
+    success || raise(E_INVARG, "Template compilation failed: " + compiled);
+    $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
+  endverb
+
+  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Fetch developer documentation for object/verb/property (like @doc)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    target_spec = args_map["target"];
+    set_task_perms(wearer);
+    alias_obj = false;
+    if (typeof(target_spec) == STR)
+      alias_name = target_spec;
+      if (alias_name:starts_with("$"))
+        alias_name = alias_name[2..$];
+      endif
+      if (alias_name == "sub_utils")
+        alias_obj = $sub_utils;
+      elseif (alias_name == "sub")
+        alias_obj = $sub;
+      endif
+    endif
+    if (alias_obj)
+      type = 'object;
+      target_obj = alias_obj;
+      item_name = "";
+    else
+      parsed = $prog_utils:parse_target_spec(target_spec);
+      parsed || raise(E_INVARG, "Invalid format. Use object, object:verb, or object.property");
+      type = parsed['type];
+      object_str = parsed['object_str];
+      item_name = parsed['item_name];
+      target_obj = $match:match_object(object_str, wearer);
+      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+      valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    endif
+    if (type == 'object)
+      doc_text = $help_utils:get_object_documentation(target_obj);
+      title = "Documentation for " + tostr(target_obj);
+      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+      doc_body = doc_body ? doc_body | "(No documentation available)";
+      return title + "\n\n" + doc_body;
+    elseif (type == 'verb)
+      verb_location = target_obj:find_verb_definer(item_name);
+      verb_location == #-1 && raise(E_INVARG, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj));
+      doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
+      title = "Documentation for " + tostr(target_obj) + ":" + tostr(item_name);
+      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+      doc_body = doc_body ? doc_body | "(No documentation available)";
+      return title + "\n\n" + doc_body;
+    elseif (type == 'property)
+      doc_text = $help_utils:property_documentation(target_obj, item_name);
+      title = "Documentation for " + tostr(target_obj) + "." + tostr(item_name);
+      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+      doc_body = doc_body ? doc_body | "(No documentation available)";
+      return title + "\n\n" + doc_body;
+    endif
+    raise(E_INVARG, "Unknown target type");
   endverb
 
   verb _tool_move_object (this none this) owner: ARCH_WIZARD flags: "rxd"

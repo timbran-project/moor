@@ -921,6 +921,45 @@ object BUILDER_FEATURES
     endtry
   endverb
 
+  verb "@get-m*essage @getm" (any none any) owner: ARCH_WIZARD flags: "rd"
+    "Show a message template for a single property.";
+    "Usage: @get-message OBJECT.PROPERTY";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!argstr)
+      raise(E_INVARG, $format.code:mk("@get-message OBJECT.PROPERTY"));
+    endif
+    try
+      target_spec = args[1];
+      parsed = $prog_utils:parse_target_spec(target_spec);
+      if (!parsed || parsed['type] != 'property)
+        player:inform_current($event:mk_error(player, "Usage: @get-message OBJECT.PROPERTY"));
+        return;
+      endif
+      object_str = parsed['object_str];
+      prop_name = parsed['item_name];
+      prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with '_msg'.");
+      target_obj = $match:match_object(object_str, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
+      if (!(prop_name in target_obj:all_properties()))
+        raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
+      endif
+      value = target_obj.(prop_name);
+      "If compiled template list, decompile to readable string";
+      display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      message = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = " + display_value;
+      player:inform_current($event:mk_info(player, message));
+      return value;
+    except e (ANY)
+      msg = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, msg));
+      return 0;
+    endtry
+  endverb
+
   verb "@mes*sages @msg" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Show all customizable message properties on an object.";
     "Usage: @messages <object>";

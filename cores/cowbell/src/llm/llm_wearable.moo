@@ -201,18 +201,31 @@ object LLM_WEARABLE
     endif
   endverb
 
+  verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Log tool execution errors to server_log. Called by agent when a tool raises.";
+    {tool_name, tool_args, error_msg} = args;
+    caller == this.agent || caller_perms().wizard || raise(E_PERM);
+    "Do not downgrade perms; server_log requires wizard perms.";
+    safe_args = typeof(tool_args) == STR ? tool_args | toliteral(tool_args);
+    server_log("LLM tool error [" + tostr(tool_name) + "]: " + tostr(error_msg) + " args=" + safe_args);
+    return true;
+  endverb
+
   verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Callback when agent uses a tool - children customize via _format_hud_message and _get_tool_content_types";
     caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args} = args;
-    wearer = this.location;
-    if (!valid(wearer) || typeof(wearer) != OBJ)
+    wearer = this:wearer();
+    if (!valid(wearer))
       return;
     endif
     "Parse JSON string to map";
     if (typeof(tool_args) == STR)
       tool_args = parse_json(tool_args);
     endif
+    "Send a quick in-progress ping to show activity";
+    ping_msg = $ansi:colorize("[PROCESSING]", 'cyan) + " " + tool_name;
+    wearer:inform_current($event:mk_info(wearer, ping_msg):with_presentation_hint('inset));
     try
       "Let child format the message (handles all tools including explain/ask_user)";
       message = this:_format_hud_message(tool_name, tool_args);
