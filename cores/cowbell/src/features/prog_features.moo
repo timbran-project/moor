@@ -12,17 +12,26 @@ object PROG_FEATURES
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
     this:_challenge_command_perms();
     set_task_perms(player);
-    answer = eval("return " + argstr + ";", 1, 2);
-    if (answer[1])
-      prefix = "=> ";
-      code = $format.code:mk(toliteral(answer[2]), 'moo);
-      content = $format.block:mk(prefix, code);
-      result_event = $event:mk_eval_result(player, content);
-    else
-      error_content = answer[2];
-      error_text = error_content:join("\n");
-      result_event = $event:mk_eval_error(player, $format.code:mk(error_text));
-    endif
+    try
+      answer = eval("return " + argstr + ";", 1, 2);
+      if (answer[1])
+        prefix = "=> ";
+        code = $format.code:mk(toliteral(answer[2]), 'moo);
+        content = $format.block:mk(prefix, code);
+        result_event = $event:mk_eval_result(player, content);
+      else
+        error_content = answer[2];
+        error_text = error_content:join("\n");
+        result_event = $event:mk_eval_error(player, $format.code:mk(error_text));
+      endif
+    except id (ANY)
+      traceback = {"Eval failed: " + toliteral(id[2]) + ":"};
+      for tb in (id[4])
+        traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
+      endfor
+      traceback = {@traceback, "(End of traceback)"};
+      result_event = $event:mk_eval_exception(player, $format.code:mk(traceback));
+    endtry
     player:inform_current(result_event);
   endverb
 
