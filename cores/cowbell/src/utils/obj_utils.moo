@@ -206,7 +206,7 @@ object OBJ_UTILS
   endverb
 
   verb message_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Return list of readable message properties (ending with _msg) on an object.";
+    "Return list of readable message properties (ending with _msg/_msgs/_msg_bag) on an object.";
     "Args: {target_obj}";
     "Returns: list of {property_name, current_value}";
     set_task_perms(caller_perms());
@@ -216,8 +216,8 @@ object OBJ_UTILS
     all_props = target_obj:all_properties();
     typeof(all_props) != LIST && return {};
     for prop_name in (all_props)
-      "Check if property ends with _msg";
-      if (prop_name:ends_with("_msg"))
+      "Check if property ends with message suffix";
+      if (prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag"))
         prop_value = target_obj.(prop_name);
         result = {@result, {prop_name, prop_value}};
       endif

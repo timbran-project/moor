@@ -39,7 +39,11 @@ object ROOT
       {_, perms} = this:check_permissions('create_child);
     endif
     {?anon = false} = args;
-    new_obj = create(target, caller_perms(), anon);
+    otype = 2;
+    if (anon)
+        otype = 1;
+    endif
+    new_obj = create(target, caller_perms(), otype);
     return new_obj;
   endverb
 

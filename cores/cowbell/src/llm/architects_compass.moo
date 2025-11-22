@@ -79,12 +79,16 @@ object ARCHITECTS_COMPASS
     doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
     agent:add_tool("doc_lookup", doc_tool);
     "Register message tools (@messages/@getm/@setm equivalents)";
-    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties ( *_msg ) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
+    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties ( *_msg ) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
     agent:add_tool("list_messages", list_messages_tool);
-    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template on an object. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
+    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
     agent:add_tool("get_message_template", get_message_tool);
-    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. Compiles {sub} templates. Equivalent to @setm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
+    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
     agent:add_tool("set_message_template", set_message_tool);
+    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_add_message_template");
+    agent:add_tool("add_message_template", add_message_tool);
+    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
+    agent:add_tool("delete_message_template", del_message_tool);
     "Register ask_user tool";
     ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
     agent:add_tool("ask_user", ask_user_tool);
@@ -723,7 +727,9 @@ object ARCHITECTS_COMPASS
     lines = {"Message properties for " + tostr(target_obj) + ":"};
     for prop_info in (msg_props)
       {prop_name, prop_value} = prop_info;
-      if (typeof(prop_value) == LIST)
+      if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
+        value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
+      elseif (typeof(prop_value) == LIST)
         value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
       else
         value_summary = toliteral(prop_value);
@@ -739,7 +745,7 @@ object ARCHITECTS_COMPASS
     wearer = this:_action_perms_check();
     obj_spec = args_map["object"];
     prop_name = args_map["property"];
-    prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with _msg");
+    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
     set_task_perms(wearer);
     target_obj = $match:match_object(obj_spec, wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
@@ -748,6 +754,20 @@ object ARCHITECTS_COMPASS
       raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     endif
     value = target_obj.(prop_name);
+    if (typeof(value) == OBJ && isa(value, $msg_bag))
+      entries = value:entries();
+      if (!entries)
+        return tostr(target_obj) + "." + prop_name + " = (empty message bag)";
+      endif
+      lines = {tostr(target_obj) + "." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):"};
+      idx = 1;
+      for entry in (entries)
+        template_str = typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry);
+        lines = {@lines, tostr(idx) + ". " + template_str};
+        idx = idx + 1;
+      endfor
+      return lines:join("\n");
+    endif
     display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
     return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
   endverb
@@ -759,7 +779,7 @@ object ARCHITECTS_COMPASS
     obj_spec = args_map["object"];
     prop_name = args_map["property"];
     template = args_map["template"];
-    prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with _msg");
+    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
     !template && raise(E_INVARG, "Template string required");
     set_task_perms(wearer);
     target_obj = $match:match_object(obj_spec, wearer);
@@ -769,9 +789,57 @@ object ARCHITECTS_COMPASS
     writable || raise(E_PERM, error_msg);
     {success, compiled} = $obj_utils:validate_and_compile_template(template);
     success || raise(E_INVARG, "Template compilation failed: " + compiled);
-    $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
-    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-    return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
+    existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
+    if (typeof(existing) == OBJ && isa(existing, $msg_bag))
+      existing.entries = {compiled};
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
+    else
+      $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
+    endif
+  endverb
+
+  verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Append a template to a message bag (like @add-message)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    template = args_map["template"];
+    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
+    !template && raise(E_INVARG, "Template string required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
+    if (!valid(bag))
+      bag = $msg_bag:create(true);
+      target_obj.(prop_name) = bag;
+    endif
+    bag:add($sub_utils:compile(template));
+    return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
+  endverb
+
+  verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Delete a template by index from a message bag (like @del-message)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    idx = args_map["index"];
+    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
+    typeof(idx) == INT || raise(E_TYPE, "Index must be integer");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
+    valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    bag:remove(idx);
+    return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
   endverb
 
   verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"

@@ -30,12 +30,15 @@ object SYSOBJ
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
+  property henri (owner: HACKER, flags: "r") = HENRI;
+  property henri_look_self_msgs (owner: HACKER, flags: "r") = HENRI_LOOK_SELF_MSGS;
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
   property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
   property local (owner: HACKER, flags: "r") = #-1;
+  property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;

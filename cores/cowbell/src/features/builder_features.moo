@@ -38,6 +38,64 @@ object BUILDER_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "builder_features";
 
+  verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
+    caller == player || raise(E_PERM);
+  endverb
+
+  verb "@add-message" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Add a compiled message template entry to a message bag property. Usage: @add-message <object>.<prop> <template>";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (length(args) < 2)
+      player:inform_current($event:mk_error(player, "Usage: @add-message <object>.<prop> <template>"):with_audience('utility));
+      return;
+    endif
+    prop_spec = args[1];
+    prop_parts = $str_proto:split(prop_spec, ".");
+    length(prop_parts) == 2 || raise(E_INVARG, "Property must be in the form object.property");
+    target_name = prop_parts[1];
+    prop_name = prop_parts[2];
+    target = $match:match_object(target_name, player);
+    valid(target) || raise(E_INVARG, "Object not found");
+    prop_name:ends_with("_msg_bag") || prop_name:ends_with("_msgs") || raise(E_INVARG, "Property must end with _msg_bag or _msgs");
+    text = args[2];
+    {success, compiled} = $obj_utils:validate_and_compile_template(text);
+    if (!success)
+      player:inform_current($event:mk_error(player, "Template compilation failed: " + compiled):with_audience('utility));
+      return;
+    endif
+    msg_bag = `target.(prop_name) ! E_PROPNF => #-1';
+    if (!valid(msg_bag))
+      msg_bag = $msg_bag:create(true);
+      target.(prop_name) = msg_bag;
+    endif
+    msg_bag:add(compiled);
+    player:inform_current($event:mk_info(player, "Added message to " + tostr(target) + "." + prop_name):with_audience('utility));
+  endverb
+
+  verb "@del-message" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Remove a message entry by index from a message bag property. Usage: @del-message <object>.<prop> <index>";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (length(args) < 2)
+      player:inform_current($event:mk_error(player, "Usage: @del-message <object>.<prop> <index>"):with_audience('utility));
+      return;
+    endif
+    prop_spec = args[1];
+    idx = toint(args[2]);
+    prop_parts = $str_proto:split(prop_spec, ".");
+    length(prop_parts) == 2 || raise(E_INVARG, "Property must be in the form object.property");
+    target_name = prop_parts[1];
+    prop_name = prop_parts[2];
+    target = $match:match_object(target_name, player);
+    valid(target) || raise(E_INVARG, "Object not found");
+    prop_name:ends_with("_msg_bag") || prop_name:ends_with("_msgs") || raise(E_INVARG, "Property must end with _msg_bag or _msgs");
+    msg_bag = `target.(prop_name) ! E_PROPNF => #-1';
+    valid(msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target) + "." + prop_name);
+    msg_bag:remove(idx);
+    player:inform_current($event:mk_info(player, "Removed message #" + tostr(idx) + " from " + tostr(target) + "." + prop_name):with_audience('utility));
+  endverb
+
   verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -881,6 +939,7 @@ object BUILDER_FEATURES
      endif
      object_str = parsed['object_str];
      prop_name = parsed['item_name];
+     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
      "Match the target object";
      try
           target_obj = $match:match_object(object_str, player);
@@ -909,7 +968,12 @@ object BUILDER_FEATURES
       endif
       compiled_list = result;
       "Set the compiled message";
-      $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
+      existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
+      if (typeof(existing) == OBJ && isa(existing, $msg_bag))
+        existing.entries = {compiled_list};
+      else
+        $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
+      endif
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       message = "Set message template on " + obj_name + " (" + tostr(target_obj) + ")." + prop_name + ".";
       player:inform_current($event:mk_info(player, message));
@@ -939,7 +1003,7 @@ object BUILDER_FEATURES
       endif
       object_str = parsed['object_str];
       prop_name = parsed['item_name];
-      prop_name:ends_with("_msg") || raise(E_INVARG, "Property must end with '_msg'.");
+      prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
       target_obj = $match:match_object(object_str, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
@@ -947,11 +1011,31 @@ object BUILDER_FEATURES
         raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
       endif
       value = target_obj.(prop_name);
-      "If compiled template list, decompile to readable string";
-      display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      message = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = " + display_value;
-      player:inform_current($event:mk_info(player, message));
+      if (typeof(value) == OBJ && isa(value, $msg_bag))
+        entries = value:entries();
+        if (!entries)
+          header = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = (empty message bag)";
+          player:inform_current($event:mk_info(player, header));
+        else
+          header = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):";
+          rows = {};
+          idx = 1;
+          for entry in (entries)
+            template_str = typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry);
+            rows = {@rows, {tostr(idx), template_str}};
+            idx = idx + 1;
+          endfor
+          table = $format.table:mk({"#", "Template"}, rows);
+          player:inform_current($event:mk_info(player, header));
+          player:inform_current($event:mk_info(player, table));
+        endif
+      else
+        "If compiled template list, decompile to readable string";
+        display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+        message = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = " + display_value;
+        player:inform_current($event:mk_info(player, message));
+      endif
       return value;
     except e (ANY)
       msg = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
@@ -988,7 +1072,9 @@ object BUILDER_FEATURES
       for prop_info in (msg_props)
         {prop_name, prop_value} = prop_info;
         "Summarize the value - decompile if it's a compiled template list";
-        if (typeof(prop_value) == LIST)
+        if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
+          value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
+        elseif (typeof(prop_value) == LIST)
           value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
         else
           value_summary = toliteral(prop_value);
