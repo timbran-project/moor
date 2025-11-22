@@ -46,6 +46,16 @@ object LOOK
     "Description is the item description but is also appended to with integrations. Objects with an :integrate_description verb are put there.";
     "The remainder go into the contents block, separated by type: actors vs things.";
     title = $format.title:mk($sub:dc());
+    "Normalize base description so lists with $sub flyweights remain intact";
+    description = this.description;
+    desc_content = {};
+    if (typeof(description) == LIST)
+      desc_content = description;
+    elseif (typeof(description) == STR)
+      desc_content = {description};
+    else
+      desc_content = {tostr(description)};
+    endif
     integrated_contents = {};
     things = {};
     actors = {};
@@ -70,30 +80,22 @@ object LOOK
         things = {@things, `o:display_name() ! E_VERBNF => o.name'};
       endif
     endfor
-    description = this.description;
     "Combine integrated object descriptions and ambient passages into the main paragraph";
     ambient_passages = `this.ambient_passages ! E_PROPNF => {}';
-    if (length(integrated_contents) || length(ambient_passages))
-      combined_description = description;
-      "Append integrated object descriptions as separate sentences";
+    if (length(integrated_contents))
       for ic in (integrated_contents)
-        "Ensure starts with capital letter";
         ic_formatted = ic:capitalize();
-        "Ensure ends with period";
-        if (!ic_formatted:ends_with("."))
+        if (typeof(ic_formatted) == STR && !ic_formatted:ends_with("."))
           ic_formatted = ic_formatted + ".";
         endif
-        combined_description = combined_description + "  " + ic_formatted;
+        desc_content = {@desc_content, "  ", ic_formatted};
       endfor
-      "Append ambient passage descriptions with connector phrase";
-      if (length(ambient_passages))
-        "Lowercase first character of each passage description for mid-sentence use";
-        lowercased_passages = { desc:initial_lowercase() for desc in (ambient_passages) };
-        combined_description = combined_description + "  You see " + lowercased_passages:english_list() + ".";
-      endif
-      description = combined_description;
     endif
-    block_elements = {title, description};
+    if (length(ambient_passages))
+      lowercased_passages = { desc:initial_lowercase() for desc in (ambient_passages) };
+      desc_content = {@desc_content, "  You see ", lowercased_passages:english_list(), "."};
+    endif
+    block_elements = {title, desc_content};
     "Add exits if present";
     exits = `this.exits ! E_PROPNF => {}';
     if (length(exits) > 1)

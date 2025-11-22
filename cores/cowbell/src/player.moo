@@ -402,29 +402,21 @@ object PLAYER
   verb prompt (this none this) owner: HACKER flags: "rxd"
     "Show an open-ended prompt and return the user's text response.";
     "Returns: string (user's response) or false if cancelled/empty";
-    "NOTE: Uses yes_no_alternative with hidden buttons to get text input until web client supports input_type: text";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {question, ?placeholder = "Enter your response..."} = args;
-    metadata = {{"input_type", "yes_no_alternative"}, {"prompt", question}, {"alternative_label", "Your response:"}, {"alternative_placeholder", placeholder}};
+    metadata = {{"input_type", "text_area"}, {"prompt", question}, {"placeholder", placeholder}, {"rows", 4}};
     response = this:read_with_prompt(metadata);
     set_task_perms(this);
-    "If user selected yes/no, treat as cancelled";
-    if (response == "yes" || response == "no")
+    if (response == "@abort" || typeof(response) != STR)
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
       return false;
     endif
-    "Extract alternative text";
-    if (index(response, "alternative: ") == 1)
-      text = response[13..$];
-      if (!text || text == "")
-        this:inform_current($event:mk_info(this, "No response provided."):with_audience('utility):with_presentation_hint('inset));
-        return false;
-      endif
-      return text;
+    text = response:trim();
+    if (!text || text == "")
+      this:inform_current($event:mk_info(this, "No response provided."):with_audience('utility):with_presentation_hint('inset));
+      return false;
     endif
-    "Unexpected response format";
-    this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
-    return false;
+    return text;
   endverb
 
   verb read_multiline (this none this) owner: ARCH_WIZARD flags: "rxd"

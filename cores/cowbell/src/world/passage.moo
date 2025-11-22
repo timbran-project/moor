@@ -414,7 +414,15 @@ object PASSAGE
     "Update the description visible from a given room. Returns new passage flyweight.";
     {room, description} = args;
     typeof(room) == OBJ || raise(E_TYPE);
-    typeof(description) == STR || raise(E_TYPE);
+    "Allow strings or precompiled lists (with $sub flyweights)";
+    if (typeof(description) == STR && ("{" in description) && ("}" in description))
+      try
+        description = $sub_utils:compile(description);
+      except (ANY)
+      endtry
+    elseif (typeof(description) != STR && typeof(description) != LIST)
+      raise(E_TYPE);
+    endif
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
     props = this:_extract_all();

@@ -173,30 +173,71 @@ object LLM_WEARABLE
   endverb
 
   verb _tool_ask_user (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Ask the wearer a question with Accept/Stop/Request Change options";
+    "Tool: Ask the wearer a question, supporting choices or free-text responses";
     {args_map} = args;
     wearer = this:_action_perms_check();
     question = args_map["question"];
     typeof(question) == STR || raise(E_TYPE("Expected question string"));
-    "Present structured choices: Accept, Stop, Request Change";
-    metadata = {{"input_type", "choice"}, {"prompt", question}, {"choices", {"Accept", "Stop", "Request Change"}}};
-    response = wearer:read_with_prompt(metadata);
-    if (response == "Stop" || typeof(response) != STR || response == "")
-      "User chose to stop or cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "User cancelled.";
-    elseif (response == "Request Change")
-      "Follow up with text input for the requested change";
-      change_metadata = {{"input_type", "text"}, {"prompt", "What changes would you like?"}, {"placeholder", "Describe your requested changes..."}};
-      change_request = wearer:read_with_prompt(change_metadata);
-      if (typeof(change_request) != STR || change_request == "")
-        "User cancelled the change request";
+    placeholder = `args_map["placeholder"] ! ANY => "Describe your requested changes..."';
+    "If explicit choices are provided, present them directly";
+    if (maphaskey(args_map, "choices"))
+      choices = args_map["choices"];
+      typeof(choices) == LIST && length(choices) > 0 || raise(E_TYPE("choices must be a non-empty list when provided"));
+      "Always include a stop option so user can end the flow";
+      if (!("Stop" in choices) && !("stop" in choices))
+        choices = {@choices, "Stop"};
+      endif
+      metadata = {{"input_type", "choice"}, {"prompt", question}, {"choices", choices}};
+      response = wearer:read_with_prompt(metadata);
+      if (typeof(response) != STR || response == "" || response == "Stop")
         this.agent.cancel_requested = true;
         return "User cancelled.";
       endif
-      return "User requested changes: " + change_request;
+      return "User chose: " + response;
+    endif
+    "Handle explicitly requested input types (text, text_area, yes_no, confirmation, etc.)";
+    requested_type = `args_map["input_type"] ! ANY => ""';
+    allowed_types = {"yes_no", "text", "text_area", "confirmation", "yes_no_alternative"};
+    if (is_member(requested_type, allowed_types))
+      metadata = {{"input_type", requested_type}, {"prompt", question}};
+      if (typeof(placeholder) == STR && placeholder != "")
+        metadata = {@metadata, {"placeholder", placeholder}};
+      endif
+      if (requested_type == "text_area")
+        rows = `args_map["rows"] ! ANY => 4';
+        typeof(rows) == INT && (metadata = {@metadata, {"rows", rows}});
+      endif
+      response = wearer:read_with_prompt(metadata);
+      if (!response || response == "@abort")
+        this.agent.cancel_requested = true;
+        return "User cancelled.";
+      endif
+      if (requested_type == "yes_no")
+        if (response == "yes")
+          return "User accepted.";
+        else
+          this.agent.cancel_requested = true;
+          return "User cancelled.";
+        endif
+      endif
+      return "User response: " + response;
+    endif
+    "Default: Accept / Stop / Request Change flow";
+    metadata = {{"input_type", "choice"}, {"prompt", question}, {"choices", {"Accept", "Stop", "Request Change"}}};
+    response = wearer:read_with_prompt(metadata);
+    if (response == "Stop" || typeof(response) != STR || response == "")
+      this.agent.cancel_requested = true;
+      return "User cancelled.";
+    elseif (response == "Request Change")
+      "Follow up with multiline text input for the requested change";
+      change_metadata = {{"input_type", "text_area"}, {"prompt", "What changes would you like?"}, {"placeholder", placeholder}, {"rows", 4}};
+      change_request = wearer:read_with_prompt(change_metadata);
+      if (change_request == "@abort" || typeof(change_request) != STR || change_request:trim() == "")
+        this.agent.cancel_requested = true;
+        return "User cancelled.";
+      endif
+      return "User requested changes: " + change_request:trim();
     else
-      "User accepted (response is 'Accept')";
       return "User accepted.";
     endif
   endverb
@@ -271,7 +312,13 @@ object LLM_WEARABLE
       if (length(question) > 60)
         question = question[1..60] + "...";
       endif
-      return $ansi:colorize("[QUESTION]", 'bright_yellow) + " Asking: " + question;
+      suffix = "";
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+        suffix = " [options]";
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+        suffix = " [" + tool_args["input_type"] + "]";
+      endif
+      return $ansi:colorize("[QUESTION]", 'bright_yellow) + " Asking: " + question + suffix;
     endif
     "Fallback for unknown tools";
     return $ansi:colorize("[PROCESS]", 'cyan) + " " + tool_name;

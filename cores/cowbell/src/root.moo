@@ -111,7 +111,19 @@ object ROOT
     {target, perms} = this:check_permissions('set_description);
     set_task_perms(perms);
     {description} = args;
-    this.description = description;
+    "If description is a string with { } tokens, compile it into $sub content so substitutions can render in looks";
+    if (typeof(description) == STR && "{" in description && "}" in description)
+      compiled = description;
+      try
+        compiled = $sub_utils:compile(description);
+      except e (ANY)
+        "Fall back to raw string if compilation fails";
+        compiled = description;
+      endtry
+      this.description = compiled;
+    else
+      this.description = description;
+    endif
   endverb
 
   verb name (this none this) owner: ARCH_WIZARD flags: "rxd"
