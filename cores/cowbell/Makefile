@@ -9,7 +9,8 @@ DEBUG ?= 0
 OPTIONS = --use-boolean-returns true \
           --use-symbols-in-builtins true \
           --custom-errors true \
-          --use-uuobjids true
+          --use-uuobjids true \
+          --anonymous-objects true
 
 ifeq ($(MOORC_TYPE),cargo)
 SRC_DIRECTORY = src

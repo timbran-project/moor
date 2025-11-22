@@ -4,6 +4,8 @@ object ARCHITECTS_COMPASS
   owner: ARCH_WIZARD
   readable: true
 
+  property current_building_task (owner: ARCH_WIZARD, flags: "rc") = #-1;
+
   override description = "A precision instrument for spatial construction and world building. When worn, it provides tools for creating rooms, passages, and objects. Can interface with neural augmentation systems for conversational operation.";
   override import_export_hierarchy = {"llm"};
   override import_export_id = "architects_compass";
@@ -21,7 +23,8 @@ object ARCHITECTS_COMPASS
     agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
     agent.max_iterations = 15;
     base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. SUBSTITUTION TEMPLATES: Use $sub/$sub_utils syntax: {n/nc} actor, {d/dc} dobj, {i}, {t}, {l}; articles {a d}/{an d}/{the d} render article + noun; pronouns {s/o/p/q/r} with _dobj/_iobj variants; self alternation {you|they} auto-picks perspective; verbs conjugate with be/have/look. ALWAYS use self-alternation for verbs that differ by person (e.g., {set|sets}, {place|places}) so the actor sees second-person grammar. Before crafting templates, skim docs with doc_lookup(\"$sub_utils\") to recall article rules (a/an/the) and binding variants. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question; provide a 'choices' list for multiple-choice prompts or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' to collect free-form input; if omitted it defaults to Accept/Stop/Request Change with a follow-up text box), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
-    agent.system_prompt = base_prompt;
+    task_management_section = "\n## Task Management for Building Projects\n\nFor complex construction projects, create building tasks to track progress and maintain focus across multiple creation steps.\n\n### Planning a Building Project\n\n- When starting a significant project (multiple rooms, complex layout), use `create_task()` to spawn a project tracker\n- The task tracks lifecycle: pending → in_progress → completed/failed\n- Use task descriptions to document the overall project scope\n- Example: \"Build a three-story tavern with common room, kitchen, upstairs bedrooms, and cellar\"\n\n### Recording Progress\n\n- Use `task:add_finding(subject, key, value)` to record what was built:\n  - `task:add_finding(\"rooms\", \"created\", {\"Tavern Common Room #15\", \"Kitchen #16\"})`\n  - `task:add_finding(\"passages\", \"connected\", {\"north from #15 to #16\"})`\n  - `task:add_finding(\"objects\", \"placed\", {\"bar counter in #15\", \"stove in #16\"})`\n\n### Creating Subtasks for Stages\n\n- Break building projects into stages using `task:add_subtask(description, blocking)`\n- Example stages:\n  1. \"Design and create room layout\"\n  2. \"Dig passages and connections\"\n  3. \"Place furniture and decorations\"\n  4. \"Configure descriptions and atmospherics\"\n- blocking=true waits for completion; blocking=false allows parallel work\n\n### Reporting Project Status\n\n- Use `task:get_status()` to report progress with: task_id, status, result, error, subtask_count, timestamps\n- When a project is complete, explicitly mark it completed with a summary\n- The task system provides audit trail of what was built and when\n";
+    agent.system_prompt = base_prompt + task_management_section;
     agent:initialize();
     agent.tool_callback = this;
     "Register explain tool";
@@ -92,6 +95,13 @@ object ARCHITECTS_COMPASS
     "Register ask_user tool";
     ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
     agent:add_tool("ask_user", ask_user_tool);
+    "Register project task management tools";
+    create_project_tool = $llm_agent_tool:mk("create_project", "Create a new building project task to organize construction work. The project tracks rooms created, passages built, objects placed, and their descriptions. Returns project task object.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Project description (e.g., 'Build a three-story tavern with common room, kitchen, upstairs rooms, and cellar')"]], "required" -> {"description"}], this, "_tool_create_project");
+    agent:add_tool("create_project", create_project_tool);
+    record_creation_tool = $llm_agent_tool:mk("record_creation", "Record what was created/built in the current project's knowledge base. Use subject for categories (rooms, passages, objects, decorations), key for the type (e.g., 'created', 'connected', 'placed'), and value for details.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Category: 'rooms', 'passages', 'objects', 'decorations', 'descriptions'"], "key" -> ["type" -> "string", "description" -> "Type of creation: 'created', 'connected', 'placed', 'configured'"], "value" -> ["type" -> "string", "description" -> "Details of what was created (can be multiline)"]], "required" -> {"subject", "key", "value"}], this, "_tool_record_creation");
+    agent:add_tool("record_creation", record_creation_tool);
+    project_status_tool = $llm_agent_tool:mk("project_status", "Get status of the current building project including what stages/rooms have been completed and overall progress.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_project_status");
+    agent:add_tool("project_status", project_status_tool);
   endverb
 
   verb _check_user_eligible (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1199,6 +1209,76 @@ object ARCHITECTS_COMPASS
     return result:join("\n");
   endverb
 
+  verb _tool_create_project (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Create a new building project task";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    description = args_map["description"];
+    typeof(description) == STR || raise(E_TYPE("Description must be string"));
+    "Ensure agent has knowledge base";
+    kb = this.agent:_ensure_knowledge_base();
+    "Create the project task";
+    next_id = this.current_building_task < 0 ? 1 | this.current_building_task + 1;
+    task = this.agent:create_task(next_id, description);
+    this.current_building_task = task.task_id;
+    task:mark_in_progress();
+    return "Building project #" + tostr(task.task_id) + " started: " + description;
+  endverb
+
+  verb _tool_record_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Record a creation in current project's knowledge base";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    subject = args_map["subject"];
+    key = args_map["key"];
+    value = args_map["value"];
+    typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
+    typeof(key) == STR || raise(E_TYPE("Key must be string"));
+    "Get current project";
+    if (this.current_building_task == -1)
+      return "No active building project. Create one with create_project first.";
+    endif
+    task_obj = this.agent.current_tasks[this.current_building_task];
+    if (!valid(task_obj))
+      return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
+    endif
+    "Record the creation";
+    task_obj:add_finding(subject, key, value);
+    return "Recorded [" + subject + "/" + key + "]";
+  endverb
+
+  verb _tool_project_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get current building project status";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    if (this.current_building_task == -1)
+      return "No active building project.";
+    endif
+    task_obj = this.agent.current_tasks[this.current_building_task];
+    if (!valid(task_obj))
+      return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
+    endif
+    "Get project status";
+    status = task_obj:get_status();
+    "Format status for display";
+    status_lines = {};
+    status_lines = {@status_lines, "Project #" + tostr(status["task_id"]) + ": " + status["description"]};
+    status_lines = {@status_lines, "Status: " + tostr(status["status"])};
+    if (status["status"] == 'completed)
+      status_lines = {@status_lines, "Completed: " + status["result"]};
+    elseif (status["status"] == 'failed)
+      status_lines = {@status_lines, "Error: " + status["error"]};
+    elseif (status["status"] == 'blocked)
+      status_lines = {@status_lines, "Blocked: " + status["error"]};
+    endif
+    if (status["subtask_count"] > 0)
+      status_lines = {@status_lines, "Stages: " + tostr(status["subtask_count"])};
+    endif
+    "Show timestamps";
+    status_lines = {@status_lines, "Started: " + tostr(ctime(status["started_at"]))};
+    return status_lines:join("\n");
+  endverb
+
   verb on_wear (this none this) owner: HACKER flags: "rxd"
     "Activate when worn";
     if (!valid(this.agent))
@@ -1220,5 +1300,77 @@ object ARCHITECTS_COMPASS
       this:_show_token_usage(wearer);
       wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."));
     endif
+  endverb
+
+  verb plan_building (none none none) owner: HACKER flags: "rd"
+    "Create a new building project task to track construction progress";
+    if (!is_member(this, player.wearing))
+      player:inform_current($event:mk_error(player, "You need to be wearing the compass to start a building project."));
+      return;
+    endif
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    "Ensure agent has knowledge base";
+    kb = this.agent:_ensure_knowledge_base();
+    "Create the building task";
+    next_id = this.current_building_task < 0 ? 1 | this.current_building_task + 1;
+    task = this.agent:create_task(next_id, "Building Project: " + argstr);
+    this.current_building_task = task.task_id;
+    task:mark_in_progress();
+    "Report to player";
+    player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " Building Project #" + tostr(task.task_id) + " started: " + argstr):with_presentation_hint('inset));
+  endverb
+
+  verb get_building_progress (none none none) owner: HACKER flags: "rd"
+    "Display current building project status and created items";
+    if (!is_member(this, player.wearing))
+      player:inform_current($event:mk_error(player, "You need to be wearing the compass."));
+      return;
+    endif
+    if (this.current_building_task == -1)
+      player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " No active building project. Use 'plan building <description>' to begin."):with_presentation_hint('inset));
+      return;
+    endif
+    "Get task object";
+    task_obj = this.agent.current_tasks[this.current_building_task];
+    if (!valid(task_obj))
+      player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Building project #" + tostr(this.current_building_task) + " is no longer available."));
+      return;
+    endif
+    "Get complete status";
+    status = task_obj:get_status();
+    "Format and display status";
+    progress_lines = {};
+    progress_lines = {@progress_lines, $ansi:colorize("[PROJECT STATUS]", 'bright_green)};
+    progress_lines = {@progress_lines, "  ID: " + tostr(status["task_id"])};
+    progress_lines = {@progress_lines, "  Status: " + tostr(status["status"])};
+    progress_lines = {@progress_lines, "  Description: " + status["description"]};
+    if (status["status"] == 'completed)
+      progress_lines = {@progress_lines, "  Completed: " + status["result"]};
+    elseif (status["status"] == 'failed)
+      progress_lines = {@progress_lines, "  Error: " + status["error"]};
+    elseif (status["status"] == 'blocked)
+      progress_lines = {@progress_lines, "  Blocked: " + status["error"]};
+    endif
+    if (status["subtask_count"] > 0)
+      progress_lines = {@progress_lines, "  Stages: " + tostr(status["subtask_count"])};
+    endif
+    player:inform_current($event:mk_info(player, progress_lines:join("\n")):with_presentation_hint('inset));
+  endverb
+
+  verb complete_building (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Mark current building project as completed";
+    {?result = "Building project concluded."} = args;
+    if (this.current_building_task == -1)
+      return "No active building project";
+    endif
+    task_obj = this.agent.current_tasks[this.current_building_task];
+    if (!valid(task_obj))
+      return "Building project task no longer available";
+    endif
+    task_obj:mark_complete(result);
+    this.current_building_task = -1;
+    return "Building project #" + tostr(task_obj.task_id) + " completed.";
   endverb
 endobject

@@ -62,6 +62,7 @@ define LLM_WEARABLE = #44;
 define MR_WELCOME = #45;
 define DATA_VISOR = #46;
 define ARCHITECTS_COMPASS = #47;
+define LLM_TASK = #61;
 
 // relations
 define RELATION = #23;

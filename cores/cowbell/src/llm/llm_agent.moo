@@ -20,6 +20,10 @@ object LLM_AGENT
   property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property tools (owner: ARCH_WIZARD, flags: "c") = [];
   property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
+  property current_tasks (owner: ARCH_WIZARD, flags: "rc") = {};
+  property next_task_id (owner: ARCH_WIZARD, flags: "rc") = 1;
+  property task_counter (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
   override import_export_hierarchy = {"llm"};
@@ -330,5 +334,55 @@ object LLM_AGENT
     "Log usage with timestamp";
     usage_entry = ["timestamp" -> time(), "tokens" -> tokens_used, "usage" -> this.last_token_usage];
     player_obj.llm_usage_log = {@player_obj.llm_usage_log, usage_entry};
+  endverb
+
+  verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Lazily create knowledge base if not already created.";
+    if (!valid(this.knowledge_base))
+      this.knowledge_base = create($relation, true);
+    endif
+    return this.knowledge_base;
+  endverb
+
+  verb create_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a new task (usually called by another task's add_subtask or internally). Returns task object.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {task_id, description, ?parent_task_id = 0} = args;
+    typeof(task_id) == INT || raise(E_TYPE);
+    typeof(description) == STR || raise(E_TYPE);
+    "Ensure knowledge base exists";
+    kb = this:_ensure_knowledge_base();
+    "Create anonymous task";
+    task = create($llm_task, true);
+    task:mk(task_id, description, this, kb, parent_task_id);
+    "Register in current_tasks";
+    this.current_tasks[task_id] = task;
+    return task;
+  endverb
+
+  verb get_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Get status of all current tasks as a list of maps. For external reporting.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    task_statuses = {};
+    for task_id in (mapkeys(this.current_tasks))
+      task_obj = this.current_tasks[task_id];
+      if (valid(task_obj))
+        status = task_obj:get_status();
+        task_statuses = {@task_statuses, status};
+      endif
+    endfor
+    return task_statuses;
+  endverb
+
+  verb cleanup_tasks (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Destroy all task objects and knowledge base. Called on agent destruction.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    "Destroy knowledge base";
+    if (valid(this.knowledge_base))
+      this.knowledge_base:destroy();
+      this.knowledge_base = #-1;
+    endif
+    "Tasks will be auto-garbage-collected when agent is destroyed (anonymous objects)";
+    this.current_tasks = {};
   endverb
 endobject

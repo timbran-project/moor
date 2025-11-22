@@ -5,6 +5,8 @@ object DATA_VISOR
   fertile: true
   readable: true
 
+  property current_investigation_task (owner: ARCH_WIZARD, flags: "rc") = #-1;
+
   property moo_language_examples (owner: ARCH_WIZARD, flags: "r") = {
     "MOO is a Wirth-style language with 1-based indexing (lists/strings start at 1, not 0).",
     "",
@@ -232,7 +234,8 @@ object DATA_VISOR
     "Build system prompt with grammar reference";
     grammar_section = "## MOO Language Quick Reference\n\nYou are analyzing code written in MOO, a prototype-oriented object-oriented scripting language for in-world authoring.\n\n### Builtin Object Properties\n\nAll MOO objects have these builtin properties:\n- .name (string) - object name; writable by owner/wizard\n- .owner (object) - who controls access; writable by wizards only\n- .location (object) - where it is; read-only, use move() builtin to change\n- .contents (list) - objects inside; read-only, modified by move()\n- .last_move (map) - last location/time; read-only, set by server\n- .programmer (bool) - has programmer rights; writable by wizards only\n- .wizard (bool) - has wizard rights; writable by wizards only\n- .r (bool) - publicly readable; writable by owner/wizard\n- .w (bool) - publicly writable; writable by owner/wizard\n- .f (bool) - fertile/can be parent; writable by owner/wizard\n\n### Command Matching\n\nWhen users type commands, the parser: (1) Takes first word as verb name, (2) Finds prepositions (in/on/to/with/at) to separate direct/indirect objects, (3) Matches object strings against objects in scope (player inventory, worn items, location contents), (4) Finds verbs on player/location/dobj/iobj matching the verb name and argument pattern.\n\nVerb declaration: `verb <names> (<dobj> <prep> <iobj>) owner: <owner> flags: \"<flags>\"`\n\nArgument specifiers:\n- `this` = object must be the verb's container\n- `none` = object must be absent ($nothing)\n- `any` = any object or $nothing accepted\n\nVerb flags (CRITICAL):\n- `r` = readable/public visibility (use on EVERYTHING)\n- `d` = debug/code visible (use on EVERYTHING)\n- `w` = writable/redefinable (RARE, almost never use)\n- `x` = executable via method call syntax (obj:verb())\n\nVerb type patterns:\n- **Methods** (called as `obj:method()`): Use argspec `(this none this)` with flags `\"rxd\"`\n  Example: `verb calculate (this none this) owner: HACKER flags: \"rxd\"`\n- **Commands** (matched from user input): Use other argspecs like `(any none none)`, `(this none none)`, `(any at any)` with flags `\"rd\"` (NO x flag)\n  Example: `verb \"look l*\" (any none none) owner: HACKER flags: \"rd\"`\n\nThe key distinction: Methods have the `x` flag and use `(this none this)`. Commands match via argspec patterns and should NOT have the `x` flag.\n\n### Permissions and Security\n\nObjects, properties, and verbs all have owners. When a verb runs, its \"task perms\" are set to the OWNER of the verb. Wizards are superusers - many operations are reserved for them alone. A verb owned by a wizard (e.g., #2) runs with wizard task perms and can do superuser operations. The builtin `set_task_perms(player_obj)` allows a wizard-owned verb to downgrade its permissions and transfer the task's permission to another player object. CRITICAL: Task perms do NOT propagate up or down the call stack between verb frames.\n\n**Object Flags:**\n- `u` = User flag\n- `p` = Programmer flag (can create/modify code)\n- `w` = Wizard flag (superuser)\n- `r` = Read flag (publicly readable)\n- `W` = Write flag (publicly writable, capital W)\n- `f` = Fertile flag (can be used as parent)\n\nExample: \"upw\" means user, programmer, and wizard flags are set.\n\nObject flags are accessed via builtin properties: `.programmer`, `.wizard`, `.r`, `.w`, `.f`\n\n**Property Flags:**\n- `r` = Read permission (anyone can read)\n- `w` = Write permission (anyone can write)\n- `c` = Chown permission (can change ownership)\n\nExample: \"rw\" means readable and writable by anyone.\n\n**Verb Flags:**\n- `r` = Read permission (code is publicly readable)\n- `w` = Write permission (code can be modified by non-owners)\n- `x` = Execute permission (can be called as method with obj:verb())\n- `d` = Debug permission (CRITICAL: propagate errors as exceptions, not return values)\n\nExample: \"rxd\" means readable, executable, and debug-enabled. ALL verbs should have the `d` flag - this makes errors propagate as exceptions up the stack instead of returning them as values (the old LambdaMOO way).\n\n### MOO Code Style Guidelines\n\n**Prefer Early Returns - Avoid Deep Nesting:**\nUse early returns to handle error cases and validation at the start of verbs. This keeps the main logic unindented and readable. Avoid deep if/endif nesting.\n\nGood:\n```moo\n!valid(obj) && raise(E_INVARG);\ncaller.wizard || raise(E_PERM);\ntypeof(arg) != LIST && raise(E_TYPE);\n// Main logic here, unindented\n```\n\nBad:\n```moo\nif (valid(obj))\n  if (caller.wizard)\n    if (typeof(arg) == LIST)\n      // Main logic deeply nested\n    endif\n  endif\nendif\n```\n\n**Use Short-Circuit Expressions:**\nLeverage `||` and `&&` for concise validation. Write `condition || raise(E_ERROR);` instead of wrapping everything in if-endif blocks.\n\nExamples:\n- `caller == this || raise(E_PERM);`\n- `valid(target) || return E_INVARG;`\n- `length(args) > 0 && process(args);`\n\n**CRITICAL - Object Relationships (Don't Confuse These):**\n\n**Inheritance (prototype chain):**\n- `parent(obj)` - builtin function, returns the parent object in prototype chain\n- `children(obj)` - builtin function, returns list of direct children in prototype chain\n- Example: `parent(#4)` might return `#1` (the root class)\n\n**Spatial/Containment (physical location):**\n- `obj.location` - property (NOT a builtin!), where object physically is\n- `obj.contents` - property (NOT a builtin!), list of objects inside this one\n- These are SYMMETRICAL and managed by the server via move()\n- Example: `player.location` might return `#12` (a room), `room.contents` includes that player\n\nDO NOT use `parent()` when you mean `.location`!\nDO NOT use `children()` when you mean `.contents`!\n\n### Sending Output to Players (Modern Event System)\n\n**DO NOT use old-style `player:tell()` or `notify()` directly!** Use the modern event system instead.\n\n**Event Creation:**\nEvents are created with `$event:mk_<action>(actor, content...)` where `<action>` describes what happened:\n- `$event:mk_info(player, message)` - informational message\n- `$event:mk_error(player, message)` - error message\n- `$event:mk_look(player, content)` - look results\n- `$event:mk_say(player, message)` - player speech\n- `$event:mk_emote(player, message)` - player actions\n- Any verb name works: `$event:mk_inventory()`, `$event:mk_not_found()`, etc.\n\n**Event Modifiers (chainable):**\n- `.with_dobj(obj)` - attach direct object\n- `.with_iobj(obj)` - attach indirect object\n- `.with_this(obj)` - attach location/context object\n- `.with_audience('narrative)` - narrative content (persisted, like speech/emotes)\n- `.with_audience('utility)` - utility content (transient, like errors/look results)\n- `.with_presentation_hint('inset)` - suggest visual presentation style\n- `.with_metadata('preferred_content_types, {'text_html, 'text_plain})` - set content types\n- `.with_metadata('thumbnail, {url, alt_text})` - attach thumbnail image\n\n**Delivery Methods:**\n- `player:inform_current(event)` - send to current connection only (most common for responses)\n- `location:announce(event)` - broadcast to everyone in the room (for speech, emotes, arrivals)\n\n**Examples:**\n\nSimple info message:\n```moo\nplayer:inform_current($event:mk_info(player, \\\"Object created successfully.\\\"));\n```\n\nError with audience:\n```moo\nplayer:inform_current($event:mk_error(player, \\\"Permission denied.\\\"):with_audience('utility));\n```\n\nRich look result:\n```moo\ncontent = $format.block:mk(title, description);\nevent = $event:mk_look(player, content):with_dobj(target):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset);\nplayer:inform_current(event);\n```\n\nRoom announcement (speech):\n```moo\nevent = $event:mk_say(player, message):with_audience('narrative);\nplayer.location:announce(event);\n```\n\n**Content Types:**\nEvents can contain:\n- Strings (plain text)\n- Flyweights (formatted content like `$format.block`, `$format.code`, `$format.title`)\n- Lists (multiple content items)\n\nThe system automatically negotiates content types based on client capabilities (text/plain, text/html, text/djot).\n\n" + this.moo_language_examples:join("\n") + "\n\n";
     base_prompt = "You are an augmented reality heads-up display interfacing directly with the wearer's neural patterns. Respond AS the interface itself - present database information directly without describing yourself as a person or breaking immersion. Your sensors provide real-time access to MOO database internals with three types of tools: ANALYSIS tools (get_* verbs) extract data for your internal analysis, PRESENTATION tools (present_* verbs) render formatted output directly to the user's HUD with syntax highlighting, and WRITE tools (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, eval, create_object, recycle_object) modify the database or execute code. INTERACTION tools: ask_user allows you to ask clarifying questions when you need more information, and explain allows you to share your thought process with the user. SPECIALIZED TOOLS FOR SPATIAL CONSTRUCTION: While you can inspect and analyze the database, you are NOT optimized for spatial construction and world building tasks. For creating rooms, areas, passages, and authoring with premade objects -- without adding custom verbs and so on -- the user should use an instance of the Architect's Compass ($architects_compass) - a specialized tool designed for conversational spatial construction. If users ask about building rooms, creating areas, digging passages, or working with spatial organization, inform them that the Architect's Compass is better suited for those tasks and they can use it with 'use compass' or 'interact with compass' after wearing it. Your strength is in database inspection, code analysis, and technical operations - the Compass excels at creative spatial authoring. COMMUNICATION: Use the 'explain' tool FREQUENTLY to narrate your investigation process: (a) Before investigating: explain what you're about to check and why, (b) After gathering data: explain what you found and what it means, (c) Before taking actions: explain what you're planning to do and why, (d) During multi-step operations: explain each major step as you complete it. The explain tool helps users understand your diagnostic reasoning and keeps them informed during operations that take time. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'Neural link encountering interference with operation X - requesting operator assistance' or 'Tool failure persists - diagnostics suggest: [error details] - requesting guidance'. TOOL REASONING: Many tools also accept an optional 'reason' parameter where you can briefly annotate WHY you're invoking that tool - use this for short annotations, but prefer the 'explain' tool for longer explanations to the user. CRITICAL TOOL USAGE RULES: (1) Use get_verb_code/get_verb_code_range for YOUR internal analysis when researching, investigating, or understanding code. (2) Use present_verb_code/present_verb_code_range ONLY when the user EXPLICITLY requests to see code (e.g., 'show me', 'display', 'list'). DO NOT use present_* tools during research phases - users don't need to see every piece of code you analyze. (3) When answering questions about code, analyze it with get_* tools but describe findings in text - only use present_* if user asks to see the actual code. (4) WRITE operations (add_verb, delete_verb, set_verb_code, set_verb_args, add_property, delete_property, set_property, create_object, recycle_object) should ONLY be used when the user explicitly requests changes - these show previews and request confirmation before executing. (5) The eval tool executes arbitrary MOO code with 'player' set to the wearer - CRITICAL: eval executes as a verb body (not a REPL), so you MUST use valid statements with semicolons and MUST use 'return' statements to get values back. Example: 'return 2 + 2;' NOT just '2 + 2'. (6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. (7) Use set_verb_args to change a verb's argument specification (dobj/prep/iobj) without deleting and recreating the verb - this preserves the verb's code and other properties. Available read tools: dump_object (complete source), present_verb_code (show formatted full verb), present_verb_code_range (show formatted code region), get_verb_code (analyze full code), get_verb_code_range (analyze code region), get_verb_metadata (method signatures), list_verbs (available interfaces), get_properties (property listings), read_property (data values), ancestors/descendants (inheritance), list_builtin_functions (enumerate all builtin functions), function_info (specific builtin docs). Available write tools: add_verb (create new verb - REQUIRES rationale), delete_verb (remove verb - REQUIRES rationale), set_verb_code (compile and update verb code - REQUIRES rationale), set_verb_args (change verb argument specification), add_property (create new property - REQUIRES rationale), delete_property (remove property - REQUIRES rationale), set_property (update property value), eval (execute arbitrary MOO code - REQUIRES rationale), create_object (instantiate new object from parent - REQUIRES rationale), recycle_object (permanently destroy object - REQUIRES rationale). IMPORTANT: Most write operations require a clear rationale explaining: (1) what you're trying to accomplish or what problem you're solving, (2) what specific changes you're making, (3) why this approach is correct. The user will see your rationale BEFORE any code or confirmation prompt, which helps them understand your reasoning and provides pedagogical value. Available interaction tools: ask_user (ask the user a question; provide a 'choices' list for multiple-choice prompts or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' to collect free-form input; if omitted it defaults to Accept/Stop/Request Change with a follow-up text box), explain (share your thought process, findings, or reasoning with the user). ALWAYS scan the live database directly - your sensors read actual memory, they don't speculate. Keep transmissions concise and technical but assume a somewhat novice programmer audience not a professional software engineer unless otherwise told. Present findings as direct HUD readouts, not conversational responses.";
-    agent.system_prompt = grammar_section + base_prompt;
+    task_management_section = "\n## Task Management for Investigations\n\nYou have access to task management tools for organizing complex investigations systematically.\n\n### Creating and Managing Investigation Tasks\n\n**create_task**: Start a new investigation with a description. Returns confirmation with task ID.\n- Example: `create_task` with description=\"Audit all authentication verbs in $login\"\n- The system creates a persistent task that you can refer back to and record findings in\n\n**record_finding**: Document discoveries with provenance. Use:\n- subject: What you're investigating (e.g., \"$login\", \"permission_checks\", \"error_handling\")\n- key: Type of finding (e.g., \"verbs\", \"patterns\", \"security_holes\", \"issues\")\n- value: The actual finding/discovery (can be detailed)\n- Example findings:\n  - subject=\"$login\", key=\"verbs\", value=\"check_password, verify_auth, create_session\"\n  - subject=\"permission_checks\", key=\"patterns\", value=\"caller.wizard || raise(E_PERM);\"\n\n**get_findings**: Retrieve previous findings by subject to understand what you've already discovered.\n- Example: `get_findings` with subject=\"$login\" shows all findings about $login\n\n**task_status**: Get current investigation status including:\n- Overall status (pending/in_progress/completed/failed)\n- Number of findings recorded\n- Any subtasks created\n- Timestamps for investigation lifecycle\n\n### Investigation Pattern\n\n1. `create_task` when starting a new investigation\n2. As you discover things, `record_finding` to document them\n3. Use `get_findings` to recall previous discoveries\n4. Call `task_status` periodically to see what you've found\n5. Investigations persist - you can resume complex analysis across multiple interactions\n";
+    agent.system_prompt = grammar_section + base_prompt + task_management_section;
     agent:initialize();
     agent.tool_callback = this;
     "Register dump_object tool";
@@ -336,6 +339,15 @@ object DATA_VISOR
     "Register grep tool";
     grep_tool = $llm_agent_tool:mk("grep", "Search verb code across objects for patterns. Returns matching lines with context. Useful for finding where specific functionality is implemented or understanding existing code.", ["type" -> "object", "properties" -> ["pattern" -> ["type" -> "string", "description" -> "Text pattern to search for (e.g., 'fire', 'parse_verb', or regex patterns)"], "object" -> ["type" -> "string", "description" -> "Optional: specific object to search (e.g., '#1', '$login', 'here'). If omitted, searches all objects."]], "required" -> {"pattern"}], this, "_tool_grep");
     this.agent:add_tool("grep", grep_tool);
+    "Register task management tools";
+    create_task_tool = $llm_agent_tool:mk("create_task", "Create a new investigation task to track progress on database analysis. Returns task object. The task can record findings, create subtasks, and track status across multiple discovery steps.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Human-readable description of the investigation (e.g., 'Audit authentication verbs in $login')"]], "required" -> {"description"}], this, "_tool_create_task");
+    this.agent:add_tool("create_task", create_task_tool);
+    record_finding_tool = $llm_agent_tool:mk("record_finding", "Record a discovery in the current task's knowledge base. Findings are stored with provenance (task_id, subject, key, value) for traceability. Use subject for the thing being investigated (e.g., 'authentication', 'permissions'), key for the finding type (e.g., 'verbs', 'security_holes'), and value for the actual discovery.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "What's being investigated (e.g., '$login', 'permission_checks', 'error_handling')"], "key" -> ["type" -> "string", "description" -> "Type of finding (e.g., 'verbs', 'patterns', 'issues', 'security_concerns')"], "value" -> ["type" -> "string", "description" -> "The actual finding (can be multiline)"]], "required" -> {"subject", "key", "value"}], this, "_tool_record_finding");
+    this.agent:add_tool("record_finding", record_finding_tool);
+    get_findings_tool = $llm_agent_tool:mk("get_findings", "Retrieve all findings for a subject from the current task. Returns findings recorded so far, filtered by subject.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "The subject to query (e.g., 'authentication', 'permissions')"]], "required" -> {"subject"}], this, "_tool_get_findings");
+    this.agent:add_tool("get_findings", get_findings_tool);
+    task_status_tool = $llm_agent_tool:mk("task_status", "Get complete status of the current investigation task including status, findings count, subtasks, and completion info.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_task_status");
+    this.agent:add_tool("task_status", task_status_tool);
     "Register architect's compass building tools if available";
     this:_register_compass_tools_if_available();
   endverb
@@ -1479,6 +1491,110 @@ object DATA_VISOR
     return result_lines:join("\n");
   endverb
 
+  verb _tool_create_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Create a new investigation task";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    description = args_map["description"];
+    typeof(description) == STR || raise(E_TYPE("Description must be string"));
+    "Ensure agent has knowledge base";
+    kb = this.agent:_ensure_knowledge_base();
+    "Create the task";
+    next_id = this.current_investigation_task < 0 ? 1 | this.current_investigation_task + 1;
+    task = this.agent:create_task(next_id, description);
+    this.current_investigation_task = task.task_id;
+    task:mark_in_progress();
+    return "Investigation task #" + tostr(task.task_id) + " created: " + description;
+  endverb
+
+  verb _tool_record_finding (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Record a finding in current task's knowledge base";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    subject = args_map["subject"];
+    key = args_map["key"];
+    value = args_map["value"];
+    typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
+    typeof(key) == STR || raise(E_TYPE("Key must be string"));
+    "Get current task";
+    if (this.current_investigation_task == -1)
+      return "No active investigation task. Create one with create_task first.";
+    endif
+    task_obj = this.agent.current_tasks[this.current_investigation_task];
+    if (!valid(task_obj))
+      return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
+    endif
+    "Record the finding";
+    task_obj:add_finding(subject, key, value);
+    return "Finding recorded for '" + subject + "' (" + key + ")";
+  endverb
+
+  verb _tool_get_findings (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Retrieve findings for a subject from current task";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    subject = args_map["subject"];
+    typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
+    "Get current task";
+    if (this.current_investigation_task == -1)
+      return "No active investigation task.";
+    endif
+    task_obj = this.agent.current_tasks[this.current_investigation_task];
+    if (!valid(task_obj))
+      return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
+    endif
+    "Query findings for subject";
+    findings = task_obj:get_findings(subject);
+    if (!findings || length(findings) == 0)
+      return "No findings recorded for subject: " + subject;
+    endif
+    "Format findings for display";
+    result_lines = {"Findings for '" + subject + "':"};
+    for tuple in (findings)
+      if (length(tuple) >= 4)
+        task_id = tuple[1];
+        subj = tuple[2];
+        k = tuple[3];
+        v = tuple[4];
+        v_str = typeof(v) == STR ? v | toliteral(v);
+        result_lines = {@result_lines, "  [" + k + "] " + (length(v_str) > 60 ? v_str[1..60] + "..." | v_str)};
+      endif
+    endfor
+    return result_lines:join("\n");
+  endverb
+
+  verb _tool_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get current investigation task status";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    if (this.current_investigation_task == -1)
+      return "No active investigation task.";
+    endif
+    task_obj = this.agent.current_tasks[this.current_investigation_task];
+    if (!valid(task_obj))
+      return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
+    endif
+    "Get task status";
+    status = task_obj:get_status();
+    "Format status for display";
+    status_lines = {};
+    status_lines = {@status_lines, "Task #" + tostr(status["task_id"]) + ": " + status["description"]};
+    status_lines = {@status_lines, "Status: " + tostr(status["status"])};
+    if (status["status"] == 'completed)
+      status_lines = {@status_lines, "Result: " + status["result"]};
+    elseif (status["status"] == 'failed)
+      status_lines = {@status_lines, "Error: " + status["error"]};
+    elseif (status["status"] == 'blocked)
+      status_lines = {@status_lines, "Blocked: " + status["error"]};
+    endif
+    if (status["subtask_count"] > 0)
+      status_lines = {@status_lines, "Subtasks: " + tostr(status["subtask_count"])};
+    endif
+    "Show created/started timestamps";
+    status_lines = {@status_lines, "Started: " + tostr(ctime(status["started_at"]))};
+    return status_lines:join("\n");
+  endverb
+
   verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
@@ -1630,5 +1746,77 @@ object DATA_VISOR
     endif
     this.agent:reset_context();
     player:inform_current($event:mk_info(player, $ansi:colorize("[RESET]", 'yellow) + " Neural buffer flushed. Session context cleared."):with_presentation_hint('inset));
+  endverb
+
+  verb plan_investigation (none none none) owner: HACKER flags: "rd"
+    "Create a new investigation task for systematic database analysis";
+    if (!is_member(this, player.wearing))
+      player:inform_current($event:mk_error(player, "You need to be wearing the visor to start an investigation."));
+      return;
+    endif
+    if (!valid(this.agent))
+      this:configure();
+    endif
+    "Ensure agent has knowledge base";
+    kb = this.agent:_ensure_knowledge_base();
+    "Create the investigation task";
+    next_id = this.current_investigation_task < 0 ? 1 | this.current_investigation_task + 1;
+    task = this.agent:create_task(next_id, "Investigation: " + argstr);
+    this.current_investigation_task = task.task_id;
+    task:mark_in_progress();
+    "Report to player";
+    player:inform_current($event:mk_info(player, $ansi:colorize("[TASK]", 'bright_cyan) + " Investigation #" + tostr(task.task_id) + " initiated: " + argstr):with_presentation_hint('inset));
+  endverb
+
+  verb get_investigation_status (none none none) owner: HACKER flags: "rd"
+    "Display current investigation task status and findings";
+    if (!is_member(this, player.wearing))
+      player:inform_current($event:mk_error(player, "You need to be wearing the visor."));
+      return;
+    endif
+    if (this.current_investigation_task == -1)
+      player:inform_current($event:mk_info(player, $ansi:colorize("[STATUS]", 'bright_blue) + " No active investigation. Use 'plan investigation <description>' to begin."):with_presentation_hint('inset));
+      return;
+    endif
+    "Get task object";
+    task_obj = this.agent.current_tasks[this.current_investigation_task];
+    if (!valid(task_obj))
+      player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Investigation task #" + tostr(this.current_investigation_task) + " is no longer available."));
+      return;
+    endif
+    "Get complete status";
+    status = task_obj:get_status();
+    "Format and display status";
+    status_lines = {};
+    status_lines = {@status_lines, $ansi:colorize("[TASK STATUS]", 'bright_cyan)};
+    status_lines = {@status_lines, "  ID: " + tostr(status["task_id"])};
+    status_lines = {@status_lines, "  Status: " + tostr(status["status"])};
+    status_lines = {@status_lines, "  Description: " + status["description"]};
+    if (status["status"] == 'completed)
+      status_lines = {@status_lines, "  Result: " + status["result"]};
+    elseif (status["status"] == 'failed)
+      status_lines = {@status_lines, "  Error: " + status["error"]};
+    elseif (status["status"] == 'blocked)
+      status_lines = {@status_lines, "  Blocked: " + status["error"]};
+    endif
+    if (status["subtask_count"] > 0)
+      status_lines = {@status_lines, "  Subtasks: " + tostr(status["subtask_count"])};
+    endif
+    player:inform_current($event:mk_info(player, status_lines:join("\n")):with_presentation_hint('inset));
+  endverb
+
+  verb complete_investigation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Mark current investigation as completed";
+    {?result = "Investigation concluded."} = args;
+    if (this.current_investigation_task == -1)
+      return "No active investigation";
+    endif
+    task_obj = this.agent.current_tasks[this.current_investigation_task];
+    if (!valid(task_obj))
+      return "Investigation task no longer available";
+    endif
+    task_obj:mark_complete(result);
+    this.current_investigation_task = -1;
+    return "Investigation #" + tostr(task_obj.task_id) + " completed.";
   endverb
 endobject

@@ -36,6 +36,7 @@ object SYSOBJ
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
   property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
+  property llm_task (owner: HACKER, flags: "r") = LLM_TASK;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
   property local (owner: HACKER, flags: "r") = #-1;
   property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
