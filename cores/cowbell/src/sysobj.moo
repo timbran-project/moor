@@ -142,7 +142,7 @@ object SYSOBJ
     set_task_perms(player);
     env = player:match_environment(command, ['complex -> true]);
     "Run the parts that need wizard permissions";
-    "We let this throw otherwise errors in commands would not propgate.";
+    "We let this throw otherwise errors in commands would not propagate.";
     return this:_command_handler(command, env);
   endverb
 
@@ -177,14 +177,13 @@ object SYSOBJ
             dispatch_command_verb(target, v, test_pc);
             return true;
           endfor
-          return;
         endif
       endfor
     endfor
     "Dispatch any unmatched action out to the room for potential special handling (furniture, passages, etc.)";
     set_task_perms(player);
     player.location:maybe_handle_command(pc) && return true;
-    player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility));
+    player:inform_current($event:mk_do_not_understand(player, "I don't know how to do that."):with_audience('utility));
     return true;
   endverb
 
@@ -247,6 +246,18 @@ object SYSOBJ
     server_log("Issued player creation capability to $login");
     "Resume scheduler if needed";
     $scheduler:resume_if_needed();
+  endverb
+
+  verb handle_uncaught_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called when there's an uncaught error in a task...";
+    if (callers() && !caller_perms().wizard)
+        server_log("Illegal call to `handle_uncaught_error` from " + toliteral(callers()));
+        return;
+    endif
+    {code, msg, value, stack, traceback} = args;
+    server_log("Uncaught error: " + toliteral(code) + "(" + toliteral(msg) + ") (value: " + toliteral(value) + ")\n" + toliteral(traceback));
+    "Let the player do something with it if it can...";
+    return `player:(verb)(@args) ! ANY';
   endverb
 
   verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
