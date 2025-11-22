@@ -9,6 +9,25 @@ object WIZ_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "wiz_features";
 
+  verb "@announce" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Broadcast a message to all connected players.";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    msg = argstr;
+    if (!msg || msg == "")
+      player:inform_current($event:mk_error(player, "Usage: @announce <message>"):with_audience('utility));
+      return;
+    endif
+    msg = "“" + msg + "”";
+    title = $format.title:mk("Announcement from " + player:name());
+    content = $format.block:mk(title, msg);
+    event = $event:mk_info(player, content):with_audience('utility):with_presentation_hint('inset);
+    for p in (connected_players())
+      `p:tell(event) ! E_VERBNF => p:tell(event)';
+    endfor
+    player:inform_current($event:mk_info(player, "Announcement sent to " + tostr(length(connected_players())) + " connection(s)."):with_audience('utility));
+  endverb
+
   verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "d"
     "Grant or upgrade a player to programmer status";
     this:_challenge_command_perms();
@@ -224,6 +243,66 @@ object WIZ_FEATURES
     endfor
     "Report results";
     player:inform_current($event:mk_info(player, "Reconfigured " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
+  endverb
+
+  verb "@shutdown" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Dump the database, announce, and shut down the server with countdown.";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    msg = argstr;
+    !msg && (msg = "Server is shutting down.");
+    "Parse optional delay: \"in N <message>\" minutes; default 2 minutes";
+    delay_minutes = 2;
+    parts = msg:split(" ");
+    if (length(parts) >= 2 && parts[1] == "in")
+      possible_delay = `toint(parts[2]) ! ANY => -1';
+      if (typeof(possible_delay) == INT && possible_delay > 0)
+        delay_minutes = possible_delay;
+        remaining = length(parts) >= 3 ? parts[3..$] | {};
+        msg = remaining ? remaining:join(" ") | "Server is shutting down.";
+      endif
+    endif
+    "Confirm shutdown";
+    question = "Shut down the server in " + tostr(delay_minutes) + " minute(s)?";
+    metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+    response = player:read_with_prompt(metadata);
+    if (response != "yes")
+      player:inform_current($event:mk_error(player, "Shutdown cancelled."):with_audience('utility));
+      return;
+    endif
+    "Build countdown schedule (seconds)";
+    announce_times = {};
+    delay = delay_minutes;
+    if (delay > 0)
+      while (delay > 0)
+        announce_times = {@announce_times, delay * 60};
+        delay = delay / 2;
+      endwhile
+      announce_times = {@announce_times, 30, 10};
+    else
+      announce_times = {0};
+    endif
+    "Send announcements and countdown";
+    for i in [1..length(announce_times)]
+      seconds = announce_times[i];
+      base_msg = $format.code:mk("** Server will shut down in " + tostr(seconds) + " second(s): " + msg + " **");
+      event = $event:mk_info(player, $format.title:mk("Shutdown ..."), base_msg):with_audience('utility):with_presentation_hint('inset);
+      for p in (connected_players())
+        `p:tell(event) ! E_VERBNF => p:tell(event)';
+      endfor
+      next_delay = i < length(announce_times) ? announce_times[i] - announce_times[i + 1] | 0;
+      next_delay > 0 && suspend(next_delay);
+    endfor
+    "Final message and boot everyone";
+    final_msg = $format.code:mk("## Server shutdown: " + msg + " ##");
+    final_event = $event:mk_info(player, final_msg):with_audience('utility):with_presentation_hint('inset);
+    for p in (connected_players())
+      `p:tell(final_event) ! E_VERBNF => p:tell(final_event)';
+      `boot_player(p) ! ANY';
+    endfor
+    suspend(0);
+    dump_database();
+    shutdown(msg);
   endverb
 
   verb "@llm-budget" (any none none) owner: ARCH_WIZARD flags: "d"

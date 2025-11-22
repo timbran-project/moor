@@ -362,7 +362,10 @@ object LOGIN
     set_task_perms(new_player);
     "Welcome them to the MUD and show the what command";
     welcome_msg = this:_apply_template(this.new_player_welcome_message);
-    event = $event:mk_info(new_player, welcome_msg):with_audience('utility);
+    "Add quick-start tips for profile basics";
+    tips_list = $format.list:mk({"Set your description: @describe me as <text>", "Set your pronouns: @pronouns they/them (or she/her, he/him, etc.)"});
+    content = $format.block:mk(welcome_msg, "Next steps:", tips_list);
+    event = $event:mk_info(new_player, content):with_audience('utility);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
     new_player:inform_current(event);
   endverb
