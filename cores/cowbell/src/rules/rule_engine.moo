@@ -625,8 +625,9 @@ object RULE_ENGINE
   endverb
 
   verb _check_negation_warnings (this none this) owner: HACKER flags: "rxd"
-    "Check for problematic negation patterns and return warnings.";
-    "Returns: list of warning strings";
+    "Check for problematic negation patterns and return warnings/errors.";
+    "Bounded negation: 0-1 unbound variables OK, 2+ is an error.";
+    "Returns: list of warning/error strings";
     {goals, current_bindings} = args;
 
     warnings = {};
@@ -636,22 +637,33 @@ object RULE_ENGINE
         "This is a negated goal";
         inner_goals = listdelete(goal, 1);
 
-        "Check if any variables in inner goals are unbound";
+        "Count unbound variables across all inner goals";
+        unbound_vars = {};
         for inner_goal in (inner_goals)
           if (typeof(inner_goal) == LIST && length(inner_goal) >= 2)
             for i in [2..length(inner_goal)]
               arg = inner_goal[i];
               if (typeof(arg) == SYM && !maphaskey(current_bindings, arg))
-                "Unbound variable in negated goal";
-                warnings = {@warnings,
-                  "WARNING: Negation has unbound variable " + tostr(arg) +
-                  " in goal " + tostr(inner_goal) +
-                  " - semantics may be unexpected"
-                };
+                "Collect unbound variables (deduplicate)";
+                if (!(arg in unbound_vars))
+                  unbound_vars = {@unbound_vars, arg};
+                endif
               endif
             endfor
           endif
         endfor
+
+        "Check if we have 2+ unbound variables (not allowed)";
+        if (length(unbound_vars) > 1)
+          warnings = {@warnings,
+            "ERROR: Negation has " + tostr(length(unbound_vars)) +
+            " unbound variables: " + tostr(unbound_vars) +
+            " in goal " + tostr(goal) +
+            " - bounded negation allows at most 1 unbound variable"
+          };
+        elseif (length(unbound_vars) == 1)
+          "Single unbound variable is OK (bounded negation)";
+        endif
       endif
     endfor
 
@@ -1252,36 +1264,42 @@ object RULE_ENGINE
     return true;
   endverb
 
-  verb test_negation_warning_on_unbound (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Test that we get warnings about unbound variables in negation.";
+  verb test_negation_bounded_one_unbound (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test that bounded negation (1 unbound var) is allowed.";
     test_obj = #64;
 
-    "Create a rule with unbound variable in NOT";
-    "Body should be: {not_goal} where not_goal = {'not, {'parent, test_obj, 'UnboundVar}}";
-    not_goal = {'not, {'parent, test_obj, 'UnboundVar}};
+    "Create a rule: NOT parent(test_obj, Parent) where Parent is unbound";
+    "This is bounded negation - one unbound variable is OK";
+    "Set up test_obj to have a father";
+    test_obj.father = $root;
+
+    not_goal = {'not, {'parent, test_obj, 'Parent}};
     rule = <#63,
-      .name = 'test_warning,
-      .head = 'test_warning,
+      .name = 'test_bounded_not,
+      .head = 'test_bounded_not,
       .body = {not_goal},
-      .variables = {'UnboundVar}
+      .variables = {'Parent}
     >;
 
-    "Evaluate with no bindings - should get warning";
+    "Evaluate with no bindings - should NOT have errors";
     result = this:evaluate(rule, []);
 
     typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
-    result['warnings] != {} ||
-      raise(E_ASSERT, "Should have warnings about unbound variable");
 
-    "Check that warning message mentions the unbound variable";
-    found_warning = false;
+    "Check for ERROR messages (warnings are OK, but errors mean 2+ unbound)";
+    has_error = false;
     for warning in (result['warnings])
-      if (index(warning, "UnboundVar") > 0)
-        found_warning = true;
+      if (index(warning, "ERROR:") > 0)
+        has_error = true;
         break;
       endif
     endfor
-    found_warning || raise(E_ASSERT, "Warning should mention UnboundVar");
+    has_error && raise(E_ASSERT, "Should NOT have ERROR for 1 unbound variable");
+
+    "NOT parent(test_obj, Parent) checks if there exists any parent";
+    "Since test_obj has father = $root, fact_parent will return solutions";
+    "So NOT should fail";
+    !result['success] || raise(E_ASSERT, "NOT parent should fail (object has parents)");
 
     return true;
   endverb
