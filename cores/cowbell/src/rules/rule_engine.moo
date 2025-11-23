@@ -14,12 +14,15 @@ object RULE_ENGINE
   verb evaluate (this none this) owner: HACKER flags: "rxd"
     "Evaluate a rule to find all satisfying variable bindings.";
     "Args: rule (flyweight with .head, .body, .variables)";
-    "Returns: {success: bool, bindings: map, alternatives: list of maps}";
+    "Returns: {success: bool, bindings: map, alternatives: list of maps, warnings: list}";
     "Body can be either: a flat goal list (AND) or a list of branches (OR)";
     {rule, ?initial_bindings = []} = args;
     typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
 
     body = rule.body;
+
+    "Check for negation warnings before evaluation";
+    warnings = this:_check_negation_warnings(body, initial_bindings);
 
     "Check if body is a list of branches (OR) or flat goals (AND)";
     "Branches: body[1] is a list AND body[1][1] is a list (nested structure)";
@@ -39,6 +42,9 @@ object RULE_ENGINE
       "It's flat goals - use _prove_goals";
       result = this:_prove_goals(body, initial_bindings, {});
     endif
+
+    "Add warnings to the result";
+    result['warnings] = warnings;
 
     return result;
   endverb
@@ -92,6 +98,22 @@ object RULE_ENGINE
     "Recursive case: prove first goal, then rest";
     first_goal = goals[1];
     rest_goals = listdelete(goals, 1);
+
+    "Check if this is a negation (first element is 'not)";
+    if (length(first_goal) > 0 && first_goal[1] == 'not)
+      "Handle negation as failure";
+      inner_goals = listdelete(first_goal, 1);
+      "Try to prove the inner goals";
+      inner_result = this:_prove_goals(inner_goals, bindings);
+      if (inner_result['success])
+        "Inner goal succeeded, so NOT fails";
+        return ['success -> false, 'bindings -> [], 'alternatives -> {}];
+      else
+        "Inner goal failed, so NOT succeeds (with same bindings, no new variables)";
+        rest_result = this:_prove_goals(rest_goals, bindings);
+        return rest_result;
+      endif
+    endif
 
     "Get all solutions for the first goal";
     solutions = this:_solve_goal(first_goal, bindings);
@@ -423,13 +445,18 @@ object RULE_ENGINE
 
     current = tokens[pos];
 
-    "Handle NOT";
+    "Handle NOT - negation as failure";
     if (current:lowercase() == "not")
       pos = pos + 1;
       result = this:_parse_term(tokens, pos);
-      "TODO: implement NOT (negation as failure)";
-      "For now, just return empty to indicate NOT not yet supported";
-      return {result[1], result[2]};
+      inner_goals = result[1];
+      pos = result[2];
+      "Wrap goals in 'not' marker: {not, goal1, goal2, ...}";
+      not_goal = {'not};
+      for goal in (inner_goals)
+        not_goal = {@not_goal, goal};
+      endfor
+      return {{not_goal}, pos};
     endif
 
     "Handle parentheses";
@@ -535,7 +562,17 @@ object RULE_ENGINE
     "Resolve a name to either a variable or object reference.";
     "Capitalized names are variables (symbols).";
     "Lowercase names are object constants.";
+    "Numeric strings become integers.";
     {name} = args;
+
+    "Check if it's an integer literal";
+    num_val = `toint(name) ! ANY => 0';
+    if (num_val != 0 || name == "0")
+      return num_val;
+    endif
+
+    "TODO: Support float literals (e.g., 3.14)";
+    "TODO: Support object literals (e.g., #42, #0000-0000-0000)";
 
     "Check if first character is uppercase (variable)";
     first_char = name[1];
@@ -585,6 +622,40 @@ object RULE_ENGINE
     endfor
 
     return variables;
+  endverb
+
+  verb _check_negation_warnings (this none this) owner: HACKER flags: "rxd"
+    "Check for problematic negation patterns and return warnings.";
+    "Returns: list of warning strings";
+    {goals, current_bindings} = args;
+
+    warnings = {};
+
+    for goal in (goals)
+      if (typeof(goal) == LIST && length(goal) > 0 && goal[1] == 'not)
+        "This is a negated goal";
+        inner_goals = listdelete(goal, 1);
+
+        "Check if any variables in inner goals are unbound";
+        for inner_goal in (inner_goals)
+          if (typeof(inner_goal) == LIST && length(inner_goal) >= 2)
+            for i in [2..length(inner_goal)]
+              arg = inner_goal[i];
+              if (typeof(arg) == SYM && !maphaskey(current_bindings, arg))
+                "Unbound variable in negated goal";
+                warnings = {@warnings,
+                  "WARNING: Negation has unbound variable " + tostr(arg) +
+                  " in goal " + tostr(inner_goal) +
+                  " - semantics may be unexpected"
+                };
+              endif
+            endfor
+          endif
+        endfor
+      endif
+    endfor
+
+    return warnings;
   endverb
 
   verb test_simple_goal (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1033,6 +1104,184 @@ object RULE_ENGINE
     bindings = result['bindings];
     bindings['Result] == great_great_grandmother_obj ||
       raise(E_ASSERT, "Should find great-great-grandmother through 4-step chain");
+
+    return true;
+  endverb
+
+  verb test_parse_negation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing negation (NOT) operator.";
+    "Expression: 'NOT Object predicate?'";
+    expression = "NOT player has_magic?";
+    rule = this:parse_expression(expression, 'test_not);
+
+    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    rule.body != {} || raise(E_ASSERT, "Body should not be empty");
+
+    "Body should contain a NOT goal: {{'not, {...}}}";
+    body = rule.body;
+    length(body) > 0 || raise(E_ASSERT, "Body should have at least one goal");
+    first_goal = body[1];
+    typeof(first_goal) == LIST || raise(E_ASSERT, "First goal should be list");
+    length(first_goal) > 0 || raise(E_ASSERT, "First goal should have content");
+    first_goal[1] == 'not || raise(E_ASSERT, "First goal should start with 'not marker");
+
+    return true;
+  endverb
+
+  verb test_negation_succeeds (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test negation as failure: NOT succeeds when inner goal fails.";
+    test_obj = #64;
+
+    "Create a goal that will fail (reputation >= 100)";
+    goal_that_fails = {'reputation, test_obj, 100};
+
+    "Wrap it in NOT: {{'not, goal_that_fails}}";
+    not_goal = {'not, goal_that_fails};
+    goals = {not_goal};
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "NOT of failing goal should succeed");
+
+    return true;
+  endverb
+
+  verb test_negation_fails (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test negation as failure: NOT fails when inner goal succeeds.";
+    test_obj = #64;
+
+    "Create a goal that will succeed (reputation >= 5)";
+    goal_that_succeeds = {'reputation, test_obj, 5};
+
+    "Wrap it in NOT: {{'not, goal_that_succeeds}}";
+    not_goal = {'not, goal_that_succeeds};
+    goals = {not_goal};
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    !result['success] || raise(E_ASSERT, "NOT of succeeding goal should fail");
+
+    return true;
+  endverb
+
+  verb test_negation_with_conjunction (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test negation in conjunction: goal1 AND NOT goal2.";
+    test_obj = #64;
+
+    "Create: reputation(test_obj, 5) AND NOT reputation(test_obj, 100)";
+    "Both should succeed: first because 8 >= 5, second because 8 < 100";
+    goal1 = {'reputation, test_obj, 5};
+    goal2_fails = {'reputation, test_obj, 100};
+    not_goal = {'not, goal2_fails};
+    goals = {goal1, not_goal};
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "goal1 AND NOT goal2 should succeed");
+
+    return true;
+  endverb
+
+  verb test_parse_and_evaluate_not (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing and evaluating a NOT expression.";
+    "Instead of using 'player' constant, directly build goals from parsed rule";
+    test_obj = #64;
+
+    "Build goals directly: reputation(test_obj, 100) AND NOT reputation(test_obj, 50)";
+    goal1 = {'reputation, test_obj, 100};
+    goal2_fails = {'reputation, test_obj, 50};
+    not_goal = {'not, goal2_fails};
+    goals = {goal1, not_goal};
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    "First goal fails (8 < 100), so whole expression fails";
+    !result['success] || raise(E_ASSERT, "Expression should fail because first goal fails");
+
+    return true;
+  endverb
+
+  verb test_parse_not_failure_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing and evaluating NOT expression from string.";
+    "Expression: 'this reputation(5)? AND NOT this reputation(100)?'";
+    test_obj = #64;
+
+    expression = "this reputation(5)? AND NOT this reputation(100)?";
+    rule = this:parse_expression(expression, 'test_not_parsed);
+
+    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should parse to flyweight");
+    rule.body != {} || raise(E_ASSERT, "Body should not be empty");
+
+    "Evaluate with initial binding this -> test_obj";
+    bindings = ['this -> test_obj];
+    result = this:evaluate(rule, bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    "First goal succeeds (8 >= 5), NOT goal succeeds (8 < 100), so conjunction succeeds";
+    result['success] || raise(E_ASSERT, "Expression should succeed");
+
+    return true;
+  endverb
+
+  verb test_parse_complex_not_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test complex NOT expression: 'this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?'";
+    test_obj = #64;
+
+    "This should parse to: (reputation(5) AND NOT reputation(100)) OR reputation(3)";
+    expression = "this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?";
+    rule = this:parse_expression(expression, 'test_not_complex);
+
+    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should parse to flyweight");
+
+    "Evaluate with initial binding this -> test_obj";
+    bindings = ['this -> test_obj];
+    result = this:evaluate(rule, bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    "First branch: reputation(5) AND NOT reputation(100) should succeed (8 >= 5, 8 < 100)";
+    result['success] || raise(E_ASSERT, "Expression should succeed");
+
+    return true;
+  endverb
+
+  verb test_negation_warning_on_unbound (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test that we get warnings about unbound variables in negation.";
+    test_obj = #64;
+
+    "Create a rule with unbound variable in NOT";
+    "Body should be: {not_goal} where not_goal = {'not, {'parent, test_obj, 'UnboundVar}}";
+    not_goal = {'not, {'parent, test_obj, 'UnboundVar}};
+    rule = <#63,
+      .name = 'test_warning,
+      .head = 'test_warning,
+      .body = {not_goal},
+      .variables = {'UnboundVar}
+    >;
+
+    "Evaluate with no bindings - should get warning";
+    result = this:evaluate(rule, []);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['warnings] != {} ||
+      raise(E_ASSERT, "Should have warnings about unbound variable");
+
+    "Check that warning message mentions the unbound variable";
+    found_warning = false;
+    for warning in (result['warnings])
+      if (index(warning, "UnboundVar") > 0)
+        found_warning = true;
+        break;
+      endif
+    endfor
+    found_warning || raise(E_ASSERT, "Warning should mention UnboundVar");
 
     return true;
   endverb
