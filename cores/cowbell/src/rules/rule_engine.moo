@@ -205,7 +205,8 @@ object RULE_ENGINE
 
   verb _tokenize (this none this) owner: HACKER flags: "rxd"
     "Tokenize an expression string into a list of tokens.";
-    "Returns: list of strings, each token is a word, operator, or parenthesis";
+    "Returns: list of strings, each token is a word, operator, or complex term";
+    "Complex terms like 'predicate(arg)?' are kept as single tokens";
     {expression_string} = args;
 
     tokens = {};
@@ -225,8 +226,50 @@ object RULE_ENGINE
         continue;
       endif
 
-      "Check for special characters";
-      if (char == "(" || char == ")")
+      "Check for ( - start of predicate arguments or expression grouping";
+      if (char == "(")
+        if (length(current_token) > 0)
+          "We have a predicate name - scan for matching )? pattern";
+          "Look ahead to see if this is a predicate with arguments";
+          paren_count = 1;
+          j = i + 1;
+          while (j <= length(expression_string) && paren_count > 0)
+            if (expression_string[j] == "(")
+              paren_count = paren_count + 1;
+            elseif (expression_string[j] == ")")
+              paren_count = paren_count - 1;
+            endif
+            j = j + 1;
+          endwhile
+          "j now points after the closing ), check for ?";
+          if (j <= length(expression_string) && expression_string[j] == "?")
+            "This is a predicate with args like 'parent(X)?'";
+            "Include it all in current token";
+            while (i <= j)
+              current_token = current_token + expression_string[i];
+              i = i + 1;
+            endwhile
+            tokens = {@tokens, current_token};
+            current_token = "";
+            continue;
+          else
+            "Regular parenthesis for grouping";
+            tokens = {@tokens, current_token};
+            current_token = "";
+            tokens = {@tokens, char};
+            i = i + 1;
+            continue;
+          endif
+        else
+          "Standalone ( for grouping";
+          tokens = {@tokens, char};
+          i = i + 1;
+          continue;
+        endif
+      endif
+
+      "Check for )";
+      if (char == ")")
         if (length(current_token) > 0)
           tokens = {@tokens, current_token};
           current_token = "";
@@ -309,7 +352,7 @@ object RULE_ENGINE
   endverb
 
   verb _parse_term (this none this) owner: HACKER flags: "rxd"
-    "Parse a single term: either 'NOT term', '(expression)', or 'object predicate?'";
+    "Parse a single term: either 'NOT term', '(expression)', or 'object predicate(args)?'";
     "Returns: {goals_list, next_position}";
     {tokens, pos} = args;
 
@@ -338,7 +381,7 @@ object RULE_ENGINE
       return {goals, pos};
     endif
 
-    "Handle object predicate? syntax";
+    "Handle object predicate(args)? syntax";
     object_name = current;
     pos = pos + 1;
     pos <= length(tokens) || raise(E_INVARG, "Expected predicate after object");
@@ -346,20 +389,83 @@ object RULE_ENGINE
     predicate_spec = tokens[pos];
     pos = pos + 1;
 
-    "Check that predicate ends with ?";
-    predicate_spec[length(predicate_spec)] == "?" ||
-      raise(E_INVARG, "Predicate must end with ?");
+    "Check if predicate has arguments: predicate(arg1, arg2)?";
+    pred_args = {};
+    if (index(predicate_spec, "(") > 0)
+      "Parse predicate with arguments";
+      result = this:_parse_predicate_with_args(predicate_spec);
+      predicate_name = result[1];
+      pred_args = result[2];
+    else
+      "Simple predicate without arguments";
+      "Check that predicate ends with ?";
+      predicate_spec[length(predicate_spec)] == "?" ||
+        raise(E_INVARG, "Predicate must end with ?");
 
-    "Strip the ?";
-    predicate_name = predicate_spec[1..length(predicate_spec)-1];
+      "Strip the ?";
+      predicate_name = predicate_spec[1..length(predicate_spec)-1];
+    endif
 
     "Convert object name to symbol or object reference";
     object_arg = this:_resolve_name(object_name);
 
-    "Create goal: {predicate_name, object_arg}";
+    "Build goal: {predicate_name, object_arg, ...pred_args}";
     goal = {tosym(predicate_name:lowercase()), object_arg};
+    for arg in (pred_args)
+      arg_ref = this:_resolve_name(arg);
+      goal = {@goal, arg_ref};
+    endfor
 
     return {{goal}, pos};
+  endverb
+
+  verb _parse_predicate_with_args (this none this) owner: HACKER flags: "rxd"
+    "Parse a predicate with arguments: 'predicate(arg1, arg2)?'";
+    "Returns: {predicate_name, args_list}";
+    {predicate_spec} = args;
+
+    "Find opening paren";
+    paren_pos = index(predicate_spec, "(");
+    paren_pos > 0 || raise(E_INVARG, "Expected ( in predicate");
+
+    predicate_name = predicate_spec[1..paren_pos-1];
+
+    "Find closing paren and ?";
+    close_pos = index(predicate_spec, ")");
+    close_pos > paren_pos || raise(E_INVARG, "Expected ) in predicate");
+    close_pos < length(predicate_spec) ||
+      raise(E_INVARG, "Expected ? after )");
+
+    predicate_spec[length(predicate_spec)] == "?" ||
+      raise(E_INVARG, "Predicate must end with ?");
+
+    "Extract arguments between ( and )";
+    args_str = predicate_spec[paren_pos+1..close_pos-1];
+
+    "Split by comma";
+    args = {};
+    if (length(args_str) > 0)
+      "Simple comma splitting (doesn't handle nested parens, but good enough for now)";
+      current_arg = "";
+      for i in [1..length(args_str)]
+        char = args_str[i];
+        if (char == ",")
+          arg = current_arg:trim();
+          length(arg) > 0 || raise(E_INVARG, "Empty argument in predicate");
+          args = {@args, arg};
+          current_arg = "";
+        else
+          current_arg = current_arg + char;
+        endif
+      endfor
+      "Don't forget the last argument";
+      if (length(current_arg) > 0)
+        arg = current_arg:trim();
+        args = {@args, arg};
+      endif
+    endif
+
+    return {predicate_name, args};
   endverb
 
   verb _resolve_name (this none this) owner: HACKER flags: "rxd"
@@ -668,6 +774,84 @@ object RULE_ENGINE
     goal2 = rule.body[2];
     goal2[1] == 'is_open || raise(E_ASSERT, "Second predicate should be is_open");
     goal2[2] == 'location || raise(E_ASSERT, "Second arg should be location constant");
+
+    return true;
+  endverb
+
+  verb test_parse_and_evaluate_family (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing a family relationship expression and evaluating it.";
+    "Parse: 'Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?'";
+    expression = "Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?";
+    rule = this:parse_expression(expression, 'find_ancestors);
+
+    "Set up family: test_obj has mother, mother has father";
+    test_obj = #64;
+    test_obj.father = #0;
+    test_obj.mother = #0;
+    mother_obj = #64:create(true);
+    test_obj.mother = mother_obj;
+    mother_obj.father = $arch_wizard;
+
+    "Now evaluate the rule with bindings: Child=test_obj";
+    "This should find: Grandparent=mother_obj, GreatGrandparent=$arch_wizard";
+    bindings = ['Child -> test_obj];
+    result = this:evaluate(rule, bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Should find ancestors");
+
+    "Check bindings";
+    result_bindings = result['bindings];
+    result_bindings['Grandparent] == mother_obj ||
+      raise(E_ASSERT, "Grandparent should be mother_obj");
+    result_bindings['GreatGrandparent] == $arch_wizard ||
+      raise(E_ASSERT, "GreatGrandparent should be $arch_wizard");
+
+    return true;
+  endverb
+
+  verb test_parse_and_evaluate_cousin (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing cousin relationship: find shared grandparents.";
+    "Parse: 'Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?'";
+    expression = "Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?";
+    rule = this:parse_expression(expression, 'find_cousins);
+
+    "Build family tree:";
+    "  $arch_wizard (grandparent)";
+    "    |";
+    "    +-- mother1_obj (parent of person1)";
+    "    |      |";
+    "    |      +-- person1_obj (ego)";
+    "    |";
+    "    +-- mother2_obj (parent of person2)";
+    "           |";
+    "           +-- person2_obj (cousin)";
+
+    person1_obj = #64;
+    person1_obj.father = #0;
+    person1_obj.mother = #0;
+
+    mother1_obj = #64:create(true);
+    person1_obj.mother = mother1_obj;
+    mother1_obj.father = $arch_wizard;
+
+    mother2_obj = #64:create(true);
+    mother2_obj.father = $arch_wizard;
+
+    person2_obj = #64:create(true);
+    person2_obj.father = mother2_obj;
+
+    "Evaluate with: Person1=person1_obj, Person2=person2_obj";
+    "This should find: Parent1=mother1_obj, Parent2=mother2_obj, Grandparent=$arch_wizard";
+    bindings = ['Person1 -> person1_obj, 'Person2 -> person2_obj];
+    result = this:evaluate(rule, bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Should find shared grandparent");
+
+    result_bindings = result['bindings];
+    result_bindings['Grandparent] == $arch_wizard ||
+      raise(E_ASSERT, "Grandparent should be $arch_wizard");
 
     return true;
   endverb
