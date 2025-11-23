@@ -57,6 +57,7 @@ object SYSOBJ
   property relation (owner: HACKER, flags: "r") = RELATION;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;
+  property rule_engine (owner: HACKER, flags: "r") = RULE_ENGINE;
   property scheduled_task (owner: HACKER, flags: "r") = SCHEDULED_TASK;
   property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
   property server_options (owner: ARCH_WIZARD, flags: "r") = SERVER_OPTIONS;

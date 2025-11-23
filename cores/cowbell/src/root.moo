@@ -735,4 +735,28 @@ object ROOT
       return $format.block:mk(this:display_name(), {help_text});
     endif
   endverb
+
+  verb fact_owner_is (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Does player_obj own this object?";
+    {thing, player_obj} = args;
+    return thing.owner == player_obj;
+  endverb
+
+  verb fact_location_is (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is this object at location loc?";
+    {thing, loc} = args;
+    return thing.location == loc;
+  endverb
+
+  verb fact_contains (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Does this object contain thing?";
+    {container, thing} = args;
+    return thing.location == container;
+  endverb
+
+  verb fact_is (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is obj1 the same object as obj2?";
+    {obj1, obj2} = args;
+    return obj1 == obj2;
+  endverb
 endobject

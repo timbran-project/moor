@@ -238,4 +238,5 @@ object THING
     set_task_perms(caller_perms());
     return false;
   endverb
+
 endobject

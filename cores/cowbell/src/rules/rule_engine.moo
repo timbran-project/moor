@@ -170,6 +170,7 @@ object RULE_ENGINE
     "Call the fact predicate on the target object";
     fact_results = `target_obj:(fact_verb)(@substituted_args) ! E_VERBNF => false';
 
+    "Check if fact returned false - boolean false should fail";
     if (fact_results == false)
       return {};
     endif
@@ -237,8 +238,15 @@ object RULE_ENGINE
     endfor
 
     if (!has_vars)
-      "No variables, just check if result matches";
-      return bindings;
+      "No variables - goal is ground (all args bound)";
+      "Result can be: true/false (boolean check), object (unification), etc";
+      "Only explicit false means failure";
+      if (result == false)
+        return false;
+      else
+        "Any non-false result (true, objects, etc) means success";
+        return bindings;
+      endif
     endif
 
     "Find the first unbound variable and bind it to result";
@@ -259,14 +267,15 @@ object RULE_ENGINE
     "Parse a builder-friendly expression into a rule flyweight.";
     "Expression syntax: 'Object predicate? AND Object predicate2? OR NOT Object predicate3?'";
     "Capitalized words are variables, lowercase are constants. ? marks a predicate.";
-    {expression_string, ?rule_name = 'parsed_rule} = args;
+    "Quoted strings like \"key\" are matched to objects from match_perspective.";
+    {expression_string, ?rule_name = 'parsed_rule, ?match_perspective = player} = args;
     typeof(expression_string) == STR || raise(E_TYPE, "expression must be string");
 
     "Tokenize the expression";
     tokens = this:_tokenize(expression_string);
 
     "Parse tokens into goal list";
-    goals = this:_parse_goals(tokens);
+    goals = this:_parse_goals(tokens, match_perspective);
 
     "Extract variables from goals";
     variables = this:_extract_variables_from_goals(goals);
@@ -278,6 +287,88 @@ object RULE_ENGINE
       .body = goals,
       .variables = variables
     >;
+  endverb
+
+  verb validate_rule (this none this) owner: HACKER flags: "rxd"
+    "Validate a rule for bounded negation violations without evaluating it.";
+    "Returns: {valid, warnings} where warnings is list of error/warning strings";
+    {rule} = args;
+
+    warnings = {};
+    goals = rule.body;
+    all_vars = rule.variables;
+
+    "Check each branch for bounded negation violations";
+    "A goal is {predicate, arg1, ...} where predicate is SYM";
+    "Single branch: goals = {goal1, goal2, ...}";
+    "OR expression: goals = {branch1, branch2, ...} where branch is {goal1, goal2, ...}";
+    "So: if goals[1] is LIST and goals[1][1] is LIST, then it's OR (branches of goals)";
+    "    if goals[1] is LIST and goals[1][1] is SYM, then single branch (list of goals)";
+
+    if (length(goals) > 0 && typeof(goals[1]) == LIST)
+      if (length(goals[1]) > 0 && typeof(goals[1][1]) == LIST)
+        "OR expression - goals is list of branches";
+        for branch in (goals)
+          warnings = {@warnings, @this:_check_branch_negation(branch, all_vars)};
+        endfor
+      else
+        "Single branch - goals is a list of goals";
+        warnings = {@warnings, @this:_check_branch_negation(goals, all_vars)};
+      endif
+    endif
+
+    "Check if any errors (vs warnings)";
+    has_error = false;
+    for warning in (warnings)
+      if (index(warning, "ERROR:") > 0)
+        has_error = true;
+      endif
+    endfor
+
+    return ['valid -> !has_error, 'warnings -> warnings];
+  endverb
+
+  verb _check_branch_negation (this none this) owner: HACKER flags: "rxd"
+    "Check a single branch for bounded negation violations.";
+    {branch, all_vars} = args;
+
+    warnings = {};
+    bound_vars = [];
+
+    for goal in (branch)
+      "Check if this is a negated goal";
+      if (typeof(goal) == LIST && length(goal) > 0 && goal[1] == 'not)
+        "Negated goal - check bounded negation";
+        inner_goal = goal[2];
+
+        "Find unbound variables in this negated goal";
+        unbound_vars = [];
+        for arg in (inner_goal[2..$])
+          if (typeof(arg) == SYM && !maphaskey(bound_vars, arg))
+            unbound_vars[arg] = true;
+          endif
+        endfor
+
+        "Check if we have 2+ unbound variables (not allowed)";
+        if (length(unbound_vars) > 1)
+          warnings = {@warnings,
+            "ERROR: Negation has " + tostr(length(unbound_vars)) +
+            " unbound variables: " + toliteral(mapkeys(unbound_vars)) +
+            " in goal " + toliteral(inner_goal) +
+            " - bounded negation allows at most 1 unbound variable"
+          };
+        endif
+      else
+        "Positive goal - track which variables get bound";
+        for arg in (goal[2..$])
+          if (typeof(arg) == SYM && arg in all_vars)
+            bound_vars[arg] = true;
+          endif
+        endfor
+      endif
+    endfor
+
+    return warnings;
   endverb
 
   verb _tokenize (this none this) owner: HACKER flags: "rxd"
@@ -293,6 +384,28 @@ object RULE_ENGINE
     while (i <= length(expression_string))
       char = expression_string[i];
 
+      "Check for quoted strings";
+      if (char == "\"")
+        "Scan for closing quote";
+        if (length(current_token) > 0)
+          tokens = {@tokens, current_token};
+          current_token = "";
+        endif
+        quoted_string = "\"";
+        i = i + 1;
+        while (i <= length(expression_string) && expression_string[i] != "\"")
+          quoted_string = quoted_string + expression_string[i];
+          i = i + 1;
+        endwhile
+        if (i > length(expression_string))
+          raise(E_INVARG, "Unterminated quoted string");
+        endif
+        quoted_string = quoted_string + "\"";
+        tokens = {@tokens, quoted_string};
+        i = i + 1;
+        continue;
+      endif
+
       "Check for whitespace";
       if (char == " " || char == "\t" || char == "\n")
         if (length(current_token) > 0)
@@ -305,8 +418,22 @@ object RULE_ENGINE
 
       "Check for ( - start of predicate arguments or expression grouping";
       if (char == "(")
+        "Check if we have a predicate name (in current_token or last token)";
+        predicate_name = "";
         if (length(current_token) > 0)
-          "We have a predicate name - scan for matching )? pattern";
+          predicate_name = current_token;
+        elseif (length(tokens) > 0)
+          "Check if last token could be a predicate name";
+          last_token = tokens[length(tokens)];
+          "Predicate names are lowercase identifiers";
+          if (last_token[1] >= "a" && last_token[1] <= "z")
+            predicate_name = last_token;
+            "Remove it from tokens, we'll rebuild with args";
+            tokens = tokens[1..length(tokens)-1];
+          endif
+        endif
+
+        if (predicate_name != "")
           "Look ahead to see if this is a predicate with arguments";
           paren_count = 1;
           j = i + 1;
@@ -321,18 +448,25 @@ object RULE_ENGINE
           "j now points after the closing ), check for ?";
           if (j <= length(expression_string) && expression_string[j] == "?")
             "This is a predicate with args like 'parent(X)?'";
-            "Include it all in current token";
+            "Build the full predicate token";
+            pred_token = predicate_name;
             while (i <= j)
-              current_token = current_token + expression_string[i];
+              pred_token = pred_token + expression_string[i];
               i = i + 1;
             endwhile
-            tokens = {@tokens, current_token};
+            tokens = {@tokens, pred_token};
             current_token = "";
             continue;
           else
+            "Not a predicate - restore last token if we removed it";
+            if (predicate_name != current_token)
+              tokens = {@tokens, predicate_name};
+            endif
             "Regular parenthesis for grouping";
-            tokens = {@tokens, current_token};
-            current_token = "";
+            if (length(current_token) > 0)
+              tokens = {@tokens, current_token};
+              current_token = "";
+            endif
             tokens = {@tokens, char};
             i = i + 1;
             continue;
@@ -373,10 +507,10 @@ object RULE_ENGINE
     "Parse a token list into a goal structure.";
     "Handles AND, OR, NOT operators and parentheses.";
     "Returns either a flat goal list (no OR) or a list of branches (OR present)";
-    {tokens} = args;
+    {tokens, match_perspective} = args;
 
     "Parse starting from position 1, return (branches, next_position)";
-    result = this:_parse_or_expression(tokens, 1);
+    result = this:_parse_or_expression(tokens, 1, match_perspective);
     branches = result[1];
 
     "If only one branch, unwrap it to maintain backward compatibility";
@@ -392,10 +526,10 @@ object RULE_ENGINE
     "Parse OR expressions: term OR term OR term";
     "Returns: {branches_list, next_position}";
     "Each branch is a list of goals (AND'd together)";
-    {tokens, pos} = args;
+    {tokens, pos, match_perspective} = args;
 
     "Parse first AND expression";
-    result = this:_parse_and_expression(tokens, pos);
+    result = this:_parse_and_expression(tokens, pos, match_perspective);
     branch = result[1];
     pos = result[2];
     branches = {branch};
@@ -404,7 +538,7 @@ object RULE_ENGINE
     while (pos <= length(tokens) && tokens[pos]:lowercase() == "or")
       pos = pos + 1;
       "Parse next AND expression";
-      result = this:_parse_and_expression(tokens, pos);
+      result = this:_parse_and_expression(tokens, pos, match_perspective);
       or_branch = result[1];
       pos = result[2];
       branches = {@branches, or_branch};
@@ -416,10 +550,10 @@ object RULE_ENGINE
   verb _parse_and_expression (this none this) owner: HACKER flags: "rxd"
     "Parse AND expressions: term AND term AND term";
     "Returns: {goals_list, next_position}";
-    {tokens, pos} = args;
+    {tokens, pos, match_perspective} = args;
 
     "Parse first term";
-    result = this:_parse_term(tokens, pos);
+    result = this:_parse_term(tokens, pos, match_perspective);
     goals = result[1];
     pos = result[2];
 
@@ -427,7 +561,7 @@ object RULE_ENGINE
     while (pos <= length(tokens) && tokens[pos]:lowercase() == "and")
       pos = pos + 1;
       "Parse next term";
-      result = this:_parse_term(tokens, pos);
+      result = this:_parse_term(tokens, pos, match_perspective);
       term_goals = result[1];
       pos = result[2];
       goals = {@goals, @term_goals};
@@ -439,7 +573,7 @@ object RULE_ENGINE
   verb _parse_term (this none this) owner: HACKER flags: "rxd"
     "Parse a single term: either 'NOT term', '(expression)', or 'object predicate(args)?'";
     "Returns: {goals_list, next_position}";
-    {tokens, pos} = args;
+    {tokens, pos, match_perspective} = args;
 
     pos <= length(tokens) || raise(E_INVARG, "Unexpected end of expression");
 
@@ -448,7 +582,7 @@ object RULE_ENGINE
     "Handle NOT - negation as failure";
     if (current:lowercase() == "not")
       pos = pos + 1;
-      result = this:_parse_term(tokens, pos);
+      result = this:_parse_term(tokens, pos, match_perspective);
       inner_goals = result[1];
       pos = result[2];
       "Wrap goals in 'not' marker: {not, goal1, goal2, ...}";
@@ -462,7 +596,7 @@ object RULE_ENGINE
     "Handle parentheses";
     if (current == "(")
       pos = pos + 1;
-      result = this:_parse_or_expression(tokens, pos);
+      result = this:_parse_or_expression(tokens, pos, match_perspective);
       goals = result[1];
       pos = result[2];
       pos <= length(tokens) || raise(E_INVARG, "Missing closing parenthesis");
@@ -497,12 +631,12 @@ object RULE_ENGINE
     endif
 
     "Convert object name to symbol or object reference";
-    object_arg = this:_resolve_name(object_name);
+    object_arg = this:_resolve_name(object_name, match_perspective);
 
     "Build goal: {predicate_name, object_arg, ...pred_args}";
     goal = {tosym(predicate_name:lowercase()), object_arg};
     for arg in (pred_args)
-      arg_ref = this:_resolve_name(arg);
+      arg_ref = this:_resolve_name(arg, match_perspective);
       goal = {@goal, arg_ref};
     endfor
 
@@ -562,8 +696,31 @@ object RULE_ENGINE
     "Resolve a name to either a variable or object reference.";
     "Capitalized names are variables (symbols).";
     "Lowercase names are object constants.";
+    "Quoted strings are matched to objects.";
     "Numeric strings become integers.";
-    {name} = args;
+    {name, match_perspective} = args;
+
+    "Check if it's a quoted string - match to object";
+    if (length(name) >= 2 && name[1] == "\"" && name[length(name)] == "\"")
+      "Strip quotes and match object";
+      obj_name = name[2..length(name)-1];
+      matched_obj = $match:match_object(obj_name, match_perspective);
+      if (!valid(matched_obj))
+        raise(E_INVARG, "Could not match object: \"" + obj_name + "\"");
+      endif
+      return matched_obj;
+    endif
+
+    "Check if it's an object literal";
+    if (length(name) > 0 && name[1] == "#")
+      obj_val = toobj(name);
+      "toobj returns #0 on failure, but #0 is also valid for input '#0'";
+      if (obj_val == #0 && name != "#0")
+        "Parse failed, fall through";
+      else
+        return obj_val;
+      endif
+    endif
 
     "Check if it's an integer literal";
     num_val = `toint(name) ! ANY => 0';
@@ -572,7 +729,6 @@ object RULE_ENGINE
     endif
 
     "TODO: Support float literals (e.g., 3.14)";
-    "TODO: Support object literals (e.g., #42, #0000-0000-0000)";
 
     "Check if first character is uppercase (variable)";
     first_char = name[1];
@@ -1506,6 +1662,119 @@ object RULE_ENGINE
     index(result, "OR") > 0 || raise(E_ASSERT, "Should contain 'OR'");
     index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
     index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
+
+    return true;
+  endverb
+
+  verb test_container_access_public (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test that containers with no rule allow public access.";
+    chest = $container:create(true);
+    sword = $thing:create(true);
+    sword:moveto(chest);
+    player_obj = $player:create(true);
+
+    "No rule = public access";
+    check = chest:can_take_from(player_obj, sword);
+    check['allowed] || raise(E_ASSERT, "Should allow access with no rule");
+
+    check = chest:can_put_into(player_obj, sword);
+    check['allowed] || raise(E_ASSERT, "Should allow put with no rule");
+
+    return true;
+  endverb
+
+  verb test_container_access_owner_only (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test owner-only container access.";
+    chest = $container:create(true);
+    sword = $thing:create(true);
+    sword:moveto(chest);
+    owner = $player:create(true);
+    other = $player:create(true);
+    chest.owner = owner;
+
+    "Set owner-only take rule";
+    chest.take_rule = this:parse_expression("This owner_is(Accessor)?", 'owner_only);
+
+    "Owner should succeed";
+    check = chest:can_take_from(owner, sword);
+    check['allowed] || raise(E_ASSERT, "Owner should have access");
+
+    "Non-owner should fail";
+    check = chest:can_take_from(other, sword);
+    !check['allowed] || raise(E_ASSERT, "Non-owner should be denied");
+    typeof(check['reason]) == LIST || raise(E_ASSERT, "Should have denial reason");
+
+    return true;
+  endverb
+
+  verb test_container_access_wizard_bypass (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test that wizards can bypass container rules.";
+    chest = $container:create(true);
+    sword = $thing:create(true);
+    sword:moveto(chest);
+    owner = $player:create(true);
+    wizard_player = $player:create(true);
+    wizard_player.wizard = true;
+    chest.owner = owner;
+
+    "Set owner-only rule";
+    chest.take_rule = this:parse_expression("This owner_is(Accessor)? OR Accessor is_wizard?", 'owner_or_wizard);
+
+    "Wizard should bypass";
+    check = chest:can_take_from(wizard_player, sword);
+    check['allowed] || raise(E_ASSERT, "Wizard should bypass with OR accessor is_wizard?");
+
+    return true;
+  endverb
+
+  verb test_container_asymmetric_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test asymmetric access (different take and put rules).";
+    donation_box = $container:create(true);
+    coin = $thing:create(true);
+    owner = $player:create(true);
+    donor = $player:create(true);
+    donation_box.owner = owner;
+    coin.owner = donor;
+
+    "Anyone can put (donate)";
+    donation_box.put_rule = 0;
+
+    "Only owner can take";
+    donation_box.take_rule = this:parse_expression("This owner_is(Accessor)?", 'owner_take);
+
+    "Donor can put";
+    check = donation_box:can_put_into(donor, coin);
+    check['allowed] || raise(E_ASSERT, "Donor should be able to donate");
+
+    "But donor cannot take";
+    coin:moveto(donation_box);
+    check = donation_box:can_take_from(donor, coin);
+    !check['allowed] || raise(E_ASSERT, "Donor should not be able to take back");
+
+    "Owner can take";
+    check = donation_box:can_take_from(owner, coin);
+    check['allowed] || raise(E_ASSERT, "Owner should be able to take donations");
+
+    return true;
+  endverb
+
+  verb test_object_literals_in_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test that object literals (both #num and UUID formats) work in rule expressions";
+
+    "Create test container and item";
+    chest = $container:create();
+    sword = $thing:create();
+    sword:moveto(chest);
+
+    "Test with object literal (tostr already includes #)";
+    obj_str = tostr(sword);
+    chest.take_rule = this:parse_expression("This contains(" + obj_str + ")?", 'obj_literal);
+    result = $rule_engine:evaluate(chest.take_rule, ['This -> chest]);
+    result['success] || raise(E_ASSERT, "Object literal should work: " + obj_str);
+
+    "Cleanup";
+    sword:destroy();
+    chest:destroy();
 
     return true;
   endverb

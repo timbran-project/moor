@@ -221,4 +221,34 @@ object ACTOR
     ptype == 'reflexive && return p.pr;
     raise(E_INVARG);
   endverb
+
+  verb fact_is_wizard (this none this) owner: HACKER flags: "rxd"
+    "Fact predicate: Is this actor a wizard?";
+    {actor} = args;
+    return actor.wizard;
+  endverb
+
+  verb fact_is_programmer (this none this) owner: HACKER flags: "rxd"
+    "Fact predicate: Does this actor have programmer privileges?";
+    {actor} = args;
+    return actor.programmer;
+  endverb
+
+  verb fact_is_builder (this none this) owner: HACKER flags: "rxd"
+    "Fact predicate: Does this actor have builder privileges?";
+    {actor} = args;
+    return actor.is_builder;
+  endverb
+
+  verb fact_has_in_inventory (this none this) owner: HACKER flags: "rxd"
+    "Fact predicate: Does this actor have thing in their inventory?";
+    {actor, thing} = args;
+    return thing.location == actor;
+  endverb
+
+  verb fact_owns (this none this) owner: HACKER flags: "rxd"
+    "Fact predicate: Does this actor own thing?";
+    {actor, thing} = args;
+    return thing.owner == actor;
+  endverb
 endobject

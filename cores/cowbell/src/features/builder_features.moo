@@ -1044,6 +1044,152 @@ object BUILDER_FEATURES
     endtry
   endverb
 
+  verb "@set-r*ule" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Set a rule property on an object. Usage: @set-rule <object>.<rule-property> <expression>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+
+    if (!argstr)
+      raise(E_INVARG, $format.code:mk("@set-rule OBJECT.RULE_PROPERTY expression"));
+    endif
+    if (!args[1])
+      raise(E_INVARG, "Usage: @set-rule OBJECT.PROPERTY expression");
+    endif
+
+    "args[1] is the object.property part, rest of argstr is the rule expression";
+    prop_spec = args[1];
+    rule_expr = argstr[length(prop_spec)+1..$]:trim();
+    server_log("Parsing: " + rule_expr);
+    if (!rule_expr || rule_expr == "")
+      raise(E_INVARG, "Usage: @set-rule OBJECT.PROPERTY expression");
+    endif
+
+    "Parse property reference";
+    prop_parts = $str_proto:split(prop_spec, ".");
+    length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property");
+
+    target_name = prop_parts[1];
+    prop_name = prop_parts[2];
+
+    "Match object";
+    target = $match:match_object(target_name, player);
+    valid(target) || raise(E_INVARG, "Object not found");
+
+    "Property must end with _rule to prevent accidents";
+    prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
+
+    "Permission check";
+    if (!player.wizard && target.owner != player)
+      raise(E_PERM, "You don't own " + tostr(target) + ".");
+    endif
+
+    "Parse and validate rule";
+    rule = $rule_engine:parse_expression(rule_expr, tosym(prop_name));
+
+    "Validate for bounded negation violations without evaluating";
+    validation = $rule_engine:validate_rule(rule);
+
+    if (length(validation['warnings]) > 0)
+      for warning in (validation['warnings])
+        player:inform_current($event:mk_error(player, "Warning: " + warning));
+      endfor
+      if (!validation['valid])
+        raise(E_INVARG, "Rule has errors - fix bounded negation issues.");
+      endif
+    endif
+
+    target.(prop_name) = rule;
+
+    message = "Set rule on " + tostr(target) + "." + prop_name + ": \"" + rule_expr + "\"";
+    player:inform_current($event:mk_info(player, message));
+    return rule;
+  endverb
+
+  verb "@clear-rule" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Clear a rule property. Usage: @clear-rule <object>.<rule-property>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+
+    if (!argstr)
+      raise(E_INVARG, $format.code:mk("@clear-rule OBJECT.RULE_PROPERTY"));
+    endif
+
+    try
+      prop_spec = argstr:trim();
+
+      "Parse property reference";
+      prop_parts = $str_proto:split(prop_spec, ".");
+      length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property");
+
+      target_name = prop_parts[1];
+      prop_name = prop_parts[2];
+
+      "Match object";
+      target = $match:match_object(target_name, player);
+      valid(target) || raise(E_INVARG, "Object not found");
+
+      "Property must end with _rule";
+      prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
+
+      "Permission check";
+      if (!player.wizard && target.owner != player)
+        raise(E_PERM, "You don't own " + tostr(target) + ".");
+      endif
+
+      "Clear the rule";
+      target.(prop_name) = 0;
+
+      message = "Cleared rule on " + tostr(target) + "." + prop_name;
+      player:inform_current($event:mk_info(player, message));
+      return true;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
+  verb "@show-rule" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show a rule property. Usage: @show-rule <object>.<rule-property>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+
+    if (!argstr)
+      raise(E_INVARG, $format.code:mk("@show-rule OBJECT.RULE_PROPERTY"));
+    endif
+
+    prop_spec = argstr:trim();
+
+    "Parse property reference";
+    prop_parts = $str_proto:split(prop_spec, ".");
+    length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property");
+
+    target_name = prop_parts[1];
+    prop_name = prop_parts[2];
+
+    "Match object";
+    target = $match:match_object(target_name, player);
+    valid(target) || raise(E_INVARG, "Object not found");
+
+    "Property must end with _rule";
+    prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
+
+    "Get the rule";
+    rule = target.(prop_name);
+
+    if (rule == 0)
+      message = tostr(target) + "." + prop_name + " = (no rule set)";
+    else
+      rule_expr = $rule_engine:decompile_rule(rule);
+      message = tostr(target) + "." + prop_name + " = \"" + rule_expr + "\"";
+    endif
+
+    player:inform_current($event:mk_info(player, message));
+    return rule;
+  endverb
+
   verb "@mes*sages @msg" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Show all customizable message properties on an object.";
     "Usage: @messages <object>";
@@ -1055,8 +1201,6 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
-      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       "Get message properties";
       msg_props = $obj_utils:message_properties(target_obj);
       if (!msg_props || length(msg_props) == 0)
@@ -1092,6 +1236,55 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
+  endverb
+
+  verb "@rules" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show all rule properties on an object.";
+    "Usage: @rules <object>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!dobjstr)
+      raise(E_INVARG, $format.code:mk("@rules OBJECT"));
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+
+    "Get rule properties";
+    rule_props = $obj_utils:rule_properties(target_obj);
+    if (!rule_props || length(rule_props) == 0)
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      message = obj_name + " (" + tostr(target_obj) + ") has no rule properties.";
+      player:inform_current($event:mk_info(player, message));
+      return 0;
+    endif
+
+    "Build table";
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    headers = {"Property Name", "Rule Expression"};
+    rows = {};
+    for prop_info in (rule_props)
+      {prop_name, prop_value} = prop_info;
+      "Decompile the rule if it's set";
+      if (prop_value == 0)
+        rule_expr = "(not set)";
+      else
+        rule_expr = $rule_engine:decompile_rule(prop_value);
+      endif
+      rows = {@rows, {prop_name, rule_expr}};
+    endfor
+
+    "Output results";
+    header = "Rule properties for " + obj_name + " (" + tostr(target_obj) + "):";
+    player:inform_current($event:mk_info(player, header));
+    table_result = $format.table:mk(headers, rows);
+    player:inform_current($event:mk_info(player, table_result));
+    return length(rule_props);
   endverb
 
 endobject

@@ -225,4 +225,24 @@ object OBJ_UTILS
     return result;
   endverb
 
+  verb rule_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return list of readable rule properties (ending with _rule) on an object.";
+    "Args: {target_obj}";
+    "Returns: list of {property_name, current_value}";
+    set_task_perms(caller_perms());
+    {target_obj} = args;
+    !valid(target_obj) && return {};
+    result = {};
+    all_props = target_obj:all_properties();
+    typeof(all_props) != LIST && return {};
+    for prop_name in (all_props)
+      "Check if property ends with _rule";
+      if (prop_name:ends_with("_rule"))
+        prop_value = target_obj.(prop_name);
+        result = {@result, {prop_name, prop_value}};
+      endif
+    endfor
+    return result;
+  endverb
+
 endobject
