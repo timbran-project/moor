@@ -670,6 +670,135 @@ object RULE_ENGINE
     return warnings;
   endverb
 
+  verb decompile_rule (this none this) owner: HACKER flags: "rxd"
+    "Convert a rule flyweight back to DSL expression string.";
+    "Args: rule (flyweight with .body)";
+    "Returns: DSL expression string";
+    {rule} = args;
+    typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
+
+    body = rule.body;
+
+    "Check if body is OR-structured (list of branches) or AND-structured (flat)";
+    is_or = false;
+    if (length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0)
+      first_elem = body[1][1];
+      if (typeof(first_elem) == LIST)
+        is_or = true;
+      endif
+    endif
+
+    if (is_or)
+      "Decompile OR branches";
+      branches = body;
+      branch_strs = {};
+      for branch in (branches)
+        branch_str = this:_decompile_goals(branch);
+        branch_strs = {@branch_strs, branch_str};
+      endfor
+      return branch_strs:join(" OR ");
+    else
+      "Decompile AND goals";
+      return this:_decompile_goals(body);
+    endif
+  endverb
+
+  verb _decompile_goals (this none this) owner: HACKER flags: "rxd"
+    "Decompile a list of goals into DSL syntax.";
+    "Args: goals (list of goal structures)";
+    "Returns: DSL string with AND-joined goals";
+    {goals} = args;
+
+    goal_strs = {};
+    for goal in (goals)
+      goal_str = this:_decompile_goal(goal);
+      goal_strs = {@goal_strs, goal_str};
+    endfor
+
+    return goal_strs:join(" AND ");
+  endverb
+
+  verb _decompile_goal (this none this) owner: HACKER flags: "rxd"
+    "Decompile a single goal into DSL syntax.";
+    "Args: goal (list structure {predicate, obj, arg1, arg2, ...})";
+    "Returns: DSL string like 'object predicate(arg1, arg2)?'";
+    {goal} = args;
+
+    typeof(goal) == LIST || raise(E_TYPE, "goal must be list");
+    length(goal) >= 1 || raise(E_INVARG, "goal must have predicate");
+
+    "Check if this is a negation";
+    if (goal[1] == 'not)
+      "Decompile negated goal";
+      inner_goals = listdelete(goal, 1);
+      inner_str = this:_decompile_goals(inner_goals);
+      return "NOT " + inner_str;
+    endif
+
+    predicate = goal[1];
+    goal_args = goal[2..$];
+
+    "First arg should be the object";
+    if (length(goal_args) == 0)
+      raise(E_INVARG, "goal must have at least object argument");
+    endif
+
+    obj_arg = goal_args[1];
+    remaining_args = goal_args[2..$];
+
+    "Decompile object reference";
+    obj_str = this:_decompile_value(obj_arg);
+
+    "Decompile predicate name with arguments if present";
+    predicate_str = tostr(predicate);
+    if (length(remaining_args) > 0)
+      arg_strs = {};
+      for arg in (remaining_args)
+        arg_str = this:_decompile_value(arg);
+        arg_strs = {@arg_strs, arg_str};
+      endfor
+      predicate_str = predicate_str + "(" + arg_strs:join(", ") + ")";
+    endif
+
+    return obj_str + " " + predicate_str + "?";
+  endverb
+
+  verb _decompile_value (this none this) owner: HACKER flags: "rxd"
+    "Convert a value back to DSL representation.";
+    "Args: value (symbol, object, integer, etc)";
+    "Returns: DSL string representation";
+    {value} = args;
+
+    "Handle different types";
+    if (typeof(value) == SYM)
+      value_str = tostr(value);
+      "Check if it's a known constant";
+      if (value_str == "player")
+        return "player";
+      elseif (value_str == "this")
+        return "this";
+      elseif (value_str == "sender")
+        return "sender";
+      elseif (value_str == "location")
+        return "location";
+      elseif (value_str == "sysobj")
+        return "sysobj";
+      else
+        "It's a variable (capitalized)";
+        return value_str;
+      endif
+    elseif (typeof(value) == OBJ)
+      "Object reference - try to find a name for it";
+      return tostr(value);
+    elseif (typeof(value) == INT)
+      "Integer literal";
+      return tostr(value);
+    else
+      "Unknown type - just convert to string";
+      return tostr(value);
+    endif
+  endverb
+
   verb test_simple_goal (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test evaluating a simple goal.";
     "Create a test object with a fact predicate";
@@ -1300,6 +1429,83 @@ object RULE_ENGINE
     "Since test_obj has father = $root, fact_parent will return solutions";
     "So NOT should fail";
     !result['success] || raise(E_ASSERT, "NOT parent should fail (object has parents)");
+
+    return true;
+  endverb
+
+  verb test_decompile_simple (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test decompiling a simple rule back to DSL.";
+    test_obj = #64;
+
+    "Parse an expression";
+    expr = "this reputation(5)?";
+    rule = this:parse_expression(expr, 'test_decomp);
+
+    "Decompile it back";
+    result = this:decompile_rule(rule);
+
+    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    "Result should contain the key parts";
+    index(result, "this") > 0 || raise(E_ASSERT, "Should contain 'this'");
+    index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
+    index(result, "5") > 0 || raise(E_ASSERT, "Should contain '5'");
+
+    return true;
+  endverb
+
+  verb test_decompile_and (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test decompiling AND expressions.";
+    expr = "this reputation(5)? AND this reputation(3)?";
+    rule = this:parse_expression(expr, 'test_and_decomp);
+
+    result = this:decompile_rule(rule);
+
+    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
+    index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
+
+    return true;
+  endverb
+
+  verb test_decompile_or (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test decompiling OR expressions.";
+    expr = "this reputation(5)? OR this reputation(3)?";
+    rule = this:parse_expression(expr, 'test_or_decomp);
+
+    result = this:decompile_rule(rule);
+
+    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    index(result, "OR") > 0 || raise(E_ASSERT, "Should contain 'OR'");
+    index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
+
+    return true;
+  endverb
+
+  verb test_decompile_not (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test decompiling NOT expressions.";
+    expr = "NOT this reputation(100)?";
+    rule = this:parse_expression(expr, 'test_not_decomp);
+
+    result = this:decompile_rule(rule);
+
+    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
+    index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
+
+    return true;
+  endverb
+
+  verb test_decompile_complex (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test decompiling complex expressions.";
+    expr = "this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?";
+    rule = this:parse_expression(expr, 'test_complex_decomp);
+
+    result = this:decompile_rule(rule);
+
+    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    index(result, "OR") > 0 || raise(E_ASSERT, "Should contain 'OR'");
+    index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
+    index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
 
     return true;
   endverb
