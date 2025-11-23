@@ -15,11 +15,66 @@ object RULE_ENGINE
     "Evaluate a rule to find all satisfying variable bindings.";
     "Args: rule (flyweight with .head, .body, .variables)";
     "Returns: {success: bool, bindings: map, alternatives: list of maps}";
+    "Body can be either: a flat goal list (AND) or a list of branches (OR)";
     {rule, ?initial_bindings = []} = args;
     typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
 
-    result = this:_prove_goals(rule.body, initial_bindings, {});
+    body = rule.body;
+
+    "Check if body is a list of branches (OR) or flat goals (AND)";
+    "Branches: body[1] is a list AND body[1][1] is a list (nested structure)";
+    "Goals: body[1] is a list AND body[1][1] is a symbol (flat structure)";
+    is_branches = false;
+    if (length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0)
+      first_elem = body[1][1];
+      if (typeof(first_elem) == LIST)
+        "It's a list of branches (or operator was used)";
+        is_branches = true;
+      endif
+    endif
+
+    if (is_branches)
+      result = this:_prove_alternatives(body, initial_bindings);
+    else
+      "It's flat goals - use _prove_goals";
+      result = this:_prove_goals(body, initial_bindings, {});
+    endif
+
     return result;
+  endverb
+
+  verb _prove_alternatives (this none this) owner: HACKER flags: "rxd"
+    "Prove a list of alternative goal branches (OR).";
+    "Each branch is a list of goals to prove with AND.";
+    "Returns: {success: bool, bindings: map, alternatives: list of maps}";
+    {alternatives, bindings} = args;
+    typeof(alternatives) == LIST || raise(E_TYPE, "alternatives must be list");
+
+    all_solutions = {};
+    for branch in (alternatives)
+      typeof(branch) == LIST || raise(E_TYPE, "each branch must be list of goals");
+      result = this:_prove_goals(branch, bindings, {});
+      if (result['success])
+        all_solutions = {@all_solutions, result['bindings]};
+        "Add any alternatives from this branch";
+        branch_alts = result['alternatives];
+        if (typeof(branch_alts) == LIST)
+          for alt in (branch_alts)
+            all_solutions = {@all_solutions, alt};
+          endfor
+        endif
+      endif
+    endfor
+
+    if (length(all_solutions) == 0)
+      return ['success -> false, 'bindings -> [], 'alternatives -> {}];
+    endif
+
+    return [
+      'success -> true,
+      'bindings -> all_solutions[1],
+      'alternatives -> all_solutions[2..$]
+    ];
   endverb
 
   verb _prove_goals (this none this) owner: HACKER flags: "rxd"
@@ -293,39 +348,47 @@ object RULE_ENGINE
   endverb
 
   verb _parse_goals (this none this) owner: HACKER flags: "rxd"
-    "Parse a token list into a goal list.";
+    "Parse a token list into a goal structure.";
     "Handles AND, OR, NOT operators and parentheses.";
+    "Returns either a flat goal list (no OR) or a list of branches (OR present)";
     {tokens} = args;
 
-    "Parse starting from position 1, return (goals, next_position)";
+    "Parse starting from position 1, return (branches, next_position)";
     result = this:_parse_or_expression(tokens, 1);
-    goals = result[1];
-    return goals;
+    branches = result[1];
+
+    "If only one branch, unwrap it to maintain backward compatibility";
+    if (length(branches) == 1)
+      return branches[1];
+    else
+      "Multiple branches (OR expressions) - return as list of branches";
+      return branches;
+    endif
   endverb
 
   verb _parse_or_expression (this none this) owner: HACKER flags: "rxd"
     "Parse OR expressions: term OR term OR term";
-    "Returns: {goals_list, next_position}";
+    "Returns: {branches_list, next_position}";
+    "Each branch is a list of goals (AND'd together)";
     {tokens, pos} = args;
 
     "Parse first AND expression";
     result = this:_parse_and_expression(tokens, pos);
-    goals = result[1];
+    branch = result[1];
     pos = result[2];
+    branches = {branch};
 
     "Parse remaining OR terms";
     while (pos <= length(tokens) && tokens[pos]:lowercase() == "or")
       pos = pos + 1;
       "Parse next AND expression";
       result = this:_parse_and_expression(tokens, pos);
-      or_goals = result[1];
+      or_branch = result[1];
       pos = result[2];
-      "In our simple system, we just concatenate OR goals";
-      "A proper system would handle OR differently (as alternatives)";
-      goals = {@goals, @or_goals};
+      branches = {@branches, or_branch};
     endwhile
 
-    return {goals, pos};
+    return {branches, pos};
   endverb
 
   verb _parse_and_expression (this none this) owner: HACKER flags: "rxd"
@@ -806,6 +869,78 @@ object RULE_ENGINE
       raise(E_ASSERT, "Grandparent should be mother_obj");
     result_bindings['GreatGrandparent] == $arch_wizard ||
       raise(E_ASSERT, "GreatGrandparent should be $arch_wizard");
+
+    return true;
+  endverb
+
+  verb test_parse_or_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing OR expressions from strings.";
+    "Parse: 'Player has_key? OR Player has_lockpick?'";
+    expression = "Player has_key? OR Player has_lockpick?";
+    rule = this:parse_expression(expression, 'key_or_pick);
+
+    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(rule.body) == LIST || raise(E_ASSERT, "Body should be list");
+    length(rule.body) == 2 || raise(E_ASSERT, "Should have 2 branches");
+
+    "Check first branch";
+    branch1 = rule.body[1];
+    typeof(branch1) == LIST || raise(E_ASSERT, "Branch should be list");
+    length(branch1) == 1 || raise(E_ASSERT, "First branch should have 1 goal");
+    branch1[1][1] == 'has_key || raise(E_ASSERT, "First goal should be has_key");
+
+    "Check second branch";
+    branch2 = rule.body[2];
+    typeof(branch2) == LIST || raise(E_ASSERT, "Branch should be list");
+    length(branch2) == 1 || raise(E_ASSERT, "Second branch should have 1 goal");
+    branch2[1][1] == 'has_lockpick || raise(E_ASSERT, "Second goal should be has_lockpick");
+
+    return true;
+  endverb
+
+  verb test_parse_and_evaluate_or (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing and evaluating OR expressions.";
+    "Parse: 'Player has_key? OR Player has_lockpick?'";
+    expression = "Player has_key? OR Player has_lockpick?";
+    rule = this:parse_expression(expression, 'key_or_pick);
+
+    test_obj = #64;
+
+    "Define fact_has_lockpick on test_obj (has_key will fail)";
+    add_verb(test_obj, {#2, "rxd", "fact_has_lockpick"}, {"this", "none", "none"});
+    set_verb_code(test_obj, "fact_has_lockpick", {"return true;"});
+
+    "Evaluate rule with Player=test_obj";
+    bindings = ['Player -> test_obj];
+    result = this:evaluate(rule, bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Should succeed (lockpick branch works)");
+
+    return true;
+  endverb
+
+  verb test_or_alternatives (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test evaluating OR expressions with alternatives.";
+    "Query: (Player has_key?) OR (Player has_lockpick?)";
+    test_obj = #64;
+
+    "Branch 1: Player has_key (will fail)";
+    branch1 = {{'has_key, test_obj}};
+
+    "Branch 2: Player has_lockpick (will succeed)";
+    branch2 = {{'has_lockpick, test_obj}};
+
+    "Define fact_has_lockpick on test_obj";
+    add_verb(test_obj, {#2, "rxd", "fact_has_lockpick"}, {"this", "none", "none"});
+    set_verb_code(test_obj, "fact_has_lockpick", {"return true;"});
+
+    "Prove alternatives: branch1 OR branch2";
+    alternatives = {branch1, branch2};
+    result = this:_prove_alternatives(alternatives, []);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Should succeed (second branch succeeds)");
 
     return true;
   endverb
