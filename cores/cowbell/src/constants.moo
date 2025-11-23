@@ -68,6 +68,11 @@ define LLM_TASK = #61;
 define RELATION = #23;
 define DVAR = #24;
 
+// rules
+define RULE_ENGINE = #62;
+define RULE = #63;
+define RULE_TEST = #64;
+
 // scheduler
 define SCHEDULER = #27;
 define SCHEDULED_TASK = #28;

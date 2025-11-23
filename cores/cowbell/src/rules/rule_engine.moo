@@ -1,0 +1,722 @@
+// $rule_engine - Datalog-style query engine
+// Stateless evaluation of rules and goals against fact predicates
+
+object RULE_ENGINE
+  name: "Rule Engine"
+  parent: ROOT
+  owner: HACKER
+  readable: true
+
+  override description = "Stateless Datalog-style query engine. Evaluates rules and goals by calling fact predicates on objects.";
+  override import_export_hierarchy = {"rules"};
+  override import_export_id = "rule_engine";
+
+  verb evaluate (this none this) owner: HACKER flags: "rxd"
+    "Evaluate a rule to find all satisfying variable bindings.";
+    "Args: rule (flyweight with .head, .body, .variables)";
+    "Returns: {success: bool, bindings: map, alternatives: list of maps}";
+    {rule, ?initial_bindings = []} = args;
+    typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
+
+    result = this:_prove_goals(rule.body, initial_bindings, {});
+    return result;
+  endverb
+
+  verb _prove_goals (this none this) owner: HACKER flags: "rxd"
+    "Prove a list of goals with backtracking. Returns all solutions.";
+    "Pure recursion: goals, bindings, choice_stack → success + bindings + alternatives";
+    {goals, bindings, ?_choice_stack = {}} = args;
+    typeof(goals) == LIST || raise(E_TYPE, "goals must be list");
+    typeof(bindings) == MAP || raise(E_TYPE, "bindings must be map");
+
+    "Base case: no more goals, we succeeded";
+    if (length(goals) == 0)
+      return ['success -> true, 'bindings -> bindings, 'alternatives -> {}];
+    endif
+
+    "Recursive case: prove first goal, then rest";
+    first_goal = goals[1];
+    rest_goals = listdelete(goals, 1);
+
+    "Get all solutions for the first goal";
+    solutions = this:_solve_goal(first_goal, bindings);
+
+    "Try to prove the rest with each solution";
+    all_results = {};
+    for solution_bindings in (solutions)
+      rest_result = this:_prove_goals(rest_goals, solution_bindings);
+      if (rest_result['success])
+        all_results = {@all_results, rest_result['bindings]};
+      endif
+    endfor
+
+
+    "Return all results, or failure if none";
+    if (length(all_results) == 0)
+      return ['success -> false, 'bindings -> [], 'alternatives -> {}];
+    endif
+
+    return [
+      'success -> true,
+      'bindings -> all_results[1],
+      'alternatives -> all_results[2..$]
+    ];
+  endverb
+
+  verb _solve_goal (this none this) owner: HACKER flags: "rxd"
+    "Solve a single goal by calling fact predicates.";
+    "Goal format: {predicate_name, arg1, arg2, ...}";
+    "Returns list of variable bindings that satisfy the goal";
+    {goal, bindings} = args;
+    typeof(goal) == LIST || raise(E_TYPE, "goal must be list");
+    length(goal) >= 1 || raise(E_INVARG, "goal must have predicate name");
+
+    predicate_name = goal[1];
+    goal_args = goal[2..$];
+    typeof(predicate_name) == STR || typeof(predicate_name) == SYM ||
+      raise(E_TYPE, "predicate name must be string or symbol");
+
+    "Substitute any variables in the goal args";
+    substituted_args = this:_substitute_args(goal_args, bindings);
+
+    "Get the object to query (usually first argument)";
+    if (length(substituted_args) == 0)
+      raise(E_INVARG, "goal needs at least one argument (the object)");
+    endif
+
+    target_obj = substituted_args[1];
+    typeof(target_obj) == OBJ || raise(E_TYPE, "first goal argument must be object");
+
+    "Build fact verb name and try to call it";
+    fact_verb = "fact_" + tostr(predicate_name);
+
+    "Call the fact predicate on the target object";
+    fact_results = `target_obj:(fact_verb)(@substituted_args) ! E_VERBNF => false';
+
+    if (fact_results == false)
+      return {};
+    endif
+
+    "Convert results to list if needed";
+    if (typeof(fact_results) != LIST)
+      fact_results = {fact_results};
+    endif
+
+    "Unify each result with the original goal to get bindings";
+    unified_solutions = {};
+    for result in (fact_results)
+      new_bindings = this:_unify_goal(goal, result, bindings);
+      if (new_bindings != false)
+        unified_solutions = {@unified_solutions, new_bindings};
+      endif
+    endfor
+
+    return unified_solutions;
+  endverb
+
+  verb _substitute_args (this none this) owner: HACKER flags: "rxd"
+    "Replace variables in args with their bindings.";
+    {args, bindings} = args;
+
+    result = {};
+    for arg in (args)
+      substituted = this:_substitute_value(arg, bindings);
+      result = {@result, substituted};
+    endfor
+    return result;
+  endverb
+
+  verb _substitute_value (this none this) owner: HACKER flags: "rxd"
+    "Substitute a single value, resolving variables.";
+    {value, bindings} = args;
+
+    "If it's a symbol and bound, return the binding";
+    if (typeof(value) == SYM && maphaskey(bindings, value))
+      return bindings[value];
+    endif
+
+    "Otherwise return as-is";
+    return value;
+  endverb
+
+  verb _unify_goal (this none this) owner: HACKER flags: "rxd"
+    "Unify a goal with a result, returning new bindings or false.";
+    "goal: original goal with variables, e.g. {member, 'X, guild_a}";
+    "result: result from fact predicate, e.g. #alice";
+    "bindings: current variable bindings";
+    {goal, result, bindings} = args;
+
+    "For now, simple unification: the result is what the variable binds to";
+    "In a full system, this would handle structured unification";
+
+    "If goal is ground (no variables), just check equality";
+    goal_args = goal[2..$];
+    has_vars = false;
+    for arg in (goal_args)
+      if (typeof(arg) == SYM && !maphaskey(bindings, arg))
+        has_vars = true;
+        break;
+      endif
+    endfor
+
+    if (!has_vars)
+      "No variables, just check if result matches";
+      return bindings;
+    endif
+
+    "Find the first unbound variable and bind it to result";
+    for i in [1..length(goal_args)]
+      arg = goal_args[i];
+      if (typeof(arg) == SYM && !maphaskey(bindings, arg))
+        "Bind this variable";
+        bindings[arg] = result;
+        return bindings;
+      endif
+    endfor
+
+    "No unbound variables found - shouldn't happen";
+    return bindings;
+  endverb
+
+  verb parse_expression (this none this) owner: HACKER flags: "rxd"
+    "Parse a builder-friendly expression into a rule flyweight.";
+    "Expression syntax: 'Object predicate? AND Object predicate2? OR NOT Object predicate3?'";
+    "Capitalized words are variables, lowercase are constants. ? marks a predicate.";
+    {expression_string, ?rule_name = 'parsed_rule} = args;
+    typeof(expression_string) == STR || raise(E_TYPE, "expression must be string");
+
+    "Tokenize the expression";
+    tokens = this:_tokenize(expression_string);
+
+    "Parse tokens into goal list";
+    goals = this:_parse_goals(tokens);
+
+    "Extract variables from goals";
+    variables = this:_extract_variables_from_goals(goals);
+
+    "Return rule flyweight";
+    return <#63,
+      .name = rule_name,
+      .head = rule_name,
+      .body = goals,
+      .variables = variables
+    >;
+  endverb
+
+  verb _tokenize (this none this) owner: HACKER flags: "rxd"
+    "Tokenize an expression string into a list of tokens.";
+    "Returns: list of strings, each token is a word, operator, or parenthesis";
+    {expression_string} = args;
+
+    tokens = {};
+    current_token = "";
+    i = 1;
+
+    while (i <= length(expression_string))
+      char = expression_string[i];
+
+      "Check for whitespace";
+      if (char == " " || char == "\t" || char == "\n")
+        if (length(current_token) > 0)
+          tokens = {@tokens, current_token};
+          current_token = "";
+        endif
+        i = i + 1;
+        continue;
+      endif
+
+      "Check for special characters";
+      if (char == "(" || char == ")")
+        if (length(current_token) > 0)
+          tokens = {@tokens, current_token};
+          current_token = "";
+        endif
+        tokens = {@tokens, char};
+        i = i + 1;
+        continue;
+      endif
+
+      "Accumulate into current token";
+      current_token = current_token + char;
+      i = i + 1;
+    endwhile
+
+    "Don't forget the last token";
+    if (length(current_token) > 0)
+      tokens = {@tokens, current_token};
+    endif
+
+    return tokens;
+  endverb
+
+  verb _parse_goals (this none this) owner: HACKER flags: "rxd"
+    "Parse a token list into a goal list.";
+    "Handles AND, OR, NOT operators and parentheses.";
+    {tokens} = args;
+
+    "Parse starting from position 1, return (goals, next_position)";
+    result = this:_parse_or_expression(tokens, 1);
+    goals = result[1];
+    return goals;
+  endverb
+
+  verb _parse_or_expression (this none this) owner: HACKER flags: "rxd"
+    "Parse OR expressions: term OR term OR term";
+    "Returns: {goals_list, next_position}";
+    {tokens, pos} = args;
+
+    "Parse first AND expression";
+    result = this:_parse_and_expression(tokens, pos);
+    goals = result[1];
+    pos = result[2];
+
+    "Parse remaining OR terms";
+    while (pos <= length(tokens) && tokens[pos]:lowercase() == "or")
+      pos = pos + 1;
+      "Parse next AND expression";
+      result = this:_parse_and_expression(tokens, pos);
+      or_goals = result[1];
+      pos = result[2];
+      "In our simple system, we just concatenate OR goals";
+      "A proper system would handle OR differently (as alternatives)";
+      goals = {@goals, @or_goals};
+    endwhile
+
+    return {goals, pos};
+  endverb
+
+  verb _parse_and_expression (this none this) owner: HACKER flags: "rxd"
+    "Parse AND expressions: term AND term AND term";
+    "Returns: {goals_list, next_position}";
+    {tokens, pos} = args;
+
+    "Parse first term";
+    result = this:_parse_term(tokens, pos);
+    goals = result[1];
+    pos = result[2];
+
+    "Parse remaining AND terms";
+    while (pos <= length(tokens) && tokens[pos]:lowercase() == "and")
+      pos = pos + 1;
+      "Parse next term";
+      result = this:_parse_term(tokens, pos);
+      term_goals = result[1];
+      pos = result[2];
+      goals = {@goals, @term_goals};
+    endwhile
+
+    return {goals, pos};
+  endverb
+
+  verb _parse_term (this none this) owner: HACKER flags: "rxd"
+    "Parse a single term: either 'NOT term', '(expression)', or 'object predicate?'";
+    "Returns: {goals_list, next_position}";
+    {tokens, pos} = args;
+
+    pos <= length(tokens) || raise(E_INVARG, "Unexpected end of expression");
+
+    current = tokens[pos];
+
+    "Handle NOT";
+    if (current:lowercase() == "not")
+      pos = pos + 1;
+      result = this:_parse_term(tokens, pos);
+      "TODO: implement NOT (negation as failure)";
+      "For now, just return empty to indicate NOT not yet supported";
+      return {result[1], result[2]};
+    endif
+
+    "Handle parentheses";
+    if (current == "(")
+      pos = pos + 1;
+      result = this:_parse_or_expression(tokens, pos);
+      goals = result[1];
+      pos = result[2];
+      pos <= length(tokens) || raise(E_INVARG, "Missing closing parenthesis");
+      tokens[pos] == ")" || raise(E_INVARG, "Expected closing parenthesis");
+      pos = pos + 1;
+      return {goals, pos};
+    endif
+
+    "Handle object predicate? syntax";
+    object_name = current;
+    pos = pos + 1;
+    pos <= length(tokens) || raise(E_INVARG, "Expected predicate after object");
+
+    predicate_spec = tokens[pos];
+    pos = pos + 1;
+
+    "Check that predicate ends with ?";
+    predicate_spec[length(predicate_spec)] == "?" ||
+      raise(E_INVARG, "Predicate must end with ?");
+
+    "Strip the ?";
+    predicate_name = predicate_spec[1..length(predicate_spec)-1];
+
+    "Convert object name to symbol or object reference";
+    object_arg = this:_resolve_name(object_name);
+
+    "Create goal: {predicate_name, object_arg}";
+    goal = {tosym(predicate_name:lowercase()), object_arg};
+
+    return {{goal}, pos};
+  endverb
+
+  verb _resolve_name (this none this) owner: HACKER flags: "rxd"
+    "Resolve a name to either a variable or object reference.";
+    "Capitalized names are variables (symbols).";
+    "Lowercase names are object constants.";
+    {name} = args;
+
+    "Check if first character is uppercase (variable)";
+    first_char = name[1];
+    if (first_char >= "A" && first_char <= "Z")
+      "It's a variable - return as symbol";
+      return tosym(name);
+    endif
+
+    "Lowercase - try to resolve as a constant";
+    "For now, support: player, this, sender, location, sysobj";
+    lower_name = name:lowercase();
+    if (lower_name == "player")
+      return 'player;
+    elseif (lower_name == "this")
+      return 'this;
+    elseif (lower_name == "sender")
+      return 'sender;
+    elseif (lower_name == "location")
+      return 'location;
+    elseif (lower_name == "sysobj")
+      return 'sysobj;
+    else
+      "Unknown constant";
+      raise(E_INVARG, "Unknown object constant: " + name);
+    endif
+  endverb
+
+  verb _extract_variables_from_goals (this none this) owner: HACKER flags: "rxd"
+    "Extract all variables from a goal list.";
+    {goals} = args;
+
+    variables = {};
+    for goal in (goals)
+      if (typeof(goal) == LIST && length(goal) >= 2)
+        "Check each argument after the predicate name";
+        for i in [2..length(goal)]
+          arg = goal[i];
+          if (typeof(arg) == SYM)
+            arg_str = tostr(arg);
+            "Variables are symbols (should already be detected as SYM)";
+            if (!(arg in variables))
+              variables = {@variables, arg};
+            endif
+          endif
+        endfor
+      endif
+    endfor
+
+    return variables;
+  endverb
+
+  verb test_simple_goal (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test evaluating a simple goal.";
+    "Create a test object with a fact predicate";
+    test_obj = $root:create(true);
+    test_obj.name = "Test Object";
+
+    "Define a simple fact: fact_true() returns true";
+    "info: {owner, perms, names}";
+    "args: {dobj, prep, iobj}";
+    add_verb(test_obj, {#2, "rxd", "fact_true"}, {"this", "none", "none"});
+    set_verb_code(test_obj, "fact_true", {"return true;"});
+
+    "Evaluate a goal";
+    "Note: predicate name is 'true', not 'fact_true' - the fact_ prefix is added by _solve_goal";
+    empty_bindings = [];
+    goal = {'true, test_obj};
+    result = this:_solve_goal(goal, empty_bindings);
+
+    typeof(result) == LIST || raise(E_ASSERT, "Result should be list");
+    length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
+    return true;
+  endverb
+
+  verb test_conjunction (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test proving multiple goals (conjunction).";
+    "Two goals: reputation >= 5 AND reputation >= 3 (both should succeed)";
+    test_guild = #64;
+    goals = {{'reputation, test_guild, 5}, {'reputation, test_guild, 3}};
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Both goals should succeed");
+    return true;
+  endverb
+
+  verb test_failed_goal (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test a goal that should fail.";
+    "Reputation >= 10 should fail (#64 has reputation 8)";
+    test_guild = #64;
+    goal = {'reputation, test_guild, 10};
+    empty_bindings = [];
+
+    result = this:_solve_goal(goal, empty_bindings);
+
+    typeof(result) == LIST || raise(E_ASSERT, "Result should be list");
+    length(result) == 0 || raise(E_ASSERT, "Should have no solutions");
+    return true;
+  endverb
+
+  verb test_variable_binding (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test variable unification in goals.";
+    "Query: what X satisfies parent(test_obj, X)?";
+    test_obj = #64;
+
+    "Set up parent relationship";
+    test_obj.father = $root;
+
+    "Create goal with variable 'X in second position";
+    goal = {'parent, test_obj, 'X};
+    empty_bindings = [];
+
+    result = this:_solve_goal(goal, empty_bindings);
+
+    typeof(result) == LIST || raise(E_ASSERT, "Result should be list");
+    length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
+    "First solution should bind 'X to $root";
+    first_solution = result[1];
+    typeof(first_solution) == MAP || raise(E_ASSERT, "Solution should be map");
+    first_solution['X] == $root || raise(E_ASSERT, "'X should be bound to $root");
+
+    return true;
+  endverb
+
+  verb test_multiple_solutions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test goals that have multiple solutions via alternatives.";
+    "Create a test object with both father and mother";
+    test_obj = #64;
+    test_obj.father = $root;
+    test_obj.mother = $arch_wizard;
+
+    "Query: what X satisfies parent(test_obj, X)?";
+    goal = {'parent, test_obj, 'X};
+    empty_bindings = [];
+
+    result = this:_prove_goals({goal}, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Goal should succeed");
+    "Check that we have alternatives (multiple solutions)";
+    alternatives = result['alternatives];
+    typeof(alternatives) == LIST || raise(E_ASSERT, "Alternatives should be list");
+    length(alternatives) > 0 || raise(E_ASSERT, "Should have alternative solutions");
+
+    return true;
+  endverb
+
+  verb test_transitive_uncle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test transitive relationship: uncle = parent's parent.";
+    "Set up family: test_obj has mother, mother has father";
+    test_obj = #64;
+    "Create mother object (inherit from RULE_TEST to get father/mother properties)";
+    mother_obj = #64:create(true);
+    test_obj.mother = mother_obj;
+    "Set mother's father (test_obj's grandfather)";
+    mother_obj.father = $arch_wizard;
+
+    "Query: what X satisfies parent(test_obj, Y) AND parent(Y, X)?";
+    "This should find test_obj's grandparents";
+    goals = {
+      {'parent, test_obj, 'Y},
+      {'parent, 'Y, 'X}
+    };
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Should find grandparent");
+
+    "Verify that X is bound to the grandfather";
+    first_binding = result['bindings];
+    typeof(first_binding) == MAP || raise(E_ASSERT, "Binding should be map");
+    first_binding['X] == $arch_wizard || raise(E_ASSERT, "X should be $arch_wizard (grandfather)");
+    first_binding['Y] == mother_obj || raise(E_ASSERT, "Y should be mother_obj");
+
+    return true;
+  endverb
+
+  verb test_cousin_relationship (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test cousin relationship: verify cousin shares grandparent.";
+    "Build family tree:";
+    "  $arch_wizard (grandparent)";
+    "    |";
+    "    +-- mother_obj (parent)";
+    "    |      |";
+    "    |      +-- test_obj (ego)";
+    "    |";
+    "    +-- sibling_obj (parent's sibling)";
+    "           |";
+    "           +-- cousin_obj (cousin)";
+
+    test_obj = #64;
+    "Reset test_obj's family (clear from previous tests)";
+    test_obj.father = #0;
+    test_obj.mother = #0;
+
+    "Create mother";
+    mother_obj = #64:create(true);
+    test_obj.mother = mother_obj;
+    mother_obj.father = $arch_wizard;
+
+    "Create sibling of mother";
+    sibling_obj = #64:create(true);
+    sibling_obj.father = $arch_wizard;
+
+    "Create cousin (sibling's child)";
+    cousin_obj = #64:create(true);
+    cousin_obj.father = sibling_obj;
+
+    "Query: cousin_obj and test_obj share a grandparent";
+    "Find: does cousin_obj's grandparent equal test_obj's grandparent?";
+    goals_test_obj = {
+      {'parent, test_obj, 'P1},
+      {'parent, 'P1, 'TestGrandparent}
+    };
+    result_test = this:_prove_goals(goals_test_obj, []);
+    typeof(result_test) == MAP || raise(E_ASSERT, "Result should be map");
+    result_test['success] || raise(E_ASSERT, "Should find test_obj's grandparent");
+    test_grandparent = result_test['bindings]['TestGrandparent];
+
+    "Now check cousin_obj's grandparent";
+    goals_cousin = {
+      {'parent, cousin_obj, 'P2},
+      {'parent, 'P2, 'CousinGrandparent}
+    };
+    result_cousin = this:_prove_goals(goals_cousin, []);
+    typeof(result_cousin) == MAP || raise(E_ASSERT, "Result should be map");
+    result_cousin['success] || raise(E_ASSERT, "Should find cousin's grandparent");
+    cousin_grandparent = result_cousin['bindings]['CousinGrandparent];
+
+    "Verify they share the same grandparent";
+    test_grandparent == cousin_grandparent ||
+      raise(E_ASSERT, "Cousin and test_obj should share grandparent");
+
+    return true;
+  endverb
+
+  verb test_parse_simple_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing a simple expression into a rule.";
+    "Parse: 'player has_key?'";
+    expression = "player has_key?";
+    rule = this:parse_expression(expression, 'simple_parse_test);
+
+    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    rule.head == 'simple_parse_test || raise(E_ASSERT, "Rule head should match");
+    typeof(rule.body) == LIST || raise(E_ASSERT, "Rule body should be list");
+    length(rule.body) == 1 || raise(E_ASSERT, "Should have 1 goal");
+
+    "Check the goal structure";
+    goal = rule.body[1];
+    typeof(goal) == LIST || raise(E_ASSERT, "Goal should be list");
+    length(goal) == 2 || raise(E_ASSERT, "Goal should have 2 elements");
+    goal[1] == 'has_key || raise(E_ASSERT, "Predicate should be has_key");
+
+    return true;
+  endverb
+
+  verb test_parse_variable_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing expression with variables.";
+    "Parse: 'Player has_key? AND Player is_trusted?'";
+    expression = "Player has_key? AND Player is_trusted?";
+    rule = this:parse_expression(expression, 'variable_test);
+
+    typeof(rule.body) == LIST || raise(E_ASSERT, "Body should be list");
+    length(rule.body) == 2 || raise(E_ASSERT, "Should have 2 goals");
+
+    "Check variables were extracted";
+    length(rule.variables) > 0 || raise(E_ASSERT, "Should have variables");
+    'Player in rule.variables || raise(E_ASSERT, "Should have Player variable");
+
+    "Check first goal";
+    goal1 = rule.body[1];
+    goal1[1] == 'has_key || raise(E_ASSERT, "First predicate should be has_key");
+    goal1[2] == 'Player || raise(E_ASSERT, "First goal arg should be Player variable");
+
+    "Check second goal";
+    goal2 = rule.body[2];
+    goal2[1] == 'is_trusted || raise(E_ASSERT, "Second predicate should be is_trusted");
+    goal2[2] == 'Player || raise(E_ASSERT, "Second goal arg should be Player variable");
+
+    return true;
+  endverb
+
+  verb test_parse_mixed_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test parsing expression with both constants and variables.";
+    "Parse: 'Player has_key? AND location is_open?'";
+    expression = "Player has_key? AND location is_open?";
+    rule = this:parse_expression(expression, 'mixed_test);
+
+    length(rule.body) == 2 || raise(E_ASSERT, "Should have 2 goals");
+
+    goal1 = rule.body[1];
+    goal1[1] == 'has_key || raise(E_ASSERT, "First predicate should be has_key");
+    goal1[2] == 'Player || raise(E_ASSERT, "First arg should be Player variable");
+
+    goal2 = rule.body[2];
+    goal2[1] == 'is_open || raise(E_ASSERT, "Second predicate should be is_open");
+    goal2[2] == 'location || raise(E_ASSERT, "Second arg should be location constant");
+
+    return true;
+  endverb
+
+  verb test_ancestor_chain (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test longer ancestor chain: 4-generation ancestor query.";
+    "Build 5-generation family to test 4-step chain";
+    test_obj = #64;
+    "Reset test_obj's family (clear from previous tests)";
+    test_obj.father = #0;
+    test_obj.mother = #0;
+
+    "Create mother (gen 2)";
+    mother_obj = #64:create(true);
+    test_obj.mother = mother_obj;
+
+    "Create maternal grandmother (gen 3)";
+    grandmother_obj = #64:create(true);
+    mother_obj.mother = grandmother_obj;
+
+    "Create maternal great-grandmother (gen 4)";
+    great_grandmother_obj = #64:create(true);
+    grandmother_obj.mother = great_grandmother_obj;
+
+    "Create maternal great-great-grandmother (gen 5)";
+    great_great_grandmother_obj = #64:create(true);
+    great_grandmother_obj.mother = great_great_grandmother_obj;
+
+    "Query: 4-goal chain to find great-great-grandmother";
+    "This tests: test_obj -> gen2 -> gen3 -> gen4 -> gen5";
+    goals = {
+      {'parent, test_obj, 'P1},
+      {'parent, 'P1, 'P2},
+      {'parent, 'P2, 'P3},
+      {'parent, 'P3, 'Result}
+    };
+    empty_bindings = [];
+
+    result = this:_prove_goals(goals, empty_bindings);
+
+    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    result['success] || raise(E_ASSERT, "Should find 4-generation ancestor chain");
+
+    bindings = result['bindings];
+    bindings['Result] == great_great_grandmother_obj ||
+      raise(E_ASSERT, "Should find great-great-grandmother through 4-step chain");
+
+    return true;
+  endverb
+
+endobject
+
