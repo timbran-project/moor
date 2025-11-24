@@ -19,6 +19,7 @@ object LOGIN
     "connect with `archwizard` `test` to log in.",
     "",
     "Server version: {VERSION}",
+    "Core version: {CORE_VERSION}",
     "",
     "You will probably want to change this text which is stored in $login.welcome_message property."
   };
@@ -37,11 +38,12 @@ object LOGIN
   endverb
 
   verb _apply_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Apply template substitutions (TITLE, VERSION) to a message string.";
+    "Apply template substitutions (TITLE, VERSION, CORE_VERSION) to a message string.";
     set_task_perms(caller_perms());
     {message} = args;
     message = message:replace_all("{TITLE}", this.moo_title);
     message = message:replace_all("{VERSION}", server_version());
+    message = message:replace_all("{CORE_VERSION}", $sysobj.core_version);
     return message;
   endverb
 
