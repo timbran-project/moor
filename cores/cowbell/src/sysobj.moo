@@ -11,7 +11,9 @@ object SYSOBJ
   property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;
   property bg_ticks (owner: HACKER, flags: "r") = 300000;
+  property brass_key (owner: HACKER, flags: "r") = BRASS_KEY;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
+  property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
   property container (owner: HACKER, flags: "r") = CONTAINER;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
@@ -32,6 +34,7 @@ object SYSOBJ
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property henri (owner: HACKER, flags: "r") = HENRI;
   property henri_look_self_msgs (owner: HACKER, flags: "r") = HENRI_LOOK_SELF_MSGS;
+  property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;

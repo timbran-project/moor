@@ -14,9 +14,83 @@ object HENRI
   property pets_received (owner: HACKER, flags: "rc") = 0;
   property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
 
+  property pet_rule (owner: HACKER, flags: "r") = <#63, .name = 'henri_pet_rule, .head = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}>;
+  property feed_rule (owner: HACKER, flags: "r") = <#63, .name = 'henri_feed_rule, .head = 'henri_feed_rule, .body = {{'is_grouchy, 'This}, {'is, 'Food, CAT_KIBBLE}, {'location_is, 'Food, 'Accessor}}, .variables = {'This, 'Food, 'Accessor}>;
+  property pet_denied_msg (owner: HACKER, flags: "r") = {<#19, .capitalize = true, .type = 'actor>, " hisses and swats at ", <#19, .capitalize = false, .type = 'dobj_pos_adj>, " hand before ", <#19, .capitalize = false, .type = 'dobj>, " can touch him."};
+  property feed_denied_msg (owner: HACKER, flags: "r") = {<#19, .capitalize = true, .type = 'actor>, " turns ", <#19, .capitalize = false, .type = 'actor_pos_adj>, " nose up at the offering with disdain."};
+
   override aliases = {"cat", "grouchy cat"};
   override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
   override import_export_id = "henri";
+
+  override object_documentation = {
+    "# Henri - The Grouchy Cat",
+    "",
+    "## Overview",
+    "",
+    "Henri is a grouchy black cat NPC with autonomous behaviors and a rule-based interaction system.",
+    "He has moods, tracks interaction history, and uses the rule engine to determine who can interact with him.",
+    "",
+    "## Interaction Rules",
+    "",
+    "Henri's behavior is controlled by rules that can be customized:",
+    "",
+    "- `pet_rule`: Controls who can pet Henri (default: `0` = anyone can try)",
+    "- `feed_rule`: Controls who can feed Henri (default: `0` = anyone can try)",
+    "",
+    "### Example Rules",
+    "",
+    "Only allow petting when Henri is NOT grouchy:",
+    "```",
+    "@set-rule henri.pet_rule NOT This is_grouchy?",
+    "```",
+    "",
+    "Only allow petting when Henri is sleepy OR the accessor has earned tolerance:",
+    "```",
+    "@set-rule henri.pet_rule This is_sleepy? OR This tolerates(Accessor)?",
+    "```",
+    "",
+    "Only allow feeding when Henri is grouchy (he's too proud to eat otherwise):",
+    "```",
+    "@set-rule henri.feed_rule This is_grouchy?",
+    "```",
+    "",
+    "## Available Fact Predicates",
+    "",
+    "Henri provides these predicates for use in rules:",
+    "",
+    "- `This is_grouchy?` - Returns true if Henri's mood is \"grouchy\"",
+    "- `This is_sleepy?` - Returns true if Henri's mood is \"sleepy\"",
+    "- `This is_curious?` - Returns true if Henri's mood is \"curious\"",
+    "- `This is_playful?` - Returns true if Henri's mood is \"playful\"",
+    "- `This tolerates(Accessor)?` - Returns true if accessor has petted Henri more than 10 times",
+    "",
+    "## Properties",
+    "",
+    "- `mood`: Current mood state (\"grouchy\", \"sleepy\", \"curious\", \"playful\", \"annoyed\")",
+    "- `pets_received`: Counter tracking total times Henri has been petted",
+    "- `scheduled_behaviours`: Map of active autonomous behavior tasks",
+    "",
+    "## Commands",
+    "",
+    "- `pet henri` / `stroke henri` - Attempt to pet Henri (subject to pet_rule)",
+    "- `feed henri` / `give henri` - Attempt to feed Henri (subject to feed_rule)",
+    "- `henri:start_behaviours()` - Start Henri's autonomous behaviors",
+    "- `henri:stop_behaviours()` - Stop Henri's autonomous behaviors",
+    "- `henri:change_mood()` - Manually cycle Henri's mood for testing",
+    "- `henri:behaviour_status()` - Show status of autonomous behaviors",
+    "",
+    "## Autonomous Behaviors",
+    "",
+    "When started, Henri performs these behaviors periodically:",
+    "",
+    "- Grooming (every 4-6 minutes)",
+    "- Stretching (every 5-8 minutes)",
+    "- Complaining (every 7-12 minutes)",
+    "- Mood shifts (every 9-15 minutes)",
+    "- Dramatic sighs (every 12-18 minutes)",
+    "- Construction reactions (every 10-16 minutes)"
+  };
 
   verb _pick_message (this none this) owner: HACKER flags: "rxd"
     "Pick a message from a bag/string or use a compiled list directly, returning empty string on failure.";
@@ -33,8 +107,102 @@ object HENRI
     return "";
   endverb
 
+  verb fact_is_grouchy (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is Henri in a grouchy mood?";
+    {henri} = args;
+    return henri.mood == "grouchy";
+  endverb
+
+  verb fact_is_sleepy (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is Henri in a sleepy mood?";
+    {henri} = args;
+    return henri.mood == "sleepy";
+  endverb
+
+  verb fact_is_curious (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is Henri in a curious mood?";
+    {henri} = args;
+    return henri.mood == "curious";
+  endverb
+
+  verb fact_is_playful (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is Henri in a playful mood?";
+    {henri} = args;
+    return henri.mood == "playful";
+  endverb
+
+  verb fact_tolerates (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Has accessor petted Henri enough to be tolerated?";
+    {henri, accessor} = args;
+    return henri.pets_received > 10;
+  endverb
+
+  verb can_be_petted (this none this) owner: HACKER flags: "rxd"
+    "Check if accessor can pet Henri. Returns {allowed, reason}.";
+    {accessor} = args;
+
+    "No rule = anyone can try to pet";
+    if (this.pet_rule == 0)
+      return ['allowed -> true, 'reason -> {}];
+    endif
+
+    "Evaluate pet rule";
+    result = $rule_engine:evaluate(
+      this.pet_rule,
+      ['This -> this, 'Accessor -> accessor]
+    );
+
+    if (result['success])
+      return ['allowed -> true, 'reason -> {}];
+    else
+      return ['allowed -> false, 'reason -> this.pet_denied_msg];
+    endif
+  endverb
+
+  verb can_be_fed (this none this) owner: HACKER flags: "rxd"
+    "Check if accessor can feed Henri with food item. Returns {allowed, reason}.";
+    {accessor, food} = args;
+
+    "No rule = anyone can feed";
+    if (this.feed_rule == 0)
+      return ['allowed -> true, 'reason -> {}];
+    endif
+
+    "Evaluate feed rule";
+    result = $rule_engine:evaluate(
+      this.feed_rule,
+      ['This -> this, 'Accessor -> accessor, 'Food -> food]
+    );
+
+    if (result['success])
+      return ['allowed -> true, 'reason -> {}];
+    else
+      return ['allowed -> false, 'reason -> this.feed_denied_msg];
+    endif
+  endverb
+
   verb "pet stroke" (this none none) owner: HACKER flags: "rxd"
-    "Handle petting Henri - he's grouchy but might tolerate it occasionally";
+    "Handle petting Henri - uses rule system to determine if allowed";
+    "Check access via rule";
+    access_check = this:can_be_petted(player);
+    if (!access_check['allowed])
+      "Henri doesn't allow this petting attempt";
+      if (valid(this.location))
+        reaction_content = access_check['reason];
+        if (typeof(reaction_content) == STR)
+          try
+            reaction_content = $sub_utils:compile(reaction_content);
+          except (ANY)
+            reaction_content = {reaction_content};
+          endtry
+        elseif (typeof(reaction_content) != LIST)
+          reaction_content = {reaction_content};
+        endif
+        event = $event:mk_emote(this, @reaction_content):with_dobj(player):with_audience('narrative);
+        this.location:announce(event);
+      endif
+      return;
+    endif
     "Announce the action to the room";
     if (valid(this.location))
       this.location:announce($event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("pet", "pets"), " ", $sub:the('dobj), "."):with_dobj(this));
@@ -107,7 +275,7 @@ object HENRI
     "Available moods";
     moods = {"grouchy", "sleepy", "curious", "playful", "annoyed"};
     "Cycle to next mood";
-    current_index = moods:find(this.mood);
+    current_index = this.mood in moods;
     if (current_index == 0)
       new_mood = "grouchy";
     else
@@ -139,11 +307,54 @@ object HENRI
     return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = merged>;
   endverb
 
-  verb "feed give" (this none none) owner: HACKER flags: "rxd"
-    "Handle feeding Henri - he's very particular about his food";
+  verb "feed give" (this with any) owner: HACKER flags: "rxd"
+    "Handle feeding Henri - uses rule system to determine if allowed";
+    "Match the food item from player's inventory";
+    if (!iobjstr || iobjstr == "")
+      event = $event:mk_error(player, "Feed ", $sub:d(), " what?"):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endif
+    try
+      food = $match:match_object(iobjstr, player);
+    except e (ANY)
+      event = $event:mk_error(player, "You don't have that.");
+      player:inform_current(event);
+      return;
+    endtry
+    if (!valid(food) || typeof(food) != OBJ)
+      event = $event:mk_error(player, "You don't have that.");
+      player:inform_current(event);
+      return;
+    endif
+    if (food.location != player)
+      event = $event:mk_error(player, "You need to be holding ", $sub:i(), " to feed it to ", $sub:d(), "."):with_dobj(this):with_iobj(food);
+      player:inform_current(event);
+      return;
+    endif
+    "Check access via rule";
+    access_check = this:can_be_fed(player, food);
+    if (!access_check['allowed])
+      "Henri doesn't accept this food offering";
+      if (valid(this.location))
+        reaction_content = access_check['reason];
+        if (typeof(reaction_content) == STR)
+          try
+            reaction_content = $sub_utils:compile(reaction_content);
+          except (ANY)
+            reaction_content = {reaction_content};
+          endtry
+        elseif (typeof(reaction_content) != LIST)
+          reaction_content = {reaction_content};
+        endif
+        event = $event:mk_emote(this, @reaction_content):with_dobj(player):with_audience('narrative);
+        this.location:announce(event);
+      endif
+      return;
+    endif
     "Announce the action to the room";
     if (valid(this.location))
-      this.location:announce($event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("offer", "offers"), " ", $sub:the('dobj), " some food."):with_dobj(this));
+      this.location:announce($event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("offer", "offers"), " ", $sub:i(), " to ", $sub:the('dobj), "."):with_dobj(this):with_iobj(food));
     endif
     "Generate Henri's picky response";
     responses = {"sniffs delicately, then turns his head away with a look of profound disappointment. \"Is this... the best you could manage?\"", "takes a tentative bite, then gives you a look that says \"It's adequate. Barely.\"", "eats with grudging acceptance. \"I suppose this will have to do, given the circumstances.\"", "looks at the food, then at you, then back at the food. \"My previous establishment served this with a proper garnish.\"", "consumes the offering with an air of someone doing you a great favor. \"Don't expect me to be grateful.\"", "picks at the food disdainfully. \"The texture is all wrong. And the temperature is completely off.\"", "eats quickly, as if embarrassed to be seen accepting such pedestrian fare. \"This better not become a habit.\""};
