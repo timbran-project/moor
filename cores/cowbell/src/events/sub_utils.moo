@@ -459,8 +459,28 @@ object SUB_UTILS
       return "{" + token_name + "}";
     endif
 
-    "Object-specific versions (dobj_*, iobj_*)";
+    "Object-specific versions (actor_*, dobj_*, iobj_*)";
     token_str = tostr(token_type);
+    if (token_str:starts_with("actor_"))
+      if (capitalize)
+        suffix = "c";
+      else
+        suffix = "";
+      endif
+      base = token_str[7..$];
+      "Map base pronoun types";
+      if (base == "subject")
+        return "{s" + suffix + "}";
+      elseif (base == "object")
+        return "{o" + suffix + "}";
+      elseif (base == "pos_adj")
+        return "{p" + suffix + "}";
+      elseif (base == "pos_noun")
+        return "{q" + suffix + "}";
+      elseif (base == "reflexive")
+        return "{r" + suffix + "}";
+      endif
+    endif
     if (token_str:starts_with("dobj_"))
       if (capitalize)
         suffix = "c_dobj";
