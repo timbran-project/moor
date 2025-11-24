@@ -21,8 +21,8 @@ object ARCHITECTS_COMPASS
     "Configure agent with compass-specific prompts and tools";
     {agent} = args;
     agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
-    agent.max_iterations = 15;
-    base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. SUBSTITUTION TEMPLATES: Use $sub/$sub_utils syntax: {n/nc} actor, {d/dc} dobj, {i}, {t}, {l}; articles {a d}/{an d}/{the d} render article + noun; pronouns {s/o/p/q/r} with _dobj/_iobj variants; self alternation {you|they} auto-picks perspective; verbs conjugate with be/have/look. ALWAYS use self-alternation for verbs that differ by person (e.g., {set|sets}, {place|places}) so the actor sees second-person grammar. Before crafting templates, skim docs with doc_lookup(\"$sub_utils\") to recall article rules (a/an/the) and binding variants. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question; provide a 'choices' list for multiple-choice prompts or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' to collect free-form input; if omitted it defaults to Accept/Stop/Request Change with a follow-up text box), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
+    agent.max_iterations = 50;
+    base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. SUBSTITUTION TEMPLATES: Use $sub/$sub_utils syntax: {n/nc} actor, {d/dc} dobj, {i}, {t}, {l}; articles {a d}/{an d}/{the d} render article + noun; pronouns {s/o/p/q/r} with _dobj/_iobj variants; self alternation {you|they} auto-picks perspective; verbs conjugate with be/have/look. ALWAYS use self-alternation for verbs that differ by person (e.g., {set|sets}, {place|places}) so the actor sees second-person grammar. Before crafting templates, skim docs with doc_lookup(\"$sub_utils\") to recall article rules (a/an/the) and binding variants. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. RULE ENGINE FOR OBJECT BEHAVIOR: The system provides a Datalog-style rule engine that lets builders configure object behavior WITHOUT writing MOO code. Rules are declarative logic expressions used for locks, puzzles, quest triggers, and conditional behaviors. For example: 'Key is(\"golden key\")?' finds an object matching \"golden key\" and binds it to variable Key. Rules can chain relationships transitively: 'Child parent(Parent)? AND Parent parent(Grandparent)?' walks up a family tree. Variables (capitalized like Key, Item, Accessor) unify with values returned by fact predicates. The engine supports AND, OR, and bounded NOT operators. Common use cases: container lock_rule/unlock_rule for key-based locks, puzzle objects with solution_rule checking conditions, doors with can_pass rules, quest items with requirements. Use list_rules to see existing rules on objects, set_rule to configure behavior, and doc_lookup(\"$rule_engine\") to read comprehensive documentation with unification examples and predicate patterns. Rules enable complex puzzle mechanics like 'Item1 is(\"red gem\")? AND Item2 is(\"blue gem\")? AND Item3 is(\"green gem\")?' to require collecting three specific items. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question; provide a 'choices' list for multiple-choice prompts or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' to collect free-form input; if omitted it defaults to Accept/Stop/Request Change with a follow-up text box), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move, @set-rule, @show-rule, @rules). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
     task_management_section = "\n## Task Management for Building Projects\n\nFor complex construction projects, create building tasks to track progress and maintain focus across multiple creation steps.\n\n### Planning a Building Project\n\n- When starting a significant project (multiple rooms, complex layout), use `create_task()` to spawn a project tracker\n- The task tracks lifecycle: pending → in_progress → completed/failed\n- Use task descriptions to document the overall project scope\n- Example: \"Build a three-story tavern with common room, kitchen, upstairs bedrooms, and cellar\"\n\n### Recording Progress\n\n- Use `task:add_finding(subject, key, value)` to record what was built:\n  - `task:add_finding(\"rooms\", \"created\", {\"Tavern Common Room #15\", \"Kitchen #16\"})`\n  - `task:add_finding(\"passages\", \"connected\", {\"north from #15 to #16\"})`\n  - `task:add_finding(\"objects\", \"placed\", {\"bar counter in #15\", \"stove in #16\"})`\n\n### Creating Subtasks for Stages\n\n- Break building projects into stages using `task:add_subtask(description, blocking)`\n- Example stages:\n  1. \"Design and create room layout\"\n  2. \"Dig passages and connections\"\n  3. \"Place furniture and decorations\"\n  4. \"Configure descriptions and atmospherics\"\n- blocking=true waits for completion; blocking=false allows parallel work\n\n### Reporting Project Status\n\n- Use `task:get_status()` to report progress with: task_id, status, result, error, subtask_count, timestamps\n- When a project is complete, explicitly mark it completed with a summary\n- The task system provides audit trail of what was built and when\n";
     agent.system_prompt = base_prompt + task_management_section;
     agent:initialize();
@@ -92,6 +92,15 @@ object ARCHITECTS_COMPASS
     agent:add_tool("add_message_template", add_message_tool);
     del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
     agent:add_tool("delete_message_template", del_message_tool);
+    "Register rule tools (@rules/@set-rule/@show-rule equivalents)";
+    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "_tool_list_rules");
+    agent:add_tool("list_rules", list_rules_tool);
+    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "_tool_set_rule");
+    agent:add_tool("set_rule", set_rule_tool);
+    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
+    agent:add_tool("show_rule", show_rule_tool);
+    test_rule_tool = $llm_agent_tool:mk("test_rule", "Test a rule expression with specific variable bindings to see if it evaluates successfully. Useful for debugging rules before setting them. Returns success/failure and explanation of what the rule checked.", ["type" -> "object", "properties" -> ["expression" -> ["type" -> "string", "description" -> "Rule expression to test (e.g., 'Key is(\"golden key\")?')"], "bindings" -> ["type" -> "object", "description" -> "Variable bindings as key-value pairs (e.g., {\"This\": \"#123\", \"Accessor\": \"#5\", \"Key\": \"#456\"})"]], "required" -> {"expression", "bindings"}], this, "_tool_test_rule");
+    agent:add_tool("test_rule", test_rule_tool);
     "Register ask_user tool";
     ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
     agent:add_tool("ask_user", ask_user_tool);
@@ -240,6 +249,48 @@ object ARCHITECTS_COMPASS
       display_name = this:_resolve_display_name(obj_spec, wearer);
       obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
       message = $ansi:colorize("[INSPECT]", 'bright_cyan) + " Examining: " + $ansi:colorize(display_name, 'white) + obj_suffix;
+    elseif (tool_name == "list_rules")
+      obj_spec = tool_args["object"];
+      display_name = this:_resolve_display_name(obj_spec, wearer);
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      message = $ansi:colorize("[RULES]", 'bright_magenta) + " Listing rules on " + $ansi:colorize(display_name, 'white) + obj_suffix;
+    elseif (tool_name == "set_rule")
+      obj_spec = tool_args["object"];
+      display_name = this:_resolve_display_name(obj_spec, wearer);
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      prop_name = tool_args["property"];
+      expr = tool_args["expression"];
+      "Truncate long expressions";
+      if (length(expr) > 50)
+        expr = expr[1..50] + "...";
+      endif
+      message = $ansi:colorize("[RULE]", 'bright_magenta) + " Setting " + $ansi:colorize(prop_name, 'yellow) + " on " + $ansi:colorize(display_name, 'white) + obj_suffix + ": " + expr;
+    elseif (tool_name == "show_rule")
+      obj_spec = tool_args["object"];
+      display_name = this:_resolve_display_name(obj_spec, wearer);
+      obj_suffix = display_name != obj_spec ? " (" + obj_spec + ")" | "";
+      prop_name = tool_args["property"];
+      message = $ansi:colorize("[RULE]", 'bright_magenta) + " Reading " + $ansi:colorize(prop_name, 'yellow) + " on " + $ansi:colorize(display_name, 'white) + obj_suffix;
+    elseif (tool_name == "test_rule")
+      expr = tool_args["expression"];
+      "Truncate long expressions";
+      if (length(expr) > 40)
+        expr = expr[1..40] + "...";
+      endif
+      message = $ansi:colorize("[TEST]", 'bright_cyan) + " Testing rule: " + expr;
+    elseif (tool_name == "create_project")
+      description = tool_args["description"];
+      "Truncate long descriptions";
+      if (length(description) > 50)
+        description = description[1..50] + "...";
+      endif
+      message = $ansi:colorize("[PROJECT]", 'bright_green) + " Creating project: " + description;
+    elseif (tool_name == "record_creation")
+      subject = tool_args["subject"];
+      key = tool_args["key"];
+      message = $ansi:colorize("[RECORD]", 'bright_green) + " Recording " + subject + "/" + key + " in project";
+    elseif (tool_name == "project_status")
+      message = $ansi:colorize("[PROJECT]", 'bright_yellow) + " Checking building project status";
     elseif (tool_name == "ask_user")
       question = tool_args["question"];
       "Truncate long questions";
@@ -826,6 +877,13 @@ object ARCHITECTS_COMPASS
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
     if (!valid(bag))
+      "Property doesn't exist - check if singular version exists";
+      if (prop_name:ends_with("_msgs"))
+        singular_name = prop_name[1..(length(prop_name) - 1)];
+        if (singular_name in target_obj:all_properties())
+          return "ERROR: Property '" + prop_name + "' not found. Did you mean '" + singular_name + "'? Use set_message_template for single message properties.";
+        endif
+      endif
       bag = $msg_bag:create(true);
       target_obj.(prop_name) = bag;
     endif
@@ -850,6 +908,119 @@ object ARCHITECTS_COMPASS
     valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
     bag:remove(idx);
     return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
+  endverb
+
+  verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List *_rule properties on an object (like @rules)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    rule_props = $obj_utils:rule_properties(target_obj);
+    if (!rule_props || length(rule_props) == 0)
+      return tostr(target_obj) + " has no rule properties. (@rules command available)";
+    endif
+    lines = {"Rule properties for " + tostr(target_obj) + ":"};
+    for prop_info in (rule_props)
+      {prop_name, prop_value} = prop_info;
+      if (prop_value == 0)
+        rule_expr = "(not set)";
+      else
+        rule_expr = $rule_engine:decompile_rule(prop_value);
+      endif
+      lines = {@lines, " - " + prop_name + ": " + rule_expr};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set a rule on an object property (like @set-rule)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    expression = args_map["expression"];
+    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
+    !expression && raise(E_INVARG, "Rule expression required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    if (!(prop_name in target_obj:all_properties()))
+      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Create it with @add-property or ask the user to create it.");
+    endif
+    rule = $rule_engine:parse_expression(expression, tosym(prop_name), wearer);
+    validation = $rule_engine:validate_rule(rule);
+    if (!validation['valid])
+      raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
+    endif
+    target_obj.(prop_name) = rule;
+    return "Set " + tostr(target_obj) + "." + prop_name + " = " + expression;
+  endverb
+
+  verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Display a rule property expression (like @show-rule)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    obj_spec = args_map["object"];
+    prop_name = args_map["property"];
+    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(obj_spec, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    if (!(prop_name in target_obj:all_properties()))
+      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    endif
+    rule = target_obj.(prop_name);
+    if (rule == 0)
+      return tostr(target_obj) + "." + prop_name + " = (not set)";
+    endif
+    rule_expr = $rule_engine:decompile_rule(rule);
+    return tostr(target_obj) + "." + prop_name + " = " + rule_expr;
+  endverb
+
+  verb _tool_test_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Test a rule expression with specific variable bindings";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    expression = args_map["expression"];
+    bindings = args_map["bindings"];
+    typeof(expression) == STR || raise(E_TYPE, "expression must be string");
+    typeof(bindings) == MAP || raise(E_TYPE, "bindings must be object/map");
+    set_task_perms(wearer);
+    "Parse the rule expression";
+    compiled = `$rule_engine:parse_expression(expression, 'test_rule, wearer) ! ANY => E_INVARG';
+    if (compiled == E_INVARG)
+      return "ERROR: Rule parsing failed. Check syntax. Expression: " + expression;
+    endif
+    "Validate the rule";
+    validation = $rule_engine:validate_rule(compiled);
+    if (!validation['valid])
+      warnings = validation['warnings]:join("; ");
+      return "ERROR: Rule validation failed: " + warnings + ". Expression: " + expression;
+    endif
+    "Convert bindings map keys from strings to symbols";
+    converted_bindings = [];
+    for key in (mapkeys(bindings))
+      "Parse value - handle both object refs and direct values";
+      val_str = bindings[key];
+      val = `$match:match_object(val_str, wearer) ! ANY => val_str';
+      "Convert key to symbol";
+      key_sym = tosym(key);
+      converted_bindings[key_sym] = val;
+    endfor
+    "Evaluate the rule";
+    result = $rule_engine:evaluate(compiled, converted_bindings);
+    if (result['success])
+      return "SUCCESS: Rule evaluated to true. Bindings: " + toliteral(converted_bindings);
+    else
+      reason = result['reason];
+      return "FAILED: Rule evaluated to false. Reason: " + (typeof(reason) == STR ? reason | toliteral(reason)) + ". Bindings: " + toliteral(converted_bindings);
+    endif
   endverb
 
   verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"

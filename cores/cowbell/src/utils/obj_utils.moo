@@ -168,30 +168,22 @@ object OBJ_UTILS
   verb check_message_property_writable (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if a player can write to a message property on an object.";
     "Returns {writable, error_msg} where writable is true/false.";
-    {target_obj, prop_name, player} = args;
+    {target_obj, prop_name, who} = args;
     typeof(target_obj) != OBJ && raise(E_TYPE, "target_obj must be object");
     typeof(prop_name) != STR && raise(E_TYPE, "prop_name must be string");
-    typeof(player) != OBJ && raise(E_TYPE, "player must be object");
+    typeof(who) != OBJ && raise(E_TYPE, "who must be object");
+    set_task_perms(who);
     "Check property exists";
     if (!(prop_name in target_obj:all_properties()))
       return {false, "Property '" + prop_name + "' does not exist on " + tostr(target_obj) + "."};
     endif
-    "Get property metadata to check permissions";
+    "Try to write with player's permissions to check if allowed";
     try
-      metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
-      owner = metadata:owner();
-      perms = metadata:perms();
-      "Check if player owns it or is wizard";
-      if (player.wizard || owner == player)
-        "Check if w permission is set";
-        if (index(perms, "w"))
-          return {true, ""};
-        else
-          return {false, "Property '" + prop_name + "' is not writable."};
-        endif
-      else
-        return {false, "You do not have permission to modify property '" + prop_name + "' on " + tostr(target_obj) + "."};
-      endif
+      old_value = target_obj.(prop_name);
+      target_obj.(prop_name) = old_value;
+      return {true, ""};
+    except e (E_PERM)
+      return {false, "You do not have permission to modify property '" + prop_name + "' on " + tostr(target_obj) + "."};
     except e (ANY)
       return {false, "Error checking property: " + toliteral(e)};
     endtry
@@ -199,9 +191,9 @@ object OBJ_UTILS
 
   verb set_compiled_message (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set a compiled message property with elevated permissions.";
-    "Args: {target_obj, prop_name, compiled_list, player}";
-    {target_obj, prop_name, compiled_list, player} = args;
-    set_task_perms(player);
+    "Args: {target_obj, prop_name, compiled_list, who}";
+    {target_obj, prop_name, compiled_list, who} = args;
+    set_task_perms(who);
     target_obj.(prop_name) = compiled_list;
   endverb
 

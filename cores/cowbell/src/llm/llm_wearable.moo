@@ -75,41 +75,6 @@ object LLM_WEARABLE
     endif
   endverb
 
-  verb _send_with_continuation (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Send message to agent with user-confirmed continuation on max iterations";
-    {message, ?tool_name = "TOOL", ?max_continuations = 3} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    "Set token owner for budget tracking";
-    this.agent.token_owner = wearer;
-    this.agent.current_continuation = 0;
-    response = this.agent:send_message(message);
-    "If we hit max iterations, ask user if they want to continue";
-    continuations = 0;
-    while (response:starts_with("Error: Maximum iterations exceeded") && continuations < max_continuations)
-      "Show iteration limit message";
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[" + tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset));
-      "Ask user if they want to continue";
-      metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
-      user_choice = wearer:read_with_prompt(metadata);
-      if (user_choice != "yes")
-        "User chose not to continue";
-        this.agent.current_continuation = 0;
-        this:_show_token_usage(wearer);
-        return "Agent stopped at user request after reaching iteration limit.";
-      endif
-      "User chose to continue";
-      continuations = continuations + 1;
-      this.agent.current_continuation = continuations;
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[" + tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset));
-      response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
-    endwhile
-    "Reset continuation counter";
-    this.agent.current_continuation = 0;
-    "Show token usage summary";
-    this:_show_token_usage(wearer);
-    return response;
-  endverb
 
   verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Display token usage information to the user";
@@ -424,7 +389,6 @@ object LLM_WEARABLE
     "Prompt for query text using metadata-based read";
     metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize(this.prompt_label, this.prompt_color) + " " + this.prompt_text}, {"placeholder", this.placeholder_text}};
     query = player:read_with_prompt(metadata):trim();
-    set_task_perms(caller_perms());
     if (!query)
       player:inform_current($event:mk_error(player, "Query cancelled - no input provided."));
       return;
@@ -432,8 +396,43 @@ object LLM_WEARABLE
     "Show received and processing messages";
     player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset));
     player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " " + this.processing_message):with_presentation_hint('inset));
-    "Send to agent with continuation support";
-    response = this:_send_with_continuation(query, this.tool_name, 3);
+    "Set token owner for budget tracking";
+    this.agent.token_owner = player;
+    "Send to agent with continuation support (max 3 continuations)";
+    response = this.agent:send_message(query);
+    continuations = 0;
+    max_continuations = 3;
+    while (typeof(response) == ERR && length(response) >= 2 && response[1] == E_QUOTA && continuations < max_continuations)
+      "Hit iteration limit - ask user if they want to continue";
+      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset));
+      metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
+      user_choice = player:read_with_prompt(metadata);
+      if (user_choice != "yes")
+        "User chose not to continue";
+        this.agent.current_iteration = 0;
+        this:_show_token_usage(player);
+        player:inform_current($event:mk_info(player, "Agent stopped at user request after reaching iteration limit."):with_presentation_hint('inset));
+        return;
+      endif
+      "User chose to continue";
+      continuations = continuations + 1;
+      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset));
+      response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
+    endwhile
+    "Reset iteration counter in case we hit limit";
+    this.agent.current_iteration = 0;
+    "Show token usage summary";
+    this:_show_token_usage(player);
+    "Check if we exhausted all continuations";
+    if (typeof(response) == ERR && length(response) >= 2 && response[1] == E_QUOTA)
+      player:inform_current($event:mk_error(player, "Agent reached maximum iterations even after " + tostr(max_continuations) + " continuations. Task may be too complex."));
+      return;
+    endif
+    "If response is still an ERR but not E_QUOTA, display it as an error";
+    if (typeof(response) == ERR)
+      player:inform_current($event:mk_error(player, "Error: " + toliteral(response)));
+      return;
+    endif
     "Display final response with djot rendering";
     event = $event:mk_info(player, response);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});

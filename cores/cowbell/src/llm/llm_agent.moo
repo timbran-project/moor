@@ -12,7 +12,7 @@ object LLM_AGENT
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
   property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
   property last_token_usage (owner: ARCH_WIZARD, flags: "c") = [];
-  property max_iterations (owner: ARCH_WIZARD, flags: "r") = 10;
+  property max_iterations (owner: ARCH_WIZARD, flags: "r") = 50;
   property min_messages_to_keep (owner: ARCH_WIZARD, flags: "c") = 15;
   property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
   property token_limit (owner: ARCH_WIZARD, flags: "r") = 128000;
@@ -21,7 +21,7 @@ object LLM_AGENT
   property tools (owner: ARCH_WIZARD, flags: "c") = [];
   property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
   property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property current_tasks (owner: ARCH_WIZARD, flags: "rc") = {};
+  property current_tasks (owner: ARCH_WIZARD, flags: "rc") = [];
   property next_task_id (owner: ARCH_WIZARD, flags: "rc") = 1;
   property task_counter (owner: ARCH_WIZARD, flags: "rc") = 0;
 
@@ -224,8 +224,8 @@ object LLM_AGENT
         return tostr(response);
       endif
     endfor
-    this.current_iteration = 0;
-    return "Error: Maximum iterations exceeded";
+    "Hit max iterations - don't reset counter, caller may want to continue";
+    return E_QUOTA("Maximum iterations exceeded");
   endverb
 
   verb reset_context (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -339,7 +339,7 @@ object LLM_AGENT
   verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Lazily create knowledge base if not already created.";
     if (!valid(this.knowledge_base))
-      this.knowledge_base = create($relation, true);
+      this.knowledge_base = create($relation, this.owner);
     endif
     return this.knowledge_base;
   endverb
@@ -353,7 +353,7 @@ object LLM_AGENT
     "Ensure knowledge base exists";
     kb = this:_ensure_knowledge_base();
     "Create anonymous task";
-    task = create($llm_task, true);
+    task = create($llm_task, this.owner);
     task:mk(task_id, description, this, kb, parent_task_id);
     "Register in current_tasks";
     this.current_tasks[task_id] = task;
