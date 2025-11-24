@@ -20,9 +20,10 @@ object KIBBLE_CUPBOARD
 
   override lock_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " won't lock without the proper key."};
   override unlock_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " won't budge. It needs the right key."};
-  override take_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " is locked tight. You'll need to unlock it first."};
-  override put_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " is locked. You can't put anything inside."};
+  override take_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " is closed. You'll need to open it first."};
+  override put_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " is closed. You'll need to open it first."};
+  override open_locked_msg = {<SUB, .capitalize = true, .type = 'dobj>, " is locked tight. You'll need to unlock it first."};
 
-  property lock_rule (owner: HACKER, flags: "r") = <#63, .name = 'cupboard_lock_rule, .head = 'cupboard_lock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
-  property unlock_rule (owner: HACKER, flags: "r") = <#63, .name = 'cupboard_unlock_rule, .head = 'cupboard_unlock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
+  override lock_rule = <#63, .name = 'cupboard_lock_rule, .head = 'cupboard_lock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
+  override unlock_rule = <#63, .name = 'cupboard_unlock_rule, .head = 'cupboard_unlock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
 endobject

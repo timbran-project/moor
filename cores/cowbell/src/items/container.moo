@@ -233,6 +233,7 @@ object CONTAINER
   property take_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'iobj>, " is closed."};
   property put_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'iobj>, " is closed."};
   property open_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'iobj>, " won't open."};
+  property open_locked_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'dobj>, " is locked."};
   property close_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'iobj>, " won't close."};
   property lock_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'iobj>, " won't lock."};
   property unlock_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'iobj>, " won't unlock."};
@@ -657,7 +658,7 @@ object CONTAINER
     endif
     "Check if container is locked";
     if (this.locked)
-      event = $event:mk_error(player, $sub:d(), " is locked."):with_dobj(this);
+      event = $event:mk_error(player, @this.open_locked_msg):with_dobj(this);
       player:inform_current(event);
       return;
     endif
