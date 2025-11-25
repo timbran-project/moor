@@ -10,8 +10,8 @@ object RELATION
   override import_export_id = "relation";
 
   verb assert (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Add a tuple to the relation. Returns the UUID of the tuple.";
+    set_task_perms(caller_perms());
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
     length(tuple) > 0 || raise(E_INVARG);
@@ -48,8 +48,8 @@ object RELATION
   endverb
 
   verb retract (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
+    set_task_perms(caller_perms());
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
     "Find the tuple's UUID by checking if it exists";
@@ -90,16 +90,16 @@ object RELATION
   endverb
 
   verb member (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Check if a tuple exists in the relation.";
+    set_task_perms(caller_perms());
     {tuple} = args;
     typeof(tuple) == LIST || raise(E_TYPE);
     return this:_find_tuple_id(tuple) ? true | false;
   endverb
 
   verb select (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
+    set_task_perms(caller_perms());
     {position, value} = args;
     typeof(position) == INT || raise(E_TYPE);
     position >= 1 || raise(E_INVARG);
@@ -126,8 +126,8 @@ object RELATION
   endverb
 
   verb select_containing (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Find all tuples containing value in any position.";
+    set_task_perms(caller_perms());
     {value} = args;
     hash = value_hash(value);
     index_prop = "index_" + hash;
@@ -151,8 +151,8 @@ object RELATION
   endverb
 
   verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Return all tuples in the relation.";
+    set_task_perms(caller_perms());
     result = {};
     all_props = properties(this);
     for prop in (all_props)
@@ -168,8 +168,8 @@ object RELATION
   endverb
 
   verb clear (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(this.owner);
     "Remove all tuples from the relation.";
+    set_task_perms(caller_perms());
     for prop in (properties(this))
       prop_str = tostr(prop);
       is_tuple = length(prop_str) >= 6 && prop_str[1..6] == "tuple_";
@@ -181,8 +181,9 @@ object RELATION
     return true;
   endverb
 
-  verb _find_tuple_id (this none this) owner: HACKER flags: "rxd"
+  verb _find_tuple_id (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal: Find the UUID for a given tuple, or return 0 if not found.";
+    set_task_perms(caller_perms());
     {tuple} = args;
     "Use first element to narrow search";
     if (length(tuple) == 0)
