@@ -86,23 +86,14 @@ object LIST_PROTO
   verb join (this none this) owner: HACKER flags: "rxd"
     "join(list[, separator]) => string with list elements joined by separator (default: space)";
     {l, ?separator = " "} = args;
-    length(l) == 0 && return "";
-    length(l) == 1 && typeof(l[1]) == STR && return l[1];
-    length(l) == 1 && raise(E_TYPE("join() expects strings; got " + toliteral(l[1])));
-    fn build_joined_string(items, sep)
-      let result = "";
-      for i in [1..length(items)]
-        typeof(items[i]) == STR || raise(E_TYPE("join() expects strings; got " + toliteral(items[i])));
-        result = result + items[i];
-        if (i < length(items))
-          typeof(sep) == STR || raise(E_TYPE("join() separator must be string; got " + toliteral(sep)));
-          result = result + sep;
-        endif
-      endfor
-      return result;
-    endfn
     typeof(separator) == STR || raise(E_TYPE("join() separator must be string; got " + toliteral(separator)));
-    return build_joined_string(l, separator);
+    length(l) == 0 && return "";
+    length(l) == 1 && return tostr(l[1]);
+    result = tostr(l[1]);
+    for i in [2..length(l)]
+      result = result + separator + tostr(l[i]);
+    endfor
+    return result;
   endverb
 
   verb test_join (this none this) owner: HACKER flags: "rxd"

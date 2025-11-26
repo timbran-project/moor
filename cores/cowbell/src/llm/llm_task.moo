@@ -88,37 +88,26 @@ object LLM_TASK
   endverb
 
   verb add_finding (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Add a finding to the knowledge base with provenance. Task_id, subject, key, value.";
+    "Add a finding to the knowledge base. Stores (task_id, subject, key, value) tuple.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {subject, key, value} = args;
     typeof(subject) == STR || raise(E_TYPE);
     typeof(key) == STR || raise(E_TYPE);
-    "Validate knowledge_base exists";
-    if (!valid(this.knowledge_base))
-      raise(E_INVARG, "Knowledge base not available for this task");
-    endif
-    "Store tuple with provenance: (task_id, subject, key, value)";
+    valid(this.knowledge_base) || raise(E_INVARG, "Knowledge base not available for this task");
     this.knowledge_base:assert({this.task_id, subject, key, value});
     return true;
   endverb
 
   verb get_findings (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Query findings by subject from knowledge base.";
+    "Query findings by subject from knowledge base. Returns tuples matching this task.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {subject} = args;
     typeof(subject) == STR || raise(E_TYPE);
-    if (!valid(this.knowledge_base))
-      return {};
-    endif
-    "Query pattern: (task_id, subject, key, value) where subject matches";
-    "Use select on position 2 (subject)";
+    !valid(this.knowledge_base) && return {};
     results = this.knowledge_base:select_containing(subject);
-    "Filter to only those where position 2 == subject and position 1 == our task_id";
     filtered = {};
     for tuple in (results)
-      if (length(tuple) >= 2 && tuple[2] == subject && tuple[1] == this.task_id)
-        filtered = {@filtered, tuple};
-      endif
+      length(tuple) >= 2 && tuple[2] == subject && tuple[1] == this.task_id && (filtered = {@filtered, tuple});
     endfor
     return filtered;
   endverb
@@ -126,38 +115,12 @@ object LLM_TASK
   verb add_subtask (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create and register a subtask. Returns the new task object.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
-    {description, ?blocking = true} = args;
+    {description} = args;
     typeof(description) == STR || raise(E_TYPE);
-    if (!valid(this.agent))
-      raise(E_INVARG, "Parent task's agent is invalid");
-    endif
-    "Generate subtask ID";
-    subtask_id = this.task_id * 1000 + length(this.subtasks) + 1;
-    "Create new anonymous subtask";
-    subtask = this.agent:create_task(subtask_id, description, this.task_id);
-    "Register it";
+    valid(this.agent) || raise(E_INVARG, "Parent task's agent is invalid");
+    subtask = this.agent:create_task(description, this.task_id);
     this.subtasks = {@this.subtasks, subtask};
     return subtask;
-  endverb
-
-  verb maybe_fork (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Helper to conditionally fork work. If blocking=true, calls directly. Otherwise forks with (0).";
-    caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
-    {callable_obj, method_name, method_args, ?blocking = true} = args;
-    typeof(callable_obj) == OBJ || raise(E_TYPE);
-    typeof(method_name) == STR || raise(E_TYPE);
-    typeof(method_args) == LIST || raise(E_TYPE);
-    if (blocking)
-      "Call directly and return result";
-      result = callable_obj:((method_name))(@method_args);
-      return result;
-    else
-      "Fork in background";
-      fork (0)
-        callable_obj:((method_name))(@method_args);
-      endfork
-      return "Work forked in background";
-    endif
   endverb
 
   verb test_task_lifecycle (this none this) owner: HACKER flags: "rxd"
@@ -188,7 +151,7 @@ object LLM_TASK
     return true;
   endverb
 
-  verb _test_findings (this none this) owner: HACKER flags: "rxd"
+  verb test_findings (this none this) owner: HACKER flags: "rxd"
     "Test adding and retrieving findings with provenance.";
     kb = create($relation);
     agent = create($llm_agent);

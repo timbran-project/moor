@@ -63,27 +63,16 @@ object MATCH
   verb match_by_name (this none this) owner: HACKER flags: "rxd"
     "Match object by name in current context using complex_match builtin.";
     {name_string, ?context = player} = args;
-    "Special cases for common MOO references";
-    if (name_string:lowercase() == "here")
-      if (valid(context) && valid(context.location))
-        return context.location;
-      else
-        raise(E_INVARG, "No location to match 'here'");
-      endif
-    elseif (name_string:lowercase() == "me" || name_string:lowercase() == "player")
-      if (valid(context))
-        return context;
-      else
-        raise(E_INVARG, "No context to match '" + name_string + "'");
-      endif
+    if (name_string == "here")
+      valid(context) && valid(context.location) && return context.location;
+      raise(E_INVARG, "No location to match 'here'");
+    elseif (name_string in {"me", "player"})
+      valid(context) && return context;
+      raise(E_INVARG, "No context to match '" + name_string + "'");
     endif
     search_objects = {};
-    if (valid(context) && valid(context.location))
-      search_objects = {@search_objects, @context.location.contents};
-    endif
-    if (valid(context))
-      search_objects = {@search_objects, @context.contents};
-    endif
+    valid(context) && valid(context.location) && (search_objects = {@search_objects, @context.location.contents});
+    valid(context) && (search_objects = {@search_objects, @context.contents});
     "Let complex_match auto-detect object names";
     result = complex_match(name_string, search_objects);
     result == $failed_match && raise(E_INVARG, "No object found matching '" + name_string + "'");

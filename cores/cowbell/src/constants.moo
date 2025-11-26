@@ -66,6 +66,7 @@ define MR_WELCOME = #45;
 define DATA_VISOR = #46;
 define ARCHITECTS_COMPASS = #47;
 define LLM_TASK = #61;
+define LLM_CHAT_OPTS = #68;
 
 // relations
 define RELATION = #23;

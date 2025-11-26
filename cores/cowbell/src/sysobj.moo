@@ -38,6 +38,7 @@ object SYSOBJ
   property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
+  property llm_chat_opts (owner: HACKER, flags: "r") = LLM_CHAT_OPTS;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
   property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
   property llm_task (owner: HACKER, flags: "r") = LLM_TASK;

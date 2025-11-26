@@ -237,7 +237,11 @@ object DATA_VISOR
     task_management_section = "\n## Task Management for Investigations\n\nYou have access to task management tools for organizing complex investigations systematically.\n\n### Creating and Managing Investigation Tasks\n\n**create_task**: Start a new investigation with a description. Returns confirmation with task ID.\n- Example: `create_task` with description=\"Audit all authentication verbs in $login\"\n- The system creates a persistent task that you can refer back to and record findings in\n\n**record_finding**: Document discoveries with provenance. Use:\n- subject: What you're investigating (e.g., \"$login\", \"permission_checks\", \"error_handling\")\n- key: Type of finding (e.g., \"verbs\", \"patterns\", \"security_holes\", \"issues\")\n- value: The actual finding/discovery (can be detailed)\n- Example findings:\n  - subject=\"$login\", key=\"verbs\", value=\"check_password, verify_auth, create_session\"\n  - subject=\"permission_checks\", key=\"patterns\", value=\"caller.wizard || raise(E_PERM);\"\n\n**get_findings**: Retrieve previous findings by subject to understand what you've already discovered.\n- Example: `get_findings` with subject=\"$login\" shows all findings about $login\n\n**task_status**: Get current investigation status including:\n- Overall status (pending/in_progress/completed/failed)\n- Number of findings recorded\n- Any subtasks created\n- Timestamps for investigation lifecycle\n\n### Investigation Pattern\n\n1. `create_task` when starting a new investigation\n2. As you discover things, `record_finding` to document them\n3. Use `get_findings` to recall previous discoveries\n4. Call `task_status` periodically to see what you've found\n5. Investigations persist - you can resume complex analysis across multiple interactions\n";
     agent.system_prompt = grammar_section + base_prompt + task_management_section;
     agent:initialize();
+    "Lower temperature for reliable tool selection, limit tokens to control costs";
+    agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.3):with_max_tokens(4096);
     agent.tool_callback = this;
+    "Register common tools from parent class (explain, ask_user, todo_write, get_todos)";
+    this:_register_common_tools(agent);
     "Register dump_object tool";
     dump_object_tool = $llm_agent_tool:mk("dump_object", "Get the complete source listing of a MOO object including all properties, verbs, and code. This is the most comprehensive way to inspect an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to dump (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_dump_object");
     this.agent:add_tool("dump_object", dump_object_tool);
@@ -274,9 +278,8 @@ object DATA_VISOR
     "Register get_properties tool";
     get_properties_tool = $llm_agent_tool:mk("get_properties", "Get list of all properties defined directly on a MOO object (not inherited).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_get_properties");
     this.agent:add_tool("get_properties", get_properties_tool);
-    "Register documentation lookup tool";
-    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
-    this.agent:add_tool("doc_lookup", doc_tool);
+    "Register authoring tools from parent class (doc_lookup, message tools, rule tools)";
+    this:_register_authoring_tools(this.agent);
     "Register present_verb_code tool";
     present_verb_code_tool = $llm_agent_tool:mk("present_verb_code", "PREFERRED: Present formatted verb code to the user with syntax highlighting and metadata table. Use this instead of get_verb_code when showing code to the user.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "show_line_numbers" -> ["type" -> "boolean", "description" -> "Include line numbers (default: true)"]], "required" -> {"object", "verb"}], this, "_tool_present_verb_code");
     this.agent:add_tool("present_verb_code", present_verb_code_tool);
@@ -310,24 +313,7 @@ object DATA_VISOR
     "Register set_property_perms tool";
     set_property_perms_tool = $llm_agent_tool:mk("set_property_perms", "Change the permissions and/or owner of a property. Permission flags are 'r' (readable), 'w' (writable), 'c' (chown). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwc', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "property", "permissions"}], this, "_tool_set_property_perms");
     this.agent:add_tool("set_property_perms", set_property_perms_tool);
-    "Register message template tools (@messages/@getm/@setm equivalents)";
-    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (_msg) and message bags (_msgs/_msg_bag) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
-    this.agent:add_tool("list_messages", list_messages_tool);
-    get_message_tool = $llm_agent_tool:mk("get_message_template", "Read a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
-    this.agent:add_tool("get_message_template", get_message_tool);
-    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single compiled template; use add_message_template to append instead. Equivalent to @setm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
-    this.agent:add_tool("set_message_template", set_message_tool);
-    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_add_message_template");
-    this.agent:add_tool("add_message_template", add_message_tool);
-    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
-    this.agent:add_tool("delete_message_template", del_message_tool);
-    "Register rule tools (@rules/@set-rule/@show-rule/@evaluate-rule equivalents)";
-    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules configure object behavior without MOO code - used for locks, puzzles, quest triggers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "_tool_list_rules");
-    this.agent:add_tool("list_rules", list_rules_tool);
-    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set a rule on an object property. Rules are Datalog-style logic expressions for configuring object behavior. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "_tool_set_rule");
-    this.agent:add_tool("set_rule", set_rule_tool);
-    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
-    this.agent:add_tool("show_rule", show_rule_tool);
+    "Register evaluate_rule tool (visor-specific - tests existing rules with bindings)";
     evaluate_rule_tool = $llm_agent_tool:mk("evaluate_rule", "Evaluate a rule with specific variable bindings to test object behavior. Returns success/failure and variable bindings. Useful for understanding how rules work dynamically.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing the rule"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"], "bindings" -> ["type" -> "string", "description" -> "Initial variable bindings as MOO map literal (e.g., \"['This -> #10, 'Accessor -> player]\")"]], "required" -> {"object", "property"}], this, "_tool_evaluate_rule");
     this.agent:add_tool("evaluate_rule", evaluate_rule_tool);
     "Register eval tool";
@@ -339,12 +325,6 @@ object DATA_VISOR
     "Register recycle_object tool";
     recycle_object_tool = $llm_agent_tool:mk("recycle_object", "Permanently destroy an object. You must provide a clear rationale explaining why this object should be destroyed. This cannot be undone. You must own the object or be a wizard.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to recycle/destroy"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this object should be destroyed. What problem does removing it solve?"]], "required" -> {"object", "rationale"}], this, "_tool_recycle_object");
     this.agent:add_tool("recycle_object", recycle_object_tool);
-    "Register ask_user tool";
-    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
-    this.agent:add_tool("ask_user", ask_user_tool);
-    "Register explain tool";
-    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
-    this.agent:add_tool("explain", explain_tool);
     "Register grep tool";
     grep_tool = $llm_agent_tool:mk("grep", "Search verb code across objects for patterns. Returns matching lines with context. Useful for finding where specific functionality is implemented or understanding existing code.", ["type" -> "object", "properties" -> ["pattern" -> ["type" -> "string", "description" -> "Text pattern to search for (e.g., 'fire', 'parse_verb', or regex patterns)"], "object" -> ["type" -> "string", "description" -> "Optional: specific object to search (e.g., '#1', '$login', 'here'). If omitted, searches all objects."]], "required" -> {"pattern"}], this, "_tool_grep");
     this.agent:add_tool("grep", grep_tool);
@@ -366,21 +346,14 @@ object DATA_VISOR
     caller == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(caller_perms());
     {wearer} = args;
-    if (!valid(wearer))
-      return #-1;
-    endif
+    !valid(wearer) && return #-1;
     "Check worn items";
-    wearing = `wearer.wearing ! ANY => {}';
-    for item in (wearing)
-      if (valid(item) && $architects_compass in ancestors(item))
-        return item;
-      endif
+    for item in (`wearer.wearing ! ANY => {}')
+      if (valid(item) && $architects_compass in ancestors(item)) return item; endif
     endfor
     "Check inventory";
     for item in (wearer.contents)
-      if (valid(item) && $architects_compass in ancestors(item))
-        return item;
-      endif
+      if (valid(item) && $architects_compass in ancestors(item)) return item; endif
     endfor
     return #-1;
   endverb
@@ -389,11 +362,8 @@ object DATA_VISOR
     "Register building tools from architect's compass if found";
     caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(caller_perms());
-    wearer = this:wearer();
-    compass = this:_find_architects_compass(wearer);
-    if (!valid(compass))
-      return;
-    endif
+    compass = this:_find_architects_compass(this:wearer());
+    !valid(compass) && return;
     "Compass found - register its building tools as delegating tools";
     "Update system prompt to mention building capabilities";
     original_prompt = this.agent.system_prompt;
@@ -476,301 +446,26 @@ object DATA_VISOR
     return toliteral(value);
   endverb
 
-  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Fetch developer documentation for object/verb/property (like @doc)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    target_spec = args_map["target"];
-    set_task_perms(wearer);
-    alias_obj = false;
-    if (typeof(target_spec) == STR)
-      alias_name = target_spec;
-      if (alias_name:starts_with("$"))
-        alias_name = alias_name[2..$];
-      endif
-      if (alias_name == "sub_utils")
-        alias_obj = $sub_utils;
-      elseif (alias_name == "sub")
-        alias_obj = $sub;
-      endif
-    endif
-    if (alias_obj)
-      type = 'object;
-      target_obj = alias_obj;
-      item_name = "";
-    else
-      parsed = $prog_utils:parse_target_spec(target_spec);
-      parsed || raise(E_INVARG, "Invalid format. Use object, object:verb, or object.property");
-      type = parsed['type];
-      object_str = parsed['object_str];
-      item_name = parsed['item_name];
-      target_obj = $match:match_object(object_str, wearer);
-      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-      valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    endif
-    if (type == 'object)
-      doc_text = $help_utils:get_object_documentation(target_obj);
-      title = "Documentation for " + tostr(target_obj);
-      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
-      doc_body = doc_body ? doc_body | "(No documentation available)";
-      return title + "\n\n" + doc_body;
-    elseif (type == 'verb)
-      verb_location = target_obj:find_verb_definer(item_name);
-      verb_location == #-1 && raise(E_INVARG, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj));
-      doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
-      title = "Documentation for " + tostr(target_obj) + ":" + tostr(item_name);
-      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
-      doc_body = doc_body ? doc_body | "(No documentation available)";
-      return title + "\n\n" + doc_body;
-    elseif (type == 'property)
-      doc_text = $help_utils:property_documentation(target_obj, item_name);
-      title = "Documentation for " + tostr(target_obj) + "." + tostr(item_name);
-      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
-      doc_body = doc_body ? doc_body | "(No documentation available)";
-      return title + "\n\n" + doc_body;
-    endif
-    raise(E_INVARG, "Unknown target type");
-  endverb
-
-  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: List *_msg properties and message bags on an object (like @messages)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    msg_props = $obj_utils:message_properties(target_obj);
-    if (!msg_props || length(msg_props) == 0)
-      return tostr(target_obj) + " has no message properties. (@messages command available)";
-    endif
-    lines = {"Message properties for " + tostr(target_obj) + ":"};
-    for prop_info in (msg_props)
-      {prop_name, prop_value} = prop_info;
-      if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
-        value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
-      elseif (typeof(prop_value) == LIST)
-        value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
-      else
-        value_summary = toliteral(prop_value);
-      endif
-      lines = {@lines, " - " + prop_name + ": " + value_summary};
-    endfor
-    return lines:join("\n");
-  endverb
-
-  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Read a single message template (like @getm)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
-    endif
-    value = target_obj.(prop_name);
-    if (typeof(value) == OBJ && isa(value, $msg_bag))
-      entries = value:entries();
-      if (!entries)
-        return tostr(target_obj) + "." + prop_name + " = (empty message bag)";
-      endif
-      lines = {tostr(target_obj) + "." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):"};
-      idx = 1;
-      for entry in (entries)
-        template_str = typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry);
-        lines = {@lines, tostr(idx) + ". " + template_str};
-        idx = idx + 1;
-      endfor
-      return lines:join("\n");
-    endif
-    display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
-    return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
-  endverb
-
-  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Set a message template (like @setm)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    template = args_map["template"];
-    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
-    !template && raise(E_INVARG, "Template string required");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
-    writable || raise(E_PERM, error_msg);
-    {success, compiled} = $obj_utils:validate_and_compile_template(template);
-    success || raise(E_INVARG, "Template compilation failed: " + compiled);
-    existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
-    if (typeof(existing) == OBJ && isa(existing, $msg_bag))
-      existing.entries = {compiled};
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
-    else
-      $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
-    endif
-  endverb
-
-  verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Append a template to a message bag (like @add-message)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    template = args_map["template"];
-    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
-    !template && raise(E_INVARG, "Template string required");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
-    if (!valid(bag))
-      bag = $msg_bag:create(true);
-      target_obj.(prop_name) = bag;
-    endif
-    bag:add($sub_utils:compile(template));
-    return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
-  endverb
-
-  verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Delete a template by index from a message bag (like @del-message)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    idx = args_map["index"];
-    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
-    typeof(idx) == INT || raise(E_TYPE, "Index must be integer");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
-    valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
-    bag:remove(idx);
-    return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
-  endverb
-
-  verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: List *_rule properties on an object (like @rules)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    rule_props = $obj_utils:rule_properties(target_obj);
-    if (!rule_props || length(rule_props) == 0)
-      return tostr(target_obj) + " has no rule properties. (@rules command available)";
-    endif
-    lines = {"Rule properties for " + tostr(target_obj) + ":"};
-    for prop_info in (rule_props)
-      {prop_name, prop_value} = prop_info;
-      if (prop_value == 0)
-        rule_expr = "(not set)";
-      else
-        rule_expr = $rule_engine:decompile_rule(prop_value);
-      endif
-      lines = {@lines, " - " + prop_name + ": " + rule_expr};
-    endfor
-    return lines:join("\n");
-  endverb
-
-  verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Set a rule on an object property (like @set-rule)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    expression = args_map["expression"];
-    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
-    !expression && raise(E_INVARG, "Rule expression required");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Use add_property to create it first.");
-    endif
-    rule = $rule_engine:parse_expression(expression, tosym(prop_name), wearer);
-    validation = $rule_engine:validate_rule(rule);
-    if (!validation['valid])
-      raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
-    endif
-    target_obj.(prop_name) = rule;
-    return "Set " + tostr(target_obj) + "." + prop_name + " = " + expression;
-  endverb
-
-  verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Display a rule property expression (like @show-rule)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
-    endif
-    rule = target_obj.(prop_name);
-    if (rule == 0)
-      return tostr(target_obj) + "." + prop_name + " = (not set)";
-    endif
-    rule_expr = $rule_engine:decompile_rule(rule);
-    return tostr(target_obj) + "." + prop_name + " = " + rule_expr;
-  endverb
-
   verb _tool_evaluate_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Evaluate a rule with variable bindings to test behavior";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    bindings_str = args_map["bindings"];
+    {prop_name, bindings_str} = {args_map["property"], args_map["bindings"]};
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
     set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
-    endif
+    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     rule = target_obj.(prop_name);
-    if (rule == 0)
-      return tostr(target_obj) + "." + prop_name + " = (not set) - cannot evaluate";
-    endif
+    rule == 0 && return tostr(target_obj) + "." + prop_name + " = (not set) - cannot evaluate";
     bindings = bindings_str ? eval(bindings_str) | [];
     typeof(bindings) == MAP || raise(E_TYPE, "Bindings must be a map");
     result = $rule_engine:evaluate(rule, bindings);
-    lines = {"Evaluation of " + tostr(target_obj) + "." + prop_name + ":"};
-    lines = {@lines, "Expression: " + $rule_engine:decompile_rule(rule)};
-    lines = {@lines, "Initial bindings: " + toliteral(bindings)};
-    lines = {@lines, "Success: " + tostr(result['success])};
-    if (result['success])
-      lines = {@lines, "Result bindings: " + toliteral(result['bindings])};
-      if (result['alternatives] && length(result['alternatives]) > 0)
-        lines = {@lines, "Alternatives: " + tostr(length(result['alternatives])) + " more solutions found"};
-      endif
-    endif
-    if (result['warnings] && length(result['warnings]) > 0)
-      lines = {@lines, "Warnings: " + result['warnings]:join("; ")};
-    endif
+    lines = {"Evaluation of " + tostr(target_obj) + "." + prop_name + ":", "Expression: " + $rule_engine:decompile_rule(rule), "Initial bindings: " + toliteral(bindings), "Success: " + tostr(result['success])};
+    result['success] && (lines = {@lines, "Result bindings: " + toliteral(result['bindings])});
+    result['success] && result['alternatives] && length(result['alternatives]) > 0 && (lines = {@lines, "Alternatives: " + tostr(length(result['alternatives])) + " more solutions found"});
+    result['warnings] && length(result['warnings]) > 0 && (lines = {@lines, "Warnings: " + result['warnings]:join("; ")});
     return lines:join("\n");
   endverb
 
@@ -783,18 +478,7 @@ object DATA_VISOR
     typeof(ref) == STR || raise(E_TYPE("Expected reference string"));
     try
       o = $match:match_object(ref);
-      info = {};
-      info = {@info, "=== Object: " + tostr(o) + " ==="};
-      info = {@info, "Name: " + o:name()};
-      obj_parent = `parent(o) ! ANY => #-1';
-      info = {@info, "Parent: " + tostr(obj_parent)};
-      info = {@info, "Owner: " + tostr(o.owner)};
-      info = {@info, "Location: " + tostr(o.location)};
-      props = properties(o);
-      info = {@info, "Properties: " + toliteral(props)};
-      verb_list = verbs(o);
-      info = {@info, "Verbs: " + toliteral(verb_list)};
-      return info:join("\n");
+      return {"=== Object: " + tostr(o) + " ===", "Name: " + o:name(), "Parent: " + tostr(`parent(o) ! ANY => #-1'), "Owner: " + tostr(o.owner), "Location: " + tostr(o.location), "Properties: " + toliteral(properties(o)), "Verbs: " + toliteral(verbs(o))}:join("\n");
     except e (ANY)
       return toliteral(["found" -> false, "error" -> e[2]]);
     endtry
@@ -805,15 +489,9 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(args_map["object"]);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    anc_list = ancestors(o);
-    result = {};
-    for a in (anc_list)
-      result = {@result, {tostr(a), a:name()}};
-    endfor
-    return toliteral(result);
+    return toliteral({{tostr(a), a:name()} for a in (ancestors(o))});
   endverb
 
   verb _tool_descendants (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -821,61 +499,30 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(args_map["object"]);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    desc_list = descendants(o);
-    result = {};
-    for d in (desc_list)
-      result = {@result, {tostr(d), d:name()}};
-    endfor
-    return toliteral(result);
+    return toliteral({{tostr(d), d:name()} for d in (descendants(o))});
   endverb
 
   verb _tool_function_info (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get information about a builtin function";
     {args_map} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    this:_action_perms_check();
     func_name = args_map["function_name"];
     typeof(func_name) == STR || raise(E_TYPE("Expected function name string"));
-    info = function_info(func_name);
-    help = function_help(func_name);
-    return toliteral(["info" -> info, "help" -> help]);
+    return toliteral(["info" -> function_info(func_name), "help" -> function_help(func_name)]);
   endverb
 
   verb _tool_list_builtin_functions (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all builtin functions with signatures";
     {args_map} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    "Get all function info";
+    this:_action_perms_check();
     all_funcs = function_info();
-    "Format as readable list";
-    result = {};
-    result = {@result, "=== MOO Builtin Functions ==="};
-    result = {@result, "Total: " + tostr(length(all_funcs)) + " functions"};
-    result = {@result, ""};
     type_names = [0 -> "INT", 1 -> "OBJ", 2 -> "STR", 3 -> "ERR", 4 -> "LIST", 9 -> "FLOAT", 10 -> "MAP", 14 -> "BOOL", 15 -> "FLYWEIGHT", 16 -> "SYMBOL", 17 -> "BINARY", 18 -> "LAMBDA", -1 -> "any", -2 -> "int|float"];
-    "Group and sort by category for readability";
+    result = {"=== MOO Builtin Functions ===", "Total: " + tostr(length(all_funcs)) + " functions", ""};
     for func_info in (all_funcs)
       {name, min_args, max_args, types} = func_info;
-      "Build arg signature";
-      if (max_args == 0)
-        arg_sig = "()";
-      elseif (max_args == -1)
-        "Unlimited args";
-        arg_sig = "(" + tostr(min_args) + "+ args)";
-      else
-        "Format types";
-        type_strs = {};
-        for type_code in (types)
-          type_str = maphaskey(type_names, type_code) ? type_names[type_code] | tostr(type_code);
-          type_strs = {@type_strs, type_str};
-        endfor
-        arg_sig = "(" + type_strs:join(", ") + ")";
-      endif
-      "Add to result";
+      arg_sig = max_args == 0 ? "()" | max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + {maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types)}:join(", ") + ")";
       result = {@result, name + arg_sig};
     endfor
     return result:join("\n");
@@ -886,34 +533,14 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    verb_name = args_map["verb"];
-    o = $match:match_object(obj_str);
+    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    "Get full code";
     code_lines = verb_code(o, verb_name, false, true);
-    "Apply line range if specified";
-    if (maphaskey(args_map, "start_line") || maphaskey(args_map, "end_line"))
-      start_line = maphaskey(args_map, "start_line") ? args_map["start_line"] | 1;
-      end_line = maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines);
-      "Validate range";
-      start_line = max(1, start_line);
-      end_line = min(length(code_lines), end_line);
-      start_line > end_line && raise(E_INVARG("start_line must be <= end_line"));
-      "Extract range and add line numbers";
-      result_lines = {};
-      for i in [start_line..end_line]
-        result_lines = {@result_lines, tostr(i) + ": " + code_lines[i]};
-      endfor
-      return result_lines:join("\n");
-    endif
-    "Return full code with line numbers";
-    result_lines = {};
-    for i in [1..length(code_lines)]
-      result_lines = {@result_lines, tostr(i) + ": " + code_lines[i]};
-    endfor
-    return result_lines:join("\n");
+    start_line = max(1, maphaskey(args_map, "start_line") ? args_map["start_line"] | 1);
+    end_line = min(length(code_lines), maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines));
+    start_line > end_line && raise(E_INVARG("start_line must be <= end_line"));
+    return {tostr(i) + ": " + code_lines[i] for i in [start_line..end_line]}:join("\n");
   endverb
 
   verb _tool_get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -921,24 +548,13 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    verb_name = args_map["verb"];
-    o = $match:match_object(obj_str);
+    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
-    "Get verb metadata";
     metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
-    "Format as readable structure";
-    result = {};
-    result = {@result, "Verb: " + tostr(verb_location) + ":" + verb_name};
-    result = {@result, "Owner: " + tostr(metadata:verb_owner())};
-    result = {@result, "Flags: " + metadata:flags()};
-    result = {@result, "Args: " + metadata:args_spec()};
-    result = {@result, "Defined on: " + tostr(verb_location)};
-    return result:join("\n");
+    return {"Verb: " + tostr(verb_location) + ":" + verb_name, "Owner: " + tostr(metadata:verb_owner()), "Flags: " + metadata:flags(), "Args: " + metadata:args_spec(), "Defined on: " + tostr(verb_location)}:join("\n");
   endverb
 
   verb _tool_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -946,13 +562,10 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(args_map["object"]);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    props = properties(o);
-    "Get property info for each";
     result = {};
-    for prop_name in (props)
+    for prop_name in (properties(o))
       metadata = $prog_utils:get_property_metadata(o, prop_name);
       result = {@result, "." + prop_name + " (owner: " + tostr(metadata:owner()) + ", flags: " + metadata:perms() + (metadata:is_clear() ? ", clear)" | ")")};
     endfor
@@ -964,24 +577,16 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    verb_name = args_map["verb"];
+    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
     show_line_numbers = maphaskey(args_map, "show_line_numbers") ? args_map["show_line_numbers"] | true;
-    o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    !valid(wearer) && raise(E_INVARG("Visor has no wearer"));
-    "Find where verb is defined";
+    valid(wearer) || raise(E_INVARG("Visor has no wearer"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
-    "Get verb metadata";
     metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
-    if (!metadata)
-      raise(E_VERBNF("Could not retrieve verb metadata"));
-    endif
-    "Get verb code";
+    metadata || raise(E_VERBNF("Could not retrieve verb metadata"));
     code_lines = verb_code(verb_location, verb_name, false, true);
-    "Build metadata table";
     verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
     args_spec = metadata:args_spec();
     headers = {"Verb", "Args", "Owner", "Flags"};
@@ -1054,21 +659,16 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    verb_names = args_map["verb_names"];
-    rationale = args_map["rationale"];
+    {verb_names, rationale, o} = {args_map["verb_names"], args_map["rationale"], $match:match_object(args_map["object"])};
     dobj = maphaskey(args_map, "dobj") ? args_map["dobj"] | "this";
     prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
     iobj = maphaskey(args_map, "iobj") ? args_map["iobj"] | "none";
     permissions = maphaskey(args_map, "permissions") ? args_map["permissions"] | "rxd";
-    o = $match:match_object(obj_str);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_names) == STR || raise(E_TYPE("Expected verb names string"));
     typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
-    "Validate dobj/iobj";
     dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
     iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
-    "Validate prep using prog_utils";
     $prog_utils:is_valid_prep(prep) || raise(E_INVARG("prep must be 'none', 'any', or a valid preposition"));
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed verb creation: " + tostr(o) + ":" + verb_names);
@@ -1099,14 +699,10 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    verb_name = args_map["verb"];
-    rationale = args_map["rationale"];
-    o = $match:match_object(obj_str);
+    {verb_name, rationale, o} = {args_map["verb"], args_map["rationale"], $match:match_object(args_map["object"])};
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
     typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
-    "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Show rationale first";
@@ -1133,16 +729,11 @@ object DATA_VISOR
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    obj_str = args_map["object"];
-    verb_name = args_map["verb"];
-    rationale = args_map["rationale"];
-    code_str = args_map["code"];
-    o = $match:match_object(obj_str);
+    {verb_name, rationale, code_str, o} = {args_map["verb"], args_map["rationale"], args_map["code"], $match:match_object(args_map["object"])};
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
     typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
     typeof(code_str) == STR || raise(E_TYPE("Expected code string"));
-    "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Show rationale first, then formatted code";
@@ -1617,11 +1208,7 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     description = args_map["description"];
     typeof(description) == STR || raise(E_TYPE("Description must be string"));
-    "Ensure agent has knowledge base";
-    kb = this.agent:_ensure_knowledge_base();
-    "Create the task";
-    next_id = this.current_investigation_task < 0 ? 1 | this.current_investigation_task + 1;
-    task = this.agent:create_task(next_id, description);
+    task = this.agent:create_task(description);
     this.current_investigation_task = task.task_id;
     task:mark_in_progress();
     return "Investigation task #" + tostr(task.task_id) + " created: " + description;
@@ -1630,21 +1217,13 @@ object DATA_VISOR
   verb _tool_record_finding (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Record a finding in current task's knowledge base";
     {args_map} = args;
-    wearer = this:_action_perms_check();
-    subject = args_map["subject"];
-    key = args_map["key"];
-    value = args_map["value"];
+    this:_action_perms_check();
+    {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
     typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
     typeof(key) == STR || raise(E_TYPE("Key must be string"));
-    "Get current task";
-    if (this.current_investigation_task == -1)
-      return "No active investigation task. Create one with create_task first.";
-    endif
+    this.current_investigation_task == -1 && return "No active investigation task. Create one with create_task first.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
-    if (!valid(task_obj))
-      return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
-    endif
-    "Record the finding";
+    !valid(task_obj) && return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
     task_obj:add_finding(subject, key, value);
     return "Finding recorded for '" + subject + "' (" + key + ")";
   endverb
@@ -1652,30 +1231,18 @@ object DATA_VISOR
   verb _tool_get_findings (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Retrieve findings for a subject from current task";
     {args_map} = args;
-    wearer = this:_action_perms_check();
+    this:_action_perms_check();
     subject = args_map["subject"];
     typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
-    "Get current task";
-    if (this.current_investigation_task == -1)
-      return "No active investigation task.";
-    endif
+    this.current_investigation_task == -1 && return "No active investigation task.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
-    if (!valid(task_obj))
-      return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
-    endif
-    "Query findings for subject";
+    !valid(task_obj) && return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
     findings = task_obj:get_findings(subject);
-    if (!findings || length(findings) == 0)
-      return "No findings recorded for subject: " + subject;
-    endif
-    "Format findings for display";
+    !findings && return "No findings recorded for subject: " + subject;
     result_lines = {"Findings for '" + subject + "':"};
     for tuple in (findings)
       if (length(tuple) >= 4)
-        task_id = tuple[1];
-        subj = tuple[2];
-        k = tuple[3];
-        v = tuple[4];
+        {task_id, subj, k, v} = tuple;
         v_str = typeof(v) == STR ? v | toliteral(v);
         result_lines = {@result_lines, "  [" + k + "] " + (length(v_str) > 60 ? v_str[1..60] + "..." | v_str)};
       endif
@@ -1686,33 +1253,17 @@ object DATA_VISOR
   verb _tool_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get current investigation task status";
     {args_map} = args;
-    wearer = this:_action_perms_check();
-    if (this.current_investigation_task == -1)
-      return "No active investigation task.";
-    endif
+    this:_action_perms_check();
+    this.current_investigation_task == -1 && return "No active investigation task.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
-    if (!valid(task_obj))
-      return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
-    endif
-    "Get task status";
+    !valid(task_obj) && return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
     status = task_obj:get_status();
-    "Format status for display";
-    status_lines = {};
-    status_lines = {@status_lines, "Task #" + tostr(status["task_id"]) + ": " + status["description"]};
-    status_lines = {@status_lines, "Status: " + tostr(status["status"])};
-    if (status["status"] == 'completed)
-      status_lines = {@status_lines, "Result: " + status["result"]};
-    elseif (status["status"] == 'failed)
-      status_lines = {@status_lines, "Error: " + status["error"]};
-    elseif (status["status"] == 'blocked)
-      status_lines = {@status_lines, "Blocked: " + status["error"]};
-    endif
-    if (status["subtask_count"] > 0)
-      status_lines = {@status_lines, "Subtasks: " + tostr(status["subtask_count"])};
-    endif
-    "Show created/started timestamps";
-    status_lines = {@status_lines, "Started: " + tostr(ctime(status["started_at"]))};
-    return status_lines:join("\n");
+    status_lines = {"Task #" + tostr(status["task_id"]) + ": " + status["description"], "Status: " + tostr(status["status"])};
+    status["status"] == 'completed && (status_lines = {@status_lines, "Result: " + status["result"]});
+    status["status"] == 'failed && (status_lines = {@status_lines, "Error: " + status["error"]});
+    status["status"] == 'blocked && (status_lines = {@status_lines, "Blocked: " + status["error"]});
+    status["subtask_count"] > 0 && (status_lines = {@status_lines, "Subtasks: " + tostr(status["subtask_count"])});
+    return {@status_lines, "Started: " + tostr(ctime(status["started_at"]))}:join("\n");
   endverb
 
   verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
@@ -1826,102 +1377,61 @@ object DATA_VISOR
 
   verb on_wear (this none this) owner: HACKER flags: "rxd"
     "Initialize and activate the HUD when worn";
-    "Configure agent if not already done";
-    if (!valid(this.agent))
-      this:configure();
-    endif
-    "Reset context for fresh session";
+    !valid(this.agent) && this:configure();
     this.agent:reset_context();
     wearer = this.location;
-    if (valid(wearer))
-      "Narrative visual effect for wearing";
-      wearer:inform_current($event:mk_info(wearer, "The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in " + $ansi:colorize("electric blue", 'bright_blue) + " and " + $ansi:colorize("green", 'bright_green) + ". The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."));
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset));
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: use/interact, reset"):with_presentation_hint('inset));
-      "Show available token budget";
-      this:_show_token_usage(wearer);
-    endif
+    !valid(wearer) && return;
+    wearer:inform_current($event:mk_info(wearer, "The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in " + $ansi:colorize("electric blue", 'bright_blue) + " and " + $ansi:colorize("green", 'bright_green) + ". The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: use/interact, reset"):with_presentation_hint('inset));
+    this:_show_token_usage(wearer);
   endverb
 
   verb on_remove (this none this) owner: HACKER flags: "rxd"
     "Deactivate the HUD when removed";
     wearer = this.location;
-    if (valid(wearer))
-      "Show token usage before removal";
-      this:_show_token_usage(wearer);
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset));
-      "Narrative visual effect for removal";
-      wearer:inform_current($event:mk_info(wearer, "The luminescent display flickers and dims, data streams dissolving into static. The augmented overlay fades from your peripheral vision like phosphor afterimages. As the neural link disconnects, you hear a faint electronic hiss - then silence. The world returns to its unaugmented state."));
-    endif
+    !valid(wearer) && return;
+    this:_show_token_usage(wearer);
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, "The luminescent display flickers and dims, data streams dissolving into static. The augmented overlay fades from your peripheral vision like phosphor afterimages. As the neural link disconnects, you hear a faint electronic hiss - then silence. The world returns to its unaugmented state."));
   endverb
 
   verb reset (none none none) owner: HACKER flags: "rd"
     "Reset the visor context for a fresh session";
-    if (!is_member(this, player.wearing))
-      player:inform_current($event:mk_error(player, "You need to be wearing the visor to reset it."));
-      return;
-    endif
-    if (!valid(this.agent))
-      this:configure();
-    endif
+    !is_member(this, player.wearing) && player:inform_current($event:mk_error(player, "You need to be wearing the visor to reset it.")) && return;
+    !valid(this.agent) && this:configure();
     this.agent:reset_context();
     player:inform_current($event:mk_info(player, $ansi:colorize("[RESET]", 'yellow) + " Neural buffer flushed. Session context cleared."):with_presentation_hint('inset));
   endverb
 
   verb plan_investigation (none none none) owner: HACKER flags: "rd"
     "Create a new investigation task for systematic database analysis";
-    if (!is_member(this, player.wearing))
-      player:inform_current($event:mk_error(player, "You need to be wearing the visor to start an investigation."));
-      return;
-    endif
-    if (!valid(this.agent))
-      this:configure();
-    endif
-    "Ensure agent has knowledge base";
-    kb = this.agent:_ensure_knowledge_base();
-    "Create the investigation task";
-    next_id = this.current_investigation_task < 0 ? 1 | this.current_investigation_task + 1;
-    task = this.agent:create_task(next_id, "Investigation: " + argstr);
+    !is_member(this, player.wearing) && player:inform_current($event:mk_error(player, "You need to be wearing the visor to start an investigation.")) && return;
+    !valid(this.agent) && this:configure();
+    task = this.agent:create_task("Investigation: " + argstr);
     this.current_investigation_task = task.task_id;
     task:mark_in_progress();
-    "Report to player";
     player:inform_current($event:mk_info(player, $ansi:colorize("[TASK]", 'bright_cyan) + " Investigation #" + tostr(task.task_id) + " initiated: " + argstr):with_presentation_hint('inset));
   endverb
 
   verb get_investigation_status (none none none) owner: HACKER flags: "rd"
     "Display current investigation task status and findings";
-    if (!is_member(this, player.wearing))
-      player:inform_current($event:mk_error(player, "You need to be wearing the visor."));
-      return;
-    endif
+    !is_member(this, player.wearing) && player:inform_current($event:mk_error(player, "You need to be wearing the visor.")) && return;
     if (this.current_investigation_task == -1)
       player:inform_current($event:mk_info(player, $ansi:colorize("[STATUS]", 'bright_blue) + " No active investigation. Use 'plan investigation <description>' to begin."):with_presentation_hint('inset));
       return;
     endif
-    "Get task object";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
     if (!valid(task_obj))
       player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Investigation task #" + tostr(this.current_investigation_task) + " is no longer available."));
       return;
     endif
-    "Get complete status";
     status = task_obj:get_status();
-    "Format and display status";
-    status_lines = {};
-    status_lines = {@status_lines, $ansi:colorize("[TASK STATUS]", 'bright_cyan)};
-    status_lines = {@status_lines, "  ID: " + tostr(status["task_id"])};
-    status_lines = {@status_lines, "  Status: " + tostr(status["status"])};
-    status_lines = {@status_lines, "  Description: " + status["description"]};
-    if (status["status"] == 'completed)
-      status_lines = {@status_lines, "  Result: " + status["result"]};
-    elseif (status["status"] == 'failed)
-      status_lines = {@status_lines, "  Error: " + status["error"]};
-    elseif (status["status"] == 'blocked)
-      status_lines = {@status_lines, "  Blocked: " + status["error"]};
-    endif
-    if (status["subtask_count"] > 0)
-      status_lines = {@status_lines, "  Subtasks: " + tostr(status["subtask_count"])};
-    endif
+    status_lines = {$ansi:colorize("[TASK STATUS]", 'bright_cyan), "  ID: " + tostr(status["task_id"]), "  Status: " + tostr(status["status"]), "  Description: " + status["description"]};
+    status["status"] == 'completed && (status_lines = {@status_lines, "  Result: " + status["result"]});
+    status["status"] == 'failed && (status_lines = {@status_lines, "  Error: " + status["error"]});
+    status["status"] == 'blocked && (status_lines = {@status_lines, "  Blocked: " + status["error"]});
+    status["subtask_count"] > 0 && (status_lines = {@status_lines, "  Subtasks: " + tostr(status["subtask_count"])});
     player:inform_current($event:mk_info(player, status_lines:join("\n")):with_presentation_hint('inset));
   endverb
 

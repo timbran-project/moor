@@ -6,10 +6,15 @@ object LLM_ROOM_OBSERVER
   readable: true
 
   property agent (owner: HACKER, flags: "rc") = #-1;
+  property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
+  property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
   property observation_mechanics_prompt (owner: HACKER, flags: "rc") = "You are observing events in a virtual room. Events are delivered to you as MOO flyweight structures in the form OBSERVATION: <delegate, .field1 = value, .field2 = value>. Extract the relevant information from these structured events and use them to understand what's happening.";
+  property response_opts (owner: HACKER, flags: "rc") = false;
   property response_prompt (owner: HACKER, flags: "rc") = "Based on what you've observed, say something witty or insightful to the room.";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
   property significant_events (owner: HACKER, flags: "rc") = {};
+  property speak_cooldown (owner: HACKER, flags: "rc") = 10;
+  property speak_delay (owner: HACKER, flags: "rc") = 3;
 
   override description = "Room-observing bot powered by an LLM agent. Watches room events and responds when poked.";
   override import_export_hierarchy = {"llm"};
@@ -32,6 +37,10 @@ object LLM_ROOM_OBSERVER
     "Combine base observation mechanics with specific role";
     agent.system_prompt = this.observation_mechanics_prompt + " " + this.role_prompt;
     agent:initialize();
+    "Set default chat options: lower temperature for more consistent responses";
+    agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.5);
+    "Response opts: no tools needed for simple speak/silent decisions";
+    this.response_opts = $llm_chat_opts:mk():with_temperature(0.6):with_tool_choice('none);
   endverb
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -63,8 +72,14 @@ object LLM_ROOM_OBSERVER
       event_actor = `event.actor ! ANY => #-1';
       "Don't trigger on our own events to avoid feedback loop";
       if (event_verb in this.significant_events && event_actor != this)
-        fork (1)
-          this:maybe_speak();
+        "Debounce: record event time with sub-second precision, fork delayed check";
+        event_time = ftime();
+        this.last_significant_event = event_time;
+        fork (this.speak_delay)
+          "Only speak if no newer events have come in";
+          if (this.last_significant_event == event_time)
+            this:maybe_speak();
+          endif
         endfork
       endif
     endif
@@ -101,15 +116,21 @@ object LLM_ROOM_OBSERVER
 
   verb maybe_speak (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Evaluate recent observations and speak only if something noteworthy happened";
+    "Cooldown check: don't speak if we spoke recently";
+    if (ftime() - this.last_spoke_at < this.speak_cooldown)
+      return;
+    endif
     if (!valid(this.agent))
       this:configure();
     endif
     if (length(this.agent.context) <= 1)
       return;
     endif
-    "Ask LLM to evaluate if it should speak";
+    "Mark that we're about to speak (prevents concurrent calls)";
+    this.last_spoke_at = ftime();
+    "Ask LLM to evaluate if it should speak - use response_opts (no tools)";
     prompt = "Review recent observations. If something noteworthy happened (someone arrived, left, asked a question, or something unusual occurred), respond with 'SPEAK: ' followed by a brief, friendly comment (1-2 sentences). If nothing warrants comment, respond with only 'SILENT'.";
-    response = this.agent:send_message(prompt);
+    response = this.agent:send_message(prompt, this.response_opts);
     "Check if LLM decided to speak";
     if (typeof(response) == STR && response:starts_with("SPEAK: "))
       actual_response = response[8..$];

@@ -6,24 +6,26 @@ object LLM_AGENT
   readable: true
 
   property cancel_requested (owner: HACKER, flags: "rc") = false;
+  property chat_opts (owner: ARCH_WIZARD, flags: "rc") = false;
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
   property context (owner: ARCH_WIZARD, flags: "c") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
   property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property current_tasks (owner: ARCH_WIZARD, flags: "rc") = [];
+  property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property last_token_usage (owner: ARCH_WIZARD, flags: "c") = [];
   property max_iterations (owner: ARCH_WIZARD, flags: "r") = 50;
   property min_messages_to_keep (owner: ARCH_WIZARD, flags: "c") = 15;
+  property next_task_id (owner: ARCH_WIZARD, flags: "rc") = 1;
+  property next_todo_id (owner: ARCH_WIZARD, flags: "rc") = 1;
   property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
+  property todos (owner: ARCH_WIZARD, flags: "rc") = {};
   property token_limit (owner: ARCH_WIZARD, flags: "r") = 128000;
   property token_owner (owner: ARCH_WIZARD, flags: "c") = #-1;
   property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property tools (owner: ARCH_WIZARD, flags: "c") = [];
   property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property current_tasks (owner: ARCH_WIZARD, flags: "rc") = [];
-  property next_task_id (owner: ARCH_WIZARD, flags: "rc") = 1;
-  property task_counter (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
   override import_export_hierarchy = {"llm"};
@@ -32,11 +34,7 @@ object LLM_AGENT
   verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Initialize context with system prompt when agent is created";
     this:_challenge_permissions(caller);
-    if (this.system_prompt)
-      this.context = {["role" -> "system", "content" -> this.system_prompt]};
-    else
-      this.context = {};
-    endif
+    this.context = this.system_prompt ? {["role" -> "system", "content" -> this.system_prompt]} | {};
   endverb
 
   verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -53,19 +51,18 @@ object LLM_AGENT
     "Register a tool for this agent to use";
     this:_challenge_permissions(caller);
     {tool_name, tool_flyweight} = args;
-    typeof(tool_name) == STR || raise(E_TYPE);
-    typeof(tool_flyweight) == FLYWEIGHT || raise(E_TYPE);
-    new_tools = this.tools;
-    new_tools[tool_name] = tool_flyweight;
-    this.tools = new_tools;
+    typeof(tool_name) != STR && raise(E_TYPE);
+    typeof(tool_flyweight) != FLYWEIGHT && raise(E_TYPE);
+    tools = this.tools;
+    tools[tool_name] = tool_flyweight;
+    this.tools = tools;
   endverb
 
   verb remove_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Unregister a tool";
+    this:_challenge_permissions(caller);
     {tool_name} = args;
-    new_tools = this.tools;
-    new_tools = mapdelete(new_tools, tool_name);
-    this.tools = new_tools;
+    this.tools = mapdelete(this.tools, tool_name);
   endverb
 
   verb add_message (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -78,153 +75,125 @@ object LLM_AGENT
   verb _get_tool_schemas (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get OpenAI-format tool schemas from registered tools";
     this:_challenge_permissions(caller);
-    schemas = {};
-    for tool_name in (mapkeys(this.tools))
-      tool_flyweight = this.tools[tool_name];
-      schemas = {@schemas, tool_flyweight:to_schema()};
-    endfor
-    return schemas;
+    return {this.tools[k]:to_schema() for k in (mapkeys(this.tools))};
   endverb
 
   verb _find_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Find a registered tool by name";
+    "Find a registered tool by name. Returns flyweight or #-1 if not found.";
     this:_challenge_permissions(caller);
     {tool_name} = args;
-    if (maphaskey(this.tools, tool_name))
-      return this.tools[tool_name];
+    maphaskey(this.tools, tool_name) && return this.tools[tool_name];
+    return #-1;
+  endverb
+
+  verb _call_llm_with_retry (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Call LLM API with retry logic. Returns response map.";
+    "Optional second arg: opts flyweight to override this.chat_opts";
+    caller == this || raise(E_PERM);
+    {tool_schemas, ?opts = false} = args;
+    opts = opts || this.chat_opts;
+    max_retries = 3;
+    for retry_count in [0..max_retries]
+      try
+        response = $llm_client:chat(this.context, opts, false, false, tool_schemas);
+        suspend(0);
+        return response;
+      except e (ANY)
+        this:_log("ERROR: " + toliteral(e));
+        retry_count >= max_retries && raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
+        suspend(retry_count + 1);
+      endtry
+    endfor
+  endverb
+
+  verb _track_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Track token usage from response and trigger compaction if needed.";
+    caller == this || raise(E_PERM);
+    {response} = args;
+    !(typeof(response) == MAP && maphaskey(response, "usage")) && return;
+    this.last_token_usage = response["usage"];
+    if (maphaskey(response["usage"], "total_tokens"))
+      tokens_this_call = response["usage"]["total_tokens"];
+      this.total_tokens_used = this.total_tokens_used + tokens_this_call;
+      this:_update_token_usage(this.token_owner, tokens_this_call);
     endif
-    return false;
+    this:needs_compaction() && this:compact_context();
+  endverb
+
+  verb _execute_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Execute a single tool call. Returns result map for context.";
+    caller == this || raise(E_PERM);
+    {tool_call} = args;
+    tool_name = tool_call["function"]["name"];
+    tool_args = tool_call["function"]["arguments"];
+    tool_call_id = tool_call["id"];
+    tool = this:_find_tool(tool_name);
+    if (typeof(tool) != FLYWEIGHT)
+      this:log_tool_error(tool_name, tool_args, "Tool not found");
+      valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, "Tool not found") ! ANY';
+      return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> "Error: tool not found"];
+    endif
+    try
+      valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_call) && this.tool_callback:on_tool_call(tool_name, tool_args);
+      result = tool:execute(tool_args);
+      suspend(0);
+      content_out = typeof(result) == STR ? result | toliteral(result);
+      valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_complete) && `this.tool_callback:on_tool_complete(tool_name, tool_args, content_out) ! ANY';
+      return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> content_out];
+    except e (ANY)
+      error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
+      length(e) > 2 && typeof(e[3]) == LIST && (error_msg = error_msg + "\nTraceback: " + toliteral(e[3]));
+      this:log_tool_error(tool_name, tool_args, error_msg);
+      valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, error_msg) ! ANY';
+      return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
+    endtry
   endverb
 
   verb send_message (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Main entry point: send a message and get response, executing tools as needed";
-    {user_input} = args;
+    "Optional second arg: opts flyweight to override this.chat_opts for this call";
+    {user_input, ?opts = false} = args;
     this:_challenge_permissions(caller);
     this:add_message("user", user_input);
-    "Clear any previous cancellation request at start of new message";
     this.cancel_requested = false;
     this.current_iteration = 0;
     for iteration in [1..this.max_iterations]
-      "Track current iteration for visibility";
       this.current_iteration = iteration;
-      "Check if cancellation was requested";
       if (this.cancel_requested)
         this.cancel_requested = false;
         this.current_iteration = 0;
         return "Operation cancelled by user.";
       endif
-      "Check player token budget before API call";
       budget_check = this:_check_token_budget(this.token_owner);
-      if (typeof(budget_check) == STR)
-        "Budget exceeded, return error message";
-        return budget_check;
-      endif
-      tool_schemas = this:_get_tool_schemas();
-      "Retry API calls on transient errors (network issues, rate limits, etc.)";
-      max_retries = 3;
-      retry_count = 0;
-      response = false;
-      while (retry_count <= max_retries)
-        try
-          response = $llm_client:chat(this.context, false, false, tool_schemas);
-          "Yield execution after API call to avoid tick limit";
-          suspend(0);
-          break;
-        except e (ANY)
-          this:_log("ERROR: " + toliteral(e));
-          retry_count = retry_count + 1;
-          if (retry_count > max_retries)
-            "All retries exhausted, re-raise the error";
-            raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
-          endif
-          "Wait before retrying - exponential backoff";
-          suspend(retry_count);
-        endtry
-      endwhile
-      "Track token usage";
-      if (typeof(response) == MAP && maphaskey(response, "usage"))
-        this.last_token_usage = response["usage"];
-        if (maphaskey(response["usage"], "total_tokens"))
-          tokens_this_call = response["usage"]["total_tokens"];
-          this.total_tokens_used = this.total_tokens_used + tokens_this_call;
-          "Update player's token usage via wizard-permed helper";
-          this:_update_token_usage(this.token_owner, tokens_this_call);
-        endif
-        "Check if we need to compact";
-        if (this:needs_compaction())
-          this:compact_context();
-        endif
-      endif
+      typeof(budget_check) == STR && return budget_check;
+      response = this:_call_llm_with_retry(this:_get_tool_schemas(), opts);
+      this:_track_token_usage(response);
       "Check if response has tool calls";
-      if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
-        choice = response["choices"][1];
-        message = choice["message"];
-        "Check for tool calls";
-        if (maphaskey(message, "tool_calls") && message["tool_calls"])
-          "Execute each tool call";
-          tool_results = {};
-          for tool_call in (message["tool_calls"])
-            "Check if cancellation was requested before executing each tool";
-            if (this.cancel_requested)
-              this.cancel_requested = false;
-              this.current_iteration = 0;
-              "Save assistant message with tool calls to context";
-              this.context = {@this.context, message};
-              "Add partial tool results if any were completed";
-              for tool_result in (tool_results)
-                this.context = {@this.context, tool_result};
-              endfor
-              return "Operation cancelled by user. " + tostr(length(tool_results)) + " of " + tostr(length(message["tool_calls"])) + " tools completed before cancellation.";
-            endif
-            tool_name = tool_call["function"]["name"];
-            tool_args = tool_call["function"]["arguments"];
-            tool = this:_find_tool(tool_name);
-            if (typeof(tool) == FLYWEIGHT)
-              try
-                "Notify callback if set";
-                if (valid(this.tool_callback))
-                  this.tool_callback:on_tool_call(tool_name, tool_args);
-                endif
-                result = tool:execute(tool_args);
-                "Yield execution after tool call to avoid tick limit";
-                suspend(0);
-                content_out = typeof(result) == STR ? result | toliteral(result);
-                tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> content_out]};
-              except e (ANY)
-                error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
-                if (length(e) > 2 && typeof(e[3]) == LIST)
-                  error_msg = error_msg + "\nTraceback: " + toliteral(e[3]);
-                endif
-                this:log_tool_error(tool_name, tool_args, error_msg);
-                tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> error_msg]};
-              endtry
-            else
-              this:log_tool_error(tool_name, tool_args, "Tool not found");
-              tool_results = {@tool_results, ["tool_call_id" -> tool_call["id"], "role" -> "tool", "name" -> tool_name, "content" -> "Error: tool not found"]};
-            endif
-          endfor
-          "Add assistant message with tool calls to context";
-          this.context = {@this.context, message};
-          "Add tool results to context";
-          for tool_result in (tool_results)
-            this.context = {@this.context, tool_result};
-          endfor
-          "Yield before making another API call with tool results";
-          suspend(0);
-        else
-          "No tool calls, this is the final response";
-          final_content = message["content"];
-          this:add_message("assistant", final_content);
-          this.current_iteration = 0;
-          return final_content;
-        endif
-      else
-        "Unexpected response format";
+      if (!(typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0))
         this.current_iteration = 0;
         return tostr(response);
       endif
+      message = response["choices"][1]["message"];
+      "No tool calls = final response";
+      if (!(maphaskey(message, "tool_calls") && message["tool_calls"]))
+        this:add_message("assistant", message["content"]);
+        this.current_iteration = 0;
+        return message["content"];
+      endif
+      "Execute each tool call";
+      tool_results = {};
+      for tool_call in (message["tool_calls"])
+        if (this.cancel_requested)
+          this.cancel_requested = false;
+          this.current_iteration = 0;
+          this.context = {@this.context, message, @tool_results};
+          return "Operation cancelled by user. " + tostr(length(tool_results)) + " of " + tostr(length(message["tool_calls"])) + " tools completed before cancellation.";
+        endif
+        tool_results = {@tool_results, this:_execute_tool_call(tool_call)};
+      endfor
+      this.context = {@this.context, message, @tool_results};
+      suspend(0);
     endfor
-    "Hit max iterations - don't reset counter, caller may want to continue";
     return E_QUOTA("Maximum iterations exceeded");
   endverb
 
@@ -238,56 +207,35 @@ object LLM_AGENT
   verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if context needs compaction based on token usage";
     this:_challenge_permissions(caller);
-    if (typeof(this.last_token_usage) != MAP)
-      return false;
-    endif
-    if (!maphaskey(this.last_token_usage, "prompt_tokens"))
-      return false;
-    endif
-    prompt_tokens = this.last_token_usage["prompt_tokens"];
-    threshold = this.token_limit * this.compaction_threshold;
-    return prompt_tokens > threshold;
+    typeof(this.last_token_usage) != MAP && return false;
+    !maphaskey(this.last_token_usage, "prompt_tokens") && return false;
+    return this.last_token_usage["prompt_tokens"] > this.token_limit * this.compaction_threshold;
   endverb
 
   verb compact_context (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Compact context by summarizing old messages and keeping recent ones";
     this:_challenge_permissions(caller);
-    if (length(this.context) <= this.min_messages_to_keep + 1)
-      "Not enough messages to compact";
-      return;
-    endif
-    "Notify callback that compaction is starting";
-    if (valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_start))
-      `this.compaction_callback:on_compaction_start() ! ANY';
-    endif
-    "Separate system prompt, old messages, and recent messages";
+    length(this.context) <= this.min_messages_to_keep + 1 && return;
+    valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_start) && `this.compaction_callback:on_compaction_start() ! ANY';
     system_msg = this.context[1];
     old_messages = (this.context)[2..$ - this.min_messages_to_keep];
     recent_messages = (this.context)[$ - this.min_messages_to_keep + 1..$];
-    "Build summary request from old messages";
     summary_context = {system_msg, ["role" -> "user", "content" -> "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages)]};
-    "Get summary from LLM";
     try
       response = $llm_client:chat(summary_context, false, false, {});
       if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
         summary = response["choices"][1]["message"]["content"];
-        "Rebuild context with system prompt, summary, and recent messages";
         this.context = {system_msg, ["role" -> "assistant", "content" -> "Previous conversation summary: " + summary], @recent_messages};
         this:_log("LLM agent context compacted: " + tostr(length(old_messages)) + " messages summarized, " + tostr(length(recent_messages)) + " kept");
       else
-        "Compaction failed, fall back to sliding window";
         this.context = {system_msg, @recent_messages};
         this:_log("LLM agent context compacted: summary failed, using sliding window");
       endif
     except e (ANY)
-      "Compaction failed, fall back to sliding window";
       this.context = {system_msg, @recent_messages};
       this:_log("LLM agent context compaction error: " + toliteral(e));
     endtry
-    "Notify callback that compaction is complete";
-    if (valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_end))
-      `this.compaction_callback:on_compaction_end() ! ANY';
-    endif
+    valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_end) && `this.compaction_callback:on_compaction_end() ! ANY';
   endverb
 
   verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -304,60 +252,160 @@ object LLM_AGENT
 
   verb _check_token_budget (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if token owner is within budget. Returns true if okay, error string if exceeded.";
-    "Only callable by this agent or wizards";
     caller == this || caller.wizard || raise(E_PERM);
     {player_obj} = args;
-    if (!valid(player_obj) || !is_player(player_obj))
-      return true;
-    endif
+    (!valid(player_obj) || !is_player(player_obj)) && return true;
     budget = `player_obj.llm_token_budget ! ANY => 20000000';
     used = `player_obj.llm_tokens_used ! ANY => 0';
-    if (used >= budget)
-      return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
-    endif
+    used >= budget && return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
     return true;
   endverb
 
   verb _update_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Update player's token usage. Runs with wizard perms to write ARCH_WIZARD-owned properties.";
-    "Only callable by this agent or wizards";
     caller == this || caller.wizard || raise(E_PERM);
     {player_obj, tokens_used} = args;
-    if (!valid(player_obj) || !is_player(player_obj))
-      return;
-    endif
-    "Validate that tokens_used is reasonable (prevent abuse)";
+    (!valid(player_obj) || !is_player(player_obj)) && return;
     typeof(tokens_used) == INT || raise(E_INVARG, "tokens_used must be an integer");
     tokens_used >= 0 || raise(E_INVARG, "tokens_used cannot be negative");
     tokens_used <= 1000000 || raise(E_INVARG, "tokens_used suspiciously large");
     player_obj.llm_tokens_used = player_obj.llm_tokens_used + tokens_used;
-    "Log usage with timestamp";
-    usage_entry = ["timestamp" -> time(), "tokens" -> tokens_used, "usage" -> this.last_token_usage];
-    player_obj.llm_usage_log = {@player_obj.llm_usage_log, usage_entry};
+    player_obj.llm_usage_log = {@player_obj.llm_usage_log, ["timestamp" -> time(), "tokens" -> tokens_used, "usage" -> this.last_token_usage]};
   endverb
 
   verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Lazily create knowledge base if not already created.";
-    if (!valid(this.knowledge_base))
-      this.knowledge_base = create($relation, this.owner);
-    endif
+    !valid(this.knowledge_base) && (this.knowledge_base = create($relation, this.owner));
     return this.knowledge_base;
   endverb
 
+  verb add_todo (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Add a todo item. Returns the new todo's id.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    {content} = args;
+    typeof(content) != STR && raise(E_TYPE, "content must be string");
+    todo_id = this.next_todo_id;
+    this.next_todo_id = todo_id + 1;
+    this.todos = {@this.todos, ["id" -> todo_id, "content" -> content, "status" -> 'pending]};
+    return todo_id;
+  endverb
+
+  verb update_todo (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Update a todo's status. Status must be 'pending, 'in_progress, or 'completed.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    {todo_id, new_status} = args;
+    typeof(todo_id) != INT && raise(E_TYPE, "todo_id must be integer");
+    !(new_status in {'pending, 'in_progress, 'completed}) && raise(E_INVARG, "status must be 'pending, 'in_progress, or 'completed");
+    updated = false;
+    new_todos = {};
+    for todo in (this.todos)
+      if (todo["id"] == todo_id)
+        new_todos = {@new_todos, ["id" -> todo["id"], "content" -> todo["content"], "status" -> new_status]};
+        updated = true;
+      else
+        new_todos = {@new_todos, todo};
+      endif
+    endfor
+    !updated && raise(E_INVARG, "todo not found: " + tostr(todo_id));
+    this.todos = new_todos;
+    return true;
+  endverb
+
+  verb remove_todo (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Remove a specific todo by id.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    {todo_id} = args;
+    typeof(todo_id) != INT && raise(E_TYPE, "todo_id must be integer");
+    new_todos = {};
+    found = false;
+    for todo in (this.todos)
+      if (todo["id"] == todo_id)
+        found = true;
+      else
+        new_todos = {@new_todos, todo};
+      endif
+    endfor
+    !found && return false;
+    this.todos = new_todos;
+    return true;
+  endverb
+
+  verb get_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Get all todos, optionally filtered by status.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    {?status_filter = false} = args;
+    !status_filter && return this.todos;
+    filtered = {};
+    for todo in (this.todos)
+      todo["status"] == status_filter && (filtered = {@filtered, todo});
+    endfor
+    return filtered;
+  endverb
+
+  verb clear_completed_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Remove all completed todos.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    new_todos = {};
+    for todo in (this.todos)
+      todo["status"] != 'completed && (new_todos = {@new_todos, todo});
+    endfor
+    this.todos = new_todos;
+    return true;
+  endverb
+
+  verb set_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Replace entire todo list. Each item must have content and status.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    {todo_list} = args;
+    typeof(todo_list) != LIST && raise(E_TYPE, "todo_list must be a list");
+    new_todos = {};
+    for item in (todo_list)
+      typeof(item) != MAP && raise(E_TYPE, "each todo must be a map");
+      !maphaskey(item, "content") && raise(E_INVARG, "todo missing content");
+      !maphaskey(item, "status") && raise(E_INVARG, "todo missing status");
+      !(item["status"] in {'pending, 'in_progress, 'completed}) && raise(E_INVARG, "invalid status");
+      todo_id = maphaskey(item, "id") ? item["id"] | this.next_todo_id;
+      todo_id >= this.next_todo_id && (this.next_todo_id = todo_id + 1);
+      new_todos = {@new_todos, ["id" -> todo_id, "content" -> item["content"], "status" -> item["status"]]};
+    endfor
+    this.todos = new_todos;
+    return true;
+  endverb
+
+  verb format_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format todos as human-readable string for display.";
+    caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
+    !this.todos && return "No todos.";
+    lines = {};
+    for todo in (this.todos)
+      status_str = todo["status"] == 'completed ? "[x]" | todo["status"] == 'in_progress ? "[>]" | "[ ]";
+      lines = {@lines, status_str + " " + todo["content"]};
+    endfor
+    return lines:join("\n");
+  endverb
+
   verb create_task (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Create a new task (usually called by another task's add_subtask or internally). Returns task object.";
+    "Create a new task. If task_id not provided, auto-generates one. Returns task object.";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    {task_id, description, ?parent_task_id = 0} = args;
-    typeof(task_id) == INT || raise(E_TYPE);
-    typeof(description) == STR || raise(E_TYPE);
-    "Ensure knowledge base exists";
+    {description, ?parent_task_id = 0} = args;
+    typeof(description) != STR && raise(E_TYPE);
+    task_id = this.next_task_id;
+    this.next_task_id = task_id + 1;
     kb = this:_ensure_knowledge_base();
-    "Create anonymous task";
     task = create($llm_task, this.owner);
     task:mk(task_id, description, this, kb, parent_task_id);
-    "Register in current_tasks";
     this.current_tasks[task_id] = task;
     return task;
+  endverb
+
+  verb remove_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Remove a task from tracking. Task object will be garbage collected if anonymous.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {task_id} = args;
+    typeof(task_id) != INT && raise(E_TYPE);
+    !maphaskey(this.current_tasks, task_id) && return false;
+    this.current_tasks = mapdelete(this.current_tasks, task_id);
+    return true;
   endverb
 
   verb get_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -366,10 +414,7 @@ object LLM_AGENT
     task_statuses = {};
     for task_id in (mapkeys(this.current_tasks))
       task_obj = this.current_tasks[task_id];
-      if (valid(task_obj))
-        status = task_obj:get_status();
-        task_statuses = {@task_statuses, status};
-      endif
+      valid(task_obj) && (task_statuses = {@task_statuses, task_obj:get_status()});
     endfor
     return task_statuses;
   endverb
@@ -377,12 +422,63 @@ object LLM_AGENT
   verb cleanup_tasks (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Destroy all task objects and knowledge base. Called on agent destruction.";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    "Destroy knowledge base";
-    if (valid(this.knowledge_base))
-      this.knowledge_base:destroy();
-      this.knowledge_base = #-1;
-    endif
-    "Tasks will be auto-garbage-collected when agent is destroyed (anonymous objects)";
+    valid(this.knowledge_base) && this.knowledge_base:destroy() && (this.knowledge_base = #-1);
     this.current_tasks = {};
+  endverb
+
+  verb test_todo_lifecycle (this none this) owner: HACKER flags: "rxd"
+    "Test basic todo operations.";
+    agent = create($llm_agent);
+    agent.owner = $hacker;
+    "Add todos";
+    id1 = agent:add_todo("First task");
+    id2 = agent:add_todo("Second task");
+    todos = agent:get_todos();
+    length(todos) != 2 && raise(E_ASSERT, "Should have 2 todos");
+    todos[1]["status"] != 'pending && raise(E_ASSERT, "New todo should be pending");
+    "Update status";
+    agent:update_todo(id1, 'in_progress);
+    todos = agent:get_todos();
+    todos[1]["status"] != 'in_progress && raise(E_ASSERT, "Should be in_progress");
+    "Complete and clear";
+    agent:update_todo(id1, 'completed);
+    agent:clear_completed_todos();
+    todos = agent:get_todos();
+    length(todos) != 1 && raise(E_ASSERT, "Should have 1 todo after clear");
+    todos[1]["id"] != id2 && raise(E_ASSERT, "Remaining todo should be id2");
+    "Remove";
+    agent:remove_todo(id2);
+    todos = agent:get_todos();
+    length(todos) != 0 && raise(E_ASSERT, "Should have 0 todos");
+    agent:destroy();
+    return true;
+  endverb
+
+  verb test_todo_filter (this none this) owner: HACKER flags: "rxd"
+    "Test todo filtering by status.";
+    agent = create($llm_agent);
+    agent.owner = $hacker;
+    agent:add_todo("Pending 1");
+    id2 = agent:add_todo("In progress");
+    agent:add_todo("Pending 2");
+    agent:update_todo(id2, 'in_progress);
+    pending = agent:get_todos('pending);
+    length(pending) != 2 && raise(E_ASSERT, "Should have 2 pending");
+    in_prog = agent:get_todos('in_progress);
+    length(in_prog) != 1 && raise(E_ASSERT, "Should have 1 in_progress");
+    agent:destroy();
+    return true;
+  endverb
+
+  verb test_set_todos (this none this) owner: HACKER flags: "rxd"
+    "Test replacing entire todo list.";
+    agent = create($llm_agent);
+    agent.owner = $hacker;
+    agent:set_todos({["content" -> "Task A", "status" -> 'pending], ["content" -> "Task B", "status" -> 'in_progress], ["content" -> "Task C", "status" -> 'completed]});
+    todos = agent:get_todos();
+    length(todos) != 3 && raise(E_ASSERT, "Should have 3 todos");
+    todos[2]["status"] != 'in_progress && raise(E_ASSERT, "Second should be in_progress");
+    agent:destroy();
+    return true;
   endverb
 endobject

@@ -13,35 +13,22 @@ object RELATION
     "Add a tuple to the relation. Returns the UUID of the tuple.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    typeof(tuple) == LIST || raise(E_TYPE);
-    length(tuple) > 0 || raise(E_INVARG);
-    "Generate unique ID for this tuple";
+    typeof(tuple) != LIST && raise(E_TYPE);
+    !length(tuple) && raise(E_INVARG);
     tuple_id = uuid();
-    tuple_prop = "tuple_" + tuple_id;
-    "Store the tuple";
-    add_property(this, tuple_prop, tuple, {this.owner, "r"});
-    "Index each element in the tuple (skip flyweights - can't be map keys)";
+    add_property(this, "tuple_" + tuple_id, tuple, {this.owner, "r"});
+    "Index each scalar element (lists/flyweights can't be map keys)";
     for i in [1..length(tuple)]
       element = tuple[i];
-      "Skip flyweights - they cannot be map keys";
-      if (typeof(element) == FLYWEIGHT)
-        continue;
-      endif
-      hash = value_hash(element);
-      index_prop = "index_" + hash;
-      "Get or create index map for this hash - try to get it first";
+      if (typeof(element) in {FLYWEIGHT, LIST, MAP}) continue; endif
+      index_prop = "index_" + value_hash(element);
       index_map = `this.(index_prop) ! E_PROPNF => 0';
       if (typeof(index_map) != MAP)
-        "Property doesn't exist, create it";
         index_map = mapdelete(['_dummy -> 0], '_dummy);
         add_property(this, index_prop, index_map, {this.owner, "r"});
       endif
-      "Get existing UUID list for this element, or start new list";
       uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
-      "Add this tuple's UUID to the list";
-      uuid_list = {@uuid_list, tuple_id};
-      index_map[element] = uuid_list;
-      "Write updated map back to property";
+      index_map[element] = {@uuid_list, tuple_id};
       this.(index_prop) = index_map;
     endfor
     return tuple_id;
@@ -51,41 +38,21 @@ object RELATION
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    typeof(tuple) == LIST || raise(E_TYPE);
-    "Find the tuple's UUID by checking if it exists";
+    typeof(tuple) != LIST && raise(E_TYPE);
     tuple_id = this:_find_tuple_id(tuple);
     !tuple_id && return false;
-    "Remove from all indexes (skip flyweights)";
+    "Remove from all indexes (skip non-scalars)";
     for i in [1..length(tuple)]
       element = tuple[i];
-      "Skip flyweights - they weren't indexed";
-      if (typeof(element) == FLYWEIGHT)
-        continue;
-      endif
-      hash = value_hash(element);
-      index_prop = "index_" + hash;
-      if (index_prop in properties(this))
-        index_map = this.(index_prop);
-        uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
-        "Remove this UUID from the list";
-        uuid_list = setremove(uuid_list, tuple_id);
-        if (length(uuid_list) == 0)
-          "No more tuples reference this element, remove from map";
-          index_map = mapdelete(index_map, element);
-        else
-          index_map[element] = uuid_list;
-        endif
-        if (length(index_map) == 0)
-          "Index map is empty, remove the property";
-          delete_property(this, index_prop);
-        else
-          this.(index_prop) = index_map;
-        endif
-      endif
+      if (typeof(element) in {FLYWEIGHT, LIST, MAP}) continue; endif
+      index_prop = "index_" + value_hash(element);
+      if (!(index_prop in properties(this))) continue; endif
+      index_map = this.(index_prop);
+      uuid_list = setremove(maphaskey(index_map, element) ? index_map[element] | {}, tuple_id);
+      index_map = length(uuid_list) ? (index_map[element] = uuid_list) && index_map | mapdelete(index_map, element);
+      length(index_map) ? (this.(index_prop) = index_map) | delete_property(this, index_prop);
     endfor
-    "Remove the tuple itself";
-    tuple_prop = "tuple_" + tuple_id;
-    delete_property(this, tuple_prop);
+    delete_property(this, "tuple_" + tuple_id);
     return true;
   endverb
 
@@ -93,7 +60,7 @@ object RELATION
     "Check if a tuple exists in the relation.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    typeof(tuple) == LIST || raise(E_TYPE);
+    typeof(tuple) != LIST && raise(E_TYPE);
     return this:_find_tuple_id(tuple) ? true | false;
   endverb
 
@@ -101,26 +68,15 @@ object RELATION
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
     set_task_perms(caller_perms());
     {position, value} = args;
-    typeof(position) == INT || raise(E_TYPE);
-    position >= 1 || raise(E_INVARG);
-    hash = value_hash(value);
-    index_prop = "index_" + hash;
-    "Get index map for this hash";
-    index_map = `this.(index_prop) ! E_PROPNF => 0';
-    if (typeof(index_map) != MAP)
-      "Property doesn't exist, no tuples for this value";
-      return {};
-    endif
-    "Get UUIDs for this specific value";
+    typeof(position) != INT && raise(E_TYPE);
+    position < 1 && raise(E_INVARG);
+    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
+    typeof(index_map) != MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
-    "Fetch tuples and filter by position";
     result = {};
     for tuple_id in (uuid_list)
-      tuple_prop = "tuple_" + tuple_id;
-      tuple = `this.(tuple_prop) ! E_PROPNF => 0';
-      if (tuple && length(tuple) >= position && tuple[position] == value)
-        result = {@result, tuple};
-      endif
+      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      tuple && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
     endfor
     return result;
   endverb
@@ -129,23 +85,13 @@ object RELATION
     "Find all tuples containing value in any position.";
     set_task_perms(caller_perms());
     {value} = args;
-    hash = value_hash(value);
-    index_prop = "index_" + hash;
-    "Get index map for this hash";
-    index_map = `this.(index_prop) ! E_PROPNF => 0';
-    if (typeof(index_map) != MAP)
-      return {};
-    endif
-    "Get UUIDs for this specific value";
+    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
+    typeof(index_map) != MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
-    "Fetch all tuples";
     result = {};
     for tuple_id in (uuid_list)
-      tuple_prop = "tuple_" + tuple_id;
-      tuple = `this.(tuple_prop) ! E_PROPNF => 0';
-      if (tuple)
-        result = {@result, tuple};
-      endif
+      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      tuple && (result = {@result, tuple});
     endfor
     return result;
   endverb
@@ -154,15 +100,11 @@ object RELATION
     "Return all tuples in the relation.";
     set_task_perms(caller_perms());
     result = {};
-    all_props = properties(this);
-    for prop in (all_props)
+    for prop in (properties(this))
       prop_str = tostr(prop);
-      if (length(prop_str) >= 6 && prop_str[1..6] == "tuple_")
-        tuple = `this.(prop) ! E_PROPNF => 0';
-        if (tuple)
-          result = {@result, tuple};
-        endif
-      endif
+      if (length(prop_str) < 6 || prop_str[1..6] != "tuple_") continue; endif
+      tuple = `this.(prop) ! E_PROPNF => 0';
+      tuple && (result = {@result, tuple});
     endfor
     return result;
   endverb
@@ -172,11 +114,7 @@ object RELATION
     set_task_perms(caller_perms());
     for prop in (properties(this))
       prop_str = tostr(prop);
-      is_tuple = length(prop_str) >= 6 && prop_str[1..6] == "tuple_";
-      is_index = length(prop_str) >= 6 && prop_str[1..6] == "index_";
-      if (is_tuple || is_index)
-        delete_property(this, prop);
-      endif
+      length(prop_str) >= 6 && prop_str[1..6] in {"tuple_", "index_"} && delete_property(this, prop);
     endfor
     return true;
   endverb
@@ -185,27 +123,14 @@ object RELATION
     "Internal: Find the UUID for a given tuple, or return 0 if not found.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    "Use first element to narrow search";
-    if (length(tuple) == 0)
-      return 0;
-    endif
+    !length(tuple) && return 0;
     element = tuple[1];
-    hash = value_hash(element);
-    index_prop = "index_" + hash;
-    "Get candidate UUIDs";
-    index_map = `this.(index_prop) ! E_PROPNF => 0';
-    if (typeof(index_map) != MAP)
-      "Property doesn't exist, no tuples for this element";
-      return 0;
-    endif
+    index_map = `this.("index_" + value_hash(element)) ! E_PROPNF => 0';
+    typeof(index_map) != MAP && return 0;
     uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
-    "Check each candidate to see if full tuple matches";
     for tuple_id in (uuid_list)
-      tuple_prop = "tuple_" + tuple_id;
-      stored_tuple = `this.(tuple_prop) ! E_PROPNF => 0';
-      if (stored_tuple && stored_tuple == tuple)
-        return tuple_id;
-      endif
+      stored_tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      stored_tuple && stored_tuple == tuple && return tuple_id;
     endfor
     return 0;
   endverb
@@ -361,7 +286,7 @@ object RELATION
   verb query (this none this) owner: HACKER flags: "rxd"
     "Match pattern with variables against tuples, return bindings. Variables are created with $dvar:mk_name().";
     {pattern} = args;
-    typeof(pattern) == LIST || raise(E_TYPE);
+    typeof(pattern) != LIST && raise(E_TYPE);
     "Find first concrete (non-variable) value to narrow search";
     concrete_value = false;
     for elem in (pattern)
@@ -370,15 +295,11 @@ object RELATION
         break;
       endif
     endfor
-    "Get candidates";
     candidates = concrete_value ? this:select_containing(concrete_value) | this:tuples();
-    "Match and build bindings";
     results = {};
     for tuple in (candidates)
       bindings = this:_unify(pattern, tuple);
-      if (bindings)
-        results = {@results, bindings};
-      endif
+      bindings && (results = {@results, bindings});
     endfor
     return results;
   endverb
@@ -391,15 +312,10 @@ object RELATION
     for i in [1..length(pattern)]
       p = pattern[i];
       if (typeof(p) == FLYWEIGHT && valid(p.delegate) && p.delegate == $dvar)
-        "Variable - bind or check consistency";
         var_name = p:name();
-        if (maphaskey(bindings, var_name))
-          bindings[var_name] != tuple[i] && return false;
-        else
-          bindings[var_name] = tuple[i];
-        endif
+        maphaskey(bindings, var_name) && bindings[var_name] != tuple[i] && return false;
+        bindings[var_name] = tuple[i];
       else
-        "Concrete - must match exactly";
         p != tuple[i] && return false;
       endif
     endfor
@@ -414,17 +330,11 @@ object RELATION
     while (length(frontier) > 0)
       current = frontier[1];
       frontier = listdelete(frontier, 1);
-      "Find all tuples containing current";
-      tuples = this:select_containing(current);
-      for tuple in (tuples)
+      for tuple in (this:select_containing(current))
         length(tuple) != 2 && raise(E_INVARG, "reachable_from requires binary relation");
         {val_a, val_b} = tuple;
-        "Get the other value";
         other = val_a == current ? val_b | val_a;
-        if (!maphaskey(visited, other))
-          visited[other] = true;
-          frontier = {@frontier, other};
-        endif
+        !maphaskey(visited, other) && (visited[other] = true) && (frontier = {@frontier, other});
       endfor
     endwhile
     return mapkeys(visited);

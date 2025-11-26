@@ -127,51 +127,24 @@ object SUB_UTILS
     "Parse template string into list of strings and $sub flyweights.";
     {template} = args;
     typeof(template) != STR && raise(E_TYPE, "template must be string");
-
     content = {};
     pos = 1;
-    length_str = length(template);
-
-    while (pos <= length_str)
-      "Find next token start";
-      remaining = template[pos..$];
-      token_start_offset = index(remaining, "{");
+    len = length(template);
+    while (pos <= len)
+      token_start_offset = index(template[pos..$], "{");
       if (!token_start_offset)
-        "No more tokens - add rest of string";
-        if (pos <= length_str)
-          rest = template[pos..$];
-          content = {@content, rest};
-        endif
+        pos <= len && (content = {@content, template[pos..$]});
         break;
       endif
       token_start = pos + token_start_offset - 1;
-
-      "Add text before token";
-      if (token_start > pos)
-        before = template[pos..token_start - 1];
-        content = {@content, before};
-      endif
-
-      "Find token end";
-      remaining_after_brace = template[token_start + 1..$];
-      token_end_offset = index(remaining_after_brace, "}");
-      if (!token_end_offset)
-        raise(E_INVARG, "Unclosed brace in template at position " + token_start);
-      endif
+      token_start > pos && (content = {@content, template[pos..token_start - 1]});
+      token_end_offset = index(template[token_start + 1..$], "}");
+      !token_end_offset && raise(E_INVARG, "Unclosed brace in template at position " + token_start);
       token_end = token_start + token_end_offset;
-
-      "Extract and parse token";
-      token_content = template[token_start + 1..token_end - 1];
-      fw = this:_parse_token(token_content);
-      "Check if we got a flyweight - don't use truthiness check";
-      if (typeof(fw) == FLYWEIGHT)
-        content = {@content, fw};
-      else
-      endif
-
+      fw = this:_parse_token(template[token_start + 1..token_end - 1]);
+      typeof(fw) == FLYWEIGHT && (content = {@content, fw});
       pos = token_end + 1;
     endwhile
-
     return content;
   endverb
 
@@ -179,205 +152,40 @@ object SUB_UTILS
     "Parse a single {token} and return corresponding $sub flyweight.";
     {token_content} = args;
     token_content = token_content:trim();
-
-    "Check for self-alternation (contains |)";
+    "Self-alternation (contains |)";
     pipe_index = index(token_content, "|");
     if (pipe_index)
       parts = token_content:split("|");
-      if (length(parts) != 2)
-        raise(E_INVARG, "Self-alternation must have exactly 2 parts: " + token_content);
+      length(parts) != 2 && raise(E_INVARG, "Self-alternation must have exactly 2 parts: " + token_content);
+      return $sub:self_alt(parts[1]:trim(), parts[2]:trim());
+    endif
+    "Articles";
+    article_patterns = {{"a ", 3, "a"}, {"an ", 4, "a"}, {"the ", 5, "the"}, {"A ", 3, "ac"}, {"An ", 4, "ac"}, {"The ", 5, "thec"}};
+    for pattern in (article_patterns)
+      {prefix, skip, method} = pattern;
+      if (token_content:starts_with(prefix))
+        binding_name = tosym(token_content[skip..$]:trim());
+        return $sub:(method)(binding_name);
       endif
-      for_self = parts[1]:trim();
-      for_others = parts[2]:trim();
-      result = $sub:self_alt(for_self, for_others);
-      return result;
+    endfor
+    "Direct dispatch for known tokens";
+    token_map = ["n" -> {"n", {}}, "nc" -> {"nc", {}}, "d" -> {"d", {}}, "dc" -> {"dc", {}}, "i" -> {"i", {}}, "ic" -> {"ic", {}}, "l" -> {"l", {}}, "lc" -> {"lc", {}}, "t" -> {"t", {}}, "tc" -> {"tc", {}}, "s" -> {"s", {}}, "sc" -> {"sc", {}}, "o" -> {"o", {}}, "oc" -> {"oc", {}}, "p" -> {"p", {}}, "pc" -> {"pc", {}}, "q" -> {"q", {}}, "qc" -> {"qc", {}}, "r" -> {"r", {}}, "rc" -> {"rc", {}}, "s_dobj" -> {"s_dobj", {}}, "sc_dobj" -> {"sc_dobj", {}}, "o_dobj" -> {"o_dobj", {}}, "oc_dobj" -> {"oc_dobj", {}}, "p_dobj" -> {"p_dobj", {}}, "pc_dobj" -> {"pc_dobj", {}}, "q_dobj" -> {"q_dobj", {}}, "qc_dobj" -> {"qc_dobj", {}}, "r_dobj" -> {"r_dobj", {}}, "rc_dobj" -> {"rc_dobj", {}}, "s_iobj" -> {"s_iobj", {}}, "sc_iobj" -> {"sc_iobj", {}}, "o_iobj" -> {"o_iobj", {}}, "oc_iobj" -> {"oc_iobj", {}}, "p_iobj" -> {"p_iobj", {}}, "pc_iobj" -> {"pc_iobj", {}}, "q_iobj" -> {"q_iobj", {}}, "qc_iobj" -> {"qc_iobj", {}}, "r_iobj" -> {"r_iobj", {}}, "rc_iobj" -> {"rc_iobj", {}}, "be" -> {"verb_be", {}}, "be_dobj" -> {"verb_be_dobj", {}}, "be_iobj" -> {"verb_be_iobj", {}}, "have" -> {"verb_have", {}}, "have_dobj" -> {"verb_have_dobj", {}}, "have_iobj" -> {"verb_have_iobj", {}}, "look" -> {"verb_look", {}}, "look_dobj" -> {"verb_look_dobj", {}}, "look_iobj" -> {"verb_look_iobj", {}}];
+    if (maphaskey(token_map, token_content))
+      {method, method_args} = token_map[token_content];
+      return $sub:(method)(@method_args);
     endif
-
-    "Helper to map substitution abbreviations to their full names";
-    mapping = [
-      'd -> 'dobj,
-      'dc -> 'dobj,
-      'i -> 'iobj,
-      'ic -> 'iobj,
-      'l -> 'location,
-      'lc -> 'location,
-      't -> 'this,
-      'tc -> 'this,
-      'n -> 'actor,
-      'nc -> 'actor
-    ];
-
-    "Check for article (starts with 'a ', 'an ', or 'the ')";
-    if (token_content:starts_with("a "))
-      after_article = token_content[3..$]:trim();
-      binding_name = tosym(after_article);
-      result = $sub:a(binding_name);
-      return result;
-    elseif (token_content:starts_with("an "))
-      after_article = token_content[4..$]:trim();
-      binding_name = tosym(after_article);
-      result = $sub:a(binding_name);
-      return result;
-    elseif (token_content:starts_with("the "))
-      after_article = token_content[5..$]:trim();
-      binding_name = tosym(after_article);
-      result = $sub:the(binding_name);
-      return result;
-    endif
-
-    "Check for capitalized variants of above";
-    if (token_content:starts_with("A "))
-      after_article = token_content[3..$]:trim();
-      binding_name = tosym(after_article);
-      result = $sub:ac(binding_name);
-      return result;
-    elseif (token_content:starts_with("An "))
-      after_article = token_content[4..$]:trim();
-      binding_name = tosym(after_article);
-      result = $sub:ac(binding_name);
-      return result;
-    elseif (token_content:starts_with("The "))
-      after_article = token_content[5..$]:trim();
-      binding_name = tosym(after_article);
-      result = $sub:thec(binding_name);
-      return result;
-    endif
-
-    "Check for known verbs and pronouns";
-    "Name substitutions: n, nc, d, dc, i, ic, l, lc, t, tc";
-    if (token_content == "n")
-      return $sub:n();
-    elseif (token_content == "nc")
-      return $sub:nc();
-    elseif (token_content == "d")
-      return $sub:d();
-    elseif (token_content == "dc")
-      return $sub:dc();
-    elseif (token_content == "i")
-      return $sub:i();
-    elseif (token_content == "ic")
-      return $sub:ic();
-    elseif (token_content == "l")
-      return $sub:l();
-    elseif (token_content == "lc")
-      return $sub:lc();
-    elseif (token_content == "t")
-      return $sub:t();
-    elseif (token_content == "tc")
-      return $sub:tc();
-    endif
-
-    "Actor pronouns: s, o, p, q, r (with optional c suffix)";
-    if (token_content == "s")
-      return $sub:s();
-    elseif (token_content == "sc")
-      return $sub:sc();
-    elseif (token_content == "o")
-      return $sub:o();
-    elseif (token_content == "oc")
-      return $sub:oc();
-    elseif (token_content == "p")
-      return $sub:p();
-    elseif (token_content == "pc")
-      return $sub:pc();
-    elseif (token_content == "q")
-      return $sub:q();
-    elseif (token_content == "qc")
-      return $sub:qc();
-    elseif (token_content == "r")
-      return $sub:r();
-    elseif (token_content == "rc")
-      return $sub:rc();
-    endif
-
-    "Object pronouns with _dobj and _iobj suffixes";
-    if (token_content == "s_dobj")
-      return $sub:s_dobj();
-    elseif (token_content == "sc_dobj")
-      return $sub:sc_dobj();
-    elseif (token_content == "o_dobj")
-      return $sub:o_dobj();
-    elseif (token_content == "oc_dobj")
-      return $sub:oc_dobj();
-    elseif (token_content == "p_dobj")
-      return $sub:p_dobj();
-    elseif (token_content == "pc_dobj")
-      return $sub:pc_dobj();
-    elseif (token_content == "q_dobj")
-      return $sub:q_dobj();
-    elseif (token_content == "qc_dobj")
-      return $sub:qc_dobj();
-    elseif (token_content == "r_dobj")
-      return $sub:r_dobj();
-    elseif (token_content == "rc_dobj")
-      return $sub:rc_dobj();
-    endif
-
-    if (token_content == "s_iobj")
-      return $sub:s_iobj();
-    elseif (token_content == "sc_iobj")
-      return $sub:sc_iobj();
-    elseif (token_content == "o_iobj")
-      return $sub:o_iobj();
-    elseif (token_content == "oc_iobj")
-      return $sub:oc_iobj();
-    elseif (token_content == "p_iobj")
-      return $sub:p_iobj();
-    elseif (token_content == "pc_iobj")
-      return $sub:pc_iobj();
-    elseif (token_content == "q_iobj")
-      return $sub:q_iobj();
-    elseif (token_content == "qc_iobj")
-      return $sub:qc_iobj();
-    elseif (token_content == "r_iobj")
-      return $sub:r_iobj();
-    elseif (token_content == "rc_iobj")
-      return $sub:rc_iobj();
-    endif
-
-    "Verb conjugations";
-    if (token_content == "be")
-      return $sub:verb_be();
-    elseif (token_content == "be_dobj")
-      return $sub:verb_be_dobj();
-    elseif (token_content == "be_iobj")
-      return $sub:verb_be_iobj();
-    elseif (token_content == "have")
-      return $sub:verb_have();
-    elseif (token_content == "have_dobj")
-      return $sub:verb_have_dobj();
-    elseif (token_content == "have_iobj")
-      return $sub:verb_have_iobj();
-    elseif (token_content == "look")
-      return $sub:verb_look();
-    elseif (token_content == "look_dobj")
-      return $sub:verb_look_dobj();
-    elseif (token_content == "look_iobj")
-      return $sub:verb_look_iobj();
-    endif
-
-    "If nothing matched, treat as binding";
-    binding_name = tosym(token_content);
-    result = $sub:binding(binding_name);
-    return result;
+    "Fallback: treat as binding";
+    return $sub:binding(tosym(token_content));
   endverb
 
   verb decompile (this none this) owner: HACKER flags: "rxd"
     "Reconstruct template string from compiled content list.";
     {content} = args;
     typeof(content) != LIST && raise(E_TYPE, "content must be list");
-
     result = "";
     for item in (content)
-      if (typeof(item) == STR)
-        result = result + item;
-      elseif (typeof(item) == FLYWEIGHT)
-        result = result + this:_reconstruct_token(item);
-      else
-        result = result + tostr(item);
-      endif
+      result = result + (typeof(item) == STR ? item | typeof(item) == FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item));
     endfor
-
     return result;
   endverb
 
@@ -385,156 +193,43 @@ object SUB_UTILS
     "Reconstruct {token} syntax from a flyweight.";
     {fw} = args;
     typeof(fw) != FLYWEIGHT && raise(E_TYPE, "must be flyweight");
-
     token_type = fw.type;
-    if (!token_type)
-      return "{?}";
-    endif
-
-    "Self-alternation";
-    if (token_type == 'self_alt)
-      for_self = fw.for_self;
-      for_others = fw.for_others;
-      return "{" + tostr(for_self) + "|" + tostr(for_others) + "}";
-    endif
-
-    "Articles";
+    !token_type && return "{?}";
+    token_type == 'self_alt && return "{" + tostr(fw.for_self) + "|" + tostr(fw.for_others) + "}";
     if (token_type == 'article_a)
-      binding_name = fw.binding_name;
-      capitalize = fw.capitalize;
-      if (capitalize)
-        article_prefix = "A";
-      else
-        article_prefix = "a";
-      endif
-      return "{" + article_prefix + " " + tostr(binding_name) + "}";
-    elseif (token_type == 'article_the)
-      binding_name = fw.binding_name;
-      capitalize = fw.capitalize;
-      if (capitalize)
-        article_prefix = "The";
-      else
-        article_prefix = "the";
-      endif
-      return "{" + article_prefix + " " + tostr(binding_name) + "}";
+      prefix = fw.capitalize ? "A" | "a";
+      return "{" + prefix + " " + tostr(fw.binding_name) + "}";
     endif
-
-    "Bindings";
+    if (token_type == 'article_the)
+      prefix = fw.capitalize ? "The" | "the";
+      return "{" + prefix + " " + tostr(fw.binding_name) + "}";
+    endif
     if (token_type == 'binding)
-      binding_name = fw.binding_name;
-      capitalize = fw.capitalize;
-      name_str = tostr(binding_name);
-      if (capitalize)
-        name_str = name_str:capitalize();
-      endif
-      return "{" + name_str + "}";
+      name_str = tostr(fw.binding_name);
+      return "{" + (fw.capitalize ? name_str:capitalize() | name_str) + "}";
     endif
-
-    "Simple token types (pronouns, name subs, verbs)";
     "Map type symbols back to token names";
-    type_map = [
-      'actor -> 'n,
-      'dobj -> 'd,
-      'iobj -> 'i,
-      'location -> 'l,
-      'this -> 't,
-      'subject -> 's,
-      'object -> 'o,
-      'pos_adj -> 'p,
-      'pos_noun -> 'q,
-      'reflexive -> 'r,
-      'verb_be -> 'be,
-      'verb_have -> 'have,
-      'verb_look -> 'look
-    ];
-
-    capitalize = fw.capitalize;
+    type_map = ['actor -> "n", 'dobj -> "d", 'iobj -> "i", 'location -> "l", 'this -> "t", 'subject -> "s", 'object -> "o", 'pos_adj -> "p", 'pos_noun -> "q", 'reflexive -> "r", 'verb_be -> "be", 'verb_have -> "have", 'verb_look -> "look"];
     if (maphaskey(type_map, token_type))
       base = type_map[token_type];
-      if (capitalize)
-        token_name = tostr(base) + "c";
-      else
-        token_name = tostr(base);
-      endif
-      return "{" + token_name + "}";
+      return "{" + base + (fw.capitalize ? "c" | "") + "}";
     endif
-
-    "Object-specific versions (actor_*, dobj_*, iobj_*)";
+    "Object-specific versions (dobj_*, iobj_*)";
     token_str = tostr(token_type);
-    if (token_str:starts_with("actor_"))
-      if (capitalize)
-        suffix = "c";
-      else
-        suffix = "";
-      endif
-      base = token_str[7..$];
-      "Map base pronoun types";
-      if (base == "subject")
-        return "{s" + suffix + "}";
-      elseif (base == "object")
-        return "{o" + suffix + "}";
-      elseif (base == "pos_adj")
-        return "{p" + suffix + "}";
-      elseif (base == "pos_noun")
-        return "{q" + suffix + "}";
-      elseif (base == "reflexive")
-        return "{r" + suffix + "}";
-      endif
-    endif
+    pronoun_map = ["subject" -> "s", "object" -> "o", "pos_adj" -> "p", "pos_noun" -> "q", "reflexive" -> "r"];
+    verb_map = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
     if (token_str:starts_with("dobj_"))
-      if (capitalize)
-        suffix = "c_dobj";
-      else
-        suffix = "_dobj";
-      endif
       base = token_str[6..$];
-      "Remove _subject suffix if present, etc.";
-      if (base == "subject")
-        return "{s" + suffix + "}";
-      elseif (base == "object")
-        return "{o" + suffix + "}";
-      elseif (base == "pos_adj")
-        return "{p" + suffix + "}";
-      elseif (base == "pos_noun")
-        return "{q" + suffix + "}";
-      elseif (base == "reflexive")
-        return "{r" + suffix + "}";
-      elseif (base == "verb_be")
-        return "{be_dobj}";
-      elseif (base == "verb_have")
-        return "{have_dobj}";
-      elseif (base == "verb_look")
-        return "{look_dobj}";
-      endif
+      maphaskey(verb_map, base) && return "{" + verb_map[base] + "_dobj}";
+      suffix = fw.capitalize ? "c_dobj" | "_dobj";
+      maphaskey(pronoun_map, base) && return "{" + pronoun_map[base] + suffix + "}";
     endif
-
     if (token_str:starts_with("iobj_"))
-      if (capitalize)
-        suffix = "c_iobj";
-      else
-        suffix = "_iobj";
-      endif
       base = token_str[6..$];
-      if (base == "subject")
-        return "{s" + suffix + "}";
-      elseif (base == "object")
-        return "{o" + suffix + "}";
-      elseif (base == "pos_adj")
-        return "{p" + suffix + "}";
-      elseif (base == "pos_noun")
-        return "{q" + suffix + "}";
-      elseif (base == "reflexive")
-        return "{r" + suffix + "}";
-      elseif (base == "verb_be")
-        return "{be_iobj}";
-      elseif (base == "verb_have")
-        return "{have_iobj}";
-      elseif (base == "verb_look")
-        return "{look_iobj}";
-      endif
+      maphaskey(verb_map, base) && return "{" + verb_map[base] + "_iobj}";
+      suffix = fw.capitalize ? "c_iobj" | "_iobj";
+      maphaskey(pronoun_map, base) && return "{" + pronoun_map[base] + suffix + "}";
     endif
-
-    "Fallback";
     return "{?" + token_str + "?}";
   endverb
 

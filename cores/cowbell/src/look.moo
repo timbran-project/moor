@@ -14,31 +14,18 @@ object LOOK
   verb actor_idle_status (this none this) owner: HACKER flags: "rxd"
     "Get a descriptive idle status for an actor (player or NPC)";
     {who} = args;
-    if (!who:is_actor())
-      return "";
-    endif
     "NPCs don't have connection state - no status";
-    if (!is_player(who))
-      return "";
-    endif
+    is_player(who) || return "";
     "Players who aren't connected are sleeping";
-    if (!(who in connected_players()))
-      return "deeply asleep";
-    endif
+    who in connected_players() || return "deeply asleep";
     if (typeof(idle = idle_seconds(who)) == ERR)
       return "";
     endif
-    if (idle < 60)
-      return "awake";
-    elseif (idle < 180)
-      return "dozing";
-    elseif (idle < 600)
-      return "idle";
-    elseif (idle < 1800)
-      return "out on his feet";
-    else
-      return "sleeping";
-    endif
+    idle < 60 && return "awake";
+    idle < 180 && return "dozing";
+    idle < 600 && return "idle";
+    idle < 1800 && return "out on his feet";
+    return "sleeping";
   endverb
 
   verb into_event (this none this) owner: HACKER flags: "rxd"
@@ -122,14 +109,11 @@ object LOOK
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"
-    if (typeof(this) != FLYWEIGHT)
-      return false;
-    endif
+    typeof(this) != FLYWEIGHT && return false;
     try
-      this.what && this.title && this.description && return true;
+      return this.what && this.title && this.description;
     except (E_PROPNF)
       return false;
     endtry
-    return true;
   endverb
 endobject

@@ -14,8 +14,9 @@ object LLM_CLIENT
 
   verb chat (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Make a chat completion request to LLM API";
-    "Args: either a string message or a messages list {[\"role\" -> \"user\", \"content\" -> \"...\"]};";
-    {input, ?model_override = false, ?stream = false, ?tools = false} = args;
+    "Args: input (string or messages list), opts (optional $llm_chat_opts flyweight),";
+    "      model_override, stream, tools";
+    {input, ?opts = false, ?model_override = false, ?stream = false, ?tools = false} = args;
     if (!this.api_key)
       raise(E_INVARG("LLM API key not configured"));
     endif
@@ -32,6 +33,12 @@ object LLM_CLIENT
     body = ["model" -> model, "messages" -> messages, "stream" -> stream];
     if (tools)
       body["tools"] = tools;
+    endif
+    "Merge in options from flyweight";
+    if (typeof(opts) == FLYWEIGHT)
+      for key in (mapkeys(opts_params = opts:to_body_params()))
+        body[key] = opts_params[key];
+      endfor
     endif
     body_json = generate_json(body);
     "Construct headers with API key";

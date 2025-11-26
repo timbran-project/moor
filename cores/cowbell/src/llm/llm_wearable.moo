@@ -237,9 +237,9 @@ object LLM_WEARABLE
       message = this:_format_hud_message(tool_name, tool_args);
       "Prepend iteration info if agent is available";
       if (valid(this.agent))
-        iter = this.agent.current_iteration;
-        max_iter = this.agent.max_iterations;
-        cont = this.agent.current_continuation;
+        iter = `this.agent.current_iteration ! ANY => 0';
+        max_iter = `this.agent.max_iterations ! ANY => 0';
+        cont = `this.agent.current_continuation ! ANY => 0';
         if (iter > 0)
           iter_info = $ansi:colorize("[" + tostr(iter) + "/" + tostr(max_iter), 'dim);
           if (cont > 0)
@@ -369,6 +369,278 @@ object LLM_WEARABLE
     endif
     "Create fresh agent with current configuration";
     this:configure();
+  endverb
+
+  verb _register_common_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Register tools common to all LLM wearables. Called by child configure verbs.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {agent} = args;
+    "Register explain tool";
+    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
+    agent:add_tool("explain", explain_tool);
+    "Register ask_user tool";
+    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
+    agent:add_tool("ask_user", ask_user_tool);
+    "Register todo list tools";
+    todo_write_tool = $llm_agent_tool:mk("todo_write", "Replace the entire todo list. Use this to track multi-step tasks. Each todo needs 'content' (what to do) and 'status' ('pending', 'in_progress', or 'completed'). Mark tasks in_progress when starting, completed when done.", ["type" -> "object", "properties" -> ["todos" -> ["type" -> "array", "items" -> ["type" -> "object", "properties" -> ["content" -> ["type" -> "string"], "status" -> ["type" -> "string", "enum" -> {"pending", "in_progress", "completed"}]], "required" -> {"content", "status"}], "description" -> "List of todo items"]], "required" -> {"todos"}], this, "_tool_todo_write");
+    agent:add_tool("todo_write", todo_write_tool);
+    get_todos_tool = $llm_agent_tool:mk("get_todos", "Get the current todo list to see what tasks are pending, in progress, or completed.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_get_todos");
+    agent:add_tool("get_todos", get_todos_tool);
+  endverb
+
+  verb _tool_todo_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Replace the entire todo list to track multi-step tasks";
+    {args_map} = args;
+    this:_action_perms_check();
+    todos_input = args_map["todos"];
+    typeof(todos_input) != LIST && raise(E_TYPE, "todos must be a list");
+    todo_items = {};
+    for item in (todos_input)
+      content = item["content"];
+      status_str = item["status"];
+      status = status_str == "pending" ? 'pending | status_str == "in_progress" ? 'in_progress | status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str);
+      todo_items = {@todo_items, ["content" -> content, "status" -> status]};
+    endfor
+    this.agent:set_todos(todo_items);
+    summary = {tostr(length(todo_items)) + " todos set:"};
+    for todo in (this.agent:get_todos())
+      prefix = todo["status"] == 'completed ? "[x]" | todo["status"] == 'in_progress ? "[>]" | "[ ]";
+      summary = {@summary, "  " + prefix + " " + todo["content"]};
+    endfor
+    return summary:join("\n");
+  endverb
+
+  verb _tool_get_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the current todo list";
+    {args_map} = args;
+    this:_action_perms_check();
+    return this.agent:format_todos();
+  endverb
+
+  verb _register_authoring_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Register doc/message/rule authoring tools. Called by child configure verbs.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {agent} = args;
+    "Register doc_lookup tool";
+    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
+    agent:add_tool("doc_lookup", doc_tool);
+    "Register message tools";
+    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (*_msg) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
+    agent:add_tool("list_messages", list_messages_tool);
+    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
+    agent:add_tool("get_message_template", get_message_tool);
+    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
+    agent:add_tool("set_message_template", set_message_tool);
+    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_add_message_template");
+    agent:add_tool("add_message_template", add_message_tool);
+    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
+    agent:add_tool("delete_message_template", del_message_tool);
+    "Register rule tools";
+    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "_tool_list_rules");
+    agent:add_tool("list_rules", list_rules_tool);
+    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "_tool_set_rule");
+    agent:add_tool("set_rule", set_rule_tool);
+    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
+    agent:add_tool("show_rule", show_rule_tool);
+  endverb
+
+  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Fetch developer documentation for object/verb/property (like @doc)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    target_spec = args_map["target"];
+    set_task_perms(wearer);
+    "Handle special alias cases";
+    alias_obj = false;
+    if (typeof(target_spec) == STR)
+      alias_name = target_spec:starts_with("$") ? target_spec[2..$] | target_spec;
+      alias_name == "sub_utils" && (alias_obj = $sub_utils);
+      alias_name == "sub" && (alias_obj = $sub);
+    endif
+    if (alias_obj)
+      type = 'object;
+      target_obj = alias_obj;
+      item_name = "";
+    else
+      parsed = $prog_utils:parse_target_spec(target_spec);
+      parsed || raise(E_INVARG, "Invalid format. Use object, object:verb, or object.property");
+      {type, object_str, item_name} = {parsed['type], parsed['object_str], parsed['item_name]};
+      target_obj = $match:match_object(object_str, wearer);
+      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+      valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    endif
+    "Fetch docs based on type";
+    if (type == 'object)
+      doc_text = $help_utils:get_object_documentation(target_obj);
+      title = "Documentation for " + tostr(target_obj);
+    elseif (type == 'verb)
+      verb_location = target_obj:find_verb_definer(item_name);
+      verb_location == #-1 && raise(E_INVARG, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj));
+      doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
+      title = "Documentation for " + tostr(target_obj) + ":" + tostr(item_name);
+    elseif (type == 'property)
+      doc_text = $help_utils:property_documentation(target_obj, item_name);
+      title = "Documentation for " + tostr(target_obj) + "." + tostr(item_name);
+    else
+      raise(E_INVARG, "Unknown target type");
+    endif
+    doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+    return title + "\n\n" + (doc_body ? doc_body | "(No documentation available)");
+  endverb
+
+  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List *_msg properties and message bags on an object (like @messages)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    msg_props = $obj_utils:message_properties(target_obj);
+    !msg_props && return tostr(target_obj) + " has no message properties. (@messages command available)";
+    lines = {"Message properties for " + tostr(target_obj) + ":"};
+    for prop_info in (msg_props)
+      {prop_name, prop_value} = prop_info;
+      value_summary = typeof(prop_value) == OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | typeof(prop_value) == LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value);
+      lines = {@lines, " - " + prop_name + ": " + value_summary};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Read a single message template (like @getm)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    prop_name = args_map["property"];
+    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    value = target_obj.(prop_name);
+    if (typeof(value) == OBJ && isa(value, $msg_bag))
+      entries = value:entries();
+      !entries && return tostr(target_obj) + "." + prop_name + " = (empty message bag)";
+      lines = {tostr(target_obj) + "." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):"};
+      for i, entry in (entries)
+        lines = {@lines, tostr(i) + ". " + (typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry))};
+      endfor
+      return lines:join("\n");
+    endif
+    display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+    return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
+  endverb
+
+  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set a message template (like @setm)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    {prop_name, template} = {args_map["property"], args_map["template"]};
+    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
+    template || raise(E_INVARG, "Template string required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
+    writable || raise(E_PERM, error_msg);
+    {success, compiled} = $obj_utils:validate_and_compile_template(template);
+    success || raise(E_INVARG, "Template compilation failed: " + compiled);
+    existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    if (typeof(existing) == OBJ && isa(existing, $msg_bag))
+      existing.entries = {compiled};
+      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
+    endif
+    $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
+    return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
+  endverb
+
+  verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Append a template to a message bag (like @add-message)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    {prop_name, template} = {args_map["property"], args_map["template"]};
+    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
+    template || raise(E_INVARG, "Template string required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
+    !valid(bag) && (bag = $msg_bag:create(true)) && (target_obj.(prop_name) = bag);
+    bag:add($sub_utils:compile(template));
+    return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
+  endverb
+
+  verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Delete a template by index from a message bag (like @del-message)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    {prop_name, idx} = {args_map["property"], args_map["index"]};
+    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
+    typeof(idx) == INT || raise(E_TYPE, "Index must be integer");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
+    valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    bag:remove(idx);
+    return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
+  endverb
+
+  verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List *_rule properties on an object (like @rules)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    rule_props = $obj_utils:rule_properties(target_obj);
+    !rule_props && return tostr(target_obj) + " has no rule properties. (@rules command available)";
+    lines = {"Rule properties for " + tostr(target_obj) + ":"};
+    for prop_info in (rule_props)
+      {prop_name, prop_value} = prop_info;
+      lines = {@lines, " - " + prop_name + ": " + (prop_value == 0 ? "(not set)" | $rule_engine:decompile_rule(prop_value))};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set a rule on an object property (like @set-rule)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    {prop_name, expression} = {args_map["property"], args_map["expression"]};
+    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
+    expression || raise(E_INVARG, "Rule expression required");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Use add_property to create it first.");
+    rule = $rule_engine:parse_expression(expression, tosym(prop_name), wearer);
+    validation = $rule_engine:validate_rule(rule);
+    validation['valid] || raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
+    target_obj.(prop_name) = rule;
+    return "Set " + tostr(target_obj) + "." + prop_name + " = " + expression;
+  endverb
+
+  verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Display a rule property expression (like @show-rule)";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    prop_name = args_map["property"];
+    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
+    set_task_perms(wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    rule = target_obj.(prop_name);
+    return tostr(target_obj) + "." + prop_name + " = " + (rule == 0 ? "(not set)" | $rule_engine:decompile_rule(rule));
   endverb
 
   verb "use inter*act qu*ery" (this none none) owner: ARCH_WIZARD flags: "rd"

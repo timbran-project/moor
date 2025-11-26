@@ -32,9 +32,7 @@ object EVENT
   verb transform_for (this none this) owner: HACKER flags: "rxd"
     "Call 'compose(content_type, this)' on all content, then render to final string format.";
     {render_for, ?content_type = 'text_plain} = args;
-    if (!this:validate())
-      raise(E_INVARG);
-    endif
+    this:validate() || raise(E_INVARG);
     composed = {};
     event_contents = flycontents(this);
     for raw_entry in (event_contents)
@@ -80,30 +78,16 @@ object EVENT
   endverb
 
   verb normalize_content (this none this) owner: HACKER flags: "rxd"
-    normalized = {};
-    for entry in (args)
-      normalized = {@normalized, this:wrap_content_entry(entry)};
-    endfor
-    return normalized;
+    return {this:wrap_content_entry(e) for e in (args)};
   endverb
 
   verb wrap_content_entry (this none this) owner: HACKER flags: "rxd"
     entry = args[1];
-    if (typeof(entry) == ERR)
-      raise(E_INVARG("Event content cannot contain error values: " + toliteral(entry)));
-    endif
-    if (typeof(entry) == STR)
-      return {'string, entry};
-    endif
-    if (typeof(entry) == FLYWEIGHT)
-      return {'flyweight, entry};
-    endif
-    if (typeof(entry) == LIST && length(entry) == 2 && entry[1] in {'string, 'flyweight, 'list})
-      return entry;
-    endif
-    if (typeof(entry) == LIST)
-      return {'list, entry};
-    endif
+    typeof(entry) == ERR && raise(E_INVARG("Event content cannot contain error values: " + toliteral(entry)));
+    typeof(entry) == STR && return {'string, entry};
+    typeof(entry) == FLYWEIGHT && return {'flyweight, entry};
+    typeof(entry) == LIST && length(entry) == 2 && entry[1] in {'string, 'flyweight, 'list} && return entry;
+    typeof(entry) == LIST && return {'list, entry};
     raise(E_TYPE("Unsupported event content entry type: " + toliteral(entry)));
   endverb
 
@@ -214,18 +198,7 @@ object EVENT
   verb get_binding (this none this) owner: HACKER flags: "rxd"
     "Resolve a binding name to a value from the event context.";
     {name} = args;
-    "Handle both abbreviated and full names for substitutions";
-    if (name == 'dobj || name == 'd || name == 'dc)
-      return this.dobj;
-    elseif (name == 'iobj || name == 'i || name == 'ic)
-      return this.iobj;
-    elseif (name == 'actor || name == 'n || name == 'nc)
-      return this.actor;
-    elseif (name == 'location || name == 'l || name == 'lc)
-      return this.actor.location;
-    elseif (name == 'this || name == 't || name == 'tc)
-      return this.this_obj;
-    endif
-    return false;
+    bindings = ['dobj -> this.dobj, 'd -> this.dobj, 'dc -> this.dobj, 'iobj -> this.iobj, 'i -> this.iobj, 'ic -> this.iobj, 'actor -> this.actor, 'n -> this.actor, 'nc -> this.actor, 'location -> this.actor.location, 'l -> this.actor.location, 'lc -> this.actor.location, 'this -> this.this_obj, 't -> this.this_obj, 'tc -> this.this_obj];
+    return maphaskey(bindings, name) ? bindings[name] | false;
   endverb
 endobject

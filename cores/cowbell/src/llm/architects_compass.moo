@@ -26,10 +26,11 @@ object ARCHITECTS_COMPASS
     task_management_section = "\n## Task Management for Building Projects\n\nFor complex construction projects, create building tasks to track progress and maintain focus across multiple creation steps.\n\n### Planning a Building Project\n\n- When starting a significant project (multiple rooms, complex layout), use `create_task()` to spawn a project tracker\n- The task tracks lifecycle: pending → in_progress → completed/failed\n- Use task descriptions to document the overall project scope\n- Example: \"Build a three-story tavern with common room, kitchen, upstairs bedrooms, and cellar\"\n\n### Recording Progress\n\n- Use `task:add_finding(subject, key, value)` to record what was built:\n  - `task:add_finding(\"rooms\", \"created\", {\"Tavern Common Room #15\", \"Kitchen #16\"})`\n  - `task:add_finding(\"passages\", \"connected\", {\"north from #15 to #16\"})`\n  - `task:add_finding(\"objects\", \"placed\", {\"bar counter in #15\", \"stove in #16\"})`\n\n### Creating Subtasks for Stages\n\n- Break building projects into stages using `task:add_subtask(description, blocking)`\n- Example stages:\n  1. \"Design and create room layout\"\n  2. \"Dig passages and connections\"\n  3. \"Place furniture and decorations\"\n  4. \"Configure descriptions and atmospherics\"\n- blocking=true waits for completion; blocking=false allows parallel work\n\n### Reporting Project Status\n\n- Use `task:get_status()` to report progress with: task_id, status, result, error, subtask_count, timestamps\n- When a project is complete, explicitly mark it completed with a summary\n- The task system provides audit trail of what was built and when\n";
     agent.system_prompt = base_prompt + task_management_section;
     agent:initialize();
+    "Lower temperature for reliable tool selection, limit tokens to control costs";
+    agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.3):with_max_tokens(4096);
     agent.tool_callback = this;
-    "Register explain tool";
-    explain_tool = $llm_agent_tool:mk("explain", "Communicate reasoning, progress updates, or error details to the user. Use this frequently to show what you're attempting and what errors you encounter.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "The message to communicate to the user"]], "required" -> {"message"}], this, "_tool_explain");
-    agent:add_tool("explain", explain_tool);
+    "Register common tools from parent class (explain, ask_user, todo_write, get_todos)";
+    this:_register_common_tools(agent);
     "Register build_room tool";
     build_room_tool = $llm_agent_tool:mk("build_room", "Create a new room in an area. Areas are organizational containers that group rooms. IMPORTANT: The 'area' parameter must be an AREA object (like #38), NOT a room object. To build in the same area as an existing room, omit the area parameter or use 'here'.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "AREA object number to build in (like #38). MUST be an area, NOT a room. Use 'here' for current area, 'ether' for free-floating, or omit entirely to default to current area. NEVER pass a room object here."], "parent" -> ["type" -> "string", "description" -> "Parent room object reference (optional, default: $room)"]], "required" -> {"name"}], this, "_tool_build_room");
     agent:add_tool("build_room", build_room_tool);
@@ -78,32 +79,11 @@ object ARCHITECTS_COMPASS
     "Register set_integrated_description tool";
     set_integrated_description_tool = $llm_agent_tool:mk("set_integrated_description", "Set an object's integrated description - a description that becomes part of the room's description when the object is present. Use this for atmospheric objects like furniture, decorations, or features that should feel like part of the room. For example, a fireplace might have integrated description 'A warm fireplace crackles in the corner'. To clear, set to empty string.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to set integrated description on"], "integrated_description" -> ["type" -> "string", "description" -> "The integrated description text (or empty string to clear)"]], "required" -> {"object", "integrated_description"}], this, "_tool_set_integrated_description");
     agent:add_tool("set_integrated_description", set_integrated_description_tool);
-    "Register documentation lookup tool";
-    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
-    agent:add_tool("doc_lookup", doc_tool);
-    "Register message tools (@messages/@getm/@setm equivalents)";
-    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties ( *_msg ) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
-    agent:add_tool("list_messages", list_messages_tool);
-    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
-    agent:add_tool("get_message_template", get_message_tool);
-    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
-    agent:add_tool("set_message_template", set_message_tool);
-    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_add_message_template");
-    agent:add_tool("add_message_template", add_message_tool);
-    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
-    agent:add_tool("delete_message_template", del_message_tool);
-    "Register rule tools (@rules/@set-rule/@show-rule equivalents)";
-    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "_tool_list_rules");
-    agent:add_tool("list_rules", list_rules_tool);
-    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "_tool_set_rule");
-    agent:add_tool("set_rule", set_rule_tool);
-    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
-    agent:add_tool("show_rule", show_rule_tool);
+    "Register authoring tools from parent class (doc_lookup, message tools, rule tools)";
+    this:_register_authoring_tools(agent);
+    "Register test_rule tool (compass-specific - tests expressions before setting)";
     test_rule_tool = $llm_agent_tool:mk("test_rule", "Test a rule expression with specific variable bindings to see if it evaluates successfully. Useful for debugging rules before setting them. Returns success/failure and explanation of what the rule checked.", ["type" -> "object", "properties" -> ["expression" -> ["type" -> "string", "description" -> "Rule expression to test (e.g., 'Key is(\"golden key\")?')"], "bindings" -> ["type" -> "object", "description" -> "Variable bindings as key-value pairs (e.g., {\"This\": \"#123\", \"Accessor\": \"#5\", \"Key\": \"#456\"})"]], "required" -> {"expression", "bindings"}], this, "_tool_test_rule");
     agent:add_tool("test_rule", test_rule_tool);
-    "Register ask_user tool";
-    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
-    agent:add_tool("ask_user", ask_user_tool);
     "Register project task management tools";
     create_project_tool = $llm_agent_tool:mk("create_project", "Create a new building project task to organize construction work. The project tracks rooms created, passages built, objects placed, and their descriptions. Returns project task object.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Project description (e.g., 'Build a three-story tavern with common room, kitchen, upstairs rooms, and cellar')"]], "required" -> {"description"}], this, "_tool_create_project");
     agent:add_tool("create_project", create_project_tool);
@@ -124,18 +104,10 @@ object ARCHITECTS_COMPASS
     "Convert object spec to human-readable display name";
     {obj_spec, wearer} = args;
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    display_name = obj_spec;
-    if (obj_spec:starts_with("#"))
-      try
-        set_task_perms(wearer);
-        target_obj = $match:match_object(obj_spec, wearer);
-        if (valid(target_obj))
-          display_name = `target_obj:name() ! ANY => obj_spec';
-        endif
-      except (ANY)
-      endtry
-    endif
-    return display_name;
+    !obj_spec:starts_with("#") && return obj_spec;
+    set_task_perms(wearer);
+    target_obj = `$match:match_object(obj_spec, wearer) ! ANY => #-1';
+    return valid(target_obj) ? `target_obj:name() ! ANY => obj_spec' | obj_spec;
   endverb
 
   verb _format_hud_message (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -324,39 +296,30 @@ object ARCHITECTS_COMPASS
     wearer = this:_action_perms_check();
     server_log("_tool_build_room wearer validated");
     set_task_perms(wearer);
-    room_name = args_map["name"];
-    area_spec = maphaskey(args_map, "area") ? args_map["area"] | "";
-    parent_spec = maphaskey(args_map, "parent") ? args_map["parent"] | "$room";
-    "Parse parent object";
+    {room_name, area_spec, parent_spec} = {args_map["name"], maphaskey(args_map, "area") ? args_map["area"] | "", maphaskey(args_map, "parent") ? args_map["parent"] | "$room"};
     parent_obj = $match:match_object(parent_spec, wearer);
     typeof(parent_obj) == OBJ || raise(E_INVARG, "Invalid parent object: " + parent_spec);
     "Parse area - default to current area if not specified, 'ether' means free-floating";
     target_area = #-1;
     if (!area_spec || area_spec == "" || area_spec == "here")
-      "Default: Use player's current area";
       current_room = wearer.location;
-      if (valid(current_room))
-        target_area = current_room.location;
-      endif
-    elseif (area_spec == "ether")
-      "Explicitly free-floating";
-      target_area = #-1;
-    else
-      "Named area reference";
+      valid(current_room) && (target_area = current_room.location);
+    elseif (area_spec != "ether")
       target_area = $match:match_object(area_spec, wearer);
       "Validate that target_area is actually an area, not a room";
-      if (valid(target_area) && typeof(target_area) == OBJ)
-        "Check if this is a room (has .location pointing to an area) rather than an area";
-        if (valid(target_area.location) && target_area.location != #-1)
-          "This looks like a room, not an area - get its containing area instead";
-          actual_area = target_area.location;
-          return "Error: " + tostr(target_area) + " is a room, not an area. To build in the same area as that room, omit the 'area' parameter or use 'here'. The area containing that room is " + tostr(actual_area) + ".";
-        endif
+      if (valid(target_area) && typeof(target_area) == OBJ && valid(target_area.location) && target_area.location != #-1)
+        actual_area = target_area.location;
+        return "Error: " + tostr(target_area) + " is a room, not an area. To build in the same area as that room, omit the 'area' parameter or use 'here'. The area containing that room is " + tostr(actual_area) + ".";
       endif
     endif
     server_log("_tool_build_room parsing complete");
     "Create room";
-    if (valid(target_area))
+    if (!valid(target_area))
+      server_log("_tool_build_room creating free-floating");
+      new_room = parent_obj:create();
+      area_str = " (free-floating)";
+      server_log("_tool_build_room free-floating created");
+    else
       server_log("_tool_build_room creating in area");
       cap = wearer:find_capability_for(target_area, 'area);
       area_target = typeof(cap) == FLYWEIGHT ? cap | target_area;
@@ -366,14 +329,8 @@ object ARCHITECTS_COMPASS
         server_log("_tool_build_room room created in area");
       except (E_PERM)
         server_log("_tool_build_room permission denied");
-        message = $grant_utils:format_denial(target_area, 'area, {'add_room});
-        return "Permission denied: " + message;
+        return "Permission denied: " + $grant_utils:format_denial(target_area, 'area, {'add_room});
       endtry
-    else
-      server_log("_tool_build_room creating free-floating");
-      new_room = parent_obj:create();
-      area_str = " (free-floating)";
-      server_log("_tool_build_room free-floating created");
     endif
     new_room:set_name_aliases(room_name, {});
     server_log("_tool_build_room success");
@@ -385,85 +342,26 @@ object ARCHITECTS_COMPASS
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    source_spec = maphaskey(args_map, "source_room") ? args_map["source_room"] | "";
-    direction = args_map["direction"];
-    target_spec = args_map["target_room"];
-    return_dir = maphaskey(args_map, "return_direction") ? args_map["return_direction"] | "";
-    oneway_flag = maphaskey(args_map, "oneway") ? args_map["oneway"] | false;
-    "Parse from direction - handle both comma-separated ('north,n') and colon-separated ('north:n') formats";
-    if (direction:contains(":"))
-      "Handle colon-separated format by splitting on colon first, then comma";
-      colon_parts = $str_proto:split(direction, ":");
-      if (length(colon_parts) >= 2)
-        primary_dir = colon_parts[1];
-        alias_str = colon_parts[2];
-        from_dirs = $str_proto:split(alias_str, ",");
-        from_dirs = {primary_dir, @from_dirs};
-      else
-        from_dirs = {direction};
-      endif
-    else
-      "Handle comma-separated format";
-      from_dirs = $str_proto:split(direction, ",");
-    endif
-    "Remove duplicates before expanding";
-    unique_from_dirs = {};
-    for dir in (from_dirs)
-      if (!(dir in unique_from_dirs))
-        unique_from_dirs = {@unique_from_dirs, dir};
-      endif
-    endfor
-    "Expand standard direction aliases (e.g., 'north' -> 'north,n')";
-    from_dirs = $passage:expand_direction_aliases(unique_from_dirs);
-    "Parse return direction - handle both formats";
+    {source_spec, direction, target_spec, return_dir, oneway_flag} = {maphaskey(args_map, "source_room") ? args_map["source_room"] | "", args_map["direction"], args_map["target_room"], maphaskey(args_map, "return_direction") ? args_map["return_direction"] | "", maphaskey(args_map, "oneway") ? args_map["oneway"] | false};
+    "Parse direction string into list (handles 'north:n' and 'north,n' formats)";
+    from_dirs = this:_parse_direction_spec(direction);
+    from_dirs = $passage:expand_direction_aliases({@from_dirs});
+    "Parse return direction";
     to_dirs = {};
     if (!oneway_flag)
       if (return_dir)
-        if (return_dir:contains(":"))
-          "Handle colon-separated format for return direction";
-          colon_parts = $str_proto:split(return_dir, ":");
-          if (length(colon_parts) >= 2)
-            primary_dir = colon_parts[1];
-            alias_str = colon_parts[2];
-            to_dirs = $str_proto:split(alias_str, ",");
-            to_dirs = {primary_dir, @to_dirs};
-          else
-            to_dirs = {return_dir};
-          endif
-        else
-          "Handle comma-separated format for return direction";
-          to_dirs = $str_proto:split(return_dir, ",");
-        endif
-        "Remove duplicates before expanding";
-        unique_to_dirs = {};
-        for dir in (to_dirs)
-          if (!(dir in unique_to_dirs))
-            unique_to_dirs = {@unique_to_dirs, dir};
-          endif
-        endfor
-        "Expand aliases for return direction";
-        to_dirs = $passage:expand_direction_aliases(unique_to_dirs);
+        to_dirs = this:_parse_direction_spec(return_dir);
+        to_dirs = $passage:expand_direction_aliases({@to_dirs});
       else
         "Infer opposite direction";
         opposites = ["north" -> "south", "south" -> "north", "east" -> "west", "west" -> "east", "up" -> "down", "down" -> "up", "in" -> "out", "out" -> "in"];
-        if (maphaskey(opposites, from_dirs[1]))
-          inferred_dir = opposites[from_dirs[1]];
-          "Expand aliases for inferred direction";
-          to_dirs = $passage:expand_direction_aliases({inferred_dir});
-        else
-          to_dirs = {};
-        endif
+        maphaskey(opposites, from_dirs[1]) && (to_dirs = $passage:expand_direction_aliases({opposites[from_dirs[1]]}));
       endif
     endif
     "Find source room - default to wearer's location if not specified";
-    if (source_spec && source_spec != "")
-      source_room = $match:match_object(source_spec, wearer);
-    else
-      source_room = wearer.location;
-    endif
+    source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, wearer) | wearer.location;
     typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
-    "Find target room";
     target_room = $match:match_object(target_spec, wearer);
     typeof(target_room) == OBJ || raise(E_INVARG, "Target room not found");
     valid(target_room) || raise(E_INVARG, "Target room no longer exists");
@@ -477,41 +375,33 @@ object ARCHITECTS_COMPASS
     try
       from_target:check_can_dig_from();
     except (E_PERM)
-      message = $grant_utils:format_denial(source_room, 'room, {'dig_from});
-      return "Permission denied: " + message;
+      return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
     to_cap = wearer:find_capability_for(target_room, 'room);
     to_target = typeof(to_cap) == FLYWEIGHT ? to_cap | target_room;
     try
       to_target:check_can_dig_into();
     except (E_PERM)
-      message = $grant_utils:format_denial(target_room, 'room, {'dig_into});
-      return "Permission denied: " + message;
+      return "Permission denied: " + $grant_utils:format_denial(target_room, 'room, {'dig_into});
     endtry
-    "Create passage";
-    if (oneway_flag)
-      passage = $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, "", {}, "", false, true);
-    else
-      "If we couldn't infer a return direction, make it effectively one-way";
-      if (length(to_dirs) == 0)
-        passage = $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, "", {}, "", false, true);
-      else
-        passage = $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, to_dirs[1], to_dirs, "", true, true);
-      endif
-    endif
+    "Create passage - one-way if explicitly requested or no return direction";
+    passage = oneway_flag || !to_dirs ? $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, "", {}, "", false, true) | $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, to_dirs[1], to_dirs, "", true, true);
     "Register with area";
     area_cap = wearer:find_capability_for(area, 'area);
     area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
     area_target:create_passage(from_target, to_target, passage);
     "Report";
-    if (oneway_flag)
-      msg = "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way). (@dig command available)";
-    elseif (length(to_dirs) == 0)
-      msg = "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred). (@dig command available)";
-    else
-      msg = "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ". (@dig command available)";
-    endif
+    msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way). (@dig command available)" | !to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred). (@dig command available)" | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ". (@dig command available)";
     return msg;
+  endverb
+
+  verb _parse_direction_spec (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Parse direction string into list (handles 'north:n' and 'north,n' formats)";
+    {dir_spec} = args;
+    !dir_spec:contains(":") && return $str_proto:split(dir_spec, ",");
+    colon_parts = $str_proto:split(dir_spec, ":");
+    length(colon_parts) < 2 && return {dir_spec};
+    return {colon_parts[1], @$str_proto:split(colon_parts[2], ",")};
   endverb
 
   verb _tool_remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -519,73 +409,39 @@ object ARCHITECTS_COMPASS
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    target_spec = args_map["target_room"];
-    source_spec = maphaskey(args_map, "source_room") ? args_map["source_room"] | "";
-    "Find source room - default to wearer's location if not specified";
-    if (source_spec && source_spec != "")
-      source_room = $match:match_object(source_spec, wearer);
-    else
-      source_room = wearer.location;
-    endif
+    {target_spec, source_spec} = {args_map["target_room"], maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
+    source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, wearer) | wearer.location;
     typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
-    "Find target room";
     target_room = $match:match_object(target_spec, wearer);
     typeof(target_room) == OBJ || raise(E_INVARG, "Target room not found");
     valid(target_room) || raise(E_INVARG, "Target room no longer exists");
-    "Get area - both rooms must be in the same area";
     area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
     target_room.location == area || raise(E_INVARG, "Both rooms must be in the same area");
-    "Check if passage exists and get labels for reporting";
     passage = area:passage_for(source_room, target_room);
-    if (!passage)
-      return "No passage found between " + tostr(source_room) + " and " + tostr(target_room) + ".";
-    endif
+    !passage && return "No passage found between " + tostr(source_room) + " and " + tostr(target_room) + ".";
+    "Collect labels for reporting";
+    {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
     labels = {};
-    side_a_room = `passage.side_a_room ! ANY => #-1';
-    side_b_room = `passage.side_b_room ! ANY => #-1';
-    if (source_room == side_a_room)
-      label = `passage.side_a_label ! ANY => ""';
-      if (label != "")
-        labels = {@labels, label};
-      endif
-    elseif (source_room == side_b_room)
-      label = `passage.side_b_label ! ANY => ""';
-      if (label != "")
-        labels = {@labels, label};
-      endif
-    endif
-    if (target_room == side_a_room)
-      label = `passage.side_a_label ! ANY => ""';
-      if (label != "" && !(label in labels))
-        labels = {@labels, label};
-      endif
-    elseif (target_room == side_b_room)
-      label = `passage.side_b_label ! ANY => ""';
-      if (label != "" && !(label in labels))
-        labels = {@labels, label};
-      endif
-    endif
-    "Check permissions and remove passage";
+    source_room == side_a_room && (`passage.side_a_label ! ANY => ""' != "") && (labels = {@labels, passage.side_a_label});
+    source_room == side_b_room && (`passage.side_b_label ! ANY => ""' != "") && (labels = {@labels, passage.side_b_label});
+    target_room == side_a_room && (`passage.side_a_label ! ANY => ""' != "") && !(passage.side_a_label in labels) && (labels = {@labels, passage.side_a_label});
+    target_room == side_b_room && (`passage.side_b_label ! ANY => ""' != "") && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
+    "Check permissions";
     from_cap = wearer:find_capability_for(source_room, 'room);
     from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
-      message = $grant_utils:format_denial(source_room, 'room, {'dig_from});
-      return "Permission denied: " + message;
+      return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
     "Remove passage via area";
     area_cap = wearer:find_capability_for(area, 'area);
     area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
     result = area_target:remove_passage(from_target, target_room);
-    if (result)
-      label_str = length(labels) > 0 ? " (" + labels:join("/") + ")" | "";
-      return "Removed passage" + label_str + " between " + tostr(source_room) + " and " + tostr(target_room) + ".";
-    else
-      return "Failed to remove passage (may have already been removed).";
-    endif
+    label_str = labels ? " (" + labels:join("/") + ")" | "";
+    return result ? "Removed passage" + label_str + " between " + tostr(source_room) + " and " + tostr(target_room) + "." | "Failed to remove passage (may have already been removed).";
   endverb
 
   verb _tool_set_passage_description (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -593,110 +449,61 @@ object ARCHITECTS_COMPASS
     {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
-    direction = args_map["direction"];
-    description = args_map["description"];
-    if (typeof(description) == STR && ("{" in description) && ("}" in description))
-      "Compile $sub-style templates if present";
-      try
-        description = $sub_utils:compile(description);
-      except (ANY)
-      endtry
-    endif
-    ambient = maphaskey(args_map, "ambient") ? args_map["ambient"] | true;
-    source_spec = maphaskey(args_map, "source_room") ? args_map["source_room"] | "";
-    "Find source room - default to wearer's location if not specified";
-    if (source_spec && source_spec != "")
-      source_room = $match:match_object(source_spec, wearer);
-    else
-      source_room = wearer.location;
-    endif
+    {direction, description, ambient, source_spec} = {args_map["direction"], args_map["description"], maphaskey(args_map, "ambient") ? args_map["ambient"] | true, maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
+    typeof(description) == STR && ("{" in description) && ("}" in description) && (description = `$sub_utils:compile(description) ! ANY => description');
+    source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, wearer) | wearer.location;
     typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
-    "Get area";
     area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
-    "Find passage matching the direction";
     passages = area:passages_from(source_room);
-    if (!passages || length(passages) == 0)
-      return "No passages from " + tostr(source_room) + ".";
-    endif
-    "Find passage matching the direction";
+    !passages && return "No passages from " + tostr(source_room) + ".";
     target_passage = area:find_passage_by_direction(source_room, direction);
-    if (!target_passage)
-      return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
-    endif
-    "Check permissions";
+    !target_passage && return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
     from_cap = wearer:find_capability_for(source_room, 'room);
     from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
-      message = $grant_utils:format_denial(source_room, 'room, {'dig_from});
-      return "Permission denied: " + message;
+      return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
-    "Update passage description and ambient flag using transformer verbs";
-    new_passage = target_passage:with_description_from(source_room, description);
-    new_passage = new_passage:with_ambient_from(source_room, ambient);
-    other_room = target_passage:other_room(source_room);
-    area:update_passage(source_room, other_room, new_passage);
-    ambient_str = ambient ? " (ambient - integrates into room description)" | " (explicit - shows in exits list)";
-    return "Set description for '" + direction + "' passage" + ambient_str + ".";
+    new_passage = target_passage:with_description_from(source_room, description):with_ambient_from(source_room, ambient);
+    area:update_passage(source_room, target_passage:other_room(source_room), new_passage);
+    return "Set description for '" + direction + "' passage" + (ambient ? " (ambient - integrates into room description)" | " (explicit - shows in exits list)") + ".";
   endverb
 
   verb _tool_create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create an object from a parent";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    parent_spec = args_map["parent"];
-    name_spec = args_map["name"];
-    extra_aliases = maphaskey(args_map, "aliases") ? args_map["aliases"] | {};
-    "Parse name specification to extract primary name and aliases";
-    parsed = $str_proto:parse_name_aliases(name_spec);
-    primary_name = parsed[1];
-    parsed_aliases = parsed[2];
-    "Combine parsed aliases with any explicitly provided aliases";
-    final_aliases = parsed_aliases;
-    for alias in (extra_aliases)
-      if (!(alias in final_aliases))
-        final_aliases = {@final_aliases, alias};
-      endif
-    endfor
+    {parent_spec, name_spec, extra_aliases} = {args_map["parent"], args_map["name"], maphaskey(args_map, "aliases") ? args_map["aliases"] | {}};
+    {primary_name, parsed_aliases} = $str_proto:parse_name_aliases(name_spec);
+    final_aliases = {@parsed_aliases, @extra_aliases};
     !primary_name && raise(E_INVARG, "Object name cannot be blank");
-    "Execute via the builder's logic as wearer";
     set_task_perms(wearer);
     parent_obj = $match:match_object(parent_spec, wearer);
     typeof(parent_obj) == OBJ || raise(E_INVARG, "Parent not found");
     valid(parent_obj) || raise(E_INVARG, "Parent no longer exists");
-    "Check fertility";
     is_fertile = `parent_obj.fertile ! E_PROPNF => false';
-    if (!is_fertile && !wearer.wizard && parent_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj));
-    endif
+    !is_fertile && !wearer.wizard && parent_obj.owner != wearer && raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj));
     new_obj = parent_obj:create();
     new_obj:set_name_aliases(primary_name, final_aliases);
     new_obj:moveto(wearer);
     message = "Created \"" + primary_name + "\" (" + tostr(new_obj) + ") from " + tostr(parent_obj) + " in your inventory.";
-    if (final_aliases)
-      message = message + " Aliases: " + final_aliases:join(", ") + ".";
-    endif
-    message = message + " (@create command available)";
-    return message;
+    final_aliases && (message = message + " Aliases: " + final_aliases:join(", ") + ".");
+    return message + " (@create command available)";
   endverb
 
   verb _tool_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Permanently destroy an object";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
     set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to recycle " + tostr(target_obj));
-    endif
-    obj_name = target_obj.name;
-    obj_id = tostr(target_obj);
+    !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You do not have permission to recycle " + tostr(target_obj));
+    {obj_name, obj_id} = {target_obj.name, tostr(target_obj)};
     target_obj:destroy();
     return "Recycled \"" + obj_name + "\" (" + obj_id + "). (@recycle command available)";
   endverb
@@ -705,435 +512,107 @@ object ARCHITECTS_COMPASS
     "Tool: Rename an object";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    name_spec = args_map["name"];
     set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to rename " + tostr(target_obj));
-    endif
-    parsed = $str_proto:parse_name_aliases(name_spec);
-    new_name = parsed[1];
-    new_aliases = parsed[2];
+    !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You do not have permission to rename " + tostr(target_obj));
+    {new_name, new_aliases} = $str_proto:parse_name_aliases(args_map["name"]);
     !new_name && raise(E_INVARG, "Object name cannot be blank");
     old_name = `target_obj.name ! ANY => "(no name)"';
-    "Set name and aliases directly";
     target_obj:set_name_aliases(new_name, new_aliases);
     message = "Renamed \"" + old_name + "\" (" + tostr(target_obj) + ") to \"" + new_name + "\".";
-    if (new_aliases)
-      message = message + " Aliases: " + new_aliases:join(", ") + ".";
-    endif
-    message = message + " (@rename command available)";
-    return message;
+    new_aliases && (message = message + " Aliases: " + new_aliases:join(", ") + ".");
+    return message + " (@rename command available)";
   endverb
 
   verb _tool_describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set object description";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    new_description = args_map["description"];
     set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to describe " + tostr(target_obj));
-    endif
-    !new_description && raise(E_INVARG, "Description cannot be blank");
-    "Set description directly";
-    target_obj.description = new_description;
-    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-    return "Set description of \"" + obj_name + "\" (" + tostr(target_obj) + "). (@describe command available)";
+    !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You do not have permission to describe " + tostr(target_obj));
+    !args_map["description"] && raise(E_INVARG, "Description cannot be blank");
+    target_obj.description = args_map["description"];
+    return "Set description of \"" + `target_obj.name ! ANY => tostr(target_obj)' + "\" (" + tostr(target_obj) + "). (@describe command available)";
   endverb
 
   verb _tool_set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set object's integrated description - description that becomes part of room description";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    integrated_description = args_map["integrated_description"];
     set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
+    target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to modify " + tostr(target_obj));
-    endif
-    "Set integrated description directly";
-    target_obj.integrated_description = integrated_description;
+    !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You do not have permission to modify " + tostr(target_obj));
+    target_obj.integrated_description = args_map["integrated_description"];
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-    if (integrated_description == "")
-      return "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). (@integrate command available)";
-    else
-      return "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description. (@integrate command available)";
-    endif
-  endverb
-
-  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: List *_msg properties on an object (like @messages)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    msg_props = $obj_utils:message_properties(target_obj);
-    if (!msg_props || length(msg_props) == 0)
-      return tostr(target_obj) + " has no message properties. (@messages command available)";
-    endif
-    lines = {"Message properties for " + tostr(target_obj) + ":"};
-    for prop_info in (msg_props)
-      {prop_name, prop_value} = prop_info;
-      if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
-        value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
-      elseif (typeof(prop_value) == LIST)
-        value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
-      else
-        value_summary = toliteral(prop_value);
-      endif
-      lines = {@lines, " - " + prop_name + ": " + value_summary};
-    endfor
-    return lines:join("\n");
-  endverb
-
-  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Read a single message template (like @getm)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
-    endif
-    value = target_obj.(prop_name);
-    if (typeof(value) == OBJ && isa(value, $msg_bag))
-      entries = value:entries();
-      if (!entries)
-        return tostr(target_obj) + "." + prop_name + " = (empty message bag)";
-      endif
-      lines = {tostr(target_obj) + "." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):"};
-      idx = 1;
-      for entry in (entries)
-        template_str = typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry);
-        lines = {@lines, tostr(idx) + ". " + template_str};
-        idx = idx + 1;
-      endfor
-      return lines:join("\n");
-    endif
-    display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
-    return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
-  endverb
-
-  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Set a message template (like @setm)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    template = args_map["template"];
-    prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
-    !template && raise(E_INVARG, "Template string required");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
-    writable || raise(E_PERM, error_msg);
-    {success, compiled} = $obj_utils:validate_and_compile_template(template);
-    success || raise(E_INVARG, "Template compilation failed: " + compiled);
-    existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
-    if (typeof(existing) == OBJ && isa(existing, $msg_bag))
-      existing.entries = {compiled};
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
-    else
-      $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
-    endif
-  endverb
-
-  verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Append a template to a message bag (like @add-message)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    template = args_map["template"];
-    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
-    !template && raise(E_INVARG, "Template string required");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
-    if (!valid(bag))
-      "Property doesn't exist - check if singular version exists";
-      if (prop_name:ends_with("_msgs"))
-        singular_name = prop_name[1..(length(prop_name) - 1)];
-        if (singular_name in target_obj:all_properties())
-          return "ERROR: Property '" + prop_name + "' not found. Did you mean '" + singular_name + "'? Use set_message_template for single message properties.";
-        endif
-      endif
-      bag = $msg_bag:create(true);
-      target_obj.(prop_name) = bag;
-    endif
-    bag:add($sub_utils:compile(template));
-    return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
-  endverb
-
-  verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Delete a template by index from a message bag (like @del-message)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    idx = args_map["index"];
-    prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
-    typeof(idx) == INT || raise(E_TYPE, "Index must be integer");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
-    valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
-    bag:remove(idx);
-    return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
-  endverb
-
-  verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: List *_rule properties on an object (like @rules)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    rule_props = $obj_utils:rule_properties(target_obj);
-    if (!rule_props || length(rule_props) == 0)
-      return tostr(target_obj) + " has no rule properties. (@rules command available)";
-    endif
-    lines = {"Rule properties for " + tostr(target_obj) + ":"};
-    for prop_info in (rule_props)
-      {prop_name, prop_value} = prop_info;
-      if (prop_value == 0)
-        rule_expr = "(not set)";
-      else
-        rule_expr = $rule_engine:decompile_rule(prop_value);
-      endif
-      lines = {@lines, " - " + prop_name + ": " + rule_expr};
-    endfor
-    return lines:join("\n");
-  endverb
-
-  verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Set a rule on an object property (like @set-rule)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    expression = args_map["expression"];
-    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
-    !expression && raise(E_INVARG, "Rule expression required");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Create it with @add-property or ask the user to create it.");
-    endif
-    rule = $rule_engine:parse_expression(expression, tosym(prop_name), wearer);
-    validation = $rule_engine:validate_rule(rule);
-    if (!validation['valid])
-      raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
-    endif
-    target_obj.(prop_name) = rule;
-    return "Set " + tostr(target_obj) + "." + prop_name + " = " + expression;
-  endverb
-
-  verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Display a rule property expression (like @show-rule)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property"];
-    prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
-    set_task_perms(wearer);
-    target_obj = $match:match_object(obj_spec, wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!(prop_name in target_obj:all_properties()))
-      raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
-    endif
-    rule = target_obj.(prop_name);
-    if (rule == 0)
-      return tostr(target_obj) + "." + prop_name + " = (not set)";
-    endif
-    rule_expr = $rule_engine:decompile_rule(rule);
-    return tostr(target_obj) + "." + prop_name + " = " + rule_expr;
+    return args_map["integrated_description"] == "" ? "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). (@integrate command available)" | "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description. (@integrate command available)";
   endverb
 
   verb _tool_test_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Test a rule expression with specific variable bindings";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    expression = args_map["expression"];
-    bindings = args_map["bindings"];
+    {expression, bindings} = {args_map["expression"], args_map["bindings"]};
     typeof(expression) == STR || raise(E_TYPE, "expression must be string");
     typeof(bindings) == MAP || raise(E_TYPE, "bindings must be object/map");
     set_task_perms(wearer);
-    "Parse the rule expression";
     compiled = `$rule_engine:parse_expression(expression, 'test_rule, wearer) ! ANY => E_INVARG';
-    if (compiled == E_INVARG)
-      return "ERROR: Rule parsing failed. Check syntax. Expression: " + expression;
-    endif
-    "Validate the rule";
+    compiled == E_INVARG && return "ERROR: Rule parsing failed. Check syntax. Expression: " + expression;
     validation = $rule_engine:validate_rule(compiled);
-    if (!validation['valid])
-      warnings = validation['warnings]:join("; ");
-      return "ERROR: Rule validation failed: " + warnings + ". Expression: " + expression;
-    endif
+    !validation['valid] && return "ERROR: Rule validation failed: " + validation['warnings]:join("; ") + ". Expression: " + expression;
     "Convert bindings map keys from strings to symbols";
     converted_bindings = [];
     for key in (mapkeys(bindings))
-      "Parse value - handle both object refs and direct values";
-      val_str = bindings[key];
-      val = `$match:match_object(val_str, wearer) ! ANY => val_str';
-      "Convert key to symbol";
-      key_sym = tosym(key);
-      converted_bindings[key_sym] = val;
+      converted_bindings[tosym(key)] = `$match:match_object(bindings[key], wearer) ! ANY => bindings[key]';
     endfor
-    "Evaluate the rule";
     result = $rule_engine:evaluate(compiled, converted_bindings);
     if (result['success])
       return "SUCCESS: Rule evaluated to true. Bindings: " + toliteral(converted_bindings);
-    else
-      reason = result['reason];
-      return "FAILED: Rule evaluated to false. Reason: " + (typeof(reason) == STR ? reason | toliteral(reason)) + ". Bindings: " + toliteral(converted_bindings);
     endif
-  endverb
-
-  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Fetch developer documentation for object/verb/property (like @doc)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
-    target_spec = args_map["target"];
-    set_task_perms(wearer);
-    alias_obj = false;
-    if (typeof(target_spec) == STR)
-      alias_name = target_spec;
-      if (alias_name:starts_with("$"))
-        alias_name = alias_name[2..$];
-      endif
-      if (alias_name == "sub_utils")
-        alias_obj = $sub_utils;
-      elseif (alias_name == "sub")
-        alias_obj = $sub;
-      endif
-    endif
-    if (alias_obj)
-      type = 'object;
-      target_obj = alias_obj;
-      item_name = "";
-    else
-      parsed = $prog_utils:parse_target_spec(target_spec);
-      parsed || raise(E_INVARG, "Invalid format. Use object, object:verb, or object.property");
-      type = parsed['type];
-      object_str = parsed['object_str];
-      item_name = parsed['item_name];
-      target_obj = $match:match_object(object_str, wearer);
-      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
-      valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    endif
-    if (type == 'object)
-      doc_text = $help_utils:get_object_documentation(target_obj);
-      title = "Documentation for " + tostr(target_obj);
-      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
-      doc_body = doc_body ? doc_body | "(No documentation available)";
-      return title + "\n\n" + doc_body;
-    elseif (type == 'verb)
-      verb_location = target_obj:find_verb_definer(item_name);
-      verb_location == #-1 && raise(E_INVARG, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj));
-      doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
-      title = "Documentation for " + tostr(target_obj) + ":" + tostr(item_name);
-      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
-      doc_body = doc_body ? doc_body | "(No documentation available)";
-      return title + "\n\n" + doc_body;
-    elseif (type == 'property)
-      doc_text = $help_utils:property_documentation(target_obj, item_name);
-      title = "Documentation for " + tostr(target_obj) + "." + tostr(item_name);
-      doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
-      doc_body = doc_body ? doc_body | "(No documentation available)";
-      return title + "\n\n" + doc_body;
-    endif
-    raise(E_INVARG, "Unknown target type");
+    reason = maphaskey(result, 'reason) ? (typeof(result['reason]) == STR ? result['reason] | toliteral(result['reason])) | "rule did not match";
+    return "FAILED: Rule evaluated to false. Reason: " + reason + ". Bindings: " + toliteral(converted_bindings);
   endverb
 
   verb _tool_move_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Move an object to a new location";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
-    dest_spec = args_map["destination"];
     set_task_perms(wearer);
+    {obj_spec, dest_spec} = {args_map["object"], args_map["destination"]};
     target_obj = $match:match_object(obj_spec, wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to move " + tostr(target_obj));
-    endif
+    !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You do not have permission to move " + tostr(target_obj));
     dest_obj = $match:match_object(dest_spec, wearer);
     typeof(dest_obj) == OBJ || raise(E_INVARG, "Destination not found");
     valid(dest_obj) || raise(E_INVARG, "Destination no longer exists");
-    old_location = target_obj.location;
-    old_location_name = valid(old_location) ? `old_location.name ! ANY => tostr(old_location)' | "(nowhere)";
-    "Move the object";
+    old_location_name = valid(target_obj.location) ? `target_obj.location.name ! ANY => tostr(target_obj.location)' | "(nowhere)";
     target_obj:moveto(dest_obj);
-    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-    dest_name = `dest_obj.name ! ANY => tostr(dest_obj)';
-    return "Moved \"" + obj_name + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + dest_name + "\" (" + tostr(dest_obj) + ").";
+    return "Moved \"" + `target_obj.name ! ANY => tostr(target_obj)' + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + `dest_obj.name ! ANY => tostr(dest_obj)' + "\" (" + tostr(dest_obj) + ").";
   endverb
 
   verb _tool_grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Grant capabilities to a player";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    target_spec = args_map["target"];
-    category = args_map["category"];
-    perms = args_map["permissions"];
-    grantee_spec = args_map["grantee"];
+    {target_spec, category, perms, grantee_spec} = {args_map["target"], args_map["category"], args_map["permissions"], args_map["grantee"]};
     set_task_perms(wearer);
-    "Find target and grantee";
     target_obj = $match:match_object(target_spec, wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Target not found");
     valid(target_obj) || raise(E_INVARG, "Target no longer exists");
     grantee = $match:match_object(grantee_spec, wearer);
     typeof(grantee) == OBJ || raise(E_INVARG, "Grantee not found");
     valid(grantee) || raise(E_INVARG, "Grantee no longer exists");
-    "Permission check";
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj));
-    endif
-    "Convert permissions to symbols";
-    perm_symbols = {};
-    for p in (perms)
-      perm_symbols = {@perm_symbols, tostr(p):to_symbol()};
-    endfor
-    "Grant capability";
-    cap = $root:grant_capability(target_obj, perm_symbols, grantee, tostr(category):to_symbol());
-    grant_display = $grant_utils:format_grant_with_name(target_obj, tostr(category):to_symbol(), perm_symbols);
-    grantee_str = grantee:name() + " (" + tostr(grantee) + ")";
-    return "Granted " + grant_display + " to " + grantee_str + ". (@grant command available)";
+    !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj));
+    perm_symbols = {tostr(p):to_symbol() for p in (perms)};
+    $root:grant_capability(target_obj, perm_symbols, grantee, tostr(category):to_symbol());
+    return "Granted " + $grant_utils:format_grant_with_name(target_obj, tostr(category):to_symbol(), perm_symbols) + " to " + grantee:name() + " (" + tostr(grantee) + "). (@grant command available)";
   endverb
 
   verb _tool_audit_owned (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1142,47 +621,26 @@ object ARCHITECTS_COMPASS
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     owned = sort(owned_objects(wearer));
-    if (!owned)
-      return "You don't own any objects. (@audit command available)";
-    endif
+    !owned && return "You don't own any objects. (@audit command available)";
     result = "You own " + tostr(length(owned)) + " objects:\n";
     for o in (owned)
-      obj_id = tostr(o);
-      obj_name = `o.name ! ANY => "(no name)"';
-      parent_obj = `parent(o) ! ANY => #-1';
-      parent_str = valid(parent_obj) ? tostr(parent_obj) | "(none)";
-      result = result + obj_id + ": \"" + obj_name + "\" (parent: " + parent_str + ")\n";
+      result = result + tostr(o) + ": \"" + `o.name ! ANY => "(no name)"' + "\" (parent: " + (valid(`parent(o) ! ANY => #-1') ? tostr(parent(o)) | "(none)") + ")\n";
     endfor
-    result = result + "(@audit command available)";
-    return result;
+    return result + "(@audit command available)";
   endverb
 
   verb _tool_area_map (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get list of all rooms in the current area";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    "Get the wearer's current room and area";
     current_room = wearer.location;
-    if (!valid(current_room))
-      return "Error: You are not in a room.";
-    endif
+    !valid(current_room) && return "Error: You are not in a room.";
     area = current_room.location;
-    if (!valid(area))
-      return "Error: Current room is not in an area.";
-    endif
-    "Build list of rooms - keep wizard perms to read area.contents and call :name()";
-    result = {};
-    room_name = `current_room:name() ! ANY => tostr(current_room)';
-    area_name = `area:name() ! ANY => tostr(area)';
-    result = {@result, "Current Location: " + room_name + " (" + tostr(current_room) + ")"};
-    result = {@result, "Area: " + area_name + " (" + tostr(area) + ")"};
-    result = {@result, ""};
-    result = {@result, "Rooms in this area:"};
+    !valid(area) && return "Error: Current room is not in an area.";
+    result = {"Current Location: " + `current_room:name() ! ANY => tostr(current_room)' + " (" + tostr(current_room) + ")", "Area: " + `area:name() ! ANY => tostr(area)' + " (" + tostr(area) + ")", "", "Rooms in this area:"};
     for o in (area.contents)
       if (valid(o))
-        marker = o == current_room ? " (you are here)" | "";
-        obj_name = `o:name() ! ANY => tostr(o)';
-        result = {@result, "  * " + obj_name + " (" + tostr(o) + ")" + marker};
+        result = {@result, "  * " + `o:name() ! ANY => tostr(o)' + " (" + tostr(o) + ")" + (o == current_room ? " (you are here)" | "")};
       endif
     endfor
     return result:join("\n");
@@ -1192,64 +650,27 @@ object ARCHITECTS_COMPASS
     "Tool: Find route between two rooms";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    to_spec = args_map["to_room"];
-    from_spec = maphaskey(args_map, "from_room") ? args_map["from_room"] | "";
-    "Get starting room - default to wearer's location if not specified";
-    if (from_spec && from_spec != "")
-      set_task_perms(wearer);
-      from_room = $match:match_object(from_spec, wearer);
-      set_task_perms(caller_perms());
-      typeof(from_room) == OBJ || return "Error: Could not find starting room '" + from_spec + "'.";
-    else
-      from_room = wearer.location;
-    endif
-    if (!valid(from_room))
-      return "Error: You are not in a room.";
-    endif
-    area = from_room.location;
-    if (!valid(area))
-      return "Error: Starting room is not in an area.";
-    endif
-    "Find destination room";
+    {to_spec, from_spec} = {args_map["to_room"], maphaskey(args_map, "from_room") ? args_map["from_room"] | ""};
     set_task_perms(wearer);
+    from_room = from_spec && from_spec != "" ? $match:match_object(from_spec, wearer) | wearer.location;
+    typeof(from_room) == OBJ || return "Error: Could not find starting room '" + from_spec + "'.";
+    !valid(from_room) && return "Error: You are not in a room.";
+    area = from_room.location;
+    !valid(area) && return "Error: Starting room is not in an area.";
     to_room = $match:match_object(to_spec, wearer);
-    set_task_perms(caller_perms());
     typeof(to_room) == OBJ || return "Error: Could not find destination room '" + to_spec + "'.";
-    if (!valid(to_room))
-      return "Error: Destination room does not exist.";
-    endif
-    "Get room names safely";
-    from_name = `from_room:name() ! ANY => tostr(from_room)';
-    to_name = `to_room:name() ! ANY => tostr(to_room)';
-    if (to_room == from_room)
-      return "You are already at " + to_name + "!";
-    endif
-    "Use area's pathfinding to get route (with wizard perms)";
+    !valid(to_room) && return "Error: Destination room does not exist.";
+    {from_name, to_name} = {`from_room:name() ! ANY => tostr(from_room)', `to_room:name() ! ANY => tostr(to_room)'};
+    to_room == from_room && return "You are already at " + to_name + "!";
     path = area:find_path(from_room, to_room);
-    if (!path)
-      return "No route found from " + from_name + " to " + to_name + ".";
-    endif
-    "Build step-by-step directions";
-    result = {};
-    result = {@result, "Route from " + from_name + " (" + tostr(from_room) + ") to " + to_name + " (" + tostr(to_room) + "):"};
+    !path && return "No route found from " + from_name + " to " + to_name + ".";
+    result = {"Route from " + from_name + " (" + tostr(from_room) + ") to " + to_name + " (" + tostr(to_room) + "):"};
     for i in [1..length(path) - 1]
       {room, passage} = path[i];
-      "Get the direction label for this step";
-      side_a_room = `passage.side_a_room ! ANY => #-1';
-      side_b_room = `passage.side_b_room ! ANY => #-1';
-      side_a_label = `passage.side_a_label ! ANY => "passage"';
-      side_b_label = `passage.side_b_label ! ANY => "passage"';
-      "Determine which direction to use";
-      if (room == side_a_room)
-        direction = side_a_label;
-      elseif (room == side_b_room)
-        direction = side_b_label;
-      else
-        direction = "passage";
-      endif
+      {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
+      direction = room == side_a_room ? `passage.side_a_label ! ANY => "passage"' | room == side_b_room ? `passage.side_b_label ! ANY => "passage"' | "passage";
       next_room = path[i + 1][1];
-      next_name = `next_room:name() ! ANY => tostr(next_room)';
-      result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + next_name + " (" + tostr(next_room) + ")"};
+      result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + `next_room:name() ! ANY => tostr(next_room)' + " (" + tostr(next_room) + ")"};
     endfor
     return result:join("\n");
   endverb
@@ -1258,95 +679,39 @@ object ARCHITECTS_COMPASS
     "Tool: List available prototype objects for building";
     {args_map} = args;
     prototypes = $sysobj:list_builder_prototypes();
-    result = {};
-    result = {@result, "Available prototypes for creating objects:"};
-    result = {@result, ""};
+    result = {"Available prototypes for creating objects:", ""};
     for proto_info in (prototypes)
-      result = {@result, "* " + proto_info["name"] + " (" + proto_info["object"] + ")"};
-      result = {@result, "  " + proto_info["description"]};
-      result = {@result, ""};
+      result = {@result, "* " + proto_info["name"] + " (" + proto_info["object"] + ")", "  " + proto_info["description"], ""};
     endfor
-    result = {@result, "Use these with the create_object tool or as the 'parent' parameter in build_room."};
-    return result:join("\n");
+    return {@result, "Use these with the create_object tool or as the 'parent' parameter in build_room."}:join("\n");
   endverb
 
   verb _tool_inspect_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Inspect an object and return detailed information";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    obj_spec = args_map["object"];
     set_task_perms(wearer);
-    target = $match:match_object(obj_spec, wearer);
-    typeof(target) == OBJ || return "Error: Could not find object '" + obj_spec + "'.";
-    if (!valid(target))
-      return "Error: Object does not exist.";
-    endif
-    "Build detailed object information";
-    result = {};
-    result = {@result, "Object Information for " + tostr(target) + ":"};
-    result = {@result, ""};
-    "Try to get name from verb or property";
-    obj_name = "(unnamed)";
-    try
-      obj_name = target:name();
-    except (ANY)
-      try
-        obj_name = target.name;
-      except (ANY)
-      endtry
-    endtry
-    result = {@result, "Name: " + obj_name};
-    "Try to get description";
-    desc = "(no description)";
-    try
-      desc = target:description();
-    except (ANY)
-      try
-        desc = target.description;
-      except (ANY)
-      endtry
-    endtry
-    result = {@result, "Description: " + desc};
-    result = {@result, ""};
-    "Ownership and permissions";
+    target = $match:match_object(args_map["object"], wearer);
+    typeof(target) == OBJ || return "Error: Could not find object '" + args_map["object"] + "'.";
+    !valid(target) && return "Error: Object does not exist.";
+    obj_name = `target:name() ! ANY => `target.name ! ANY => "(unnamed)"'';
+    desc = `target:description() ! ANY => `target.description ! ANY => "(no description)"'';
     owner = `target.owner ! ANY => #-1';
-    if (valid(owner))
-      owner_name = `owner:name() ! ANY => tostr(owner)';
-      result = {@result, "Owner: " + owner_name + " (" + tostr(owner) + ")"};
-    else
-      result = {@result, "Owner: (none)"};
-    endif
-    "Parent object";
     parent_obj = `parent(target) ! ANY => #-1';
-    if (valid(parent_obj))
-      parent_name = `parent_obj:name() ! ANY => tostr(parent_obj)';
-      result = {@result, "Parent: " + parent_name + " (" + tostr(parent_obj) + ")"};
-    else
-      result = {@result, "Parent: (none)"};
-    endif
-    "Location";
     loc = `target.location ! ANY => #-1';
-    if (valid(loc))
-      loc_name = `loc:name() ! ANY => tostr(loc)';
-      result = {@result, "Location: " + loc_name + " (" + tostr(loc) + ")"};
-    else
-      result = {@result, "Location: (nowhere)"};
-    endif
-    result = {@result, ""};
+    result = {"Object Information for " + tostr(target) + ":", "", "Name: " + obj_name, "Description: " + desc, "", "Owner: " + (valid(owner) ? `owner:name() ! ANY => tostr(owner)' + " (" + tostr(owner) + ")" | "(none)"), "Parent: " + (valid(parent_obj) ? `parent_obj:name() ! ANY => tostr(parent_obj)' + " (" + tostr(parent_obj) + ")" | "(none)"), "Location: " + (valid(loc) ? `loc:name() ! ANY => tostr(loc)' + " (" + tostr(loc) + ")" | "(nowhere)"), ""};
     "Type-specific information";
     if (respond_to(target, 'is_actor) && target:is_actor())
       result = {@result, "Type: Actor/Player"};
     elseif ($room in ancestors(target))
       result = {@result, "Type: Room"};
-      "Show exits if it's a room";
       area = `target.location ! ANY => #-1';
       if (valid(area) && respond_to(area, 'passages_from))
         passages = area:passages_from(target);
         if (passages && length(passages) > 0)
           exits = {};
           for passage in (passages)
-            side_a_room = `passage.side_a_room ! ANY => #-1';
-            side_b_room = `passage.side_b_room ! ANY => #-1';
+            {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
             if (target == side_a_room)
               label = `passage.side_a_label ! ANY => "passage"';
             elseif (target == side_b_room)
@@ -1354,13 +719,9 @@ object ARCHITECTS_COMPASS
             else
               continue;
             endif
-            if (label)
-              exits = {@exits, label};
-            endif
+            label && (exits = {@exits, label});
           endfor
-          if (length(exits) > 0)
-            result = {@result, "Exits: " + exits:join(", ")};
-          endif
+          exits && (result = {@result, "Exits: " + exits:join(", ")});
         endif
       endif
     elseif ($wearable in ancestors(target))
@@ -1369,11 +730,7 @@ object ARCHITECTS_COMPASS
       result = {@result, "Type: Thing/Object"};
     elseif ($area in ancestors(target))
       result = {@result, "Type: Area"};
-      "Show rooms in area";
-      if (respond_to(target, 'contents))
-        room_count = length(target:contents());
-        result = {@result, "Contains " + tostr(room_count) + " room" + (room_count == 1 ? "" | "s")};
-      endif
+      respond_to(target, 'contents) && (result = {@result, "Contains " + tostr(length(target:contents())) + " room" + (length(target:contents()) == 1 ? "" | "s")});
     else
       result = {@result, "Type: Generic object"};
     endif
@@ -1386,11 +743,7 @@ object ARCHITECTS_COMPASS
     wearer = this:_action_perms_check();
     description = args_map["description"];
     typeof(description) == STR || raise(E_TYPE("Description must be string"));
-    "Ensure agent has knowledge base";
-    kb = this.agent:_ensure_knowledge_base();
-    "Create the project task";
-    next_id = this.current_building_task < 0 ? 1 | this.current_building_task + 1;
-    task = this.agent:create_task(next_id, description);
+    task = this.agent:create_task(description);
     this.current_building_task = task.task_id;
     task:mark_in_progress();
     return "Building project #" + tostr(task.task_id) + " started: " + description;
@@ -1400,20 +753,12 @@ object ARCHITECTS_COMPASS
     "Tool: Record a creation in current project's knowledge base";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    subject = args_map["subject"];
-    key = args_map["key"];
-    value = args_map["value"];
+    {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
     typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
     typeof(key) == STR || raise(E_TYPE("Key must be string"));
-    "Get current project";
-    if (this.current_building_task == -1)
-      return "No active building project. Create one with create_project first.";
-    endif
+    this.current_building_task == -1 && return "No active building project. Create one with create_project first.";
     task_obj = this.agent.current_tasks[this.current_building_task];
-    if (!valid(task_obj))
-      return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
-    endif
-    "Record the creation";
+    !valid(task_obj) && return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
     task_obj:add_finding(subject, key, value);
     return "Recorded [" + subject + "/" + key + "]";
   endverb
@@ -1422,55 +767,33 @@ object ARCHITECTS_COMPASS
     "Tool: Get current building project status";
     {args_map} = args;
     wearer = this:_action_perms_check();
-    if (this.current_building_task == -1)
-      return "No active building project.";
-    endif
+    this.current_building_task == -1 && return "No active building project.";
     task_obj = this.agent.current_tasks[this.current_building_task];
-    if (!valid(task_obj))
-      return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
-    endif
-    "Get project status";
+    !valid(task_obj) && return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
     status = task_obj:get_status();
-    "Format status for display";
-    status_lines = {};
-    status_lines = {@status_lines, "Project #" + tostr(status["task_id"]) + ": " + status["description"]};
-    status_lines = {@status_lines, "Status: " + tostr(status["status"])};
-    if (status["status"] == 'completed)
-      status_lines = {@status_lines, "Completed: " + status["result"]};
-    elseif (status["status"] == 'failed)
-      status_lines = {@status_lines, "Error: " + status["error"]};
-    elseif (status["status"] == 'blocked)
-      status_lines = {@status_lines, "Blocked: " + status["error"]};
-    endif
-    if (status["subtask_count"] > 0)
-      status_lines = {@status_lines, "Stages: " + tostr(status["subtask_count"])};
-    endif
-    "Show timestamps";
-    status_lines = {@status_lines, "Started: " + tostr(ctime(status["started_at"]))};
-    return status_lines:join("\n");
+    status_lines = {"Project #" + tostr(status["task_id"]) + ": " + status["description"], "Status: " + tostr(status["status"])};
+    status["status"] == 'completed && (status_lines = {@status_lines, "Completed: " + status["result"]});
+    status["status"] == 'failed && (status_lines = {@status_lines, "Error: " + status["error"]});
+    status["status"] == 'blocked && (status_lines = {@status_lines, "Blocked: " + status["error"]});
+    status["subtask_count"] > 0 && (status_lines = {@status_lines, "Stages: " + tostr(status["subtask_count"])});
+    return {@status_lines, "Started: " + tostr(ctime(status["started_at"]))}:join("\n");
   endverb
 
   verb on_wear (this none this) owner: HACKER flags: "rxd"
     "Activate when worn";
-    if (!valid(this.agent))
-      this:configure();
-    endif
+    !valid(this.agent) && this:configure();
     wearer = this.location;
-    if (valid(wearer))
-      wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'use compass' or 'interact with compass' to begin."));
-      "Show available token budget";
-      this:_show_token_usage(wearer);
-    endif
+    valid(wearer) || return;
+    wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'use compass' or 'interact with compass' to begin."));
+    this:_show_token_usage(wearer);
   endverb
 
   verb on_remove (this none this) owner: HACKER flags: "rxd"
     "Deactivate when removed";
     wearer = this.location;
-    if (valid(wearer))
-      "Show token usage before removal";
-      this:_show_token_usage(wearer);
-      wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."));
-    endif
+    valid(wearer) || return;
+    this:_show_token_usage(wearer);
+    wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."));
   endverb
 
   verb plan_building (none none none) owner: HACKER flags: "rd"
@@ -1479,17 +802,10 @@ object ARCHITECTS_COMPASS
       player:inform_current($event:mk_error(player, "You need to be wearing the compass to start a building project."));
       return;
     endif
-    if (!valid(this.agent))
-      this:configure();
-    endif
-    "Ensure agent has knowledge base";
-    kb = this.agent:_ensure_knowledge_base();
-    "Create the building task";
-    next_id = this.current_building_task < 0 ? 1 | this.current_building_task + 1;
-    task = this.agent:create_task(next_id, "Building Project: " + argstr);
+    !valid(this.agent) && this:configure();
+    task = this.agent:create_task("Building Project: " + argstr);
     this.current_building_task = task.task_id;
     task:mark_in_progress();
-    "Report to player";
     player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " Building Project #" + tostr(task.task_id) + " started: " + argstr):with_presentation_hint('inset));
   endverb
 
@@ -1503,43 +819,26 @@ object ARCHITECTS_COMPASS
       player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " No active building project. Use 'plan building <description>' to begin."):with_presentation_hint('inset));
       return;
     endif
-    "Get task object";
     task_obj = this.agent.current_tasks[this.current_building_task];
     if (!valid(task_obj))
       player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Building project #" + tostr(this.current_building_task) + " is no longer available."));
       return;
     endif
-    "Get complete status";
     status = task_obj:get_status();
-    "Format and display status";
-    progress_lines = {};
-    progress_lines = {@progress_lines, $ansi:colorize("[PROJECT STATUS]", 'bright_green)};
-    progress_lines = {@progress_lines, "  ID: " + tostr(status["task_id"])};
-    progress_lines = {@progress_lines, "  Status: " + tostr(status["status"])};
-    progress_lines = {@progress_lines, "  Description: " + status["description"]};
-    if (status["status"] == 'completed)
-      progress_lines = {@progress_lines, "  Completed: " + status["result"]};
-    elseif (status["status"] == 'failed)
-      progress_lines = {@progress_lines, "  Error: " + status["error"]};
-    elseif (status["status"] == 'blocked)
-      progress_lines = {@progress_lines, "  Blocked: " + status["error"]};
-    endif
-    if (status["subtask_count"] > 0)
-      progress_lines = {@progress_lines, "  Stages: " + tostr(status["subtask_count"])};
-    endif
+    progress_lines = {$ansi:colorize("[PROJECT STATUS]", 'bright_green), "  ID: " + tostr(status["task_id"]), "  Status: " + tostr(status["status"]), "  Description: " + status["description"]};
+    status["status"] == 'completed && (progress_lines = {@progress_lines, "  Completed: " + status["result"]});
+    status["status"] == 'failed && (progress_lines = {@progress_lines, "  Error: " + status["error"]});
+    status["status"] == 'blocked && (progress_lines = {@progress_lines, "  Blocked: " + status["error"]});
+    status["subtask_count"] > 0 && (progress_lines = {@progress_lines, "  Stages: " + tostr(status["subtask_count"])});
     player:inform_current($event:mk_info(player, progress_lines:join("\n")):with_presentation_hint('inset));
   endverb
 
   verb complete_building (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Mark current building project as completed";
     {?result = "Building project concluded."} = args;
-    if (this.current_building_task == -1)
-      return "No active building project";
-    endif
+    this.current_building_task == -1 && return "No active building project";
     task_obj = this.agent.current_tasks[this.current_building_task];
-    if (!valid(task_obj))
-      return "Building project task no longer available";
-    endif
+    !valid(task_obj) && return "Building project task no longer available";
     task_obj:mark_complete(result);
     this.current_building_task = -1;
     return "Building project #" + tostr(task_obj.task_id) + " completed.";

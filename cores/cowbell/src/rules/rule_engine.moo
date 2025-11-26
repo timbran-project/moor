@@ -16,7 +16,8 @@ object RULE_ENGINE
     "",
     "## Overview",
     "",
-    "The Rule Engine provides Datalog-style access control and queries for MOO objects. It uses SLD resolution with backtracking to find variable bindings that satisfy logical rules.",
+    "The Rule Engine provides Datalog-style rules and queries for MOO objects to be used for constructing logic puzzles, locks, access controls, and object interactions. ",
+    "It uses SLD resolution with backtracking to find variable bindings that satisfy logical rules.",
     "",
     "### How It Works",
     "",
@@ -118,46 +119,22 @@ object RULE_ENGINE
 
   verb evaluate (this none this) owner: HACKER flags: "rxd"
     "Evaluate a rule to find all satisfying variable bindings.";
-    "Args: rule (flyweight with .head, .body, .variables)";
     "Returns: {success: bool, bindings: map, alternatives: list of maps, warnings: list}";
-    "Body can be either: a flat goal list (AND) or a list of branches (OR)";
     {rule, ?initial_bindings = []} = args;
     typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
 
     body = rule.body;
-
-    "Check for negation warnings before evaluation";
     warnings = this:_check_negation_warnings(body, initial_bindings);
 
-    "Check if body is a list of branches (OR) or flat goals (AND)";
-    "Branches: body[1] is a list AND body[1][1] is a list (nested structure)";
-    "Goals: body[1] is a list AND body[1][1] is a symbol (flat structure)";
-    is_branches = false;
-    if (length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0)
-      first_elem = body[1][1];
-      if (typeof(first_elem) == LIST)
-        "It's a list of branches (or operator was used)";
-        is_branches = true;
-      endif
-    endif
-
-    if (is_branches)
-      result = this:_prove_alternatives(body, initial_bindings);
-    else
-      "It's flat goals - use _prove_goals";
-      result = this:_prove_goals(body, initial_bindings, {});
-    endif
-
-    "Add warnings to the result";
+    "Check if body is OR-structured (nested lists) or AND-structured (flat goals)";
+    is_branches = length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0 && typeof(body[1][1]) == LIST;
+    result = is_branches ? this:_prove_alternatives(body, initial_bindings) | this:_prove_goals(body, initial_bindings, {});
     result['warnings] = warnings;
-
     return result;
   endverb
 
   verb _prove_alternatives (this none this) owner: HACKER flags: "rxd"
     "Prove a list of alternative goal branches (OR).";
-    "Each branch is a list of goals to prove with AND.";
-    "Returns: {success: bool, bindings: map, alternatives: list of maps}";
     {alternatives, bindings} = args;
     typeof(alternatives) == LIST || raise(E_TYPE, "alternatives must be list");
 
@@ -167,7 +144,6 @@ object RULE_ENGINE
       result = this:_prove_goals(branch, bindings, {});
       if (result['success])
         all_solutions = {@all_solutions, result['bindings]};
-        "Add any alternatives from this branch";
         branch_alts = result['alternatives];
         if (typeof(branch_alts) == LIST)
           for alt in (branch_alts)
@@ -177,78 +153,42 @@ object RULE_ENGINE
       endif
     endfor
 
-    if (length(all_solutions) == 0)
-      return ['success -> false, 'bindings -> [], 'alternatives -> {}];
-    endif
-
-    return [
-      'success -> true,
-      'bindings -> all_solutions[1],
-      'alternatives -> all_solutions[2..$]
-    ];
+    length(all_solutions) == 0 && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
+    return ['success -> true, 'bindings -> all_solutions[1], 'alternatives -> all_solutions[2..$]];
   endverb
 
   verb _prove_goals (this none this) owner: HACKER flags: "rxd"
     "Prove a list of goals with backtracking. Returns all solutions.";
-    "Pure recursion: goals, bindings, choice_stack → success + bindings + alternatives";
     {goals, bindings, ?_choice_stack = {}} = args;
     typeof(goals) == LIST || raise(E_TYPE, "goals must be list");
     typeof(bindings) == MAP || raise(E_TYPE, "bindings must be map");
 
-    "Base case: no more goals, we succeeded";
-    if (length(goals) == 0)
-      return ['success -> true, 'bindings -> bindings, 'alternatives -> {}];
-    endif
+    length(goals) == 0 && return ['success -> true, 'bindings -> bindings, 'alternatives -> {}];
 
-    "Recursive case: prove first goal, then rest";
     first_goal = goals[1];
     rest_goals = listdelete(goals, 1);
 
-    "Check if this is a negation (first element is 'not)";
+    "Handle negation as failure";
     if (length(first_goal) > 0 && first_goal[1] == 'not)
-      "Handle negation as failure";
       inner_goals = listdelete(first_goal, 1);
-      "Try to prove the inner goals";
       inner_result = this:_prove_goals(inner_goals, bindings);
-      if (inner_result['success])
-        "Inner goal succeeded, so NOT fails";
-        return ['success -> false, 'bindings -> [], 'alternatives -> {}];
-      else
-        "Inner goal failed, so NOT succeeds (with same bindings, no new variables)";
-        rest_result = this:_prove_goals(rest_goals, bindings);
-        return rest_result;
-      endif
+      inner_result['success] && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
+      return this:_prove_goals(rest_goals, bindings);
     endif
 
-    "Get all solutions for the first goal";
-    solutions = this:_solve_goal(first_goal, bindings);
-
-    "Try to prove the rest with each solution";
+    "Get all solutions for the first goal, then prove rest with each";
     all_results = {};
-    for solution_bindings in (solutions)
+    for solution_bindings in (this:_solve_goal(first_goal, bindings))
       rest_result = this:_prove_goals(rest_goals, solution_bindings);
-      if (rest_result['success])
-        all_results = {@all_results, rest_result['bindings]};
-      endif
+      rest_result['success] && (all_results = {@all_results, rest_result['bindings]});
     endfor
 
-
-    "Return all results, or failure if none";
-    if (length(all_results) == 0)
-      return ['success -> false, 'bindings -> [], 'alternatives -> {}];
-    endif
-
-    return [
-      'success -> true,
-      'bindings -> all_results[1],
-      'alternatives -> all_results[2..$]
-    ];
+    length(all_results) == 0 && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
+    return ['success -> true, 'bindings -> all_results[1], 'alternatives -> all_results[2..$]];
   endverb
 
   verb _solve_goal (this none this) owner: HACKER flags: "rxd"
-    "Solve a single goal by calling fact predicates.";
-    "Goal format: {predicate_name, arg1, arg2, ...}";
-    "Returns list of variable bindings that satisfy the goal";
+    "Solve a single goal by calling fact predicates. Returns list of bindings.";
     {goal, bindings} = args;
     typeof(goal) == LIST || raise(E_TYPE, "goal must be list");
     length(goal) >= 1 || raise(E_INVARG, "goal must have predicate name");
@@ -258,42 +198,22 @@ object RULE_ENGINE
     typeof(predicate_name) == STR || typeof(predicate_name) == SYM ||
       raise(E_TYPE, "predicate name must be string or symbol");
 
-    "Substitute any variables in the goal args";
     substituted_args = this:_substitute_args(goal_args, bindings);
-
-    "Get the object to query (usually first argument)";
-    if (length(substituted_args) == 0)
-      raise(E_INVARG, "goal needs at least one argument (the object)");
-    endif
+    length(substituted_args) == 0 && raise(E_INVARG, "goal needs at least one argument (the object)");
 
     target_obj = substituted_args[1];
     typeof(target_obj) == OBJ || raise(E_TYPE, "first goal argument must be object");
 
-    "Build fact verb name and try to call it";
-    fact_verb = "fact_" + tostr(predicate_name);
-
-    "Call the fact predicate on the target object";
-    fact_results = `target_obj:(fact_verb)(@substituted_args) ! E_VERBNF => false';
-
-    "Check if fact returned false - boolean false should fail";
-    if (fact_results == false)
-      return {};
-    endif
-
-    "Convert results to list if needed";
-    if (typeof(fact_results) != LIST)
-      fact_results = {fact_results};
-    endif
+    fact_results = `target_obj:("fact_" + tostr(predicate_name))(@substituted_args) ! E_VERBNF => false';
+    fact_results == false && return {};
+    typeof(fact_results) != LIST && (fact_results = {fact_results});
 
     "Unify each result with the original goal to get bindings";
     unified_solutions = {};
     for result in (fact_results)
       new_bindings = this:_unify_goal(goal, result, bindings);
-      if (new_bindings != false)
-        unified_solutions = {@unified_solutions, new_bindings};
-      endif
+      new_bindings != false && (unified_solutions = {@unified_solutions, new_bindings});
     endfor
-
     return unified_solutions;
   endverb
 
@@ -312,60 +232,27 @@ object RULE_ENGINE
   verb _substitute_value (this none this) owner: HACKER flags: "rxd"
     "Substitute a single value, resolving variables.";
     {value, bindings} = args;
-
-    "If it's a symbol and bound, return the binding";
-    if (typeof(value) == SYM && maphaskey(bindings, value))
-      return bindings[value];
-    endif
-
-    "Otherwise return as-is";
+    typeof(value) == SYM && maphaskey(bindings, value) && return bindings[value];
     return value;
   endverb
 
   verb _unify_goal (this none this) owner: HACKER flags: "rxd"
     "Unify a goal with a result, returning new bindings or false.";
-    "goal: original goal with variables, e.g. {member, 'X, guild_a}";
-    "result: result from fact predicate, e.g. #alice";
-    "bindings: current variable bindings";
     {goal, result, bindings} = args;
 
-    "For now, simple unification: the result is what the variable binds to";
-    "In a full system, this would handle structured unification";
-
-    "If goal is ground (no variables), just check equality";
     goal_args = goal[2..$];
-    has_vars = false;
-    for arg in (goal_args)
-      if (typeof(arg) == SYM && !maphaskey(bindings, arg))
-        has_vars = true;
-        break;
-      endif
-    endfor
 
-    if (!has_vars)
-      "No variables - goal is ground (all args bound)";
-      "Result can be: true/false (boolean check), object (unification), etc";
-      "Only explicit false means failure";
-      if (result == false)
-        return false;
-      else
-        "Any non-false result (true, objects, etc) means success";
-        return bindings;
-      endif
-    endif
-
-    "Find the first unbound variable and bind it to result";
+    "Find first unbound variable and bind it to result";
     for i in [1..length(goal_args)]
       arg = goal_args[i];
       if (typeof(arg) == SYM && !maphaskey(bindings, arg))
-        "Bind this variable";
         bindings[arg] = result;
         return bindings;
       endif
     endfor
 
-    "No unbound variables found - shouldn't happen";
-    return bindings;
+    "No unbound variables - ground goal. Only explicit false means failure.";
+    return result == false ? false | bindings;
   endverb
 
   verb parse_expression (this none this) owner: HACKER flags: "rxd"
@@ -798,90 +685,50 @@ object RULE_ENGINE
   endverb
 
   verb _resolve_name (this none this) owner: HACKER flags: "rxd"
-    "Resolve a name to either a variable or object reference.";
-    "Capitalized names are variables (symbols).";
-    "Lowercase names are object constants.";
-    "Quoted strings are matched to objects.";
-    "Numeric strings become integers.";
+    "Resolve a name to variable (symbol), object, or constant.";
     {name, match_perspective} = args;
 
-    "Check if it's a quoted string - match to object";
-    if (length(name) >= 2 && name[1] == "\"" && name[length(name)] == "\"")
-      "Strip quotes and match object";
-      obj_name = name[2..length(name)-1];
+    "Quoted string - match to object";
+    if (length(name) >= 2 && name[1] == "\"" && name[$] == "\"")
+      obj_name = name[2..$ - 1];
       matched_obj = $match:match_object(obj_name, match_perspective);
-      if (!valid(matched_obj))
-        raise(E_INVARG, "Could not match object: \"" + obj_name + "\"");
-      endif
+      valid(matched_obj) || raise(E_INVARG, "Could not match object: \"" + obj_name + "\"");
       return matched_obj;
     endif
 
-    "Check if it's an object literal";
+    "Object literal";
     if (length(name) > 0 && name[1] == "#")
       obj_val = toobj(name);
-      "toobj returns #0 on failure, but #0 is also valid for input '#0'";
-      if (obj_val == #0 && name != "#0")
-        "Parse failed, fall through";
-      else
-        return obj_val;
-      endif
+      (obj_val != #0 || name == "#0") && return obj_val;
     endif
 
-    "Check if it's an integer literal";
+    "Integer literal";
     num_val = `toint(name) ! ANY => 0';
-    if (num_val != 0 || name == "0")
-      return num_val;
-    endif
+    (num_val != 0 || name == "0") && return num_val;
 
-    "TODO: Support float literals (e.g., 3.14)";
-
-    "Check if first character is uppercase (variable)";
+    "Uppercase = variable";
     first_char = name[1];
-    if (first_char >= "A" && first_char <= "Z")
-      "It's a variable - return as symbol";
-      return tosym(name);
-    endif
+    first_char >= "A" && first_char <= "Z" && return tosym(name);
 
-    "Lowercase - try to resolve as a constant";
-    "For now, support: player, this, sender, location, sysobj";
+    "Known constants";
+    constants = ["player" -> 'player, "this" -> 'this, "sender" -> 'sender, "location" -> 'location, "sysobj" -> 'sysobj];
     lower_name = name:lowercase();
-    if (lower_name == "player")
-      return 'player;
-    elseif (lower_name == "this")
-      return 'this;
-    elseif (lower_name == "sender")
-      return 'sender;
-    elseif (lower_name == "location")
-      return 'location;
-    elseif (lower_name == "sysobj")
-      return 'sysobj;
-    else
-      "Unknown constant";
-      raise(E_INVARG, "Unknown object constant: " + name);
-    endif
+    maphaskey(constants, lower_name) && return constants[lower_name];
+    raise(E_INVARG, "Unknown object constant: " + name);
   endverb
 
   verb _extract_variables_from_goals (this none this) owner: HACKER flags: "rxd"
     "Extract all variables from a goal list.";
     {goals} = args;
-
     variables = {};
     for goal in (goals)
       if (typeof(goal) == LIST && length(goal) >= 2)
-        "Check each argument after the predicate name";
         for i in [2..length(goal)]
           arg = goal[i];
-          if (typeof(arg) == SYM)
-            arg_str = tostr(arg);
-            "Variables are symbols (should already be detected as SYM)";
-            if (!(arg in variables))
-              variables = {@variables, arg};
-            endif
-          endif
+          typeof(arg) == SYM && !(arg in variables) && (variables = {@variables, arg});
         endfor
       endif
     endfor
-
     return variables;
   endverb
 
@@ -933,131 +780,46 @@ object RULE_ENGINE
 
   verb decompile_rule (this none this) owner: HACKER flags: "rxd"
     "Convert a rule flyweight back to DSL expression string.";
-    "Args: rule (flyweight with .body)";
-    "Returns: DSL expression string";
     {rule} = args;
     typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
 
     body = rule.body;
 
-    "Check if body is OR-structured (list of branches) or AND-structured (flat)";
-    is_or = false;
-    if (length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0)
-      first_elem = body[1][1];
-      if (typeof(first_elem) == LIST)
-        is_or = true;
-      endif
-    endif
-
-    if (is_or)
-      "Decompile OR branches";
-      branches = body;
-      branch_strs = {};
-      for branch in (branches)
-        branch_str = this:_decompile_goals(branch);
-        branch_strs = {@branch_strs, branch_str};
-      endfor
-      return branch_strs:join(" OR ");
-    else
-      "Decompile AND goals";
-      return this:_decompile_goals(body);
-    endif
+    "Check if body is OR-structured (nested lists) or AND-structured (flat goals)";
+    is_or = length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0 && typeof(body[1][1]) == LIST;
+    is_or || return this:_decompile_goals(body);
+    return {this:_decompile_goals(branch) for branch in (body)}:join(" OR ");
   endverb
 
   verb _decompile_goals (this none this) owner: HACKER flags: "rxd"
     "Decompile a list of goals into DSL syntax.";
-    "Args: goals (list of goal structures)";
-    "Returns: DSL string with AND-joined goals";
     {goals} = args;
-
-    goal_strs = {};
-    for goal in (goals)
-      goal_str = this:_decompile_goal(goal);
-      goal_strs = {@goal_strs, goal_str};
-    endfor
-
-    return goal_strs:join(" AND ");
+    return {this:_decompile_goal(g) for g in (goals)}:join(" AND ");
   endverb
 
   verb _decompile_goal (this none this) owner: HACKER flags: "rxd"
     "Decompile a single goal into DSL syntax.";
-    "Args: goal (list structure {predicate, obj, arg1, arg2, ...})";
-    "Returns: DSL string like 'object predicate(arg1, arg2)?'";
     {goal} = args;
-
     typeof(goal) == LIST || raise(E_TYPE, "goal must be list");
     length(goal) >= 1 || raise(E_INVARG, "goal must have predicate");
 
-    "Check if this is a negation";
-    if (goal[1] == 'not)
-      "Decompile negated goal";
-      inner_goals = listdelete(goal, 1);
-      inner_str = this:_decompile_goals(inner_goals);
-      return "NOT " + inner_str;
-    endif
+    goal[1] == 'not && return "NOT " + this:_decompile_goals(listdelete(goal, 1));
 
     predicate = goal[1];
     goal_args = goal[2..$];
+    length(goal_args) == 0 && raise(E_INVARG, "goal must have at least object argument");
 
-    "First arg should be the object";
-    if (length(goal_args) == 0)
-      raise(E_INVARG, "goal must have at least object argument");
-    endif
-
-    obj_arg = goal_args[1];
+    obj_str = tostr(goal_args[1]);
     remaining_args = goal_args[2..$];
-
-    "Decompile object reference";
-    obj_str = this:_decompile_value(obj_arg);
-
-    "Decompile predicate name with arguments if present";
     predicate_str = tostr(predicate);
-    if (length(remaining_args) > 0)
-      arg_strs = {};
-      for arg in (remaining_args)
-        arg_str = this:_decompile_value(arg);
-        arg_strs = {@arg_strs, arg_str};
-      endfor
-      predicate_str = predicate_str + "(" + arg_strs:join(", ") + ")";
-    endif
-
+    length(remaining_args) > 0 && (predicate_str = predicate_str + "(" + {tostr(a) for a in (remaining_args)}:join(", ") + ")");
     return obj_str + " " + predicate_str + "?";
   endverb
 
   verb _decompile_value (this none this) owner: HACKER flags: "rxd"
     "Convert a value back to DSL representation.";
-    "Args: value (symbol, object, integer, etc)";
-    "Returns: DSL string representation";
     {value} = args;
-
-    "Handle different types";
-    if (typeof(value) == SYM)
-      value_str = tostr(value);
-      "Check if it's a known constant";
-      if (value_str == "player")
-        return "player";
-      elseif (value_str == "this")
-        return "this";
-      elseif (value_str == "sender")
-        return "sender";
-      elseif (value_str == "location")
-        return "location";
-      elseif (value_str == "sysobj")
-        return "sysobj";
-      else
-        "It's a variable (capitalized)";
-        return value_str;
-      endif
-    elseif (typeof(value) == OBJ)
-      "Object reference - try to find a name for it";
-      return tostr(value);
-    elseif (typeof(value) == INT)
-      "Integer literal";
-      return tostr(value);
-    else
-      "Unknown type - just convert to string";
-      return tostr(value);
-    endif
+    return tostr(value);
   endverb
 
   verb test_simple_goal (this none this) owner: ARCH_WIZARD flags: "rxd"

@@ -61,6 +61,10 @@ object MR_WELCOME
     this.role_prompt = this.base_role_prompt + " WORLD CONTEXT: " + this.world_context;
     "Call parent to set system prompt and initialize";
     pass(@args);
+    "Override chat opts: lower temperature for reliable tool selection";
+    agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.3);
+    "Response opts: warmer temperature, no tools for speak/silent decisions";
+    this.response_opts = $llm_chat_opts:mk():with_temperature(0.5):with_tool_choice('none);
     "Set callbacks for tool and compaction notifications";
     agent.tool_callback = this;
     agent.compaction_callback = this;
@@ -461,7 +465,7 @@ object MR_WELCOME
     "Callback when agent uses a tool - announce to room";
     {tool_name, tool_args} = args;
     if (valid(this.location))
-      tool_messages = ["list_players" -> "checks who's connected...", "player_info" -> "looks up player information...", "area_map" -> "recalls the rooms in the area...", "find_route" -> "calculates the best route...", "find_object" -> "looks around the room...", "list_commands" -> "examines what can be done...", "inspect_object" -> "examines an object closely...", "emote" -> "", "directed_say" -> "", "think" -> ""];
+      tool_messages = ["list_players" -> "", "player_info" -> "", "area_map" -> "", "find_route" -> "", "find_object" -> "", "list_commands" -> "", "inspect_object" -> "", "emote" -> "", "directed_say" -> "", "think" -> ""];
       message = tool_messages[tool_name] || "thinks...";
       if (message)
         this.location:announce(this:mk_emote_event(message));
