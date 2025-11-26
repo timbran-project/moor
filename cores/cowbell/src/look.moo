@@ -23,7 +23,7 @@ object LOOK
     endif
     "Players who aren't connected are sleeping";
     if (!(who in connected_players()))
-      return "sleeping";
+      return "deeply asleep";
     endif
     if (typeof(idle = idle_seconds(who)) == ERR)
       return "";
@@ -37,7 +37,7 @@ object LOOK
     elseif (idle < 1800)
       return "out on his feet";
     else
-      return "deeply asleep";
+      return "sleeping";
     endif
   endverb
 
