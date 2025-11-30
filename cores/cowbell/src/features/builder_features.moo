@@ -1287,4 +1287,262 @@ object BUILDER_FEATURES
     return length(rule_props);
   endverb
 
+  verb "@reactions" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show all reactions on an object. Usage: @reactions <object>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!dobjstr)
+      raise(E_INVARG, $format.code:mk("@reactions OBJECT"));
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+
+    reactions_list = target_obj:get_reactions();
+    if (!reactions_list || length(reactions_list) == 0)
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      message = obj_name + " (" + tostr(target_obj) + ") has no reactions.";
+      player:inform_current($event:mk_info(player, message));
+      return 0;
+    endif
+
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    header = "Reactions on " + obj_name + " (" + tostr(target_obj) + "):";
+    player:inform_current($event:mk_info(player, header));
+
+    headers = {"#", "Trigger", "When", "Effects", "Enabled"};
+    rows = {};
+    for i in [1..length(reactions_list)]
+      reaction = reactions_list[i];
+      if (typeof(reaction) != FLYWEIGHT || reaction.delegate != $reaction)
+        rows = {@rows, {tostr(i), "(invalid)", "", "", ""}};
+      else
+        trigger_str = "??";
+        if (typeof(reaction.trigger) == SYM)
+          trigger_str = tostr(reaction.trigger);
+        elseif (typeof(reaction.trigger) == LIST && length(reaction.trigger) >= 4 && reaction.trigger[1] == 'when)
+          {_, prop, op, val} = reaction.trigger;
+          trigger_str = tostr(prop) + " " + tostr(op) + " " + tostr(val);
+        elseif (typeof(reaction.trigger) == LIST)
+          trigger_str = toliteral(reaction.trigger);
+        endif
+        
+        if (reaction.when == 0)
+          when_str = "-";
+        else
+          when_str = $rule_engine:decompile_rule(reaction.when);
+        endif
+        
+        effects_parts = {};
+        for effect in (reaction.effects)
+          if (typeof(effect) == FLYWEIGHT && effect.type)
+             effects_parts = {@effects_parts, tostr(effect.type)};
+          elseif (typeof(effect) == LIST && length(effect) > 0)
+             effects_parts = {@effects_parts, tostr(effect[1])};
+          endif
+        endfor
+        effects_str = effects_parts:join(", ");
+        if (effects_str == "")
+          effects_str = "(none)";
+        endif
+
+        if (reaction.enabled)
+          enabled_str = "yes";
+        else
+          enabled_str = "no";
+        endif
+        rows = {@rows, {tostr(i), trigger_str, when_str, effects_str, enabled_str}};
+      endif
+    endfor
+
+    table_result = $format.table:mk(headers, rows);
+    player:inform_current($event:mk_info(player, table_result));
+    return length(reactions_list);
+  endverb
+
+  verb "@add-reaction" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Add a reaction to an object. Usage: @add-reaction <object> <trigger> <when> <effects>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+
+    if (!argstr || length(args) < 4)
+      raise(E_INVARG, $format.code:mk("@add-reaction OBJECT TRIGGER WHEN_EFFECTS {...}"));
+    endif
+
+    try
+      target_obj = $match:match_object(args[1], player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+
+      if (!player.wizard && target_obj.owner != player)
+        raise(E_PERM, "You do not have permission to add reactions to " + tostr(target_obj) + ".");
+      endif
+
+      trigger = args[2];
+      when_clause = args[3] == "0" ? 0 | args[3];
+      effects = args[4];
+
+      reaction = $reaction:mk(trigger, when_clause, effects);
+      
+      "Generate a unique property name";
+      base_name = "reaction_" + tostr(time());
+      prop_name = base_name;
+      idx = 1;
+      while (prop_name in target_obj:all_properties())
+        prop_name = base_name + "_" + tostr(idx);
+        idx = idx + 1;
+      endwhile
+
+      add_property(target_obj, prop_name, reaction, {player, "r"});
+
+      trigger_str = typeof(trigger) == SYM ? tostr(trigger) | "threshold";
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      message = "Added reaction to " + obj_name + " (" + tostr(target_obj) + ") as property " + prop_name + ": trigger=" + trigger_str + ", effects=" + tostr(length(effects));
+      player:inform_current($event:mk_info(player, message));
+      return reaction;
+
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
+  verb _get_reaction_prop_by_index (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Helper to find the property name of a reaction by its 1-based index in get_reactions()";
+    {target_obj, index} = args;
+    count = 0;
+    "Check legacy reactions list first";
+    if (length(target_obj.reactions) > 0)
+       count = count + length(target_obj.reactions);
+       if (index <= count)
+         return {"reactions", index}; 
+       endif
+    endif
+    
+    "Scan properties";
+    for prop_name in (target_obj:all_properties())
+      try
+        val = target_obj.(prop_name);
+        if (typeof(val) == FLYWEIGHT && val.delegate == $reaction)
+          count = count + 1;
+          if (count == index)
+            return {prop_name, 0};
+          endif
+        endif
+      except (ANY)
+        continue;
+      endtry
+    endfor
+    return {0, 0};
+  endverb
+
+  verb "@enable-reaction" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Enable a reaction by index. Usage: @enable-reaction <object> <index>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, $format.code:mk("@enable-reaction OBJECT INDEX"));
+    endif
+
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+
+      if (!player.wizard && target_obj.owner != player)
+        raise(E_PERM, "You do not have permission to modify reactions on " + tostr(target_obj) + ".");
+      endif
+
+      idx = toint(iobjstr);
+      {prop_name, list_idx} = this:_get_reaction_prop_by_index(target_obj, idx);
+      
+      if (prop_name == 0)
+        raise(E_INVARG, "Reaction index " + tostr(idx) + " not found.");
+      endif
+
+      if (prop_name == "reactions" && list_idx > 0)
+        "Legacy list reaction";
+        reactions_list = target_obj.reactions;
+        reaction = reactions_list[list_idx];
+        reaction.enabled = true;
+        reactions_list[list_idx] = reaction;
+        target_obj.reactions = reactions_list;
+      else
+        "Property reaction";
+        reaction = target_obj.(prop_name);
+        reaction.enabled = true;
+        target_obj.(prop_name) = reaction;
+      endif
+
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      player:inform_current($event:mk_info(player, "Enabled reaction #" + tostr(idx) + " on " + obj_name + " (" + tostr(target_obj) + ")."));
+      return 1;
+
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
+  verb "@disable-reaction" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Disable a reaction by index. Usage: @disable-reaction <object> <index>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+
+    if (!dobjstr || !iobjstr)
+      raise(E_INVARG, $format.code:mk("@disable-reaction OBJECT INDEX"));
+    endif
+
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+
+      if (!player.wizard && target_obj.owner != player)
+        raise(E_PERM, "You do not have permission to modify reactions on " + tostr(target_obj) + ".");
+      endif
+
+      idx = toint(iobjstr);
+      {prop_name, list_idx} = this:_get_reaction_prop_by_index(target_obj, idx);
+      
+      if (prop_name == 0)
+        raise(E_INVARG, "Reaction index " + tostr(idx) + " not found.");
+      endif
+
+      if (prop_name == "reactions" && list_idx > 0)
+        "Legacy list reaction";
+        reactions_list = target_obj.reactions;
+        reaction = reactions_list[list_idx];
+        reaction.enabled = false;
+        reactions_list[list_idx] = reaction;
+        target_obj.reactions = reactions_list;
+      else
+        "Property reaction";
+        reaction = target_obj.(prop_name);
+        reaction.enabled = false;
+        target_obj.(prop_name) = reaction;
+      endif
+
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      player:inform_current($event:mk_info(player, "Disabled reaction #" + tostr(idx) + " on " + obj_name + " (" + tostr(target_obj) + ")."));
+      return 1;
+
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
 endobject

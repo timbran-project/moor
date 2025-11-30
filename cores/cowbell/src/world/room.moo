@@ -63,11 +63,12 @@ object ROOM
       look_d = this:look_self();
       who:inform_current(look_d:into_event():with_audience('utility));
     endif
+    pass(@args);
   endverb
 
   verb exitfunc (this none this) owner: HACKER flags: "rxd"
-    "Do nothing - movement verbs handle departure announcements directly";
-    return;
+    "Fire parent triggers for exit";
+    pass(@args);
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"

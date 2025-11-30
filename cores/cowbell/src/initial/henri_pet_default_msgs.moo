@@ -14,4 +14,5 @@ object HENRI_PET_DEFAULT_MSGS
   };
 
   override import_export_id = "henri_pet_default_msgs";
+  override import_export_hierarchy = {"initial"};
 endobject

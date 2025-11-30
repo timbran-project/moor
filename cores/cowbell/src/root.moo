@@ -10,6 +10,7 @@ object ROOT
   property import_export_hierarchy (owner: HACKER, flags: "rc") = {};
   property import_export_id (owner: HACKER, flags: "r") = "root";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
+  property reactions (owner: HACKER, flags: "rc") = {};
 
   verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a non-garbage collected (UUobjid) child of this object.";
@@ -41,7 +42,7 @@ object ROOT
     {?anon = false} = args;
     otype = 2;
     if (anon)
-        otype = 1;
+      otype = 1;
     endif
     new_obj = create(target, caller_perms(), otype);
     return new_obj;
@@ -758,5 +759,77 @@ object ROOT
     "Rule predicate: Is obj1 the same object as obj2?";
     {obj1, obj2} = args;
     return obj1 == obj2;
+  endverb
+
+  verb get_reactions (this none this) owner: HACKER flags: "rxd"
+    "Gather all reactions from this object (list + properties).";
+    all_reactions = this.reactions;
+    "Scan properties for reactions";
+    for prop_name in (this:all_properties())
+      try
+        val = this.(prop_name);
+        if (typeof(val) == FLYWEIGHT && val.delegate == $reaction)
+          all_reactions = {@all_reactions, val};
+        endif
+      except (E_PROPNF, E_PERM)
+        "Ignore inaccessible properties";
+      endtry
+    endfor
+    return all_reactions;
+  endverb
+
+  verb fire_trigger (this none this) owner: HACKER flags: "rxd"
+    "Fire a trigger on this object, executing all matching reactions.";
+    "Context is a map with bindings like ['Actor -> player, 'Key -> key_obj]";
+    {trigger_name, ?context = []} = args;
+    "Add standard context";
+    context['This] = this;
+    context['Location] = this.location;
+    "Find and execute matching reactions";
+    for reaction in (this:get_reactions())
+      if (reaction.enabled && reaction.trigger == trigger_name)
+        reaction:execute(context);
+      endif
+    endfor
+  endverb
+
+  verb _check_thresholds (this none this) owner: HACKER flags: "rxd"
+    "Check if any threshold reactions should fire after a property change.";
+    "Called by $reaction:execute_effect after set/increment/decrement effects.";
+    {prop, old_value, new_value, context} = args;
+    "Add standard context";
+    context['This] = this;
+    context['Location] = this.location;
+    for reaction in (this:get_reactions())
+      if (!reaction.enabled)
+        continue;
+      endif
+      trigger = reaction.trigger;
+      "Skip non-threshold triggers";
+      if (typeof(trigger) != LIST || length(trigger) < 4 || trigger[1] != 'when)
+        continue;
+      endif
+      {_, trigger_prop, op, threshold} = trigger;
+      "Skip if different property";
+      if (trigger_prop != prop)
+        continue;
+      endif
+      "Check if threshold was crossed";
+      if ($reaction:threshold_crossed(old_value, new_value, op, threshold))
+        reaction:execute(context);
+      endif
+    endfor
+  endverb
+
+  verb enterfunc (this none this) owner: HACKER flags: "rxd"
+    "Called when something enters this object. Fire 'on_enter trigger.";
+    {who} = args;
+    this:fire_trigger('on_enter, ['Who -> who]);
+  endverb
+
+  verb exitfunc (this none this) owner: HACKER flags: "rxd"
+    "Called when something exits this object. Fire 'on_exit trigger.";
+    {who} = args;
+    this:fire_trigger('on_exit, ['Who -> who]);
   endverb
 endobject

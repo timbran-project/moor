@@ -448,6 +448,8 @@ object CONTAINER
       player:inform_current(event);
       return;
     endtry
+    "Fire trigger for reactions";
+    this:fire_trigger('on_take, ['Actor -> player, 'Item -> dobj]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.take_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
@@ -508,6 +510,8 @@ object CONTAINER
       player:inform_current(event);
       return;
     endtry
+    "Fire trigger for reactions";
+    this:fire_trigger('on_put, ['Actor -> player, 'Item -> dobj]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.put_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
@@ -551,6 +555,8 @@ object CONTAINER
     endif
     "Lock it";
     this.locked = true;
+    "Fire trigger for reactions";
+    this:fire_trigger('on_lock, ['Actor -> player, 'Key -> key]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.lock_msg):with_dobj(key):with_iobj(this):with_this(player.location);
@@ -594,6 +600,8 @@ object CONTAINER
     endif
     "Unlock it";
     this.locked = false;
+    "Fire trigger for reactions";
+    this:fire_trigger('on_unlock, ['Actor -> player, 'Key -> key]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.unlock_msg):with_dobj(key):with_iobj(this):with_this(player.location);
@@ -671,6 +679,8 @@ object CONTAINER
     endif
     "Open it";
     this.open = true;
+    "Fire trigger for reactions";
+    this:fire_trigger('on_open, ['Actor -> player]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.open_msg):with_dobj(this):with_this(player.location);
@@ -696,6 +706,8 @@ object CONTAINER
     endif
     "Close it";
     this.open = false;
+    "Fire trigger for reactions";
+    this:fire_trigger('on_close, ['Actor -> player]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.close_msg):with_dobj(this):with_this(player.location);

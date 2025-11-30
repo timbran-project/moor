@@ -14,14 +14,20 @@ object HENRI
   property pets_received (owner: HACKER, flags: "rc") = 0;
   property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
 
-  property pet_rule (owner: HACKER, flags: "r") = <#63, .name = 'henri_pet_rule, .head = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}>;
-  property feed_rule (owner: HACKER, flags: "r") = <#63, .name = 'henri_feed_rule, .head = 'henri_feed_rule, .body = {{'is_grouchy, 'This}, {'is, 'Food, CAT_KIBBLE}, {'location_is, 'Food, 'Accessor}}, .variables = {'This, 'Food, 'Accessor}>;
-  property pet_denied_msg (owner: HACKER, flags: "r") = {<#19, .capitalize = true, .type = 'actor>, " hisses and swats at ", <#19, .capitalize = false, .type = 'dobj_pos_adj>, " hand before ", <#19, .capitalize = false, .type = 'dobj>, " can touch him."};
-  property feed_denied_msg (owner: HACKER, flags: "r") = {<#19, .capitalize = true, .type = 'actor>, " turns ", <#19, .capitalize = false, .type = 'actor_pos_adj>, " nose up at the offering with disdain."};
+  property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .head = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}>;
+  property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .head = 'henri_feed_rule, .body = {{'is_grouchy, 'This}, {'is, 'Food, CAT_KIBBLE}, {'location_is, 'Food, 'Accessor}}, .variables = {'This, 'Food, 'Accessor}>;
+  property pet_denied_msg_bag (owner: HACKER, flags: "rc") = HENRI_PET_DENIED_MSGS;
+  property feed_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, " turns ", <SUB, .capitalize = false, .type = 'pos_adj>, " nose up at the offering with disdain."};
 
   override aliases = {"cat", "grouchy cat"};
   override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
   override import_export_id = "henri";
+
+  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {{'set, 'mood, "sleepy"}, {'emote, "seems to have exhausted his capacity for outrage and slumps into a resigned loaf."}}, .enabled = true, .fired_at = 0>;
+  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .head = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}>, .effects = {{'emote, "flattens his ears against his skull."}}, .enabled = true, .fired_at = 0>;
+  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .head = 'playful_rule, .body = {{'is_playful, 'This}}, .variables = {'This}>, .effects = {{'emote, "batts lazily at {p} hand."}}, .enabled = true, .fired_at = 0>;
+  property cupboard_open_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_cupboard_open, .when = 0, .effects = {{'emote, "ears swivel like radar dishes toward the cupboard."}}, .enabled = true, .fired_at = 0>;
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_kibble_taken, .when = 0, .effects = {{'emote, "starts weaving around {p} legs, purring loudly."}}, .enabled = true, .fired_at = 0>;
 
   override object_documentation = {
     "# Henri - The Grouchy Cat",
@@ -155,7 +161,7 @@ object HENRI
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
-      return ['allowed -> false, 'reason -> this.pet_denied_msg];
+      return ['allowed -> false, 'reason -> this:_pick_message(this.pet_denied_msg_bag)];
     endif
   endverb
 
@@ -183,6 +189,11 @@ object HENRI
 
   verb "pet stroke" (this none none) owner: HACKER flags: "rxd"
     "Handle petting Henri - uses rule system to determine if allowed";
+    "Increment pets counter (attempts count towards his resignation)";
+    old_pets = this.pets_received;
+    this.pets_received = old_pets + 1;
+    this:_check_thresholds('pets_received, old_pets, this.pets_received, ['Actor -> player]);
+
     "Check access via rule";
     access_check = this:can_be_petted(player);
     if (!access_check['allowed])
@@ -207,8 +218,8 @@ object HENRI
     if (valid(this.location))
       this.location:announce($event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("pet", "pets"), " ", $sub:the('dobj), "."):with_dobj(this));
     endif
-    "Increment pets counter";
-    this.pets_received = this.pets_received + 1;
+    "Fire trigger for reactions";
+    this:fire_trigger('on_pet, ['Actor -> player]);
     "Determine Henri's reaction based on mood, random chance, and interaction history";
     reaction = "";
     "Check if he's becoming slightly more tolerant over time";

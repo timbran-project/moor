@@ -24,6 +24,9 @@ object KIBBLE_CUPBOARD
   override put_denied_msg = {<SUB, .capitalize = true, .type = 'iobj>, " is closed. You'll need to open it first."};
   override open_locked_msg = {<SUB, .capitalize = true, .type = 'dobj>, " is locked tight. You'll need to unlock it first."};
 
-  override lock_rule = <#63, .name = 'cupboard_lock_rule, .head = 'cupboard_lock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
-  override unlock_rule = <#63, .name = 'cupboard_unlock_rule, .head = 'cupboard_unlock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
+  override lock_rule = <RULE, .name = 'cupboard_lock_rule, .head = 'cupboard_lock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
+  override unlock_rule = <RULE, .name = 'cupboard_unlock_rule, .head = 'cupboard_unlock_rule, .body = {{'is, 'Key, BRASS_KEY}}, .variables = {'Key}>;
+
+  property waft_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_open, .when = 0, .effects = {{'announce, "A waft of kibble-scented air escapes from the cupboard."}, {'trigger, HENRI, 'on_cupboard_open}}, .enabled = true, .fired_at = 0>;
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_take, .when = <RULE, .name = 'kibble_check, .head = 'kibble_check, .body = {{'is, 'Item, CAT_KIBBLE}}, .variables = {'Item}>, .effects = {{'trigger, HENRI, 'on_kibble_taken}}, .enabled = true, .fired_at = 0>;
 endobject

@@ -84,6 +84,13 @@ object ARCHITECTS_COMPASS
     "Register test_rule tool (compass-specific - tests expressions before setting)";
     test_rule_tool = $llm_agent_tool:mk("test_rule", "Test a rule expression with specific variable bindings to see if it evaluates successfully. Useful for debugging rules before setting them. Returns success/failure and explanation of what the rule checked.", ["type" -> "object", "properties" -> ["expression" -> ["type" -> "string", "description" -> "Rule expression to test (e.g., 'Key is(\"golden key\")?')"], "bindings" -> ["type" -> "object", "description" -> "Variable bindings as key-value pairs (e.g., {\"This\": \"#123\", \"Accessor\": \"#5\", \"Key\": \"#456\"})"]], "required" -> {"expression", "bindings"}], this, "_tool_test_rule");
     agent:add_tool("test_rule", test_rule_tool);
+    "Register reaction management tools";
+    list_reactions_tool = $llm_agent_tool:mk("list_reactions", "List all reactions on an object with detailed information including triggers, conditions, effects, and enabled status. Reactions are declarative behaviors that fire in response to events or threshold conditions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#12', 'here', 'cupboard')"]], "required" -> {"object"}], this, "_tool_list_reactions");
+    agent:add_tool("list_reactions", list_reactions_tool);
+    add_reaction_tool = $llm_agent_tool:mk("add_reaction", "Add a new reaction to an object. Reactions enable declarative behaviors without writing verb code. Provide trigger (event symbol like 'on_open or threshold like {'when, 'counter, 'ge, 10}), when condition (0 for none, or rule expression like \"Key is(\\\"golden key\\\")?\"), and effects list (e.g., {{'announce, \"Click!\"}, {'set, 'locked, false}}).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Target object (e.g., '#12', 'here', 'cupboard')"], "trigger" -> ["type" -> "string", "description" -> "Event trigger symbol (e.g., 'on_open, 'on_pet) OR threshold spec as MOO literal like \"{'when, 'counter, 'ge, 10}\""], "when" -> ["type" -> "string", "description" -> "Condition (0 for none, or rule expression like \"Key is(\\\"key\\\")?\")"], "effects" -> ["type" -> "string", "description" -> "Effects list as MOO literal (e.g., \"{{'announce, \\\"Message!\\\"}, {'set, 'prop, value}}\")"]], "required" -> {"object", "trigger", "when", "effects"}], this, "_tool_add_reaction");
+    agent:add_tool("add_reaction", add_reaction_tool);
+    set_reaction_enabled_tool = $llm_agent_tool:mk("set_reaction_enabled", "Enable or disable a reaction by index. Use this to toggle reactions on/off without removing them.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing the reaction"], "index" -> ["type" -> "integer", "description" -> "Reaction index (1-based, see list_reactions)"], "enabled" -> ["type" -> "boolean", "description" -> "true to enable, false to disable"]], "required" -> {"object", "index", "enabled"}], this, "_tool_set_reaction_enabled");
+    agent:add_tool("set_reaction_enabled", set_reaction_enabled_tool);
     "Register project task management tools";
     create_project_tool = $llm_agent_tool:mk("create_project", "Create a new building project task to organize construction work. The project tracks rooms created, passages built, objects placed, and their descriptions. Returns project task object.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Project description (e.g., 'Build a three-story tavern with common room, kitchen, upstairs rooms, and cellar')"]], "required" -> {"description"}], this, "_tool_create_project");
     agent:add_tool("create_project", create_project_tool);
@@ -777,6 +784,187 @@ object ARCHITECTS_COMPASS
     status["status"] == 'blocked && (status_lines = {@status_lines, "Blocked: " + status["error"]});
     status["subtask_count"] > 0 && (status_lines = {@status_lines, "Stages: " + tostr(status["subtask_count"])});
     return {@status_lines, "Started: " + tostr(ctime(status["started_at"]))}:join("\n");
+  endverb
+
+  verb _find_reaction_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Helper to find the property name of a reaction by its 1-based index in get_reactions()";
+    {target_obj, index} = args;
+    count = 0;
+    "Check legacy reactions list first";
+    if (length(target_obj.reactions) > 0)
+       count = count + length(target_obj.reactions);
+       if (index <= count)
+         return {"reactions", index}; 
+       endif
+    endif
+    
+    "Scan properties";
+    for prop_name in (target_obj:all_properties())
+      try
+        val = target_obj.(prop_name);
+        if (typeof(val) == FLYWEIGHT && val.delegate == $reaction)
+          count = count + 1;
+          if (count == index)
+            return {prop_name, 0};
+          endif
+        endif
+      except (ANY)
+        continue;
+      endtry
+    endfor
+    return {0, 0};
+  endverb
+
+  verb _tool_list_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List reactions on an object with details";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    target_obj = $match:match_object(obj_str, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    reactions_list = target_obj:get_reactions();
+    if (!reactions_list || length(reactions_list) == 0)
+      return "No reactions found on " + tostr(target_obj);
+    endif
+    lines = {"Reactions on " + tostr(target_obj) + " (" + tostr(length(reactions_list)) + " total):", ""};
+    for i in [1..length(reactions_list)]
+      reaction = reactions_list[i];
+      lines = {@lines, "[" + tostr(i) + "]"};
+      if (typeof(reaction) != FLYWEIGHT || reaction.delegate != $reaction)
+        lines = {@lines, "  (invalid reaction)"};
+      else
+        "Trigger";
+        if (typeof(reaction.trigger) == SYM)
+          lines = {@lines, "  Trigger: " + tostr(reaction.trigger)};
+        elseif (typeof(reaction.trigger) == LIST)
+          {kind, prop, op, value} = reaction.trigger;
+          lines = {@lines, "  Trigger: threshold - " + tostr(prop) + " " + tostr(op) + " " + tostr(value)};
+        else
+          lines = {@lines, "  Trigger: (unknown)"};
+        endif
+        "When condition";
+        if (reaction.when == 0)
+          lines = {@lines, "  When: (no condition)"};
+        else
+          rule_str = $rule_engine:decompile_rule(reaction.when);
+          lines = {@lines, "  When: " + rule_str};
+        endif
+        "Effects";
+        lines = {@lines, "  Effects: " + tostr(length(reaction.effects)) + " items"};
+        for effect in (reaction.effects)
+          if (effect.type)
+            lines = {@lines, "    - " + tostr(effect.type)};
+          endif
+        endfor
+        "Enabled";
+        lines = {@lines, "  Enabled: " + (reaction.enabled ? "yes" | "no")};
+        "Fired at";
+        if (reaction.fired_at > 0)
+          lines = {@lines, "  Last fired: " + tostr(reaction.fired_at) + "s ago"};
+        else
+          lines = {@lines, "  Last fired: never"};
+        endif
+      endif
+      lines = {@lines, ""};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb _tool_add_reaction (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Add a reaction to an object";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    trigger_str = args_map["trigger"];
+    when_str = args_map["when"];
+    effects_str = args_map["effects"];
+    "Parse object";
+    target_obj = $match:match_object(obj_str, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    "Check permission";
+    if (!wearer.wizard && target_obj.owner != wearer)
+      return "Permission denied: You do not own " + tostr(target_obj) + " and are not a wizard.";
+    endif
+    "Parse trigger";
+    parsed_trigger = eval("return " + trigger_str + ";");
+    if (!parsed_trigger[1])
+      return "Error parsing trigger: " + tostr(parsed_trigger[2]);
+    endif
+    trigger = parsed_trigger[2];
+    "Parse effects";
+    parsed_effects = eval("return " + effects_str + ";");
+    if (!parsed_effects[1])
+      return "Error parsing effects: " + tostr(parsed_effects[2]);
+    endif
+    effects = parsed_effects[2];
+    "When clause";
+    when_clause = when_str;
+    if (when_str != "0" && typeof(when_str) == STR)
+      when_clause = when_str;
+    endif
+    "Create reaction";
+    try
+      reaction = $reaction:mk(trigger, when_clause, effects);
+    except e (ANY)
+      return "Error creating reaction: " + (length(e) >= 2 ? tostr(e[2]) | toliteral(e));
+    endtry
+    
+    "Add to object as unique property";
+    base_name = "reaction_" + tostr(time());
+    prop_name = base_name;
+    idx = 1;
+    while (prop_name in properties(target_obj))
+      prop_name = base_name + "_" + tostr(idx);
+      idx = idx + 1;
+    endwhile
+
+    add_property(target_obj, prop_name, reaction, {wearer, "r"});
+    
+    return "Added reaction to " + tostr(target_obj) + " as property " + prop_name;
+  endverb
+
+  verb _tool_set_reaction_enabled (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Enable or disable a reaction";
+    {args_map} = args;
+    wearer = this:_action_perms_check();
+    set_task_perms(wearer);
+    obj_str = args_map["object"];
+    idx = args_map["index"];
+    enabled = args_map["enabled"];
+    "Parse object";
+    target_obj = $match:match_object(obj_str, wearer);
+    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    "Check permission";
+    if (!wearer.wizard && target_obj.owner != wearer)
+      return "Permission denied: You do not own " + tostr(target_obj);
+    endif
+    
+    {prop_name, list_idx} = this:_find_reaction_property(target_obj, idx);
+    
+    if (prop_name == 0)
+      return "Reaction index " + tostr(idx) + " not found.";
+    endif
+
+    if (prop_name == "reactions" && list_idx > 0)
+      "Legacy list reaction";
+      reactions_list = target_obj.reactions;
+      reaction = reactions_list[list_idx];
+      reaction.enabled = enabled;
+      reactions_list[list_idx] = reaction;
+      target_obj.reactions = reactions_list;
+    else
+      "Property reaction";
+      reaction = target_obj.(prop_name);
+      reaction.enabled = enabled;
+      target_obj.(prop_name) = reaction;
+    endif
+
+    return (enabled ? "Enabled" | "Disabled") + " reaction #" + tostr(idx) + " on " + tostr(target_obj);
   endverb
 
   verb on_wear (this none this) owner: HACKER flags: "rxd"

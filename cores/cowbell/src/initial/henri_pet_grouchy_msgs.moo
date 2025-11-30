@@ -13,4 +13,5 @@ object HENRI_PET_GROUCHY_MSGS
   };
 
   override import_export_id = "henri_pet_grouchy_msgs";
+  override import_export_hierarchy = {"initial"};
 endobject

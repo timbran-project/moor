@@ -15,4 +15,5 @@ object HENRI_COMPLAINTS
   };
 
   override import_export_id = "henri_complaints";
+  override import_export_hierarchy = {"initial"};
 endobject

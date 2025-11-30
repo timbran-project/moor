@@ -13,8 +13,8 @@ object SYSOBJ
   property bg_ticks (owner: HACKER, flags: "r") = 300000;
   property brass_key (owner: HACKER, flags: "r") = BRASS_KEY;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
-  property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
+  property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property container (owner: HACKER, flags: "r") = CONTAINER;
   property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.0.2";
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
@@ -30,12 +30,12 @@ object SYSOBJ
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
-  property html (owner: HACKER, flags: "r") = HTML;
-  property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
-  property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property henri (owner: HACKER, flags: "r") = HENRI;
   property henri_look_self_msgs (owner: HACKER, flags: "r") = HENRI_LOOK_SELF_MSGS;
+  property html (owner: HACKER, flags: "r") = HTML;
+  property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
+  property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_chat_opts (owner: HACKER, flags: "r") = LLM_CHAT_OPTS;
@@ -44,11 +44,11 @@ object SYSOBJ
   property llm_task (owner: HACKER, flags: "r") = LLM_TASK;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
   property local (owner: HACKER, flags: "r") = #-1;
-  property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
   property match (owner: HACKER, flags: "r") = MATCH;
   property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
+  property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
   property nothing (owner: HACKER, flags: "r") = #-1;
   property obj_utils (owner: HACKER, flags: "r") = OBJ_UTILS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
@@ -59,6 +59,7 @@ object SYSOBJ
   property pronouns (owner: HACKER, flags: "r") = PRONOUNS;
   property property (owner: HACKER, flags: "r") = PROPERTY;
   property prototype_box (owner: HACKER, flags: "r") = PROTOTYPE_BOX;
+  property reaction (owner: HACKER, flags: "r") = REACTION;
   property relation (owner: HACKER, flags: "r") = RELATION;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;
@@ -258,8 +259,8 @@ object SYSOBJ
   verb handle_uncaught_error (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called when there's an uncaught error in a task...";
     if (callers() && !caller_perms().wizard)
-        server_log("Illegal call to `handle_uncaught_error` from " + toliteral(callers()));
-        return;
+      server_log("Illegal call to `handle_uncaught_error` from " + toliteral(callers()));
+      return;
     endif
     {code, msg, value, stack, traceback} = args;
     server_log("Uncaught error: " + toliteral(code) + "(" + toliteral(msg) + ") (value: " + toliteral(value) + ")\n" + toliteral(traceback));

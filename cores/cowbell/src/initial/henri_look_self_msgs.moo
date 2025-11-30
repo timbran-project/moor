@@ -12,4 +12,5 @@ object HENRI_LOOK_SELF_MSGS
   };
 
   override import_export_id = "henri_look_self_msgs";
+  override import_export_hierarchy = {"initial"};
 endobject
