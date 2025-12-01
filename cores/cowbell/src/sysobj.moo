@@ -13,7 +13,7 @@ object SYSOBJ
   property bg_ticks (owner: HACKER, flags: "r") = 300000;
   property brass_key (owner: HACKER, flags: "r") = BRASS_KEY;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
-  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, AREA};
+  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, SITTABLE, ACTOR, NOTE, AREA};
   property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property container (owner: HACKER, flags: "r") = CONTAINER;
   property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.0.2";
@@ -52,6 +52,7 @@ object SYSOBJ
   property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
   property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
   property nothing (owner: HACKER, flags: "r") = #-1;
+  property note (owner: HACKER, flags: "r") = NOTE;
   property obj_utils (owner: HACKER, flags: "r") = OBJ_UTILS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;

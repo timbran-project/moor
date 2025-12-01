@@ -61,6 +61,7 @@ define COUCH = #0008CA-9A95162D7A;
 define THING = #8;
 define WEARABLE = #9;
 define CONTAINER = #10;
+define NOTE = #71;
 define SITTABLE = #70;
 
 // llm
