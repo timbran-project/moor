@@ -521,7 +521,7 @@ object CONTAINER
 
   verb lock (this with any) owner: ARCH_WIZARD flags: "rd"
     "Lock this container with a key";
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Check if container is lockable";
     if (this.lock_rule == 0)
       event = $event:mk_error(player, @this.not_lockable_msg):with_iobj(this);
@@ -566,7 +566,7 @@ object CONTAINER
 
   verb unlock (this with any) owner: ARCH_WIZARD flags: "rd"
     "Unlock this container with a key";
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Check if container is unlockable";
     if (this.unlock_rule == 0)
       event = $event:mk_error(player, @this.not_unlockable_msg):with_iobj(this);
@@ -657,7 +657,7 @@ object CONTAINER
 
   verb "open op*" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Open this container";
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Check if already open";
     if (this.open)
       event = $event:mk_error(player, @this.already_open_msg):with_dobj(this);
@@ -690,7 +690,7 @@ object CONTAINER
 
   verb "close" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Close this container";
-    set_task_perms(caller_perms());
+    set_task_perms(this.owner);
     "Check if already closed";
     if (!this.open)
       event = $event:mk_error(player, @this.already_closed_msg):with_dobj(this);

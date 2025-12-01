@@ -204,27 +204,57 @@ object REACTION
 
       "",
 
-      "Objects store their reactions in a property named `reactions`, which is a list of reaction flyweights. You can add reactions by directly manipulating this list:",
+      "Reactions are stored as properties ending with `_reaction`. Use `@add-reaction` or set properties directly:",
 
       "",
 
       "```moo",
 
-      "chest.reactions = {",
+      "chest.unlock_reaction = $reaction:mk('on_unlock, 0, {{'announce, \"Click!\"}});",
 
-      "  $reaction:mk('on_unlock, 0, {{'announce, \"Click!\"}}),",
-
-      "  $reaction:mk('on_open, 0, {{'emote, \"creaks open.\"}}})",
-
-      "};",
+      "chest.open_reaction = $reaction:mk('on_open, 0, {{'emote, \"creaks open.\"}});",
 
       "```",
 
       "",
 
-      "Reactions are active as long as they are in an object's `reactions` list and their `enabled` flag is true.",
+      "Reactions are active as long as their `enabled` flag is true. Use `@enable-reaction` and `@disable-reaction` to toggle them.",
 
-      "Individual reactions can also be enabled/disabled or removed programmatically."
+      "",
+
+      "## Message Property References",
+
+      "",
+
+      "Instead of inline message strings, effects can reference message properties by symbol:",
+
+      "",
+
+      "```moo",
+
+      "cat.pet_reaction = $reaction:mk('on_pet, 0, {{'emote, 'pet_msg}});",
+
+      "cat.pet_msg = $sub_utils:compile(\"purrs contentedly.\");",
+
+      "```",
+
+      "",
+
+      "If the property is a `$msg_bag`, a random message is picked each time. This allows varying responses:",
+
+      "",
+
+      "```moo",
+
+      "cat.pet_msgs = $msg_bag:create(true);",
+
+      "cat.pet_msgs:add($sub_utils:compile(\"purrs contentedly.\"));",
+
+      "cat.pet_msgs:add($sub_utils:compile(\"rubs against {p} legs.\"));",
+
+      "cat.pet_reaction = $reaction:mk('on_pet, 0, {{'emote, 'pet_msgs}});",
+
+      "```"
 
     };
 
@@ -614,6 +644,32 @@ object REACTION
     return true;
   endverb
 
+  verb _resolve_msg (this none this) owner: HACKER flags: "rxd"
+    "Resolve a message reference to a compiled template list.";
+    "If msg is a symbol, looks up that property on target.";
+    "If the property is a $msg_bag, picks randomly.";
+    "Returns a list suitable for @-splat into $event:mk_info.";
+    {msg, target} = args;
+
+    "If it's a symbol, look up the property on target";
+    if (typeof(msg) == SYM)
+      prop_name = tostr(msg);
+      prop_value = `target.(prop_name) ! E_PROPNF => 0';
+      if (prop_value == 0)
+        return {"(missing message: " + prop_name + ")"};
+      endif
+      "If it's a msg_bag, pick randomly";
+      if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
+        return prop_value:pick();
+      endif
+      "Otherwise use the property value directly (should be compiled list)";
+      return prop_value;
+    endif
+
+    "Already a compiled list or other value";
+    return msg;
+  endverb
+
   verb execute_effect (this none this) owner: HACKER flags: "rxd"
     "Execute a single effect in context. Effect can be flyweight or raw list.";
     {effect, context, target} = args;
@@ -643,15 +699,17 @@ object REACTION
       target:_check_thresholds(effect.prop, old_value, new_value, context);
 
     elseif (effect.type == 'announce)
-      "Create event with compiled $sub content, send to location";
-      event = $event:mk_info(actor, @effect.msg):with_iobj(target);
+      "Create event with compiled $sub content, target as actor for pronoun resolution";
+      msg = this:_resolve_msg(effect.msg, target);
+      event = $event:mk_info(target, @msg):with_dobj(actor);
       if (valid(target.location))
         target.location:announce(event);
       endif
 
     elseif (effect.type == 'emote)
-      "Object 'does' something - prefix with object name";
-      event = $event:mk_info(actor, target:name(), " ", @effect.msg):with_iobj(target);
+      "Object 'does' something - auto-prefix actor name like emote command";
+      msg = this:_resolve_msg(effect.msg, target);
+      event = $event:mk_emote(target, target.name, " ", @msg):with_dobj(actor);
       if (valid(target.location))
         target.location:announce(event);
       endif
@@ -660,7 +718,8 @@ object REACTION
       "Private message to a specific target";
       recipient = context[effect.target];
       if (valid(recipient))
-        event = $event:mk_info(actor, @effect.msg):with_iobj(target);
+        msg = this:_resolve_msg(effect.msg, target);
+        event = $event:mk_info(actor, @msg):with_iobj(target);
         recipient:inform_current(event);
       endif
 
@@ -678,7 +737,6 @@ object REACTION
 
     elseif (effect.type == 'delay)
       "Schedule future effect via scheduler";
-      "TODO: integrate with $scheduler";
       fork (effect.seconds)
         this:execute_effect(effect.effect, context, target);
       endfork

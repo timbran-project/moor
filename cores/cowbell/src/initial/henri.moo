@@ -15,20 +15,27 @@ object HENRI
   property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
 
   property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .head = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}>;
-  property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .head = 'henri_feed_rule, .body = {{'is_grouchy, 'This}, {'is, 'Food, CAT_KIBBLE}, {'location_is, 'Food, 'Accessor}}, .variables = {'This, 'Food, 'Accessor}>;
+  property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .head = 'henri_feed_rule, .body = {{'is_grouchy, 'This}, {'isa, 'Food, CAT_KIBBLE}, {'location_is, 'Food, 'Accessor}}, .variables = {'This, 'Food, 'Accessor}>;
   property pet_denied_msg_bag (owner: HACKER, flags: "rc") = HENRI_PET_DENIED_MSGS;
   property feed_denied_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, " turns ", <SUB, .capitalize = false, .type = 'pos_adj>, " nose up at the offering with disdain."};
 
+  property sleepy_threshold_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, " seems to have exhausted ", <SUB, .capitalize = false, .type = 'pos_adj>, " capacity for outrage and slumps into a resigned loaf."};
+  property pet_grouchy_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, " flattens ", <SUB, .capitalize = false, .type = 'pos_adj>, " ears against ", <SUB, .capitalize = false, .type = 'pos_adj>, " skull."};
+  property pet_playful_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, " bats lazily at ", <SUB, .capitalize = false, .type = 'dobj_pos_adj>, " hand."};
+  property cupboard_open_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, "'s ears swivel like radar dishes toward the cupboard."};
+  property kibble_taken_msg_bag (owner: HACKER, flags: "r") = HENRI_KIBBLE_TAKEN_MSGS;
+
   override aliases = {"cat", "grouchy cat"};
+  override pronouns = <PRONOUNS, .verb_be = "is", .verb_have = "has", .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself", .is_plural = false>;
   override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
   override import_export_id = "henri";
   override import_export_hierarchy = {"initial"};
 
-  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {{'set, 'mood, "sleepy"}, {'emote, "seems to have exhausted his capacity for outrage and slumps into a resigned loaf."}}, .enabled = true, .fired_at = 0>;
-  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .head = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}>, .effects = {{'emote, "flattens his ears against his skull."}}, .enabled = true, .fired_at = 0>;
-  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .head = 'playful_rule, .body = {{'is_playful, 'This}}, .variables = {'This}>, .effects = {{'emote, "batts lazily at {p} hand."}}, .enabled = true, .fired_at = 0>;
-  property cupboard_open_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_cupboard_open, .when = 0, .effects = {{'emote, "ears swivel like radar dishes toward the cupboard."}}, .enabled = true, .fired_at = 0>;
-  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_kibble_taken, .when = 0, .effects = {{'emote, "starts weaving around {p} legs, purring loudly."}}, .enabled = true, .fired_at = 0>;
+  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {{'set, 'mood, "sleepy"}, {'announce, 'sleepy_threshold_msg}}, .enabled = true, .fired_at = 0>;
+  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .head = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}>, .effects = {{'announce, 'pet_grouchy_msg}}, .enabled = true, .fired_at = 0>;
+  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .head = 'playful_rule, .body = {{'is_playful, 'This}}, .variables = {'This}>, .effects = {{'announce, 'pet_playful_msg}}, .enabled = true, .fired_at = 0>;
+  property cupboard_open_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_cupboard_open, .when = 0, .effects = {{'announce, 'cupboard_open_msg}}, .enabled = true, .fired_at = 0>;
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_kibble_taken, .when = 0, .effects = {{'announce, 'kibble_taken_msg_bag}}, .enabled = true, .fired_at = 0>;
 
   override object_documentation = {
     "# Henri - The Grouchy Cat",

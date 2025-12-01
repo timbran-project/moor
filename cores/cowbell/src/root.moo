@@ -10,7 +10,6 @@ object ROOT
   property import_export_hierarchy (owner: HACKER, flags: "rc") = {};
   property import_export_id (owner: HACKER, flags: "r") = "root";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
-  property reactions (owner: HACKER, flags: "rc") = {};
 
   verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a non-garbage collected (UUobjid) child of this object.";
@@ -761,21 +760,29 @@ object ROOT
     return obj1 == obj2;
   endverb
 
+  verb fact_isa (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is target a descendant of proto?";
+    {target, proto} = args;
+    return typeof(target) == OBJ && valid(target) && isa(target, proto);
+  endverb
+
   verb get_reactions (this none this) owner: HACKER flags: "rxd"
-    "Gather all reactions from this object (list + properties).";
-    all_reactions = this.reactions;
-    "Scan properties for reactions";
+    "Gather all reactions from this object (properties ending with _reaction).";
+    result = {};
     for prop_name in (this:all_properties())
+      if (!prop_name:ends_with("_reaction"))
+        continue;
+      endif
       try
         val = this.(prop_name);
         if (typeof(val) == FLYWEIGHT && val.delegate == $reaction)
-          all_reactions = {@all_reactions, val};
+          result = {@result, val};
         endif
       except (E_PROPNF, E_PERM)
-        "Ignore inaccessible properties";
+        continue;
       endtry
     endfor
-    return all_reactions;
+    return result;
   endverb
 
   verb fire_trigger (this none this) owner: HACKER flags: "rxd"

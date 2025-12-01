@@ -237,4 +237,26 @@ object OBJ_UTILS
     return result;
   endverb
 
+  verb reaction_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return list of reaction properties (ending with _reaction) on an object.";
+    "Args: {target_obj}";
+    "Returns: list of {property_name, reaction_flyweight}";
+    set_task_perms(caller_perms());
+    {target_obj} = args;
+    !valid(target_obj) && return {};
+    result = {};
+    all_props = target_obj:all_properties();
+    typeof(all_props) != LIST && return {};
+    for prop_name in (all_props)
+      if (prop_name:ends_with("_reaction"))
+        prop_value = target_obj.(prop_name);
+        "Only include if it's actually a reaction flyweight";
+        if (typeof(prop_value) == FLYWEIGHT && prop_value.delegate == $reaction)
+          result = {@result, {prop_name, prop_value}};
+        endif
+      endif
+    endfor
+    return result;
+  endverb
+
 endobject
