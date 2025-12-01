@@ -22,6 +22,7 @@ object HENRI
   override aliases = {"cat", "grouchy cat"};
   override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
   override import_export_id = "henri";
+  override import_export_hierarchy = {"initial"};
 
   property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {{'set, 'mood, "sleepy"}, {'emote, "seems to have exhausted his capacity for outrage and slumps into a resigned loaf."}}, .enabled = true, .fired_at = 0>;
   property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .head = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}>, .effects = {{'emote, "flattens his ears against his skull."}}, .enabled = true, .fired_at = 0>;

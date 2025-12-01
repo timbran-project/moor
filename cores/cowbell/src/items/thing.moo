@@ -11,8 +11,8 @@ object THING
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_countable_noun (owner: HACKER, flags: "rc") = true;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
-  property drop_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " dropped ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-  property get_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " picked up ", <SUB, .capitalize = false, .type = 'dobj>, "."};
+  property drop_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " dropped ", <SUB, .capitalize = false, .type = 'dobj>, "."};
+  property get_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " picked up ", <SUB, .capitalize = false, .type = 'dobj>, "."};
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};

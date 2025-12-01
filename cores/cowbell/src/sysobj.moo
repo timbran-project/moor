@@ -67,6 +67,7 @@ object SYSOBJ
   property scheduled_task (owner: HACKER, flags: "r") = SCHEDULED_TASK;
   property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
   property server_options (owner: ARCH_WIZARD, flags: "r") = SERVER_OPTIONS;
+  property sittable (owner: HACKER, flags: "r") = SITTABLE;
   property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;

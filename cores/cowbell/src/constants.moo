@@ -56,6 +56,7 @@ define HENRI_PET_DENIED_MSGS = #0008CA-9A95162D75;
 define THING = #8;
 define WEARABLE = #9;
 define CONTAINER = #10;
+define SITTABLE = #70;
 
 // llm
 define LLM_CLIENT = #40;
