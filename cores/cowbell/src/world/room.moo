@@ -62,6 +62,12 @@ object ROOM
     if (is_player(who))
       look_d = this:look_self();
       who:inform_current(look_d:into_event():with_audience('utility));
+      "Notify objects in the room that a player arrived";
+      for thing in (this.contents)
+        if (thing != who)
+          `thing:_on_player_entered(who) ! E_VERBNF => 0';
+        endif
+      endfor
     endif
     pass(@args);
   endverb

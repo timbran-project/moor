@@ -367,12 +367,37 @@ object HENRI
     if (valid(this.location))
       this.location:announce($event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("offer", "offers"), " ", $sub:i(), " to ", $sub:the('dobj), "."):with_dobj(this):with_iobj(food));
     endif
-    "Generate Henri's picky response";
-    responses = {"sniffs delicately, then turns his head away with a look of profound disappointment. \"Is this... the best you could manage?\"", "takes a tentative bite, then gives you a look that says \"It's adequate. Barely.\"", "eats with grudging acceptance. \"I suppose this will have to do, given the circumstances.\"", "looks at the food, then at you, then back at the food. \"My previous establishment served this with a proper garnish.\"", "consumes the offering with an air of someone doing you a great favor. \"Don't expect me to be grateful.\"", "picks at the food disdainfully. \"The texture is all wrong. And the temperature is completely off.\"", "eats quickly, as if embarrassed to be seen accepting such pedestrian fare. \"This better not become a habit.\""};
+    "Consume the food - move it to Henri (eaten)";
+    old_mood = this.mood;
+    food:moveto(this);
+    "Fire trigger for reactions";
+    this:fire_trigger('on_fed, ['Actor -> player, 'Food -> food]);
+    "Improve mood after eating - cats get sleepy/content after food";
+    mood_improvements = ["grouchy" -> "sleepy", "annoyed" -> "sleepy", "curious" -> "playful", "playful" -> "playful", "sleepy" -> "sleepy"];
+    if (maphaskey(mood_improvements, this.mood))
+      this.mood = mood_improvements[this.mood];
+    endif
+    "Generate Henri's picky response based on whether mood improved";
+    mood_changed = old_mood != this.mood;
+    if (mood_changed)
+      "Mood improved - slightly less grumpy responses";
+      responses = {"sniffs delicately, then deigns to eat. After a moment, his eyes droop slightly. \"Acceptable. I suppose I could use a nap.\"", "eats with grudging acceptance, then settles into a more relaxed posture. \"Don't think this changes anything between us.\"", "consumes the offering methodically. A subtle rumble of purring escapes before he catches himself. \"That was... adequate.\"", "finishes eating and begins grooming his whiskers with slightly less irritation than usual. \"The presentation was all wrong, but the quality was... tolerable.\"", "eats, then curls his tail around his paws - a rare sign of contentment. \"I'll allow that this wasn't entirely terrible.\""};
+    else
+      "Mood didn't change - standard picky responses";
+      responses = {"takes a tentative bite, then gives you a look that says \"It's adequate. Barely.\"", "looks at the food, then at you, then back at the food. \"My previous establishment served this with a proper garnish.\"", "picks at the food disdainfully. \"The texture is all wrong. And the temperature is completely off.\"", "eats quickly, as if embarrassed to be seen accepting such pedestrian fare. \"This better not become a habit.\""};
+    endif
     response = responses[random(length(responses))];
     "Announce Henri's reaction";
     if (valid(this.location))
       this.location:announce(this:mk_emote_event(response));
+    endif
+    "Announce mood shift if it happened";
+    if (mood_changed && valid(this.location))
+      mood_descriptions = ["sleepy" -> "eyes are getting heavy - apparently that meal was satisfactory enough to induce drowsiness."];
+      if (maphaskey(mood_descriptions, this.mood))
+        event = $event:mk_social(this, $sub:nc(), "'s ", mood_descriptions[this.mood]):with_this(this.location);
+        this.location:announce(event);
+      endif
     endif
   endverb
 
@@ -566,5 +591,57 @@ object HENRI
     "Show status to player";
     status_content = $format.block:mk("behaviour Status", status_lines:join("\n"));
     player:inform_current($event:mk_info(player, status_content):with_presentation_hint('inset));
+  endverb
+
+  verb _maybe_start_behaviours (none none none) owner: HACKER flags: "rxd"
+    "Check if behaviors should auto-start and start them if needed.";
+    "Only start if: in a valid location, players present, not already running";
+    if (!valid(this.location))
+      return false;
+    endif
+    "Already running?";
+    if (length(this.scheduled_behaviours) > 0)
+      return false;
+    endif
+    "Check for players in the room";
+    has_players = false;
+    for thing in (this.location.contents)
+      if (typeof(thing) == OBJ && valid(thing) && is_player(thing))
+        has_players = true;
+        break;
+      endif
+    endfor
+    if (!has_players)
+      return false;
+    endif
+    "Start behaviors silently (no player notification)";
+    this.scheduled_behaviours = [];
+    groom_task = $scheduler:schedule_every({240, 120}, this, "_autonomous_groom");
+    this.scheduled_behaviours["grooming"] = groom_task;
+    stretch_task = $scheduler:schedule_every({300, 180}, this, "_autonomous_stretch");
+    this.scheduled_behaviours["stretching"] = stretch_task;
+    complain_task = $scheduler:schedule_every({420, 300}, this, "_autonomous_complain");
+    this.scheduled_behaviours["complaining"] = complain_task;
+    mood_task = $scheduler:schedule_every({540, 360}, this, "_autonomous_mood_shift");
+    this.scheduled_behaviours["mood_shifts"] = mood_task;
+    sigh_task = $scheduler:schedule_every({720, 360}, this, "_autonomous_sigh");
+    this.scheduled_behaviours["sighing"] = sigh_task;
+    construction_task = $scheduler:schedule_every({600, 360}, this, "_autonomous_construction_reaction");
+    this.scheduled_behaviours["construction_reactions"] = construction_task;
+    return true;
+  endverb
+
+  verb moveto (none none none) owner: HACKER flags: "rxd"
+    "Override moveto to auto-start behaviors when Henri arrives in a room with players.";
+    result = pass(@args);
+    "After moving, check if behaviors should start";
+    this:_maybe_start_behaviours();
+    return result;
+  endverb
+
+  verb _on_player_entered (none none none) owner: HACKER flags: "rxd"
+    "Called by room when a player enters. Auto-start behaviors if needed.";
+    {who} = args;
+    this:_maybe_start_behaviours();
   endverb
 endobject
