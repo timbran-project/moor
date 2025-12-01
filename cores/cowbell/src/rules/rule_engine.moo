@@ -274,7 +274,7 @@ object RULE_ENGINE
     variables = this:_extract_variables_from_goals(goals);
 
     "Return rule flyweight";
-    return <RULE,
+    return <$rule,
       .name = rule_name,
       .head = rule_name,
       .body = goals,
@@ -1427,7 +1427,7 @@ object RULE_ENGINE
     test_obj.father = $root;
 
     not_goal = {'not, {'parent, test_obj, 'Parent}};
-    rule = <RULE,
+    rule = <$rule,
       .name = 'test_bounded_not,
       .head = 'test_bounded_not,
       .body = {not_goal},
