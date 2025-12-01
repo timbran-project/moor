@@ -38,7 +38,7 @@ object FORMAT_BLOCK
     if (content_type == 'text_html)
       return <$html, {"div", {}, result}>;
     endif
-    "For text formats, join elements with newlines to prevent concatenation";
+    "For text formats, collect string elements";
     text_lines = {};
     for element in (result)
       if (typeof(element) == STR)
@@ -50,6 +50,15 @@ object FORMAT_BLOCK
         endfor
       endif
     endfor
-    return text_lines:join("\n");
+    "Smart join: only add newline between elements when previous doesn't already end with one";
+    output = "";
+    for i in [1..length(text_lines)]
+      line = text_lines[i];
+      if (i > 1 && !output:ends_with("\n"))
+        output = output + "\n";
+      endif
+      output = output + line;
+    endfor
+    return output;
   endverb
 endobject
