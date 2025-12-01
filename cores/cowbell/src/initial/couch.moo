@@ -34,7 +34,15 @@ object COUCH
   override import_export_id = "couch";
   override import_export_hierarchy = {"initial"};
 
+  override get_denied_msg = {"The couch is far too heavy to pick up."};
+  override get_rule = <RULE, .name = 'is_portable, .head = 'is_portable, .body = {{'is_portable, 'This}}, .variables = {'This}>;
+
   property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .head = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .variables = {'This, 'Actor}>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
+
+  verb fact_is_portable (this none this) owner: HACKER flags: "rxd"
+    "Couches are not portable.";
+    return false;
+  endverb
 
   verb fact_is_sitting (this none this) owner: HACKER flags: "rxd"
     "Rule predicate: Is target sitting on this furniture?";

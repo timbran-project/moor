@@ -14,6 +14,11 @@ object THING
   property drop_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " dropped ", <SUB, .capitalize = false, .type = 'dobj>, "."};
   property get_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " picked up ", <SUB, .capitalize = false, .type = 'dobj>, "."};
 
+  property get_rule (owner: HACKER, flags: "rc") = 0;
+  property get_denied_msg (owner: HACKER, flags: "rc") = {"You can't pick that up."};
+  property drop_rule (owner: HACKER, flags: "rc") = 0;
+  property drop_denied_msg (owner: HACKER, flags: "rc") = {"You can't drop that."};
+
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};
   override import_export_id = "thing";
@@ -173,11 +178,39 @@ object THING
     raise(E_INVARG);
   endverb
 
+  verb can_get (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if actor can pick up this object. Returns true/false.";
+    {?who = player} = args;
+    "No rule means always allowed";
+    this.get_rule == 0 && return true;
+    "Evaluate rule with context";
+    context = ['Actor -> who, 'This -> this];
+    result = $rule_engine:evaluate(this.get_rule, context);
+    return result['success];
+  endverb
+
+  verb can_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if actor can drop this object. Returns true/false.";
+    {?who = player} = args;
+    "No rule means always allowed";
+    this.drop_rule == 0 && return true;
+    "Evaluate rule with context";
+    context = ['Actor -> who, 'This -> this];
+    result = $rule_engine:evaluate(this.drop_rule, context);
+    return result['success];
+  endverb
+
   verb get (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Get/take an object";
     set_task_perms(caller_perms());
     if (this.location == player)
       event = $event:mk_error(player, "You already have ", $sub:d(), "."):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endif
+    "Check get_rule";
+    if (!this:can_get(player))
+      event = $event:mk_error(player, @this.get_denied_msg):with_dobj(this);
       player:inform_current(event);
       return;
     endif
@@ -210,6 +243,12 @@ object THING
     set_task_perms(caller_perms());
     if (this.location != player)
       event = $event:mk_error(player, "You don't have ", $sub:d(), " to drop."):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endif
+    "Check drop_rule";
+    if (!this:can_drop(player))
+      event = $event:mk_error(player, @this.drop_denied_msg):with_dobj(this);
       player:inform_current(event);
       return;
     endif
