@@ -96,11 +96,12 @@ object BUILDER_FEATURES
     player:inform_current($event:mk_info(player, "Removed message #" + tostr(idx) + " from " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
-  verb "@create" (any named any) owner: ARCH_WIZARD flags: "rd"
+  verb "@create" (any any any) owner: ARCH_WIZARD flags: "rd"
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr || !iobjstr)
-      raise(E_INVARG, $format.code:mk("@create PARENT named NAME[:ALIASES]"));
+    if (!argstr || !dobjstr || (prepstr && prepstr != "named") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@create PARENT named NAME[:ALIASES]")));
+      return;
     endif
     try
       parent_obj = $match:match_object(dobjstr, player);
@@ -168,15 +169,16 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@grant" (any at any) owner: ARCH_WIZARD flags: "rd"
+  verb "@grant" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Grant capabilities to a player. Usage: @grant <target>.<category>(<cap1,cap2>) to <player>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
+    if (!argstr || !dobjstr || (prepstr && prepstr != "to") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@grant TARGET.CATEGORY(CAP1,CAP2) to PLAYER")));
+      return;
+    endif
     try
-      if (!dobjstr || !iobjstr)
-        raise(E_INVARG, toliteral($format.code:mk("@grant TARGET.CATEGORY(CAP1,CAP2) to PLAYER")));
-      endif
       "Parse grant specification using $grant_utils";
       {target_obj, category, cap_list} = $grant_utils:parse_grant(dobjstr);
       "Permission check - must be owner or wizard";
@@ -364,13 +366,14 @@ object BUILDER_FEATURES
     return ['name -> room_name, 'area -> target_area, 'parent -> parent_obj];
   endverb
 
-  verb "@dig @tunnel" (any at any) owner: ARCH_WIZARD flags: "rd"
+  verb "@dig @tunnel" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Create a passage to an existing room. Usage: @dig [oneway] <dir>[|<returndir>] to <room>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr || !iobjstr)
-      raise(E_INVARG, $format.code:mk("@dig [oneway] DIR[|RETURNDIR] to ROOM"));
+    if (!argstr || !dobjstr || (prepstr && prepstr != "to") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@dig [oneway] DIR[|RETURNDIR] to ROOM")));
+      return;
     endif
     try
       "Parse the direction spec";
@@ -581,13 +584,14 @@ object BUILDER_FEATURES
     return result;
   endverb
 
-  verb "@rename" (any at any) owner: ARCH_WIZARD flags: "rd"
+  verb "@rename" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Rename an object. Usage: @rename <object> to <name[:aliases]>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr || !iobjstr)
-      raise(E_INVARG, $format.code:mk("@rename OBJECT to NAME[:ALIASES]"));
+    if (!argstr || !dobjstr || (prepstr && prepstr != "to") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@rename OBJECT to NAME[:ALIASES]")));
+      return;
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -624,13 +628,14 @@ object BUILDER_FEATURES
     target_obj:set_name_aliases(new_name, new_aliases);
   endverb
 
-  verb "@describe" (any as any) owner: ARCH_WIZARD flags: "rd"
+  verb "@describe" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Set object or passage description. Usage: @describe <object or direction> as <description>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr || !iobjstr)
-      raise(E_INVARG, $format.code:mk("@describe OBJECT_OR_DIRECTION as DESCRIPTION"));
+    if (!argstr || !dobjstr || (prepstr && prepstr != "as") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@describe OBJECT_OR_DIRECTION as DESCRIPTION")));
+      return;
     endif
     try
       "Try to match as object first, but catch errors";
@@ -782,13 +787,14 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@integrate" (any as any) owner: ARCH_WIZARD flags: "rd"
+  verb "@integrate" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Set object integrated description. Usage: @integrate <object> as <description>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr || !iobjstr)
-      raise(E_INVARG, $format.code:mk("@integrate OBJECT as DESCRIPTION"));
+    if (!argstr || !dobjstr || (prepstr && prepstr != "as") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@integrate OBJECT as DESCRIPTION")));
+      return;
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -822,13 +828,14 @@ object BUILDER_FEATURES
     target_obj.integrated_description = new_description;
   endverb
 
-  verb "@move" (any at any) owner: ARCH_WIZARD flags: "rd"
+  verb "@move" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Move an object to a new location. Usage: @move <object> to <location>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr || !iobjstr)
-      raise(E_INVARG, $format.code:mk("@move OBJECT to LOCATION"));
+    if (!argstr || !dobjstr || (prepstr && prepstr != "to") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@move OBJECT to LOCATION")));
+      return;
     endif
     try
       "Match the object to move";

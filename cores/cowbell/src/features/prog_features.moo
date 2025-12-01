@@ -1174,4 +1174,85 @@ object PROG_FEATURES
     endif
   endverb
 
+  verb "@rename" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Rename an object or verb. Usage: @rename <object> to <name[:aliases]> or @rename <object>:<verb> to <new-verb-name>";
+    caller != player && raise(E_PERM);
+    player.programmer || raise(E_PERM, "Programmer features required.");
+    set_task_perms(player);
+    "Check for verb rename syntax (colon in dobjstr)";
+    if (dobjstr && ":" in dobjstr)
+      "Verb rename - validate args";
+      if (!argstr || (prepstr && prepstr != "to") || !iobjstr)
+        player:inform_current($event:mk_error(player, $format.code:mk("@rename OBJECT:VERB to NEW-VERB-NAME")));
+        return;
+      endif
+      try
+        "Parse object:verb";
+        parsed = dobjstr:parse_verbref();
+        if (!parsed)
+          player:inform_current($event:mk_error(player, "Invalid verb reference format. Use 'object:verb'"));
+          return;
+        endif
+        {object_str, verb_name} = parsed;
+        "Match the object";
+        target_obj = $match:match_object(object_str, player);
+        typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+        !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+        "Check verb exists";
+        info = `verb_info(target_obj, verb_name) ! E_VERBNF => 0';
+        if (!info)
+          player:inform_current($event:mk_error(player, "Verb '" + verb_name + "' not found on " + tostr(target_obj) + "."));
+          return;
+        endif
+        {verb_owner, verb_perms, old_names} = info;
+        "Check permissions - must be owner or wizard";
+        if (!player.wizard && verb_owner != player)
+          raise(E_PERM, "You do not have permission to rename " + tostr(target_obj) + ":" + verb_name + ".");
+        endif
+        "Get new verb name(s) - spaces separate multiple names";
+        new_names = iobjstr:trim();
+        !new_names && raise(E_INVARG, "Verb name cannot be blank.");
+        "Set the new verb name";
+        set_verb_info(target_obj, verb_name, {verb_owner, verb_perms, new_names});
+        message = "Renamed verb " + tostr(target_obj) + ":" + verb_name + " to \"" + new_names + "\".";
+        player:inform_current($event:mk_info(player, message));
+        return 1;
+      except e (ANY)
+        message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+        player:inform_current($event:mk_error(player, message));
+        return 0;
+      endtry
+    endif
+    "Object rename - check for valid usage";
+    if (!argstr || !dobjstr || (prepstr && prepstr != "to") || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@rename OBJECT to NAME[:ALIASES]\n@rename OBJECT:VERB to NEW-VERB-NAME")));
+      return;
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      if (!player.wizard && target_obj.owner != player)
+        raise(E_PERM, "You do not have permission to rename " + tostr(target_obj) + ".");
+      endif
+      parsed = $str_proto:parse_name_aliases(iobjstr);
+      new_name = parsed[1];
+      new_aliases = parsed[2];
+      !new_name && raise(E_INVARG, "Object name cannot be blank.");
+      old_name = `target_obj.name ! ANY => "(no name)"';
+      this:_do_rename_object(target_obj, new_name, new_aliases);
+      message = "Renamed \"" + old_name + "\" (" + tostr(target_obj) + ") to \"" + new_name + "\".";
+      if (new_aliases)
+        alias_str = new_aliases:join(", ");
+        message = message + " Aliases: " + alias_str + ".";
+      endif
+      player:inform_current($event:mk_info(player, message));
+      return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
+
 endobject
