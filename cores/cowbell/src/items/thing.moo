@@ -6,23 +6,31 @@ object THING
   fertile: true
   readable: true
 
-  property integrated_description (owner: HACKER, flags: "rc") = "";
-  property pronouns (owner: HACKER, flags: "rc") = <#28, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false>;
-  property is_plural_noun (owner: HACKER, flags: "rc") = false;
-  property is_countable_noun (owner: HACKER, flags: "rc") = true;
-  property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
-  property drop_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " dropped ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-  property get_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " picked up ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-
-  property get_rule (owner: HACKER, flags: "rc") = 0;
-  property get_denied_msg (owner: HACKER, flags: "rc") = {"You can't pick that up."};
-  property drop_rule (owner: HACKER, flags: "rc") = 0;
   property drop_denied_msg (owner: HACKER, flags: "rc") = {"You can't drop that."};
+  property drop_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " dropped ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property drop_rule (owner: HACKER, flags: "rc") = 0;
+  property get_denied_msg (owner: HACKER, flags: "rc") = {"You can't pick that up."};
+  property get_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " picked up ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property get_rule (owner: HACKER, flags: "rc") = 0;
+  property integrated_description (owner: HACKER, flags: "rc") = "";
+  property is_countable_noun (owner: HACKER, flags: "rc") = true;
+  property is_plural_noun (owner: HACKER, flags: "rc") = false;
+  property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
+  property pronouns (owner: HACKER, flags: "rc") = <#28, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false>;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};
   override import_export_id = "thing";
-
   override object_documentation = {
     "# Generic Things",
     "",
@@ -330,4 +338,10 @@ object THING
     return true;
   endverb
 
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics - $thing defers to global get/drop topics.";
+    {for_player, ?topic = ""} = args;
+    "Basic get/drop covered by global help - things can override for special behavior";
+    return topic == "" ? {} | 0;
+  endverb
 endobject

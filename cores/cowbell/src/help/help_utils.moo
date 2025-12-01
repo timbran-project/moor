@@ -1,6 +1,3 @@
-// Help utilities for documentation extraction and display
-// Provides common functionality for extracting verb/object documentation
-
 object HELP_UTILS
   name: "Help Utilities"
   parent: ROOT
@@ -9,7 +6,7 @@ object HELP_UTILS
   readable: true
 
   override description = "Help utilities for documentation extraction and lookup. Provides verbs for extracting verb docstrings, object documentation, and parsing help references.";
-  override import_export_hierarchy = {"utils"};
+  override import_export_hierarchy = {"help"};
   override import_export_id = "help_utils";
 
   verb extract_verb_documentation (this none this) owner: ARCH_WIZARD flags: "rxd"

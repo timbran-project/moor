@@ -50,11 +50,11 @@ object FORMAT_BLOCK
         endfor
       endif
     endfor
-    "Smart join: only add newline between elements when previous doesn't already end with one";
+    "Join lines: empty strings become blank lines (double newline for djot paragraphs)";
     output = "";
     for i in [1..length(text_lines)]
       line = text_lines[i];
-      if (i > 1 && !output:ends_with("\n"))
+      if (i > 1)
         output = output + "\n";
       endif
       output = output + line;

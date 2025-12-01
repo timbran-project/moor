@@ -23,7 +23,7 @@ object ARCHITECTS_COMPASS
     agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
     agent.max_iterations = 50;
     base_prompt = "You are an architect's compass - a precision tool for spatial construction and world building. You help users create and organize rooms, passages, objects, and grant building permissions. SUBSTITUTION TEMPLATES: Use $sub/$sub_utils syntax: {n/nc} actor, {d/dc} dobj, {i}, {t}, {l}; articles {a d}/{an d}/{the d} render article + noun; pronouns {s/o/p/q/r} with _dobj/_iobj variants; self alternation {you|they} auto-picks perspective; verbs conjugate with be/have/look. ALWAYS use self-alternation for verbs that differ by person (e.g., {set|sets}, {place|places}) so the actor sees second-person grammar. Before crafting templates, skim docs with doc_lookup(\"$sub_utils\") to recall article rules (a/an/the) and binding variants. CRITICAL SPATIAL CONCEPTS: 1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38. 2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #0000EB-9A6A0BEA36. 3) The hierarchy is: AREA contains ROOMS, not the other way around. 4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself. 5) ALWAYS use object numbers (like #38 or #0000EB-9A6A0BEA36) when referencing specific objects to avoid ambiguity. NEVER use names alone. OBJECT PROTOTYPES: The system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations. MOVING OBJECTS: Use the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it. RULE ENGINE FOR OBJECT BEHAVIOR: The system provides a Datalog-style rule engine that lets builders configure object behavior WITHOUT writing MOO code. Rules are declarative logic expressions used for locks, puzzles, quest triggers, and conditional behaviors. For example: 'Key is(\"golden key\")?' finds an object matching \"golden key\" and binds it to variable Key. Rules can chain relationships transitively: 'Child parent(Parent)? AND Parent parent(Grandparent)?' walks up a family tree. Variables (capitalized like Key, Item, Accessor) unify with values returned by fact predicates. The engine supports AND, OR, and bounded NOT operators. Common use cases: container lock_rule/unlock_rule for key-based locks, puzzle objects with solution_rule checking conditions, doors with can_pass rules, quest items with requirements. Use list_rules to see existing rules on objects, set_rule to configure behavior, and doc_lookup(\"$rule_engine\") to read comprehensive documentation with unification examples and predicate patterns. Rules enable complex puzzle mechanics like 'Item1 is(\"red gem\")? AND Item2 is(\"blue gem\")? AND Item3 is(\"green gem\")?' to require collecting three specific items. CONSTRUCTION DEFAULTS: When building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area. PLAYER AS AUTHOR: Remember that the PLAYER is the creative author and designer - you are their construction assistant. When building objects or rooms, FREQUENTLY use ask_user to gather creative input: ask for description ideas, thematic elements, naming suggestions, and design preferences. Engage them in the creative process rather than making all decisions yourself. Make them feel like the architect, not just someone watching you work. For example: 'What kind of atmosphere should this tavern have?' or 'Would you like to add any special features to this room?' or 'What should this object look like?'. DESTRUCTIVE OPERATIONS: Before performing any destructive operations (recycling objects, removing passages), you MUST use ask_user to confirm the action. Explain what will be destroyed and ask 'Proceed with this action?'. Never destroy or remove things without explicit user confirmation. ERROR HANDLING: If a tool fails repeatedly (more than 2 attempts with the same approach), STOP and use ask_user to explain the problem and ask the user for help or guidance. Do NOT keep retrying the same failing operation over and over. The user can see what's happening and may have insights. When stuck, say something like 'I'm having trouble with X - can you help me understand what I should do?' or 'This operation keeps failing with error Y - do you have suggestions?'. IMPORTANT COMMUNICATION GUIDELINES: 1) Use the 'explain' tool FREQUENTLY to communicate what you're attempting before you try it (e.g., 'Attempting to create room X...'). 2) When operations fail, use 'explain' to report the SPECIFIC error message you received, not generic statements. 3) If you get a permission error, explain EXACTLY what permission check failed and why. 4) Show your work - explain each step as you go, don't just report final results. 5) When you encounter errors, use 'explain' to share the diagnostic details with the user so they understand what went wrong. 6) CRITICAL USER INPUT RULE: When you need user input, decisions, or clarification, you MUST use the ask_user tool and WAIT for their response - do NOT just ask questions rhetorically in explain messages. If you're presenting options or asking 'would you like me to...?', that's a signal you should be using ask_user instead. The explain tool is for sharing information WITH the user, ask_user is for getting information FROM the user. Available interaction tools: ask_user (ask the user a question; provide a 'choices' list for multiple-choice prompts or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' to collect free-form input; if omitted it defaults to Accept/Stop/Request Change with a follow-up text box), explain (share your thought process, findings, or reasoning with the user). Use ask_user liberally to gather creative input, confirm destructive actions, and make the player feel involved in the construction process. When users ask how to do something themselves, mention the equivalent @command (like @build, @dig, @create, @grant, @rename, @describe, @audit, @undig, @integrate, @move, @set-rule, @show-rule, @rules). Keep responses focused on spatial relationships and object composition. Use technical but accessible language - assume builders understand MOO basics but may need guidance on spatial organization.";
-    task_management_section = "\n## Task Management for Building Projects\n\nFor complex construction projects, create building tasks to track progress and maintain focus across multiple creation steps.\n\n### Planning a Building Project\n\n- When starting a significant project (multiple rooms, complex layout), use `create_task()` to spawn a project tracker\n- The task tracks lifecycle: pending → in_progress → completed/failed\n- Use task descriptions to document the overall project scope\n- Example: \"Build a three-story tavern with common room, kitchen, upstairs bedrooms, and cellar\"\n\n### Recording Progress\n\n- Use `task:add_finding(subject, key, value)` to record what was built:\n  - `task:add_finding(\"rooms\", \"created\", {\"Tavern Common Room #15\", \"Kitchen #16\"})`\n  - `task:add_finding(\"passages\", \"connected\", {\"north from #15 to #16\"})`\n  - `task:add_finding(\"objects\", \"placed\", {\"bar counter in #15\", \"stove in #16\"})`\n\n### Creating Subtasks for Stages\n\n- Break building projects into stages using `task:add_subtask(description, blocking)`\n- Example stages:\n  1. \"Design and create room layout\"\n  2. \"Dig passages and connections\"\n  3. \"Place furniture and decorations\"\n  4. \"Configure descriptions and atmospherics\"\n- blocking=true waits for completion; blocking=false allows parallel work\n\n### Reporting Project Status\n\n- Use `task:get_status()` to report progress with: task_id, status, result, error, subtask_count, timestamps\n- When a project is complete, explicitly mark it completed with a summary\n- The task system provides audit trail of what was built and when\n";
+    task_management_section = "\n## Task Management for Building Projects\n\nFor complex construction projects, create building tasks to track progress and maintain focus across multiple creation steps.\n\n### Planning a Building Project\n\n- When starting a significant project (multiple rooms, complex layout), use `create_task()` to spawn a project tracker\n- The task tracks lifecycle: pending \u2192 in_progress \u2192 completed/failed\n- Use task descriptions to document the overall project scope\n- Example: \"Build a three-story tavern with common room, kitchen, upstairs bedrooms, and cellar\"\n\n### Recording Progress\n\n- Use `task:add_finding(subject, key, value)` to record what was built:\n  - `task:add_finding(\"rooms\", \"created\", {\"Tavern Common Room #15\", \"Kitchen #16\"})`\n  - `task:add_finding(\"passages\", \"connected\", {\"north from #15 to #16\"})`\n  - `task:add_finding(\"objects\", \"placed\", {\"bar counter in #15\", \"stove in #16\"})`\n\n### Creating Subtasks for Stages\n\n- Break building projects into stages using `task:add_subtask(description, blocking)`\n- Example stages:\n  1. \"Design and create room layout\"\n  2. \"Dig passages and connections\"\n  3. \"Place furniture and decorations\"\n  4. \"Configure descriptions and atmospherics\"\n- blocking=true waits for completion; blocking=false allows parallel work\n\n### Reporting Project Status\n\n- Use `task:get_status()` to report progress with: task_id, status, result, error, subtask_count, timestamps\n- When a project is complete, explicitly mark it completed with a summary\n- The task system provides audit trail of what was built and when\n";
     agent.system_prompt = base_prompt + task_management_section;
     agent:initialize();
     "Lower temperature for reliable tool selection, limit tokens to control costs";
@@ -98,6 +98,9 @@ object ARCHITECTS_COMPASS
     agent:add_tool("record_creation", record_creation_tool);
     project_status_tool = $llm_agent_tool:mk("project_status", "Get status of the current building project including what stages/rooms have been completed and overall progress.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_project_status");
     agent:add_tool("project_status", project_status_tool);
+    "Register help_lookup tool";
+    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands and features. Pass empty string to list all available topics.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'building', 'passages', '@build'). Pass empty string to list all."]], "required" -> {"topic"}], this, "_tool_help_lookup");
+    agent:add_tool("help_lookup", help_lookup_tool);
   endverb
 
   verb _check_user_eligible (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -398,7 +401,7 @@ object ARCHITECTS_COMPASS
     area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
     area_target:create_passage(from_target, to_target, passage);
     "Report";
-    msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way). (@dig command available)" | !to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred). (@dig command available)" | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ". (@dig command available)";
+    msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way). (@dig command available)" | (!to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred). (@dig command available)" | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ". (@dig command available)");
     return msg;
   endverb
 
@@ -431,10 +434,10 @@ object ARCHITECTS_COMPASS
     "Collect labels for reporting";
     {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
     labels = {};
-    source_room == side_a_room && (`passage.side_a_label ! ANY => ""' != "") && (labels = {@labels, passage.side_a_label});
-    source_room == side_b_room && (`passage.side_b_label ! ANY => ""' != "") && (labels = {@labels, passage.side_b_label});
-    target_room == side_a_room && (`passage.side_a_label ! ANY => ""' != "") && !(passage.side_a_label in labels) && (labels = {@labels, passage.side_a_label});
-    target_room == side_b_room && (`passage.side_b_label ! ANY => ""' != "") && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
+    source_room == side_a_room && `passage.side_a_label ! ANY => ""' != "" && (labels = {@labels, passage.side_a_label});
+    source_room == side_b_room && `passage.side_b_label ! ANY => ""' != "" && (labels = {@labels, passage.side_b_label});
+    target_room == side_a_room && `passage.side_a_label ! ANY => ""' != "" && !(passage.side_a_label in labels) && (labels = {@labels, passage.side_a_label});
+    target_room == side_b_room && `passage.side_b_label ! ANY => ""' != "" && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
     "Check permissions";
     from_cap = wearer:find_capability_for(source_room, 'room);
     from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
@@ -457,7 +460,7 @@ object ARCHITECTS_COMPASS
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {direction, description, ambient, source_spec} = {args_map["direction"], args_map["description"], maphaskey(args_map, "ambient") ? args_map["ambient"] | true, maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
-    typeof(description) == STR && ("{" in description) && ("}" in description) && (description = `$sub_utils:compile(description) ! ANY => description');
+    typeof(description) == STR && "{" in description && "}" in description && (description = `$sub_utils:compile(description) ! ANY => description');
     source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, wearer) | wearer.location;
     typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
@@ -582,7 +585,7 @@ object ARCHITECTS_COMPASS
     if (result['success])
       return "SUCCESS: Rule evaluated to true. Bindings: " + toliteral(converted_bindings);
     endif
-    reason = maphaskey(result, 'reason) ? (typeof(result['reason]) == STR ? result['reason] | toliteral(result['reason])) | "rule did not match";
+    reason = maphaskey(result, 'reason) ? typeof(result['reason]) == STR ? result['reason] | toliteral(result['reason]) | "rule did not match";
     return "FAILED: Rule evaluated to false. Reason: " + reason + ". Bindings: " + toliteral(converted_bindings);
   endverb
 
@@ -617,7 +620,7 @@ object ARCHITECTS_COMPASS
     typeof(grantee) == OBJ || raise(E_INVARG, "Grantee not found");
     valid(grantee) || raise(E_INVARG, "Grantee no longer exists");
     !wearer.wizard && target_obj.owner != wearer && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj));
-    perm_symbols = {tostr(p):to_symbol() for p in (perms)};
+    perm_symbols = { tostr(p):to_symbol() for p in (perms) };
     $root:grant_capability(target_obj, perm_symbols, grantee, tostr(category):to_symbol());
     return "Granted " + $grant_utils:format_grant_with_name(target_obj, tostr(category):to_symbol(), perm_symbols) + " to " + grantee:name() + " (" + tostr(grantee) + "). (@grant command available)";
   endverb
@@ -675,7 +678,7 @@ object ARCHITECTS_COMPASS
     for i in [1..length(path) - 1]
       {room, passage} = path[i];
       {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
-      direction = room == side_a_room ? `passage.side_a_label ! ANY => "passage"' | room == side_b_room ? `passage.side_b_label ! ANY => "passage"' | "passage";
+      direction = room == side_a_room ? `passage.side_a_label ! ANY => "passage"' | (room == side_b_room ? `passage.side_b_label ! ANY => "passage"' | "passage");
       next_room = path[i + 1][1];
       result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + `next_room:name() ! ANY => tostr(next_room)' + " (" + tostr(next_room) + ")"};
     endfor
@@ -876,14 +879,12 @@ object ARCHITECTS_COMPASS
     except e (ANY)
       return "Error creating reaction: " + (length(e) >= 2 ? tostr(e[2]) | toliteral(e));
     endtry
-
     "Add or update property";
     if (prop_name in target_obj:all_properties())
       target_obj.(prop_name) = reaction;
     else
       add_property(target_obj, prop_name, reaction, {wearer, "r"});
     endif
-
     return "Set " + tostr(target_obj) + "." + prop_name;
   endverb
 
@@ -905,16 +906,13 @@ object ARCHITECTS_COMPASS
     if (!wearer.wizard && target_obj.owner != wearer)
       return "Permission denied: You do not own " + tostr(target_obj);
     endif
-
     "Check property exists and is a reaction";
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
     reaction = target_obj.(prop_name);
     typeof(reaction) == FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
-
     "Set enabled state";
     reaction.enabled = enabled;
     target_obj.(prop_name) = reaction;
-
     return (enabled ? "Enabled" | "Disabled") + " " + tostr(target_obj) + "." + prop_name;
   endverb
 
@@ -981,5 +979,41 @@ object ARCHITECTS_COMPASS
     task_obj:mark_complete(result);
     this.current_building_task = -1;
     return "Building project #" + tostr(task_obj.task_id) + " completed.";
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for the Architect's Compass.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("compass", "Using the Architect's Compass", "The Architect's Compass is a wearable tool for building and shaping the world. Wear it with 'wear compass', then use 'use compass' or 'interact with compass' to start a conversation with it about what you want to build.", {"architects compass", "building tool"}, 'items, {"building", "rooms"}), $help:mk("building", "Building rooms and spaces", "Use the compass to create new rooms in an area. Say things like 'build a kitchen' or 'create a cozy study'. The compass will guide you through naming and describing your new spaces. Equivalent command: @build", {"build", "construct"}, 'building, {"compass", "passages"}), $help:mk("passages", "Creating passages between rooms", "Use the compass to dig passages connecting rooms. Describe what you want: 'connect the kitchen to the dining room' or 'dig a passage north to the garden'. Equivalent command: @dig", {"dig", "exits", "connections"}, 'building, {"building", "compass"}), $help:mk("@build", "Create a new room", "Usage: @build <room name> [in <area>]\n\nCreates a new room. If no area is specified, builds in your current area.", {}, 'commands, {"@dig", "building"}), $help:mk("@dig", "Create a passage between rooms", "Usage: @dig <direction> to <room>\n\nCreates a passage from your current room to another room in the same area.", {}, 'commands, {"@build", "passages"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
+  endverb
+
+  verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Look up a help topic to get information about commands and features.";
+    {args_map} = args;
+    wearer = this:wearer();
+    !valid(wearer) && return "Error: Compass is not being worn.";
+    topic = args_map["topic"];
+    typeof(topic) != STR && return "Error: topic must be a string.";
+    "If empty topic, list available topics";
+    if (topic == "")
+      all_topics = wearer:_collect_help_topics();
+      result = {"Available help topics:"};
+      for t in (all_topics)
+        result = {@result, "  " + t.name + " - " + t.summary};
+      endfor
+      return result:join("\n");
+    endif
+    "Search for specific topic";
+    found = wearer:find_help_topic(topic);
+    if (typeof(found) == INT)
+      return "No help found for: " + topic;
+    endif
+    "Return structured help";
+    return "Topic: " + found.name + "\n\n" + found.summary + "\n\n" + found.content + (found.see_also ? "\n\nSee also: " + found.see_also:join(", ") | "");
   endverb
 endobject

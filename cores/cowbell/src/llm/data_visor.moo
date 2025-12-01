@@ -6,7 +6,6 @@ object DATA_VISOR
   readable: true
 
   property current_investigation_task (owner: ARCH_WIZARD, flags: "rc") = #-1;
-
   property moo_language_examples (owner: ARCH_WIZARD, flags: "r") = {
     "MOO is a Wirth-style language with 1-based indexing (lists/strings start at 1, not 0).",
     "",
@@ -339,6 +338,9 @@ object DATA_VISOR
     this.agent:add_tool("task_status", task_status_tool);
     "Register architect's compass building tools if available";
     this:_register_compass_tools_if_available();
+    "Register help_lookup tool";
+    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands and features. Pass empty string to list all available topics.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'programming', 'inspect', '@examine'). Pass empty string to list all."]], "required" -> {"topic"}], this, "_tool_help_lookup");
+    agent:add_tool("help_lookup", help_lookup_tool);
   endverb
 
   verb _find_architects_compass (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -349,11 +351,15 @@ object DATA_VISOR
     !valid(wearer) && return #-1;
     "Check worn items";
     for item in (`wearer.wearing ! ANY => {}')
-      if (valid(item) && $architects_compass in ancestors(item)) return item; endif
+      if (valid(item) && $architects_compass in ancestors(item))
+        return item;
+      endif
     endfor
     "Check inventory";
     for item in (wearer.contents)
-      if (valid(item) && $architects_compass in ancestors(item)) return item; endif
+      if (valid(item) && $architects_compass in ancestors(item))
+        return item;
+      endif
     endfor
     return #-1;
   endverb
@@ -491,7 +497,7 @@ object DATA_VISOR
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    return toliteral({{tostr(a), a:name()} for a in (ancestors(o))});
+    return toliteral({ {tostr(a), a:name()} for a in (ancestors(o)) });
   endverb
 
   verb _tool_descendants (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -501,7 +507,7 @@ object DATA_VISOR
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
     typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    return toliteral({{tostr(d), d:name()} for d in (descendants(o))});
+    return toliteral({ {tostr(d), d:name()} for d in (descendants(o)) });
   endverb
 
   verb _tool_function_info (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -522,7 +528,7 @@ object DATA_VISOR
     result = {"=== MOO Builtin Functions ===", "Total: " + tostr(length(all_funcs)) + " functions", ""};
     for func_info in (all_funcs)
       {name, min_args, max_args, types} = func_info;
-      arg_sig = max_args == 0 ? "()" | max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + {maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types)}:join(", ") + ")";
+      arg_sig = max_args == 0 ? "()" | (max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + { maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types) }:join(", ") + ")");
       result = {@result, name + arg_sig};
     endfor
     return result:join("\n");
@@ -540,7 +546,7 @@ object DATA_VISOR
     start_line = max(1, maphaskey(args_map, "start_line") ? args_map["start_line"] | 1);
     end_line = min(length(code_lines), maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines));
     start_line > end_line && raise(E_INVARG("start_line must be <= end_line"));
-    return {tostr(i) + ": " + code_lines[i] for i in [start_line..end_line]}:join("\n");
+    return { tostr(i) + ": " + code_lines[i] for i in [start_line..end_line] }:join("\n");
   endverb
 
   verb _tool_get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1448,5 +1454,41 @@ object DATA_VISOR
     task_obj:mark_complete(result);
     this.current_investigation_task = -1;
     return "Investigation #" + tostr(task_obj.task_id) + " completed.";
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for the Data Visor.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("visor", "Using the Data Visor", "The Data Visor is a wearable tool for inspecting and programming objects. Wear it with 'wear visor', then use 'use visor' or 'interact with visor' to start a conversation about what you want to inspect or code.", {"data visor", "programming tool"}, 'items, {"programming", "inspect"}), $help:mk("inspect", "Inspecting objects", "Use the visor to examine objects in detail. Ask it to 'inspect the door' or 'show me the properties of the chair'. It can reveal verbs, properties, and the internal structure of objects.", {"examine", "look at code"}, 'programming, {"visor", "programming"}), $help:mk("@examine", "Examine an object's structure", "Usage: @examine <object>\n\nShows detailed information about an object including its parent, owner, properties, and verbs.", {"@exam"}, 'commands, {"inspect", "visor"}), $help:mk("@program", "Edit a verb's code", "Usage: @program <object>:<verb>\n\nOpens the verb editor to modify an object's verb code. Requires programmer permissions.", {"@prog"}, 'commands, {"programming", "visor"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
+  endverb
+
+  verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Look up a help topic to get information about commands and features.";
+    {args_map} = args;
+    wearer = this:wearer();
+    !valid(wearer) && return "Error: Visor is not being worn.";
+    topic = args_map["topic"];
+    typeof(topic) != STR && return "Error: topic must be a string.";
+    "If empty topic, list available topics";
+    if (topic == "")
+      all_topics = wearer:_collect_help_topics();
+      result = {"Available help topics:"};
+      for t in (all_topics)
+        result = {@result, "  " + t.name + " - " + t.summary};
+      endfor
+      return result:join("\n");
+    endif
+    "Search for specific topic";
+    found = wearer:find_help_topic(topic);
+    if (typeof(found) == INT)
+      return "No help found for: " + topic;
+    endif
+    "Return structured help";
+    return "Topic: " + found.name + "\n\n" + found.summary + "\n\n" + found.content + (found.see_also ? "\n\nSee also: " + found.see_also:join(", ") | "");
   endverb
 endobject

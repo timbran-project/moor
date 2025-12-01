@@ -6,10 +6,89 @@ object CONTAINER
   fertile: true
   readable: true
 
+  property already_closed_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already closed."};
+  property already_locked_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already locked."};
+  property already_open_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already open."};
+  property already_unlocked_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already unlocked."};
+  property close_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't close."};
+  property close_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "close", .for_others = "closes">,
+    " ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property close_rule (owner: HACKER, flags: "rc") = 0;
+  property lock_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't lock."};
+  property lock_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "lock", .for_others = "locks">,
+    " ",
+    <#19, .type = 'iobj, .capitalize = false>,
+    " with ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property lock_rule (owner: HACKER, flags: "rc") = 0;
+  property locked (owner: HACKER, flags: "r") = false;
+  property not_closeable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " can't be closed."};
+  property not_lockable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " doesn't have a lock."};
+  property not_openable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " can't be opened."};
+  property not_unlockable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " doesn't have a lock."};
+  property open (owner: HACKER, flags: "r") = true;
+  property open_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't open."};
+  property open_locked_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is locked."};
+  property open_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "open", .for_others = "opens">,
+    " ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property open_rule (owner: HACKER, flags: "rc") = 0;
+  property put_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " is closed."};
+  property put_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "put", .for_others = "puts">,
+    " ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    " in ",
+    <#19, .type = 'iobj, .capitalize = false>,
+    "."
+  };
+  property put_rule (owner: HACKER, flags: "rc") = 0;
+  property take_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " is closed."};
+  property take_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "take", .for_others = "takes">,
+    " ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    " from ",
+    <#19, .type = 'iobj, .capitalize = false>,
+    "."
+  };
+  property take_rule (owner: HACKER, flags: "rc") = 0;
+  property unlock_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't unlock."};
+  property unlock_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "unlock", .for_others = "unlocks">,
+    " ",
+    <#19, .type = 'iobj, .capitalize = false>,
+    " with ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property unlock_rule (owner: HACKER, flags: "rc") = 0;
+
   override description = "Generic container prototype for objects that can hold other items.";
   override import_export_hierarchy = {"items"};
   override import_export_id = "container";
-
   override object_documentation = {
     "# Containers",
     "",
@@ -213,39 +292,6 @@ object CONTAINER
     "```"
   };
 
-  property take_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "take", .for_others = "takes", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, " from ", <SUB, .capitalize = false, .type = 'iobj>, "."};
-  property put_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "put", .for_others = "puts", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, " in ", <SUB, .capitalize = false, .type = 'iobj>, "."};
-
-  property open (owner: HACKER, flags: "r") = true;
-  property open_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "open", .for_others = "opens", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-  property close_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "close", .for_others = "closes", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-
-  property locked (owner: HACKER, flags: "r") = false;
-  property lock_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "lock", .for_others = "locks", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'iobj>, " with ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-  property unlock_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "unlock", .for_others = "unlocks", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'iobj>, " with ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-
-  property take_rule (owner: HACKER, flags: "rc") = 0;
-  property put_rule (owner: HACKER, flags: "rc") = 0;
-  property open_rule (owner: HACKER, flags: "rc") = 0;
-  property close_rule (owner: HACKER, flags: "rc") = 0;
-  property lock_rule (owner: HACKER, flags: "rc") = 0;
-  property unlock_rule (owner: HACKER, flags: "rc") = 0;
-  property take_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " is closed."};
-  property put_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " is closed."};
-  property open_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " won't open."};
-  property open_locked_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is locked."};
-  property close_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " won't close."};
-  property lock_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " won't lock."};
-  property unlock_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " won't unlock."};
-  property not_openable_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " can't be opened."};
-  property not_closeable_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " can't be closed."};
-  property not_lockable_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " doesn't have a lock."};
-  property not_unlockable_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " doesn't have a lock."};
-  property already_open_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already open."};
-  property already_closed_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already closed."};
-  property already_locked_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already locked."};
-  property already_unlocked_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already unlocked."};
-
   verb acceptable (this none this) owner: HACKER flags: "rxd"
     "Containers accept items by default";
     return true;
@@ -260,18 +306,12 @@ object CONTAINER
   verb can_lock (this none this) owner: HACKER flags: "rxd"
     "Check if accessor can lock this container with key. Returns {allowed, reason}.";
     {accessor, key} = args;
-
     "No rule = public access";
     if (this.lock_rule == 0)
       return ['allowed -> true, 'reason -> {}];
     endif
-
     "Evaluate lock rule";
-    result = $rule_engine:evaluate(
-      this.lock_rule,
-      ['This -> this, 'Accessor -> accessor, 'Key -> key]
-    );
-
+    result = $rule_engine:evaluate(this.lock_rule, ['This -> this, 'Accessor -> accessor, 'Key -> key]);
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
@@ -287,18 +327,12 @@ object CONTAINER
   verb can_unlock (this none this) owner: HACKER flags: "rxd"
     "Check if accessor can unlock this container with key. Returns {allowed, reason}.";
     {accessor, key} = args;
-
     "No rule = public access";
     if (this.unlock_rule == 0)
       return ['allowed -> true, 'reason -> {}];
     endif
-
     "Evaluate unlock rule";
-    result = $rule_engine:evaluate(
-      this.unlock_rule,
-      ['This -> this, 'Accessor -> accessor, 'Key -> key]
-    );
-
+    result = $rule_engine:evaluate(this.unlock_rule, ['This -> this, 'Accessor -> accessor, 'Key -> key]);
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
@@ -310,23 +344,16 @@ object CONTAINER
   verb can_take_from (this none this) owner: HACKER flags: "rxd"
     "Check if accessor can take dobj from this container. Returns {allowed, reason}.";
     {accessor, dobj} = args;
-
     "Check if container is open";
     if (!this.open)
       return ['allowed -> false, 'reason -> this.take_denied_msg];
     endif
-
     "No rule = public access";
     if (this.take_rule == 0)
       return ['allowed -> true, 'reason -> {}];
     endif
-
     "Evaluate take rule";
-    result = $rule_engine:evaluate(
-      this.take_rule,
-      ['This -> this, 'Accessor -> accessor, 'Dobj -> dobj]
-    );
-
+    result = $rule_engine:evaluate(this.take_rule, ['This -> this, 'Accessor -> accessor, 'Dobj -> dobj]);
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
@@ -338,23 +365,16 @@ object CONTAINER
   verb can_put_into (this none this) owner: HACKER flags: "rxd"
     "Check if accessor can put dobj into this container. Returns {allowed, reason}.";
     {accessor, dobj} = args;
-
     "Check if container is open";
     if (!this.open)
       return ['allowed -> false, 'reason -> this.put_denied_msg];
     endif
-
     "No rule = public access";
     if (this.put_rule == 0)
       return ['allowed -> true, 'reason -> {}];
     endif
-
     "Evaluate put rule";
-    result = $rule_engine:evaluate(
-      this.put_rule,
-      ['This -> this, 'Accessor -> accessor, 'Dobj -> dobj]
-    );
-
+    result = $rule_engine:evaluate(this.put_rule, ['This -> this, 'Accessor -> accessor, 'Dobj -> dobj]);
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
@@ -367,18 +387,13 @@ object CONTAINER
     "Custom look that shows contents with container-appropriate language";
     set_task_perms(caller_perms());
     description = this.description;
-
     "Check if viewer can see contents via take_rule";
     can_view = true;
     if (this.take_rule != 0)
       "Evaluate rule without dobj binding for general access check";
-      result = $rule_engine:evaluate(
-        this.take_rule,
-        ['This -> this, 'Accessor -> player]
-      );
+      result = $rule_engine:evaluate(this.take_rule, ['This -> this, 'Accessor -> player]);
       can_view = result['success];
     endif
-
     if (can_view)
       "Show contents";
       contents_list = {};
@@ -396,7 +411,6 @@ object CONTAINER
       rendered_msg = $sub:render(deny_msg, ['iobj -> this]);
       description = description + "  " + rendered_msg:capitalize() + ".";
     endif
-
     return <$look, .what = this, .title = this:name(), .description = description>;
   endverb
 
@@ -578,18 +592,12 @@ object CONTAINER
   verb can_open (this none this) owner: HACKER flags: "rxd"
     "Check if accessor can open this container. Returns {allowed, reason}.";
     {accessor} = args;
-
     "No rule = public access";
     if (this.open_rule == 0)
       return ['allowed -> true, 'reason -> {}];
     endif
-
     "Evaluate open rule";
-    result = $rule_engine:evaluate(
-      this.open_rule,
-      ['This -> this, 'Accessor -> accessor]
-    );
-
+    result = $rule_engine:evaluate(this.open_rule, ['This -> this, 'Accessor -> accessor]);
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
@@ -601,18 +609,12 @@ object CONTAINER
   verb can_close (this none this) owner: HACKER flags: "rxd"
     "Check if accessor can close this container. Returns {allowed, reason}.";
     {accessor} = args;
-
     "No rule = public access";
     if (this.close_rule == 0)
       return ['allowed -> true, 'reason -> {}];
     endif
-
     "Evaluate close rule";
-    result = $rule_engine:evaluate(
-      this.close_rule,
-      ['This -> this, 'Accessor -> accessor]
-    );
-
+    result = $rule_engine:evaluate(this.close_rule, ['This -> this, 'Accessor -> accessor]);
     if (result['success])
       return ['allowed -> true, 'reason -> {}];
     else
@@ -646,7 +648,7 @@ object CONTAINER
     this:do_open(player);
   endverb
 
-  verb "close" (this none none) owner: ARCH_WIZARD flags: "rd"
+  verb close (this none none) owner: ARCH_WIZARD flags: "rd"
     "Close this container";
     set_task_perms(this.owner);
     "Check if already closed";
@@ -811,4 +813,14 @@ object CONTAINER
     return this:do_unlock(who, key);
   endverb
 
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for containers.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("open", "Open a container", "Use 'open <container>' to open it and see its contents.", {}, 'commands, {"close", "put"}), $help:mk("close", "Close a container", "Use 'close <container>' to close it.", {"shut"}, 'commands, {"open"}), $help:mk("put", "Put something inside", "Use 'put <thing> in <container>' to place an object inside.", {"place"}, 'commands, {"get", "open"}), $help:mk("lock", "Lock a container", "Use 'lock <container> with <key>' to lock it.", {}, 'commands, {"unlock", "open"}), $help:mk("unlock", "Unlock a container", "Use 'unlock <container> with <key>' to unlock it.", {}, 'commands, {"lock", "open"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
+  endverb
 endobject

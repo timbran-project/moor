@@ -5,10 +5,27 @@ object WEARABLE
   fertile: true
   readable: true
 
+  property body_area (owner: HACKER, flags: "rw") = false;
+  property remove_msg (owner: HACKER, flags: "rw") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "remove", .for_others = "removes">,
+    " ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+  property wear_msg (owner: HACKER, flags: "rw") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "put on", .for_others = "puts on">,
+    " ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "."
+  };
+
   override description = "Generic parent for items that can be worn by players.";
   override import_export_hierarchy = {"items"};
   override import_export_id = "wearable";
-
   override object_documentation = {
     "# Wearable Items",
     "",
@@ -91,10 +108,6 @@ object WEARABLE
     "hat.description = \"A stylish hat with a wide brim.\";",
     "```"
   };
-
-  property wear_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "put on", .for_others = "puts on", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-  property remove_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "remove", .for_others = "removes", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, "."};
-  property body_area (owner: HACKER, flags: "rw") = false;
 
   verb do_wear (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Core implementation: add to who's wearing list and announce.";
@@ -230,7 +243,7 @@ object WEARABLE
     return #-1;
   endverb
 
-  verb "@set-area" (this to any) owner: ARCH_WIZARD flags: "rd"
+  verb "@set-area" (this at any) owner: ARCH_WIZARD flags: "rd"
     "Set the body area for this wearable. Usage: @set-area <item> to <area>";
     if (caller != this.owner && !caller.wizard)
       player:inform_current($event:mk_error(player, "You can't do that."));
@@ -257,5 +270,16 @@ object WEARABLE
     endif
     "Delegate to parent for permission checks and actual move";
     return pass(@args);
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for wearable items.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("wear", "Put on an item", "Use 'wear <item>' to put on clothing, armor, or equipment.", {"don", "equip"}, 'commands, {"remove", "inventory"}), $help:mk("remove", "Take off an item", "Use 'remove <item>' to take off something you're wearing.", {"doff", "unequip"}, 'commands, {"wear", "inventory"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
   endverb
 endobject

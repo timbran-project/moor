@@ -6,33 +6,33 @@ object NOTE
   fertile: true
   readable: true
 
+  property content_type (owner: ARCH_WIZARD, flags: "rc") = 'text_plain;
   property erase_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'actor, .capitalize = true>,
+    <#19, .type = 'actor, .capitalize = true>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "erase", .for_others = "erases">,
+    <#19, .type = 'self_alt, .for_self = "erase", .for_others = "erases">,
     " ",
-    <SUB, .type = 'dobj, .capitalize = false>,
+    <#19, .type = 'dobj, .capitalize = false>,
     "."
   };
   property read_denied_msg (owner: HACKER, flags: "rc") = {"You can't read that."};
   property read_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'actor, .capitalize = true>,
+    <#19, .type = 'actor, .capitalize = true>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "read", .for_others = "reads">,
+    <#19, .type = 'self_alt, .for_self = "read", .for_others = "reads">,
     " ",
-    <SUB, .type = 'dobj, .capitalize = false>,
+    <#19, .type = 'dobj, .capitalize = false>,
     "."
   };
   property read_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property content_type (owner: ARCH_WIZARD, flags: "rc") = 'text_plain;
   property text (owner: ARCH_WIZARD, flags: "rc") = {};
   property write_denied_msg (owner: HACKER, flags: "rc") = {"You can't write on that."};
   property write_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'actor, .capitalize = true>,
+    <#19, .type = 'actor, .capitalize = true>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "write", .for_others = "writes">,
+    <#19, .type = 'self_alt, .for_self = "write", .for_others = "writes">,
     " on ",
-    <SUB, .type = 'dobj, .capitalize = false>,
+    <#19, .type = 'dobj, .capitalize = false>,
     "."
   };
   property write_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -53,9 +53,9 @@ object NOTE
     "",
     "List of strings containing the note's content. Each element is one line.",
     "",
-    "### content_type",
+    "### text_type",
     "",
-    "Content type symbol: 'text_plain (default) or 'text_djot for rich text formatting.",
+    "Content type: 'plain' (default) or 'djot' for rich text formatting.",
     "",
     "### Access Control Rules",
     "",
@@ -99,14 +99,13 @@ object NOTE
     "@set-rule letter.read_rule This owner_is(Accessor)?",
     "```",
     "",
-    "## Example: Creating a Public Sign with Djot",
+    "## Example: Creating a Public Sign",
     "",
     "```moo",
     "sign = create($note);",
     "sign.name = \"a wooden sign\";",
     "sign.description = \"A weathered wooden sign.\";",
-    "sign.content_type = 'text_djot;",
-    "sign:set_text({\"# Welcome to Cowbell!\", \"\", \"Population: *Growing*\"});",
+    "sign:set_text({\"Welcome to Cowbell!\", \"Population: Growing\"});",
     "@set-rule sign.get_rule NOT true",
     "```"
   };
@@ -332,5 +331,16 @@ object NOTE
       description = description + "  There appears to be some writing on it.";
     endif
     return <$look, .what = this, .title = this:name(), .description = description>;
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics this object provides.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("read", "Read a note", "Use 'read <note>' to display the note's contents.", {"r"}, 'commands, {"write", "erase"}), $help:mk("write", "Write on a note", "Use 'write <text> on <note>' to add a line of text.", {}, 'commands, {"read", "erase"}), $help:mk("erase", "Erase a note", "Use 'erase <note>' to clear all text from it.", {}, 'commands, {"read", "write"}), $help:mk("delete", "Delete a line", "Use 'delete <line#> from <note>' to remove a specific line. Use negative numbers to count from end (-1 = last line).", {"remove"}, 'commands, {"write", "erase"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
   endverb
 endobject

@@ -303,4 +303,15 @@ object SOCIAL_FEATURES
     event = $event:mk_paste(player, $format.title:mk({$sub:nc(), " ", $sub:self_alt("paste", "pastes")}, 4), $format.code:mk(content)):with_presentation_hint('inset);
     player.location:announce(event);
   endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for social actions.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("socializing", "Social actions and gestures", "Express yourself with gestures and actions that others can see.\n\n`nod`, `wave`, `bow`, `smile`, `frown`, `laugh`, `dance`, `shrug`, `ponder`, `applaud`/`clap`, `cheer`, `sigh`, `yawn`, `stretch`, `bonk`, `think`\n\nMost gestures can be directed at someone:\n\n`wave at Henri`\n`bow to Ryan`\n`bonk someone`\n\nThe `think` command shows a visible thought:\n\n`think I wonder what's for dinner` \u2192 _Ryan . o O ( I wonder what's for dinner )_", {"socials", "gestures", "actions"}, 'social, {"communicating", "emote"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
+  endverb
 endobject

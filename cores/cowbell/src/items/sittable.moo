@@ -6,12 +6,68 @@ object SITTABLE
   fertile: true
   readable: true
 
+  property already_sitting_msg (owner: HACKER, flags: "rc") = {
+    "You're already sitting on ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+  property cant_reach_msg (owner: HACKER, flags: "rc") = {
+    "You can't reach ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    " from here."
+  };
+  property dumped_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'dobj, .capitalize = true>,
+    " ",
+    <#19, .type = 'verb_be, .capitalize = false>,
+    " dumped off ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+  property no_room_msg (owner: HACKER, flags: "rc") = {
+    "There's no room on ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+  property not_sitting_msg (owner: HACKER, flags: "rc") = {
+    "You aren't sitting on ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+  property seats (owner: HACKER, flags: "r") = 2;
+  property sit_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "sit", .for_others = "sits", .capitalize = false>,
+    " on ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+  property sitting (owner: HACKER, flags: "r") = {};
+  property sitting_prep (owner: HACKER, flags: "rc") = "on";
+  property sitting_verb (owner: HACKER, flags: "rc") = "sitting";
+  property squeeze (owner: HACKER, flags: "rc") = 0;
+  property squeezed_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'dobj, .capitalize = true>,
+    " ",
+    <#19, .type = 'verb_be, .capitalize = false>,
+    " squeezed off ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+  property stand_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "stand", .for_others = "stands", .capitalize = false>,
+    " up from ",
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    "."
+  };
+
+  override aliases = {"sittable"};
   override description = "A prototype for objects that can be sat upon. Set .seats to control capacity, .squeeze for extra squeezable spots (-1 for rigid furniture), .sitting_verb and .sitting_prep for customization.";
   override import_export_hierarchy = {"items"};
   override import_export_id = "sittable";
-
-  override aliases = {"sittable"};
-
   override object_documentation = {
     "# Sittable Objects",
     "",
@@ -91,65 +147,6 @@ object SITTABLE
     "chair.sitting_verb = \"curled up\";",
     "chair.sitting_prep = \"in\";",
     "```"
-  };
-
-  property sitting (owner: HACKER, flags: "r") = {};
-  property seats (owner: HACKER, flags: "r") = 2;
-  property squeeze (owner: HACKER, flags: "rc") = 0;
-  property sitting_verb (owner: HACKER, flags: "rc") = "sitting";
-  property sitting_prep (owner: HACKER, flags: "rc") = "on";
-
-  property sit_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'actor, .capitalize = true>,
-    " ",
-    <SUB, .type = 'self_alt, .for_self = "sit", .for_others = "sits", .capitalize = false>,
-    " on ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
-  };
-  property stand_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'actor, .capitalize = true>,
-    " ",
-    <SUB, .type = 'self_alt, .for_self = "stand", .for_others = "stands", .capitalize = false>,
-    " up from ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
-  };
-  property already_sitting_msg (owner: HACKER, flags: "rc") = {
-    "You're already sitting on ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
-  };
-  property not_sitting_msg (owner: HACKER, flags: "rc") = {
-    "You aren't sitting on ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
-  };
-  property no_room_msg (owner: HACKER, flags: "rc") = {
-    "There's no room on ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
-  };
-  property cant_reach_msg (owner: HACKER, flags: "rc") = {
-    "You can't reach ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    " from here."
-  };
-  property squeezed_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'dobj, .capitalize = true>,
-    " ",
-    <SUB, .type = 'verb_be, .capitalize = false>,
-    " squeezed off ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
-  };
-  property dumped_msg (owner: HACKER, flags: "rc") = {
-    <SUB, .type = 'dobj, .capitalize = true>,
-    " ",
-    <SUB, .type = 'verb_be, .capitalize = false>,
-    " dumped off ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
-    "."
   };
 
   verb sit (any on this) owner: HACKER flags: "rxd"
@@ -356,4 +353,14 @@ object SITTABLE
     return true;
   endverb
 
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for sittable furniture.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("sit", "Sit down", "Use 'sit on <furniture>' to sit down.", {}, 'commands, {"stand"}), $help:mk("stand", "Stand up", "Use 'stand from <furniture>' to get up.", {"get up"}, 'commands, {"sit"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
+  endverb
 endobject

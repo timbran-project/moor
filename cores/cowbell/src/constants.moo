@@ -103,6 +103,8 @@ define GRANT_UTILS = #25;
 define PROG_UTILS = #53;
 define OBJ_UTILS = #57;
 define HELP_UTILS = #58;
+define HELP = #72;
+define HELP_TOPICS = #73;
 
 // world
 define ROOM = #7;

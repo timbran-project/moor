@@ -525,31 +525,77 @@ object PLAYER
   verb "what help" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Tell the player where they are and what's around.";
     "Display available commands and actions. If a target object is specified, show help for that object.";
-    "Syntax: what [target]";
+    "If a topic name is given, search for help on that topic.";
+    "Syntax: help [object|topic]";
     caller != this && raise(E_PERM);
     set_task_perms(this);
     if (dobjstr && dobjstr != "")
-      try
-        target_obj = $match:match_object(dobjstr, this);
-      except e (ANY)
-        this:inform_current($event:mk_error(this, "I can't find that."):with_audience('utility));
+      "First try to match an object";
+      target_obj = `$match:match_object(dobjstr, this) ! ANY => $failed_match';
+      if (valid(target_obj))
+        result = this:_show_targeted_help(target_obj);
+        lines = result[1];
+        if (this.programmer)
+          lines = {@lines, "", $format.title:mk("Try programmer documentation with:")};
+          lines = {@lines, $format.code:mk("@doc " + dobjstr + "\n@doc " + dobjstr + ":verb")};
+        endif
+        content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
+        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+        event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+        this:inform_current(event);
         return;
-      endtry
-      result = this:_show_targeted_help(target_obj);
-      lines = result[1];
-      "Show developer documentation hint for programmers";
-      if (this.programmer)
-        lines = {@lines, $format.title:mk("Try programmer documentation with:")};
-        lines = {@lines, $format.code:mk("@doc " + dobjstr + "\n@doc " + dobjstr + ":verb")};
       endif
-      content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
-      event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
-      this:inform_current(event);
+      "No object match - try topic search";
+      topic_result = this:find_help_topic(dobjstr);
+      if (typeof(topic_result) != INT)
+        prose_lines = topic_result:render_prose();
+        content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
+        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+        event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+        this:inform_current(event);
+        return;
+      endif
+      "Neither object nor topic found";
+      this:inform_current($event:mk_error(this, "No help found for '" + dobjstr + "'."):with_audience('utility));
       return;
     endif
-    lines = this:_show_location_help();
+    "No argument - show help summary";
+    lines = {};
+    "Location context first";
+    context_block = `$help_utils:display_location_context(this) ! ANY => 0';
+    if (context_block && context_block != 0)
+      lines = {@lines, context_block};
+    endif
+    "Help topics near the top";
+    topics = this:_collect_help_topics();
+    if (length(topics) > 0)
+      topic_names = {};
+      for t in (topics)
+        if (!(t.name in topic_names))
+          topic_names = {@topic_names, t.name};
+        endif
+      endfor
+      lines = {@lines, "", $format.title:mk("Help Topics", 4)};
+      lines = {@lines, $format.code:mk(topic_names:join(", "))};
+      lines = {@lines, "Type 'help <topic>' for details."};
+    endif
+    "Then commands";
+    cmd_env = this:command_environment();
+    ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
+    lines = this:_display_ambient_verbs(ambient_verbs, lines);
+    if (length(ambient_verbs) == 0)
+      lines = {@lines, "(No commands available)"};
+    endif
+    lines = {@lines, "", $format.title:mk("Need more detail?", 4)};
+    lines = {@lines, $format.code:mk("help <thing>\nexamine <thing>")};
+    lines = {@lines, "Use these on anything listed above to see its specific commands or description."};
+    if (this.programmer)
+      lines = {@lines, "", $format.title:mk("To look for programmer documentation...")};
+      lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
+    endif
     content = $format.block:mk($format.title:mk("Help"), @lines);
     event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
     this:inform_current(event);
   endverb
 
@@ -668,5 +714,93 @@ object PLAYER
       lines = {@lines, $format.code:mk(room_verbs:join(", "))};
     endif
     return lines;
+  endverb
+
+  verb help_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return list of objects to search for help topics.";
+    "Order: global, features, room, inventory, room contents";
+    env = {};
+    "Global help source (if it exists)";
+    gh = `$sysobj.help_topics ! E_PROPNF => $nothing';
+    if (valid(gh))
+      env = {@env, gh};
+    endif
+    "Player's features (provide commands, should provide help)";
+    for feat in (this.features)
+      if (valid(feat))
+        env = {@env, feat};
+      endif
+    endfor
+    "Current room";
+    if (valid(this.location))
+      env = {@env, this.location};
+    endif
+    "Player's inventory";
+    for item in (this.contents)
+      env = {@env, item};
+    endfor
+    "Room contents (excluding self)";
+    if (valid(this.location))
+      for item in (this.location.contents)
+        if (item != this)
+          env = {@env, item};
+        endif
+      endfor
+    endif
+    return env;
+  endverb
+
+  verb find_help_topic (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Search environment for a help topic. Returns $help flyweight or 0.";
+    {topic} = args;
+    env = this:help_environment();
+    for o in (env)
+      if (!o.r)
+        continue;
+      endif
+      if (!respond_to(o, 'help_topics))
+        continue;
+      endif
+      result = `o:help_topics(this, topic) ! ANY => 0';
+      if (typeof(result) != INT)
+        return result;
+      endif
+    endfor
+    return 0;
+  endverb
+
+  verb _collect_help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Gather all help topics from the environment.";
+    "Returns a list of help topic flyweights.";
+    env = this:help_environment();
+    all_topics = {};
+    for o in (env)
+      if (!o.r)
+        continue;
+      endif
+      if (!respond_to(o, 'help_topics))
+        continue;
+      endif
+      topics = `o:help_topics(this, "") ! ANY => {}';
+      if (typeof(topics) == LIST)
+        all_topics = {@all_topics, @topics};
+      endif
+    endfor
+    return all_topics;
+  endverb
+
+  verb available_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return structured list of all help available in current context.";
+    "For use by LLM agents and programmatic discovery.";
+    topics = this:_collect_help_topics();
+    result = {};
+    seen = {};
+    for t in (topics)
+      if (!(t.name in seen))
+        seen = {@seen, t.name};
+        result = {@result, t:render_structured()};
+      endif
+    endfor
+    return result;
   endverb
 endobject

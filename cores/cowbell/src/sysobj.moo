@@ -30,6 +30,8 @@ object SYSOBJ
   property format (owner: HACKER, flags: "r") = FORMAT;
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
+  property help (owner: HACKER, flags: "r") = HELP;
+  property help_topics (owner: ARCH_WIZARD, flags: "r") = HELP_TOPICS;
   property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
   property henri (owner: HACKER, flags: "r") = HENRI;
   property henri_kibble_taken_msgs (owner: HACKER, flags: "r") = HENRI_KIBBLE_TAKEN_MSGS;
@@ -51,8 +53,8 @@ object SYSOBJ
   property match (owner: HACKER, flags: "r") = MATCH;
   property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
   property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
-  property nothing (owner: HACKER, flags: "r") = #-1;
   property note (owner: HACKER, flags: "r") = NOTE;
+  property nothing (owner: HACKER, flags: "r") = #-1;
   property obj_utils (owner: HACKER, flags: "r") = OBJ_UTILS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;

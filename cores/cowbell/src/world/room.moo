@@ -188,4 +188,10 @@ object ROOM
     "Traverse the passage";
     return `passage:traverse(who) ! ANY => false';
   endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Rooms don't add extra help topics - exits command handles that.";
+    {for_player, ?topic = ""} = args;
+    return topic == "" ? {} | 0;
+  endverb
 endobject

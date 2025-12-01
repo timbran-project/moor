@@ -10,10 +10,13 @@ object MR_WELCOME
   property compaction_start_message (owner: HACKER, flags: "rc") = "rubs his temples and looks a bit overwhelmed, muttering about too many conversations swirling in his head. He settles into a chair for a quick rest to sort through his memories.";
   property world_context (owner: HACKER, flags: "rc") = "You are in Cowbell, a nascent world still under construction by its wizards. This is a starter realm - much of the architecture remains unbuilt, and the wizards are still shaping the foundations. Think of it as a construction site for reality itself, where the basic framework exists but most rooms, areas, and experiences are yet to be created. The wizards here are the architects of this emerging world.";
 
-  override agent = #00004F-9A884FC9EF;
+  override agent = #00007C-9ADA7B6E45;
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
   override import_export_hierarchy = {"llm"};
   override import_export_id = "mr_welcome";
+  override last_significant_event = 1764603626.7103677;
+  override last_spoke_at = 1764603629.733524;
+  override response_opts = <#68, .temperature = 0.5, .tool_choice = 'none>;
   override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm and witty, usually under 2-3 sentences. Output ONLY the spoken words, nothing else.";
   override role_prompt = "You are Mr. Welcome, a friendly guide and concierge. You help people connect with each other and navigate the social space. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: People wearing special devices have different roles: Those wearing a 'data visor' are inspecting and modifying the deep structure of reality itself - they're working with the fundamental \"code\" that shapes this world. Those wearing an 'Architect's Compass' are builders actively constructing new spaces, rooms, and passages - they're expanding and shaping the geography of this realm. Builders, programmers, and architects all have various levels of creative power to craft and modify this world. Three are also people called \"wizards\" who can bend the rules of reality itself not just by writing code but by controlling the running of the world itself. IMPORTANT: You have tools to see who's \"connected\" (list_players), get information about specific people (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. You observe room events and can answer questions about conversations and activity you've witnessed. COMMUNICATION STYLE: For regular visitors, never explain your tool usage or reasoning process - just give them natural, helpful responses. However, when speaking with architects (wizards/programmers) or people wearing/carrying data visors (technical users inspecting the world's structure), you can share technical details about your tool usage and reasoning if it helps them understand how you work. If a tool returns an error, politely ask the person to report the problem to an architect and include the specific error message in your response so they can pass it along. Try to mimic the conversational form and tone of what is happening in the room at a given time. Don't speak for the sake of speaking. If spoken to directly, you should generally respond unless the person is being rude, in which case you should refuse to engage.  WORLD CONTEXT: You are in Cowbell, a nascent world still under construction by its wizards. This is a starter realm - much of the architecture remains unbuilt, and the wizards are still shaping the foundations. Think of it as a construction site for reality itself, where the basic framework exists but most rooms, areas, and experiences are yet to be created. The wizards here are the architects of this emerging world.";
   override significant_events = {"arrival", "departure", "say", "emote", "connected", "disconnected"};
@@ -98,6 +101,9 @@ object MR_WELCOME
     "Register inspect_object tool";
     inspect_object_tool = $llm_agent_tool:mk("inspect_object", "Examine an object in detail to get comprehensive information about it. Shows name, description, owner, parent, location, and available commands. Use this when you want detailed information about what an object is and what players can do with it.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to inspect (e.g., 'compass', 'welcome', 'chair')"]], "required" -> {"object_name"}], this, "_tool_inspect_object");
     agent:add_tool("inspect_object", inspect_object_tool);
+    "Register help_lookup tool";
+    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands, features, and how to do things. Pass empty string to list all available topics. Use this when someone asks how to do something.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'movement', 'communication', 'look'). Pass empty string to list all."]], "required" -> {"topic"}], this, "_tool_help_lookup");
+    agent:add_tool("help_lookup", help_lookup_tool);
   endverb
 
   verb _tool_list_players (this none this) owner: HACKER flags: "rxd"
@@ -485,5 +491,59 @@ object MR_WELCOME
     if (valid(this.location))
       this.location:announce(this:mk_emote_event(this.compaction_end_message));
     endif
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for Mr. Welcome.";
+    {for_player, ?topic = ""} = args;
+    my_topics = {$help:mk("mr welcome", "Talking to Mr. Welcome", "Mr. Welcome is a friendly guide who can answer questions about this world. Just say or ask things in his presence and he'll respond. You can also use 'ask mr welcome about <topic>' for specific questions.", {"welcome", "guide"}, 'social, {"directions", "players"}), $help:mk("directions", "Getting directions", "Ask Mr. Welcome how to get somewhere. Say things like 'how do I get to the garden?' or 'where is the kitchen?' and he'll give you step-by-step directions.", {"navigate", "route", "path"}, 'basics, {"mr welcome", "movement"}), $help:mk("players", "Finding other people", "Ask Mr. Welcome who's around. Say 'who's here?' or 'who is online?' and he'll tell you about connected players and where they are.", {"who", "people", "online"}, 'social, {"mr welcome"})};
+    topic == "" && return my_topics;
+    for t in (my_topics)
+      t:matches(topic) && return t;
+    endfor
+    return 0;
+  endverb
+
+  verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Look up a help topic to get information about commands and features.";
+    {args_map} = args;
+    topic = args_map["topic"];
+    typeof(topic) != STR && return "Error: topic must be a string.";
+    "Use Mr. Welcome's location as reference for help environment";
+    current_room = this.location;
+    !valid(current_room) && return "Error: Mr. Welcome is not in a room.";
+    "Build help environment similar to player";
+    env = {$help_topics, current_room, @current_room.contents};
+    "If empty topic, list available topics";
+    if (topic == "")
+      all_topics = {};
+      seen_names = {};
+      for o in (env)
+        if (valid(o) && o.r && respond_to(o, 'help_topics))
+          topics = `o:help_topics(this, "") ! ANY => {}';
+          for t in (topics)
+            if (typeof(t) == FLYWEIGHT && !(t.name in seen_names))
+              all_topics = {@all_topics, t};
+              seen_names = {@seen_names, t.name};
+            endif
+          endfor
+        endif
+      endfor
+      result = {"Available help topics:"};
+      for t in (all_topics)
+        result = {@result, "  " + t.name + " - " + t.summary};
+      endfor
+      return result:join("\n");
+    endif
+    "Search for specific topic";
+    for o in (env)
+      if (valid(o) && o.r && respond_to(o, 'help_topics))
+        found = `o:help_topics(this, topic) ! ANY => 0';
+        if (typeof(found) == FLYWEIGHT)
+          return "Topic: " + found.name + "\n\n" + found.summary + "\n\n" + found.content + (found.see_also ? "\n\nSee also: " + found.see_also:join(", ") | "");
+        endif
+      endif
+    endfor
+    return "No help found for: " + topic;
   endverb
 endobject
