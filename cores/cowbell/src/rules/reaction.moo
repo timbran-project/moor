@@ -268,7 +268,8 @@ object REACTION
     'on_get, 'on_drop, 'on_take, 'on_put,
     'on_open, 'on_close, 'on_lock, 'on_unlock,
     'on_enter, 'on_leave, 'on_pet,
-    'on_wear, 'on_remove, 'on_use
+    'on_wear, 'on_remove, 'on_use,
+    'on_sit, 'on_stand, 'on_sittable_squeeze, 'on_sittable_dump
   };
 
   property comparison_ops (owner: HACKER, flags: "rc") = {

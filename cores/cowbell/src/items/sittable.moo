@@ -207,6 +207,9 @@ object SITTABLE
     pos = who in this.sitting;
     !pos && return;
     this.sitting = listdelete(this.sitting, pos);
+    "Fire trigger for reactions";
+    trigger_name = use_dumped ? 'on_sittable_dump | 'on_sittable_squeeze;
+    this:fire_trigger(trigger_name, ['Actor -> who]);
     "Announce";
     msg = use_dumped ? this.dumped_msg | this.squeezed_msg;
     event = $event:mk_info(who, @msg):with_dobj(who):with_this(this);
@@ -216,8 +219,9 @@ object SITTABLE
   verb dump_all_sitters (none none none) owner: HACKER flags: "rxd"
     "Dump all sitters when furniture moves.";
     length(this.sitting) == 0 && return;
-    "Announce each sitter being dumped";
+    "Fire trigger and announce for each sitter being dumped";
     for who in (this.sitting)
+      this:fire_trigger('on_sittable_dump, ['Actor -> who]);
       event = $event:mk_info(who, @this.dumped_msg):with_dobj(who):with_this(this);
       this.location:announce(event);
     endfor
