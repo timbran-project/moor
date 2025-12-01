@@ -200,82 +200,118 @@ object THING
     return result['success];
   endverb
 
+  verb do_get (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Move item to actor's inventory. Returns true. Optional silent flag.";
+    {who, ?silent = false} = args;
+    old_location = this.location;
+    this:moveto(who);
+    if (!silent && isa(old_location, $room))
+      event = $event:mk_moved(who, @this.get_msg):with_dobj(this):with_iobj(who);
+      old_location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb do_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Drop item from actor to their location. Returns true. Optional silent flag.";
+    {who, ?silent = false} = args;
+    new_location = who.location;
+    this:moveto(new_location);
+    if (!silent)
+      event = $event:mk_moved(who, @this.drop_msg):with_dobj(this):with_iobj(who);
+      new_location:announce(event);
+    endif
+    return true;
+  endverb
+
   verb get (this none none) owner: ARCH_WIZARD flags: "rxd"
-    "Get/take an object";
+    "Get/take an object - command handler";
     set_task_perms(caller_perms());
     if (this.location == player)
       event = $event:mk_error(player, "You already have ", $sub:d(), "."):with_dobj(this);
       player:inform_current(event);
       return;
     endif
-    "Check get_rule";
     if (!this:can_get(player))
       event = $event:mk_error(player, @this.get_denied_msg):with_dobj(this);
       player:inform_current(event);
       return;
     endif
-    accept_to = player:acceptable(this);
-    if (!accept_to)
+    if (!player:acceptable(this))
       event = $event:mk_no_accept(player, $sub:nc(), " can't put ", $sub:d(), " in ", $sub:ic(), "."):with_dobj(this):with_iobj(player);
       player:inform_current(event);
       return;
     endif
-    old_location = this.location;
     try
-      this:moveto(player);
+      this:do_get(player);
     except e (E_PERM)
-      "Handle permission errors with friendly message";
       msg = length(e) > 2 ? e[2] | "You don't have permission to take that.";
       event = $event:mk_error(player, msg):with_dobj(this);
       player:inform_current(event);
-      return;
     endtry
-    if (isa(old_location, $room))
-      "Use custom message if available, otherwise use default";
-      message_content = this.get_msg;
-      event = $event:mk_moved(player, @message_content):with_dobj(this):with_iobj(player);
-      old_location:announce(event);
-    endif
   endverb
 
   verb drop (this none none) owner: ARCH_WIZARD flags: "rxd"
-    "Drop an object from inventory";
+    "Drop an object from inventory - command handler";
     set_task_perms(caller_perms());
     if (this.location != player)
       event = $event:mk_error(player, "You don't have ", $sub:d(), " to drop."):with_dobj(this);
       player:inform_current(event);
       return;
     endif
-    "Check drop_rule";
     if (!this:can_drop(player))
       event = $event:mk_error(player, @this.drop_denied_msg):with_dobj(this);
       player:inform_current(event);
       return;
     endif
-    new_location = player.location;
-    if (!new_location:acceptable(this))
+    if (!player.location:acceptable(this))
       event = $event:mk_error(player, "You can't drop ", $sub:d(), " here."):with_dobj(this);
       player:inform_current(event);
       return;
     endif
     try
-      this:moveto(new_location);
+      this:do_drop(player);
     except e (E_PERM)
-      "Handle permission errors with friendly message";
       msg = length(e) > 2 ? e[2] | "You don't have permission to drop that.";
       event = $event:mk_error(player, msg):with_dobj(this);
       player:inform_current(event);
-      return;
     endtry
-    "Use custom message if available, otherwise use default";
-    message_content = this.drop_msg;
-    event = $event:mk_moved(player, @message_content):with_dobj(this):with_iobj(player);
-    new_location:announce(event);
   endverb
 
   verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     return false;
+  endverb
+
+  verb "action_get action_take" (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler for reactions: make actor pick up this item.";
+    {who, context} = args;
+    this.location == who && return false;
+    !this:can_get(who) && return false;
+    !who:acceptable(this) && return false;
+    return this:do_get(who);
+  endverb
+
+  verb action_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler for reactions: make actor drop this item.";
+    {who, context} = args;
+    this.location != who && return false;
+    !this:can_drop(who) && return false;
+    !who.location:acceptable(this) && return false;
+    return this:do_drop(who);
+  endverb
+
+  verb action_put (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler for reactions: put this item into a container.";
+    {who, context, dest} = args;
+    this.location != who && return false;
+    "Check container's put rule if it has one";
+    if (`dest:can_put_into(who, this) ! E_VERBNF => ['allowed -> true]'['allowed] == false)
+      return false;
+    endif
+    !dest:acceptable(this) && return false;
+    this:moveto(dest);
+    return true;
   endverb
 
 endobject
