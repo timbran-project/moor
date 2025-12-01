@@ -205,7 +205,8 @@ object RULE_ENGINE
     typeof(target_obj) == OBJ || raise(E_TYPE, "first goal argument must be object");
 
     fact_results = `target_obj:("fact_" + tostr(predicate_name))(@substituted_args) ! E_VERBNF => false';
-    fact_results == false && return {};
+    "Check for falsy results (0, false, empty string/list all mean failure)";
+    !fact_results && return {};
     typeof(fact_results) != LIST && (fact_results = {fact_results});
 
     "Unify each result with the original goal to get bindings";

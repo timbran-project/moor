@@ -448,13 +448,13 @@ object CONTAINER
       player:inform_current(event);
       return;
     endtry
-    "Fire trigger for reactions";
-    this:fire_trigger('on_take, ['Actor -> player, 'Item -> dobj]);
     "Announce to room";
     if (valid(player.location))
       event = $event:mk_info(player, @this.take_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
       player.location:announce(event);
     endif
+    "Fire trigger for reactions (after announcement)";
+    this:fire_trigger('on_take, ['Actor -> player, 'Item -> dobj]);
   endverb
 
   verb put (any in this) owner: ARCH_WIZARD flags: "rd"

@@ -172,11 +172,11 @@ object SITTABLE
     endif
     "Add player to sitting list";
     this.sitting = {@this.sitting, player};
-    "Fire trigger for reactions";
-    this:fire_trigger('on_sit, ['Actor -> player]);
     "Announce to room";
     event = $event:mk_act(player, @this.sit_msg):with_this(this);
     this.location:announce(event);
+    "Fire trigger for reactions (after announcement)";
+    this:fire_trigger('on_sit, ['Actor -> player]);
     "Squeeze check - if over capacity, dump the first person";
     if (length(this.sitting) > this.seats + max(0, this.squeeze))
       victim = this.sitting[1];
@@ -194,11 +194,11 @@ object SITTABLE
     "Remove from sitting list";
     pos = player in this.sitting;
     this.sitting = listdelete(this.sitting, pos);
-    "Fire trigger for reactions";
-    this:fire_trigger('on_stand, ['Actor -> player]);
     "Announce to room";
     event = $event:mk_act(player, @this.stand_msg):with_this(this);
     this.location:announce(event);
+    "Fire trigger for reactions (after announcement)";
+    this:fire_trigger('on_stand, ['Actor -> player]);
   endverb
 
   verb add_sitter (this none this) owner: HACKER flags: "rxd"

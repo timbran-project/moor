@@ -31,11 +31,14 @@ object HENRI
   override import_export_id = "henri";
   override import_export_hierarchy = {"initial"};
 
-  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {{'set, 'mood, "sleepy"}, {'announce, 'sleepy_threshold_msg}}, .enabled = true, .fired_at = 0>;
+  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {{'set, 'mood, "sleepy"}, {'announce, 'sleepy_threshold_msg}, {'action, 'sit, COUCH}}, .enabled = true, .fired_at = 0>;
   property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .head = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}>, .effects = {{'announce, 'pet_grouchy_msg}}, .enabled = true, .fired_at = 0>;
   property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .head = 'playful_rule, .body = {{'is_playful, 'This}}, .variables = {'This}>, .effects = {{'announce, 'pet_playful_msg}}, .enabled = true, .fired_at = 0>;
   property cupboard_open_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_cupboard_open, .when = 0, .effects = {{'announce, 'cupboard_open_msg}}, .enabled = true, .fired_at = 0>;
-  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_kibble_taken, .when = 0, .effects = {{'announce, 'kibble_taken_msg_bag}}, .enabled = true, .fired_at = 0>;
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_kibble_taken, .when = 0, .effects = {{'action, 'stand, COUCH}, {'announce, 'kibble_taken_msg_bag}}, .enabled = true, .fired_at = 0>;
+
+  property couch_intruder_msg (owner: HACKER, flags: "r") = {<SUB, .capitalize = true, .type = 'actor>, " shifts pointedly away from ", <SUB, .capitalize = false, .type = 'dobj>, ", radiating offended dignity. \"This is MY couch.\""};
+  property couch_intruder_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_couch_intruder, .when = 0, .effects = {{'announce, 'couch_intruder_msg}}, .enabled = true, .fired_at = 0>;
 
   override object_documentation = {
     "# Henri - The Grouchy Cat",

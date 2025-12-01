@@ -679,8 +679,8 @@ object REACTION
     "Context is map: ['Actor -> player, 'This -> object, 'Key -> iobj, ...]";
     {context} = args;
 
-    "Check when clause if present";
-    if (this.when && this.when != 0)
+    "Check when clause if present (flyweights are falsy, so check != 0)";
+    if (this.when != 0)
       result = $rule_engine:evaluate(this.when, context);
       if (!result['success])
         return false;
