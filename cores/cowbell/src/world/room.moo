@@ -173,4 +173,19 @@ object ROOM
     event = $event:mk_info(player, content):with_audience('utility):with_presentation_hint('inset);
     player:inform_current(event);
   endverb
+
+  verb action_go (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: make actor go in a direction from this room.";
+    set_task_perms(this.owner);
+    {who, context, direction} = args;
+    who.location != this && return false;
+    "Get the area and find passage for this direction";
+    area = this.location;
+    !valid(area) && return false;
+    !respond_to(area, 'find_passage_by_direction) && return false;
+    passage = `area:find_passage_by_direction(this, direction) ! ANY => $nothing';
+    !valid(passage) && return false;
+    "Traverse the passage";
+    return `passage:traverse(who) ! ANY => false';
+  endverb
 endobject

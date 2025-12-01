@@ -251,4 +251,14 @@ object ACTOR
     {actor, thing} = args;
     return thing.owner == actor;
   endverb
+
+  verb action_go (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: make this actor go in a direction.";
+    set_task_perms(this.owner);
+    {who, context, direction} = args;
+    who != this && return false;
+    !valid(this.location) && return false;
+    "Delegate to room's action_go";
+    return `this.location:action_go(this, context, direction) ! ANY => false';
+  endverb
 endobject

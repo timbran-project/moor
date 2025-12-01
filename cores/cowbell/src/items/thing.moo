@@ -202,6 +202,8 @@ object THING
 
   verb do_get (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Move item to actor's inventory. Returns true. Optional silent flag.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_get must be called by this object");
     {who, ?silent = false} = args;
     old_location = this.location;
     this:moveto(who);
@@ -214,6 +216,8 @@ object THING
 
   verb do_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Drop item from actor to their location. Returns true. Optional silent flag.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_drop must be called by this object");
     {who, ?silent = false} = args;
     new_location = who.location;
     this:moveto(new_location);
@@ -285,8 +289,16 @@ object THING
 
   verb "action_get action_take" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Action handler for reactions: make actor pick up this item.";
+    set_task_perms(this.owner);
     {who, context} = args;
+    "Must be reachable: in same room, or in a container in same room";
     this.location == who && return false;
+    if (this.location != who.location)
+      "Not in same room - check if in a container in the room";
+      if (!isa(this.location, $container) || this.location.location != who.location)
+        return false;
+      endif
+    endif
     !this:can_get(who) && return false;
     !who:acceptable(this) && return false;
     return this:do_get(who);
@@ -294,6 +306,7 @@ object THING
 
   verb action_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Action handler for reactions: make actor drop this item.";
+    set_task_perms(this.owner);
     {who, context} = args;
     this.location != who && return false;
     !this:can_drop(who) && return false;
@@ -303,12 +316,15 @@ object THING
 
   verb action_put (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Action handler for reactions: put this item into a container.";
+    set_task_perms(this.owner);
     {who, context, dest} = args;
     this.location != who && return false;
-    "Check container's put rule if it has one";
-    if (`dest:can_put_into(who, this) ! E_VERBNF => ['allowed -> true]'['allowed] == false)
-      return false;
+    !this:can_drop(who) && return false;
+    "Delegate to container's action_put_into if available";
+    if (respond_to(dest, 'action_put_into))
+      return `dest:action_put_into(who, context, this) ! ANY => false';
     endif
+    "Fallback for non-container destinations: check acceptable and move";
     !dest:acceptable(this) && return false;
     this:moveto(dest);
     return true;

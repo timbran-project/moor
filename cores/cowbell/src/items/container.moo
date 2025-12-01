@@ -439,22 +439,13 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Try to move it";
     try
-      dobj:moveto(player);
+      this:do_take_from(player, dobj);
     except e (E_PERM)
       msg = length(e) > 2 ? e[2] | "You can't take that from " + this:name() + ".";
       event = $event:mk_error(player, msg):with_dobj(dobj);
       player:inform_current(event);
-      return;
     endtry
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, @this.take_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
-    "Fire trigger for reactions (after announcement)";
-    this:fire_trigger('on_take, ['Actor -> player, 'Item -> dobj]);
   endverb
 
   verb put (any in this) owner: ARCH_WIZARD flags: "rd"
@@ -501,22 +492,13 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Move the item";
     try
-      dobj:moveto(this);
+      this:do_put_into(player, dobj);
     except e (E_PERM)
       msg = length(e) > 2 ? e[2] | "You can't put that in " + this:name() + ".";
       event = $event:mk_error(player, msg):with_dobj(dobj);
       player:inform_current(event);
-      return;
     endtry
-    "Fire trigger for reactions";
-    this:fire_trigger('on_put, ['Actor -> player, 'Item -> dobj]);
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, @this.put_msg):with_dobj(dobj):with_iobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
   endverb
 
   verb lock (this with any) owner: ARCH_WIZARD flags: "rd"
@@ -553,15 +535,7 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Lock it";
-    this.locked = true;
-    "Fire trigger for reactions";
-    this:fire_trigger('on_lock, ['Actor -> player, 'Key -> key]);
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, @this.lock_msg):with_dobj(key):with_iobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
+    this:do_lock(player, key);
   endverb
 
   verb unlock (this with any) owner: ARCH_WIZARD flags: "rd"
@@ -598,15 +572,7 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Unlock it";
-    this.locked = false;
-    "Fire trigger for reactions";
-    this:fire_trigger('on_unlock, ['Actor -> player, 'Key -> key]);
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, @this.unlock_msg):with_dobj(key):with_iobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
+    this:do_unlock(player, key);
   endverb
 
   verb can_open (this none this) owner: HACKER flags: "rxd"
@@ -677,15 +643,7 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Open it";
-    this.open = true;
-    "Fire trigger for reactions";
-    this:fire_trigger('on_open, ['Actor -> player]);
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, @this.open_msg):with_dobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
+    this:do_open(player);
   endverb
 
   verb "close" (this none none) owner: ARCH_WIZARD flags: "rd"
@@ -704,20 +662,153 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Close it";
-    this.open = false;
-    "Fire trigger for reactions";
-    this:fire_trigger('on_close, ['Actor -> player]);
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, @this.close_msg):with_dobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
+    this:do_close(player);
   endverb
 
   verb fact_is_open (this none this) owner: HACKER flags: "rxd"
     "Rule predicate: Is this container open?";
     return this.open;
+  endverb
+
+  verb do_take_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Core: move item from container to actor's inventory.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_take_from must be called by this object");
+    {who, item, ?silent = false} = args;
+    item:moveto(who);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.take_msg):with_dobj(item):with_iobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    this:fire_trigger('on_take, ['Actor -> who, 'Item -> item]);
+    return true;
+  endverb
+
+  verb do_put_into (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Core: move item from actor into this container.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_put_into must be called by this object");
+    {who, item, ?silent = false} = args;
+    item:moveto(this);
+    this:fire_trigger('on_put, ['Actor -> who, 'Item -> item]);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.put_msg):with_dobj(item):with_iobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb do_open (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Core: open this container.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_open must be called by this object");
+    {who, ?silent = false} = args;
+    this.open = true;
+    this:fire_trigger('on_open, ['Actor -> who]);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.open_msg):with_dobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb do_close (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Core: close this container.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_close must be called by this object");
+    {who, ?silent = false} = args;
+    this.open = false;
+    this:fire_trigger('on_close, ['Actor -> who]);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.close_msg):with_dobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb do_lock (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Core: lock this container with key.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_lock must be called by this object");
+    {who, key, ?silent = false} = args;
+    this.locked = true;
+    this:fire_trigger('on_lock, ['Actor -> who, 'Key -> key]);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.lock_msg):with_dobj(key):with_iobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb do_unlock (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Core: unlock this container with key.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_unlock must be called by this object");
+    {who, key, ?silent = false} = args;
+    this.locked = false;
+    this:fire_trigger('on_unlock, ['Actor -> who, 'Key -> key]);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.unlock_msg):with_dobj(key):with_iobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb action_take_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: actor takes item from this container.";
+    set_task_perms(this.owner);
+    {who, context, item} = args;
+    item.location != this && return false;
+    !this:can_take_from(who, item)['allowed] && return false;
+    !who:acceptable(item) && return false;
+    return this:do_take_from(who, item);
+  endverb
+
+  verb action_put_into (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: actor puts item into this container.";
+    set_task_perms(this.owner);
+    {who, context, item} = args;
+    item.location != who && return false;
+    !this:can_put_into(who, item)['allowed] && return false;
+    !this:acceptable(item) && return false;
+    return this:do_put_into(who, item);
+  endverb
+
+  verb action_open (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: actor opens this container.";
+    set_task_perms(this.owner);
+    {who, context} = args;
+    this.open && return false;
+    this.locked && return false;
+    !this:can_open(who)['allowed] && return false;
+    return this:do_open(who);
+  endverb
+
+  verb action_close (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: actor closes this container.";
+    set_task_perms(this.owner);
+    {who, context} = args;
+    !this.open && return false;
+    !this:can_close(who)['allowed] && return false;
+    return this:do_close(who);
+  endverb
+
+  verb action_lock (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: actor locks this container with key.";
+    set_task_perms(this.owner);
+    {who, context, key} = args;
+    this.locked && return false;
+    !this:can_lock(who, key)['allowed] && return false;
+    return this:do_lock(who, key);
+  endverb
+
+  verb action_unlock (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: actor unlocks this container with key.";
+    set_task_perms(this.owner);
+    {who, context, key} = args;
+    !this.locked && return false;
+    !this:can_unlock(who, key)['allowed] && return false;
+    return this:do_unlock(who, key);
   endverb
 
 endobject

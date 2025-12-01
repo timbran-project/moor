@@ -257,16 +257,18 @@ object SITTABLE
     return who in this.sitting;
   endverb
 
-  verb action_sit (this none this) owner: HACKER flags: "rxd"
+  verb action_sit (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Action handler for reactions: make actor sit on this furniture.";
+    set_task_perms(this.owner);
     {who, context} = args;
-    this:add_sitter(who);
+    return this:add_sitter(who);
   endverb
 
-  verb action_stand (this none this) owner: HACKER flags: "rxd"
+  verb action_stand (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Action handler for reactions: make actor stand from this furniture.";
+    set_task_perms(this.owner);
     {who, context} = args;
-    this:remove_sitter(who);
+    return this:remove_sitter(who);
   endverb
 
   verb dump_sitter (none none none) owner: HACKER flags: "rxd"

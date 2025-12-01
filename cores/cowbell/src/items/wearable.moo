@@ -96,67 +96,85 @@ object WEARABLE
   property remove_msg (owner: HACKER, flags: "rw") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .for_self = "remove", .for_others = "removes", .type = 'self_alt>, " ", <SUB, .capitalize = false, .type = 'dobj>, "."};
   property body_area (owner: HACKER, flags: "rw") = false;
 
-  verb wear (this none none) owner: HACKER flags: "rd"
-    "Command verb for wearing - delegates to do_wear";
-    this:do_wear();
-  endverb
-
   verb do_wear (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Implementation verb for putting on this wearable item";
-    set_task_perms(caller_perms());
-    if (this.location != player)
-      player:inform_current($event:mk_error(player, "You don't have that."));
-      return;
+    "Core implementation: add to who's wearing list and announce.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_wear must be called by this object");
+    {who, ?silent = false} = args;
+    who.wearing = {@who.wearing, this};
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.wear_msg):with_dobj(this):with_this(who.location);
+      who.location:announce(event);
     endif
-    if (!is_member(this, player.wearing))
-      "Check for body area conflicts";
-      conflict = this:conflicting_item();
-      if (valid(conflict))
-        conflict_name = conflict:display_name();
-        this_name = this:display_name();
-        msg = "You're already wearing " + conflict_name + " on that body part. Remove it first.";
-        player:inform_current($event:mk_error(player, msg));
-        return;
-      endif
-      player.wearing = {@player.wearing, this};
-      "Announce to room: 'You put on X' / 'Alice puts on X'";
-      event = $event:mk_info(player, @this.wear_msg):with_dobj(this):with_this(player.location);
-      if (valid(player.location))
-        player.location:announce(event);
-      else
-        player:inform_current(event);
-      endif
-      `this:on_wear() ! E_VERBNF';
-    else
-      player:inform_current($event:mk_error(player, "You're already wearing that."));
-    endif
-  endverb
-
-  verb remove (this none none) owner: HACKER flags: "rd"
-    "Command verb for removing - delegates to do_remove";
-    this:do_remove();
+    `this:on_wear() ! E_VERBNF';
+    return true;
   endverb
 
   verb do_remove (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Implementation verb for removing this wearable item";
+    "Core implementation: remove from who's wearing list and announce.";
+    "Only callable by this object itself";
+    caller != this && raise(E_PERM, "do_remove must be called by this object");
+    {who, ?silent = false} = args;
+    who.wearing = setremove(who.wearing, this);
+    if (!silent && valid(who.location))
+      event = $event:mk_info(who, @this.remove_msg):with_dobj(this):with_this(who.location);
+      who.location:announce(event);
+    endif
+    `this:on_remove() ! E_VERBNF';
+    return true;
+  endverb
+
+  verb wear (this none none) owner: HACKER flags: "rd"
+    "Command: put on this wearable item";
     set_task_perms(caller_perms());
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;
     endif
     if (is_member(this, player.wearing))
-      player.wearing = setremove(player.wearing, this);
-      "Announce to room: 'You remove X' / 'Alice removes X'";
-      event = $event:mk_info(player, @this.remove_msg):with_dobj(this):with_this(player.location);
-      if (valid(player.location))
-        player.location:announce(event);
-      else
-        player:inform_current(event);
-      endif
-      `this:on_remove() ! E_VERBNF';
-    else
-      player:inform_current($event:mk_error(player, "You're not wearing that."));
+      player:inform_current($event:mk_error(player, "You're already wearing that."));
+      return;
     endif
+    conflict = this:conflicting_item();
+    if (valid(conflict))
+      msg = "You're already wearing " + conflict:display_name() + " on that body part. Remove it first.";
+      player:inform_current($event:mk_error(player, msg));
+      return;
+    endif
+    this:do_wear(player);
+  endverb
+
+  verb remove (this none none) owner: HACKER flags: "rd"
+    "Command: remove this wearable item";
+    set_task_perms(caller_perms());
+    if (this.location != player)
+      player:inform_current($event:mk_error(player, "You don't have that."));
+      return;
+    endif
+    if (!is_member(this, player.wearing))
+      player:inform_current($event:mk_error(player, "You're not wearing that."));
+      return;
+    endif
+    this:do_remove(player);
+  endverb
+
+  verb action_wear (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler for reactions: make actor wear this item.";
+    set_task_perms(this.owner);
+    {who, context} = args;
+    this.location != who && return false;
+    is_member(this, who.wearing) && return false;
+    valid(this:conflicting_item_for(who)) && return false;
+    return this:do_wear(who);
+  endverb
+
+  verb action_remove (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler for reactions: make actor remove this item.";
+    set_task_perms(this.owner);
+    {who, context} = args;
+    this.location != who && return false;
+    !is_member(this, who.wearing) && return false;
+    return this:do_remove(who);
   endverb
 
   verb on_wear (this none this) owner: HACKER flags: "rxd"
@@ -192,16 +210,17 @@ object WEARABLE
     return #-1;
   endverb
 
-  verb conflicting_item (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb "conflicting_item conflicting_item_for" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find any item already worn at this item's body area. Returns the conflicting item or #-1 if none.";
     set_task_perms(caller_perms());
+    {?who = player} = args;
     area = this.body_area;
     "If no body area defined, no conflicts possible";
     if (!area || area == false)
       return #-1;
     endif
     "Search worn items for conflicting body area";
-    for worn_item in (player.wearing)
+    for worn_item in (who.wearing)
       if (valid(worn_item) && worn_item != this)
         if (worn_item.body_area == area)
           return worn_item;
