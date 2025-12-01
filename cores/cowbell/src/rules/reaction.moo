@@ -172,6 +172,58 @@ object REACTION
 
       "| `'delay`       | `{'delay, seconds, inner_effect}`     | Schedules `inner_effect` to execute after `seconds` using `$scheduler`.      |",
 
+      "| `'action`      | `{'action, 'verb_name, target}`       | Calls `target:action_<verb_name>(this, context)` for extensible behaviors.   |",
+
+      "",
+
+      "## Action Effects",
+
+      "",
+
+      "The `'action` effect provides an extensible way to invoke behaviors on other objects. When executed:",
+
+      "",
+
+      "1. The `target` is resolved (if a symbol, looked up in context; otherwise used directly)",
+
+      "2. The verb `action_<verb_name>` is called on the target with `(reacting_object, context)`",
+
+      "",
+
+      "This allows objects to define their own action handlers. For example, `$sittable` defines:",
+
+      "",
+
+      "- `action_sit(who, context)` - makes `who` sit on the furniture",
+
+      "- `action_stand(who, context)` - makes `who` stand up from the furniture",
+
+      "",
+
+      "Example reaction making Henri sit on a couch when the cupboard opens:",
+
+      "",
+
+      "```moo",
+
+      "henri.sit_reaction = $reaction:mk('on_cupboard_open, 0, {{'action, 'sit, some_couch}});",
+
+      "```",
+
+      "",
+
+      "Or with a context variable:",
+
+      "",
+
+      "```moo",
+
+      "henri.sit_reaction = $reaction:mk('on_cupboard_open, 0, {{'action, 'sit, 'Furniture}});",
+
+      "// Fire with: henri:fire_trigger('on_cupboard_open, ['Furniture -> some_couch])",
+
+      "```",
+
       "",
 
       "## Message Templates",
@@ -261,7 +313,7 @@ object REACTION
   property effect_types (owner: HACKER, flags: "rc") = {
     'set, 'increment, 'decrement,
     'announce, 'emote, 'tell,
-    'move, 'trigger, 'delay
+    'move, 'trigger, 'delay, 'action
   };
 
   property event_triggers (owner: HACKER, flags: "rc") = {
@@ -582,6 +634,11 @@ object REACTION
       {_, seconds, inner_effect} = spec;
       parsed_inner = this:parse_effect(inner_effect);
       return <$reaction, .type = 'delay, .seconds = seconds, .effect = parsed_inner>;
+
+    elseif (effect_type == 'action)
+      {_, action_name, ?action_target = 0} = spec;
+      typeof(action_name) == SYM || raise(E_INVARG, "'action requires symbol for action name");
+      return <$reaction, .type = 'action, .action = action_name, .action_target = action_target>;
     endif
 
     raise(E_INVARG, "Unhandled effect type: " + tostr(effect_type));
@@ -741,6 +798,17 @@ object REACTION
       fork (effect.seconds)
         this:execute_effect(effect.effect, context, target);
       endfork
+
+    elseif (effect.type == 'action)
+      "Call action_<name> on action_target, passing the reacting object and context";
+      action_target = effect.action_target;
+      if (typeof(action_target) == SYM)
+        action_target = context[action_target];
+      endif
+      if (valid(action_target))
+        verb_name = "action_" + tostr(effect.action);
+        `action_target:(verb_name)(target, context) ! E_VERBNF';
+      endif
 
     endif
   endverb

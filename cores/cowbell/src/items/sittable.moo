@@ -201,6 +201,74 @@ object SITTABLE
     this.location:announce(event);
   endverb
 
+  verb add_sitter (this none this) owner: HACKER flags: "rxd"
+    "Programmatically add an actor to sit. Returns true if successful.";
+    {who, ?silent = false} = args;
+    if (who in this.sitting)
+      return false;
+    endif
+    if (who.location != this.location)
+      return false;
+    endif
+    if (this.squeeze < 0 && length(this.sitting) >= this.seats)
+      return false;
+    endif
+    this.sitting = {@this.sitting, who};
+    this:fire_trigger('on_sit, ['Actor -> who]);
+    if (!silent && valid(this.location))
+      event = $event:mk_act(who, @this.sit_msg):with_this(this);
+      this.location:announce(event);
+    endif
+    "Squeeze check";
+    if (length(this.sitting) > this.seats + max(0, this.squeeze))
+      victim = this.sitting[1];
+      this:dump_sitter(victim);
+    endif
+    return true;
+  endverb
+
+  verb remove_sitter (this none this) owner: HACKER flags: "rxd"
+    "Programmatically remove an actor from sitting. Returns true if successful.";
+    {who, ?silent = false} = args;
+    pos = who in this.sitting;
+    if (!pos)
+      return false;
+    endif
+    this.sitting = listdelete(this.sitting, pos);
+    this:fire_trigger('on_stand, ['Actor -> who]);
+    if (!silent && valid(this.location))
+      event = $event:mk_act(who, @this.stand_msg):with_this(this);
+      this.location:announce(event);
+    endif
+    return true;
+  endverb
+
+  verb has_room (this none this) owner: HACKER flags: "rxd"
+    "Check if furniture has room for another sitter.";
+    if (this.squeeze < 0)
+      return length(this.sitting) < this.seats;
+    endif
+    return true;
+  endverb
+
+  verb is_sitting (this none this) owner: HACKER flags: "rxd"
+    "Check if a specific actor is sitting on this furniture.";
+    {who} = args;
+    return who in this.sitting;
+  endverb
+
+  verb action_sit (this none this) owner: HACKER flags: "rxd"
+    "Action handler for reactions: make actor sit on this furniture.";
+    {who, context} = args;
+    this:add_sitter(who);
+  endverb
+
+  verb action_stand (this none this) owner: HACKER flags: "rxd"
+    "Action handler for reactions: make actor stand from this furniture.";
+    {who, context} = args;
+    this:remove_sitter(who);
+  endverb
+
   verb dump_sitter (none none none) owner: HACKER flags: "rxd"
     "Remove a sitter and announce they were squeezed off.";
     {who, ?use_dumped = false} = args;
