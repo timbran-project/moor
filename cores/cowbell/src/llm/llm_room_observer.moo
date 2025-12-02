@@ -15,6 +15,12 @@ object LLM_ROOM_OBSERVER
   property significant_events (owner: HACKER, flags: "rc") = {};
   property speak_cooldown (owner: HACKER, flags: "rc") = 10;
   property speak_delay (owner: HACKER, flags: "rc") = 3;
+  property thinking_delay (owner: HACKER, flags: "rc") = 3;
+  property thinking_interval (owner: HACKER, flags: "rc") = 4;
+  property thinking_messages (owner: HACKER, flags: "rc") = {"thinks...", "ponders...", "considers...", "mulls it over..."};
+  property thinking_task (owner: HACKER, flags: "rc") = 0;
+  property thinking_timeout (owner: HACKER, flags: "rc") = 60;
+  property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
 
   override description = "Room-observing bot powered by an LLM agent. Watches room events and responds when poked.";
   override import_export_hierarchy = {"llm"};
@@ -65,7 +71,12 @@ object LLM_ROOM_OBSERVER
     {event} = args;
     "Pass event structure as literal for LLM to parse";
     observation = toliteral(event);
-    this.agent:add_message("user", "OBSERVATION: " + observation);
+    try
+      this.agent:add_message("user", "OBSERVATION: " + observation);
+    except e (ANY)
+      this:_handle_agent_error("tell/add_message", e);
+      return;
+    endtry
     "Trigger maybe_speak if this event type is significant";
     if (length(this.significant_events) > 0)
       event_verb = `event.verb ! ANY => ""';
@@ -101,10 +112,26 @@ object LLM_ROOM_OBSERVER
     endif
     "Set token owner for budget tracking";
     this.agent.token_owner = player;
-    "Get LLM response";
-    response = this.agent:send_message(this.response_prompt);
+    "Start thinking indicator, get LLM response, stop thinking";
+    this:_start_thinking();
+    try
+      response = this.agent:send_message(this.response_prompt);
+    except e (ANY)
+      this:_stop_thinking();
+      this:_handle_agent_error("poke", e);
+      player:inform_current($event:mk_error(player, "Something went wrong - " + tostr(e[1]) + ": " + tostr(e[2])));
+      return;
+    endtry
+    this:_stop_thinking();
     "Show token usage to player";
     this:_show_token_usage(player);
+    "Strip SPEAK: prefix if LLM included it (learned from maybe_speak context)";
+    if (typeof(response) == STR)
+      response = response:trim();
+      if (response:starts_with("SPEAK: "))
+        response = response[8..$];
+      endif
+    endif
     "Announce response to room";
     if (valid(this.location))
       say_event = $event:mk_say(this, this:name(), " says, \"", response, "\"");
@@ -130,13 +157,25 @@ object LLM_ROOM_OBSERVER
     this.last_spoke_at = ftime();
     "Ask LLM to evaluate if it should speak - use response_opts (no tools)";
     prompt = "Review recent observations. If something noteworthy happened (someone arrived, left, asked a question, or something unusual occurred), respond with 'SPEAK: ' followed by a brief, friendly comment (1-2 sentences). If nothing warrants comment, respond with only 'SILENT'.";
-    response = this.agent:send_message(prompt, this.response_opts);
-    "Check if LLM decided to speak";
-    if (typeof(response) == STR && response:starts_with("SPEAK: "))
-      actual_response = response[8..$];
-      if (valid(this.location))
-        say_event = $event:mk_say(this, this:name(), " says, \"", actual_response, "\"");
-        this.location:announce(say_event);
+    "Start thinking indicator for longer responses";
+    this:_start_thinking();
+    try
+      response = this.agent:send_message(prompt, this.response_opts);
+    except e (ANY)
+      this:_stop_thinking();
+      this:_handle_agent_error("maybe_speak", e);
+      return;
+    endtry
+    this:_stop_thinking();
+    "Check if LLM decided to speak - trim response first";
+    if (typeof(response) == STR)
+      response = response:trim();
+      if (response:starts_with("SPEAK: "))
+        actual_response = response[8..$];
+        if (valid(this.location))
+          say_event = $event:mk_say(this, this:name(), " says, \"", actual_response, "\"");
+          this.location:announce(say_event);
+        endif
       endif
     endif
     "Otherwise stay silent";
@@ -189,5 +228,55 @@ object LLM_ROOM_OBSERVER
     reset_event = $event:mk_emote(player, player:name(), " reaches behind ", this:name(), "'s head and flips a formerly unseen switch...");
     caller.location:announce(reset_event);
     this:reset();
+  endverb
+
+  verb _handle_agent_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Handle and log errors from agent operations. Override in children to customize.";
+    {context, error} = args;
+    error_msg = tostr(error[1]) + ": " + tostr(error[2]);
+    server_log("LLM observer error [" + tostr(this) + " " + context + "]: " + error_msg);
+    "Announce error to room if configured to do so";
+    if (valid(this.location) && respond_to(this, 'on_agent_error))
+      `this:on_agent_error(context, error) ! ANY';
+    endif
+  endverb
+
+  verb _start_thinking (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Start showing periodic thinking emotes. Returns task id to pass to _stop_thinking.";
+    if (!valid(this.location))
+      return 0;
+    endif
+    "Fork a task that shows thinking emotes after initial delay, then periodically";
+    fork task_id (this.thinking_delay)
+      msg_idx = 1;
+      start_time = ftime();
+      while (1)
+        "Check for timeout";
+        if (ftime() - start_time > this.thinking_timeout)
+          if (valid(this.location))
+            this.location:announce(this:mk_emote_event(this.thinking_timeout_message));
+          endif
+          this.thinking_task = 0;
+          break;
+        endif
+        if (valid(this.location) && length(this.thinking_messages) > 0)
+          this.location:announce(this:mk_emote_event(this.thinking_messages[msg_idx]));
+          msg_idx = msg_idx % length(this.thinking_messages) + 1;
+        endif
+        suspend(this.thinking_interval);
+      endwhile
+    endfork
+    this.thinking_task = task_id;
+    return task_id;
+  endverb
+
+  verb _stop_thinking (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Stop the thinking indicator task.";
+    {?task_id = 0} = args;
+    task_id = task_id || this.thinking_task;
+    if (task_id > 0)
+      `kill_task(task_id) ! ANY';
+      this.thinking_task = 0;
+    endif
   endverb
 endobject

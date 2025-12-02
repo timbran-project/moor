@@ -674,7 +674,7 @@ object LLM_WEARABLE
     response = this.agent:send_message(query);
     continuations = 0;
     max_continuations = 3;
-    while (typeof(response) == ERR && length(response) >= 2 && response[1] == E_QUOTA && continuations < max_continuations)
+    while (typeof(response) == ERR && error_code(response) == E_QUOTA && continuations < max_continuations)
       "Hit iteration limit - ask user if they want to continue";
       player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset));
       metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
@@ -696,7 +696,7 @@ object LLM_WEARABLE
     "Show token usage summary";
     this:_show_token_usage(player);
     "Check if we exhausted all continuations";
-    if (typeof(response) == ERR && length(response) >= 2 && response[1] == E_QUOTA)
+    if (typeof(response) == ERR && error_code(response) == E_QUOTA)
       player:inform_current($event:mk_error(player, "Agent reached maximum iterations even after " + tostr(max_continuations) + " continuations. Task may be too complex."));
       return;
     endif

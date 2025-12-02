@@ -9,12 +9,14 @@ object LLM_AGENT
   property chat_opts (owner: ARCH_WIZARD, flags: "rc") = false;
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
+  property consecutive_tool_failures (owner: ARCH_WIZARD, flags: "rc") = [];
   property context (owner: ARCH_WIZARD, flags: "c") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
   property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
   property current_tasks (owner: ARCH_WIZARD, flags: "rc") = [];
   property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property last_token_usage (owner: ARCH_WIZARD, flags: "c") = [];
+  property max_consecutive_failures (owner: ARCH_WIZARD, flags: "r") = 3;
   property max_iterations (owner: ARCH_WIZARD, flags: "r") = 50;
   property min_messages_to_keep (owner: ARCH_WIZARD, flags: "c") = 15;
   property next_task_id (owner: ARCH_WIZARD, flags: "rc") = 1;
@@ -75,7 +77,7 @@ object LLM_AGENT
   verb _get_tool_schemas (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get OpenAI-format tool schemas from registered tools";
     this:_challenge_permissions(caller);
-    return {this.tools[k]:to_schema() for k in (mapkeys(this.tools))};
+    return { this.tools[k]:to_schema() for k in (mapkeys(this.tools)) };
   endverb
 
   verb _find_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -127,6 +129,15 @@ object LLM_AGENT
     tool_name = tool_call["function"]["name"];
     tool_args = tool_call["function"]["arguments"];
     tool_call_id = tool_call["id"];
+    "Check if this tool has failed too many times consecutively";
+    failures = this.consecutive_tool_failures;
+    tool_failure_count = maphaskey(failures, tool_name) ? failures[tool_name] | 0;
+    if (tool_failure_count >= this.max_consecutive_failures)
+      error_msg = "TOOL BLOCKED: This tool has failed " + tostr(tool_failure_count) + " times in a row. STOP trying to use it. Ask the user for help instead.";
+      this:log_tool_error(tool_name, tool_args, error_msg);
+      valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, error_msg) ! ANY';
+      return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
+    endif
     tool = this:_find_tool(tool_name);
     if (typeof(tool) != FLYWEIGHT)
       this:log_tool_error(tool_name, tool_args, "Tool not found");
@@ -139,12 +150,19 @@ object LLM_AGENT
       suspend(0);
       content_out = typeof(result) == STR ? result | toliteral(result);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_complete) && `this.tool_callback:on_tool_complete(tool_name, tool_args, content_out) ! ANY';
+      "Success - reset failure count for this tool";
+      if (tool_failure_count > 0)
+        this.consecutive_tool_failures = mapdelete(failures, tool_name);
+      endif
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> content_out];
     except e (ANY)
       error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
       length(e) > 2 && typeof(e[3]) == LIST && (error_msg = error_msg + "\nTraceback: " + toliteral(e[3]));
       this:log_tool_error(tool_name, tool_args, error_msg);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, error_msg) ! ANY';
+      "Increment failure count for this tool";
+      failures[tool_name] = tool_failure_count + 1;
+      this.consecutive_tool_failures = failures;
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
     endtry
   endverb
@@ -254,7 +272,7 @@ object LLM_AGENT
     "Check if token owner is within budget. Returns true if okay, error string if exceeded.";
     caller == this || caller.wizard || raise(E_PERM);
     {player_obj} = args;
-    (!valid(player_obj) || !is_player(player_obj)) && return true;
+    !valid(player_obj) || !is_player(player_obj) && return true;
     budget = `player_obj.llm_token_budget ! ANY => 20000000';
     used = `player_obj.llm_tokens_used ! ANY => 0';
     used >= budget && return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
@@ -265,7 +283,7 @@ object LLM_AGENT
     "Update player's token usage. Runs with wizard perms to write ARCH_WIZARD-owned properties.";
     caller == this || caller.wizard || raise(E_PERM);
     {player_obj, tokens_used} = args;
-    (!valid(player_obj) || !is_player(player_obj)) && return;
+    !valid(player_obj) || !is_player(player_obj) && return;
     typeof(tokens_used) == INT || raise(E_INVARG, "tokens_used must be an integer");
     tokens_used >= 0 || raise(E_INVARG, "tokens_used cannot be negative");
     tokens_used <= 1000000 || raise(E_INVARG, "tokens_used suspiciously large");
@@ -378,7 +396,7 @@ object LLM_AGENT
     !this.todos && return "No todos.";
     lines = {};
     for todo in (this.todos)
-      status_str = todo["status"] == 'completed ? "[x]" | todo["status"] == 'in_progress ? "[>]" | "[ ]";
+      status_str = todo["status"] == 'completed ? "[x]" | (todo["status"] == 'in_progress ? "[>]" | "[ ]");
       lines = {@lines, status_str + " " + todo["content"]};
     endfor
     return lines:join("\n");
@@ -480,5 +498,19 @@ object LLM_AGENT
     todos[2]["status"] != 'in_progress && raise(E_ASSERT, "Second should be in_progress");
     agent:destroy();
     return true;
+  endverb
+
+  verb reset_tool_failures (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Reset consecutive failure counts, optionally for a specific tool.";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    {?tool_name = ""} = args;
+    if (tool_name == "")
+      this.consecutive_tool_failures = [];
+    else
+      failures = this.consecutive_tool_failures;
+      if (maphaskey(failures, tool_name))
+        this.consecutive_tool_failures = mapdelete(failures, tool_name);
+      endif
+    endif
   endverb
 endobject
