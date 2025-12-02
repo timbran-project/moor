@@ -9,10 +9,23 @@ object LLM_ROOM_OBSERVER
   property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
   property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
   property observation_mechanics_prompt (owner: HACKER, flags: "rc") = "You are observing events in a virtual room. Events are delivered to you as MOO flyweight structures in the form OBSERVATION: <delegate, .field1 = value, .field2 = value>. Extract the relevant information from these structured events and use them to understand what's happening.";
+  property preferred_model (owner: HACKER, flags: "rc") = "";
   property response_opts (owner: HACKER, flags: "rc") = false;
   property response_prompt (owner: HACKER, flags: "rc") = "Based on what you've observed, say something witty or insightful to the room.";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
-  property significant_events (owner: HACKER, flags: "rc") = {};
+  property significant_events (owner: HACKER, flags: "rc") = {
+    "arrival",
+    "departure",
+    "say",
+    "directed_say",
+    "emote",
+    "social",
+    "pasteline",
+    "url_share",
+    "paste",
+    "connected",
+    "disconnected"
+  };
   property speak_cooldown (owner: HACKER, flags: "rc") = 10;
   property speak_delay (owner: HACKER, flags: "rc") = 3;
   property thinking_delay (owner: HACKER, flags: "rc") = 3;
@@ -29,10 +42,15 @@ object LLM_ROOM_OBSERVER
   verb configure (this none this) owner: HACKER flags: "rxd"
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    "Create the agent";
-    this.agent = $llm_agent:create();
+    set_task_perms(this.owner);
+    "Create anonymous agent - GC'd when no longer referenced";
+    this.agent = $llm_agent:create(true);
     "Set agent owner to observer owner so they can write to agent properties";
     this.agent.owner = this.owner;
+    "Set model if preferred_model is configured";
+    if (this.preferred_model)
+      this.agent.client.model = this.preferred_model;
+    endif
     "Let child class configure it";
     this:_setup_agent(this.agent);
   endverb
@@ -42,7 +60,7 @@ object LLM_ROOM_OBSERVER
     {agent} = args;
     "Combine base observation mechanics with specific role";
     agent.system_prompt = this.observation_mechanics_prompt + " " + this.role_prompt;
-    agent:initialize();
+    agent:reset_context();
     "Set default chat options: lower temperature for more consistent responses";
     agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.5);
     "Response opts: no tools needed for simple speak/silent decisions";
@@ -50,14 +68,11 @@ object LLM_ROOM_OBSERVER
   endverb
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Reconfigure by cleaning up old agent and creating a fresh one";
+    "Reconfigure by clearing old agent ref and creating fresh one";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     set_task_perms(caller_perms());
-    "Recycle old agent if it exists";
-    if (valid(this.agent))
-      recycle(this.agent);
-      this.agent = #-1;
-    endif
+    "Clear ref - anonymous agent will be GC'd";
+    this.agent = #-1;
     "Create fresh agent with current configuration";
     this:configure();
   endverb
@@ -250,7 +265,7 @@ object LLM_ROOM_OBSERVER
     fork task_id (this.thinking_delay)
       msg_idx = 1;
       start_time = ftime();
-      while (1)
+      while (this.thinking_task > 0)
         "Check for timeout";
         if (ftime() - start_time > this.thinking_timeout)
           if (valid(this.location))

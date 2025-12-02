@@ -9,6 +9,7 @@ object LLM_AGENT
   property chat_opts (owner: ARCH_WIZARD, flags: "rc") = false;
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
+  property client (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property consecutive_tool_failures (owner: ARCH_WIZARD, flags: "rc") = [];
   property context (owner: ARCH_WIZARD, flags: "c") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -24,7 +25,7 @@ object LLM_AGENT
   property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
   property todos (owner: ARCH_WIZARD, flags: "rc") = {};
   property token_limit (owner: ARCH_WIZARD, flags: "r") = 128000;
-  property token_owner (owner: ARCH_WIZARD, flags: "c") = #-1;
+  property token_owner (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property tools (owner: ARCH_WIZARD, flags: "c") = [];
   property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -34,9 +35,8 @@ object LLM_AGENT
   override import_export_id = "llm_agent";
 
   verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Initialize context with system prompt when agent is created";
-    this:_challenge_permissions(caller);
-    this.context = this.system_prompt ? {["role" -> "system", "content" -> this.system_prompt]} | {};
+    "Called automatically on creation. Creates anonymous client.";
+    this.client = $llm_client:create(true);
   endverb
 
   verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -97,7 +97,7 @@ object LLM_AGENT
     max_retries = 3;
     for retry_count in [0..max_retries]
       try
-        response = $llm_client:chat(this.context, opts, false, false, tool_schemas);
+        response = this.client:chat(this.context, opts, false, false, tool_schemas);
         suspend(0);
         return response;
       except e (ANY)
@@ -216,10 +216,11 @@ object LLM_AGENT
   endverb
 
   verb reset_context (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Clear context and reinitialize with system prompt";
+    "Clear context and rebuild from system prompt";
     this:_challenge_permissions(caller);
-    this:initialize();
+    this.context = this.system_prompt ? {["role" -> "system", "content" -> this.system_prompt]} | {};
     this.total_tokens_used = 0;
+    this.consecutive_tool_failures = [];
   endverb
 
   verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -240,7 +241,7 @@ object LLM_AGENT
     recent_messages = (this.context)[$ - this.min_messages_to_keep + 1..$];
     summary_context = {system_msg, ["role" -> "user", "content" -> "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages)]};
     try
-      response = $llm_client:chat(summary_context, false, false, {});
+      response = this.client:chat(summary_context, false, false, {});
       if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
         summary = response["choices"][1]["message"]["content"];
         this.context = {system_msg, ["role" -> "assistant", "content" -> "Previous conversation summary: " + summary], @recent_messages};

@@ -7,6 +7,7 @@ object LLM_WEARABLE
 
   property agent (owner: HACKER, flags: "r") = #-1;
   property placeholder_text (owner: HACKER, flags: "rc") = "Ask a question...";
+  property preferred_model (owner: HACKER, flags: "rc") = "";
   property processing_message (owner: HACKER, flags: "rc") = "Processing request...";
   property prompt_color (owner: HACKER, flags: "rc") = 'bright_cyan;
   property prompt_label (owner: HACKER, flags: "rc") = "[TOOL]";
@@ -21,10 +22,15 @@ object LLM_WEARABLE
   verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    "Create the agent";
-    this.agent = $llm_agent:create();
+    set_task_perms(this.owner);
+    "Create anonymous agent - GC'd when no longer referenced";
+    this.agent = $llm_agent:create(true);
     "Set agent owner to tool owner so they can write to agent properties";
     this.agent.owner = this.owner;
+    "Set model if preferred_model is configured";
+    if (this.preferred_model)
+      this.agent.client.model = this.preferred_model;
+    endif
     "Let child class configure it";
     this:_setup_agent(this.agent);
   endverb
@@ -360,13 +366,10 @@ object LLM_WEARABLE
   endverb
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Reconfigure by cleaning up old agent and creating a fresh one";
+    "Reconfigure by clearing old agent ref and creating fresh one";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    "Recycle old agent if it exists";
-    if (valid(this.agent))
-      this.agent:destroy();
-      this.agent = #-1;
-    endif
+    "Clear ref - anonymous agent will be GC'd";
+    this.agent = #-1;
     "Create fresh agent with current configuration";
     this:configure();
   endverb
