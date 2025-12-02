@@ -139,7 +139,6 @@ object WEARABLE
 
   verb wear (this none none) owner: HACKER flags: "rd"
     "Command: put on this wearable item";
-    set_task_perms(caller_perms());
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;
@@ -159,7 +158,6 @@ object WEARABLE
 
   verb remove (this none none) owner: HACKER flags: "rd"
     "Command: remove this wearable item";
-    set_task_perms(caller_perms());
     if (this.location != player)
       player:inform_current($event:mk_error(player, "You don't have that."));
       return;

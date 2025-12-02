@@ -16,26 +16,15 @@ object AREA
     this:_ensure_passages_relation();
   endverb
 
-  verb _ensure_passages_relation (this none this) owner: HACKER flags: "rxd"
+  verb _ensure_passages_relation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Ensure this.passages_rel references a valid relation owned by the area's owner.";
     if (typeof(this.passages_rel) == OBJ && valid(this.passages_rel))
       return this.passages_rel;
     endif
-    prior_perms = caller_perms();
-    target_perms = valid(this.owner) ? this.owner | prior_perms;
-    perms_changed = target_perms && target_perms != prior_perms;
-    if (perms_changed)
-      set_task_perms(target_perms);
-    endif
-    try
-      rel = $relation:create();
-      rel.name = "Passages Relation for Area " + tostr(this);
-      this.passages_rel = rel;
-    finally
-      if (perms_changed)
-        set_task_perms(prior_perms);
-      endif
-    endtry
+    set_task_perms(valid(this.owner) ? this.owner | caller_perms());
+    rel = create($relation);
+    rel.name = "Passages Relation for Area " + tostr(this);
+    this.passages_rel = rel;
     return this.passages_rel;
   endverb
 
@@ -311,8 +300,7 @@ object AREA
     cap = caller_perms():find_capability_for(actual_source, 'room);
     room_target = typeof(cap) == FLYWEIGHT ? cap | actual_source;
     room_target:check_can_dig_from();
-    "Update the passage using set_passage with elevated permissions";
-    set_task_perms(this.owner);
+    "Update the passage";
     this:set_passage(actual_source, actual_dest, new_passage);
     return new_passage;
   endverb

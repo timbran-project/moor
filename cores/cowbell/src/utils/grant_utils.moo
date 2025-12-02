@@ -59,17 +59,14 @@ object GRANT_UTILS
       raise(E_INVARG, "Grant spec must end with ')'");
     endif
     caps_str = caps_part[1..length(caps_part) - 1];
-    "Parse target object";
-    target = toobj(target_str);
-    if (typeof(target) != OBJ)
+    "Parse target object - use match_object to handle $sysref, #id, etc.";
+    try
+      target = $match:match_object(target_str);
+    except (ANY)
       raise(E_INVARG, "Invalid target object: " + target_str);
-    endif
-    "toobj returns #0 for invalid input - reject unless user actually specified #0";
-    if (target == #0 && target_str != "#0")
+    endtry
+    if (typeof(target) != OBJ || !valid(target))
       raise(E_INVARG, "Invalid target object: " + target_str);
-    endif
-    if (!valid(target))
-      raise(E_INVARG, "Target object does not exist: " + target_str);
     endif
     "Parse category";
     category = tosym(category_str);

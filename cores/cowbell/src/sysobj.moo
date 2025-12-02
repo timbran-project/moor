@@ -79,6 +79,7 @@ object SYSOBJ
   property sub (owner: HACKER, flags: "r") = SUB;
   property sub_utils (owner: HACKER, flags: "r") = SUB_UTILS;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
+  property test_player (owner: HACKER, flags: "r") = TEST_PLAYER;
   property thing (owner: HACKER, flags: "r") = THING;
   property verb (owner: HACKER, flags: "r") = VERB;
   property wearable (owner: HACKER, flags: "r") = WEARABLE;
@@ -189,8 +190,25 @@ object SYSOBJ
           for m in (vm_matches)
             {target, verbspec} = m;
             {def, flags, verbnames, v} = verbspec;
-            dispatch_command_verb(target, v, test_pc);
-            return true;
+            try
+              dispatch_command_verb(target, v, test_pc);
+              return true;
+            except e (ANY)
+              "Command verb threw an error - report it to the player";
+              if (player.programmer || player.wizard)
+                "Programmers/wizards get full traceback - use eval's pattern";
+                traceback = {"Command failed: " + toliteral(e[2]) + ":"};
+                for tb in (e[4])
+                  traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
+                endfor
+                traceback = {@traceback, "(End of traceback)"};
+                player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
+              else
+                "Regular users get friendly message";
+                player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."));
+              endif
+              return true;
+            endtry
           endfor
         endif
       endfor
@@ -271,7 +289,7 @@ object SYSOBJ
     endif
     {code, msg, value, stack, traceback} = args;
     server_log("Uncaught error: " + toliteral(code) + "(" + toliteral(msg) + ") (value: " + toliteral(value) + ")\n" + toliteral(traceback));
-    "Let the player do something with it if it can...";
+    "Let the player object handle it if it wants to";
     return `player:(verb)(@args) ! ANY';
   endverb
 

@@ -148,7 +148,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM);
     set_task_perms(caller_perms());
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@recycle OBJECT"));
+      raise(E_INVARG, "Usage: @recycle OBJECT");
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -287,7 +287,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@build NAME [in AREA] [as PARENT]"));
+      raise(E_INVARG, "Usage: @build NAME [in AREA] [as PARENT]");
     endif
     try
       "Parse the command string";
@@ -381,27 +381,21 @@ object BUILDER_FEATURES
       is_oneway = result['oneway];
       from_dir = result['from_dir];
       to_dir = result['to_dir];
-      "Find the target room - use iobj if it matched, otherwise search area by name";
-      if (typeof(iobj) == OBJ && valid(iobj))
-        target_room = iobj;
-      else
-        "Parser didn't find it, search area's rooms by name";
-        current_room = player.location;
-        area = valid(current_room) ? current_room.location | #-1;
-        if (!valid(area))
-          raise(E_INVARG, "You must be in an area to search for rooms by name.");
-        endif
-        target_room = $match:match_object(iobjstr, area);
-        typeof(target_room) != OBJ && raise(E_INVARG, "That room reference is not an object.");
-      endif
-      !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
-      "Get current room and its area";
+      "Get current room and area first for scoped matching";
       current_room = player.location;
       !valid(current_room) && raise(E_INVARG, "You must be in a room to dig passages.");
       area = current_room.location;
       !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
-      "Check target room is in same area";
-      target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
+      "Find target room - only accept iobj if it's actually in this area";
+      if (typeof(iobj) == OBJ && valid(iobj) && iobj in area.contents)
+        target_room = iobj;
+      else
+        "Search only in area's rooms by name";
+        target_room = $match:resolve_in_scope(iobjstr, area.contents);
+        if (typeof(target_room) != OBJ || !valid(target_room))
+          raise(E_INVARG, "No room found matching '" + iobjstr + "' in this area.");
+        endif
+      endif
       "Check permissions on both rooms using capabilities if we have them";
       from_room_cap = player:find_capability_for(current_room, 'room);
       from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
@@ -448,38 +442,56 @@ object BUILDER_FEATURES
   endverb
 
   verb "@undig @remove-exit @delete-passage" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Remove a passage from the current room to another. Usage: @undig <room>";
+    "Remove a passage from the current room. Usage: @undig <direction> or @undig <room>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@undig ROOM"));
+      raise(E_INVARG, "Usage: @undig DIRECTION or @undig ROOM");
     endif
     try
-      "Find target room - use dobj if it matched, otherwise search by name";
-      if (typeof(dobj) == OBJ && valid(dobj))
-        target_room = dobj;
-      else
-        "Parser didn't find it, search area's rooms by name";
-        current_room = player.location;
-        area = valid(current_room) ? current_room.location | #-1;
-        if (!valid(area))
-          raise(E_INVARG, "You must be in an area to search for rooms by name.");
-        endif
-        target_room = $match:match_object(dobjstr, area);
-        typeof(target_room) != OBJ && raise(E_INVARG, "That room reference is not an object.");
-      endif
-      !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
-      "Get current room and its area";
+      "Get current room and its area first";
       current_room = player.location;
       !valid(current_room) && raise(E_INVARG, "You must be in a room to remove passages.");
       area = current_room.location;
       !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
-      "Check target room is in same area";
-      target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
-      "Check if passage exists and get labels for reporting";
+      "First, check if dobjstr matches a passage direction from this room";
+      target_room = #-1;
+      found_by_direction = false;
+      for p in (area:passages_from(current_room))
+        side_a_room = `p.side_a_room ! ANY => #-1';
+        side_b_room = `p.side_b_room ! ANY => #-1';
+        if (current_room == side_a_room)
+          aliases = `p.side_a_aliases ! ANY => {}';
+          if (dobjstr in aliases)
+            target_room = side_b_room;
+            found_by_direction = true;
+            break;
+          endif
+        elseif (current_room == side_b_room)
+          aliases = `p.side_b_aliases ! ANY => {}';
+          if (dobjstr in aliases)
+            target_room = side_a_room;
+            found_by_direction = true;
+            break;
+          endif
+        endif
+      endfor
+      "If no direction match, try matching as room reference";
+      if (!valid(target_room))
+        if (typeof(dobj) == OBJ && valid(dobj))
+          target_room = dobj;
+        else
+          target_room = `$match:match_object(dobjstr, area) ! ANY => #-1';
+          typeof(target_room) != OBJ && raise(E_INVARG, "No passage or room found matching '" + dobjstr + "'.");
+        endif
+        !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
+        "Check target room is in same area";
+        target_room.location != area && raise(E_INVARG, "Target room must be in the same area.");
+      endif
+      "Look up passage (can be flyweight or $passage object)";
       passage = area:passage_for(current_room, target_room);
-      if (!passage)
+      if (typeof(passage) != FLYWEIGHT && (typeof(passage) != OBJ || !valid(passage)))
         raise(E_INVARG, "No passage found between here and " + tostr(target_room) + ".");
       endif
       labels = {};
@@ -723,13 +735,14 @@ object BUILDER_FEATURES
     return true;
   endverb
 
-  verb "@par*ent" (this none this) owner: ARCH_WIZARD flags: "rd"
+  verb "@par*ent" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Show the parent of an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@parent OBJECT"));
+      player:inform_current($event:mk_error(player, $format.code:mk("@parent OBJECT")));
+      return;
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -752,34 +765,33 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@chi*ildren" (this none this) owner: ARCH_WIZARD flags: "rd"
-    "Show the children of an object.";
+  verb "@chi*ldren" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show the children and descendants of an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@children OBJECT"));
+      player:inform_current($event:mk_error(player, $format.code:mk("@children OBJECT")));
+      return;
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
       typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
-      let children_list = children(target_obj);
-      let obj_name = target_obj.name;
-      if (!length(children_list))
-        message = tostr(obj_name, " (", target_obj, ") has no children.");
-        player:inform_current($event:mk_info(player, message));
-        return {};
-      else
-        let child_count = length(children_list);
-        let child_names = { child:display_name() for child in (children_list) };
-        let title_text = tostr(obj_name, " (", target_obj, ") has ", child_count, " child", child_count == 1 ? "" | "ren", ":");
-        let title_obj = $format.title:mk(title_text);
-        let list_obj = $format.list:mk(child_names);
-        let content = $format.block:mk(title_obj, list_obj);
-        player:inform_current($event:mk_info(player, content));
-        return children_list;
-      endif
+      children_list = children(target_obj);
+      descendants_list = descendants(target_obj);
+      obj_display = tostr(target_obj.name, " (", target_obj, ")");
+      "Format each object as 'name (#id)'";
+      children_strs = { tostr(c.name, " (", c, ")") for c in (children_list) };
+      descendants_strs = { tostr(d.name, " (", d, ")") for d in (descendants_list) };
+      title = $format.title:mk(obj_display);
+      children_title = $format.title:mk("Children:");
+      children_code = $format.code:mk(children_strs:english_list("none"));
+      descendants_title = $format.title:mk("Descendants:");
+      descendants_code = $format.code:mk(descendants_strs:english_list("none"));
+      content = $format.block:mk(title, children_title, children_code, descendants_title, descendants_code);
+      player:inform_current($event:mk_info(player, content));
+      return children_list;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
@@ -934,25 +946,25 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr || length(args) < 2)
-      raise(E_INVARG, $format.code:mk("@set-message OBJECT.PROPERTY template string..."));
+      raise(E_INVARG, "Usage: @set-message OBJECT.PROPERTY template string...");
     endif
     try
-     target_spec = args[1];
-     "Parse property reference";
-     parsed = $prog_utils:parse_target_spec(target_spec);
-     if (!parsed || parsed['type] != 'property)
+      target_spec = args[1];
+      "Parse property reference";
+      parsed = $prog_utils:parse_target_spec(target_spec);
+      if (!parsed || parsed['type] != 'property)
         player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
         return;
-     endif
-     object_str = parsed['object_str];
-     prop_name = parsed['item_name];
-     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
-     "Match the target object";
-     try
-          target_obj = $match:match_object(object_str, player);
-         except e (ANY)
-           player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
-           return;
+      endif
+      object_str = parsed['object_str];
+      prop_name = parsed['item_name];
+      prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
+      "Match the target object";
+      try
+        target_obj = $match:match_object(object_str, player);
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
+        return;
       endtry
       "Get initial value and remaining args";
       value = 0;
@@ -999,7 +1011,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@get-message OBJECT.PROPERTY"));
+      raise(E_INVARG, "Usage: @get-message OBJECT.PROPERTY");
     endif
     try
       target_spec = args[1];
@@ -1055,47 +1067,37 @@ object BUILDER_FEATURES
     "Set a rule property on an object. Usage: @set-rule <object>.<rule-property> <expression>";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
-
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@set-rule OBJECT.RULE_PROPERTY expression"));
+      raise(E_INVARG, "Usage: @set-rule OBJECT.RULE_PROPERTY expression");
     endif
     if (!args[1])
       raise(E_INVARG, "Usage: @set-rule OBJECT.PROPERTY expression");
     endif
-
     "args[1] is the object.property part, rest of argstr is the rule expression";
     prop_spec = args[1];
-    rule_expr = argstr[length(prop_spec)+1..$]:trim();
+    rule_expr = argstr[length(prop_spec) + 1..$]:trim();
     server_log("Parsing: " + rule_expr);
     if (!rule_expr || rule_expr == "")
       raise(E_INVARG, "Usage: @set-rule OBJECT.PROPERTY expression");
     endif
-
     "Parse property reference";
     prop_parts = $str_proto:split(prop_spec, ".");
     length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property");
-
     target_name = prop_parts[1];
     prop_name = prop_parts[2];
-
     "Match object";
     target = $match:match_object(target_name, player);
     valid(target) || raise(E_INVARG, "Object not found");
-
     "Property must end with _rule to prevent accidents";
     prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
-
     "Permission check";
     if (!player.wizard && target.owner != player)
       raise(E_PERM, "You don't own " + tostr(target) + ".");
     endif
-
     "Parse and validate rule";
     rule = $rule_engine:parse_expression(rule_expr, tosym(prop_name));
-
     "Validate for bounded negation violations without evaluating";
     validation = $rule_engine:validate_rule(rule);
-
     if (length(validation['warnings]) > 0)
       for warning in (validation['warnings])
         player:inform_current($event:mk_error(player, "Warning: " + warning));
@@ -1104,9 +1106,7 @@ object BUILDER_FEATURES
         raise(E_INVARG, "Rule has errors - fix bounded negation issues.");
       endif
     endif
-
     target.(prop_name) = rule;
-
     message = "Set rule on " + tostr(target) + "." + prop_name + ": \"" + rule_expr + "\"";
     player:inform_current($event:mk_info(player, message));
     return rule;
@@ -1117,36 +1117,27 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@clear-rule OBJECT.RULE_PROPERTY"));
+      raise(E_INVARG, "Usage: @clear-rule OBJECT.RULE_PROPERTY");
     endif
-
     try
       prop_spec = argstr:trim();
-
       "Parse property reference";
       prop_parts = $str_proto:split(prop_spec, ".");
       length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property");
-
       target_name = prop_parts[1];
       prop_name = prop_parts[2];
-
       "Match object";
       target = $match:match_object(target_name, player);
       valid(target) || raise(E_INVARG, "Object not found");
-
       "Property must end with _rule";
       prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
-
       "Permission check";
       if (!player.wizard && target.owner != player)
         raise(E_PERM, "You don't own " + tostr(target) + ".");
       endif
-
       "Clear the rule";
       target.(prop_name) = 0;
-
       message = "Cleared rule on " + tostr(target) + "." + prop_name;
       player:inform_current($event:mk_info(player, message));
       return true;
@@ -1162,37 +1153,28 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@show-rule OBJECT.RULE_PROPERTY"));
+      raise(E_INVARG, "Usage: @show-rule OBJECT.RULE_PROPERTY");
     endif
-
     prop_spec = argstr:trim();
-
     "Parse property reference";
     prop_parts = $str_proto:split(prop_spec, ".");
     length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property");
-
     target_name = prop_parts[1];
     prop_name = prop_parts[2];
-
     "Match object";
     target = $match:match_object(target_name, player);
     valid(target) || raise(E_INVARG, "Object not found");
-
     "Property must end with _rule";
     prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
-
     "Get the rule";
     rule = target.(prop_name);
-
     if (rule == 0)
       message = tostr(target) + "." + prop_name + " = (no rule set)";
     else
       rule_expr = $rule_engine:decompile_rule(rule);
       message = tostr(target) + "." + prop_name + " = \"" + rule_expr + "\"";
     endif
-
     player:inform_current($event:mk_info(player, message));
     return rule;
   endverb
@@ -1204,7 +1186,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@messages OBJECT"));
+      raise(E_INVARG, "Usage: @messages OBJECT");
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -1252,7 +1234,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@rules OBJECT"));
+      raise(E_INVARG, "Usage: @rules OBJECT");
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -1261,7 +1243,6 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
-
     "Get rule properties";
     rule_props = $obj_utils:rule_properties(target_obj);
     if (!rule_props || length(rule_props) == 0)
@@ -1270,7 +1251,6 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return 0;
     endif
-
     "Build table";
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
     headers = {"Property Name", "Rule Expression"};
@@ -1285,7 +1265,6 @@ object BUILDER_FEATURES
       endif
       rows = {@rows, {prop_name, rule_expr}};
     endfor
-
     "Output results";
     header = "Rule properties for " + obj_name + " (" + tostr(target_obj) + "):";
     player:inform_current($event:mk_info(player, header));
@@ -1300,7 +1279,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!dobjstr)
-      raise(E_INVARG, $format.code:mk("@reactions OBJECT"));
+      raise(E_INVARG, "Usage: @reactions OBJECT");
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
@@ -1309,7 +1288,6 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
-
     reaction_props = $obj_utils:reaction_properties(target_obj);
     if (!reaction_props || length(reaction_props) == 0)
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
@@ -1317,11 +1295,9 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return 0;
     endif
-
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
     header = "Reactions on " + obj_name + " (" + tostr(target_obj) + "):";
     player:inform_current($event:mk_info(player, header));
-
     headers = {"Property", "Trigger", "When", "Effects", "Enabled"};
     rows = {};
     for prop_info in (reaction_props)
@@ -1335,13 +1311,11 @@ object BUILDER_FEATURES
       elseif (typeof(reaction.trigger) == LIST)
         trigger_str = toliteral(reaction.trigger);
       endif
-
       if (reaction.when == 0)
         when_str = "-";
       else
         when_str = $rule_engine:decompile_rule(reaction.when);
       endif
-
       effects_parts = {};
       for effect in (reaction.effects)
         if (typeof(effect) == FLYWEIGHT && effect.type)
@@ -1354,11 +1328,9 @@ object BUILDER_FEATURES
       if (effects_str == "")
         effects_str = "(none)";
       endif
-
       enabled_str = reaction.enabled ? "yes" | "no";
       rows = {@rows, {prop_name, trigger_str, when_str, effects_str, enabled_str}};
     endfor
-
     table_result = $format.table:mk(headers, rows);
     player:inform_current($event:mk_info(player, table_result));
     return length(reaction_props);
@@ -1369,52 +1341,40 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-
     if (!argstr || length(args) < 4)
-      raise(E_INVARG, $format.code:mk("@add-reaction OBJECT.NAME_reaction TRIGGER WHEN {...}"));
+      raise(E_INVARG, "Usage: @add-reaction OBJECT.NAME_reaction TRIGGER WHEN {...}");
     endif
-
     try
       prop_spec = args[1];
-
       "Parse property reference";
       prop_parts = $str_proto:split(prop_spec, ".");
       length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property_reaction");
-
       target_name = prop_parts[1];
       prop_name = prop_parts[2];
-
       "Match object";
       target_obj = $match:match_object(target_name, player);
       valid(target_obj) || raise(E_INVARG, "Object not found");
-
       "Property must end with _reaction";
       prop_name:ends_with("_reaction") || raise(E_INVARG, "Reaction properties must end with '_reaction'");
-
       "Permission check";
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
-
       trigger = args[2];
       when_clause = args[3] == "0" ? 0 | args[3];
       effects = args[4];
-
       reaction = $reaction:mk(trigger, when_clause, effects);
-
       "Add or update property";
       if (prop_name in target_obj:all_properties())
         target_obj.(prop_name) = reaction;
       else
         add_property(target_obj, prop_name, reaction, {player, "r"});
       endif
-
       trigger_str = typeof(trigger) == SYM ? tostr(trigger) | "threshold";
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       message = "Set " + tostr(target_obj) + "." + prop_name + ": trigger=" + trigger_str + ", effects=" + tostr(length(effects));
       player:inform_current($event:mk_info(player, message));
       return reaction;
-
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
@@ -1427,45 +1387,34 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@enable-reaction OBJECT.PROPERTY_reaction"));
+      raise(E_INVARG, "Usage: @enable-reaction OBJECT.PROPERTY_reaction");
     endif
-
     try
       prop_spec = argstr:trim();
-
       "Parse property reference";
       prop_parts = $str_proto:split(prop_spec, ".");
       length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property_reaction");
-
       target_name = prop_parts[1];
       prop_name = prop_parts[2];
-
       "Match object";
       target_obj = $match:match_object(target_name, player);
       valid(target_obj) || raise(E_INVARG, "Object not found");
-
       "Property must end with _reaction";
       prop_name:ends_with("_reaction") || raise(E_INVARG, "Reaction properties must end with '_reaction'");
-
       "Permission check";
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
-
       "Check property exists and is a reaction";
       prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
       reaction = target_obj.(prop_name);
       typeof(reaction) == FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
-
       "Enable the reaction";
       reaction.enabled = true;
       target_obj.(prop_name) = reaction;
-
       player:inform_current($event:mk_info(player, "Enabled " + tostr(target_obj) + "." + prop_name));
       return 1;
-
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
@@ -1478,45 +1427,34 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-
     if (!argstr)
-      raise(E_INVARG, $format.code:mk("@disable-reaction OBJECT.PROPERTY_reaction"));
+      raise(E_INVARG, "Usage: @disable-reaction OBJECT.PROPERTY_reaction");
     endif
-
     try
       prop_spec = argstr:trim();
-
       "Parse property reference";
       prop_parts = $str_proto:split(prop_spec, ".");
       length(prop_parts) == 2 || raise(E_INVARG, "Property must be object.property_reaction");
-
       target_name = prop_parts[1];
       prop_name = prop_parts[2];
-
       "Match object";
       target_obj = $match:match_object(target_name, player);
       valid(target_obj) || raise(E_INVARG, "Object not found");
-
       "Property must end with _reaction";
       prop_name:ends_with("_reaction") || raise(E_INVARG, "Reaction properties must end with '_reaction'");
-
       "Permission check";
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
-
       "Check property exists and is a reaction";
       prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
       reaction = target_obj.(prop_name);
       typeof(reaction) == FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
-
       "Disable the reaction";
       reaction.enabled = false;
       target_obj.(prop_name) = reaction;
-
       player:inform_current($event:mk_info(player, "Disabled " + tostr(target_obj) + "." + prop_name));
       return 1;
-
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
@@ -1524,4 +1462,33 @@ object BUILDER_FEATURES
     endtry
   endverb
 
+  verb "@par*ents" (any none none) owner: ARCH_WIZARD flags: "rxd"
+    "Show the parent chain of an object.";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!dobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@parents OBJECT")));
+      return;
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      ancestors_list = ancestors(target_obj);
+      obj_display = tostr(target_obj.name, " (", target_obj, ")");
+      "Format ancestors as 'name (#id)'";
+      ancestors_strs = { tostr(a.name, " (", a, ")") for a in (ancestors_list) };
+      title = $format.title:mk(obj_display);
+      parents_title = $format.title:mk("Parents:");
+      parents_code = $format.code:mk(ancestors_strs:english_list("none"));
+      content = $format.block:mk(title, parents_title, parents_code);
+      player:inform_current($event:mk_info(player, content));
+      return ancestors_list;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return false;
+    endtry
+  endverb
 endobject

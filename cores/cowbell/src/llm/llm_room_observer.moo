@@ -161,7 +161,6 @@ object LLM_ROOM_OBSERVER
     if (!valid(this.agent))
       return;
     endif
-    set_task_perms(caller_perms());
     budget = `user.llm_token_budget ! ANY => 20000000';
     used = `user.llm_tokens_used ! ANY => 0';
     last_usage = this.agent.last_token_usage;

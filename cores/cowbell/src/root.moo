@@ -168,7 +168,6 @@ object ROOT
   verb all_verbs (this none this) owner: ARCH_WIZARD flags: "rx"
     set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all verbs.";
-    set_task_perms(caller_perms());
     what = this;
     verbs = {};
     while (valid(what))
@@ -180,8 +179,7 @@ object ROOT
 
   verb all_properties (this none this) owner: ARCH_WIZARD flags: "rx"
     set_task_perms(caller_perms());
-    "Recurse up the inheritance hierarchy, getting a list of all verbs.";
-    set_task_perms(caller_perms());
+    "Recurse up the inheritance hierarchy, getting a list of all properties.";
     what = this;
     verbs = {};
     while (valid(what))
@@ -195,9 +193,6 @@ object ROOT
     "Get all command verbs (readable, not 'this none this') from this object and ancestors.";
     "Returns list of {verb_name, definer_object, dobj, prep, iobj} for each command verb.";
     set_task_perms(caller_perms());
-    if (this.owner != caller_perms())
-      set_task_perms(caller_perms());
-    endif
     result = {};
     "Walk inheritance chain";
     for definer in ({this, @ancestors(this)})

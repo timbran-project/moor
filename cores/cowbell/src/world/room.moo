@@ -10,6 +10,12 @@ object ROOM
   override import_export_hierarchy = {"world"};
   override import_export_id = "room";
 
+  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set sensible defaults for newly created rooms.";
+    set_task_perms(caller_perms());
+    this.description = "An empty room awaiting a description.";
+  endverb
+
   verb emote (any any any) owner: HACKER flags: "rxd"
     this:announce(player:mk_emote_event(argstr));
   endverb

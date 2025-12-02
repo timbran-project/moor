@@ -8,7 +8,6 @@ define LOOK = #20;
 define PRONOUNS = #22;
 define SERVER_OPTIONS = #52;
 define EXAMINATION = #56;
-define HENRI = #0008CA-9A95162D6A;
 
 // auth
 define PASSWORD = #16;
@@ -37,6 +36,11 @@ define FORMAT_TABLE = #33;
 define FORMAT_CODE = #34;
 define HTML = #35;
 
+// help
+define HELP_UTILS = #58;
+define HELP = #72;
+define HELP_TOPICS = #73;
+
 // initial
 define PROTOTYPE_BOX = #48;
 define FIRST_ROOM = #49;
@@ -45,9 +49,8 @@ define FIRST_AREA_PASSAGES = #51;
 define BRASS_KEY = #65;
 define KIBBLE_CUPBOARD = #66;
 define CAT_KIBBLE = #67;
-define KIBBLE_CAN_1 = #0008CA-9A95162D77;
-define KIBBLE_CAN_2 = #0008CA-9A95162D78;
-define KIBBLE_CAN_3 = #0008CA-9A95162D79;
+define TEST_PLAYER = #74;
+define HENRI = #0008CA-9A95162D6A;
 define HENRI_PET_GROUCHY_MSGS = #0008CA-9A95162D6B;
 define HENRI_PET_SLEEPY_MSGS = #0008CA-9A95162D6C;
 define HENRI_PET_DEFAULT_MSGS = #0008CA-9A95162D6D;
@@ -55,14 +58,17 @@ define HENRI_COMPLAINTS = #0008CA-9A95162D6E;
 define HENRI_LOOK_SELF_MSGS = #0008CA-9A95162D74;
 define HENRI_PET_DENIED_MSGS = #0008CA-9A95162D75;
 define HENRI_KIBBLE_TAKEN_MSGS = #0008CA-9A95162D76;
+define KIBBLE_CAN_1 = #0008CA-9A95162D77;
+define KIBBLE_CAN_2 = #0008CA-9A95162D78;
+define KIBBLE_CAN_3 = #0008CA-9A95162D79;
 define COUCH = #0008CA-9A95162D7A;
 
 // items
 define THING = #8;
 define WEARABLE = #9;
 define CONTAINER = #10;
-define NOTE = #71;
 define SITTABLE = #70;
+define NOTE = #71;
 
 // llm
 define LLM_CLIENT = #40;
@@ -102,9 +108,6 @@ define MATCH = #21;
 define GRANT_UTILS = #25;
 define PROG_UTILS = #53;
 define OBJ_UTILS = #57;
-define HELP_UTILS = #58;
-define HELP = #72;
-define HELP_TOPICS = #73;
 
 // world
 define ROOM = #7;

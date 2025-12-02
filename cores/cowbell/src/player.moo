@@ -406,7 +406,6 @@ object PLAYER
     {question, ?placeholder = "Enter your response..."} = args;
     metadata = {{"input_type", "text_area"}, {"prompt", question}, {"placeholder", placeholder}, {"rows", 4}};
     response = this:read_with_prompt(metadata);
-    set_task_perms(this);
     if (response == "@abort" || typeof(response) != STR)
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
       return false;

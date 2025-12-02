@@ -485,7 +485,7 @@ object PROG_FEATURES
           if (length(remaining_words) > 0)
             "Check if first word looks like perms (short string of r, w, c)";
             maybe_perms = remaining_words[1];
-            if (length(maybe_perms) <= 3 && (match(maybe_perms, "^[rwc]+$")))
+            if (length(maybe_perms) <= 3 && match(maybe_perms, "^[rwc]+$"))
               perms = maybe_perms;
               if (length(remaining_words) > 1)
                 "Try to match owner";
@@ -566,18 +566,14 @@ object PROG_FEATURES
   verb "@args" (any any any) owner: ARCH_WIZARD flags: "rd"
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Change verb argument specifications";
-    "Usage: @args object:verb-name dobj [prep [iobj]]";
+    "Show or change verb argument specifications";
+    "Usage: @args object:verb-name [dobj [prep [iobj]]]";
     if (!argstr)
-      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME DOBJ [PREP [IOBJ]]")));
+      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME [DOBJ [PREP [IOBJ]]]")));
       return;
     endif
     "Parse the arguments";
     words = argstr:words();
-    if (length(words) < 2)
-      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME DOBJ [PREP [IOBJ]]")));
-      return;
-    endif
     "Parse object:verb-name";
     parsed = words[1]:parse_verbref();
     if (!parsed)
@@ -600,6 +596,15 @@ object PROG_FEATURES
     current_dobj = metadata:dobj();
     current_prep = metadata:prep();
     current_iobj = metadata:iobj();
+    "If only object:verb given, show current args";
+    if (length(words) == 1)
+      obj_display = tostr(target_obj.name, " (", target_obj, ")");
+      title = $format.title:mk(obj_display + ":" + verb_name);
+      args_line = $format.code:mk(current_dobj + " " + current_prep + " " + current_iobj);
+      content = $format.block:mk(title, args_line);
+      player:inform_current($event:mk_info(player, content));
+      return {current_dobj, current_prep, current_iobj};
+    endif
     "Parse new args, using current values as defaults";
     new_dobj = length(words) >= 2 ? words[2] | current_dobj;
     new_prep = length(words) >= 3 ? words[3] | current_prep;
@@ -877,24 +882,21 @@ object PROG_FEATURES
   endverb
 
   verb "@chmod" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Change permissions on objects, properties, or verbs";
-    "Usage: @chmod <object> <perms> - change object read/write flags";
-    "Usage: @chmod <object>.<prop> <perms> - change property r/w/c flags";
-    "Usage: @chmod <object>:<verb> <perms> - change verb r/w/x/d flags";
+    "Show or change permissions on objects, properties, or verbs";
+    "Usage: @chmod <object> [perms] - show/change object read/write flags";
+    "Usage: @chmod <object>.<prop> [perms] - show/change property r/w/c flags";
+    "Usage: @chmod <object>:<verb> [perms] - show/change verb r/w/x/d flags";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, $format.code:mk("@chmod OBJECT[.PROPERTY|:VERB] PERMISSIONS")));
+      player:inform_current($event:mk_error(player, $format.code:mk("@chmod OBJECT[.PROPERTY|:VERB] [PERMISSIONS]")));
       return;
     endif
     "Parse arguments";
     words = argstr:words();
-    if (length(words) < 2)
-      player:inform_current($event:mk_error(player, $format.code:mk("@chmod OBJECT[.PROPERTY|:VERB] PERMISSIONS")));
-      return;
-    endif
     target_spec = words[1];
-    perms_str = words[2];
+    perms_str = length(words) >= 2 ? words[2] | "";
+    show_only = length(words) == 1;
     "Parse the target specification";
     parsed = $prog_utils:parse_target_spec(target_spec);
     if (!parsed)
@@ -913,6 +915,22 @@ object PROG_FEATURES
     endtry
     "Dispatch based on type";
     if (type == 'property)
+      try
+        metadata = $prog_utils:get_property_metadata(target_obj, item_name);
+        current_perms = metadata:perms();
+        current_owner = metadata:owner();
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error getting property metadata: " + e[2]));
+        return;
+      endtry
+      if (show_only)
+        obj_display = tostr(target_obj.name, " (", target_obj, ")");
+        title = $format.title:mk(obj_display + "." + item_name);
+        perms_line = $format.code:mk(current_perms || "(none)");
+        content = $format.block:mk(title, perms_line);
+        player:inform_current($event:mk_info(player, content));
+        return current_perms;
+      endif
       "Validate property permissions";
       for i in [1..length(perms_str)]
         char = perms_str[i];
@@ -922,14 +940,28 @@ object PROG_FEATURES
         endif
       endfor
       try
-        metadata = $prog_utils:get_property_metadata(target_obj, item_name);
-        current_owner = metadata:owner();
         metadata:set_perms(current_owner, perms_str);
         player:inform_current($event:mk_info(player, "Property ." + item_name + " permissions set to " + (perms_str == "" ? "(cleared)" | perms_str) + " on " + tostr(target_obj) + "."));
       except e (ANY)
         player:inform_current($event:mk_error(player, "Error setting property permissions: " + e[2]));
       endtry
     elseif (type == 'verb)
+      try
+        metadata = $prog_utils:get_verb_metadata(target_obj, item_name);
+        current_perms = metadata:flags();
+        current_owner = metadata:verb_owner();
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error getting verb metadata: " + e[2]));
+        return;
+      endtry
+      if (show_only)
+        obj_display = tostr(target_obj.name, " (", target_obj, ")");
+        title = $format.title:mk(obj_display + ":" + item_name);
+        perms_line = $format.code:mk(current_perms || "(none)");
+        content = $format.block:mk(title, perms_line);
+        player:inform_current($event:mk_info(player, content));
+        return current_perms;
+      endif
       "Validate verb permissions";
       for i in [1..length(perms_str)]
         char = perms_str[i];
@@ -939,14 +971,29 @@ object PROG_FEATURES
         endif
       endfor
       try
-        metadata = $prog_utils:get_verb_metadata(target_obj, item_name);
-        current_owner = metadata:verb_owner();
         metadata:set_perms(current_owner, perms_str);
         player:inform_current($event:mk_info(player, "Verb :" + item_name + " permissions set to " + (perms_str == "" ? "(cleared)" | perms_str) + " on " + tostr(target_obj) + "."));
       except e (ANY)
         player:inform_current($event:mk_error(player, "Error setting verb permissions: " + e[2]));
       endtry
     elseif (type == 'object)
+      "Get current object flags";
+      current_flags = target_obj.f;
+      current_perms = "";
+      if (current_flags % 2 == 1)
+        current_perms = current_perms + "r";
+      endif
+      if (current_flags / 2 % 2 == 1)
+        current_perms = current_perms + "w";
+      endif
+      if (show_only)
+        obj_display = tostr(target_obj.name, " (", target_obj, ")");
+        title = $format.title:mk(obj_display);
+        perms_line = $format.code:mk(current_perms || "(none)");
+        content = $format.block:mk(title, perms_line);
+        player:inform_current($event:mk_info(player, content));
+        return current_perms;
+      endif
       "Object flags: only r and w are allowed";
       for i in [1..length(perms_str)]
         char = perms_str[i];
@@ -955,9 +1002,7 @@ object PROG_FEATURES
           return;
         endif
       endfor
-      "Objects don't have a set_flags builtin, so we use set_property on f flag";
       if (perms_str == "")
-        "Clear all flags";
         target_obj.f = 0;
       else
         flags = 0;
@@ -1112,8 +1157,7 @@ object PROG_FEATURES
   verb "@doc*umentation" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Display developer documentation for objects, verbs, or properties.";
     "Usage: @doc OBJECT, @doc OBJECT:VERB, or @doc OBJECT.PROPERTY";
-    "this:_challenge_command_perms();
-    set_task_perms(player);";
+    "this:_challenge_command_perms();\n    set_task_perms(player);";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk("@doc OBJECT\n@doc OBJECT:VERB\n@doc OBJECT.PROPERTY")));
       return;
@@ -1139,7 +1183,7 @@ object PROG_FEATURES
     if (type == 'object)
       "Get object documentation";
       obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
-      server_log(toliteral(target_obj) +" " + toliteral(obj_display));
+      server_log(toliteral(target_obj) + " " + toliteral(obj_display));
       doc_text = $help_utils:get_object_documentation(target_obj);
       title = "Documentation for " + obj_display + " (" + toliteral(target_obj) + ")";
       content = $help_utils:format_documentation_display(title, doc_text);
@@ -1154,7 +1198,7 @@ object PROG_FEATURES
       "Get verb documentation";
       verb_obj_display = `verb_location:display_name() ! E_VERBNF => verb_location.name';
       doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
-      title = "Documentation for " + verb_obj_display + " (" +toliteral(verb_location)+ "):" + tostr(item_name);
+      title = "Documentation for " + verb_obj_display + " (" + toliteral(verb_location) + "):" + tostr(item_name);
       content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
       player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
     elseif (type == 'property)
@@ -1166,7 +1210,7 @@ object PROG_FEATURES
       "Get property documentation";
       obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
       doc_text = $help_utils:property_documentation(target_obj, item_name);
-      title = "Documentation for " + obj_display + " (" + toliteral(target_obj)+ ")." + item_name;
+      title = "Documentation for " + obj_display + " (" + toliteral(target_obj) + ")." + item_name;
       content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
       player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
     else
@@ -1254,5 +1298,4 @@ object PROG_FEATURES
       return 0;
     endtry
   endverb
-
 endobject
