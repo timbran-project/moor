@@ -6,6 +6,7 @@ object LLM_ROOM_OBSERVER
   readable: true
 
   property agent (owner: HACKER, flags: "rc") = #-1;
+  property knowledge_base (owner: HACKER, flags: "rc") = #-1;
   property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
   property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
   property observation_mechanics_prompt (owner: HACKER, flags: "rc") = "You are observing events in a virtual room. Events are delivered to you as MOO flyweight structures in the form OBSERVATION: <delegate, .field1 = value, .field2 = value>. Extract the relevant information from these structured events and use them to understand what's happening.";
@@ -65,6 +66,8 @@ object LLM_ROOM_OBSERVER
     agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.5);
     "Response opts: no tools needed for simple speak/silent decisions";
     this.response_opts = $llm_chat_opts:mk():with_temperature(0.6):with_tool_choice('none);
+    "Set compaction callback so we can inject memories after compaction";
+    agent.compaction_callback = this;
   endverb
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -84,6 +87,11 @@ object LLM_ROOM_OBSERVER
       this:configure();
     endif
     {event} = args;
+    "Skip our own events entirely to avoid feedback loops";
+    event_actor = `event.actor ! ANY => #-1';
+    if (event_actor == this)
+      return;
+    endif
     "Pass event structure as literal for LLM to parse";
     observation = toliteral(event);
     try
@@ -95,9 +103,7 @@ object LLM_ROOM_OBSERVER
     "Trigger maybe_speak if this event type is significant";
     if (length(this.significant_events) > 0)
       event_verb = `event.verb ! ANY => ""';
-      event_actor = `event.actor ! ANY => #-1';
-      "Don't trigger on our own events to avoid feedback loop";
-      if (event_verb in this.significant_events && event_actor != this)
+      if (event_verb in this.significant_events)
         "Debounce: record event time with sub-second precision, fork delayed check";
         event_time = ftime();
         this.last_significant_event = event_time;
@@ -182,12 +188,18 @@ object LLM_ROOM_OBSERVER
       return;
     endtry
     this:_stop_thinking();
-    "Check if LLM decided to speak - trim response first";
+    "Check if LLM decided to speak - find SPEAK: prefix anywhere in response";
     if (typeof(response) == STR)
-      response = response:trim();
-      if (response:starts_with("SPEAK: "))
-        actual_response = response[8..$];
-        if (valid(this.location))
+      speak_idx = index(response, "SPEAK: ");
+      if (speak_idx > 0)
+        actual_response = response[speak_idx + 7..$]:trim();
+        "Filter out empty or trivial responses (just punctuation, quotes, etc)";
+        cleaned = actual_response;
+        for char in ({"\"", "'", ".", ",", "!", "?"})
+          cleaned = strsub(cleaned, char, "");
+        endfor
+        cleaned = cleaned:trim();
+        if (valid(this.location) && length(cleaned) > 2)
           say_event = $event:mk_say(this, this:name(), " says, \"", actual_response, "\"");
           this.location:announce(say_event);
         endif
@@ -261,6 +273,10 @@ object LLM_ROOM_OBSERVER
     if (!valid(this.location))
       return 0;
     endif
+    "Don't start if already thinking";
+    if (this.thinking_task > 0)
+      return this.thinking_task;
+    endif
     "Fork a task that shows thinking emotes after initial delay, then periodically";
     fork task_id (this.thinking_delay)
       msg_idx = 1;
@@ -293,5 +309,305 @@ object LLM_ROOM_OBSERVER
       `kill_task(task_id) ! ANY';
       this.thinking_task = 0;
     endif
+  endverb
+
+  verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Lazily create knowledge base relation if not already created.";
+    perms = caller_perms();
+    caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
+    if (!valid(this.knowledge_base))
+      this.knowledge_base = create($relation, this.owner);
+    endif
+    return this.knowledge_base;
+  endverb
+
+  verb _tool_remember_fact (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Store a fact about a subject for later recall.";
+    {args_map} = args;
+    "Safely extract arguments with defaults";
+    subject = `args_map["subject"] ! E_RANGE => ""';
+    fact = `args_map["fact"] ! E_RANGE => ""';
+    "Check for missing required fields";
+    if (typeof(subject) != STR || subject == "")
+      return "ERROR: Missing 'subject' parameter. You must provide both 'subject' and 'fact'. Example: {\"subject\": \"Ryan\", \"fact\": \"is a wizard\"}";
+    endif
+    if (typeof(fact) != STR || fact == "")
+      return "ERROR: Missing 'fact' parameter. You must provide both 'subject' and 'fact'. Example: {\"subject\": \"Ryan\", \"fact\": \"is a wizard\"}";
+    endif
+    "Check for values starting with any kind of quote character (ASCII or Unicode curly quotes)";
+    "This catches LLM errors where it puts escaped quotes in values";
+    quote_chars = {"\"", "'", "\u201C", "\u201D", "\u2018", "\u2019"};
+    for qc in (quote_chars)
+      if (subject:starts_with(qc) || fact:starts_with(qc))
+        return "ERROR: Values should not start with quote characters. Remove any quotes from the values. WRONG: {\"subject\": \"\\\"mooR\\\"\"} CORRECT: {\"subject\": \"mooR\"}";
+      endif
+    endfor
+    "Validate non-empty and meaningful content";
+    subject = subject:trim();
+    fact = fact:trim();
+    if (length(subject) < 2)
+      return "ERROR: Subject '" + subject + "' is too short. Use a name or topic like 'Ryan' or 'mooR'.";
+    endif
+    if (length(fact) < 3)
+      return "ERROR: Fact '" + fact + "' is too short. Use a complete statement like 'is a wizard' or 'was created in 1990'.";
+    endif
+    if (subject == fact)
+      return "ERROR: Subject and fact are identical. Subject is WHO/WHAT, fact is WHAT YOU KNOW. Example: subject='Ryan', fact='is a wizard'.";
+    endif
+    kb = this:_ensure_knowledge_base();
+    "Store as (subject, fact, timestamp) tuple";
+    kb:assert({subject, fact, time()});
+    return "Successfully remembered about " + subject + ": " + fact;
+  endverb
+
+  verb _tool_recall_facts (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Retrieve stored facts about a subject.";
+    {args_map} = args;
+    subject = args_map["subject"];
+    typeof(subject) != STR && raise(E_TYPE, "subject must be a string");
+    if (!valid(this.knowledge_base))
+      return "No memories stored yet.";
+    endif
+    "Query for facts matching this subject";
+    results = this.knowledge_base:select_containing(subject);
+    !results && return "No facts remembered about " + subject + ".";
+    "Format results with timestamps";
+    lines = {"Facts about " + subject + ":"};
+    for tuple in (results)
+      if (length(tuple) >= 2 && tuple[1] == subject)
+        fact = tuple[2];
+        time_str = length(tuple) >= 3 ? " (" + this:_format_time_ago(tuple[3]) + ")" | "";
+        lines = {@lines, " - " + fact + time_str};
+      endif
+    endfor
+    return length(lines) > 1 ? lines:join("\n") | "No facts remembered about " + subject + ".";
+  endverb
+
+  verb _register_memory_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Register memory tools with the agent. Called by children in _setup_agent.";
+    perms = caller_perms();
+    caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
+    {agent} = args;
+    "Tool: remember a fact";
+    remember_tool = $llm_agent_tool:mk("remember_fact", "Store a noteworthy fact about a person, place, or topic for later recall. Use this to remember important details that might be useful in future conversations.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Who or what the fact is about (a name or topic)"], "fact" -> ["type" -> "string", "description" -> "The fact to remember - keep it brief and factual"]], "required" -> {"subject", "fact"}], this, "_tool_remember_fact");
+    agent:add_tool("remember_fact", remember_tool);
+    "Tool: recall facts";
+    recall_tool = $llm_agent_tool:mk("recall_facts", "Recall stored facts about a person, place, or topic. Returns facts with when they were remembered.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Who or what to recall facts about"]], "required" -> {"subject"}], this, "_tool_recall_facts");
+    agent:add_tool("recall_facts", recall_tool);
+    "Tool: get current time";
+    time_tool = $llm_agent_tool:mk("current_time", "Get the current date and time.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_current_time");
+    agent:add_tool("current_time", time_tool);
+  endverb
+
+  verb get_memory_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Get a summary of all remembered facts for injection into compacted context.";
+    perms = caller_perms();
+    caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
+    if (!valid(this.knowledge_base))
+      return "";
+    endif
+    "Get all facts and organize by subject";
+    all_tuples = this.knowledge_base:tuples();
+    !all_tuples && return "";
+    "Organize by subject";
+    by_subject = [];
+    for tuple in (all_tuples)
+      if (length(tuple) >= 2)
+        subj = tuple[1];
+        fact = tuple[2];
+        existing = maphaskey(by_subject, subj) ? by_subject[subj] | {};
+        by_subject[subj] = {@existing, fact};
+      endif
+    endfor
+    !mapkeys(by_subject) && return "";
+    "Format summary";
+    lines = {"REMEMBERED FACTS:"};
+    for subj in (mapkeys(by_subject))
+      facts = by_subject[subj];
+      lines = {@lines, "- " + subj + ": " + facts:join("; ")};
+    endfor
+    return lines:join("\n");
+  endverb
+
+  verb on_compaction_start (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called when agent context is being compacted. Override in children.";
+    "Default: announce if in a room";
+    if (valid(this.location))
+      this.location:announce(this:mk_emote_event("pauses to collect thoughts..."));
+    endif
+  endverb
+
+  verb on_compaction_end (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called after agent context compaction completes. Inject remembered facts.";
+    "Children should call pass() then show their own completion message.";
+    if (!valid(this.agent))
+      return;
+    endif
+    memory_summary = this:get_memory_summary();
+    if (memory_summary && memory_summary != "")
+      "Inject remembered facts with clear context about their origin";
+      intro = "PERSISTENT MEMORY: The following facts were stored using your remember_fact tool and have been preserved across context compaction. Refer to these when relevant:";
+      this.agent:add_message("user", intro + "\n\n" + memory_summary);
+    endif
+  endverb
+
+  verb mk_emote_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Helper to create an emote event for this observer.";
+    {message} = args;
+    return $event:mk_emote(this, this:name(), " ", message);
+  endverb
+
+  verb _format_time_ago (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format a timestamp as relative time (e.g., '5 minutes ago').";
+    {timestamp} = args;
+    now = time();
+    diff = now - timestamp;
+    if (diff < 60)
+      return tostr(diff) + " seconds ago";
+    elseif (diff < 3600)
+      mins = diff / 60;
+      return tostr(mins) + (mins == 1 ? " minute ago" | " minutes ago");
+    elseif (diff < 86400)
+      hours = diff / 3600;
+      return tostr(hours) + (hours == 1 ? " hour ago" | " hours ago");
+    else
+      days = diff / 86400;
+      return tostr(days) + (days == 1 ? " day ago" | " days ago");
+    endif
+  endverb
+
+  verb _tool_current_time (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the current time.";
+    {args_map} = args;
+    now = time();
+    return ["current_time" -> ctime(), "timestamp" -> now];
+  endverb
+
+  verb "@facts" (this none none) owner: ARCH_WIZARD flags: "rx"
+    "Display all remembered facts in a formatted table.";
+    if (!valid(this.knowledge_base))
+      player:inform_current($event:mk_info(player, "No facts stored yet."):with_audience('utility));
+      return;
+    endif
+    tuples = this.knowledge_base:tuples();
+    if (!tuples)
+      player:inform_current($event:mk_info(player, "No facts stored yet."):with_audience('utility));
+      return;
+    endif
+    "Build table rows: Subject, Fact, When";
+    rows = {};
+    for tuple in (tuples)
+      subject = length(tuple) >= 1 ? tuple[1] | "?";
+      fact = length(tuple) >= 2 ? tuple[2] | "?";
+      when = length(tuple) >= 3 ? this:_format_time_ago(tuple[3]) | "?";
+      rows = {@rows, {subject, fact, when}};
+    endfor
+    "Create formatted output";
+    table_obj = $format.table:mk({"Subject", "Fact", "When"}, rows);
+    title_obj = $format.title:mk("Facts for " + this:name());
+    content = $format.block:mk(title_obj, table_obj);
+    event = $event:mk_info(player, content):with_audience('utility);
+    player:inform_current(event);
+  endverb
+
+  verb "@compact-facts" (this none none) owner: ARCH_WIZARD flags: "rx"
+    "Compact facts using LLM to consolidate, remove contradictions, and keep important ones.";
+    if (!valid(this.knowledge_base))
+      player:inform_current($event:mk_info(player, "No facts to compact."):with_audience('utility));
+      return;
+    endif
+    tuples = this.knowledge_base:tuples();
+    if (!tuples || length(tuples) < 2)
+      player:inform_current($event:mk_info(player, "Not enough facts to compact (need at least 2)."):with_audience('utility));
+      return;
+    endif
+    if (!valid(this.agent))
+      player:inform_current($event:mk_error(player, "No agent configured."):with_audience('utility));
+      return;
+    endif
+    "Format current facts for the LLM";
+    fact_lines = {};
+    for tuple in (tuples)
+      subject = tuple[1];
+      fact = tuple[2];
+      fact_lines = {@fact_lines, subject + ": " + fact};
+    endfor
+    facts_text = fact_lines:join("\n");
+    "Build the compaction prompt";
+    prompt = "You are consolidating a knowledge base. Below are stored facts. Your job is to:\n";
+    prompt = prompt + "1. Remove redundant or duplicate information\n";
+    prompt = prompt + "2. Resolve contradictions (keep the most likely correct version)\n";
+    prompt = prompt + "3. Merge related facts about the same subject\n";
+    prompt = prompt + "4. Discard trivial or irrelevant details\n";
+    prompt = prompt + "5. Keep important, useful facts\n\n";
+    prompt = prompt + "CURRENT FACTS:\n" + facts_text + "\n\n";
+    prompt = prompt + "Return ONLY a JSON array of consolidated facts in this format:\n";
+    prompt = prompt + "[{\"subject\": \"name or topic\", \"fact\": \"the consolidated fact\"}, ...]\n";
+    prompt = prompt + "Return valid JSON only, no other text.";
+    player:inform_current($event:mk_info(player, "Compacting " + tostr(length(tuples)) + " facts..."):with_audience('utility));
+    "Call LLM directly without adding to context";
+    try
+      opts = $llm_chat_opts:mk():with_temperature(0.2);
+      response = this.agent.client:chat({["role" -> "user", "content" -> prompt]}, opts);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Error calling LLM: " + toliteral(e)):with_audience('utility));
+      return;
+    endtry
+    "Extract content from response - handle both string and map responses";
+    if (typeof(response) == MAP)
+      "API response format - extract content from choices[1].message.content";
+      try
+        response = response["choices"][1]["message"]["content"];
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Could not extract content from API response: " + toliteral(e)):with_audience('utility));
+        return;
+      endtry
+    endif
+    "Check response type";
+    if (typeof(response) != STR)
+      player:inform_current($event:mk_error(player, "LLM response was not a string: " + toliteral(response)):with_audience('utility));
+      return;
+    endif
+    "Parse JSON response";
+    start_idx = index(response, "[");
+    end_idx = rindex(response, "]");
+    if (start_idx == 0 || end_idx == 0 || end_idx < start_idx)
+      player:inform_current($event:mk_error(player, "LLM response contained no valid JSON array: " + response):with_audience('utility));
+      return;
+    endif
+    json_str = response[start_idx..end_idx];
+    try
+      new_facts = parse_json(json_str);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Error parsing JSON: " + toliteral(e)):with_audience('utility));
+      player:inform_current($event:mk_info(player, "JSON was: " + json_str):with_audience('utility));
+      return;
+    endtry
+    "Validate we got a list";
+    if (typeof(new_facts) != LIST)
+      player:inform_current($event:mk_error(player, "LLM returned non-list: " + toliteral(new_facts)):with_audience('utility));
+      return;
+    endif
+    "Don't clear if we got nothing back";
+    if (length(new_facts) == 0)
+      player:inform_current($event:mk_info(player, "LLM returned empty list - keeping original facts."):with_audience('utility));
+      return;
+    endif
+    "Clear old facts and add new ones";
+    old_count = length(tuples);
+    this.knowledge_base:clear();
+    new_count = 0;
+    now = time();
+    for fact_obj in (new_facts)
+      if (typeof(fact_obj) == MAP)
+        subject = `fact_obj["subject"] ! E_RANGE => ""';
+        fact = `fact_obj["fact"] ! E_RANGE => ""';
+        if (typeof(subject) == STR && typeof(fact) == STR && length(subject) > 1 && length(fact) > 2)
+          this.knowledge_base:assert({subject, fact, now});
+          new_count = new_count + 1;
+        endif
+      endif
+    endfor
+    player:inform_current($event:mk_info(player, "Compacted " + tostr(old_count) + " facts down to " + tostr(new_count) + " facts."):with_audience('utility));
   endverb
 endobject

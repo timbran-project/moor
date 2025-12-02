@@ -7,9 +7,9 @@ object LLM_AGENT
 
   property cancel_requested (owner: HACKER, flags: "rc") = false;
   property chat_opts (owner: ARCH_WIZARD, flags: "rc") = false;
+  property client (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
-  property client (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property consecutive_tool_failures (owner: ARCH_WIZARD, flags: "rc") = [];
   property context (owner: ARCH_WIZARD, flags: "c") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -130,10 +130,10 @@ object LLM_AGENT
     tool_args = tool_call["function"]["arguments"];
     tool_call_id = tool_call["id"];
     "Check if this tool has failed too many times consecutively";
-    failures = this.consecutive_tool_failures;
+    failures = typeof(this.consecutive_tool_failures) == MAP ? this.consecutive_tool_failures | [];
     tool_failure_count = maphaskey(failures, tool_name) ? failures[tool_name] | 0;
     if (tool_failure_count >= this.max_consecutive_failures)
-      error_msg = "TOOL BLOCKED: This tool has failed " + tostr(tool_failure_count) + " times in a row. STOP trying to use it. Ask the user for help instead.";
+      error_msg = "TOOL BLOCKED: This tool has failed " + tostr(tool_failure_count) + " times in a row. STOP trying to use it and move on. Do NOT retry.";
       this:log_tool_error(tool_name, tool_args, error_msg);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, error_msg) ! ANY';
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
@@ -150,8 +150,14 @@ object LLM_AGENT
       suspend(0);
       content_out = typeof(result) == STR ? result | toliteral(result);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_complete) && `this.tool_callback:on_tool_complete(tool_name, tool_args, content_out) ! ANY';
-      "Success - reset failure count for this tool";
-      if (tool_failure_count > 0)
+      "Check if result indicates an error (starts with ERROR:)";
+      is_error_response = typeof(result) == STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
+      if (is_error_response)
+        "Increment failure count for error responses";
+        failures[tool_name] = tool_failure_count + 1;
+        this.consecutive_tool_failures = failures;
+      elseif (tool_failure_count > 0)
+        "Success - reset failure count for this tool";
         this.consecutive_tool_failures = mapdelete(failures, tool_name);
       endif
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> content_out];
@@ -198,8 +204,9 @@ object LLM_AGENT
         this.current_iteration = 0;
         return message["content"];
       endif
-      "Execute each tool call";
+      "Execute each tool call and track failures";
       tool_results = {};
+      all_blocked = true;
       for tool_call in (message["tool_calls"])
         if (this.cancel_requested)
           this.cancel_requested = false;
@@ -207,9 +214,20 @@ object LLM_AGENT
           this.context = {@this.context, message, @tool_results};
           return "Operation cancelled by user. " + tostr(length(tool_results)) + " of " + tostr(length(message["tool_calls"])) + " tools completed before cancellation.";
         endif
-        tool_results = {@tool_results, this:_execute_tool_call(tool_call)};
+        result = this:_execute_tool_call(tool_call);
+        tool_results = {@tool_results, result};
+        "Check if this result was not a blocked/error response";
+        content = result["content"];
+        if (!(content:starts_with("TOOL BLOCKED:") || content:starts_with("ERROR:")))
+          all_blocked = false;
+        endif
       endfor
       this.context = {@this.context, message, @tool_results};
+      "If all tool calls failed or were blocked, break out of the loop";
+      if (all_blocked && length(tool_results) > 0)
+        this.current_iteration = 0;
+        return "All tool calls failed. Please try a different approach.";
+      endif
       suspend(0);
     endfor
     return E_QUOTA("Maximum iterations exceeded");
