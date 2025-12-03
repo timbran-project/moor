@@ -310,7 +310,7 @@ object SOCIAL_FEATURES
       player:inform_current($event:mk_error(player, "Paste content is greater than 25 lines, too long."));
       return;
     endif
-    event = $event:mk_paste(player, $format.title:mk({$sub:nc(), " ", $sub:self_alt("paste", "pastes")}, 4), $format.code:mk(content)):with_presentation_hint('inset);
+    event = $event:mk_paste(player, $format.title:mk({$sub:nc(), " ", $sub:self_alt("paste", "pastes")}, 4), $format.code:mk(content)):with_presentation_hint('inset):with_group('paste);
     player.location:announce(event);
   endverb
 

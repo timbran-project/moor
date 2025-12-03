@@ -18,11 +18,11 @@ object PROG_FEATURES
         prefix = "=> ";
         code = $format.code:mk(toliteral(answer[2]), 'moo);
         content = $format.block:mk(prefix, code);
-        result_event = $event:mk_eval_result(player, content);
+        result_event = $event:mk_eval_result(player, content):with_group('eval);
       else
         error_content = answer[2];
         error_text = error_content:join("\n");
-        result_event = $event:mk_eval_error(player, $format.code:mk(error_text));
+        result_event = $event:mk_eval_error(player, $format.code:mk(error_text)):with_group('eval);
       endif
     except id (ANY)
       traceback = {"Eval failed: " + toliteral(id[2]) + ":"};
@@ -30,7 +30,7 @@ object PROG_FEATURES
         traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
       endfor
       traceback = {@traceback, "(End of traceback)"};
-      result_event = $event:mk_eval_exception(player, $format.code:mk(traceback));
+      result_event = $event:mk_eval_exception(player, $format.code:mk(traceback)):with_group('eval);
     endtry
     player:inform_current(result_event);
   endverb
@@ -1150,7 +1150,7 @@ object PROG_FEATURES
     endif
     title = $format.title:mk({$sub:nc(), " ", $sub:self_alt("codepaste", "codepastes")}, 4);
     code = $format.code:mk(content, 'moo);
-    event = $event:mk_paste(player, title, code):with_presentation_hint('inset);
+    event = $event:mk_paste(player, title, code):with_presentation_hint('inset):with_group('paste);
     player.location:announce(event);
   endverb
 

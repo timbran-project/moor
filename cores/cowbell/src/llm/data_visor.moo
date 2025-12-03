@@ -679,16 +679,16 @@ object DATA_VISOR
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed verb creation: " + tostr(o) + ":" + verb_names);
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     "Show verb signature";
     verb_sig = "verb " + verb_names + " (" + dobj + " " + prep + " " + iobj + ") owner: " + tostr(wearer) + " flags: \"" + permissions + "\"";
     sig_content = $format.code:mk(verb_sig, 'moo);
-    wearer:inform_current($event:mk_info(wearer, sig_content):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, sig_content):with_presentation_hint('inset):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Add this verb?");
+      result = wearer:confirm_with_all($ansi:colorize("[ADD]", 'green) + " Add this verb?", "Or suggest an alternative:", "Describe your alternative approach...", "Add this verb?");
       if (result == false)
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
@@ -697,7 +697,7 @@ object DATA_VISOR
         return "User provided alternative: " + result;
       endif
     endif
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[CREATING]", 'yellow) + " Adding verb to " + tostr(o) + "..."):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[CREATING]", 'yellow) + " Adding verb to " + tostr(o) + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Adding verb to " + tostr(o)));
     "Add verb with wearer as owner";
     verb_info = {wearer, permissions, verb_names};
     verb_args = {dobj, prep, iobj};
@@ -719,12 +719,12 @@ object DATA_VISOR
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed deletion of " + tostr(verb_location) + ":" + verb_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Delete this verb? This cannot be undone.");
+      result = wearer:confirm_with_all($ansi:colorize("[DELETE]", 'red) + " Delete this verb? This cannot be undone.", "Or suggest an alternative:", "Describe your alternative approach...", "Delete this verb? This cannot be undone.");
       if (result == false)
         this.agent.cancel_requested = true;
         return "Operation cancelled by user.";
@@ -734,7 +734,7 @@ object DATA_VISOR
         return "User provided alternative: " + result;
       endif
     endif
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[DELETING]", 'red) + " Removing verb " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[DELETING]", 'red) + " Removing verb " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Removing verb " + tostr(verb_location) + ":" + verb_name));
     delete_verb(verb_location, verb_name);
     return "Verb " + tostr(verb_location) + ":" + verb_name + " deleted successfully";
   endverb
@@ -756,17 +756,17 @@ object DATA_VISOR
     "Show rationale first, then formatted code with line numbers";
     rationale_title = $format.title:mk("Proposed change for " + tostr(verb_location) + ":" + verb_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     numbered_lines = $prog_utils:format_line_numbers(code_lines);
     code_block = $format.code:mk(numbered_lines, 'moo);
     code_title = $format.title:mk("New code");
     code_content = $format.block:mk(code_title, code_block);
-    wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Accept these changes?");
+      result = wearer:confirm_with_all($ansi:colorize("[COMPILE]", 'yellow) + " Accept these changes?", "Or suggest an alternative:", "Describe your alternative approach...", "Accept these changes?");
       if (result == false)
         "User cancelled - stop the agent flow";
         this.agent.cancel_requested = true;
@@ -778,7 +778,7 @@ object DATA_VISOR
         return "User provided alternative: " + result;
       endif
     endif
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[COMPILE]", 'yellow) + " Updating code: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[COMPILE]", 'yellow) + " Updating code: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Compiling code for " + tostr(verb_location) + ":" + verb_name));
     "Compile with structured error output (verbosity=3 for map format)";
     errors = set_verb_code(verb_location, verb_name, code_lines, 3, 0);
     if (errors)
@@ -786,7 +786,7 @@ object DATA_VISOR
       formatted_lines = format_compile_error(errors, 2, 0);
       error_text = formatted_lines:join("\n");
       error_block = $format.code:mk(error_text, 'text);
-      wearer:inform_current($event:mk_eval_error(wearer, error_block):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_eval_error(wearer, error_block):with_presentation_hint('inset):with_group('llm, this));
       return "Compilation failed:\n" + error_text;
     endif
     return "Verb code updated successfully for " + tostr(verb_location) + ":" + verb_name;
@@ -817,8 +817,9 @@ object DATA_VISOR
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Request confirmation";
-    confirmation_msg = "Change argument specification for " + tostr(verb_location) + ":" + verb_name + "?\n\nNew argspec: (" + dobj + " " + prep + " " + iobj + ")\n\nProceed?";
-    result = wearer:confirm(confirmation_msg);
+    tts_msg = "Change argument specification for " + tostr(verb_location) + ":" + verb_name + "? New argspec: " + dobj + " " + prep + " " + iobj + ". Proceed?";
+    confirmation_msg = $ansi:colorize("[MODIFY]", 'yellow) + " Change argument specification for " + tostr(verb_location) + ":" + verb_name + "?\n\nNew argspec: (" + dobj + " " + prep + " " + iobj + ")\n\nProceed?";
+    result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
     if (result == false)
       "User cancelled - stop the agent flow";
       this.agent.cancel_requested = true;
@@ -826,7 +827,7 @@ object DATA_VISOR
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
     endif
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating argspec: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating argspec: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating argument spec for " + tostr(verb_location) + ":" + verb_name));
     "Update verb args";
     set_verb_args(verb_location, verb_name, {dobj, prep, iobj});
     return "Verb argspec updated successfully for " + tostr(verb_location) + ":" + verb_name + " to (" + dobj + " " + prep + " " + iobj + ")";
@@ -853,7 +854,7 @@ object DATA_VISOR
     if (!eval_result[1])
       error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
       error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
-      error_event = error_event:with_presentation_hint('inset);
+      error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(error_event);
       return "Error parsing value: " + error_text;
     endif
@@ -861,16 +862,16 @@ object DATA_VISOR
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed property creation: " + tostr(o) + "." + prop_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     "Show property details";
     prop_details = "property " + prop_name + " (owner: " + tostr(wearer) + ", flags: \"" + permissions + "\") = " + value_str + ";";
     details_content = $format.code:mk(prop_details, 'moo);
-    wearer:inform_current($event:mk_info(wearer, details_content):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, details_content):with_presentation_hint('inset):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Add this property?");
+      result = wearer:confirm_with_all($ansi:colorize("[ADD]", 'green) + " Add this property?", "Or suggest an alternative:", "Describe your alternative approach...", "Add this property?");
       if (result == false)
         this.agent.cancel_requested = true;
         return "Operation cancelled by user.";
@@ -901,12 +902,12 @@ object DATA_VISOR
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed deletion of " + tostr(o) + "." + prop_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Delete this property? This cannot be undone.");
+      result = wearer:confirm_with_all($ansi:colorize("[DELETE]", 'red) + " Delete this property? This cannot be undone.", "Or suggest an alternative:", "Describe your alternative approach...", "Delete this property? This cannot be undone.");
       if (result == false)
         this.agent.cancel_requested = true;
         return "Operation cancelled by user.";
@@ -939,7 +940,7 @@ object DATA_VISOR
       "Compilation error - show error to user";
       error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
       error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
-      error_event = error_event:with_presentation_hint('inset);
+      error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(error_event);
       return "Error parsing value: " + error_text;
     endif
@@ -950,12 +951,12 @@ object DATA_VISOR
     change_title = $format.title:mk("Proposed property change: " + tostr(o) + "." + prop_name);
     change_details = "Old value: " + toliteral(old_value) + "\nNew value: " + value_str;
     change_content = $format.block:mk(change_title, change_details);
-    wearer:inform_current($event:mk_info(wearer, change_content):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, change_content):with_presentation_hint('inset):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Set this property?");
+      result = wearer:confirm_with_all($ansi:colorize("[SET]", 'yellow) + " Set this property?", "Or suggest an alternative:", "Describe your alternative approach...", "Set this property?");
       if (result == false)
         "User cancelled - stop the agent flow";
         this.agent.cancel_requested = true;
@@ -1003,8 +1004,9 @@ object DATA_VISOR
       char in {"r", "w", "x", "d"} || raise(E_INVARG("Verb permissions must be subset of 'rwxd'"));
     endfor
     "Request confirmation";
-    confirmation_msg = "Change verb permissions for " + tostr(verb_location) + ":" + verb_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
-    result = wearer:confirm(confirmation_msg);
+    tts_msg = "Change verb permissions for " + tostr(verb_location) + ":" + verb_name + "? Owner: " + tostr(current_owner) + (new_owner != current_owner ? " to " + tostr(new_owner) | "") + ". Flags: " + current_perms + " to " + (perms_str == "" ? "cleared" | perms_str) + ". Proceed?";
+    confirmation_msg = $ansi:colorize("[PERMS]", 'cyan) + " Change verb permissions for " + tostr(verb_location) + ":" + verb_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
+    result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
     if (result == false)
       "User cancelled";
       this.agent.cancel_requested = true;
@@ -1012,7 +1014,7 @@ object DATA_VISOR
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
     endif
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating verb permissions: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating verb permissions: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating verb permissions for " + tostr(verb_location) + ":" + verb_name));
     "Apply the change";
     metadata:set_perms(new_owner, perms_str);
     return "Verb permissions updated: " + tostr(verb_location) + ":" + verb_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
@@ -1048,8 +1050,9 @@ object DATA_VISOR
       char in {"r", "w", "c"} || raise(E_INVARG("Property permissions must be subset of 'rwc'"));
     endfor
     "Request confirmation";
-    confirmation_msg = "Change property permissions for " + tostr(o) + "." + prop_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
-    result = wearer:confirm(confirmation_msg);
+    tts_msg = "Change property permissions for " + tostr(o) + "." + prop_name + "? Owner: " + tostr(current_owner) + (new_owner != current_owner ? " to " + tostr(new_owner) | "") + ". Flags: " + current_perms + " to " + (perms_str == "" ? "cleared" | perms_str) + ". Proceed?";
+    confirmation_msg = $ansi:colorize("[PERMS]", 'cyan) + " Change property permissions for " + tostr(o) + "." + prop_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
+    result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
     if (result == false)
       "User cancelled";
       this.agent.cancel_requested = true;
@@ -1057,7 +1060,7 @@ object DATA_VISOR
     elseif (typeof(result) == STR)
       return "User provided alternative: " + result;
     endif
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating property permissions: " + tostr(o) + "." + prop_name + "..."):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating property permissions: " + tostr(o) + "." + prop_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating property permissions for " + tostr(o) + "." + prop_name));
     "Apply the change";
     metadata:set_perms(new_owner, perms_str);
     return "Property permissions updated: " + tostr(o) + "." + prop_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
@@ -1082,16 +1085,16 @@ object DATA_VISOR
     "Show rationale first, then formatted code";
     rationale_title = $format.title:mk("Proposed evaluation");
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     code_block = $format.code:mk(code_str, 'moo);
     code_title = $format.title:mk("Code to execute");
     code_content = $format.block:mk(code_title, code_block);
-    wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Execute this code?");
+      result = wearer:confirm_with_all($ansi:colorize("[EVAL]", 'magenta) + " Execute this code?", "Or suggest an alternative:", "Describe your alternative approach...", "Execute this code?");
       if (result == false)
         this.agent.cancel_requested = true;
         return "Operation cancelled by user.";
@@ -1106,7 +1109,7 @@ object DATA_VISOR
     if (result[1])
       "Success - show result to user and return to LLM";
       result_event = $event:mk_eval_result(wearer, "=> ", $format.code:mk(toliteral(result[2]), 'moo));
-      result_event = result_event:with_presentation_hint('inset);
+      result_event = result_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(result_event);
       return "Result: " + toliteral(result[2]);
     else
@@ -1114,7 +1117,7 @@ object DATA_VISOR
       error_content = result[2];
       error_text = typeof(error_content) == LIST ? error_content:join("\n") | toliteral(error_content);
       error_event = $event:mk_eval_error(wearer, $format.code:mk(error_text));
-      error_event = error_event:with_presentation_hint('inset);
+      error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(error_event);
       return "Error:\n" + error_text;
     endif
@@ -1145,7 +1148,7 @@ object DATA_VISOR
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed object creation: \"" + name + "\"");
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     "Show object details";
     obj_details = "Parent: " + toliteral(parent_obj) + "\nName: " + toliteral(name);
     if (aliases)
@@ -1153,12 +1156,12 @@ object DATA_VISOR
     endif
     obj_details = obj_details + "\n\nObject will be created in your inventory.";
     details_block = $format.block:mk($format.title:mk("Details"), obj_details);
-    wearer:inform_current($event:mk_info(wearer, details_block):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, details_block):with_presentation_hint('inset):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Create this object?");
+      result = wearer:confirm_with_all($ansi:colorize("[CREATE]", 'bright_green) + " Create this object?", "Or suggest an alternative:", "Describe your alternative approach...", "Create this object?");
       if (result == false)
         this.agent.cancel_requested = true;
         return "Operation cancelled by user.";
@@ -1201,12 +1204,12 @@ object DATA_VISOR
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed destruction of " + obj_id + " (\"" + obj_name + "\")");
     rationale_content = $format.block:mk(rationale_title, rationale);
-    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
+    wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_group('llm, this));
     "Check auto_confirm mode or request confirmation";
     if (this.auto_confirm)
-      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
     else
-      result = wearer:confirm_with_all("Recycle this object? This will PERMANENTLY DESTROY it and cannot be undone.");
+      result = wearer:confirm_with_all($ansi:colorize("[DESTROY]", 'bright_red) + " Recycle this object? This will PERMANENTLY DESTROY it and cannot be undone.", "Or suggest an alternative:", "Describe your alternative approach...", "Recycle this object? This will permanently destroy it and cannot be undone.");
       if (result == false)
         this.agent.cancel_requested = true;
         return "Operation cancelled by user.";
@@ -1444,6 +1447,88 @@ object DATA_VISOR
     return {'text_djot, 'text_plain};
   endverb
 
+  verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
+    "TTS-friendly descriptions for visor tool operations";
+    {tool_name, tool_args} = args;
+    if (typeof(tool_args) == STR)
+      tool_args = parse_json(tool_args);
+    endif
+    "Read-only operations";
+    if (tool_name == "find_object")
+      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | (maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "unknown");
+      return "Scanning database for " + ref;
+    elseif (tool_name == "list_verbs")
+      return "Listing verbs on " + tool_args["object"];
+    elseif (tool_name == "get_verb_code")
+      return "Retrieving code for " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "get_verb_code_range")
+      return "Retrieving code section from " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "get_verb_metadata")
+      return "Analyzing verb metadata for " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "present_verb_code" || tool_name == "present_verb_code_range")
+      return "Displaying code for " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "read_property")
+      return "Reading property " + tool_args["object"] + " " + tool_args["property"];
+    elseif (tool_name == "doc_lookup")
+      return "Loading documentation for " + tool_args["target"];
+    elseif (tool_name == "list_messages")
+      return "Listing message templates on " + tool_args["object"];
+    elseif (tool_name == "get_message_template")
+      return "Reading message template " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "get_properties")
+      return "Scanning properties on " + tool_args["object"];
+    elseif (tool_name == "dump_object")
+      return "Extracting complete object data for " + tool_args["object"];
+    elseif (tool_name == "ancestors")
+      return "Tracing inheritance chain for " + tool_args["object"];
+    elseif (tool_name == "descendants")
+      return "Enumerating descendants of " + tool_args["object"];
+    elseif (tool_name == "function_info")
+      return "Looking up builtin function " + tool_args["function_name"];
+    elseif (tool_name == "list_builtin_functions")
+      return "Enumerating system builtin functions";
+    elseif (tool_name == "grep")
+      obj_spec = maphaskey(tool_args, "object") ? " in " + tool_args["object"] | " globally";
+      return "Searching for pattern " + tool_args["pattern"] + obj_spec;
+    "Write operations";
+    elseif (tool_name == "add_verb")
+      return "Creating verb " + tool_args["object"] + " " + tool_args["verb_names"];
+    elseif (tool_name == "delete_verb")
+      return "Deleting verb " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "set_verb_code")
+      return "Compiling code for " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "set_verb_args")
+      return "Modifying argument spec for " + tool_args["object"] + " " + tool_args["verb"];
+    elseif (tool_name == "add_property")
+      return "Creating property " + tool_args["object"] + " " + tool_args["property"];
+    elseif (tool_name == "delete_property")
+      return "Deleting property " + tool_args["object"] + " " + tool_args["property"];
+    elseif (tool_name == "set_property")
+      return "Setting property " + tool_args["object"] + " " + tool_args["property"];
+    elseif (tool_name == "set_message_template")
+      return "Setting message template " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "add_message_template")
+      return "Adding message to " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "delete_message_template")
+      return "Removing message entry from " + tool_args["property"];
+    elseif (tool_name == "eval")
+      return "Executing code";
+    elseif (tool_name == "create_object")
+      return "Creating object " + tool_args["name"] + " from " + tool_args["parent"];
+    elseif (tool_name == "recycle_object")
+      return "Recycling object " + tool_args["object"];
+    elseif (tool_name == "ask_user")
+      return "Requesting user input";
+    elseif (tool_name == "explain")
+      msg = maphaskey(tool_args, "message") ? tool_args["message"] | "";
+      if (typeof(msg) != STR)
+        msg = toliteral(msg);
+      endif
+      return "Info: " + msg;
+    endif
+    return "Processing " + tool_name;
+  endverb
+
   verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
     "Visor requires .programmer to use";
     {wearer} = args;
@@ -1456,9 +1541,9 @@ object DATA_VISOR
     this.agent:reset_context();
     wearer = this.location;
     !valid(wearer) && return;
-    wearer:inform_current($event:mk_info(wearer, "The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in " + $ansi:colorize("electric blue", 'bright_blue) + " and " + $ansi:colorize("green", 'bright_green) + ". The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."));
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset));
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: use/interact, reset"):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, "The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in " + $ansi:colorize("electric blue", 'bright_blue) + " and " + $ansi:colorize("green", 'bright_green) + ". The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."):with_tts("The visor's interface flickers to life as you adjust it over your eyes. A luminescent display materializes in the corner of your vision - cascading lines of data flow past in electric blue and green. The world around you shimmers momentarily as the augmented reality overlay synchronizes with your neural patterns."));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset):with_group('llm, this):with_tts("Neural link established. Augmented reality overlay online."));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: use/interact, reset"):with_presentation_hint('inset):with_group('llm, this):with_tts("Database inspection interface active. Commands: use, interact, or reset."));
     this:_show_token_usage(wearer);
   endverb
 
@@ -1467,7 +1552,7 @@ object DATA_VISOR
     wearer = this.location;
     !valid(wearer) && return;
     this:_show_token_usage(wearer);
-    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset):with_group('llm, this):with_tts("Neural link severed. Augmented reality overlay offline."));
     wearer:inform_current($event:mk_info(wearer, "The luminescent display flickers and dims, data streams dissolving into static. The augmented overlay fades from your peripheral vision like phosphor afterimages. As the neural link disconnects, you hear a faint electronic hiss - then silence. The world returns to its unaugmented state."));
   endverb
 
@@ -1476,7 +1561,7 @@ object DATA_VISOR
     !is_member(this, player.wearing) && player:inform_current($event:mk_error(player, "You need to be wearing the visor to reset it.")) && return;
     !valid(this.agent) && this:configure();
     this.agent:reset_context();
-    player:inform_current($event:mk_info(player, $ansi:colorize("[RESET]", 'yellow) + " Neural buffer flushed. Session context cleared."):with_presentation_hint('inset));
+    player:inform_current($event:mk_info(player, $ansi:colorize("[RESET]", 'yellow) + " Neural buffer flushed. Session context cleared."):with_presentation_hint('inset):with_group('llm, this):with_tts("Session context cleared."));
   endverb
 
   verb plan_investigation (none none none) owner: HACKER flags: "rd"
@@ -1486,19 +1571,19 @@ object DATA_VISOR
     task = this.agent:create_task("Investigation: " + argstr);
     this.current_investigation_task = task.task_id;
     task:mark_in_progress();
-    player:inform_current($event:mk_info(player, $ansi:colorize("[TASK]", 'bright_cyan) + " Investigation #" + tostr(task.task_id) + " initiated: " + argstr):with_presentation_hint('inset));
+    player:inform_current($event:mk_info(player, $ansi:colorize("[TASK]", 'bright_cyan) + " Investigation #" + tostr(task.task_id) + " initiated: " + argstr):with_presentation_hint('inset):with_group('llm, this):with_tts("Investigation " + tostr(task.task_id) + " initiated: " + argstr));
   endverb
 
   verb get_investigation_status (none none none) owner: HACKER flags: "rd"
     "Display current investigation task status and findings";
     !is_member(this, player.wearing) && player:inform_current($event:mk_error(player, "You need to be wearing the visor.")) && return;
     if (this.current_investigation_task == -1)
-      player:inform_current($event:mk_info(player, $ansi:colorize("[STATUS]", 'bright_blue) + " No active investigation. Use 'plan investigation <description>' to begin."):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[STATUS]", 'bright_blue) + " No active investigation. Use 'plan investigation <description>' to begin."):with_presentation_hint('inset):with_group('llm, this):with_tts("No active investigation. Use plan investigation to begin."));
       return;
     endif
     task_obj = this.agent.current_tasks[this.current_investigation_task];
     if (!valid(task_obj))
-      player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Investigation task #" + tostr(this.current_investigation_task) + " is no longer available."));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Investigation task #" + tostr(this.current_investigation_task) + " is no longer available."):with_tts("Error: Investigation task " + tostr(this.current_investigation_task) + " is no longer available."));
       return;
     endif
     status = task_obj:get_status();
@@ -1507,7 +1592,8 @@ object DATA_VISOR
     status["status"] == 'failed && (status_lines = {@status_lines, "  Error: " + status["error"]});
     status["status"] == 'blocked && (status_lines = {@status_lines, "  Blocked: " + status["error"]});
     status["subtask_count"] > 0 && (status_lines = {@status_lines, "  Subtasks: " + tostr(status["subtask_count"])});
-    player:inform_current($event:mk_info(player, status_lines:join("\n")):with_presentation_hint('inset));
+    tts_status = "Task " + tostr(status["task_id"]) + " status: " + tostr(status["status"]) + ". " + status["description"];
+    player:inform_current($event:mk_info(player, status_lines:join("\n")):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_status));
   endverb
 
   verb complete_investigation (this none this) owner: ARCH_WIZARD flags: "rxd"

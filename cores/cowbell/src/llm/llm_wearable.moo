@@ -107,11 +107,13 @@ object LLM_WEARABLE
     if (typeof(last_usage) == MAP && maphaskey(last_usage, "total_tokens"))
       last_tokens = last_usage["total_tokens"];
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
+      tts_msg = "Token usage: Last call used " + tostr(last_tokens) + " tokens. Total " + tostr(used) + " of " + tostr(budget) + ", " + tostr(percent_used) + " percent used.";
     else
       "No API calls yet, just show budget";
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Budget: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
+      tts_msg = "Token budget: " + tostr(used) + " of " + tostr(budget) + " used, " + tostr(percent_used) + " percent.";
     endif
-    wearer:inform_current($event:mk_info(wearer, usage_msg):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, usage_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
     "Show context size and compaction status if we have prompt token data";
     if (typeof(last_usage) == MAP && maphaskey(last_usage, "prompt_tokens"))
       prompt_tokens = last_usage["prompt_tokens"];
@@ -132,7 +134,8 @@ object LLM_WEARABLE
         status = "OK";
       endif
       context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " Size: " + $ansi:colorize(tostr(prompt_tokens), 'white) + "/" + tostr(token_limit) + " (" + tostr(context_percent) + "%) | Compaction at " + tostr(threshold_tokens) + " (" + tostr(toint(threshold_percent)) + "% full) - " + $ansi:colorize(status, ctx_color);
-      wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset));
+      context_tts = "Context size: " + tostr(prompt_tokens) + " of " + tostr(token_limit) + " tokens, " + tostr(context_percent) + " percent. Status: " + status + ".";
+      wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(context_tts));
     endif
   endverb
 
@@ -244,6 +247,7 @@ object LLM_WEARABLE
     try
       "Let child format the message (handles all tools including explain/ask_user)";
       message = this:_format_hud_message(tool_name, tool_args);
+      tts_msg = this:_format_tts_message(tool_name, tool_args);
       "Prepend iteration info if agent is available";
       if (valid(this.agent))
         iter = `this.agent.current_iteration ! ANY => 0';
@@ -256,12 +260,18 @@ object LLM_WEARABLE
           endif
           iter_info = iter_info + "] ";
           message = iter_info + message;
+          "TTS version with spoken iteration info";
+          tts_iter = "Step " + tostr(iter) + " of " + tostr(max_iter);
+          if (cont > 0)
+            tts_iter = tts_iter + ", continuation " + tostr(cont);
+          endif
+          tts_msg = tts_iter + ". " + tts_msg;
         endif
       endif
       "Get content types from child (allows markdown rendering for specific tools)";
       content_types = this:_get_tool_content_types(tool_name, tool_args);
       "Build and send event";
-      event = $event:mk_info(wearer, message):with_presentation_hint('inset);
+      event = $event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg);
       if (content_types && length(content_types) > 0)
         event = event:with_metadata('preferred_content_types, content_types);
       endif
@@ -269,7 +279,7 @@ object LLM_WEARABLE
     except e (ANY)
       "Fall back to generic message if formatting fails";
       message = $ansi:colorize("[PROCESS]", 'cyan) + " Tool active: " + tool_name;
-      wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
+      wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts("Processing tool: " + tool_name));
       server_log("LLM wearable callback error: " + toliteral(e));
     endtry
   endverb
@@ -299,6 +309,7 @@ object LLM_WEARABLE
         error_text = error_text[1..256] + "...";
       endif
       message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + error_text;
+      tts_msg = "Error from " + tool_name + ": " + error_text;
     else
       "Show success in green - truncate long results";
       result_text = typeof(result) == STR ? result | toliteral(result);
@@ -306,8 +317,9 @@ object LLM_WEARABLE
         result_text = result_text[1..256] + "...";
       endif
       message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+      tts_msg = tool_name + " completed: " + result_text;
     endif
-    wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
+    wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
   endverb
 
   verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
@@ -332,6 +344,29 @@ object LLM_WEARABLE
     endif
     "Fallback for unknown tools";
     return $ansi:colorize("[PROCESS]", 'cyan) + " " + tool_name;
+  endverb
+
+  verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
+    "Override in child objects for tool-specific TTS message formatting";
+    {tool_name, tool_args} = args;
+    "Default TTS-friendly formatting for common tools";
+    if (tool_name == "explain")
+      return "Info: " + tool_args["message"];
+    elseif (tool_name == "ask_user")
+      question = tool_args["question"];
+      if (length(question) > 100)
+        question = question[1..100] + "...";
+      endif
+      suffix = "";
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+        suffix = " with options";
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+        suffix = ", " + tool_args["input_type"] + " input";
+      endif
+      return "Question: " + question + suffix;
+    endif
+    "Fallback for unknown tools";
+    return "Processing tool: " + tool_name;
   endverb
 
   verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
@@ -722,15 +757,15 @@ object LLM_WEARABLE
       this:configure();
     endif
     "Prompt for query text using metadata-based read";
-    metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize(this.prompt_label, this.prompt_color) + " " + this.prompt_text}, {"placeholder", this.placeholder_text}};
+    metadata = {{"input_type", "text"}, {"prompt", $ansi:colorize(this.prompt_label, this.prompt_color) + " " + this.prompt_text}, {"placeholder", this.placeholder_text}, {"tts_prompt", this.prompt_text}};
     query = player:read_with_prompt(metadata):trim();
     if (!query)
       player:inform_current($event:mk_error(player, "Query cancelled - no input provided."));
       return;
     endif
     "Show received and processing messages";
-    player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset));
-    player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " " + this.processing_message):with_presentation_hint('inset));
+    player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset):with_group('llm, this):with_tts("Query received: " + query));
+    player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " " + this.processing_message):with_presentation_hint('inset):with_group('llm, this):with_tts("Processing: " + this.processing_message));
     "Set token owner for budget tracking";
     this.agent.token_owner = player;
     "Send to agent with continuation support (max 3 continuations)";
@@ -739,19 +774,19 @@ object LLM_WEARABLE
     max_continuations = 3;
     while (typeof(response) == ERR && error_code(response) == E_QUOTA && continuations < max_continuations)
       "Hit iteration limit - ask user if they want to continue";
-      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset):with_group('llm, this):with_tts(this.tool_name + " hit iteration limit after " + tostr(this.agent.max_iterations) + " iterations."));
       metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
       user_choice = player:read_with_prompt(metadata);
       if (user_choice != "yes")
         "User chose not to continue";
         this.agent.current_iteration = 0;
         this:_show_token_usage(player);
-        player:inform_current($event:mk_info(player, "Agent stopped at user request after reaching iteration limit."):with_presentation_hint('inset));
+        player:inform_current($event:mk_info(player, "Agent stopped at user request after reaching iteration limit."):with_presentation_hint('inset):with_group('llm, this));
         return;
       endif
       "User chose to continue";
       continuations = continuations + 1;
-      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset):with_group('llm, this):with_tts("Continuing, continuation " + tostr(continuations) + " of " + tostr(max_continuations) + "."));
       response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
     endwhile
     "Reset iteration counter in case we hit limit";
@@ -771,7 +806,7 @@ object LLM_WEARABLE
     "Display final response with djot rendering";
     event = $event:mk_info(player, response);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    event = event:with_presentation_hint('inset);
+    event = event:with_presentation_hint('inset):with_group('llm, this);
     player:inform_current(event);
   endverb
 endobject

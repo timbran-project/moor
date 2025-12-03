@@ -300,6 +300,112 @@ object ARCHITECTS_COMPASS
     return {'text_djot, 'text_plain};
   endverb
 
+  verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
+    "Format TTS-friendly message for screen readers - no ANSI codes or brackets";
+    {tool_name, tool_args} = args;
+    wearer = this:wearer();
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    if (typeof(tool_args) == STR)
+      tool_args = parse_json(tool_args);
+    endif
+    if (tool_name == "explain")
+      return "Compass: " + tool_args["message"];
+    elseif (tool_name == "build_room")
+      return "Building room: " + tool_args["name"];
+    elseif (tool_name == "dig_passage")
+      return "Digging passage: " + tool_args["direction"];
+    elseif (tool_name == "remove_passage")
+      return "Removing passage to: " + tool_args["target_room"];
+    elseif (tool_name == "set_passage_description")
+      direction = tool_args["direction"];
+      ambient = maphaskey(tool_args, "ambient") ? tool_args["ambient"] | true;
+      return "Setting " + direction + " passage description" + (ambient ? ", ambient mode" | "");
+    elseif (tool_name == "create_object")
+      return "Creating: " + tool_args["name"] + " from " + tool_args["parent"];
+    elseif (tool_name == "recycle_object")
+      return "Recycling object: " + tool_args["object"];
+    elseif (tool_name == "rename_object")
+      new_name = tool_args["name"];
+      if (new_name:contains(":"))
+        new_name = $str_proto:split(new_name, ":")[1];
+      endif
+      return "Renaming " + tool_args["object"] + " to " + new_name;
+    elseif (tool_name == "describe_object")
+      return "Setting description for " + tool_args["object"];
+    elseif (tool_name == "move_object")
+      return "Moving " + tool_args["object"] + " to " + tool_args["destination"];
+    elseif (tool_name == "set_integrated_description")
+      if (tool_args["integrated_description"] == "")
+        return "Clearing integrated description for " + tool_args["object"];
+      endif
+      return "Setting integrated description for " + tool_args["object"];
+    elseif (tool_name == "doc_lookup")
+      return "Looking up documentation for " + tool_args["target"];
+    elseif (tool_name == "list_messages")
+      return "Listing message templates on " + tool_args["object"];
+    elseif (tool_name == "get_message_template")
+      return "Reading " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "set_message_template")
+      return "Setting " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "grant_capability")
+      return "Granting permissions on " + tool_args["target"];
+    elseif (tool_name == "audit_owned")
+      return "Scanning owned objects";
+    elseif (tool_name == "area_map")
+      return "Surveying current area";
+    elseif (tool_name == "find_route")
+      return "Finding route to " + tool_args["to_room"];
+    elseif (tool_name == "list_prototypes")
+      return "Listing available object templates";
+    elseif (tool_name == "inspect_object")
+      return "Inspecting " + tool_args["object"];
+    elseif (tool_name == "list_rules")
+      return "Listing rules on " + tool_args["object"];
+    elseif (tool_name == "set_rule")
+      return "Setting " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "show_rule")
+      return "Reading " + tool_args["property"] + " on " + tool_args["object"];
+    elseif (tool_name == "test_rule")
+      expr = tool_args["expression"];
+      if (length(expr) > 40)
+        expr = expr[1..40] + "...";
+      endif
+      return "Testing rule: " + expr;
+    elseif (tool_name == "create_project")
+      description = tool_args["description"];
+      if (length(description) > 50)
+        description = description[1..50] + "...";
+      endif
+      return "Creating project: " + description;
+    elseif (tool_name == "record_creation")
+      return "Recording " + tool_args["subject"] + " in project";
+    elseif (tool_name == "project_status")
+      return "Checking building project status";
+    elseif (tool_name == "list_reactions")
+      return "Listing reactions on " + tool_args["object"];
+    elseif (tool_name == "add_reaction")
+      return "Adding reaction to " + tool_args["object"];
+    elseif (tool_name == "set_reaction_enabled")
+      return (tool_args["enabled"] ? "Enabling" | "Disabling") + " reaction on " + tool_args["object"];
+    elseif (tool_name == "help_lookup")
+      topic = tool_args["topic"];
+      return topic == "" ? "Listing help topics" | "Looking up help for " + topic;
+    elseif (tool_name == "ask_user")
+      question = tool_args["question"];
+      if (length(question) > 60)
+        question = question[1..60] + "...";
+      endif
+      suffix = "";
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+        suffix = " with options";
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+        suffix = ", " + tool_args["input_type"] + " input";
+      endif
+      return "Question: " + question + suffix;
+    endif
+    return "Processing: " + tool_name;
+  endverb
+
   verb _tool_build_room (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create a new room";
     {args_map} = args;
@@ -930,7 +1036,7 @@ object ARCHITECTS_COMPASS
     !valid(this.agent) && this:configure();
     wearer = this.location;
     valid(wearer) || return;
-    wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'use compass' or 'interact with compass' to begin."));
+    wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'use compass' or 'interact with compass' to begin."):with_tts("Architect's Compass ready. Spatial construction interface active."));
     this:_show_token_usage(wearer);
   endverb
 
@@ -939,7 +1045,7 @@ object ARCHITECTS_COMPASS
     wearer = this.location;
     valid(wearer) || return;
     this:_show_token_usage(wearer);
-    wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."));
+    wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."):with_tts("Architect's Compass offline."));
   endverb
 
   verb plan_building (none none none) owner: HACKER flags: "rd"
@@ -952,7 +1058,7 @@ object ARCHITECTS_COMPASS
     task = this.agent:create_task("Building Project: " + argstr);
     this.current_building_task = task.task_id;
     task:mark_in_progress();
-    player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " Building Project #" + tostr(task.task_id) + " started: " + argstr):with_presentation_hint('inset));
+    player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " Building Project #" + tostr(task.task_id) + " started: " + argstr):with_presentation_hint('inset):with_group('llm, this):with_tts("Building project " + tostr(task.task_id) + " started: " + argstr));
   endverb
 
   verb get_building_progress (none none none) owner: HACKER flags: "rd"
@@ -962,12 +1068,12 @@ object ARCHITECTS_COMPASS
       return;
     endif
     if (this.current_building_task == -1)
-      player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " No active building project. Use 'plan building <description>' to begin."):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[PROJECT]", 'bright_green) + " No active building project. Use 'plan building <description>' to begin."):with_presentation_hint('inset):with_group('llm, this):with_tts("No active building project. Use plan building to begin."));
       return;
     endif
     task_obj = this.agent.current_tasks[this.current_building_task];
     if (!valid(task_obj))
-      player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Building project #" + tostr(this.current_building_task) + " is no longer available."));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[ERROR]", 'red) + " Building project #" + tostr(this.current_building_task) + " is no longer available."):with_tts("Error: Building project " + tostr(this.current_building_task) + " is no longer available."));
       return;
     endif
     status = task_obj:get_status();
@@ -976,7 +1082,7 @@ object ARCHITECTS_COMPASS
     status["status"] == 'failed && (progress_lines = {@progress_lines, "  Error: " + status["error"]});
     status["status"] == 'blocked && (progress_lines = {@progress_lines, "  Blocked: " + status["error"]});
     status["subtask_count"] > 0 && (progress_lines = {@progress_lines, "  Stages: " + tostr(status["subtask_count"])});
-    player:inform_current($event:mk_info(player, progress_lines:join("\n")):with_presentation_hint('inset));
+    player:inform_current($event:mk_info(player, progress_lines:join("\n")):with_presentation_hint('inset):with_group('llm, this));
   endverb
 
   verb complete_building (this none this) owner: ARCH_WIZARD flags: "rxd"

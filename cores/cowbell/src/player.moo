@@ -41,7 +41,7 @@ object PLAYER
       if (typeof(target) == ERR)
         passage_desc = this:_look_passage(dobjstr);
         if (passage_desc)
-          return this:inform_current($event:mk_info(player, passage_desc):with_audience('utility):with_presentation_hint('inset));
+          return this:inform_current($event:mk_info(player, passage_desc):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
         else
           return this:inform_current($event:mk_not_found(player, "No object or passage found matching '" + dobjstr + "'."):with_audience('utility));
         endif
@@ -103,7 +103,7 @@ object PLAYER
     set_task_perms(this);
     caller != player && return E_PERM;
     items = this.contents;
-    !items && return this:inform_current($event:mk_inventory(player, "You are not carrying anything."):with_audience('utility));
+    !items && return this:inform_current($event:mk_inventory(player, "You are not carrying anything."):with_audience('utility):with_group('inventory));
     "Get item names";
     item_names = { item:display_name() for item in (items) };
     "Create and display the inventory list";
@@ -111,14 +111,14 @@ object PLAYER
     title_obj = $format.title:mk("Inventory");
     content = $format.block:mk(title_obj, list_obj);
     event = $event:mk_inventory(player, content);
-    this:inform_current(event:with_audience('utility));
+    this:inform_current(event:with_audience('utility):with_group('inventory));
   endverb
 
   verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Display list of connected players using table format";
     caller != player && return E_PERM;
     players = connected_players();
-    !players && return this:inform_current($event:mk_not_found(this, "No players are currently connected."):with_audience('utility));
+    !players && return this:inform_current($event:mk_not_found(this, "No players are currently connected."):with_audience('utility):with_group('who));
     "Build table data";
     headers = {"Name", "Idle", "Connected", "Location"};
     rows = {};
@@ -137,9 +137,9 @@ object PLAYER
       title_obj = $format.title:mk("Who's Online");
       content = $format.block:mk(title_obj, table_obj);
       event = $event:mk_who(player, content);
-      this:inform_current(event:with_audience('utility));
+      this:inform_current(event:with_audience('utility):with_group('who));
     else
-      this:inform_current($event:mk_who(this, "No connected players found."):with_audience('utility));
+      this:inform_current($event:mk_who(this, "No connected players found."):with_audience('utility):with_group('who));
     endif
   endverb
 
@@ -378,23 +378,24 @@ object PLAYER
     "Show a confirmation prompt and return true if confirmed, false if cancelled, or string with alternative instruction.";
     "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
+    {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
+    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
     set_task_perms(this);
     if (response == "yes")
-      this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return true;
     elseif (response == "no")
-      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     elseif (index(response, "alternative: ") == 1)
       alt_text = response[14..$];
-      this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return alt_text;
     else
       "Fallback for unexpected responses";
-      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
   endverb
@@ -403,16 +404,17 @@ object PLAYER
     "Show an open-ended prompt and return the user's text response.";
     "Returns: string (user's response) or false if cancelled/empty";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    {question, ?placeholder = "Enter your response..."} = args;
+    {question, ?placeholder = "Enter your response...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "text_area"}, {"prompt", question}, {"placeholder", placeholder}, {"rows", 4}};
+    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
     if (response == "@abort" || typeof(response) != STR)
-      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
     text = response:trim();
     if (!text || text == "")
-      this:inform_current($event:mk_info(this, "No response provided."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "No response provided."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
     return text;
@@ -421,11 +423,12 @@ object PLAYER
   verb read_multiline (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Request multiline content from the player.";
     "Host (both web and telnet) is expected to handle this via metadata.";
-    {?prompt = 0} = args;
+    {?prompt = 0, ?tts_prompt = 0} = args;
     metadata = {{'input_type, "text_area"}};
     if (typeof(prompt) == STR && length(prompt))
       metadata = {@metadata, {'prompt, prompt}};
     endif
+    typeof(tts_prompt) == STR && (metadata = {@metadata, {'tts_prompt, tts_prompt}});
     return this:read_with_prompt(metadata);
   endverb
 
@@ -517,7 +520,7 @@ object PLAYER
     endif
     "Create formatted block and send as event";
     content = $format.block:mk(@lines);
-    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
     this:inform_current(event);
   endverb
 
@@ -539,7 +542,7 @@ object PLAYER
           lines = {@lines, $format.code:mk("@doc " + dobjstr + "\n@doc " + dobjstr + ":verb")};
         endif
         content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
-        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
         event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
         this:inform_current(event);
         return;
@@ -549,7 +552,7 @@ object PLAYER
       if (typeof(topic_result) != INT)
         prose_lines = topic_result:render_prose();
         content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
-        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
         event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
         this:inform_current(event);
         return;
@@ -593,7 +596,7 @@ object PLAYER
       lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
     endif
     content = $format.block:mk($format.title:mk("Help"), @lines);
-    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset);
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
     this:inform_current(event);
   endverb
@@ -807,26 +810,27 @@ object PLAYER
     "Show a confirmation prompt with Yes/Yes to All/No/Alternative options.";
     "Returns: true (yes), 'yes_all' (accept all), false (no), or string (alternative)";
     caller == this || caller_perms().wizard || raise(E_PERM);
-    {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
+    {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "yes_no_alternative_all"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
+    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
     set_task_perms(this);
     if (response == "yes")
-      this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return true;
     elseif (response == "yes_all")
-      this:inform_current($event:mk_info(this, "Confirmed (all future changes will be auto-accepted)."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Confirmed (all future changes will be auto-accepted)."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return 'yes_all;
     elseif (response == "no")
-      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     elseif (index(response, "alternative: ") == 1)
       alt_text = response[14..$];
-      this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return alt_text;
     else
       "Fallback for unexpected responses";
-      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
   endverb

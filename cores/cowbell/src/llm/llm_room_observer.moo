@@ -243,7 +243,7 @@ object LLM_ROOM_OBSERVER
         color = 'dim;
       endif
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
-      user:inform_current($event:mk_info(user, usage_msg):with_presentation_hint('inset));
+      user:inform_current($event:mk_info(user, usage_msg):with_presentation_hint('inset):with_group('llm, this));
     endif
   endverb
 

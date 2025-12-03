@@ -195,6 +195,27 @@ object EVENT
     return this:with_metadata('presentation_hint, hint);
   endverb
 
+  verb with_group (this none this) owner: HACKER flags: "rxd"
+    "Attach a group_id for client-side message bundling.";
+    "Call with (prefix) for unique per-event grouping, or (prefix, target) for stable grouping.";
+    {prefix, ?target = $nothing} = args;
+    if (target != $nothing && typeof(target) == OBJ && valid(target))
+      "Stable ID based on valid object reference";
+      group_id = tostr(prefix) + "_" + tostr(target);
+    else
+      "Unique ID per event";
+      group_id = tostr(prefix) + "_" + tostr(ticks());
+    endif
+    return this:with_metadata('group_id, group_id);
+  endverb
+
+  verb with_tts (this none this) owner: HACKER flags: "rxd"
+    "Attach TTS-friendly text for screen readers.";
+    "Use this when the visual content has ANSI codes, brackets, or other markup.";
+    {text} = args;
+    return this:with_metadata('tts_text, text);
+  endverb
+
   verb get_binding (this none this) owner: HACKER flags: "rxd"
     "Resolve a binding name to a value from the event context.";
     {name} = args;

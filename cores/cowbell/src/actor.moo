@@ -152,11 +152,11 @@ object ACTOR
   endverb
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " woken up."):with_presentation_hint('inset);
+    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " woken up."):with_presentation_hint('inset):with_group('connection, this);
   endverb
 
   verb mk_disconnected_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " goes to sleep."):with_presentation_hint('inset);
+    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " goes to sleep."):with_presentation_hint('inset):with_group('connection, this);
   endverb
 
   verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
