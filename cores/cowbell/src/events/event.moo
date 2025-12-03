@@ -204,7 +204,7 @@ object EVENT
       group_id = tostr(prefix) + "_" + tostr(target);
     else
       "Unique ID per event";
-      group_id = tostr(prefix) + "_" + tostr(ticks());
+      group_id = tostr(prefix) + "_" + uuid();
     endif
     return this:with_metadata('group_id, group_id);
   endverb
