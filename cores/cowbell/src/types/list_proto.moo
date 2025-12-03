@@ -22,7 +22,7 @@ object LIST_PROTO
     return l;
   endverb
 
-  verb assoc (this none this) owner: HACKER flags: "rx"
+  verb assoc (this none this) owner: HACKER flags: "rxd"
     "assoc(list, target[,index]) returns the first element of `list' whose own index-th element is target.  Index defaults to 1.";
     "returns {} if no such element is found";
     {lst, target, ?indx = 1} = args;

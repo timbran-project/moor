@@ -165,7 +165,7 @@ object ROOT
     return $look:mk(this, @this.contents);
   endverb
 
-  verb all_verbs (this none this) owner: ARCH_WIZARD flags: "rx"
+  verb all_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all verbs.";
     what = this;
@@ -177,7 +177,7 @@ object ROOT
     return verbs;
   endverb
 
-  verb all_properties (this none this) owner: ARCH_WIZARD flags: "rx"
+  verb all_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all properties.";
     what = this;
@@ -585,7 +585,7 @@ object ROOT
     return <$examination, .object_ref = this, .name = obj_name, .aliases = obj_aliases, .description = obj_description, .owner = obj_owner, .parent = obj_parent, .location = obj_location, .verbs = usable, .contents = obj_contents>;
   endverb
 
-  verb test_all_verbs (this none this) owner: HACKER flags: "rx"
+  verb test_all_verbs (this none this) owner: HACKER flags: "rxd"
     all_verbs = this:all_verbs();
     !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
     return true;

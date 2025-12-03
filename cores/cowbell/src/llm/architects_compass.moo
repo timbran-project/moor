@@ -87,9 +87,9 @@ object ARCHITECTS_COMPASS
     "Register reaction management tools";
     list_reactions_tool = $llm_agent_tool:mk("list_reactions", "List all reactions on an object with detailed information including triggers, conditions, effects, and enabled status. Reactions are declarative behaviors that fire in response to events or threshold conditions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#12', 'here', 'cupboard')"]], "required" -> {"object"}], this, "_tool_list_reactions");
     agent:add_tool("list_reactions", list_reactions_tool);
-    add_reaction_tool = $llm_agent_tool:mk("add_reaction", "Add a new reaction to an object. Reactions enable declarative behaviors without writing verb code. Provide trigger (event symbol like 'on_open or threshold like {'when, 'counter, 'ge, 10}), when condition (0 for none, or rule expression like \"Key is(\\\"golden key\\\")?\"), and effects list (e.g., {{'announce, \"Click!\"}, {'set, 'locked, false}}).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Target object (e.g., '#12', 'here', 'cupboard')"], "trigger" -> ["type" -> "string", "description" -> "Event trigger symbol (e.g., 'on_open, 'on_pet) OR threshold spec as MOO literal like \"{'when, 'counter, 'ge, 10}\""], "when" -> ["type" -> "string", "description" -> "Condition (0 for none, or rule expression like \"Key is(\\\"key\\\")?\")"], "effects" -> ["type" -> "string", "description" -> "Effects list as MOO literal (e.g., \"{{'announce, \\\"Message!\\\"}, {'set, 'prop, value}}\")"]], "required" -> {"object", "trigger", "when", "effects"}], this, "_tool_add_reaction");
+    add_reaction_tool = $llm_agent_tool:mk("add_reaction", "Add a reaction to an object. Example: trigger=on_open, when=0, effects={{'announce, \"Door opens!\"}}", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Target object (name or #id)"], "property_name" -> ["type" -> "string", "description" -> "Must end with _reaction (e.g., on_open_reaction)"], "trigger" -> ["type" -> "string", "description" -> "Event name WITHOUT quotes: on_open, on_close, on_take, on_drop, on_pet, on_touch, on_use"], "when" -> ["type" -> "string", "description" -> "Use 0 for always. Or rule like: This is(\"locked\")?"], "effects" -> ["type" -> "string", "description" -> "List: {{'announce, \"msg\"}} or {{'set, 'prop, value}, {'announce, \"msg\"}}"]], "required" -> {"object", "property_name", "trigger", "when", "effects"}], this, "_tool_add_reaction");
     agent:add_tool("add_reaction", add_reaction_tool);
-    set_reaction_enabled_tool = $llm_agent_tool:mk("set_reaction_enabled", "Enable or disable a reaction by index. Use this to toggle reactions on/off without removing them.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing the reaction"], "index" -> ["type" -> "integer", "description" -> "Reaction index (1-based, see list_reactions)"], "enabled" -> ["type" -> "boolean", "description" -> "true to enable, false to disable"]], "required" -> {"object", "index", "enabled"}], this, "_tool_set_reaction_enabled");
+    set_reaction_enabled_tool = $llm_agent_tool:mk("set_reaction_enabled", "Enable or disable a reaction by property name. Use this to toggle reactions on/off without removing them.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing the reaction"], "property_name" -> ["type" -> "string", "description" -> "Reaction property name (must end with '_reaction', e.g., 'on_open_reaction')"], "enabled" -> ["type" -> "boolean", "description" -> "true to enable, false to disable"]], "required" -> {"object", "property_name", "enabled"}], this, "_tool_set_reaction_enabled");
     agent:add_tool("set_reaction_enabled", set_reaction_enabled_tool);
     "Register project task management tools";
     create_project_tool = $llm_agent_tool:mk("create_project", "Create a new building project task to organize construction work. The project tracks rooms created, passages built, objects placed, and their descriptions. Returns project task object.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Project description (e.g., 'Build a three-story tavern with common room, kitchen, upstairs rooms, and cellar')"]], "required" -> {"description"}], this, "_tool_create_project");
@@ -825,8 +825,11 @@ object ARCHITECTS_COMPASS
       "Effects";
       lines = {@lines, "  Effects: " + tostr(length(reaction.effects)) + " items"};
       for effect in (reaction.effects)
-        if (effect.type)
-          lines = {@lines, "    - " + tostr(effect.type)};
+        "Effects are lists like {'announce, \"msg\"} - first element is type";
+        if (typeof(effect) == LIST && length(effect) > 0)
+          lines = {@lines, "    - " + tostr(effect[1])};
+        else
+          lines = {@lines, "    - " + toliteral(effect)};
         endif
       endfor
       "Enabled";
@@ -856,21 +859,27 @@ object ARCHITECTS_COMPASS
     if (!wearer.wizard && target_obj.owner != wearer)
       return "Permission denied: You do not own " + tostr(target_obj) + " and are not a wizard.";
     endif
-    "Parse trigger";
-    parsed_trigger = eval("return " + trigger_str + ";");
-    if (!parsed_trigger[1])
-      return "Error parsing trigger: " + tostr(parsed_trigger[2]);
+    "Parse trigger - handle common LLM mistakes";
+    "If it's a simple word (letters/underscores only), treat as symbol";
+    if (pcre_match(trigger_str, "^[a-z_]+$"))
+      trigger = tosym(trigger_str);
+    else
+      parsed_trigger = eval("return " + trigger_str + ";");
+      if (!parsed_trigger[1])
+        return "Error parsing trigger: " + tostr(parsed_trigger[2]);
+      endif
+      trigger = parsed_trigger[2];
     endif
-    trigger = parsed_trigger[2];
     "Parse effects";
     parsed_effects = eval("return " + effects_str + ";");
     if (!parsed_effects[1])
       return "Error parsing effects: " + tostr(parsed_effects[2]);
     endif
     effects = parsed_effects[2];
-    "When clause";
-    when_clause = when_str;
-    if (when_str != "0" && typeof(when_str) == STR)
+    "When clause - convert '0' to integer 0 for 'always true'";
+    if (when_str == "0")
+      when_clause = 0;
+    else
       when_clause = when_str;
     endif
     "Create reaction";
@@ -995,8 +1004,12 @@ object ARCHITECTS_COMPASS
   verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Look up a help topic to get information about commands and features.";
     {args_map} = args;
+    "Get user - prefer wearer, fall back to token_owner for carried-but-not-worn items";
     wearer = this:wearer();
-    !valid(wearer) && return "Error: Compass is not being worn.";
+    if (!valid(wearer) && valid(this.agent))
+      wearer = `this.agent.token_owner ! ANY => #-1';
+    endif
+    !valid(wearer) && return "Error: Cannot determine user.";
     topic = args_map["topic"];
     typeof(topic) != STR && return "Error: topic must be a string.";
     "If empty topic, list available topics";

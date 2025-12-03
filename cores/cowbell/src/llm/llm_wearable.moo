@@ -227,7 +227,11 @@ object LLM_WEARABLE
     "Callback when agent uses a tool - children customize via _format_hud_message and _get_tool_content_types";
     caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args} = args;
+    "Get user - prefer wearer, fall back to token_owner for carried-but-not-worn items";
     wearer = this:wearer();
+    if (!valid(wearer) && valid(this.agent))
+      wearer = `this.agent.token_owner ! ANY => #-1';
+    endif
     if (!valid(wearer))
       return;
     endif
@@ -235,9 +239,6 @@ object LLM_WEARABLE
     if (typeof(tool_args) == STR)
       tool_args = parse_json(tool_args);
     endif
-    "Send a quick in-progress ping to show activity";
-    ping_msg = $ansi:colorize("[PROCESSING]", 'cyan) + " " + tool_name;
-    wearer:inform_current($event:mk_info(wearer, ping_msg):with_presentation_hint('inset));
     try
       "Let child format the message (handles all tools including explain/ask_user)";
       message = this:_format_hud_message(tool_name, tool_args);
@@ -269,6 +270,42 @@ object LLM_WEARABLE
       wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
       server_log("LLM wearable callback error: " + toliteral(e));
     endtry
+  endverb
+
+  verb on_tool_complete (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Callback after tool execution - show success or error";
+    caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    {tool_name, tool_args, result} = args;
+    "Skip explain tool - the message IS the result";
+    if (tool_name == "explain")
+      return;
+    endif
+    "Get user - prefer wearer, fall back to token_owner";
+    wearer = this:wearer();
+    if (!valid(wearer) && valid(this.agent))
+      wearer = `this.agent.token_owner ! ANY => #-1';
+    endif
+    if (!valid(wearer))
+      return;
+    endif
+    "Check if error";
+    is_error = typeof(result) == STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
+    if (is_error)
+      "Show error in red";
+      error_text = result;
+      if (length(error_text) > 256)
+        error_text = error_text[1..256] + "...";
+      endif
+      message = $ansi:colorize("[✗]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + error_text;
+    else
+      "Show success in green - truncate long results";
+      result_text = typeof(result) == STR ? result | toliteral(result);
+      if (length(result_text) > 256)
+        result_text = result_text[1..256] + "...";
+      endif
+      message = $ansi:colorize("[✓]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+    endif
+    wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
   endverb
 
   verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
@@ -536,7 +573,7 @@ object LLM_WEARABLE
   endverb
 
   verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Tool: Set a message template (like @setm)";
+    "Tool: Set a message template (like @setm). Creates property if missing.";
     {args_map} = args;
     wearer = this:_action_perms_check();
     {prop_name, template} = {args_map["property"], args_map["template"]};
@@ -546,12 +583,22 @@ object LLM_WEARABLE
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
-    writable || raise(E_PERM, error_msg);
     {success, compiled} = $obj_utils:validate_and_compile_template(template);
     success || raise(E_INVARG, "Template compilation failed: " + compiled);
-    existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    prop_exists = prop_name in target_obj:all_properties();
+    if (!prop_exists)
+      "Property doesn't exist - try to create it";
+      if (!wearer.wizard && target_obj.owner != wearer)
+        raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
+      endif
+      add_property(target_obj, prop_name, compiled, {wearer, "rc"});
+      return "Created and set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ").";
+    endif
+    "Property exists - check if writable";
+    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
+    writable || raise(E_PERM, error_msg);
+    existing = target_obj.(prop_name);
     if (typeof(existing) == OBJ && isa(existing, $msg_bag))
       existing.entries = {compiled};
       return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
@@ -624,6 +671,17 @@ object LLM_WEARABLE
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Use add_property to create it first.");
+    "Handle special cases";
+    if (expression == "0" || expression == "none" || expression == "always" || expression == "true")
+      target_obj.(prop_name) = 0;
+      return "Cleared rule on " + tostr(target_obj) + "." + prop_name + " (always passes)";
+    endif
+    if (expression == "false" || expression == "never" || expression == "locked")
+      "Create an always-false rule using a fact that can never match";
+      rule = $rule_engine:parse_expression("This is(\"__never_matches__\")?", tosym(prop_name), wearer);
+      target_obj.(prop_name) = rule;
+      return "Set " + tostr(target_obj) + "." + prop_name + " to always fail (locked)";
+    endif
     rule = $rule_engine:parse_expression(expression, tosym(prop_name), wearer);
     validation = $rule_engine:validate_rule(rule);
     validation['valid] || raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));

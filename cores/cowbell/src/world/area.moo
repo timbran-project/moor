@@ -11,7 +11,7 @@ object AREA
   override import_export_hierarchy = {"world"};
   override import_export_id = "area";
 
-  verb initialize (this none this) owner: HACKER flags: "rx"
+  verb initialize (this none this) owner: HACKER flags: "rxd"
     "Called after creation to set up the passages relation.";
     this:_ensure_passages_relation();
   endverb

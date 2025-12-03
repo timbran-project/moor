@@ -11,6 +11,7 @@ object LLM_AGENT
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
   property consecutive_tool_failures (owner: ARCH_WIZARD, flags: "rc") = [];
+  property all_failed_iterations (owner: ARCH_WIZARD, flags: "rc") = 0;
   property context (owner: ARCH_WIZARD, flags: "c") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
   property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -223,10 +224,22 @@ object LLM_AGENT
         endif
       endfor
       this.context = {@this.context, message, @tool_results};
-      "If all tool calls failed or were blocked, break out of the loop";
+      "If all tools failed, add guidance and continue so LLM can adapt";
       if (all_blocked && length(tool_results) > 0)
-        this.current_iteration = 0;
-        return "All tool calls failed. Please try a different approach.";
+        "Check if we've had too many consecutive all-failed iterations";
+        all_failed_count = this.all_failed_iterations + 1;
+        this.all_failed_iterations = all_failed_count;
+        if (all_failed_count >= 3)
+          this.current_iteration = 0;
+          this.all_failed_iterations = 0;
+          return "Agent stopped after 3 consecutive iterations where all tools failed. Last errors: " + tool_results[1]["content"];
+        endif
+        "Add system guidance to help LLM adapt";
+        guidance = ["role" -> "system", "content" -> "All tool calls in the previous response failed. Review the error messages above and either: (1) try a different approach, (2) use the ask_user tool to request help, or (3) use the explain tool to tell the user what's blocking you."];
+        this.context = {@this.context, guidance};
+      else
+        "Reset counter on any success";
+        this.all_failed_iterations = 0;
       endif
       suspend(0);
     endfor
@@ -239,6 +252,7 @@ object LLM_AGENT
     this.context = this.system_prompt ? {["role" -> "system", "content" -> this.system_prompt]} | {};
     this.total_tokens_used = 0;
     this.consecutive_tool_failures = [];
+    this.all_failed_iterations = 0;
   endverb
 
   verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"

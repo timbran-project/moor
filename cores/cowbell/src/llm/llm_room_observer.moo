@@ -247,7 +247,7 @@ object LLM_ROOM_OBSERVER
     endif
   endverb
 
-  verb "@reset" (this none none) owner: ARCH_WIZARD flags: "rx"
+  verb "@reset" (this none none) owner: ARCH_WIZARD flags: "rxd"
     if (!player.wizard && player != this.owner)
       player:inform_current($event:mk_error(player, "You can't do that."));
       return;
@@ -483,7 +483,7 @@ object LLM_ROOM_OBSERVER
     return ["current_time" -> ctime(), "timestamp" -> now];
   endverb
 
-  verb "@facts" (this none none) owner: ARCH_WIZARD flags: "rx"
+  verb "@facts" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Display all remembered facts in a formatted table.";
     if (!valid(this.knowledge_base))
       player:inform_current($event:mk_info(player, "No facts stored yet."):with_audience('utility));
@@ -510,7 +510,7 @@ object LLM_ROOM_OBSERVER
     player:inform_current(event);
   endverb
 
-  verb "@compact-facts" (this none none) owner: ARCH_WIZARD flags: "rx"
+  verb "@compact-facts" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Compact facts using LLM to consolidate, remove contradictions, and keep important ones.";
     if (!valid(this.knowledge_base))
       player:inform_current($event:mk_info(player, "No facts to compact."):with_audience('utility));
