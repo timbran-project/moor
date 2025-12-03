@@ -121,6 +121,16 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
+  verb oif (any none none) owner: HACKER flags: "rd"
+    "Acknowledge a bonk to maintain cosmic balance.";
+    caller != player && return E_PERM;
+    if (!valid(player.location))
+      return;
+    endif
+    event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("say", "says"), " \"Oif!\""):with_this(player.location);
+    player.location:announce(event);
+  endverb
+
   verb smile (none any any) owner: HACKER flags: "rd"
     "Smile at/to someone or just smile.";
     caller != player && return E_PERM;
@@ -307,7 +317,7 @@ object SOCIAL_FEATURES
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return help topics for social actions.";
     {for_player, ?topic = ""} = args;
-    my_topics = {$help:mk("socializing", "Social actions and gestures", "Express yourself with gestures and actions that others can see.\n\n`nod`, `wave`, `bow`, `smile`, `frown`, `laugh`, `dance`, `shrug`, `ponder`, `applaud`/`clap`, `cheer`, `sigh`, `yawn`, `stretch`, `bonk`, `think`\n\nMost gestures can be directed at someone:\n\n`wave at Henri`\n`bow to Ryan`\n`bonk someone`\n\nThe `think` command shows a visible thought:\n\n`think I wonder what's for dinner` \u2192 _Ryan . o O ( I wonder what's for dinner )_", {"socials", "gestures", "actions"}, 'social, {"communicating", "emote"})};
+    my_topics = {$help:mk("socializing", "Social actions and gestures", "Express yourself with gestures and actions that others can see.\n\n`nod`, `wave`, `bow`, `smile`, `frown`, `laugh`, `dance`, `shrug`, `ponder`, `applaud`/`clap`, `cheer`, `sigh`, `yawn`, `stretch`, `bonk`, `oif`, `think`\n\nMost gestures can be directed at someone:\n\n`wave at Henri`\n`bow to Ryan`\n`bonk someone`\n\nThe `think` command shows a visible thought:\n\n`think I wonder what's for dinner` \u2192 _Ryan . o O ( I wonder what's for dinner )_\n\n**The bonk/oif balance**: When someone bonks you, tradition holds that you must say `oif` to acknowledge it. Failing to oif after being bonked is said to upset the cosmic bonk/oif balance, causing much trouble in the universe.", {"socials", "gestures", "actions"}, 'social, {"communicating", "emote"})};
     topic == "" && return my_topics;
     for t in (my_topics)
       t:matches(topic) && return t;
