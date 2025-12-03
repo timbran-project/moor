@@ -1,5 +1,9 @@
 ## mooR cowbell
 
+<p align="center">
+  <img src="padishah.png" alt="I need... more cowbell" width="400">
+</p>
+
 [mooR](https://timbran.org/moor.html) is a from-scratch rewrite of the LambdaMOO server in Rust,
 designed for building persistent, programmable social environments. It's a multi-user virtual
 environment where users can build and program the world around them while they're in it.
