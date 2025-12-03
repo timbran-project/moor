@@ -684,13 +684,18 @@ object DATA_VISOR
     verb_sig = "verb " + verb_names + " (" + dobj + " " + prep + " " + iobj + ") owner: " + tostr(wearer) + " flags: \"" + permissions + "\"";
     sig_content = $format.code:mk(verb_sig, 'moo);
     wearer:inform_current($event:mk_info(wearer, sig_content):with_presentation_hint('inset));
-    "Request confirmation";
-    confirmation_msg = "Add this verb?";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Add this verb?");
+      if (result == false)
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[CREATING]", 'yellow) + " Adding verb to " + tostr(o) + "..."):with_presentation_hint('inset));
     "Add verb with wearer as owner";
@@ -715,15 +720,19 @@ object DATA_VISOR
     rationale_title = $format.title:mk("Proposed deletion of " + tostr(verb_location) + ":" + verb_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
     wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
-    "Request confirmation";
-    confirmation_msg = "Delete this verb? This cannot be undone.";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Delete this verb? This cannot be undone.");
+      if (result == false)
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[DELETING]", 'red) + " Removing verb " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
     delete_verb(verb_location, verb_name);
@@ -742,31 +751,43 @@ object DATA_VISOR
     typeof(code_str) == STR || raise(E_TYPE("Expected code string"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
-    "Show rationale first, then formatted code";
+    "Parse code into lines early for display and compilation";
+    code_lines = code_str:split("\n");
+    "Show rationale first, then formatted code with line numbers";
     rationale_title = $format.title:mk("Proposed change for " + tostr(verb_location) + ":" + verb_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
     wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
-    code_block = $format.code:mk(code_str, 'moo);
+    numbered_lines = $prog_utils:format_line_numbers(code_lines);
+    code_block = $format.code:mk(numbered_lines, 'moo);
     code_title = $format.title:mk("New code");
     code_content = $format.block:mk(code_title, code_block);
     wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset));
-    "Request confirmation";
-    result = wearer:confirm("Accept these changes?");
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Accept these changes?");
+      if (result == false)
+        "User cancelled - stop the agent flow";
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        "Enable auto-confirm for future changes";
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[COMPILE]", 'yellow) + " Updating code: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset));
-    "Parse code into lines";
-    code_lines = code_str:split("\n");
     "Compile with structured error output (verbosity=3 for map format)";
     errors = set_verb_code(verb_location, verb_name, code_lines, 3, 0);
     if (errors)
-      "Compilation failed - return errors as literal for AI to parse";
-      return "Compilation failed:\n" + toliteral(errors);
+      "Format the error map for display";
+      formatted_lines = format_compile_error(errors, 2, 0);
+      error_text = formatted_lines:join("\n");
+      error_block = $format.code:mk(error_text, 'text);
+      wearer:inform_current($event:mk_eval_error(wearer, error_block):with_presentation_hint('inset));
+      return "Compilation failed:\n" + error_text;
     endif
     return "Verb code updated successfully for " + tostr(verb_location) + ":" + verb_name;
   endverb
@@ -830,7 +851,6 @@ object DATA_VISOR
     eval_code = "return " + value_str + ";";
     eval_result = eval(eval_code);
     if (!eval_result[1])
-      "Compilation error - show error to user";
       error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
       error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
       error_event = error_event:with_presentation_hint('inset);
@@ -846,15 +866,19 @@ object DATA_VISOR
     prop_details = "property " + prop_name + " (owner: " + tostr(wearer) + ", flags: \"" + permissions + "\") = " + value_str + ";";
     details_content = $format.code:mk(prop_details, 'moo);
     wearer:inform_current($event:mk_info(wearer, details_content):with_presentation_hint('inset));
-    "Request confirmation";
-    confirmation_msg = "Add this property?";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Add this property?");
+      if (result == false)
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     "Add property with wearer as owner";
     prop_info = {wearer, permissions};
@@ -878,15 +902,19 @@ object DATA_VISOR
     rationale_title = $format.title:mk("Proposed deletion of " + tostr(o) + "." + prop_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
     wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
-    "Request confirmation";
-    confirmation_msg = "Delete this property? This cannot be undone.";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Delete this property? This cannot be undone.");
+      if (result == false)
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     delete_property(o, prop_name);
     return "Property " + tostr(o) + "." + prop_name + " deleted successfully";
@@ -918,15 +946,25 @@ object DATA_VISOR
     value = eval_result[2];
     "Get current value";
     old_value = `o.(prop_name) ! ANY => "<undefined>"';
-    "Request confirmation";
-    confirmation_msg = "Set property " + tostr(o) + "." + prop_name + "?\n\nOld value: " + toliteral(old_value) + "\nNew value: " + value_str + "\n\nProceed?";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Show change details";
+    change_title = $format.title:mk("Proposed property change: " + tostr(o) + "." + prop_name);
+    change_details = "Old value: " + toliteral(old_value) + "\nNew value: " + value_str;
+    change_content = $format.block:mk(change_title, change_details);
+    wearer:inform_current($event:mk_info(wearer, change_content):with_presentation_hint('inset));
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Set this property?");
+      if (result == false)
+        "User cancelled - stop the agent flow";
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     o.(prop_name) = value;
     return "Property " + tostr(o) + "." + prop_name + " set successfully";
@@ -1049,14 +1087,19 @@ object DATA_VISOR
     code_title = $format.title:mk("Code to execute");
     code_content = $format.block:mk(code_title, code_block);
     wearer:inform_current($event:mk_info(wearer, code_content):with_presentation_hint('inset));
-    "Request confirmation";
-    result = wearer:confirm("Execute this code?");
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Execute this code?");
+      if (result == false)
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     "Execute code with verbosity=1 and output_mode=2 (detailed format)";
     result = eval(code_str, 1, 2);
@@ -1111,15 +1154,19 @@ object DATA_VISOR
     obj_details = obj_details + "\n\nObject will be created in your inventory.";
     details_block = $format.block:mk($format.title:mk("Details"), obj_details);
     wearer:inform_current($event:mk_info(wearer, details_block):with_presentation_hint('inset));
-    "Request confirmation";
-    confirmation_msg = "Create this object?";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Create this object?");
+      if (result == false)
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     "Create child object";
     new_obj = parent_obj:create();
@@ -1155,15 +1202,19 @@ object DATA_VISOR
     rationale_title = $format.title:mk("Proposed destruction of " + obj_id + " (\"" + obj_name + "\")");
     rationale_content = $format.block:mk(rationale_title, rationale);
     wearer:inform_current($event:mk_info(wearer, rationale_content):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain}));
-    "Request confirmation";
-    confirmation_msg = "Recycle this object? This will PERMANENTLY DESTROY it and cannot be undone.";
-    result = wearer:confirm(confirmation_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
-      return "User provided alternative: " + result;
+    "Check auto_confirm mode or request confirmation";
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset));
+    else
+      result = wearer:confirm_with_all("Recycle this object? This will PERMANENTLY DESTROY it and cannot be undone.");
+      if (result == false)
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (result == 'yes_all)
+        this.auto_confirm = true;
+      elseif (typeof(result) == STR)
+        return "User provided alternative: " + result;
+      endif
     endif
     target_obj:destroy();
     return "Recycled \"" + obj_name + "\" (" + obj_id + ")";

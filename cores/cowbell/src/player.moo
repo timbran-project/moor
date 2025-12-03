@@ -802,4 +802,32 @@ object PLAYER
     endfor
     return result;
   endverb
+
+  verb confirm_with_all (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Show a confirmation prompt with Yes/Yes to All/No/Alternative options.";
+    "Returns: true (yes), 'yes_all' (accept all), false (no), or string (alternative)";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach..."} = args;
+    metadata = {{"input_type", "yes_no_alternative_all"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
+    response = this:read_with_prompt(metadata);
+    set_task_perms(this);
+    if (response == "yes")
+      this:inform_current($event:mk_info(this, "Confirmed."):with_audience('utility):with_presentation_hint('inset));
+      return true;
+    elseif (response == "yes_all")
+      this:inform_current($event:mk_info(this, "Confirmed (all future changes will be auto-accepted)."):with_audience('utility):with_presentation_hint('inset));
+      return 'yes_all;
+    elseif (response == "no")
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      return false;
+    elseif (index(response, "alternative: ") == 1)
+      alt_text = response[14..$];
+      this:inform_current($event:mk_info(this, "Alternative provided: " + alt_text):with_audience('utility):with_presentation_hint('inset));
+      return alt_text;
+    else
+      "Fallback for unexpected responses";
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset));
+      return false;
+    endif
+  endverb
 endobject

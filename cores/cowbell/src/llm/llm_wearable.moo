@@ -6,6 +6,7 @@ object LLM_WEARABLE
   readable: true
 
   property agent (owner: HACKER, flags: "r") = #-1;
+  property auto_confirm (owner: ARCH_WIZARD, flags: "rc") = 0;
   property placeholder_text (owner: HACKER, flags: "rc") = "Ask a question...";
   property preferred_model (owner: HACKER, flags: "rc") = "";
   property processing_message (owner: HACKER, flags: "rc") = "Processing request...";
@@ -23,6 +24,8 @@ object LLM_WEARABLE
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     set_task_perms(this.owner);
+    "Reset auto_confirm mode on reconfigure";
+    this.auto_confirm = false;
     "Create anonymous agent - GC'd when no longer referenced";
     this.agent = $llm_agent:create(true);
     "Set agent owner to tool owner so they can write to agent properties";
@@ -80,7 +83,6 @@ object LLM_WEARABLE
       return;
     endif
   endverb
-
 
   verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Display token usage information to the user";
@@ -296,14 +298,14 @@ object LLM_WEARABLE
       if (length(error_text) > 256)
         error_text = error_text[1..256] + "...";
       endif
-      message = $ansi:colorize("[✗]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + error_text;
+      message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + error_text;
     else
       "Show success in green - truncate long results";
       result_text = typeof(result) == STR ? result | toliteral(result);
       if (length(result_text) > 256)
         result_text = result_text[1..256] + "...";
       endif
-      message = $ansi:colorize("[✓]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+      message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
     endif
     wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset));
   endverb
@@ -438,13 +440,13 @@ object LLM_WEARABLE
     for item in (todos_input)
       content = item["content"];
       status_str = item["status"];
-      status = status_str == "pending" ? 'pending | status_str == "in_progress" ? 'in_progress | status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str);
+      status = status_str == "pending" ? 'pending | (status_str == "in_progress" ? 'in_progress | (status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str)));
       todo_items = {@todo_items, ["content" -> content, "status" -> status]};
     endfor
     this.agent:set_todos(todo_items);
     summary = {tostr(length(todo_items)) + " todos set:"};
     for todo in (this.agent:get_todos())
-      prefix = todo["status"] == 'completed ? "[x]" | todo["status"] == 'in_progress ? "[>]" | "[ ]";
+      prefix = todo["status"] == 'completed ? "[x]" | (todo["status"] == 'in_progress ? "[>]" | "[ ]");
       summary = {@summary, "  " + prefix + " " + todo["content"]};
     endfor
     return summary:join("\n");
@@ -541,7 +543,7 @@ object LLM_WEARABLE
     lines = {"Message properties for " + tostr(target_obj) + ":"};
     for prop_info in (msg_props)
       {prop_name, prop_value} = prop_info;
-      value_summary = typeof(prop_value) == OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | typeof(prop_value) == LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value);
+      value_summary = typeof(prop_value) == OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | (typeof(prop_value) == LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value));
       lines = {@lines, " - " + prop_name + ": " + value_summary};
     endfor
     return lines:join("\n");
