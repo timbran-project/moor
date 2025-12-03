@@ -45,15 +45,16 @@ top of the event and behaviour systems without requiring framework changes.
 **Event System:**
 
 - Event architecture with perspective rendering (`event.moo`, `event_receiver.moo`)
-- Substitution system for perspective-dependent text (you/Bob, pronouns) (`sub.moo`)
-- Event receiver base class for broadcasting to connections
+- Substitution system for perspective-dependent text (`sub.moo`, `sub_utils.moo`)
+- Message bag system for randomized responses (`msg_bag.moo`)
 - Pronoun system with customizable pronouns (`pronouns.moo`)
 
 **Rich Content & Formatting:**
 
 - HTML rendering system (`html.moo`)
+- ANSI color codes (`ansi.moo`)
 - Format objects: block, list, table, title, code (`format*.moo`)
-- Rich look descriptions with structured content (`look.moo`)
+- Rich look descriptions with structured content (`look.moo`, `examination.moo`)
 - Support for multiple content types (text/plain, text/html, text/djot)
 
 **Core Objects:**
@@ -61,8 +62,17 @@ top of the event and behaviour systems without requiring framework changes.
 - `$player` with multi-connection support, inventory, pronouns (`player.moo`)
 - `$room` with event broadcasting, enterfunc/exitfunc (`room.moo`)
 - `$thing` basic object prototype (`thing.moo`)
-- `$area` and `$passage` for spatial organization (`area.moo`, `passage.moo`)
+- `$actor` base for animated entities/NPCs (`actor.moo`)
+- `$area` and `$passage` for spatial organization / exits, with route finding (`area.moo`, `passage.moo`)
 - Prototype objects for primitives: `$str_proto`, `$list_proto`, `$int_proto`
+- Type introspection: `$verb`, `$property`
+
+**Item Prototypes:**
+
+- `$container` for objects that hold other objects
+- `$wearable` for clothing and worn items
+- `$sittable` for furniture with seat limits and occupancy tracking (inspired by the one in JHCore)
+- `$note` for readable/writable text objects
 
 **Systems:**
 
@@ -70,21 +80,43 @@ top of the event and behaviour systems without requiring framework changes.
 - Capability-based security for fine-grained permissions (`root.moo`, `grant_utils.moo`, `@grant`)
 - Object matching system (`match.moo`)
 - Permission roles: arch_wizard, wizard, builder, programmer, hacker
-- Relational/graph system for object relationships (`relation.moo`) with datalog-style unification.
-- Basic object management: `@create`, `@recycle`
-- Basic room creation and passage/tunneling: `@build`, `@dig`
+- Relational/graph system for object relationships (`relation.moo`, `dvar.moo`)
+- Rule engine for datalog-style queries and logic (`rule_engine.moo`, `rule.moo`)
+- Reaction system for declarative event-driven behaviors (`reaction.moo`)
+- Task scheduler for deferred and periodic execution (`scheduler.moo`)
+- Help system with topic-based documentation (`help.moo`, `help_topics.moo`)
+
+**Commands (via feature objects):**
+
+- Social: `say`, `emote`, `whisper`, `who`, gestures (nod, wave, bow, bonk, etc.)
+- Building: `@create`, `@recycle`, `@build`, `@dig`, `@rename`, `@describe`, `@move`, `@integrate`
+- Messages: `@messages`, `@set-message`, `@get-message`, `@add-message`, `@del-message`
+- Rules: `@rules`, `@set-rule`, `@show-rule`, `@clear-rule`
+- Reactions: `@reactions`, `@add-reaction`, `@enable-reaction`, `@disable-reaction`
+- Introspection: `@parent`, `@parents`, `@children`, `@audit`
+- Programming: `eval`, `@list`, `@edit`, `@browse`, `@verb`, `@rmverb`, `@verbs`, `@property`, `@rmproperty`,
+  `@properties`, `@args`, `@show`, `@chmod`, `@grep`, `@codepaste`, `@doc`
+- Wizard: `@announce`, `@programmer`, `@builder`
+
+**LLM Integration:**
+
+- `$llm_client` - OpenAI-compatible API client for language models
+- `$llm_agent` - Agent framework with tool support
+- `$llm_room_observer` - NPCs that observe and respond to room events
+- `$llm_wearable` - Wearable items with LLM capabilities
+- Example agents: `Mr. Welcome` (concierge), `Data Visor` (code explorer), `Architect's Compass` (building assistant)
 
 **World Content:**
 
-- Starting area with connected rooms (`first_area.moo`, `first_room.moo`, `second_room.moo`)
-- Passage-based navigation with route finding (`passage.moo`, `area.moo`, `first_area_passages.moo`)
+- Starting area with connected rooms (`first_area.moo`, `first_room.moo`)
+- Henri the cat - interactive NPC demonstrating rules, reactions, and message bags
+- Example furniture (couch), containers (kibble cupboard), and items (brass key)
 
-**Not Yet Implemented:**
+**Still Developing:**
 
-- Additional building commands
-- Many property and verb management commands
-- Help system and internal documentation
-- Composable behaviour/trait system (lockable, openable, etc.)
+- Additional builder commands for in-world editing
+- More help topics and documentation coverage
+- Asynchronous messaging system (letters, mailboxes, bulletin boards)
 
 (Note: This is a from-scratch implementation. While some concepts are inspired by LambdaCore/JHCore,
 we're not porting existing code wholesale - we're building idiomatically for mooR's advanced
@@ -92,8 +124,10 @@ features.)
 
 ### A Rich-Event-Driven Story for the user
 
-Traditional MOO cores use `notify(player, "Bob says, \"Hello\"")` - dumb string dumping with no
-context about what's happening. The client can't make smart rendering decisions.
+LambdaCore and friends use `:tell("Ryan nods.")` or `notify(player, "Bob says, \"Hello\"")` - dumb string dumping with
+no
+context about what's happening. The client can't make smart rendering decisions. The objects in the environment can't
+do anything with that.
 
 Cowbell is designed to work with mooR's web client, which can understand and render structured events.
 Instead of plain strings, the core sends **structured narrative events with metadata:**
@@ -114,11 +148,12 @@ for recipient in (room.contents)
 endfor
 
 // Web client receives both rendered content AND metadata
-// Metadata enables smart rendering:
+// Metadata enables smart rendering, and can do things like
 // - 'say events → speech bubbles
 // - 'emote events → italicized styling
 // - 'whisper events → private styling
 // - 'room_action events → ambient styling
+// - Screenreaders or other accessibility tools provide better output or context 
 ```
 
 The web client uses this to provide:
@@ -130,11 +165,11 @@ The web client uses this to provide:
   type negotiation means users can request plain text, semantic HTML with ARIA labels, or other formats that work best
   for their assistive technology.
 - **Extensibility**: New event types work without client changes (graceful degradation)
-- **Rich content**: Events can carry HTML, Djot markdown, structured data
+- **Rich content**: Events can carry HTML, Djot (like markdown), structured data
 
 ### Capability-Based Security
 
-Traditional MOO permission models rely on flag checking and ownership. Cowbell uses **capability
+MOO's permission model relies on flag checking and ownership. Cowbell adds **capability
 passing** for fine-grained, delegatable permissions:
 
 ```moo
@@ -157,6 +192,261 @@ revoked without changing object ownership, making it possible to grant temporary
 You can audit which code has which capabilities, and follow the principle of least privilege by granting
 only the specific operations needed rather than broad permissions.
 
+### The Substitution System
+
+The substitution system (`$sub`, `$sub_utils`) provides template-based text that automatically adapts
+based on perspective (first-person vs third-person) and grammatical context. This is how events render
+differently for different viewers.
+
+**Basic concept:**
+
+```moo
+content = {$sub:nc(), " picks up ", $sub:d(), "."};
+event = $event:mk_emote(player, @content):with_dobj(sword);
+room:announce(event);
+
+// To the actor: "You pick up the sword."
+// To others: "Alice picks up the sword."
+```
+
+**Name substitutions:**
+
+| Token          | Description     | Actor sees      | Others see   |
+|----------------|-----------------|-----------------|--------------|
+| `{n}` / `{nc}` | Actor name      | "you" / "You"   | "Alice"      |
+| `{d}` / `{dc}` | Direct object   | "you" (if self) | "the sword"  |
+| `{i}` / `{ic}` | Indirect object | "you" (if self) | "the chest"  |
+| `{l}` / `{lc}` | Location        | "here"          | "the tavern" |
+
+**Pronoun substitutions:**
+
+| Token | Type            | Example (he/him)       | Example (they/them)       |
+|-------|-----------------|------------------------|---------------------------|
+| `{s}` | Subject         | "he" / "you"           | "they" / "you"            |
+| `{o}` | Object          | "him" / "you"          | "them" / "you"            |
+| `{p}` | Possessive adj  | "his" / "your"         | "their" / "your"          |
+| `{q}` | Possessive noun | "his" / "yours"        | "theirs" / "yours"        |
+| `{r}` | Reflexive       | "himself" / "yourself" | "themselves" / "yourself" |
+
+Add `_dobj` or `_iobj` suffix for object pronouns: `{s_dobj}`, `{p_iobj}`, etc.
+
+**Verb conjugation:**
+
+| Token    | 2nd person | 3rd person |
+|----------|------------|------------|
+| `{be}`   | "are"      | "is"       |
+| `{have}` | "have"     | "has"      |
+| `{look}` | "look"     | "looks"    |
+
+**Self-alternation** - different text for actor vs observers:
+
+```moo
+content = {$sub:nc(), " ", $sub:self_alt("feel", "feels"), " tired."};
+// Actor: "You feel tired."
+// Others: "Alice feels tired."
+```
+
+**Template compilation** (`$sub_utils`) parses human-readable templates:
+
+```moo
+template = "{nc} heads {the direction}.";
+content = $sub_utils:compile(template);
+// Returns list of flyweights ready for event content
+```
+
+**Articles:**
+
+```moo
+"{a sword}"     // "a sword" or "an ornate sword"
+"{the direction}"  // "the north" (skips article for proper nouns)
+"{The dc}"      // "The Sword" (capitalized article and noun)
+```
+
+### The Rule Engine
+
+The rule engine (`$rule_engine`, `$rule`) provides a datalog-style query system for logic-based
+conditions. Rules define predicates with goals that get evaluated against object properties.
+
+**Use cases:**
+
+- Access control ("can player X unlock door Y?")
+- State queries ("is this object locked?")
+- Relationship checks ("is player member of guild?")
+
+**Rule syntax:**
+
+Rules are written in a builder-friendly DSL:
+
+```
+Variable predicate?
+Variable predicate(arg)?
+Variable1 predicate1? AND Variable2 predicate2?
+Variable1 predicate1? OR Variable2 predicate2?
+NOT Variable predicate?
+```
+
+- **Capitalized names** are variables: `Key`, `Accessor`, `This`
+- **Lowercase names** are constants: `player`, `this`, `location`
+- **Quoted strings** match objects by name: `"golden key"`
+- **Object literals**: `#123` or `#0000AB-12345678`
+
+**Common patterns via @set-rule:**
+
+```
+@set-rule chest.lock_rule Key is("golden key")?
+@set-rule chest.take_rule NOT This is_locked()?
+@set-rule door.can_pass Accessor has_permission("vip")?
+@set-rule vault.open_rule Accessor is_wizard? OR Key is("master key")?
+```
+
+**Predicates** call `fact_*` verbs on objects:
+
+- `This is_locked()?` calls `this:fact_is_locked()`
+- `Key is("golden key")?` calls `#0:fact_is(key, "golden key")`
+- `Container contains(Item)?` calls `container:fact_contains(item)`
+
+**Unification** finds variable bindings:
+
+```
+Child parent(Parent)? AND Parent parent(Grandparent)?
+```
+
+With `Child` bound to an object, this finds Parent and Grandparent through transitive resolution.
+
+**Creating custom predicates:**
+
+```moo
+verb fact_has_key (this none this)
+  {accessor, required_key} = args;
+  return required_key in accessor.contents;
+endverb
+```
+
+Then use: `Accessor has_key("rusty key")?`
+
+### The Reaction System
+
+The reaction system (`$reaction`) provides declarative event-driven behaviors. Instead of writing
+complex verb code, builders specify triggers, conditions, and effects.
+
+**Use cases:**
+
+- Interactive objects (doors that unlock, containers that react to items)
+- Environmental responses (objects changing state based on actions)
+- Simple NPC behaviors (react to being petted, talked to, etc.)
+
+**Anatomy of a reaction:**
+
+1. **Trigger** - the event that initiates the check (`'on_pet`, `'on_unlock`, or threshold)
+2. **When clause** - optional condition using rule engine syntax (use `0` for no condition)
+3. **Effects** - list of actions to perform
+
+**Adding reactions via @add-reaction:**
+
+```
+@add-reaction OBJECT.NAME_reaction TRIGGER WHEN EFFECTS
+```
+
+Examples:
+
+```
+@add-reaction chest.unlock_reaction 'on_unlock 0 {{'set, 'locked, false}}
+@add-reaction chest.open_reaction 'on_open 0 {{'emote, "creaks open."}}
+@add-reaction cat.pet_reaction 'on_pet "NOT This is_grouchy?" {{'emote, "purrs."}}
+```
+
+**Available triggers:**
+
+- `'on_get`, `'on_drop`, `'on_take`, `'on_put`
+- `'on_open`, `'on_close`, `'on_lock`, `'on_unlock`
+- `'on_enter`, `'on_leave`, `'on_pet`
+- `'on_wear`, `'on_remove`, `'on_use`
+- `'on_sit`, `'on_stand`
+
+**Threshold triggers** fire when a property crosses a value:
+
+```
+@add-reaction cat.warmup_reaction {'when, 'pets_received, 'ge, 10} 0 {{'set, 'mood, "happy"}}
+```
+
+Comparison operators: `'eq`, `'ne`, `'gt`, `'lt`, `'ge`, `'le`
+
+**Effect types:**
+
+| Effect       | Syntax                          | Description                    |
+|--------------|---------------------------------|--------------------------------|
+| `'set`       | `{'set, 'prop, value}`          | Set property to value          |
+| `'increment` | `{'increment, 'prop, ?amount}`  | Add to numeric property        |
+| `'decrement` | `{'decrement, 'prop, ?amount}`  | Subtract from property         |
+| `'announce`  | `{'announce, "template"}`       | Broadcast to location          |
+| `'emote`     | `{'emote, "template"}`          | Object emotes in location      |
+| `'tell`      | `{'tell, 'RecipientVar, "msg"}` | Private message                |
+| `'move`      | `{'move, destination}`          | Move object                    |
+| `'trigger`   | `{'trigger, target, 'event}`    | Fire event on another object   |
+| `'delay`     | `{'delay, seconds, effect}`     | Schedule effect for later      |
+| `'action`    | `{'action, 'verb_name, target}` | Call `action_<verb>` on target |
+
+**Message templates** use `$sub_utils` syntax:
+
+- `{nc}` - Capitalized actor name
+- `{d}`, `{i}` - Direct/indirect object names
+- `{s}`, `{o}`, `{p}` - Subject/object/possessive pronouns
+
+```
+@add-reaction door.unlock_reaction 'on_unlock 0 {{'announce, "{nc} unlocks {i}."}}
+```
+
+**Message property references** - use symbols to reference properties:
+
+```
+@set-message cat.pet_msg "purrs contentedly."
+@add-reaction cat.pet_reaction 'on_pet 0 {{'emote, 'pet_msg}}
+```
+
+**Random messages** - if the property is a `$msg_bag`, a random message is picked each time:
+
+```
+@add-message cat.pet_msgs "purrs contentedly."
+@add-message cat.pet_msgs "rubs against {p} legs."
+@add-reaction cat.pet_reaction 'on_pet 0 {{'emote, 'pet_msgs}}
+```
+
+**Managing reactions:**
+
+```
+@reactions <object>              # List all reactions on object
+@enable-reaction obj.name_reaction
+@disable-reaction obj.name_reaction
+```
+
+**Action effects** invoke behaviors on other objects:
+
+```
+@add-reaction henri.sit_reaction 'on_cupboard_open 0 {{'action, 'sit, couch}}
+```
+
+This calls `couch:action_sit(henri, context)`. Objects define their own action handlers
+(e.g., `$sittable` defines `action_sit` and `action_stand`).
+
+**Programmatic creation** - for more complex cases:
+
+```moo
+reaction = $reaction:mk('on_unlock, "Key is(\"brass key\")?", {
+  {'announce, "{nc} hears a click."},
+  {'set, 'locked, false}
+});
+chest.unlock_reaction = reaction;
+```
+
+**Firing triggers from verb code:**
+
+```moo
+this:fire_trigger('on_unlock, ['Actor -> player, 'Key -> key_obj]);
+```
+
+See the kibble cupboard (`kibble_cupboard.moo`) for a complete example of lockable/openable behavior
+configured entirely through rules and reactions.
+
 ## Development
 
 To compile / validate your changes use the provided `Makefile`
@@ -168,10 +458,14 @@ To compile / validate your changes use the provided `Makefile`
 - `make rebuild` will build a new objdef dir with your local changes and then (WARNING) _overwrite_
   your local changes. Think of this is as a formatting step (for prior to commit, etc)
 
-To run a moor instance with the provided core database, first make sure you don't have any old
-database files lying around locally, and then run
+To run cowbell with moor, clone it into the moor repository (there's a `clone-cowbell.sh` script
+in `cores/` to help with this). Then from the moor repository root:
 
-`docker compose up`
+```bash
+rm -rf moor-data && MOOR_CORE=cores/cowbell/src npm run full:dev
+```
+
+This clears any existing database and starts fresh with the cowbell core.
 
 ## Contribution
 
