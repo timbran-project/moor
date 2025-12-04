@@ -13,7 +13,7 @@ object EVENT
     action = verb[4..length(verb)];
     {actor, @content} = args;
     normalized = this:normalize_content(@content);
-    return <this, .actor = actor, .actor_name = actor.name, .verb = action, .dobj = false, .iobj = false, .timestamp = time(), .this_obj = false, .metadata = {}, normalized>;
+    return <this, .actor = actor, .actor_name = actor.name, .verb = action, .dobj = false, .iobj = false, .timestamp = time(), .this_obj = false, normalized>;
   endverb
 
   verb "with_dobj with_iobj with_this" (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -123,41 +123,19 @@ object EVENT
 
   verb with_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
     {key, value} = args;
-    metadata = `this.metadata ! E_PROPNF => {}';
-    updated = {};
-    replaced = false;
-    for pair in (metadata)
-      if (pair[1] == key)
-        updated = {@updated, {key, value}};
-        replaced = true;
-        continue;
-      endif
-      updated = {@updated, pair};
-    endfor
-    replaced || (updated = {@updated, {key, value}});
-    return flyslotset(this, 'metadata, updated);
+    metadata = flyslots(this);
+    content = flycontents(this);
+    metadata[key] = value;
+    return toflyweight(this.delegate, metadata, content);
   endverb
 
   verb preferred_content_types (this none this) owner: HACKER flags: "rxd"
-    metadata = `this.metadata ! E_PROPNF => {}';
-    for pair in (metadata)
-      if (pair[1] == 'preferred_content_types)
-        typeof(pair[2]) == LIST || return {};
-        return pair[2];
-      endif
-    endfor
-    return {};
+    `this.preferred_content_types ! E_PROPNF => {}';
   endverb
 
   verb audience (this none this) owner: HACKER flags: "rxd"
     "Return the audience classification stored on this event.";
-    metadata = `this.metadata ! E_PROPNF => {}';
-    for pair in (metadata)
-      if (pair[1] == 'audience)
-        return pair[2];
-      endif
-    endfor
-    return 'narrative;
+    `this.audience ! E_PROPNF => narrative';
   endverb
 
   verb with_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -166,27 +144,9 @@ object EVENT
     return this:with_metadata('audience, audience);
   endverb
 
-  verb ensure_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Ensure the event has an audience classification, using the provided default if missing.";
-    {audience} = args;
-    metadata = `this.metadata ! E_PROPNF => {}';
-    for pair in (metadata)
-      if (pair[1] == 'audience)
-        return this;
-      endif
-    endfor
-    return this:with_metadata('audience, audience);
-  endverb
-
   verb presentation_hint (this none this) owner: HACKER flags: "rxd"
     "Return the presentation hint stored on this event.";
-    metadata = `this.metadata ! E_PROPNF => {}';
-    for pair in (metadata)
-      if (pair[1] == 'presentation_hint)
-        return pair[2];
-      endif
-    endfor
-    return false;
+    return `this.presentation_hint ! E_PROPNF => false';
   endverb
 
   verb with_presentation_hint (this none this) owner: HACKER flags: "rxd"

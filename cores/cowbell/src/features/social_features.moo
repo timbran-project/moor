@@ -127,7 +127,7 @@ object SOCIAL_FEATURES
     if (!valid(player.location))
       return;
     endif
-    event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("say", "says"), " \"Oif!\""):with_this(player.location);
+    event = player:mk_say_event("Oif!");
     player.location:announce(event);
   endverb
 

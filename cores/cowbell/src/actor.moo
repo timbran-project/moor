@@ -137,7 +137,10 @@ object ACTOR
   endverb
 
   verb mk_say_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
+    let event = $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
+    event = event:with_metadata('content, args[1]);
+    event = event:with_presentation_hint('speech_bubble);
+    return event;
   endverb
 
   verb mk_directed_say_event (this none this) owner: HACKER flags: "rxd"
