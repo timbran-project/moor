@@ -420,6 +420,38 @@ object PLAYER
     return text;
   endverb
 
+  verb upload (this none this) owner: HACKER flags: "rxd"
+    "Request a file upload from the player.";
+    "Args: prompt, ?accept_content_types = {}, ?max_file_size = 0, ?tts_prompt = 0";
+    "Returns: {content_type, binary_data} or false if cancelled";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {question, ?accept_content_types = {}, ?max_file_size = 0, ?tts_prompt = 0} = args;
+    metadata = {{"input_type", "file"}, {"prompt", question}};
+    typeof(accept_content_types) == LIST && length(accept_content_types) > 0 && (metadata = {@metadata, {"accept_content_types", accept_content_types}});
+    typeof(max_file_size) == INT && max_file_size > 0 && (metadata = {@metadata, {"max_file_size", max_file_size}});
+    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
+    response = this:read_with_prompt(metadata);
+    if (typeof(response) != LIST || length(response) != 2)
+      this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
+      return false;
+    endif
+    {content_type, data} = response;
+    if (typeof(content_type) != STR || typeof(data) != BINARY)
+      this:inform_current($event:mk_info(this, "Invalid upload format."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
+      return false;
+    endif
+    return response;
+  endverb
+
+  verb upload_image (this none this) owner: HACKER flags: "rxd"
+    "Request an image upload from the player.";
+    "Args: prompt, ?max_file_size = 0, ?tts_prompt = 0";
+    "Returns: {content_type, binary_data} or false if cancelled";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {question, ?max_file_size = 0, ?tts_prompt = 0} = args;
+    return this:upload(question, {"image/png", "image/jpeg", "image/gif", "image/webp"}, max_file_size, tts_prompt);
+  endverb
+
   verb read_multiline (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Request multiline content from the player.";
     "Host (both web and telnet) is expected to handle this via metadata.";

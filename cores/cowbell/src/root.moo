@@ -10,6 +10,7 @@ object ROOT
   property import_export_hierarchy (owner: HACKER, flags: "rc") = {};
   property import_export_id (owner: HACKER, flags: "r") = "root";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
+  property thumbnail (owner: HACKER, flags: "rc") = false;
 
   verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a non-garbage collected (UUobjid) child of this object.";
@@ -109,6 +110,23 @@ object ROOT
   verb description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Returns the external description of the object.";
     return this.description;
+  endverb
+
+  verb thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return thumbnail image data for this object.";
+    set_task_perms(caller_perms());
+    return this.thumbnail;
+  endverb
+
+  verb set_thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set the thumbnail image for this object. Permission: owner or wizard.";
+    {target, perms} = this:check_permissions('set_thumbnail);
+    set_task_perms(this.owner);
+    {content_type, picbin} = args;
+    length(picbin) > 5 * (1 << 20) && raise(E_INVARG, "Thumbnail too large (5MB max)");
+    typeof(content_type) == STR && content_type:starts_with("image/") || raise(E_TYPE);
+    typeof(picbin) == BINARY || raise(E_TYPE);
+    target.thumbnail = {content_type, picbin};
   endverb
 
   verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"

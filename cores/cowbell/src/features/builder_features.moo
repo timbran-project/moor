@@ -1491,4 +1491,38 @@ object BUILDER_FEATURES
       return false;
     endtry
   endverb
+
+  verb "@set-thumbnail @thumbnail" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Set a thumbnail image for an object. Usage: @set-thumbnail <object>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!dobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@set-thumbnail OBJECT")));
+      return;
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
+      if (!player.wizard && target_obj.owner != player)
+        raise(E_PERM, "You do not have permission to set thumbnail on " + tostr(target_obj) + ".");
+      endif
+      "Prompt for image upload";
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      result = player:upload_image("Upload thumbnail image for " + obj_name + ":", 5 * (1 << 20));
+      if (!result)
+        player:inform_current($event:mk_info(player, "Thumbnail upload cancelled."):with_audience('utility));
+        return 0;
+      endif
+      {content_type, picbin} = result;
+      target_obj:set_thumbnail(content_type, picbin);
+      player:inform_current($event:mk_info(player, "Set thumbnail for " + obj_name + " (" + tostr(target_obj) + ")."));
+      return 1;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return 0;
+    endtry
+  endverb
 endobject
