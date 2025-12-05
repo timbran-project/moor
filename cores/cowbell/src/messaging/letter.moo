@@ -216,4 +216,40 @@ object LETTER
     event = $event:mk_info(player, "You prepare a reply to ", this.author.name, ". Write on it to compose your response.");
     player:inform_current(event);
   endverb
+
+  verb edit (this none none) owner: ARCH_WIZARD flags: "rxd"
+    "Open text editor to edit this letter.";
+    check = this:can_write(player);
+    if (!check['allowed])
+      player:inform_current($event:mk_error(player, check['reason]));
+      return;
+    endif
+    conn = connection();
+    session_id = player:start_edit_session(this, "receive_edit", {conn});
+    editor_title = "Edit: " + this.name;
+    current_body = this.text:join("\n");
+    present(player, session_id, "text/djot", "text-editor", current_body, {
+      {"object", this:to_curie_str()},
+      {"verb", "receive_edit"},
+      {"title", editor_title},
+      {"text_mode", "string"},
+      {"session_id", session_id}
+    });
+  endverb
+
+  verb receive_edit (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Callback for text-editor when editing this letter.";
+    {session_id, content} = args;
+    if (content == 'close)
+      player:end_edit_session(session_id);
+      return;
+    endif
+    session = player:get_edit_session(session_id);
+    conn = session['args][1];
+    this.text = content:split("\n");
+    if (!valid(this.author))
+      this.author = player;
+    endif
+    player:inform_connection(conn, $event:mk_info(player, "Letter saved."));
+  endverb
 endobject
