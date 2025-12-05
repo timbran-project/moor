@@ -199,12 +199,13 @@ object ROOT
     set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all properties.";
     what = this;
-    verbs = {};
+    result = {};
     while (valid(what))
-      verbs = {@properties(what) || {}, @verbs};
+      props = `properties(what) ! E_PERM => {}';
+      result = {@props, @result};
       what = parent(what);
     endwhile
-    return verbs;
+    return result;
   endverb
 
   verb all_command_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"

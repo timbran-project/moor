@@ -1025,21 +1025,20 @@ object PROG_FEATURES
     "UI wrapper around prog_utils:grep_object - adds owner metadata for display";
     "Returns matches with owner information added for formatting";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {pattern, search_obj, casematters} = args;
     "Get base matches from prog_utils (returns {obj, verb_name, line_num, matching_line})";
     base_matches = $prog_utils:grep_object(pattern, search_obj, casematters);
     "Add owner metadata to each match for display";
     display_matches = {};
     "Build lookup map of verb metadata for efficient access";
-    verb_metadata_map = {};
+    verb_metadata_map = [];
     for match in (base_matches)
       {o, verb_name, line_num, matching_line} = match;
       obj_key = tostr(o);
-      if (!(obj_key in verb_metadata_map))
+      if (!(obj_key in mapkeys(verb_metadata_map)))
         "First time seeing this object - build metadata map for it";
         verbs_metadata = $prog_utils:get_verbs_metadata(o);
-        obj_metadata_map = {};
+        obj_metadata_map = [];
         for metadata in (verbs_metadata)
           obj_metadata_map[metadata:name()] = metadata;
         endfor
@@ -1047,7 +1046,7 @@ object PROG_FEATURES
       endif
       "Look up verb metadata by name";
       obj_metadata_map = verb_metadata_map[obj_key];
-      if (verb_name in obj_metadata_map)
+      if (verb_name in mapkeys(obj_metadata_map))
         metadata = obj_metadata_map[verb_name];
         verb_owner = metadata:verb_owner();
         owner_name = valid(verb_owner) ? verb_owner.name | "Recycled";
@@ -1056,6 +1055,26 @@ object PROG_FEATURES
       endif
     endfor
     return display_matches;
+  endverb
+
+  verb _do_get_available_objects (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal helper to get list of objects available for searching";
+    caller == this || raise(E_PERM);
+    "Get all objects with wizard permissions";
+    all_objects = objects();
+    "Filter to objects readable by caller";
+    perms = caller_perms();
+    if (perms.wizard)
+      return all_objects;
+    endif
+    available = {};
+    for o in (all_objects)
+      "Object is available if caller owns it or it has read flag";
+      if (o.owner == perms || o.r)
+        available = {@available, o};
+      endif
+    endfor
+    return available;
   endverb
 
   verb "@grep" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -1088,8 +1107,8 @@ object PROG_FEATURES
         return;
       endtry
     else
-      "No target specified - search all objects using objects() builtin";
-      search_objects = objects();
+      "No target specified - search all available objects";
+      search_objects = this:_do_get_available_objects();
     endif
     "Inform user we're starting";
     player:inform_current($event:mk_info(player, "Searching for \"" + pattern + "\" in " + tostr(length(search_objects)) + " objects..."));
