@@ -347,7 +347,7 @@ object PLAYER
 
   verb _get_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal: Get grants map for a category. ARCH_WIZARD owned to read private property.";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {category} = args;
     prop_name = "grants_" + tostr(category);
     return `this.(prop_name) ! E_PROPNF => false';
@@ -411,7 +411,7 @@ object PLAYER
   verb confirm (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Show a confirmation prompt and return true if confirmed, false if cancelled, or string with alternative instruction.";
     "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
     typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
@@ -437,7 +437,7 @@ object PLAYER
   verb prompt (this none this) owner: HACKER flags: "rxd"
     "Show an open-ended prompt and return the user's text response.";
     "Returns: string (user's response) or false if cancelled/empty";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {question, ?placeholder = "Enter your response...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "text_area"}, {"prompt", question}, {"placeholder", placeholder}, {"rows", 4}};
     typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
@@ -458,7 +458,7 @@ object PLAYER
     "Request a file upload from the player.";
     "Args: prompt, ?accept_content_types = {}, ?max_file_size = 0, ?tts_prompt = 0";
     "Returns: {content_type, binary_data} or false if cancelled";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {question, ?accept_content_types = {}, ?max_file_size = 0, ?tts_prompt = 0} = args;
     metadata = {{"input_type", "file"}, {"prompt", question}};
     typeof(accept_content_types) == LIST && length(accept_content_types) > 0 && (metadata = {@metadata, {"accept_content_types", accept_content_types}});
@@ -481,7 +481,7 @@ object PLAYER
     "Request an image upload from the player.";
     "Args: prompt, ?max_file_size = 0, ?tts_prompt = 0";
     "Returns: {content_type, binary_data} or false if cancelled";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {question, ?max_file_size = 0, ?tts_prompt = 0} = args;
     return this:upload(question, {"image/png", "image/jpeg", "image/gif", "image/webp"}, max_file_size, tts_prompt);
   endverb
@@ -877,7 +877,7 @@ object PLAYER
     "Args: target_obj, verb_name, ?initial_content, ?opts";
     "opts keys: content_type ('text_plain or 'text_djot), title, text_mode ('list or 'string), session_id";
     "On save calls: target_obj:verb_name(content)";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {target_obj, verb_name, ?initial_content = "", ?opts = []} = args;
     content_type = `opts['content_type] ! ANY => 'text_plain';
     title = `opts['title] ! ANY => "Edit"';
@@ -898,7 +898,7 @@ object PLAYER
     "Create an editing session for tracking editor callbacks.";
     "Args: target_obj, verb_name, ?extra_args";
     "Returns: session_id string";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {target_obj, verb_name, ?extra_args = {}} = args;
     session_id = uuid();
     this.editing_sessions[session_id] = ['target -> target_obj, 'verb -> verb_name, 'args -> extra_args];
@@ -907,14 +907,14 @@ object PLAYER
 
   verb get_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get an editing session by session_id. Returns session data or E_INVARG if not found.";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {session_id} = args;
     return `this.editing_sessions[session_id] ! ANY => raise(E_INVARG, "No such editing session")';
   endverb
 
   verb end_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
     "End an editing session, removing it from the map. Returns session data.";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {session_id} = args;
     session = `this.editing_sessions[session_id] ! ANY => raise(E_INVARG, "No such editing session")';
     this.editing_sessions = mapdelete(this.editing_sessions, session_id);
@@ -924,7 +924,7 @@ object PLAYER
   verb confirm_with_all (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Show a confirmation prompt with Yes/Yes to All/No/Alternative options.";
     "Returns: true (yes), 'yes_all' (accept all), false (no), or string (alternative)";
-    caller == this || caller_perms().wizard || raise(E_PERM);
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "yes_no_alternative_all"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
     typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
