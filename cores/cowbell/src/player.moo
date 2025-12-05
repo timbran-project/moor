@@ -19,6 +19,7 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property wearing (owner: HACKER, flags: "rwc") = {};
+  property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -869,6 +870,55 @@ object PLAYER
       endif
     endfor
     return result;
+  endverb
+
+  verb present_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Open a text editor panel for the player.";
+    "Args: target_obj, verb_name, ?initial_content, ?opts";
+    "opts keys: content_type ('text_plain or 'text_djot), title, text_mode ('list or 'string), session_id";
+    "On save calls: target_obj:verb_name(content)";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {target_obj, verb_name, ?initial_content = "", ?opts = []} = args;
+    content_type = `opts['content_type] ! ANY => 'text_plain';
+    title = `opts['title] ! ANY => "Edit"';
+    text_mode = `opts['text_mode] ! ANY => 'string';
+    session_id = `opts['session_id] ! ANY => ""';
+    ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
+    mode_str = text_mode == 'string ? "string" | "list";
+    attrs = {
+      {"object", target_obj:to_curie_str()},
+      {"verb", verb_name},
+      {"title", title},
+      {"text_mode", mode_str}
+    };
+    present(this, session_id, ct_str, "text-editor", initial_content, attrs);
+  endverb
+
+  verb start_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create an editing session for tracking editor callbacks.";
+    "Args: target_obj, verb_name, ?extra_args";
+    "Returns: session_id string";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {target_obj, verb_name, ?extra_args = {}} = args;
+    session_id = uuid();
+    this.editing_sessions[session_id] = ['target -> target_obj, 'verb -> verb_name, 'args -> extra_args];
+    return session_id;
+  endverb
+
+  verb get_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Get an editing session by session_id. Returns session data or E_INVARG if not found.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {session_id} = args;
+    return `this.editing_sessions[session_id] ! ANY => raise(E_INVARG, "No such editing session")';
+  endverb
+
+  verb end_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "End an editing session, removing it from the map. Returns session data.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {session_id} = args;
+    session = `this.editing_sessions[session_id] ! ANY => raise(E_INVARG, "No such editing session")';
+    this.editing_sessions = mapdelete(this.editing_sessions, session_id);
+    return session;
   endverb
 
   verb confirm_with_all (this none this) owner: ARCH_WIZARD flags: "rxd"

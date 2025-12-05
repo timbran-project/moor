@@ -685,6 +685,55 @@ object BUILDER_FEATURES
     endtry
   endverb
 
+  verb "@edit-description @edit-d" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Open multi-line editor for object description. Usage: @edit-description <object>";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!dobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@edit-description <object>")));
+      return;
+    endif
+    try
+      target_obj = $match:match_object(dobjstr, player);
+      if (!valid(target_obj))
+        raise(E_INVARG, "I don't see that here.");
+      endif
+      if (!player.wizard && target_obj.owner != player)
+        raise(E_PERM, "You don't own that.");
+      endif
+      current_desc = `target_obj.description ! E_PROPNF => ""';
+      conn = connection();
+      session_id = player:start_edit_session(target_obj, "set_description", {conn});
+      editor_title = "Edit Description: " + target_obj.name;
+      present(player, session_id, "text/djot", "text-editor", current_desc, {
+        {"object", $builder_features:to_curie_str()},
+        {"verb", "receive_description_edit"},
+        {"title", editor_title},
+        {"text_mode", "string"},
+        {"session_id", session_id}
+      });
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+    endtry
+  endverb
+
+  verb receive_description_edit (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Callback for text-editor when editing descriptions.";
+    {session_id, content} = args;
+    if (content == 'close)
+      player:end_edit_session(session_id);
+      return;
+    endif
+    session = player:get_edit_session(session_id);
+    target_obj = session['target];
+    conn = session['args][1];
+    target_obj:set_description(content);
+    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    player:inform_connection(conn, $event:mk_info(player, "Description updated for " + obj_name + "."));
+  endverb
+
   verb _do_describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to set object description with elevated permissions";
     caller == this || raise(E_PERM);
