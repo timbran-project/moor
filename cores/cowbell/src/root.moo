@@ -50,7 +50,6 @@ object ROOT
 
   verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Destroy this object. Permission: wizard, owner, or capability.";
-    is_anonymous(this) && raise(E_INVARG("this object is anonymous and cannot be recycled"));
     this:check_permissions('recycle);
     recycle(this);
   endverb

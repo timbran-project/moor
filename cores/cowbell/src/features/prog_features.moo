@@ -164,6 +164,44 @@ object PROG_FEATURES
     present(player, browser_id, "text/plain", "object-browser", "", {{"object", object_curie}, {"title", browser_title}});
   endverb
 
+  verb present_text_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Present the text editor for editing freeform content.";
+    "Args: {target_obj, verb_name, ?curried_args, ?initial_content, ?opts}";
+    "opts is a map with optional keys: content_type, title, description, text_mode";
+    "  content_type: 'text_plain (default) or 'text_djot";
+    "  title: editor window title";
+    "  description: explanatory blurb shown to user";
+    "  text_mode: 'list (default) sends {line1, line2, ...}, 'string sends single string";
+    "On save, the verb is called as: target_obj:verb_name(...curried_args, content)";
+    "  where content is either a list of strings or a single string based on text_mode";
+    caller == this || raise(E_PERM);
+    {target_obj, verb_name, ?curried_args = {}, ?initial_content = {}, ?opts = []} = args;
+    "Extract options with defaults";
+    content_type = opts['content_type] || 'text_plain;
+    title = opts['title] || "";
+    description = opts['description] || "";
+    text_mode = opts['text_mode] || 'list;
+    object_curie = target_obj:to_curie_str();
+    editor_id = "text-edit-" + tostr(target_obj) + "-" + verb_name;
+    editor_title = title || "Edit text for " + tostr(target_obj);
+    "Convert content to string for presentation";
+    if (typeof(initial_content) == LIST)
+      content_str = initial_content:join("\n");
+    else
+      content_str = tostr(initial_content);
+    endif
+    "Convert curried args to JSON for attribute";
+    args_json = toliteral(curried_args);
+    "Convert content type and text mode symbols to strings";
+    ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
+    mode_str = text_mode == 'string ? "string" | "list";
+    attrs = {{"object", object_curie}, {"verb", verb_name}, {"args", args_json}, {"content_type", ct_str}, {"title", editor_title}, {"text_mode", mode_str}};
+    if (description)
+      attrs = {@attrs, {"description", description}};
+    endif
+    present(player, editor_id, ct_str, "text-editor", content_str, attrs);
+  endverb
+
   verb _do_get_verb_listing (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to get verb listing with elevated permissions";
     caller == this || raise(E_PERM);

@@ -47,9 +47,13 @@ object SYSOBJ
   property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
   property llm_task (owner: HACKER, flags: "r") = LLM_TASK;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
+  property letter (owner: HACKER, flags: "r") = LETTER;
   property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
+  property mailbox (owner: HACKER, flags: "r") = MAILBOX;
+  property mail_features (owner: HACKER, flags: "r") = MAIL_FEATURES;
+  property mail_room (owner: HACKER, flags: "r") = MAIL_ROOM;
   property match (owner: HACKER, flags: "r") = MATCH;
   property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
   property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;

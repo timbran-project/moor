@@ -8,7 +8,7 @@ object PLAYER
   property admin_features (owner: ARCH_WIZARD, flags: "") = #-1;
   property authoring_features (owner: ARCH_WIZARD, flags: "") = #-1;
   property email_address (owner: ARCH_WIZARD, flags: "") = "c";
-  property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES};
+  property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES, MAIL_FEATURES};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
@@ -312,6 +312,9 @@ object PLAYER
     for item in (this.wearing)
       valid(item) && (env = {@env, item});
     endfor
+    "Add player's mailbox if they have one.";
+    mailbox = `this:find_mailbox() ! ANY => #-1';
+    valid(mailbox) && (env = {@env, mailbox});
     "Add location and its contents.";
     if (valid(location))
       env = {@env, location};
@@ -364,6 +367,25 @@ object PLAYER
       return grants_map[target_obj];
     endif
     return false;
+  endverb
+
+  verb find_mailbox (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Find this player's mailbox. Returns the mailbox, or #-1 if none.";
+    "Raises E_INVARG if player owns multiple mailboxes.";
+    if (caller_perms() != this && !caller_perms().wizard)
+      raise(E_PERM, "Can only find your own mailbox");
+    endif
+    set_task_perms(this);
+    found = {};
+    for item in (owned_objects(this))
+      if (typeof(item) == OBJ && valid(item) && isa(item, $mailbox))
+        found = {@found, item};
+      endif
+    endfor
+    if (length(found) > 1)
+      raise(E_INVARG, "Player owns multiple mailboxes");
+    endif
+    return length(found) == 1 ? found[1] | #-1;
   endverb
 
   verb is_wearing (this none this) owner: ARCH_WIZARD flags: "rxd"

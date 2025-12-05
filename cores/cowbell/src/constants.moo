@@ -25,6 +25,7 @@ define SOCIAL_FEATURES = #36;
 define BUILDER_FEATURES = #37;
 define PROG_FEATURES = #38;
 define WIZ_FEATURES = #39;
+define MAIL_FEATURES = #000294-9AEC8F75B3;
 
 // format
 define ANSI = #26;
@@ -62,6 +63,9 @@ define KIBBLE_CAN_1 = #0008CA-9A95162D77;
 define KIBBLE_CAN_2 = #0008CA-9A95162D78;
 define KIBBLE_CAN_3 = #0008CA-9A95162D79;
 define COUCH = #0008CA-9A95162D7A;
+define MAIL_ROOM = #0000A3-9AECAF4AF1;
+define ARCH_WIZARD_MAILBOX = #0000FB-9AECAF7C16;
+define TEST_PLAYER_MAILBOX = #00013A-9AECAF7C17;
 
 // items
 define THING = #8;
@@ -69,6 +73,8 @@ define WEARABLE = #9;
 define CONTAINER = #10;
 define SITTABLE = #70;
 define NOTE = #71;
+define LETTER = #72;
+define MAILBOX = #73;
 
 // llm
 define LLM_CLIENT = #40;
