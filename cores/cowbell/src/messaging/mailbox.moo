@@ -74,7 +74,7 @@ object MAILBOX
     rows = {};
     idx = 1;
     for letter in (letters)
-      status = letter.read_at == 0 ? "NEW" | "";
+      status = letter.read_at == 0 ? "New" | "Read";
       from_name = valid(letter.author) ? letter.author.name | "anonymous";
       subject = letter.name != "letter" ? letter.name | "(no subject)";
       rows = {@rows, {tostr(idx), status, from_name, subject}};

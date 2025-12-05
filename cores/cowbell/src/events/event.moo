@@ -130,12 +130,13 @@ object EVENT
   endverb
 
   verb preferred_content_types (this none this) owner: HACKER flags: "rxd"
-    `this.preferred_content_types ! E_PROPNF => {}';
+    "Return the event's preferred content types for negotiation.";
+    return `this.preferred_content_types ! E_PROPNF => {}';
   endverb
 
   verb audience (this none this) owner: HACKER flags: "rxd"
     "Return the audience classification stored on this event.";
-    `this.audience ! E_PROPNF => narrative';
+    return `this.audience ! E_PROPNF => 'narrative';
   endverb
 
   verb with_audience (this none this) owner: ARCH_WIZARD flags: "rxd"

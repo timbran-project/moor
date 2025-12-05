@@ -99,24 +99,30 @@ object SYSOBJ
     return $login:((args[1]))(@listdelete(args, 1));
   endverb
 
-  verb "user_created user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb "user_created user_reconnected user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called by the server when a user connects...";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
-    set_task_perms(user);
     if (user < #0)
       return;
     endif
-    fork (0)
-      `user:confunc() ! E_VERBNF';
-    endfork
-    `user.location:confunc(user) ! E_INVIND, E_VERBNF';
-    "Welcome new players after room setup";
-    if (verb == "user_created")
-      `$login:welcome_new_player(user) ! E_VERBNF';
+    "Track if new player for greeting later";
+    is_new_player = verb == "user_created";
+    "Set up new players before dropping perms (mailbox, welcome letter)";
+    if (is_new_player)
+      `$login:setup_new_player(user) ! E_VERBNF';
     endif
+    "Now set perms to user for confunc etc";
+    set_task_perms(user);
+    `user.location:confunc(user) ! E_INVIND, E_VERBNF';
     `user:anyconfunc() ! E_VERBNF';
+    "Greet new players after room confunc";
+    if (is_new_player)
+      `$login:greet_new_player(user) ! E_VERBNF';
+    endif
+    "Check mail last (after setup_new_player has created mailbox)";
+    `user:confunc() ! E_VERBNF';
   endverb
 
   verb "user_disconnected user_client_disconnected" (this none this) owner: ARCH_WIZARD flags: "rxd"

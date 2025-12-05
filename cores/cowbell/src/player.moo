@@ -375,7 +375,6 @@ object PLAYER
     if (caller_perms() != this && !caller_perms().wizard)
       raise(E_PERM, "Can only find your own mailbox");
     endif
-    set_task_perms(this);
     found = {};
     for item in (owned_objects(this))
       if (typeof(item) == OBJ && valid(item) && isa(item, $mailbox))
@@ -386,6 +385,18 @@ object PLAYER
       raise(E_INVARG, "Player owns multiple mailboxes");
     endif
     return length(found) == 1 ? found[1] | #-1;
+  endverb
+
+  verb confunc (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called when player connects. Check for unread mail.";
+    mailbox = `this:find_mailbox() ! ANY => #-1';
+    !valid(mailbox) && return;
+    unread = mailbox:unread_count();
+    unread == 0 && return;
+    "Notify about unread mail";
+    msg = unread == 1 ? "*You have an unread letter.* Type `mail` to check your mailbox." | tostr("*You have ", unread, " unread letters.* Type `mail` to check your mailbox.");
+    event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('mail_notify);
+    this:inform_current(event);
   endverb
 
   verb is_wearing (this none this) owner: ARCH_WIZARD flags: "rxd"

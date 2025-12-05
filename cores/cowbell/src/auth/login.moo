@@ -12,7 +12,11 @@ object LOGIN
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = <#5, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
   property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
-  property new_player_welcome_message (owner: ARCH_WIZARD, flags: "rc") = "#### Welcome to {TITLE}!\n\nTry entering `help` to see what you kind of things can do where you are.";
+  property new_player_welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
+    "Welcome to {TITLE}!",
+    "",
+    "Try entering `help` to see what kind of things you can do where you are."
+  };
   property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
     "## Welcome to the _mooR_ *Cowbell* core.",
     "",
@@ -24,6 +28,7 @@ object LOGIN
     "You will probably want to change this text which is stored in $login.welcome_message property."
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
+  property new_player_letter (owner: ARCH_WIZARD, flags: "rc") = {ARCH_WIZARD, "Welcome to Cowbell!", {"Hello and welcome!", "", "We're glad you've joined us. Feel free to explore, meet other players, and make yourself at home.", "", "If you need help, try typing `help` or `what` to see what you can do.", "", "Enjoy your stay!"}};
 
   override description = "Login service handling player authentication, character creation, and OAuth2 integration.";
   override import_export_hierarchy = {"auth"};
@@ -38,9 +43,18 @@ object LOGIN
   endverb
 
   verb _apply_template (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Apply template substitutions (TITLE, VERSION, CORE_VERSION) to a message string.";
+    "Apply template substitutions (TITLE, VERSION, CORE_VERSION) to a message.";
+    "Accepts string or list of strings.";
     set_task_perms(caller_perms());
     {message} = args;
+    if (typeof(message) == LIST)
+      result = {};
+      for line in (message)
+        line = this:_apply_template(line);
+        result = {@result, line};
+      endfor
+      return result;
+    endif
     message = message:replace_all("{TITLE}", this.moo_title);
     message = message:replace_all("{VERSION}", server_version());
     message = message:replace_all("{CORE_VERSION}", $sysobj.core_version);
@@ -356,19 +370,51 @@ object LOGIN
     return {'ok, stored};
   endverb
 
-  verb welcome_new_player (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Welcome a new player and show them available commands.";
+  verb setup_new_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set up a new player's mailbox and welcome letter. Requires wizard perms.";
     "Args: {player_obj}";
     {new_player} = args;
     !valid(new_player) && return;
-    set_task_perms(new_player);
-    "Welcome them to the MUD and show the what command";
-    welcome_msg = this:_apply_template(this.new_player_welcome_message);
-    "Add quick-start tips for profile basics";
+    server_log(tostr("setup_new_player called for ", new_player));
+    "Create welcome letter if configured";
+    letter_config = this.new_player_letter;
+    server_log(tostr("setup_new_player: letter_config type = ", typeof(letter_config), " length = ", typeof(letter_config) == LIST ? length(letter_config) | 0));
+    if (typeof(letter_config) == LIST && length(letter_config) == 3)
+      {from_obj, subject, msg_lines} = letter_config;
+      "Create mailbox for new player";
+      mailbox = create($mailbox, new_player);
+      mailbox.name = new_player.name + "'s mailbox";
+      move(mailbox, $mail_room);
+      server_log(tostr("setup_new_player: created mailbox ", mailbox, " owner = ", mailbox.owner));
+      "Create the welcome letter";
+      letter = create($letter, from_obj);
+      letter.name = subject;
+      letter.author = from_obj;
+      letter.addressee = new_player;
+      letter.sealed = true;
+      letter.sent_at = time();
+      if (typeof(msg_lines) == LIST)
+        for line in (msg_lines)
+          letter.text = {@letter.text, tostr(line)};
+        endfor
+      endif
+      move(letter, mailbox);
+      server_log(tostr("setup_new_player: created letter ", letter, " in mailbox"));
+    else
+      server_log("setup_new_player: letter_config not valid, skipping mailbox creation");
+    endif
+  endverb
+
+  verb greet_new_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display welcome message to a new player. Called after room confunc.";
+    "Args: {player_obj}";
+    {new_player} = args;
+    !valid(new_player) && return;
+    title = $format.title:mk(this:_apply_template("Welcome to {TITLE}!"));
     tips_list = $format.list:mk({"Set your description: @describe me as <text>", "Set your pronouns: @pronouns they/them (or she/her, he/him, etc.)"});
-    content = $format.block:mk(welcome_msg, "Next steps:", tips_list);
-    event = $event:mk_info(new_player, content):with_audience('utility);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    content = $format.block:mk(title, "", "Try entering `help` to see what kind of things you can do where you are.", "", "Next steps:", tips_list);
+    event = $event:mk_info(new_player, content):with_audience('utility):with_presentation_hint('inset);
+    event = event:with_metadata('preferred_content_types, {'text_html, 'text_plain});
     new_player:inform_current(event);
   endverb
 endobject
