@@ -93,4 +93,9 @@ object LLM_CLIENT
     endif
     return response;
   endverb
+
+  verb is_configured (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if the LLM client has an API key configured";
+    return this.api_key && typeof(this.api_key) == STR && length(this.api_key) > 0;
+  endverb
 endobject

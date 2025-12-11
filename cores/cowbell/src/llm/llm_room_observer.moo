@@ -82,6 +82,10 @@ object LLM_ROOM_OBSERVER
 
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Receive events from room and pass to agent as observations";
+    "Skip entirely if LLM client is not configured";
+    if (!$llm_client:is_configured())
+      return;
+    endif
     set_task_perms(this.owner);
     if (typeof(this.agent) != OBJ || !valid(this.agent))
       this:configure();
@@ -164,6 +168,10 @@ object LLM_ROOM_OBSERVER
 
   verb maybe_speak (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Evaluate recent observations and speak only if something noteworthy happened";
+    "Skip entirely if LLM client is not configured";
+    if (!$llm_client:is_configured())
+      return;
+    endif
     "Cooldown check: don't speak if we spoke recently";
     if (ftime() - this.last_spoke_at < this.speak_cooldown)
       return;
