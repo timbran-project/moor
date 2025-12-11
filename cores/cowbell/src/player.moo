@@ -7,6 +7,7 @@ object PLAYER
 
   property admin_features (owner: ARCH_WIZARD, flags: "") = #-1;
   property authoring_features (owner: ARCH_WIZARD, flags: "") = #-1;
+  property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
   property email_address (owner: ARCH_WIZARD, flags: "") = "c";
   property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES, MAIL_FEATURES};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
@@ -19,7 +20,6 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property wearing (owner: HACKER, flags: "rwc") = {};
-  property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -590,7 +590,7 @@ object PLAYER
     this:inform_current(event);
   endverb
 
-  verb "what help" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "help what" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Tell the player where they are and what's around.";
     "Display available commands and actions. If a target object is specified, show help for that object.";
     "If a topic name is given, search for help on that topic.";
@@ -885,12 +885,7 @@ object PLAYER
     session_id = `opts['session_id] ! ANY => ""';
     ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
     mode_str = text_mode == 'string ? "string" | "list";
-    attrs = {
-      {"object", target_obj:to_curie_str()},
-      {"verb", verb_name},
-      {"title", title},
-      {"text_mode", mode_str}
-    };
+    attrs = {{"object", target_obj:to_curie_str()}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
     present(this, session_id, ct_str, "text-editor", initial_content, attrs);
   endverb
 
@@ -948,5 +943,92 @@ object PLAYER
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
+  endverb
+
+  verb verb_suggestions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return list of verb info for UI suggestion pills.";
+    "Each entry: [verb -> name, dobj -> spec, prep -> spec, iobj -> spec, objects -> {objs}, hint -> prompt hint]";
+    "Priority verbs appear first, then ambient verbs from the environment.";
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
+    priority_patterns = {"say", "emote", "go", "look", "l*ook", "examine", "exam*ine", "inventory", "i*nventory", "help", "what", "who"};
+    result = {};
+    seen = [];
+    "Collect all ambient verbs from command environment";
+    cmd_env = this:command_environment();
+    all_verbs = [];
+    for o in (cmd_env)
+      if (!valid(o))
+        continue;
+      endif
+      ancestor_chain = `ancestors(o) ! ANY => {}';
+      for definer in ({o, @ancestor_chain})
+        if (!valid(definer))
+          continue;
+        endif
+        all_verb_names = `verbs(definer) ! ANY => {}';
+        for verb_name in (all_verb_names)
+          verb_sig = `verb_args(definer, verb_name) ! ANY => false';
+          if (typeof(verb_sig) != LIST || length(verb_sig) < 3)
+            continue;
+          endif
+          {dobj, prep, iobj} = verb_sig;
+          "Skip targetable verbs (those requiring 'this' as dobj/iobj)";
+          if (dobj == "this" || iobj == "this")
+            continue;
+          endif
+          if (maphaskey(all_verbs, verb_name))
+            "Add this object to the list of applicable objects";
+            entry = all_verbs[verb_name];
+            objs = entry['objects];
+            if (!(o in objs))
+              entry['objects] = {@objs, o};
+              all_verbs[verb_name] = entry;
+            endif
+          else
+            hint = this:_make_verb_hint(verb_name, dobj, prep, iobj);
+            all_verbs[verb_name] = ['verb -> verb_name, 'dobj -> dobj, 'prep -> prep, 'iobj -> iobj, 'objects -> {o}, 'hint -> hint];
+          endif
+        endfor
+      endfor
+    endfor
+    "Build result with priority verbs first";
+    for pv in (priority_patterns)
+      if (maphaskey(all_verbs, pv))
+        result = {@result, all_verbs[pv]};
+        seen[pv] = true;
+      endif
+    endfor
+    "Add remaining verbs";
+    for verb_name in (mapkeys(all_verbs))
+      if (!maphaskey(seen, verb_name))
+        result = {@result, all_verbs[verb_name]};
+      endif
+    endfor
+    return result;
+  endverb
+
+  verb _make_verb_hint (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Generate a prompt hint from verb argspec.";
+    "Returns just the placeholder part, e.g. 'to whom?' or '<what>'";
+    {verb_name, dobj, prep, iobj} = args;
+    "Handle simple cases first";
+    if (dobj == "none" && iobj == "none")
+      return "";
+    endif
+    parts = {};
+    "Add dobj placeholder";
+    if (dobj == "any")
+      parts = {"<what>"};
+    endif
+    "Add preposition if meaningful";
+    if (prep != "none" && prep != "any" && iobj == "any")
+      "Clean up prep - some have slashes like 'in/inside/into'";
+      slash = index(prep, "/");
+      display_prep = slash > 0 ? prep[1..slash - 1] | prep;
+      parts = {@parts, display_prep, "<whom>"};
+    elseif (iobj == "any" && prep == "any")
+      parts = {@parts, "..."};
+    endif
+    return parts:join(" ");
   endverb
 endobject
