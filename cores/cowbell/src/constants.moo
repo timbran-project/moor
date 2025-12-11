@@ -114,6 +114,7 @@ define MATCH = #21;
 define GRANT_UTILS = #25;
 define PROG_UTILS = #53;
 define OBJ_UTILS = #57;
+define URL_UTILS = #0000AB-9B0E8A16A0;
 
 // world
 define ROOM = #7;

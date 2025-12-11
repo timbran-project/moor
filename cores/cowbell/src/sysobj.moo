@@ -61,6 +61,7 @@ object SYSOBJ
   property nothing (owner: HACKER, flags: "r") = #-1;
   property obj_utils (owner: HACKER, flags: "r") = OBJ_UTILS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
+  property url_utils (owner: HACKER, flags: "r") = URL_UTILS;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog_features (owner: HACKER, flags: "r") = PROG_FEATURES;

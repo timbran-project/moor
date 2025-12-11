@@ -285,13 +285,18 @@ object SOCIAL_FEATURES
   endverb
 
   verb "http://* https://*" (any any any) owner: HACKER flags: "rxd"
-    "Paste a URL to share";
+    "Paste a URL to share with optional link preview.";
     if (!valid(player.location))
       return;
     endif
     url = verb + argstr;
-    "TODO: link markup";
-    event = $event:mk_url_share(player, $sub:nc(), " shares: ", url):with_metadata('url, url);
+    "Fetch preview metadata";
+    preview = `$url_utils:fetch_preview(url) ! ANY => false';
+    event = $event:mk_url_share(player, $sub:nc(), " ", $sub:self_alt("share", "shares"), ": ", url):with_metadata('url, url):with_presentation_hint('inset);
+    "Attach preview if we got useful data";
+    if (typeof(preview) == MAP && (preview["title"] || preview["description"] || preview["image"]))
+      event = event:with_metadata('link_preview, preview);
+    endif
     player.location:announce(event);
   endverb
 
