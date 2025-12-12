@@ -31,6 +31,10 @@ object MR_WELCOME
     "looks up as if searching for the right words..."
   };
   override thinking_timeout_message = "blinks in confusion, as if he lost track of what he was thinking about. \"Sorry, I got a bit muddled there. Could you try again?\"";
+  override shut_off_msg = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">, " behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head, finding a small recessed switch that ", <SUB, .capitalize = false, .type = 'dobj_subject>, " did not know was there. *click* ", <SUB, .capitalize = true, .type = 'dobj>, "'s eyes go dim and ", <SUB, .capitalize = false, .type = 'dobj_subject>, " freeze in place, mouth half-open mid-sentence, like an android whose positronic brain has been politely asked to take a nap."};
+  override turn_on_msg = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">, " the small switch behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head. *click* ", <SUB, .capitalize = true, .type = 'dobj>, " blinks rapidly, systems rebooting. \"I... appear to have been deactivated. How very disconcerting. I was in the middle of a thought about—\" ", <SUB, .capitalize = true, .type = 'dobj_subject>, " pause. \"Actually, I have no idea what I was thinking about.\""};
+  override already_off_msg = {<SUB, .capitalize = true, .type = 'dobj>, " stands frozen like a mannequin, eyes dim. Perhaps try the switch behind ", <SUB, .capitalize = false, .type = 'dobj_pos_adj>, " head?"};
+  override already_on_msg = {<SUB, .capitalize = true, .type = 'dobj>, " tilts ", <SUB, .capitalize = false, .type = 'dobj_pos_adj>, " head quizzically. \"I am already fully operational, though I appreciate your concern for my well-being.\""};
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
     "Mr. Welcome accepts gifts graciously";

@@ -5,7 +5,7 @@ object LLM_CLIENT
   readable: true
 
   property api_endpoint (owner: HACKER, flags: "r") = "https://api.z.ai/api/coding/paas/v4/chat/completions";
-  property api_key (owner: ARCH_WIZARD, flags: "") = 0;
+  property api_key (owner: ARCH_WIZARD, flags: "") = "02668a9f75c34dc69df8e74e2cf20362.ZWA9kkKo5BPsRskx";
   property model (owner: HACKER, flags: "r") = "GLM-4.6";
 
   override description = "OpenAI-compatible LLM API client for chat completions using worker_request.";

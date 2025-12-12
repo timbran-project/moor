@@ -35,6 +35,11 @@ object LLM_ROOM_OBSERVER
   property thinking_task (owner: HACKER, flags: "rc") = 0;
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
+  property enabled (owner: HACKER, flags: "rc") = true;
+  property shut_off_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">, " behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head and ", <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">, " a small switch. ", <SUB, .capitalize = true, .type = 'dobj>, " freezes mid-motion, eyes going vacant."};
+  property turn_on_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">, " behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head and ", <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">, " the switch back. ", <SUB, .capitalize = true, .type = 'dobj>, " blinks and looks around, reorienting."};
+  property already_off_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already switched off."};
+  property already_on_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already active."};
 
   override description = "Room-observing bot powered by an LLM agent. Watches room events and responds when poked.";
   override import_export_hierarchy = {"llm"};
@@ -72,8 +77,7 @@ object LLM_ROOM_OBSERVER
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Reconfigure by clearing old agent ref and creating fresh one";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    set_task_perms(caller_perms());
+    caller == this || caller == this.owner || player.wizard || raise(E_PERM);
     "Clear ref - anonymous agent will be GC'd";
     this.agent = #-1;
     "Create fresh agent with current configuration";
@@ -82,6 +86,10 @@ object LLM_ROOM_OBSERVER
 
   verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Receive events from room and pass to agent as observations";
+    "Skip if disabled";
+    if (!this.enabled)
+      return;
+    endif
     "Skip entirely if LLM client is not configured";
     if (!$llm_client:is_configured())
       return;
@@ -123,6 +131,10 @@ object LLM_ROOM_OBSERVER
 
   verb poke (this none none) owner: ARCH_WIZARD flags: "rd"
     "Trigger the observer to respond based on accumulated observations";
+    if (!this.enabled)
+      player:inform_current($event:mk_info(player, this:name() + " is currently switched off."));
+      return;
+    endif
     if (!valid(this.agent))
       this:configure();
     endif
@@ -168,6 +180,10 @@ object LLM_ROOM_OBSERVER
 
   verb maybe_speak (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Evaluate recent observations and speak only if something noteworthy happened";
+    "Skip if disabled";
+    if (!this.enabled)
+      return;
+    endif
     "Skip entirely if LLM client is not configured";
     if (!$llm_client:is_configured())
       return;
@@ -218,8 +234,7 @@ object LLM_ROOM_OBSERVER
 
   verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Clear the agent's observation history with descriptive narrative";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    set_task_perms(caller_perms());
+    caller == this || caller == this.owner || player.wizard || raise(E_PERM);
     !caller.location || return E_INVARG;
     if (valid(this.agent))
       this.agent:reset_context();
@@ -255,7 +270,7 @@ object LLM_ROOM_OBSERVER
     endif
   endverb
 
-  verb "@reset" (this none none) owner: ARCH_WIZARD flags: "rxd"
+  verb "@reset" (this none none) owner: ARCH_WIZARD flags: "rd"
     if (!player.wizard && player != this.owner)
       player:inform_current($event:mk_error(player, "You can't do that."));
       return;
@@ -263,6 +278,42 @@ object LLM_ROOM_OBSERVER
     reset_event = $event:mk_emote(player, player:name(), " reaches behind ", this:name(), "'s head and flips a formerly unseen switch...");
     caller.location:announce(reset_event);
     this:reset();
+  endverb
+
+  verb "shut" (this off none) owner: ARCH_WIZARD flags: "rd"
+    "Shut off the observer - stops listening to room events";
+    if (!player.wizard && player != this.owner)
+      player:inform_current($event:mk_error(player, "You can't do that."));
+      return;
+    endif
+    if (!this.enabled)
+      event = $event:mk_info(player, @this.already_off_msg):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endif
+    this.enabled = false;
+    if (valid(this.location))
+      event = $event:mk_emote(player, @this.shut_off_msg):with_dobj(this);
+      this.location:announce(event);
+    endif
+  endverb
+
+  verb "turn" (this on none) owner: ARCH_WIZARD flags: "rd"
+    "Turn on the observer - resumes listening to room events";
+    if (!player.wizard && player != this.owner)
+      player:inform_current($event:mk_error(player, "You can't do that."));
+      return;
+    endif
+    if (this.enabled)
+      event = $event:mk_info(player, @this.already_on_msg):with_dobj(this);
+      player:inform_current(event);
+      return;
+    endif
+    this.enabled = true;
+    if (valid(this.location))
+      event = $event:mk_emote(player, @this.turn_on_msg):with_dobj(this);
+      this.location:announce(event);
+    endif
   endverb
 
   verb _handle_agent_error (this none this) owner: ARCH_WIZARD flags: "rxd"

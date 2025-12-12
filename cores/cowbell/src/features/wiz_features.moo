@@ -203,7 +203,7 @@ object WIZ_FEATURES
         compasses = {@compasses, o};
       endif
     endfor
-    for obj in (descendants($data_visor))
+    for o in (descendants($data_visor))
       if (valid(o) && o != $data_visor)
         visors = {@visors, o};
       endif
@@ -586,6 +586,106 @@ object WIZ_FEATURES
       "Inherited references not supported for @chown";
       player:inform_current($event:mk_error(player, "@chown only works on direct object properties and verbs, not inherited ones."));
     endif
+  endverb
+
+  verb "@llm-config" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "View or configure LLM client settings (endpoint, model, key)";
+    "Usage: @llm-config                  - show current settings";
+    "       @llm-config endpoint <url>   - set API endpoint";
+    "       @llm-config model <name>     - set default model";
+    "       @llm-config key              - set API key (prompts securely)";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    parts = argstr ? argstr:split(" ") | {};
+    cmd = length(parts) > 0 ? parts[1] | "";
+    if (cmd == "")
+      "Show current configuration";
+      key_status = $llm_client:is_configured() ? "configured" | "NOT SET";
+      title = $format.title:mk("LLM Client Configuration");
+      rows = {{"Endpoint", $llm_client.api_endpoint}, {"Model", $llm_client.model}, {"API Key", key_status}};
+      table = $format.table:mk({"Setting", "Value"}, rows);
+      content = $format.block:mk(title, table);
+      player:inform_current($event:mk_info(player, content):with_audience('utility));
+      return;
+    elseif (cmd == "endpoint")
+      length(parts) < 2 && raise(E_INVARG, "Usage: @llm-config endpoint <url>");
+      new_endpoint = parts[2..$]:join(" ");
+      !new_endpoint:starts_with("http") && raise(E_INVARG, "Endpoint must be a valid URL");
+      old_endpoint = $llm_client.api_endpoint;
+      $llm_client.api_endpoint = new_endpoint;
+      player:inform_current($event:mk_info(player, "LLM endpoint changed from " + old_endpoint + " to " + new_endpoint));
+    elseif (cmd == "model")
+      length(parts) < 2 && raise(E_INVARG, "Usage: @llm-config model <name>");
+      new_model = parts[2..$]:join(" ");
+      old_model = $llm_client.model;
+      $llm_client.model = new_model;
+      player:inform_current($event:mk_info(player, "LLM model changed from " + old_model + " to " + new_model));
+    elseif (cmd == "key")
+      "Prompt for key securely";
+      metadata = {{"input_type", "password"}, {"prompt", "Enter API key:"}};
+      new_key = player:read_with_prompt(metadata);
+      if (!new_key || new_key == "")
+        player:inform_current($event:mk_error(player, "API key not changed."));
+        return;
+      endif
+      $llm_client:set_api_key(new_key);
+      player:inform_current($event:mk_info(player, "LLM API key has been set."));
+    else
+      raise(E_INVARG, "Unknown subcommand. Use: endpoint, model, or key");
+    endif
+  endverb
+
+  verb "@llm-reset-agents" (none none none) owner: ARCH_WIZARD flags: "rd"
+    "Reconfigure all LLM agents to pick up new client configuration";
+    this:_challenge_command_perms();
+    "Find all objects with agents that need reconfiguring";
+    "1. Wearable instances (descendants of data_visor, architects_compass)";
+    wearables = {};
+    for proto in ({$data_visor, $architects_compass})
+      for o in (descendants(proto))
+        valid(o) && (wearables = {@wearables, o});
+      endfor
+    endfor
+    "2. Room observer instances (descendants of llm_room_observer, including mr_welcome)";
+    observers = {};
+    for o in (descendants($llm_room_observer))
+      valid(o) && (observers = {@observers, o});
+    endfor
+    total = length(wearables) + length(observers);
+    if (total == 0)
+      player:inform_current($event:mk_info(player, "No LLM agent instances found to reconfigure."));
+      return;
+    endif
+    "Confirm before proceeding";
+    question = "Reconfigure " + tostr(length(wearables)) + " wearable(s) and " + tostr(length(observers)) + " observer(s)?";
+    metadata = {{"input_type", "yes_no"}, {"prompt", question}};
+    response = player:read_with_prompt(metadata);
+    if (response != "yes")
+      player:inform_current($event:mk_error(player, "Reconfiguration cancelled."));
+      return;
+    endif
+    "Reconfigure all wearables";
+    wearable_count = 0;
+    for wearable in (wearables)
+      try
+        wearable:reconfigure();
+        wearable_count = wearable_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(wearable) + ": " + toliteral(e)));
+      endtry
+    endfor
+    "Reconfigure all observers";
+    observer_count = 0;
+    for observer in (observers)
+      try
+        observer:reconfigure();
+        observer_count = observer_count + 1;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(observer) + ": " + toliteral(e)));
+      endtry
+    endfor
+    "Report results";
+    player:inform_current($event:mk_info(player, "Reconfigured " + tostr(wearable_count) + " wearable(s) and " + tostr(observer_count) + " observer(s)."));
   endverb
 
   verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
