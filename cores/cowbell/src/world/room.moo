@@ -189,10 +189,10 @@ object ROOM
     area = this.location;
     !valid(area) && return false;
     !respond_to(area, 'find_passage_by_direction) && return false;
-    passage = `area:find_passage_by_direction(this, direction) ! ANY => $nothing';
-    !valid(passage) && return false;
+    passage = `area:find_passage_by_direction(this, direction) ! ANY => false';
+    !passage && return false;
     "Traverse the passage";
-    return `passage:traverse(who) ! ANY => false';
+    return `passage:travel_from(who, this, []) ! ANY => false';
   endverb
 
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"

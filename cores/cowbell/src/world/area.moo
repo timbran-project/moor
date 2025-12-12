@@ -131,7 +131,8 @@ object AREA
 
   verb rooms_from (this none this) owner: HACKER flags: "rxd"
     "Find all rooms transitively reachable from the starting room.";
-    {start_room} = args;
+    "Optional second arg: only_open (default true) - skip closed passages.";
+    {start_room, ?only_open = true} = args;
     typeof(start_room) == OBJ || raise(E_TYPE);
     if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
       return {start_room};
@@ -145,6 +146,10 @@ object AREA
       results = this.passages_rel:query({current, $dvar:mk_dest(), $dvar:mk_passage()});
       for binding in (results)
         dest = binding['dest];
+        passage = binding['passage];
+        if (only_open && !`passage.is_open ! ANY => true')
+          continue;
+        endif
         if (!maphaskey(visited, dest))
           visited[dest] = true;
           frontier = {@frontier, dest};
@@ -154,6 +159,10 @@ object AREA
       results = this.passages_rel:query({$dvar:mk_src(), current, $dvar:mk_passage()});
       for binding in (results)
         src = binding['src];
+        passage = binding['passage];
+        if (only_open && !`passage.is_open ! ANY => true')
+          continue;
+        endif
         if (!maphaskey(visited, src))
           visited[src] = true;
           frontier = {@frontier, src};
@@ -165,16 +174,18 @@ object AREA
 
   verb connected (this none this) owner: HACKER flags: "rxd"
     "Check if two rooms are transitively connected via passages.";
-    {room_a, room_b} = args;
+    "Optional third arg: only_open (default true) - skip closed passages.";
+    {room_a, room_b, ?only_open = true} = args;
     typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
-    reachable = this:rooms_from(room_a);
+    reachable = this:rooms_from(room_a, only_open);
     return room_b in reachable;
   endverb
 
   verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
-    {start_room, goal_room} = args;
+    "Optional third arg: only_open (default true) - skip closed passages.";
+    {start_room, goal_room, ?only_open = true} = args;
     typeof(start_room) == OBJ && typeof(goal_room) == OBJ || raise(E_TYPE);
     if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
       return start_room == goal_room ? {{start_room, false}} | false;
@@ -191,6 +202,9 @@ object AREA
       for binding in (results)
         next = binding['next];
         passage = binding['passage];
+        if (only_open && !`passage.is_open ! ANY => true')
+          continue;
+        endif
         if (next == goal_room)
           return {@path, {current, passage}, {goal_room, false}};
         endif
@@ -204,6 +218,9 @@ object AREA
       for binding in (results)
         next = binding['next];
         passage = binding['passage];
+        if (only_open && !`passage.is_open ! ANY => true')
+          continue;
+        endif
         if (next == goal_room)
           return {@path, {current, passage}, {goal_room, false}};
         endif
@@ -377,70 +394,102 @@ object AREA
 
   verb test_connectivity (this none this) owner: HACKER flags: "rxd"
     "Test connectivity checking between rooms";
-    area = create($area);
-    "Create three rooms in a chain: 1 <-> 2 <-> 3";
-    passage1 = <$passage, .side_a_room = #1, .side_b_room = #2, .is_open = true>;
-    passage2 = <$passage, .side_a_room = #2, .side_b_room = #3, .is_open = true>;
-    area:set_passage(#1, #2, passage1);
-    area:set_passage(#2, #3, passage2);
-    "#1 and #2 are directly connected";
-    !area:connected(#1, #2) && raise(E_ASSERT, "#1 and #2 should be connected");
-    "#1 and #3 are transitively connected";
-    !area:connected(#1, #3) && raise(E_ASSERT, "#1 and #3 should be transitively connected");
-    "#3 and #1 are connected (bidirectional)";
-    !area:connected(#3, #1) && raise(E_ASSERT, "#3 and #1 should be connected");
-    "#4 is not connected";
-    area:connected(#1, #4) && raise(E_ASSERT, "#4 should not be connected");
-    area:destroy();
+    area = $area:create(true);
+    r1 = $room:create(true);
+    r2 = $room:create(true);
+    r3 = $room:create(true);
+    r4 = $room:create(true);
+    "Create three rooms in a chain: r1 <-> r2 <-> r3";
+    passage1 = <$passage, .side_a_room = r1, .side_b_room = r2, .is_open = true>;
+    passage2 = <$passage, .side_a_room = r2, .side_b_room = r3, .is_open = true>;
+    area:set_passage(r1, r2, passage1);
+    area:set_passage(r2, r3, passage2);
+    "r1 and r2 are directly connected";
+    !area:connected(r1, r2) && raise(E_ASSERT, "r1 and r2 should be connected");
+    "r1 and r3 are transitively connected";
+    !area:connected(r1, r3) && raise(E_ASSERT, "r1 and r3 should be transitively connected");
+    "r3 and r1 are connected (bidirectional)";
+    !area:connected(r3, r1) && raise(E_ASSERT, "r3 and r1 should be connected");
+    "r4 is not connected";
+    area:connected(r1, r4) && raise(E_ASSERT, "r4 should not be connected");
   endverb
 
   verb test_rooms_from (this none this) owner: HACKER flags: "rxd"
     "Test finding all reachable rooms";
-    area = create($area);
+    area = $area:create(true);
+    r1 = $room:create(true);
+    r2 = $room:create(true);
+    r3 = $room:create(true);
+    r4 = $room:create(true);
     "Create a small network";
-    area:set_passage(#1, #2, <$passage, .is_open = true>);
-    area:set_passage(#2, #3, <$passage, .is_open = true>);
-    area:set_passage(#1, #4, <$passage, .is_open = true>);
-    reachable = area:rooms_from(#1);
-    length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from #1");
-    #1 in reachable || raise(E_ASSERT, "Should include starting room");
-    #2 in reachable || raise(E_ASSERT, "Should reach #2");
-    #3 in reachable || raise(E_ASSERT, "Should reach #3");
-    #4 in reachable || raise(E_ASSERT, "Should reach #4");
-    "From #3 should reach all via bidirectional edges";
-    reachable = area:rooms_from(#3);
-    length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from #3");
-    area:destroy();
+    area:set_passage(r1, r2, <$passage, .side_a_room = r1, .side_b_room = r2, .is_open = true>);
+    area:set_passage(r2, r3, <$passage, .side_a_room = r2, .side_b_room = r3, .is_open = true>);
+    area:set_passage(r1, r4, <$passage, .side_a_room = r1, .side_b_room = r4, .is_open = true>);
+    reachable = area:rooms_from(r1);
+    length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from r1");
+    r1 in reachable || raise(E_ASSERT, "Should include starting room");
+    r2 in reachable || raise(E_ASSERT, "Should reach r2");
+    r3 in reachable || raise(E_ASSERT, "Should reach r3");
+    r4 in reachable || raise(E_ASSERT, "Should reach r4");
+    "From r3 should reach all via bidirectional edges";
+    reachable = area:rooms_from(r3);
+    length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from r3");
   endverb
 
   verb test_find_path (this none this) owner: HACKER flags: "rxd"
     "Test pathfinding between rooms";
-    area = create($area);
-    p1 = <$passage, .is_open = true>;
-    p2 = <$passage, .is_open = true>;
-    "Create chain: 1 <-> 2 <-> 3";
-    area:set_passage(#1, #2, p1);
-    area:set_passage(#2, #3, p2);
+    area = $area:create(true);
+    r1 = $room:create(true);
+    r2 = $room:create(true);
+    r3 = $room:create(true);
+    r_disconnected = $room:create(true);
+    p1 = <$passage, .side_a_room = r1, .side_b_room = r2, .is_open = true>;
+    p2 = <$passage, .side_a_room = r2, .side_b_room = r3, .is_open = true>;
+    "Create chain: r1 <-> r2 <-> r3";
+    area:set_passage(r1, r2, p1);
+    area:set_passage(r2, r3, p2);
     "Direct path";
-    path = area:find_path(#1, #2);
-    path || raise(E_ASSERT, "Should find path from #1 to #2");
+    path = area:find_path(r1, r2);
+    path || raise(E_ASSERT, "Should find path from r1 to r2");
     length(path) != 2 && raise(E_ASSERT, "Path length should be 2");
-    path[1][1] != #1 && raise(E_ASSERT, "Path should start at #1");
-    path[2][1] != #2 && raise(E_ASSERT, "Path should end at #2");
+    path[1][1] != r1 && raise(E_ASSERT, "Path should start at r1");
+    path[2][1] != r2 && raise(E_ASSERT, "Path should end at r2");
     "Multi-hop path";
-    path = area:find_path(#1, #3);
-    path || raise(E_ASSERT, "Should find path from #1 to #3");
+    path = area:find_path(r1, r3);
+    path || raise(E_ASSERT, "Should find path from r1 to r3");
     length(path) != 3 && raise(E_ASSERT, "Path should have 3 nodes");
-    path[1][1] != #1 && raise(E_ASSERT, "Path should start at #1");
-    path[2][1] != #2 && raise(E_ASSERT, "Path should go through #2");
-    path[3][1] != #3 && raise(E_ASSERT, "Path should end at #3");
+    path[1][1] != r1 && raise(E_ASSERT, "Path should start at r1");
+    path[2][1] != r2 && raise(E_ASSERT, "Path should go through r2");
+    path[3][1] != r3 && raise(E_ASSERT, "Path should end at r3");
     "No path to disconnected room";
-    path = area:find_path(#1, #99);
+    path = area:find_path(r1, r_disconnected);
     path && raise(E_ASSERT, "Should not find path to disconnected room");
     "Same room";
-    path = area:find_path(#1, #1);
+    path = area:find_path(r1, r1);
     path || raise(E_ASSERT, "Should find path from room to itself");
     length(path) != 1 && raise(E_ASSERT, "Same-room path should have 1 node");
-    area:destroy();
+  endverb
+
+  verb test_closed_passages (this none this) owner: HACKER flags: "rxd"
+    "Test that closed passages are respected by pathfinding";
+    area = $area:create(true);
+    r1 = $room:create(true);
+    r2 = $room:create(true);
+    r3 = $room:create(true);
+    "Create chain with middle passage closed: r1 <-> r2 -X- r3";
+    area:set_passage(r1, r2, <$passage, .side_a_room = r1, .side_b_room = r2, .is_open = true>);
+    area:set_passage(r2, r3, <$passage, .side_a_room = r2, .side_b_room = r3, .is_open = false>);
+    "r1 to r3 should fail with only_open=true (default)";
+    path = area:find_path(r1, r3);
+    path && raise(E_ASSERT, "Should not find path through closed passage");
+    "r1 to r3 should succeed with only_open=false";
+    path = area:find_path(r1, r3, false);
+    path || raise(E_ASSERT, "Should find path when ignoring closed passages");
+    length(path) != 3 && raise(E_ASSERT, "Path should have 3 nodes");
+    "rooms_from should respect is_open";
+    reachable = area:rooms_from(r1);
+    length(reachable) != 2 && raise(E_ASSERT, "Should only reach 2 rooms with closed passage");
+    reachable = area:rooms_from(r1, false);
+    length(reachable) != 3 && raise(E_ASSERT, "Should reach all 3 rooms when ignoring closed");
   endverb
 endobject

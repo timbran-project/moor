@@ -239,21 +239,30 @@ object PASSAGE
   endverb
 
   verb matches_command (this none this) owner: HACKER flags: "rxd"
+    "Check if command matches this passage's label or aliases from given room.";
+    "Also handles direction abbreviations (n/north, e/east, etc).";
     {room, command} = args;
     typeof(command) == STR || return false;
-    command = command:lowercase();
-    for alias in (this:aliases_for(room))
-      if (typeof(alias) != STR)
-        continue;
+    "Build list of commands to check (original + any expanded direction)";
+    commands_to_check = {command};
+    if (maphaskey(this.direction_abbrevs, command))
+      expanded = this.direction_abbrevs[command];
+      if (expanded && !(expanded in commands_to_check))
+        commands_to_check = {@commands_to_check, expanded};
       endif
-      if (alias:lowercase() == command)
+    endif
+    "Check each command variant against aliases and label";
+    for cmd in (commands_to_check)
+      for alias in (this:aliases_for(room))
+        if (typeof(alias) == STR && alias == cmd)
+          return true;
+        endif
+      endfor
+      label = this:label_for(room);
+      if (typeof(label) == STR && label == cmd)
         return true;
       endif
     endfor
-    label = this:label_for(room);
-    if (typeof(label) == STR && label && label:lowercase() == command)
-      return true;
-    endif
     return false;
   endverb
 
@@ -269,7 +278,7 @@ object PASSAGE
     from_label = this:label_for(from_room);
     to_label = this:label_for(to_room);
     "Create movement context for message rendering";
-    move_context = this:mk_movement_context(player, from_room, to_room, from_label);
+    move_context = this:mk_movement_context(player, from_room, to_room, from_label, to_label);
     "Render and announce departure event";
     from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
     leave_msg = this:_side_lookup(from_side, 'leave_msg);
@@ -479,19 +488,20 @@ object PASSAGE
 
   verb mk_movement_context (this none this) owner: HACKER flags: "rxd"
     "Create a movement context flyweight with get_binding() support for message rendering.";
-    {actor, from_room, to_room, direction_label} = args;
+    {actor, from_room, to_room, from_direction, to_direction} = args;
     typeof(actor) == OBJ || raise(E_TYPE);
     typeof(from_room) == OBJ || raise(E_TYPE);
     typeof(to_room) == OBJ || raise(E_TYPE);
-    typeof(direction_label) == STR || raise(E_TYPE);
-    return <$passage, .actor = actor, .from_room = from_room, .to_room = to_room, .passage = this, .direction_label = direction_label>;
+    return <$passage, .actor = actor, .from_room = from_room, .to_room = to_room, .passage = this, .from_direction = from_direction, .to_direction = to_direction>;
   endverb
 
   verb get_binding (this none this) owner: HACKER flags: "rxd"
     "Implement the binding protocol for message substitution.";
     {name} = args;
     if (name == 'actor) return this.actor; endif
-    if (name == 'direction) return this.direction_label; endif
+    if (name == 'direction) return this.from_direction; endif
+    if (name == 'from_direction) return this.from_direction; endif
+    if (name == 'to_direction) return this.to_direction; endif
     if (name == 'from_room) return this.from_room; endif
     if (name == 'to_room) return this.to_room; endif
     if (name == 'passage) return this.passage; endif
