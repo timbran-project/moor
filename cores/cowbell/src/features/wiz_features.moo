@@ -9,7 +9,7 @@ object WIZ_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "wiz_features";
 
-  verb "@announce" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@announce" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Broadcast a message to all connected players.";
     this:_challenge_command_perms();
     set_task_perms(player);
