@@ -615,7 +615,20 @@ object PLAYER
       endif
       "No object match - try topic search";
       topic_result = this:find_help_topic(dobjstr);
-      if (typeof(topic_result) != INT)
+      if (typeof(topic_result) == LIST)
+        "Multiple matches - show disambiguation";
+        lines = {"Multiple help topics match '" + dobjstr + "':", ""};
+        for match in (topic_result)
+          {source, topic} = match;
+          source_name = `source.name ! ANY => tostr(source)';
+          lines = {@lines, "  " + topic.name + " (from " + source_name + ")"};
+        endfor
+        lines = {@lines, "", "Be more specific, or try 'help <source>' to see related topics."};
+        content = $format.block:mk($format.title:mk("Ambiguous Topic"), @lines);
+        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+        this:inform_current(event);
+        return;
+      elseif (typeof(topic_result) != INT)
         prose_lines = topic_result:render_prose();
         content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
         event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
@@ -819,9 +832,10 @@ object PLAYER
   endverb
 
   verb find_help_topic (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Search environment for a help topic. Returns $help flyweight or 0.";
+    "Search environment for help topics. Returns single $help flyweight, list of {source, topic} for ambiguous, or 0.";
     {topic} = args;
     env = this:help_environment();
+    matches = {};
     for o in (env)
       if (!o.r)
         continue;
@@ -831,10 +845,15 @@ object PLAYER
       endif
       result = `o:help_topics(this, topic) ! ANY => 0';
       if (typeof(result) != INT)
-        return result;
+        matches = {@matches, {o, result}};
       endif
     endfor
-    return 0;
+    "No matches";
+    length(matches) == 0 && return 0;
+    "Single match - return just the topic";
+    length(matches) == 1 && return matches[1][2];
+    "Multiple matches - return the list for disambiguation";
+    return matches;
   endverb
 
   verb _collect_help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -985,7 +1004,7 @@ object PLAYER
               all_verbs[verb_name] = entry;
             endif
           else
-            hint = this:_make_verb_hint(verb_name, dobj, prep, iobj);
+            hint = this:_make_verb_hint(definer, verb_name, dobj, prep, iobj);
             all_verbs[verb_name] = ['verb -> verb_name, 'dobj -> dobj, 'prep -> prep, 'iobj -> iobj, 'objects -> {o}, 'hint -> hint];
           endif
         endfor
@@ -1008,10 +1027,24 @@ object PLAYER
   endverb
 
   verb _make_verb_hint (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Generate a prompt hint from verb argspec.";
-    "Returns just the placeholder part, e.g. 'to whom?' or '<what>'";
-    {verb_name, dobj, prep, iobj} = args;
-    "Handle simple cases first";
+    "Generate a prompt hint for a verb.";
+    "First checks for HINT: tag in verb comment, falls back to argspec-based hint.";
+    "HINT format: 'HINT: <whom> -- Description' returns '<whom> -- Description'";
+    {definer, verb_name, dobj, prep, iobj} = args;
+    "Try to get hint from verb comment";
+    code = `verb_code(definer, verb_name) ! ANY => {}';
+    if (code && length(code) > 0)
+      first_line = code[1]:trim();
+      "Check if it's a string literal (comment) starting with HINT:";
+      if (first_line:starts_with("\"HINT:"))
+        "Extract content between quotes";
+        end_quote = rindex(first_line, "\"");
+        if (end_quote > 6)
+          return first_line[7..end_quote - 1]:trim();
+        endif
+      endif
+    endif
+    "Fall back to argspec-based hint";
     if (dobj == "none" && iobj == "none")
       return "";
     endif

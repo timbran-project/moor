@@ -5,4 +5,5 @@ object ARCH_WIZARD_MAILBOX
   owner: ARCH_WIZARD
 
   override import_export_id = "arch_wizard_mailbox";
+  override import_export_hierarchy = {"initial"};
 endobject

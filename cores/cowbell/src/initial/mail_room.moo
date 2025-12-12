@@ -8,4 +8,5 @@ object MAIL_ROOM
   override aliases = {"mail room", "mailroom"};
   override description = "A quiet room lined with rows of sturdy mailboxes. Each one bears a small nameplate.";
   override import_export_id = "mail_room";
+  override import_export_hierarchy = {"initial"};
 endobject

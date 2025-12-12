@@ -23,13 +23,14 @@ object LLM_WEARABLE
   verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    set_task_perms(this.owner);
     "Reset auto_confirm mode on reconfigure";
     this.auto_confirm = false;
     "Create anonymous agent - GC'd when no longer referenced";
     this.agent = $llm_agent:create(true);
     "Set agent owner to tool owner so they can write to agent properties";
     this.agent.owner = this.owner;
+    "Downgrade perms after wiz-level property writes are done";
+    set_task_perms(this.owner);
     "Set model if preferred_model is configured";
     if (this.preferred_model)
       this.agent.client.model = this.preferred_model;

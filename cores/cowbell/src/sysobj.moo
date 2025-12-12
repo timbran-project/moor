@@ -31,7 +31,7 @@ object SYSOBJ
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property help (owner: HACKER, flags: "r") = HELP;
-  property help_topics (owner: ARCH_WIZARD, flags: "r") = HELP_TOPICS;
+  property help_topics (owner: ARCH_WIZARD, flags: "r") = MAILBOX;
   property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
   property henri (owner: HACKER, flags: "r") = HENRI;
   property henri_kibble_taken_msgs (owner: HACKER, flags: "r") = HENRI_KIBBLE_TAKEN_MSGS;
@@ -39,6 +39,7 @@ object SYSOBJ
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
+  property letter (owner: HACKER, flags: "r") = #72;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
@@ -47,13 +48,12 @@ object SYSOBJ
   property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
   property llm_task (owner: HACKER, flags: "r") = LLM_TASK;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
-  property letter (owner: HACKER, flags: "r") = LETTER;
   property local (owner: HACKER, flags: "r") = #-1;
   property login (owner: HACKER, flags: "r") = LOGIN;
   property look (owner: HACKER, flags: "r") = LOOK;
-  property mailbox (owner: HACKER, flags: "r") = MAILBOX;
   property mail_features (owner: HACKER, flags: "r") = MAIL_FEATURES;
   property mail_room (owner: HACKER, flags: "r") = MAIL_ROOM;
+  property mailbox (owner: HACKER, flags: "r") = MAILBOX;
   property match (owner: HACKER, flags: "r") = MATCH;
   property mr_welcome (owner: HACKER, flags: "r") = MR_WELCOME;
   property msg_bag (owner: HACKER, flags: "r") = MSG_BAG;
@@ -61,7 +61,6 @@ object SYSOBJ
   property nothing (owner: HACKER, flags: "r") = #-1;
   property obj_utils (owner: HACKER, flags: "r") = OBJ_UTILS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
-  property url_utils (owner: HACKER, flags: "r") = URL_UTILS;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property prog_features (owner: HACKER, flags: "r") = PROG_FEATURES;
@@ -86,6 +85,7 @@ object SYSOBJ
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property test_player (owner: HACKER, flags: "r") = TEST_PLAYER;
   property thing (owner: HACKER, flags: "r") = THING;
+  property url_utils (owner: HACKER, flags: "r") = URL_UTILS;
   property verb (owner: HACKER, flags: "r") = VERB;
   property wearable (owner: HACKER, flags: "r") = WEARABLE;
   property wiz_features (owner: HACKER, flags: "r") = WIZ_FEATURES;

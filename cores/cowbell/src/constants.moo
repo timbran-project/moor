@@ -39,8 +39,8 @@ define HTML = #35;
 
 // help
 define HELP_UTILS = #58;
-define HELP = #72;
-define HELP_TOPICS = #73;
+define HELP = #75;
+define HELP_TOPICS = #76;
 
 // initial
 define PROTOTYPE_BOX = #48;
@@ -51,6 +51,8 @@ define BRASS_KEY = #65;
 define KIBBLE_CUPBOARD = #66;
 define CAT_KIBBLE = #67;
 define TEST_PLAYER = #74;
+define MAIL_ROOM = #0000A3-9AECAF4AF1;
+define ARCH_WIZARD_MAILBOX = #0000FB-9AECAF7C16;
 define HENRI = #0008CA-9A95162D6A;
 define HENRI_PET_GROUCHY_MSGS = #0008CA-9A95162D6B;
 define HENRI_PET_SLEEPY_MSGS = #0008CA-9A95162D6C;
@@ -63,9 +65,6 @@ define KIBBLE_CAN_1 = #0008CA-9A95162D77;
 define KIBBLE_CAN_2 = #0008CA-9A95162D78;
 define KIBBLE_CAN_3 = #0008CA-9A95162D79;
 define COUCH = #0008CA-9A95162D7A;
-define MAIL_ROOM = #0000A3-9AECAF4AF1;
-define ARCH_WIZARD_MAILBOX = #0000FB-9AECAF7C16;
-define TEST_PLAYER_MAILBOX = #00013A-9AECAF7C17;
 
 // items
 define THING = #8;
@@ -73,8 +72,6 @@ define WEARABLE = #9;
 define CONTAINER = #10;
 define SITTABLE = #70;
 define NOTE = #71;
-define LETTER = #72;
-define MAILBOX = #73;
 
 // llm
 define LLM_CLIENT = #40;
@@ -87,6 +84,10 @@ define DATA_VISOR = #46;
 define ARCHITECTS_COMPASS = #47;
 define LLM_TASK = #61;
 define LLM_CHAT_OPTS = #68;
+
+// messaging
+define MAILBOX = #73;
+define LETTER = #77;
 
 // relations
 define RELATION = #23;

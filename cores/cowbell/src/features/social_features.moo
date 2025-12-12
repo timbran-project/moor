@@ -10,7 +10,7 @@ object SOCIAL_FEATURES
   override import_export_id = "social_features";
 
   verb nod (none any any) owner: HACKER flags: "rd"
-    "Nod at/to someone or just nod.";
+    "HINT: at <whom> -- Nod at/to someone or just nod.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -37,7 +37,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb wave (none any any) owner: HACKER flags: "rd"
-    "Wave at/to someone or just wave.";
+    "HINT: at <whom> -- Wave at/to someone or just wave.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -64,7 +64,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb bow (none any any) owner: HACKER flags: "rd"
-    "Bow to/at someone or just bow.";
+    "HINT: to <whom> -- Bow to/at someone or just bow.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -91,7 +91,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb bonk (any none none) owner: HACKER flags: "rd"
-    "Bonk someone (playfully).";
+    "HINT: <whom> -- Bonk someone playfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -122,7 +122,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb oif (any none none) owner: HACKER flags: "rd"
-    "Acknowledge a bonk to maintain cosmic balance.";
+    "HINT: -- Acknowledge a bonk to maintain cosmic balance.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -132,7 +132,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb smile (none any any) owner: HACKER flags: "rd"
-    "Smile at/to someone or just smile.";
+    "HINT: at <whom> -- Smile at/to someone or just smile.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -159,7 +159,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb frown (any none none) owner: HACKER flags: "rd"
-    "Frown, showing displeasure.";
+    "HINT: -- Frown, showing displeasure.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -169,7 +169,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb laugh (any none none) owner: HACKER flags: "rd"
-    "Laugh out loud.";
+    "HINT: -- Laugh out loud.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -179,7 +179,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb dance (any none none) owner: HACKER flags: "rd"
-    "Dance joyfully.";
+    "HINT: -- Dance joyfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -189,7 +189,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb shrug (any none none) owner: HACKER flags: "rd"
-    "Shrug your shoulders.";
+    "HINT: -- Shrug your shoulders.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -199,7 +199,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb think (any any any) owner: HACKER flags: "rd"
-    "Express a thought visibly.";
+    "HINT: <thought> -- Express a thought visibly.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -214,7 +214,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb ponder (any none none) owner: HACKER flags: "rd"
-    "Ponder thoughtfully.";
+    "HINT: -- Ponder thoughtfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -224,7 +224,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb "applaud a*pplaud clap c*lap" (any none none) owner: HACKER flags: "rd"
-    "Applaud or clap your hands.";
+    "HINT: -- Applaud or clap your hands.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -234,7 +234,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb cheer (any none none) owner: HACKER flags: "rd"
-    "Cheer enthusiastically.";
+    "HINT: -- Cheer enthusiastically.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -244,7 +244,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb sigh (any none none) owner: HACKER flags: "rd"
-    "Sigh deeply.";
+    "HINT: -- Sigh deeply.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -254,7 +254,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb yawn (any none none) owner: HACKER flags: "rd"
-    "Yawn tiredly.";
+    "HINT: -- Yawn tiredly.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -264,7 +264,7 @@ object SOCIAL_FEATURES
   endverb
 
   verb stretch (any none none) owner: HACKER flags: "rd"
-    "Stretch your body.";
+    "HINT: -- Stretch your body.";
     caller != player && return E_PERM;
     if (!valid(player.location))
       return;
@@ -323,10 +323,15 @@ object SOCIAL_FEATURES
     "Return help topics for social actions.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("socializing", "Social actions and gestures", "Express yourself with gestures and actions that others can see.\n\n`nod`, `wave`, `bow`, `smile`, `frown`, `laugh`, `dance`, `shrug`, `ponder`, `applaud`/`clap`, `cheer`, `sigh`, `yawn`, `stretch`, `bonk`, `oif`, `think`\n\nMost gestures can be directed at someone:\n\n`wave at Henri`\n`bow to Ryan`\n`bonk someone`\n\nThe `think` command shows a visible thought:\n\n`think I wonder what's for dinner` \u2192 _Ryan . o O ( I wonder what's for dinner )_\n\n**The bonk/oif balance**: When someone bonks you, tradition holds that you must say `oif` to acknowledge it. Failing to oif after being bonked is said to upset the cosmic bonk/oif balance, causing much trouble in the universe.", {"socials", "gestures", "actions"}, 'social, {"communicating", "emote"})};
+    "If asking for all topics, just return overview";
     topic == "" && return my_topics;
+    "Check if topic matches overview";
     for t in (my_topics)
       t:matches(topic) && return t;
     endfor
+    "Try to generate help from verb HINT tags";
+    verb_help = `$help_utils:verb_help_from_hint(this, topic, 'social) ! ANY => 0';
+    typeof(verb_help) != INT && return verb_help;
     return 0;
   endverb
 endobject

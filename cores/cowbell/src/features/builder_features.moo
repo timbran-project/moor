@@ -97,6 +97,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@create" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <parent> named <name> -- Create a new object.";
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr || !dobjstr || (prepstr && prepstr != "named") || !iobjstr)
@@ -145,6 +146,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@recycle @destroy" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object> -- Destroy an object permanently.";
     player.is_builder || raise(E_PERM);
     set_task_perms(caller_perms());
     if (!dobjstr)
@@ -170,7 +172,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@grant" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Grant capabilities to a player. Usage: @grant <target>.<category>(<cap1,cap2>) to <player>";
+    "HINT: <object>.<category>(<caps>) to <player> -- Grant capabilities.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -214,7 +216,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@audit @owned" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Show objects owned by a player. Usage: @audit [<player>]";
+    "HINT: [<player>] -- Show objects owned by a player.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -283,7 +285,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@build" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Create a new room. Usage: @build <name> [in <area>] [as <parent>]";
+    "HINT: <name> [in <area>] -- Create a new room.";
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr)
@@ -367,7 +369,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@dig @tunnel" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Create a passage to an existing room. Usage: @dig [oneway] <dir>[|<returndir>] to <room>";
+    "HINT: <dir> to <room> -- Create a passage to an existing room.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -442,7 +444,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@undig @remove-exit @delete-passage" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Remove a passage from the current room. Usage: @undig <direction> or @undig <room>";
+    "HINT: <direction> -- Remove a passage from the current room.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -597,7 +599,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@rename" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Rename an object. Usage: @rename <object> to <name[:aliases]>";
+    "HINT: <object> to <name> -- Rename an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -641,7 +643,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@describe" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Set object or passage description. Usage: @describe <object or direction> as <description>";
+    "HINT: <object> as <description> -- Set object description.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -686,7 +688,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@edit-description @edit-d" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Open multi-line editor for object description. Usage: @edit-description <object>";
+    "HINT: <object> -- Open multi-line editor for object description.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -785,7 +787,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@par*ent" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Show the parent of an object.";
+    "HINT: <object> -- Show the parent of an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -815,7 +817,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@chi*ldren" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Show the children and descendants of an object.";
+    "HINT: <object> -- Show the children and descendants of an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -849,7 +851,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@integrate" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Set object integrated description. Usage: @integrate <object> as <description>";
+    "HINT: <object> as <description> -- Set object integrated description.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -890,7 +892,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@move" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Move an object to a new location. Usage: @move <object> to <location>";
+    "HINT: <object> to <location> -- Move an object to a new location.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -938,9 +940,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Edit a property on an object using the presentation system.";
-    "Usage: @edit <object>.<property>";
-    "Examples: @edit player.name, @edit me.description";
+    "HINT: <object>.<property> -- Edit a property on an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -1229,8 +1229,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@mes*sages @msg" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Show all customizable message properties on an object.";
-    "Usage: @messages <object>";
+    "HINT: <object> -- Show all customizable message properties.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -1277,8 +1276,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@rules" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Show all rule properties on an object.";
-    "Usage: @rules <object>";
+    "HINT: <object> -- Show all rule properties on an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -1323,7 +1321,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@reactions" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Show all reactions on an object. Usage: @reactions <object>";
+    "HINT: <object> -- Show all reactions on an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -1512,7 +1510,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@par*ents" (any none none) owner: ARCH_WIZARD flags: "rxd"
-    "Show the parent chain of an object.";
+    "HINT: <object> -- Show the parent chain of an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -1542,7 +1540,7 @@ object BUILDER_FEATURES
   endverb
 
   verb "@set-thumbnail @thumbnail" (any none none) owner: ARCH_WIZARD flags: "rd"
-    "Set a thumbnail image for an object. Usage: @set-thumbnail <object>";
+    "HINT: <object> -- Set a thumbnail image for an object.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
@@ -1573,5 +1571,20 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for builder commands.";
+    {for_player, ?topic = ""} = args;
+    "Main overview topic";
+    overview = $help:mk("building", "Builder commands", "Commands for creating and organizing the world:\n\n`@create`, `@recycle`, `@dig`, `@undig`, `@rename`, `@describe`, `@edit-description`, `@parent`, `@children`, `@integrate`, `@move`, `@messages`, `@rules`, `@reactions`, `@parents`, `@set-thumbnail`, `@grant`, `@audit`, `@build`\n\nUse `help <command>` for details on each command.", {"build", "create", "world"}, 'building, {"programming"});
+    "If asking for all topics, just return overview";
+    topic == "" && return {overview};
+    "Check if topic matches overview";
+    overview:matches(topic) && return overview;
+    "Try to generate help from verb HINT tags";
+    verb_help = `$help_utils:verb_help_from_hint(this, topic, 'building) ! ANY => 0';
+    typeof(verb_help) != INT && return verb_help;
+    return 0;
   endverb
 endobject

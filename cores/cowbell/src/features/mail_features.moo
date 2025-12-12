@@ -7,9 +7,10 @@ object MAIL_FEATURES
 
   override description = "Provides mail commands (mail, send, compose) for players.";
   override import_export_id = "mail_features";
+  override import_export_hierarchy = {"features"};
 
   verb mail (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Check your mailbox for letters. Creates one if you don't have one.";
+    "HINT: -- Check your mailbox for letters.";
     mailbox = player:find_mailbox();
     if (!valid(mailbox))
       "Create mailbox in mail room";
@@ -22,8 +23,7 @@ object MAIL_FEATURES
   endverb
 
   verb compose (any any any) owner: ARCH_WIZARD flags: "rxd"
-    "Create a new letter for writing.";
-    "Usage: compose [subject] [to <player>]";
+    "HINT: [<subject>] [to <player>] -- Create a new letter for writing.";
     letter = create($letter, player);
     "Set subject if provided";
     if (dobjstr && dobjstr != "")
@@ -50,8 +50,7 @@ object MAIL_FEATURES
   endverb
 
   verb send (any any any) owner: ARCH_WIZARD flags: "rxd"
-    "Send a letter. Usage: send <letter> [to <player>]";
-    "If no recipient specified, uses letter's addressee.";
+    "HINT: <letter> [to <player>] -- Send a letter to someone.";
     if (!valid(dobj) || !isa(dobj, $letter))
       player:inform_current($event:mk_error(player, "Send what letter?"));
       return;
@@ -92,5 +91,20 @@ object MAIL_FEATURES
       event = event:with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot});
       `recipient:tell(event) ! ANY';
     endif
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for mail commands.";
+    {for_player, ?topic = ""} = args;
+    "Main overview topic";
+    overview = $help:mk("mail", "Mail commands", "Send and receive letters from other players:\n\n`mail` - Check your mailbox\n`compose` - Create a new letter\n`send` - Send a letter to someone\n\nLetters can be written on, sealed, and delivered to mailboxes.", {"letters", "mailbox"}, 'mail, {});
+    "If asking for all topics, just return overview";
+    topic == "" && return {overview};
+    "Check if topic matches overview";
+    overview:matches(topic) && return overview;
+    "Try to generate help from verb HINT tags";
+    verb_help = `$help_utils:verb_help_from_hint(this, topic, 'mail) ! ANY => 0';
+    typeof(verb_help) != INT && return verb_help;
+    return 0;
   endverb
 endobject

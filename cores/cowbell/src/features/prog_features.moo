@@ -10,6 +10,7 @@ object PROG_FEATURES
   override import_export_id = "prog_features";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <expression> -- Evaluate a MOO expression.";
     this:_challenge_command_perms();
     set_task_perms(player);
     try
@@ -45,8 +46,7 @@ object PROG_FEATURES
   endverb
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Edit a verb or property on an object using the presentation system.";
-    "Edit a verb or property";
+    "HINT: <object>:<verb> or <object>.<property> -- Edit a verb or property.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -122,8 +122,7 @@ object PROG_FEATURES
   endverb
 
   verb "@browse" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Browse an object in the object browser.";
-    "Browse a specific object";
+    "HINT: <object> -- Browse an object in the object browser.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -213,10 +212,9 @@ object PROG_FEATURES
   endverb
 
   verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object>:<verb> -- List verb code.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "List verb code with optional formatting options";
-    "Usage: @list <object>:<verb> [with parentheses] [without numbers]";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB [with parentheses] [without numbers]")));
       return;
@@ -288,10 +286,9 @@ object PROG_FEATURES
   endverb
 
   verb "@verb" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object>:<verb-names> -- Add a new verb to an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Add a new verb to an object";
-    "Usage: @verb object:verb-name(s) [dobj [prep [iobj [permissions [owner]]]]]";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME(S) [DOBJ [PREP [IOBJ [PERMISSIONS [OWNER]]]]]")));
       return;
@@ -368,10 +365,9 @@ object PROG_FEATURES
   endverb
 
   verb "@rmverb" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object>:<verb> -- Remove a verb from an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Remove a verb from an object";
-    "Usage: @rmverb object:verb-name";
     if (!argstr)
       player:inform_current($event:mk_error(player, "Usage: " + verb + " object:verb-name"));
       return;
@@ -415,10 +411,9 @@ object PROG_FEATURES
   endverb
 
   verb "@verbs" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object> -- List all verbs on an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "List all verbs on an object";
-    "Usage: @verbs <object>";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT")));
       return;
@@ -450,10 +445,9 @@ object PROG_FEATURES
   endverb
 
   verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object> -- List all properties on an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "List all properties on an object";
-    "Usage: @properties <object>";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT")));
       return;
@@ -478,8 +472,7 @@ object PROG_FEATURES
   endverb
 
   verb "@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Add a property to an object";
-    "Usage: @property OBJECT.PROP-NAME [VALUE [PERMS [OWNER]]]";
+    "HINT: <object>.<property> -- Add a property to an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -563,8 +556,7 @@ object PROG_FEATURES
   endverb
 
   verb "@rmprop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Remove a property from an object";
-    "Usage: @rmproperty OBJECT.PROP-NAME";
+    "HINT: <object>.<property> -- Remove a property from an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -602,10 +594,9 @@ object PROG_FEATURES
   endverb
 
   verb "@args" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "HINT: <object>:<verb> -- Show or change verb argument specifications.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Show or change verb argument specifications";
-    "Usage: @args object:verb-name [dobj [prep [iobj]]]";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME [DOBJ [PREP [IOBJ]]]")));
       return;
@@ -678,8 +669,7 @@ object PROG_FEATURES
   endverb
 
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Display detailed object/property/verb information";
-    "Usage: @display <object>[.|,|:|;][property/verb]";
+    "HINT: <object> -- Display detailed object information.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -796,8 +786,12 @@ object PROG_FEATURES
             continue;
           endif
           seen = {@seen, prop_name};
-          metadata = $prog_utils:get_property_metadata(current, prop_name);
-          prop_value = metadata:is_clear() ? "(clear)" | toliteral(this:_do_get_property_value(current, prop_name));
+          "Skip properties we can't access";
+          metadata = `$prog_utils:get_property_metadata(current, prop_name) ! E_PERM => 0';
+          if (!metadata)
+            continue;
+          endif
+          prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(current, prop_name) ! E_PERM => "(no access)"');
           if (length(prop_value) > 50)
             prop_value = prop_value[1..47] + "...";
           endif
@@ -810,8 +804,12 @@ object PROG_FEATURES
       "Just properties on this object";
       props = this:_do_get_properties(target_obj);
       for prop_name in (props)
-        metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
-        prop_value = metadata:is_clear() ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
+        "Skip properties we can't access";
+        metadata = `$prog_utils:get_property_metadata(target_obj, prop_name) ! E_PERM => 0';
+        if (!metadata)
+          continue;
+        endif
+        prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(target_obj, prop_name) ! E_PERM => "(no access)"');
         if (length(prop_value) > 50)
           prop_value = prop_value[1..47] + "...";
         endif
@@ -920,10 +918,7 @@ object PROG_FEATURES
   endverb
 
   verb "@chmod" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Show or change permissions on objects, properties, or verbs";
-    "Usage: @chmod <object> [perms] - show/change object read/write flags";
-    "Usage: @chmod <object>.<prop> [perms] - show/change property r/w/c flags";
-    "Usage: @chmod <object>:<verb> [perms] - show/change verb r/w/x/d flags";
+    "HINT: <target> [<perms>] -- Show or change permissions.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -1116,8 +1111,7 @@ object PROG_FEATURES
   endverb
 
   verb "@grep" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Search verb code across objects for a text pattern";
-    "Usage: @grep <pattern> [object]";
+    "HINT: <pattern> [<object>] -- Search verb code for a pattern.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
@@ -1190,7 +1184,7 @@ object PROG_FEATURES
   endverb
 
   verb "@codep*aste" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Paste MOO code with syntax highlighting to the room";
+    "HINT: -- Paste MOO code with syntax highlighting to the room.";
     this:_challenge_command_perms();
     if (!valid(player.location))
       return;
@@ -1212,8 +1206,7 @@ object PROG_FEATURES
   endverb
 
   verb "@doc*umentation" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Display developer documentation for objects, verbs, or properties.";
-    "Usage: @doc OBJECT, @doc OBJECT:VERB, or @doc OBJECT.PROPERTY";
+    "HINT: <object> -- Display developer documentation.";
     "this:_challenge_command_perms();\n    set_task_perms(player);";
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk("@doc OBJECT\n@doc OBJECT:VERB\n@doc OBJECT.PROPERTY")));
@@ -1354,5 +1347,20 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for programmer commands.";
+    {for_player, ?topic = ""} = args;
+    "Main overview topic";
+    overview = $help:mk("programming", "Programmer commands", "Commands for examining and modifying code:\n\n`@list`, `@verb`, `@rmverb`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nUse `help <command>` for details on each command.", {"prog", "code", "verbs"}, 'programming, {"building"});
+    "If asking for all topics, just return overview";
+    topic == "" && return {overview};
+    "Check if topic matches overview";
+    overview:matches(topic) && return overview;
+    "Try to generate help from verb HINT tags";
+    verb_help = `$help_utils:verb_help_from_hint(this, topic, 'programming) ! ANY => 0';
+    typeof(verb_help) != INT && return verb_help;
+    return 0;
   endverb
 endobject

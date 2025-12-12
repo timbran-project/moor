@@ -10,6 +10,8 @@ object MAILBOX
   override description = "A sturdy mailbox for receiving letters.";
   override import_export_id = "mailbox";
   override object_documentation = "A mailbox holds letters for its owner. Anyone can deposit letters, but only the owner can view or take them.";
+  override import_export_hierarchy = {"messaging"};
+  override import_export_id = "mailbox";
 
   verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if an object can be deposited. Only letters are accepted.";

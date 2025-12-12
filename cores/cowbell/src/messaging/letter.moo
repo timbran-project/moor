@@ -11,9 +11,10 @@ object LETTER
   property read_at (owner: TEST_PLAYER, flags: "rc") = 0;
   property sealed (owner: TEST_PLAYER, flags: "rc") = 0;
   property sent_at (owner: TEST_PLAYER, flags: "rc") = 0;
-
   override aliases = {"letter"};
   override object_documentation = "A letter is a note with communication metadata: author, addressee, timestamps, and sealing. When sealed, only the addressee can read it.";
+  override import_export_hierarchy = {"messaging"};
+  override import_export_id = "letter";
 
   verb can_read (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if accessor can read this letter. Sealed letters are addressee-only.";

@@ -167,4 +167,36 @@ object HELP_UTILS
     return $format.block:mk(@content);
   endverb
 
+  verb verb_help_from_hint (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Extract help topic from a verb's HINT tag.";
+    "Args: (definer, verb_name, ?category) -> $help flyweight or 0";
+    {definer, verb_name, ?category = 'command} = args;
+    code = `verb_code(definer, verb_name) ! ANY => {}';
+    if (!code || length(code) == 0)
+      return 0;
+    endif
+    first_line = code[1]:trim();
+    "Check if it's a string literal starting with HINT:";
+    if (!first_line:starts_with("\"HINT:"))
+      return 0;
+    endif
+    "Extract content between quotes";
+    end_quote = rindex(first_line, "\"");
+    if (end_quote <= 6)
+      return 0;
+    endif
+    hint_content = first_line[7..end_quote - 1]:trim();
+    "Parse hint: '<usage> -- <description>' or just '<description>'";
+    dash_pos = index(hint_content, " -- ");
+    if (dash_pos > 0)
+      usage = hint_content[1..dash_pos - 1]:trim();
+      description = hint_content[dash_pos + 4..$]:trim();
+      content = "Usage: `" + verb_name + " " + usage + "`";
+    else
+      description = hint_content;
+      content = "";
+    endif
+    return $help:mk(verb_name, description, content, {}, category, {});
+  endverb
+
 endobject
