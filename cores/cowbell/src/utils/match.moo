@@ -54,8 +54,13 @@ object MATCH
   verb match_player (this none this) owner: HACKER flags: "rxd"
     "Match player by name using complex_match builtin.";
     {player_name, ?context = player} = args;
-    players = players();
-    result = complex_match(player_name, players);
+    "Handle 'me'/'myself' as special case";
+    if (player_name in {"me", "myself"})
+      valid(context) && is_player(context) && return context;
+      raise(E_INVARG, "No player context for 'me'");
+    endif
+    all_players = players();
+    result = complex_match(player_name, all_players);
     result == $failed_match && raise(E_INVARG, "No player found matching '" + player_name + "'");
     return result;
   endverb

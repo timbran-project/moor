@@ -88,6 +88,7 @@ define LLM_CHAT_OPTS = #68;
 // messaging
 define MAILBOX = #73;
 define LETTER = #77;
+define DM = #78;
 
 // relations
 define RELATION = #23;

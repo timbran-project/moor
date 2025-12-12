@@ -7,12 +7,14 @@ object PLAYER
 
   property admin_features (owner: ARCH_WIZARD, flags: "") = #-1;
   property authoring_features (owner: ARCH_WIZARD, flags: "") = #-1;
+  property direct_messages (owner: ARCH_WIZARD, flags: "c") = {};
   property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
   property email_address (owner: ARCH_WIZARD, flags: "") = "c";
   property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES, MAIL_FEATURES};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
+  property last_dm_from (owner: ARCH_WIZARD, flags: "c") = #-1;
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
@@ -389,7 +391,15 @@ object PLAYER
   endverb
 
   verb confunc (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called when player connects. Check for unread mail.";
+    "Called when player connects. Check for DMs and unread mail.";
+    "Check for DMs";
+    dm_count = length(this.direct_messages);
+    if (dm_count > 0)
+      msg = dm_count == 1 ? "*You have a direct message.* Type `dms` to read it." | tostr("*You have ", dm_count, " direct messages.* Type `dms` to read them.");
+      event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('dm_notify);
+      this:inform_current(event);
+    endif
+    "Check for unread mail";
     mailbox = `this:find_mailbox() ! ANY => #-1';
     !valid(mailbox) && return;
     unread = mailbox:unread_count();
@@ -1063,5 +1073,213 @@ object PLAYER
       parts = {@parts, "..."};
     endif
     return parts:join(" ");
+  endverb
+
+  verb "dm pm tell page" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Send a direct message to another player.";
+    "Usage: dm <player> <message>";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    if (!args || length(args) < 1)
+      return this:inform_current($event:mk_error(this, "Usage: " + verb + " <player> <message>"):with_audience('utility));
+    endif
+    "First arg is player name, rest is message";
+    target_name = args[1];
+    if (length(args) < 2)
+      return this:inform_current($event:mk_error(this, "What do you want to say?"):with_audience('utility));
+    endif
+    message = args[2..$]:join(" ");
+    "Match target player";
+    try
+      target = $match:match_player(target_name);
+    except e (E_INVARG)
+      return this:inform_current($event:mk_error(this, "I don't know who '" + target_name + "' is."):with_audience('utility));
+    endtry
+    if (target == this)
+      return this:inform_current($event:mk_error(this, "Talking to yourself?"):with_audience('utility));
+    endif
+    "Create and deliver the DM";
+    dm_obj = $dm:mk(this, target, message);
+    result = target:receive_dm(dm_obj);
+    "Echo to sender";
+    loc_str = valid(this.location) ? " (in " + this.location.name + ")" | "";
+    echo = "You" + loc_str + " -> " + target.name + ": " + message;
+    group = tosym("dm_" + $url_utils:to_curie_str(target));
+    event = $event:mk_dm(this, echo):with_audience('utility):with_presentation_hint('inset):with_group(group);
+    event = event:with_metadata('dm_to, target);
+    event = event:with_metadata('dm_location, this.location);
+    event = event:with_metadata('dm_content, message);
+    event = event:with_metadata('dm_timestamp, dm_obj.sent);
+    this:inform_current(event);
+  endverb
+
+  verb receive_dm (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Receive a direct message from another player.";
+    "Stores in direct_messages buffer and notifies if online.";
+    caller_perms().wizard || caller_perms() == args[1].from || raise(E_PERM);
+    {dm_obj} = args;
+    "Add to buffer, keeping last 100";
+    buffer = this.direct_messages;
+    buffer = {@buffer, dm_obj};
+    if (length(buffer) > 100)
+      buffer = buffer[length(buffer) - 99..$];
+    endif
+    this.direct_messages = buffer;
+    "Track last sender for reply";
+    this.last_dm_from = dm_obj.from;
+    "Notify if online";
+    display = dm_obj:display(this);
+    group = tosym("dm_" + $url_utils:to_curie_str(dm_obj.from));
+    event = $event:mk_dm(this, display):with_presentation_hint('inset):with_group(group);
+    event = event:with_metadata('dm_from, dm_obj.from);
+    event = event:with_metadata('dm_location, dm_obj.location);
+    event = event:with_metadata('dm_content, dm_obj.text);
+    event = event:with_metadata('dm_timestamp, dm_obj.sent);
+    this:tell(event);
+    return true;
+  endverb
+
+  verb reply (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Reply to the last person who DM'd you.";
+    "Usage: reply <message>";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    if (!valid(this.last_dm_from))
+      return this:inform_current($event:mk_error(this, "No one to reply to."):with_audience('utility));
+    endif
+    if (!args || length(args) < 1)
+      return this:inform_current($event:mk_error(this, "Reply with what?"):with_audience('utility));
+    endif
+    message = args:join(" ");
+    target = this.last_dm_from;
+    "Create and deliver the DM";
+    dm_obj = $dm:mk(this, target, message);
+    result = target:receive_dm(dm_obj);
+    "Echo to sender";
+    loc_str = valid(this.location) ? " (in " + this.location.name + ")" | "";
+    echo = "You" + loc_str + " -> " + target.name + ": " + message;
+    group = tosym("dm_" + $url_utils:to_curie_str(target));
+    event = $event:mk_dm(this, echo):with_audience('utility):with_presentation_hint('inset):with_group(group);
+    event = event:with_metadata('dm_to, target);
+    event = event:with_metadata('dm_location, this.location);
+    event = event:with_metadata('dm_content, message);
+    event = event:with_metadata('dm_timestamp, dm_obj.sent);
+    this:inform_current(event);
+  endverb
+
+  verb "dms messages msgs mail" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show all messages (DMs and mail) in unified view.";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    "Ensure mailbox exists";
+    mailbox = this:find_mailbox();
+    if (!valid(mailbox))
+      mailbox = create($mailbox, this);
+      mailbox.name = this.name + "'s mailbox";
+      move(mailbox, $mail_room);
+    endif
+    messages = this:all_messages();
+    if (!messages || length(messages) == 0)
+      return this:inform_current($event:mk_info(this, "No messages."):with_audience('utility):with_group('messages));
+    endif
+    "Build table";
+    headers = {"#", "Type", "From", "Subject", "When"};
+    rows = {};
+    idx = 1;
+    for msg in (messages)
+      if (typeof(msg) == FLYWEIGHT)
+        "DM flyweight - show full text";
+        msg_type = "DM";
+        from_name = valid(msg.from) ? msg.from.name | "???";
+        preview = msg.text;
+        age = time() - msg.sent;
+        when = age < 60 ? "now" | age:format_time_seconds();
+      else
+        "Letter object";
+        msg_type = msg.read_at == 0 ? "letter*" | "letter";
+        from_name = valid(msg.author) ? msg.author.name | "???";
+        preview = msg.name != "letter" ? msg.name | "(no subject)";
+        age = time() - msg.sent_at;
+        when = age < 60 ? "now" | age:format_time_seconds();
+      endif
+      rows = {@rows, {tostr(idx), msg_type, from_name, preview, when}};
+      idx = idx + 1;
+    endfor
+    "Count unread";
+    unread = 0;
+    for msg in (messages)
+      if (typeof(msg) != FLYWEIGHT && msg.read_at == 0)
+        unread = unread + 1;
+      endif
+    endfor
+    summary = tostr(length(messages), " message", length(messages) == 1 ? "" | "s");
+    if (unread > 0)
+      summary = summary + tostr(" (", unread, " unread)");
+    endif
+    title = $format.title:mk("Messages: " + summary);
+    parts = {title, $format.table:mk(headers, rows), "", "To read: message <#>"};
+    content = $format.block:mk(@parts);
+    this:inform_current($event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('messages));
+  endverb
+
+  verb all_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return unified list of all messages (DMs and letters), sorted by time.";
+    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
+    msgs = {};
+    "Add DMs with their timestamps";
+    for dm_obj in (this.direct_messages)
+      t = dm_obj.sent;
+      msgs = {@msgs, {t, dm_obj}};
+    endfor
+    "Add letters from mailbox";
+    mailbox = `this:find_mailbox() ! ANY => #-1';
+    if (valid(mailbox))
+      for letter in (mailbox.contents)
+        if (isa(letter, $letter))
+          t = letter.sent_at;
+          msgs = {@msgs, {t, letter}};
+        endif
+      endfor
+    endif
+    "Sort by timestamp (newest first) using simple insertion sort";
+    sorted = {};
+    for item in (msgs)
+      {t, msg} = item;
+      inserted = false;
+      for i in [1..length(sorted)]
+        if (t > sorted[i][1])
+          sorted = {@sorted[1..i - 1], item, @sorted[i..$]};
+          inserted = true;
+          break;
+        endif
+      endfor
+      !inserted && (sorted = {@sorted, item});
+    endfor
+    "Extract just the messages";
+    return { m[2] for m in (sorted) };
+  endverb
+
+  verb message (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Read a specific message by number.";
+    "Usage: message <#>";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    if (!dobjstr || !dobjstr:is_numeric())
+      return this:inform_current($event:mk_error(this, "Usage: message <#>"):with_audience('utility));
+    endif
+    idx = toint(dobjstr);
+    messages = this:all_messages();
+    if (idx < 1 || idx > length(messages))
+      return this:inform_current($event:mk_error(this, "No message #" + tostr(idx) + "."):with_audience('utility));
+    endif
+    msg = messages[idx];
+    if (typeof(msg) == FLYWEIGHT)
+      "DM - display it";
+      display = msg:display(this);
+      this:inform_current($event:mk_info(this, display):with_audience('utility):with_presentation_hint('inset):with_group('messages));
+    else
+      "Letter";
+      msg:action_read(this, []);
+    endif
   endverb
 endobject

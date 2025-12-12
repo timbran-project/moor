@@ -19,6 +19,7 @@ object SYSOBJ
   property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.0.2";
   property couch (owner: HACKER, flags: "r") = COUCH;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
+  property dm (owner: HACKER, flags: "r") = DM;
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
   property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
@@ -31,7 +32,7 @@ object SYSOBJ
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property help (owner: HACKER, flags: "r") = HELP;
-  property help_topics (owner: ARCH_WIZARD, flags: "r") = MAILBOX;
+  property help_topics (owner: ARCH_WIZARD, flags: "r") = HELP_TOPICS;
   property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
   property henri (owner: HACKER, flags: "r") = HENRI;
   property henri_kibble_taken_msgs (owner: HACKER, flags: "r") = HENRI_KIBBLE_TAKEN_MSGS;
@@ -39,7 +40,7 @@ object SYSOBJ
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
-  property letter (owner: HACKER, flags: "r") = #72;
+  property letter (owner: HACKER, flags: "r") = LETTER;
   property list_proto (owner: HACKER, flags: "r") = LIST_PROTO;
   property llm_agent (owner: HACKER, flags: "r") = LLM_AGENT;
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
@@ -166,6 +167,16 @@ object SYSOBJ
     "Just choose to ignore empty commands...";
     length(args) == 0 && return true;
     command = argstr;
+    "Handle 'player message shortcut for DMs";
+    if (command && command[1] == "'")
+      rest = command[2..$]:trim();
+      if (rest && length(rest) > 0)
+        parts = rest:split(" ");
+        if (length(parts) >= 1)
+          command = "dm " + rest;
+        endif
+      endif
+    endif
     set_task_perms(player);
     env = player:match_environment(command, ['complex -> true]);
     "Run the parts that need wizard permissions";
