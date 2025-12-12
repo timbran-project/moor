@@ -77,7 +77,7 @@ object LLM_ROOM_OBSERVER
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Reconfigure by clearing old agent ref and creating fresh one";
-    caller == this || caller == this.owner || player.wizard || raise(E_PERM);
+    caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     "Clear ref - anonymous agent will be GC'd";
     this.agent = #-1;
     "Create fresh agent with current configuration";
@@ -234,7 +234,7 @@ object LLM_ROOM_OBSERVER
 
   verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Clear the agent's observation history with descriptive narrative";
-    caller == this || caller == this.owner || player.wizard || raise(E_PERM);
+    caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     !caller.location || return E_INVARG;
     if (valid(this.agent))
       this.agent:reset_context();

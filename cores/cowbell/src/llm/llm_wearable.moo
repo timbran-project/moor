@@ -442,7 +442,7 @@ object LLM_WEARABLE
 
   verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Reconfigure by clearing old agent ref and creating fresh one";
-    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     "Clear ref - anonymous agent will be GC'd";
     this.agent = #-1;
     "Create fresh agent with current configuration";
