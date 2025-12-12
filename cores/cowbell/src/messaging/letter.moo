@@ -230,7 +230,7 @@ object LETTER
     editor_title = "Edit: " + this.name;
     current_body = this.text:join("\n");
     present(player, session_id, "text/djot", "text-editor", current_body, {
-      {"object", this:to_curie_str()},
+      {"object", $url_utils:to_curie_str(this)},
       {"verb", "receive_edit"},
       {"title", editor_title},
       {"text_mode", "string"},

@@ -534,20 +534,6 @@ object ROOT
     return `property_info(this, prop_name) ! ANY => false' || true;
   endverb
 
-  verb to_curie_str (this none this) owner: HACKER flags: "rxd"
-    "Convert this object reference to a CURIE string for web-host RESTful paths.";
-    "Returns strings like 'uuid:...', 'oid:...', or 'sysobj:...' depending on object type.";
-    "Usage: obj:to_curie_str()";
-    "Rejects where this is a flyweight by raising E_TYPE";
-    typeof(this) == OBJ || raise(E_TYPE);
-    obj_str = tostr(this);
-    if (is_uuobjid(this))
-      return "uuid:" + obj_str[2..$];
-    else
-      return "oid:" + obj_str[2..$];
-    endif
-  endverb
-
   verb usable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get verbs that can use this object as a target (dobj or iobj).";
     "Returns list of {verb_name, definer_object, dobj, prep, iobj} for verbs that accept 'any' or 'this'.";

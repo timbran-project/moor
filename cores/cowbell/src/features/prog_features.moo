@@ -150,7 +150,7 @@ object PROG_FEATURES
     {verb_location, verb_name} = args;
     editor_id = "edit-" + tostr(verb_location) + "-" + verb_name;
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
-    object_curie = verb_location:to_curie_str();
+    object_curie = $url_utils:to_curie_str(verb_location);
     present(player, editor_id, "text/plain", "verb-editor", "", {{"object", object_curie}, {"verb", verb_name}, {"title", editor_title}});
   endverb
 
@@ -159,7 +159,7 @@ object PROG_FEATURES
     {target_obj} = args;
     browser_id = "browse-" + tostr(target_obj);
     browser_title = "Browse " + tostr(target_obj);
-    object_curie = target_obj:to_curie_str();
+    object_curie = $url_utils:to_curie_str(target_obj);
     present(player, browser_id, "text/plain", "object-browser", "", {{"object", object_curie}, {"title", browser_title}});
   endverb
 
@@ -180,7 +180,7 @@ object PROG_FEATURES
     title = opts['title] || "";
     description = opts['description] || "";
     text_mode = opts['text_mode] || 'list;
-    object_curie = target_obj:to_curie_str();
+    object_curie = $url_utils:to_curie_str(target_obj);
     editor_id = "text-edit-" + tostr(target_obj) + "-" + verb_name;
     editor_title = title || "Edit text for " + tostr(target_obj);
     "Convert content to string for presentation";

@@ -709,7 +709,7 @@ object BUILDER_FEATURES
       session_id = player:start_edit_session(target_obj, "set_description", {conn});
       editor_title = "Edit Description: " + target_obj.name;
       present(player, session_id, "text/djot", "text-editor", current_desc, {
-        {"object", $builder_features:to_curie_str()},
+        {"object", $url_utils:to_curie_str($builder_features)},
         {"verb", "receive_description_edit"},
         {"title", editor_title},
         {"text_mode", "string"},
@@ -985,7 +985,7 @@ object BUILDER_FEATURES
     {target_obj, prop_name} = args;
     editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
     editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
-    object_curie = target_obj:to_curie_str();
+    object_curie = $url_utils:to_curie_str(target_obj);
     present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endverb
 

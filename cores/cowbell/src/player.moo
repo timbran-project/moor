@@ -904,7 +904,7 @@ object PLAYER
     session_id = `opts['session_id] ! ANY => ""';
     ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
     mode_str = text_mode == 'string ? "string" | "list";
-    attrs = {{"object", target_obj:to_curie_str()}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
+    attrs = {{"object", $url_utils:to_curie_str(target_obj)}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
     present(this, session_id, ct_str, "text-editor", initial_content, attrs);
   endverb
 

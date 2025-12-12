@@ -62,4 +62,18 @@ object URL_UTILS
     endif
     return result;
   endverb
+
+  verb to_curie_str (this none this) owner: HACKER flags: "rxd"
+    "Convert an object reference to a CURIE string for web-host RESTful paths.";
+    "Returns strings like 'uuid:...', 'oid:...' depending on object type.";
+    "Usage: $url_utils:to_curie_str(target)";
+    {target} = args;
+    typeof(target) == OBJ || raise(E_TYPE);
+    target_str = tostr(target);
+    if (is_uuobjid(target))
+      return "uuid:" + target_str[2..$];
+    else
+      return "oid:" + target_str[2..$];
+    endif
+  endverb
 endobject
