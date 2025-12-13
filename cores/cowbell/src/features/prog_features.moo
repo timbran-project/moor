@@ -16,10 +16,17 @@ object PROG_FEATURES
     try
       answer = eval("return " + argstr + ";", ['me -> player, 'here -> player.location], 1, 2);
       if (answer[1])
-        prefix = "=> ";
-        code = $format.code:mk(toliteral(answer[2]), 'moo);
-        content = $format.block:mk(prefix, code);
-        result_event = $event:mk_eval_result(player, content):with_group('eval);
+        result = answer[2];
+        "Format the result";
+        {result_type, result_content} = this:_format_eval_result(result);
+        if (result_type == 'deflist)
+          "Object result - show as definition list";
+          result_event = $event:mk_eval_result(player, result_content):with_group('eval);
+        else
+          "Simple result - show in code block with =>";
+          code = $format.code:mk("=> " + result_content, 'moo);
+          result_event = $event:mk_eval_result(player, code):with_group('eval);
+        endif
       else
         error_content = answer[2];
         error_text = error_content:join("\n");
@@ -34,6 +41,29 @@ object PROG_FEATURES
       result_event = $event:mk_eval_exception(player, $format.code:mk(traceback)):with_group('eval);
     endtry
     player:inform_current(result_event);
+  endverb
+
+  verb _format_eval_result (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format an eval result. Returns {type, content} where type is 'simple or 'deflist.";
+    "For simple values, content is a string. For objects, content is a deflist flyweight.";
+    {result} = args;
+    if (typeof(result) == OBJ)
+      "Format object as definition list";
+      obj_str = tostr(result);
+      if (valid(result))
+        name = `result.name ! ANY => "(no name)"';
+        owner = `result.owner ! ANY => #-1';
+        owner_str = valid(owner) ? owner.name + " (" + tostr(owner) + ")" | "???";
+        loc = `result.location ! ANY => #-1';
+        loc_str = valid(loc) ? loc.name + " (" + tostr(loc) + ")" | "nowhere";
+        items = {{"Object", obj_str}, {"Name", name}, {"Owner", owner_str}, {"Location", loc_str}};
+        return {'deflist, $format.deflist:mk(items)};
+      else
+        return {'simple, obj_str + " (invalid)"};
+      endif
+    endif
+    "For non-objects, just use toliteral";
+    return {'simple, toliteral(result)};
   endverb
 
   verb _do_check_verb_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
