@@ -465,7 +465,7 @@ object DATA_VISOR
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     rule = target_obj.(prop_name);
     rule == 0 && return tostr(target_obj) + "." + prop_name + " = (not set) - cannot evaluate";
-    bindings = bindings_str ? eval(bindings_str) | [];
+    bindings = bindings_str ? eval(bindings_str)[1] | [];
     typeof(bindings) == MAP || raise(E_TYPE, "Bindings must be a map");
     result = $rule_engine:evaluate(rule, bindings);
     lines = {"Evaluation of " + tostr(target_obj) + "." + prop_name + ":", "Expression: " + $rule_engine:decompile_rule(rule), "Initial bindings: " + toliteral(bindings), "Success: " + tostr(result['success])};
@@ -1105,7 +1105,7 @@ object DATA_VISOR
       endif
     endif
     "Execute code with verbosity=1 and output_mode=2 (detailed format)";
-    result = eval(code_str, 1, 2);
+    result = eval(code_str, [], 1, 2);
     if (result[1])
       "Success - show result to user and return to LLM";
       result_event = $event:mk_eval_result(wearer, "=> ", $format.code:mk(toliteral(result[2]), 'moo));

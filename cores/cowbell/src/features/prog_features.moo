@@ -14,7 +14,7 @@ object PROG_FEATURES
     this:_challenge_command_perms();
     set_task_perms(player);
     try
-      answer = eval("return " + argstr + ";", 1, 2);
+      answer = eval("return " + argstr + ";", ['me -> player, 'here -> player.location], 1, 2);
       if (answer[1])
         prefix = "=> ";
         code = $format.code:mk(toliteral(answer[2]), 'moo);
