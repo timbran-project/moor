@@ -35,6 +35,7 @@ define FORMAT_TITLE = #31;
 define FORMAT_LIST = #32;
 define FORMAT_TABLE = #33;
 define FORMAT_CODE = #34;
+define FORMAT_DEFLIST = #72;
 define HTML = #35;
 
 // help

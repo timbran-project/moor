@@ -807,7 +807,7 @@ object PROG_FEATURES
     rows = {};
     if (include_inherited)
       "Collect properties from entire inheritance chain";
-      seen = [];
+      seen = {};
       current = target_obj;
       while (valid(current))
         props = this:_do_get_properties(current);
@@ -818,7 +818,7 @@ object PROG_FEATURES
           seen = {@seen, prop_name};
           "Skip properties we can't access";
           metadata = `$prog_utils:get_property_metadata(current, prop_name) ! E_PERM => 0';
-          if (!metadata)
+          if (typeof(metadata) != FLYWEIGHT)
             continue;
           endif
           prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(current, prop_name) ! E_PERM => "(no access)"');
@@ -836,7 +836,7 @@ object PROG_FEATURES
       for prop_name in (props)
         "Skip properties we can't access";
         metadata = `$prog_utils:get_property_metadata(target_obj, prop_name) ! E_PERM => 0';
-        if (!metadata)
+        if (typeof(metadata) != FLYWEIGHT)
           continue;
         endif
         prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(target_obj, prop_name) ! E_PERM => "(no access)"');
@@ -891,7 +891,7 @@ object PROG_FEATURES
     rows = {};
     if (include_inherited)
       "Collect verbs from entire inheritance chain";
-      seen = [];
+      seen = {};
       current = target_obj;
       while (valid(current))
         verbs_metadata = $prog_utils:get_verbs_metadata(current);
@@ -929,18 +929,26 @@ object PROG_FEATURES
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj} = args;
-    "Show object header info, then all properties and verbs";
-    obj_name = target_obj.name;
-    obj_owner = target_obj.owner;
+    "Show object header info as definition list, then all properties and verbs";
+    obj_name = `target_obj.name ! ANY => "(no name)"';
+    obj_owner = `target_obj.owner ! ANY => #-1';
     obj_parent = `parent(target_obj) ! ANY => #-1';
     obj_location = `target_obj.location ! ANY => #-1';
-    info_lines = {tostr(target_obj) + " \"" + obj_name + "\"", "Owner: " + tostr(obj_owner), "Parent: " + tostr(obj_parent), "Location: " + tostr(obj_location)};
-    info_block = $format.block:mk(@info_lines);
-    player:inform_current($event:mk_info(player, info_block));
-    "Show properties";
-    this:_display_all_properties(target_obj, false);
-    "Show verbs";
-    this:_display_all_verbs(target_obj, false);
+    "Build deflist items";
+    items = {{"Object", tostr(target_obj)}};
+    items = {@items, {"Name", obj_name}};
+    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (" + tostr(obj_owner) + ")" | "???";
+    items = {@items, {"Owner", owner_str}};
+    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (" + tostr(obj_parent) + ")" | "(none)";
+    items = {@items, {"Parent", parent_str}};
+    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (" + tostr(obj_location) + ")" | "nowhere";
+    items = {@items, {"Location", loc_str}};
+    deflist = $format.deflist:mk(items);
+    player:inform_current($event:mk_info(player, deflist));
+    "Show properties (including inherited)";
+    this:_display_all_properties(target_obj, true);
+    "Show verbs (including inherited)";
+    this:_display_all_verbs(target_obj, true);
   endverb
 
   verb _challenge_command_perms (this none this) owner: HACKER flags: "rxd"
