@@ -155,8 +155,13 @@ object PROG_UTILS
     verb_args_data = verb_args(verb_obj, verb_name);
     {dobj, prep, iobj} = verb_args_data;
     "Find the index of this verb in the object's verb list";
-    verb_list = verbs(verb_obj);
-    verb_index = verb_name in verb_list;
+    try
+      verb_list = verbs(verb_obj);
+      verb_index = verb_name in verb_list;
+    except e (E_PERM)
+      "Can't list verbs due to permissions - use 0 as unknown index";
+      verb_index = 0;
+    endtry
     "Return as flyweight with $verb delegate and slots for metadata";
     return < $verb, .owner_obj = verb_obj, .location = verb_obj, .name = verb_name, .verb_owner = verb_owner, .flags = verb_flags, .dobj = dobj, .prep = prep, .iobj = iobj, .index = verb_index >;
   endverb
