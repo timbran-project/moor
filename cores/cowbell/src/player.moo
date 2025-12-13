@@ -14,6 +14,7 @@ object PLAYER
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
+  property last_connected (owner: ARCH_WIZARD, flags: "r") = 0;
   property last_dm_from (owner: ARCH_WIZARD, flags: "c") = #-1;
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;

@@ -155,7 +155,18 @@ object ACTOR
   endverb
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " woken up."):with_presentation_hint('inset):with_group('connection, this);
+    "Create a connection announcement event.";
+    "Args: ?is_new_player = false";
+    {?is_new_player = false} = args;
+    "Select template based on whether this is a new player";
+    if (is_new_player)
+      template = `$login.new_player_arrival_template ! E_PROPNF => "{nc} has just arrived."';
+    else
+      template = `$login.player_wakeup_template ! E_PROPNF => "{nc} {have|has} woken up."';
+    endif
+    "Compile the template into $sub flyweights";
+    content = $sub_utils:compile(template);
+    return $event:mk_say(this, @content):with_presentation_hint('inset):with_group('connection, this);
   endverb
 
   verb mk_disconnected_event (this none this) owner: HACKER flags: "rxd"

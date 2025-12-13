@@ -111,13 +111,21 @@ object SYSOBJ
     endif
     "Track if new player for greeting later";
     is_new_player = verb == "user_created";
+    "Calculate whether to announce based on time since last connection";
+    "New players always announced, otherwise check quiet period";
+    quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
+    last_conn = `user.last_connected ! E_PROPNF => 0';
+    time_since_last = last_conn > 0 ? time() - last_conn | quiet_period + 1;
+    should_announce = is_new_player || time_since_last > quiet_period;
+    "Update last_connected timestamp";
+    `user.last_connected = time() ! E_PROPNF, E_PERM';
     "Set up new players before dropping perms (mailbox, welcome letter)";
     if (is_new_player)
       `$login:setup_new_player(user) ! E_VERBNF';
     endif
     "Now set perms to user for confunc etc";
     set_task_perms(user);
-    `user.location:confunc(user) ! E_INVIND, E_VERBNF';
+    `user.location:confunc(user, is_new_player, should_announce) ! E_INVIND, E_VERBNF';
     `user:anyconfunc() ! E_VERBNF';
     "Greet new players after room confunc";
     if (is_new_player)

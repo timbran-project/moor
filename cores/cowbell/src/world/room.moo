@@ -50,10 +50,17 @@ object ROOM
   endverb
 
   verb confunc (this none this) owner: HACKER flags: "rxd"
-    arrival_event = player:mk_connected_event():with_audience('utility);
-    this:announce(arrival_event);
+    "Called when a player connects in this room.";
+    "Args: who, ?is_new_player, ?should_announce";
+    {who, ?is_new_player = false, ?should_announce = true} = args;
+    "Only announce if should_announce is true (not a quick reconnect)";
+    if (should_announce)
+      arrival_event = who:mk_connected_event(is_new_player):with_audience('utility);
+      this:announce(arrival_event);
+    endif
+    "Always show the room to the connecting player";
     look_d = this:look_self();
-    player:inform_current(look_d:into_event():with_audience('utility));
+    who:inform_current(look_d:into_event():with_audience('utility));
   endverb
 
   verb disfunc (this none this) owner: HACKER flags: "rxd"
