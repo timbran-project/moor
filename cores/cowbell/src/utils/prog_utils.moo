@@ -387,7 +387,7 @@ object PROG_UTILS
     remaining = lit_end < original_len ? input_str[lit_end + 1..original_len]:trim() | "";
 
     "Try to evaluate the literal";
-    eval_result = eval("return " + literal_part + ";", ['me -> player, 'here, player.location], 1, 2);
+    eval_result = eval("return " + literal_part + ";", ['me -> player, 'here -> player.location], 1, 2);
     if (!eval_result[1])
       return {false, tostr(eval_result[2]), ""};
     endif
