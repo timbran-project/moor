@@ -810,7 +810,7 @@ object PLAYER
 
   verb help_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return list of objects to search for help topics.";
-    "Order: global, features, room, inventory, room contents";
+    "Order: global, features (including authoring/admin), room, inventory, room contents";
     env = {};
     "Global help source (if it exists)";
     gh = `$sysobj.help_topics ! E_PROPNF => $nothing';
@@ -823,6 +823,14 @@ object PLAYER
         env = {@env, feat};
       endif
     endfor
+    "Authoring features (programmer commands)";
+    if (valid(this.authoring_features))
+      env = {@env, this.authoring_features};
+    endif
+    "Admin features (wizard commands)";
+    if (valid(this.admin_features))
+      env = {@env, this.admin_features};
+    endif
     "Current room";
     if (valid(this.location))
       env = {@env, this.location};

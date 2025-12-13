@@ -241,101 +241,176 @@ object PROG_UTILS
   endverb
 
   verb parse_target_spec (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Parse a target specification (object, object.property, object:verb, object,inherited_prop, object;inherited_verb)";
-    "Returns a map with keys: type, object_str, item_name, separator";
-    "type is one of: 'object, 'property, 'verb, 'inherited_property, 'inherited_verb";
-    "Returns 0 if invalid (multiple separators or malformed)";
-    spec = args[1];
-    spec = spec:trim();
+    "Parse a target specification for @show command.";
+    "New syntax:";
+    "  obj        -> object summary";
+    "  obj.       -> local properties only";
+    "  obj..      -> all properties (including inherited)";
+    "  obj.name   -> specific property";
+    "  obj:       -> local verbs only";
+    "  obj::      -> all verbs (including inherited)";
+    "  obj:name   -> specific verb";
+    "  obj.:      -> local props + local verbs";
+    "  obj.::     -> local props + all verbs";
+    "  obj..:     -> all props + local verbs";
+    "  obj..::    -> all props + all verbs";
+    "Returns a map with keys: type, object_str, selectors";
+    "  type is 'object for plain object, 'compound for selectors";
+    "  selectors is a list of maps with keys: kind ('property or 'verb), inherited (bool), item_name (str or \"\")";
+    "Returns 0 if invalid";
 
-    "Count number of separators to reject ambiguous specs";
-    sep_count = 0;
-    if ("." in spec) sep_count = sep_count + 1; endif
-    if (":" in spec) sep_count = sep_count + 1; endif
-    if ("," in spec) sep_count = sep_count + 1; endif
-    if (";" in spec) sep_count = sep_count + 1; endif
+    spec = args[1]:trim();
+    !spec && return 0;
 
-    "If no separators, it's just an object reference";
-    if (sep_count == 0)
-      if (spec)
-        return ['type -> 'object, 'object_str -> spec, 'item_name -> "", 'separator -> ""];
+    "Find where the object reference ends and selectors begin";
+    "Selectors start at first . or : that isn't part of $name or #num";
+    obj_end = 0;
+    for i in [1..length(spec)]
+      c = spec[i];
+      if (c == "." || c == ":")
+        "Check if this could be start of selector";
+        "If we're at start or previous char suggests end of object ref, this is a selector";
+        if (i == 1)
+          "Can't start with selector";
+          return 0;
+        endif
+        "Check if it's a $system.prop style reference - those have . but followed by alphanumeric";
+        "For simplicity: first . or : after the object name starts selectors";
+        "Object names are: #num, $name, or alphanumeric words";
+        obj_end = i - 1;
+        break;
       endif
+    endfor
+
+    "If no separators found, it's just an object";
+    if (obj_end == 0)
+      return ['type -> 'object, 'object_str -> spec, 'selectors -> {}];
+    endif
+
+    object_str = spec[1..obj_end]:trim();
+    selector_str = spec[obj_end + 1..length(spec)];
+
+    "Parse selector string into individual selectors";
+    "Valid patterns: . .. .name : :: :name and combinations";
+    selectors = {};
+    i = 1;
+    while (i <= length(selector_str))
+      c = selector_str[i];
+      if (c == ".")
+        "Property selector";
+        inherited = false;
+        item_name = "";
+        i = i + 1;
+        "Check for double dot (inherited)";
+        if (i <= length(selector_str) && selector_str[i] == ".")
+          inherited = true;
+          i = i + 1;
+        endif
+        "Check for property name";
+        name_start = i;
+        while (i <= length(selector_str) && selector_str[i] != "." && selector_str[i] != ":")
+          i = i + 1;
+        endwhile
+        if (i > name_start)
+          item_name = selector_str[name_start..i - 1];
+        endif
+        selectors = {@selectors, ['kind -> 'property, 'inherited -> inherited, 'item_name -> item_name]};
+      elseif (c == ":")
+        "Verb selector";
+        inherited = false;
+        item_name = "";
+        i = i + 1;
+        "Check for double colon (inherited)";
+        if (i <= length(selector_str) && selector_str[i] == ":")
+          inherited = true;
+          i = i + 1;
+        endif
+        "Check for verb name";
+        name_start = i;
+        while (i <= length(selector_str) && selector_str[i] != "." && selector_str[i] != ":")
+          i = i + 1;
+        endwhile
+        if (i > name_start)
+          item_name = selector_str[name_start..i - 1];
+        endif
+        selectors = {@selectors, ['kind -> 'verb, 'inherited -> inherited, 'item_name -> item_name]};
+      else
+        "Invalid character in selector";
+        return 0;
+      endif
+    endwhile
+
+    if (!selectors)
       return 0;
     endif
 
-    "If multiple separators, it's invalid";
-    if (sep_count > 1)
-      return 0;
-    endif
-
-    "Exactly one separator - determine which type";
-    if ("." in spec)
-      parts = spec:split(".");
-      if (length(parts) == 2 && parts[1] && parts[2])
-        return ['type -> 'property, 'object_str -> parts[1]:trim(), 'item_name -> parts[2]:trim(), 'separator -> "."];
-      endif
-      return 0;
-    elseif (":" in spec)
-      parts = spec:split(":");
-      if (length(parts) == 2 && parts[1] && parts[2])
-        return ['type -> 'verb, 'object_str -> parts[1]:trim(), 'item_name -> parts[2]:trim(), 'separator -> ":"];
-      endif
-      return 0;
-    elseif ("," in spec)
-      parts = spec:split(",");
-      if (length(parts) == 2 && parts[1] && parts[2])
-        return ['type -> 'inherited_property, 'object_str -> parts[1]:trim(), 'item_name -> parts[2]:trim(), 'separator -> ","];
-      endif
-      return 0;
-    elseif (";" in spec)
-      parts = spec:split(";");
-      if (length(parts) == 2 && parts[1] && parts[2])
-        return ['type -> 'inherited_verb, 'object_str -> parts[1]:trim(), 'item_name -> parts[2]:trim(), 'separator -> ";"];
-      endif
-      return 0;
-    endif
-
-    "Should not reach here";
-    return 0;
+    return ['type -> 'compound, 'object_str -> object_str, 'selectors -> selectors];
   endverb
 
   verb test_parse_target_spec (this none this) owner: HACKER flags: "rxd"
-    "Test target spec parsing";
+    "Test target spec parsing with new selector syntax";
 
-    "Test object reference";
+    "Test plain object reference";
     result = this:parse_target_spec("me");
     result['type] == 'object || raise(E_ASSERT, "me should parse as object");
     result['object_str] == "me" || raise(E_ASSERT, "object_str should be 'me'");
 
-    "Test property reference";
+    "Test specific property reference";
     result = this:parse_target_spec("me.description");
-    result['type] == 'property || raise(E_ASSERT, "me.description should parse as property");
+    result['type] == 'compound || raise(E_ASSERT, "me.description should parse as compound");
     result['object_str] == "me" || raise(E_ASSERT, "object_str should be 'me'");
-    result['item_name] == "description" || raise(E_ASSERT, "item_name should be 'description'");
+    selector = result['selectors][1];
+    selector['kind] == 'property || raise(E_ASSERT, "selector kind should be 'property");
+    selector['item_name] == "description" || raise(E_ASSERT, "item_name should be 'description'");
+    !selector['inherited] || raise(E_ASSERT, "should not be inherited");
 
-    "Test verb reference";
+    "Test specific verb reference";
     result = this:parse_target_spec("me:test");
-    result['type] == 'verb || raise(E_ASSERT, "me:test should parse as verb");
-    result['object_str] == "me" || raise(E_ASSERT, "object_str should be 'me'");
-    result['item_name] == "test" || raise(E_ASSERT, "item_name should be 'test'");
+    result['type] == 'compound || raise(E_ASSERT, "me:test should parse as compound");
+    selector = result['selectors][1];
+    selector['kind] == 'verb || raise(E_ASSERT, "selector kind should be 'verb");
+    selector['item_name] == "test" || raise(E_ASSERT, "item_name should be 'test'");
 
-    "Test inherited property reference";
-    result = this:parse_target_spec("me,description");
-    result['type] == 'inherited_property || raise(E_ASSERT, "me,description should parse as inherited_property");
-    result['separator] == "," || raise(E_ASSERT, "separator should be ','");
-
-    "Test inherited verb reference";
-    result = this:parse_target_spec("me;test");
-    result['type] == 'inherited_verb || raise(E_ASSERT, "me;test should parse as inherited_verb");
-    result['separator] == ";" || raise(E_ASSERT, "separator should be ';'");
-
-    "Test invalid reference (multiple separators)";
-    result = this:parse_target_spec("me.desc:verb");
-    result == 0 || raise(E_ASSERT, "multiple separators should return 0");
-
-    "Test invalid reference (only separator, no item)";
+    "Test local properties (trailing dot)";
     result = this:parse_target_spec("me.");
-    result == 0 || raise(E_ASSERT, "missing item name should return 0");
+    result['type] == 'compound || raise(E_ASSERT, "me. should parse as compound");
+    selector = result['selectors][1];
+    selector['kind] == 'property || raise(E_ASSERT, "selector kind should be 'property");
+    selector['item_name] == "" || raise(E_ASSERT, "item_name should be empty for all props");
+    !selector['inherited] || raise(E_ASSERT, "single dot should not be inherited");
+
+    "Test inherited properties (double dot)";
+    result = this:parse_target_spec("me..");
+    result['type] == 'compound || raise(E_ASSERT, "me.. should parse as compound");
+    selector = result['selectors][1];
+    selector['inherited] || raise(E_ASSERT, "double dot should be inherited");
+
+    "Test local verbs (trailing colon)";
+    result = this:parse_target_spec("me:");
+    result['type] == 'compound || raise(E_ASSERT, "me: should parse as compound");
+    selector = result['selectors][1];
+    selector['kind] == 'verb || raise(E_ASSERT, "selector kind should be 'verb");
+    !selector['inherited] || raise(E_ASSERT, "single colon should not be inherited");
+
+    "Test inherited verbs (double colon)";
+    result = this:parse_target_spec("me::");
+    result['type] == 'compound || raise(E_ASSERT, "me:: should parse as compound");
+    selector = result['selectors][1];
+    selector['inherited] || raise(E_ASSERT, "double colon should be inherited");
+
+    "Test combination: local props + local verbs";
+    result = this:parse_target_spec("me.:");
+    result['type] == 'compound || raise(E_ASSERT, "me.: should parse as compound");
+    length(result['selectors]) == 2 || raise(E_ASSERT, "should have 2 selectors");
+    result['selectors][1]['kind] == 'property || raise(E_ASSERT, "first selector should be property");
+    result['selectors][2]['kind] == 'verb || raise(E_ASSERT, "second selector should be verb");
+
+    "Test combination: all props + all verbs";
+    result = this:parse_target_spec("me..::");
+    result['type] == 'compound || raise(E_ASSERT, "me..:: should parse as compound");
+    length(result['selectors]) == 2 || raise(E_ASSERT, "should have 2 selectors");
+    result['selectors][1]['inherited] || raise(E_ASSERT, "first selector should be inherited");
+    result['selectors][2]['inherited] || raise(E_ASSERT, "second selector should be inherited");
 
     return true;
   endverb

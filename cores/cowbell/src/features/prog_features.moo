@@ -512,12 +512,18 @@ object PROG_FEATURES
     target_spec = args[1];
     "Parse property reference";
     parsed = $prog_utils:parse_target_spec(target_spec);
-    if (!parsed || parsed['type] != 'property)
+    "Check for valid property reference";
+    if (!parsed || parsed['type] != 'compound)
+      player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
+      return;
+    endif
+    selector = parsed['selectors][1];
+    if (selector['kind] != 'property || !selector['item_name])
       player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
       return;
     endif
     object_str = parsed['object_str];
-    prop_name = parsed['item_name];
+    prop_name = selector['item_name];
     "Match the target object";
     try
       target_obj = $match:match_object(object_str, player);
@@ -596,12 +602,18 @@ object PROG_FEATURES
     target_spec = argstr:trim();
     "Parse property reference";
     parsed = $prog_utils:parse_target_spec(target_spec);
-    if (!parsed || parsed['type] != 'property)
+    "Check for valid property reference";
+    if (!parsed || parsed['type] != 'compound)
+      player:inform_current($event:mk_error(player, "Usage: @rmproperty <object>.<prop-name>"));
+      return;
+    endif
+    selector = parsed['selectors][1];
+    if (selector['kind] != 'property || !selector['item_name])
       player:inform_current($event:mk_error(player, "Usage: @rmproperty <object>.<prop-name>"));
       return;
     endif
     object_str = parsed['object_str];
-    prop_name = parsed['item_name];
+    prop_name = selector['item_name];
     "Match the target object";
     try
       target_obj = $match:match_object(object_str, player);
@@ -699,68 +711,169 @@ object PROG_FEATURES
   endverb
 
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "HINT: <object> -- Display detailed object information.";
+    "HINT: <object>[selectors] -- Display object information.";
+    "Syntax:";
+    "  @show obj         Summary with counts and hints";
+    "  @show obj.        Local properties";
+    "  @show obj..       All properties (including inherited)";
+    "  @show obj.name    Specific property";
+    "  @show obj:        Local verbs";
+    "  @show obj::       All verbs (including inherited)";
+    "  @show obj:name    Specific verb";
+    "  @show obj.:       Local properties and verbs";
+    "  @show obj..::     All properties and verbs";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT[.|,|:|;][property/verb]")));
+      usage = {verb + " <object>[.<prop>|..|:<verb>|::]"};
+      usage = {@usage, ""};
+      usage = {@usage, "Examples:"};
+      usage = {@usage, "  " + verb + " #1       Show summary with counts"};
+      usage = {@usage, "  " + verb + " #1.      Show local properties"};
+      usage = {@usage, "  " + verb + " #1..     Show all properties (+ inherited)"};
+      usage = {@usage, "  " + verb + " #1:      Show local verbs"};
+      usage = {@usage, "  " + verb + " #1::     Show all verbs (+ inherited)"};
+      usage = {@usage, "  " + verb + " #1.name  Show specific property"};
+      usage = {@usage, "  " + verb + " #1:tell  Show specific verb"};
+      usage = {@usage, "  " + verb + " #1.:     Show local props + local verbs"};
+      usage = {@usage, "  " + verb + " #1..::   Show all props + all verbs"};
+      player:inform_current($event:mk_error(player, $format.code:mk(usage:join("\n"))));
       return;
     endif
     spec = argstr:trim();
-    "Parse the display specification";
     parsed = $prog_utils:parse_target_spec(spec);
     if (!parsed)
-      "If parsing failed, try as plain object";
-      parsed = $prog_utils:parse_target_spec(spec);
-      if (!parsed)
-        player:inform_current($event:mk_error(player, "Invalid specification"));
-        return;
-      endif
-    endif
-    "Map parsed type to display mode, supporting all-properties/verbs when no item specified";
-    type = parsed['type];
-    object_str = parsed['object_str];
-    item_name = parsed['item_name];
-    display_mode = type;
-    if (!item_name)
-      "No specific item - show all of that type";
-      if (type == 'property)
-        display_mode = 'all_properties;
-      elseif (type == 'verb)
-        display_mode = 'all_verbs;
-      elseif (type == 'inherited_property)
-        display_mode = 'all_inherited_properties;
-      elseif (type == 'inherited_verb)
-        display_mode = 'all_inherited_verbs;
-      endif
+      player:inform_current($event:mk_error(player, "Invalid specification. Use @show for usage."));
+      return;
     endif
     "Match the target object";
+    object_str = parsed['object_str];
     try
       target_obj = $match:match_object(object_str, player);
     except e (ANY)
       player:inform_current($event:mk_error(player, "Could not find object: " + e[2]));
       return;
     endtry
-    "Dispatch based on display mode";
-    if (display_mode == 'property)
-      this:_display_property(target_obj, item_name);
-    elseif (display_mode == 'inherited_property)
-      this:_display_inherited_property(target_obj, item_name);
-    elseif (display_mode == 'all_properties)
-      this:_display_all_properties(target_obj, false);
-    elseif (display_mode == 'all_inherited_properties)
-      this:_display_all_properties(target_obj, true);
-    elseif (display_mode == 'verb)
-      this:_display_verb(target_obj, item_name);
-    elseif (display_mode == 'inherited_verb)
-      this:_display_inherited_verb(target_obj, item_name);
-    elseif (display_mode == 'all_verbs)
-      this:_display_all_verbs(target_obj, false);
-    elseif (display_mode == 'all_inherited_verbs)
-      this:_display_all_verbs(target_obj, true);
-    else
-      this:_display_object(target_obj);
+    "Dispatch based on type";
+    if (parsed['type] == 'object)
+      "Plain object - show summary with counts and hints";
+      this:_display_summary(target_obj);
+      return;
     endif
+    "Compound type - always show header first, then process selectors";
+    this:_display_header(target_obj);
+    selectors = parsed['selectors];
+    for selector in (selectors)
+      kind = selector['kind];
+      inherited = selector['inherited];
+      item_name = selector['item_name];
+      if (kind == 'property)
+        if (item_name)
+          "Specific property";
+          if (inherited)
+            this:_display_inherited_property(target_obj, item_name);
+          else
+            this:_display_property(target_obj, item_name);
+          endif
+        else
+          "All properties";
+          this:_display_all_properties(target_obj, inherited);
+        endif
+      elseif (kind == 'verb)
+        if (item_name)
+          "Specific verb";
+          if (inherited)
+            this:_display_inherited_verb(target_obj, item_name);
+          else
+            this:_display_verb(target_obj, item_name);
+          endif
+        else
+          "All verbs";
+          this:_display_all_verbs(target_obj, inherited);
+        endif
+      endif
+    endfor
+  endverb
+
+  verb _display_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display object summary with counts and usage hints.";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {target_obj} = args;
+    "Get object info";
+    obj_name = `target_obj.name ! ANY => "(no name)"';
+    obj_owner = `target_obj.owner ! ANY => #-1';
+    obj_parent = `parent(target_obj) ! ANY => #-1';
+    obj_location = `target_obj.location ! ANY => #-1';
+    "Count local properties and verbs";
+    local_props = this:_do_get_properties(target_obj);
+    local_verbs = this:_do_get_verbs(target_obj);
+    local_prop_count = length(local_props);
+    local_verb_count = length(local_verbs);
+    "Count inherited (walk up parent chain)";
+    inherited_prop_count = 0;
+    inherited_verb_count = 0;
+    current = `parent(target_obj) ! ANY => #-1';
+    while (valid(current))
+      inherited_prop_count = inherited_prop_count + length(`properties(current) ! ANY => {}');
+      inherited_verb_count = inherited_verb_count + length(`verbs(current) ! ANY => {}');
+      current = `parent(current) ! ANY => #-1';
+    endwhile
+    "Build single deflist with all info - wrap object refs in djot backticks";
+    obj_ref = tostr(target_obj);
+    items = {{"Object", "`" + obj_ref + "`"}};
+    items = {@items, {"Name", obj_name}};
+    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
+    items = {@items, {"Owner", owner_str}};
+    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
+    items = {@items, {"Parent", parent_str}};
+    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
+    items = {@items, {"Location", loc_str}};
+    "Add counts to same deflist";
+    prop_summary = tostr(local_prop_count) + " local";
+    if (inherited_prop_count > 0)
+      prop_summary = prop_summary + ", " + tostr(inherited_prop_count) + " inherited";
+    endif
+    verb_summary = tostr(local_verb_count) + " local";
+    if (inherited_verb_count > 0)
+      verb_summary = verb_summary + ", " + tostr(inherited_verb_count) + " inherited";
+    endif
+    items = {@items, {"Properties", prop_summary}};
+    items = {@items, {"Verbs", verb_summary}};
+    deflist = $format.deflist:mk(items);
+    "Build concise usage hint with djot code formatting";
+    hint = "Try: `@show " + obj_ref + ".:` (local) or `" + obj_ref + "..::` (all). See `@show` for syntax.";
+    "Combine and display with djot content type";
+    content = $format.block:mk(deflist, hint);
+    event = $event:mk_info(player, content);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    player:inform_current(event);
+  endverb
+
+  verb _display_header (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display object header info only (no counts/hints).";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {target_obj} = args;
+    "Get object info";
+    obj_name = `target_obj.name ! ANY => "(no name)"';
+    obj_owner = `target_obj.owner ! ANY => #-1';
+    obj_parent = `parent(target_obj) ! ANY => #-1';
+    obj_location = `target_obj.location ! ANY => #-1';
+    "Build deflist with object info - wrap object refs in djot backticks";
+    obj_ref = tostr(target_obj);
+    items = {{"Object", "`" + obj_ref + "`"}};
+    items = {@items, {"Name", obj_name}};
+    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
+    items = {@items, {"Owner", owner_str}};
+    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
+    items = {@items, {"Parent", parent_str}};
+    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
+    items = {@items, {"Location", loc_str}};
+    deflist = $format.deflist:mk(items);
+    event = $event:mk_info(player, deflist);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    player:inform_current(event);
   endverb
 
   verb _display_property (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -773,8 +886,11 @@ object PROG_FEATURES
     if (length(prop_value) > 50)
       prop_value = prop_value[1..47] + "...";
     endif
+    "Format owner as Name (#num)";
+    prop_owner = metadata:owner();
+    owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
     headers = {"Property", "Owner", "Flags", "Value"};
-    row = {"." + prop_name, tostr(metadata:owner()), metadata:perms(), prop_value};
+    row = {"." + prop_name, owner_str, metadata:perms(), prop_value};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
   endverb
@@ -803,10 +919,10 @@ object PROG_FEATURES
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, include_inherited} = args;
-    headers = {"Property", "Owner", "Flags", "Value"};
     rows = {};
     if (include_inherited)
-      "Collect properties from entire inheritance chain";
+      "Include Definer column for inherited properties";
+      headers = {"Property", "Definer", "Owner", "Flags", "Value"};
       seen = {};
       current = target_obj;
       while (valid(current))
@@ -825,13 +941,18 @@ object PROG_FEATURES
           if (length(prop_value) > 50)
             prop_value = prop_value[1..47] + "...";
           endif
-          definer_prefix = current == target_obj ? "" | tostr(current) + ":";
-          rows = {@rows, {definer_prefix + "." + prop_name, tostr(metadata:owner()), metadata:perms(), prop_value}};
+          "Format definer as Name (#num)";
+          definer_str = `current.name ! ANY => "???"' + " (" + tostr(current) + ")";
+          "Format owner as Name (#num)";
+          prop_owner = metadata:owner();
+          owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
+          rows = {@rows, {"." + prop_name, definer_str, owner_str, metadata:perms(), prop_value}};
         endfor
         current = `parent(current) ! ANY => #-1';
       endwhile
     else
-      "Just properties on this object";
+      "No Definer column for local-only";
+      headers = {"Property", "Owner", "Flags", "Value"};
       props = this:_do_get_properties(target_obj);
       for prop_name in (props)
         "Skip properties we can't access";
@@ -843,7 +964,10 @@ object PROG_FEATURES
         if (length(prop_value) > 50)
           prop_value = prop_value[1..47] + "...";
         endif
-        rows = {@rows, {"." + prop_name, tostr(metadata:owner()), metadata:perms(), prop_value}};
+        "Format owner as Name (#num)";
+        prop_owner = metadata:owner();
+        owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
+        rows = {@rows, {"." + prop_name, owner_str, metadata:perms(), prop_value}};
       endfor
     endif
     if (!rows)
@@ -864,10 +988,12 @@ object PROG_FEATURES
     endif
     verb_info_data = this:_do_get_verb_listing(verb_location, verb_name, false);
     {verb_owner, verb_flags, dobj, prep, iobj, code_lines} = verb_info_data;
+    "Format owner as Name (#num)";
+    owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
     headers = {"Verb", "Owner", "Flags", "Args"};
     args_spec = dobj + " " + prep + " " + iobj;
     verb_spec = tostr(verb_location) + ":" + verb_name;
-    row = {verb_spec, tostr(verb_owner), verb_flags, args_spec};
+    row = {verb_spec, owner_str, verb_flags, args_spec};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
   endverb
@@ -887,10 +1013,10 @@ object PROG_FEATURES
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, include_inherited} = args;
-    headers = {"Verb", "Owner", "Flags", "Args"};
     rows = {};
     if (include_inherited)
-      "Collect verbs from entire inheritance chain";
+      "Include Definer column for inherited verbs";
+      headers = {"Verb", "Definer", "Owner", "Flags", "Args"};
       seen = {};
       current = target_obj;
       while (valid(current))
@@ -902,19 +1028,26 @@ object PROG_FEATURES
           endif
           seen = {@seen, verb_name};
           args_spec = metadata:args_spec();
-          verb_spec = tostr(current) + ":" + verb_name;
-          rows = {@rows, {verb_spec, tostr(metadata:verb_owner()), metadata:flags(), args_spec}};
+          "Format definer as Name (#num)";
+          definer_str = `current.name ! ANY => "???"' + " (" + tostr(current) + ")";
+          "Format owner as Name (#num)";
+          verb_owner = metadata:verb_owner();
+          owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
+          rows = {@rows, {":" + verb_name, definer_str, owner_str, metadata:flags(), args_spec}};
         endfor
         current = `parent(current) ! ANY => #-1';
       endwhile
     else
-      "Just verbs on this object";
+      "No Definer column for local-only";
+      headers = {"Verb", "Owner", "Flags", "Args"};
       verbs_metadata = $prog_utils:get_verbs_metadata(target_obj);
       for metadata in (verbs_metadata)
         verb_name = metadata:name();
         args_spec = metadata:args_spec();
-        verb_spec = tostr(target_obj) + ":" + verb_name;
-        rows = {@rows, {verb_spec, tostr(metadata:verb_owner()), metadata:flags(), args_spec}};
+        "Format owner as Name (#num)";
+        verb_owner = metadata:verb_owner();
+        owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
+        rows = {@rows, {":" + verb_name, owner_str, metadata:flags(), args_spec}};
       endfor
     endif
     if (!rows)
@@ -974,9 +1107,26 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "Invalid target reference. Use 'object', 'object.property', or 'object:verb'"));
       return;
     endif
-    type = parsed['type];
     object_str = parsed['object_str];
-    item_name = parsed['item_name];
+    "Extract type and item_name from new format";
+    if (parsed['type] == 'object)
+      type = 'object;
+      item_name = "";
+    else
+      "Compound type - get first selector";
+      selector = parsed['selectors][1];
+      type = selector['kind];
+      item_name = selector['item_name];
+      "If no item name, treat as object";
+      if (!item_name)
+        type = 'object;
+      endif
+      "Check for inherited - not supported";
+      if (selector['inherited])
+        player:inform_current($event:mk_error(player, "@chmod only works on direct object properties and verbs, not inherited ones."));
+        return;
+      endif
+    endif
     "Match the target object";
     try
       target_obj = $match:match_object(object_str, player);
@@ -1087,8 +1237,7 @@ object PROG_FEATURES
       endif
       player:inform_current($event:mk_info(player, "Object " + tostr(target_obj) + " permissions set to " + (perms_str == "" ? "(cleared)" | perms_str) + "."));
     else
-      "Inherited references not supported for @chmod";
-      player:inform_current($event:mk_error(player, "@chmod only works on direct object properties and verbs, not inherited ones."));
+      player:inform_current($event:mk_error(player, "Invalid reference type"));
     endif
   endverb
 
@@ -1257,9 +1406,21 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "Invalid format. Use 'object', 'object:verb', or 'object.property'"));
       return;
     endif
-    type = parsed['type];
     object_str = parsed['object_str];
-    item_name = parsed['item_name];
+    "Extract type and item_name from new format";
+    if (parsed['type] == 'object)
+      type = 'object;
+      item_name = "";
+    else
+      "Compound type - get first selector";
+      selector = parsed['selectors][1];
+      type = selector['kind];
+      item_name = selector['item_name];
+      "If no item name specified, treat as object";
+      if (!item_name)
+        type = 'object;
+      endif
+    endif
     "Match the target object";
     try
       target_obj = $match:match_object(object_str, player);
@@ -1271,7 +1432,6 @@ object PROG_FEATURES
     if (type == 'object)
       "Get object documentation";
       obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
-      server_log(toliteral(target_obj) + " " + toliteral(obj_display));
       doc_text = $help_utils:get_object_documentation(target_obj);
       title = "Documentation for " + obj_display + " (" + toliteral(target_obj) + ")";
       content = $help_utils:format_documentation_display(title, doc_text);
@@ -1392,10 +1552,33 @@ object PROG_FEATURES
     {for_player, ?topic = ""} = args;
     "Main overview topic";
     overview = $help:mk("programming", "Programmer commands", "Commands for examining and modifying code:\n\n`@list`, `@verb`, `@rmverb`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nUse `help <command>` for details on each command.", {"prog", "code", "verbs"}, 'programming, {"building"});
+    "Comprehensive @show help";
+    show_help_text = "@show <object>[selectors] -- Display object information.\n\n";
+    show_help_text = show_help_text + "**Selectors:**\n";
+    show_help_text = show_help_text + "  `.`   Local properties only\n";
+    show_help_text = show_help_text + "  `..`  All properties (including inherited)\n";
+    show_help_text = show_help_text + "  `:`   Local verbs only\n";
+    show_help_text = show_help_text + "  `::`  All verbs (including inherited)\n\n";
+    show_help_text = show_help_text + "**Examples:**\n";
+    show_help_text = show_help_text + "  `@show #1`       Show summary with counts and hints\n";
+    show_help_text = show_help_text + "  `@show #1.`      Show local properties\n";
+    show_help_text = show_help_text + "  `@show #1..`     Show all properties (+ inherited)\n";
+    show_help_text = show_help_text + "  `@show #1:`      Show local verbs\n";
+    show_help_text = show_help_text + "  `@show #1::`     Show all verbs (+ inherited)\n";
+    show_help_text = show_help_text + "  `@show #1.name`  Show specific property\n";
+    show_help_text = show_help_text + "  `@show #1:tell`  Show specific verb\n";
+    show_help_text = show_help_text + "  `@show #1.:`     Show local props + local verbs\n";
+    show_help_text = show_help_text + "  `@show #1..:`    Show all props + local verbs\n";
+    show_help_text = show_help_text + "  `@show #1.::` Show local props + all verbs\n";
+    show_help_text = show_help_text + "  `@show #1..::`   Show all props + all verbs\n\n";
+    show_help_text = show_help_text + "Alias: `@display`";
+    show_topic = $help:mk("@show", "@show - Display object info", show_help_text, {"@display", "show", "display"}, 'programming);
     "If asking for all topics, just return overview";
     topic == "" && return {overview};
     "Check if topic matches overview";
     overview:matches(topic) && return overview;
+    "Check if topic matches @show";
+    show_topic:matches(topic) && return show_topic;
     "Try to generate help from verb HINT tags";
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'programming) ! ANY => 0';
     typeof(verb_help) != INT && return verb_help;
