@@ -21,7 +21,7 @@ object PROG_FEATURES
         {result_type, result_content} = this:_format_eval_result(result);
         if (result_type == 'deflist)
           "Object result - show as definition list";
-          result_event = $event:mk_eval_result(player, result_content):with_group('eval);
+          result_event = $event:mk_eval_result(player, result_content):with_presentation_hint('inset):with_group('eval);
         else
           "Simple result - show in code block with =>";
           code = $format.code:mk("=> " + result_content, 'moo);
