@@ -1103,15 +1103,7 @@ object PLAYER
     dm_obj = $dm:mk(this, target, message);
     result = target:receive_dm(dm_obj);
     "Echo to sender";
-    loc_str = valid(this.location) ? " (in " + this.location.name + ")" | "";
-    echo = "You" + loc_str + " -> " + target.name + ": " + message;
-    group = tosym("dm_" + $url_utils:to_curie_str(target));
-    event = $event:mk_dm(this, echo):with_audience('utility):with_presentation_hint('inset):with_group(group);
-    event = event:with_metadata('dm_to, target);
-    event = event:with_metadata('dm_location, this.location);
-    event = event:with_metadata('dm_content, message);
-    event = event:with_metadata('dm_timestamp, dm_obj.sent);
-    this:inform_current(event);
+    this:inform_current(dm_obj:sender_echo_event());
   endverb
 
   verb receive_dm (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1129,14 +1121,7 @@ object PLAYER
     "Track last sender for reply";
     this.last_dm_from = dm_obj.from;
     "Notify if online";
-    display = dm_obj:display(this);
-    group = tosym("dm_" + $url_utils:to_curie_str(dm_obj.from));
-    event = $event:mk_dm(this, display):with_presentation_hint('inset):with_group(group);
-    event = event:with_metadata('dm_from, dm_obj.from);
-    event = event:with_metadata('dm_location, dm_obj.location);
-    event = event:with_metadata('dm_content, dm_obj.text);
-    event = event:with_metadata('dm_timestamp, dm_obj.sent);
-    this:tell(event);
+    this:tell(dm_obj:display_event(this));
     return true;
   endverb
 
@@ -1157,15 +1142,7 @@ object PLAYER
     dm_obj = $dm:mk(this, target, message);
     result = target:receive_dm(dm_obj);
     "Echo to sender";
-    loc_str = valid(this.location) ? " (in " + this.location.name + ")" | "";
-    echo = "You" + loc_str + " -> " + target.name + ": " + message;
-    group = tosym("dm_" + $url_utils:to_curie_str(target));
-    event = $event:mk_dm(this, echo):with_audience('utility):with_presentation_hint('inset):with_group(group);
-    event = event:with_metadata('dm_to, target);
-    event = event:with_metadata('dm_location, this.location);
-    event = event:with_metadata('dm_content, message);
-    event = event:with_metadata('dm_timestamp, dm_obj.sent);
-    this:inform_current(event);
+    this:inform_current(dm_obj:sender_echo_event());
   endverb
 
   verb "dms messages msgs mail" (any none none) owner: ARCH_WIZARD flags: "rd"
