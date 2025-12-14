@@ -25,6 +25,11 @@ object LLM_AGENT_TOOL
     return ["type" -> "function", "function" -> ["name" -> this.name, "description" -> this.description, "parameters" -> this.parameters]];
   endverb
 
+  verb to_mcp_schema (this none this) owner: HACKER flags: "rxd"
+    "Convert tool definition to MCP (Model Context Protocol) format for external agents";
+    return ["name" -> this.name, "description" -> this.description, "input_schema" -> this.parameters, "target_obj" -> this.target_obj, "target_verb" -> this.target_verb];
+  endverb
+
   verb execute (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Execute the tool with given arguments";
     {args_json} = args;

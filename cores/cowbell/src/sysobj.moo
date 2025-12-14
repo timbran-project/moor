@@ -323,6 +323,67 @@ object SYSOBJ
     return `player:(verb)(@args) ! ANY';
   endverb
 
+  verb external_agent_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return tool definitions for external AI agents (MCP/Claude Code etc.)";
+    "Returns list of maps with: name, description, input_schema, target_obj, target_verb";
+    "Tools are executed as the authenticated player, not as wizard";
+    callers() && !caller_perms().programmer && return E_PERM;
+    tools = {};
+
+    "Test tool for verifying MCP integration";
+    tools = {@tools, $llm_agent_tool:mk(
+      "test_external_tool",
+      "A simple test tool to verify MCP dynamic tool integration is working. Returns info about the call context.",
+      ["type" -> "object",
+       "properties" -> [
+         "echo" -> ["type" -> "string", "description" -> "Optional message to echo back"],
+         "include_location" -> ["type" -> "boolean", "description" -> "If true, include actor's location info"]
+       ],
+       "required" -> {}],
+      this,
+      "_external_test_tool"
+    ):to_mcp_schema()};
+
+    return tools;
+  endverb
+
+  verb _external_test_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Handler for test_external_tool - verifies MCP dynamic tool integration";
+    {args_map, ?actor = 0} = args;
+
+    "Determine acting player";
+    if (valid(actor))
+      acting_player = actor;
+      actor_source = "mcp_provided";
+    else
+      acting_player = player;
+      actor_source = "builtin_player";
+    endif
+
+    result = ["status" -> "ok", "tool" -> "test_external_tool", "actor_source" -> actor_source, "actor" -> tostr(acting_player), "actor_name" -> `acting_player.name ! ANY => "(unknown)"'];
+
+    "Echo back any message";
+    if (maphaskey(args_map, "echo") && args_map["echo"])
+      result["echo"] = args_map["echo"];
+    endif
+
+    "Include location if requested";
+    if (maphaskey(args_map, "include_location") && args_map["include_location"])
+      loc = `acting_player.location ! ANY => #-1';
+      if (valid(loc))
+        result["location"] = tostr(loc);
+        result["location_name"] = `loc.name ! ANY => "(unknown)"';
+      else
+        result["location"] = "none";
+      endif
+    endif
+
+    "Include some caller info for debugging";
+    result["callers_depth"] = length(callers());
+
+    return toliteral(result);
+  endverb
+
   verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
     callers() && !caller_perms().wizard && return E_PERM;
     server_log(@args);
