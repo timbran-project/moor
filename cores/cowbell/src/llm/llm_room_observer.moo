@@ -382,7 +382,7 @@ object LLM_ROOM_OBSERVER
 
   verb _tool_remember_fact (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Store a fact about a subject for later recall.";
-    {args_map} = args;
+    {args_map, actor} = args;
     "Safely extract arguments with defaults";
     subject = `args_map["subject"] ! E_RANGE => ""';
     fact = `args_map["fact"] ! E_RANGE => ""';
@@ -421,7 +421,7 @@ object LLM_ROOM_OBSERVER
 
   verb _tool_recall_facts (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Retrieve stored facts about a subject.";
-    {args_map} = args;
+    {args_map, actor} = args;
     subject = args_map["subject"];
     typeof(subject) != STR && raise(E_TYPE, "subject must be a string");
     if (!valid(this.knowledge_base))
@@ -448,13 +448,13 @@ object LLM_ROOM_OBSERVER
     caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
     {agent} = args;
     "Tool: remember a fact";
-    remember_tool = $llm_agent_tool:mk("remember_fact", "Store a noteworthy fact about a person, place, or topic for later recall. Use this to remember important details that might be useful in future conversations.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Who or what the fact is about (a name or topic)"], "fact" -> ["type" -> "string", "description" -> "The fact to remember - keep it brief and factual"]], "required" -> {"subject", "fact"}], this, "_tool_remember_fact");
+    remember_tool = $llm_agent_tool:mk("remember_fact", "Store a noteworthy fact about a person, place, or topic for later recall. Use this to remember important details that might be useful in future conversations.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Who or what the fact is about (a name or topic)"], "fact" -> ["type" -> "string", "description" -> "The fact to remember - keep it brief and factual"]], "required" -> {"subject", "fact"}], this, "remember_fact");
     agent:add_tool("remember_fact", remember_tool);
     "Tool: recall facts";
-    recall_tool = $llm_agent_tool:mk("recall_facts", "Recall stored facts about a person, place, or topic. Returns facts with when they were remembered.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Who or what to recall facts about"]], "required" -> {"subject"}], this, "_tool_recall_facts");
+    recall_tool = $llm_agent_tool:mk("recall_facts", "Recall stored facts about a person, place, or topic. Returns facts with when they were remembered.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Who or what to recall facts about"]], "required" -> {"subject"}], this, "recall_facts");
     agent:add_tool("recall_facts", recall_tool);
     "Tool: get current time";
-    time_tool = $llm_agent_tool:mk("current_time", "Get the current date and time.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_current_time");
+    time_tool = $llm_agent_tool:mk("current_time", "Get the current date and time.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "current_time");
     agent:add_tool("current_time", time_tool);
   endverb
 
@@ -537,7 +537,7 @@ object LLM_ROOM_OBSERVER
 
   verb _tool_current_time (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the current time.";
-    {args_map} = args;
+    {args_map, actor} = args;
     now = time();
     return ["current_time" -> ctime(), "timestamp" -> now];
   endverb

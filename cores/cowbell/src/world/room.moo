@@ -207,4 +207,12 @@ object ROOM
     {for_player, ?topic = ""} = args;
     return topic == "" ? {} | 0;
   endverb
+
+  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Clean up passages when room is recycled.";
+    area = this.location;
+    if (valid(area) && respond_to(area, 'on_room_recycle))
+      `area:on_room_recycle(this) ! ANY';
+    endif
+  endverb
 endobject

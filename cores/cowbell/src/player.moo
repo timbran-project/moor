@@ -13,6 +13,7 @@ object PLAYER
   property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES, MAIL_FEATURES};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
+  property home (owner: ARCH_WIZARD, flags: "rc");
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
   property last_connected (owner: ARCH_WIZARD, flags: "r") = 0;
   property last_dm_from (owner: ARCH_WIZARD, flags: "c") = #-1;
@@ -23,7 +24,6 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property wearing (owner: HACKER, flags: "rwc") = {};
-  property home (owner: ARCH_WIZARD, flags: "rc");
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";

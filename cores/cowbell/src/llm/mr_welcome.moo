@@ -95,37 +95,37 @@ object MR_WELCOME
     agent.tool_callback = this;
     agent.compaction_callback = this;
     "Register list_players tool";
-    list_players_tool = $llm_agent_tool:mk("list_players", "Get a list of all currently connected people in this world with activity information. Returns for each person: object ref, name, idle time, connected time, location, and activity level (active/recent/idle).", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_players");
+    list_players_tool = $llm_agent_tool:mk("list_players", "Get a list of all currently connected people in this world with activity information. Returns for each person: object ref, name, idle time, connected time, location, and activity level (active/recent/idle).", ["type" -> "object", "properties" -> [], "required" -> {}], this, "list_players");
     agent:add_tool("list_players", list_players_tool);
     "Register player_info tool";
-    player_info_tool = $llm_agent_tool:mk("player_info", "Get information about a specific person including their name and description.", ["type" -> "object", "properties" -> ["player_name" -> ["type" -> "string", "description" -> "The name of the person to get information about"]], "required" -> {"player_name"}], this, "_tool_player_info");
+    player_info_tool = $llm_agent_tool:mk("player_info", "Get information about a specific person including their name and description.", ["type" -> "object", "properties" -> ["player_name" -> ["type" -> "string", "description" -> "The name of the person to get information about"]], "required" -> {"player_name"}], this, "player_info");
     agent:add_tool("player_info", player_info_tool);
     "Register area_map tool";
-    area_map_tool = $llm_agent_tool:mk("area_map", "Get a list of all rooms in the current area. Use this to see what locations exist.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_area_map");
+    area_map_tool = $llm_agent_tool:mk("area_map", "Get a list of all rooms in the current area. Use this to see what locations exist.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "area_map");
     agent:add_tool("area_map", area_map_tool);
     "Register find_route tool";
-    find_route_tool = $llm_agent_tool:mk("find_route", "Find the route from the current location to a destination room. Returns step-by-step directions.", ["type" -> "object", "properties" -> ["destination" -> ["type" -> "string", "description" -> "The name of the destination room"]], "required" -> {"destination"}], this, "_tool_find_route");
+    find_route_tool = $llm_agent_tool:mk("find_route", "Find the route from the current location to a destination room. Returns step-by-step directions.", ["type" -> "object", "properties" -> ["destination" -> ["type" -> "string", "description" -> "The name of the destination room"]], "required" -> {"destination"}], this, "find_route");
     agent:add_tool("find_route", find_route_tool);
     "Register find_object tool";
-    find_object_tool = $llm_agent_tool:mk("find_object", "Find an object by name in the current room and get information about it. Use this when players ask about things they can interact with.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to find (e.g. 'visor', 'welcome', 'door')"]], "required" -> {"object_name"}], this, "_tool_find_object");
+    find_object_tool = $llm_agent_tool:mk("find_object", "Find an object by name in the current room and get information about it. Use this when players ask about things they can interact with.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to find (e.g. 'visor', 'welcome', 'door')"]], "required" -> {"object_name"}], this, "find_object");
     agent:add_tool("find_object", find_object_tool);
     "Register list_commands tool";
-    list_commands_tool = $llm_agent_tool:mk("list_commands", "Get a list of commands that can be used with an object. Shows what actions players can perform.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to check"]], "required" -> {"object_name"}], this, "_tool_list_commands");
+    list_commands_tool = $llm_agent_tool:mk("list_commands", "Get a list of commands that can be used with an object. Shows what actions players can perform.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to check"]], "required" -> {"object_name"}], this, "list_commands");
     agent:add_tool("list_commands", list_commands_tool);
     "Register emote tool";
-    emote_tool = $llm_agent_tool:mk("emote", "Express an action or emotion through an emote. Use this to show physical actions, reactions, or emotions without speaking. For example: 'thoughtfully strokes his chin', 'chuckles warmly', 'gestures welcomingly'. The emote will be shown as 'Mr. Welcome <your action>.'", ["type" -> "object", "properties" -> ["action" -> ["type" -> "string", "description" -> "The action or emotion to express (e.g., 'nods approvingly', 'grins', 'looks thoughtful')"]], "required" -> {"action"}], this, "_tool_emote");
+    emote_tool = $llm_agent_tool:mk("emote", "Express an action or emotion through an emote. Use this to show physical actions, reactions, or emotions without speaking. For example: 'thoughtfully strokes his chin', 'chuckles warmly', 'gestures welcomingly'. The emote will be shown as 'Mr. Welcome <your action>.'", ["type" -> "object", "properties" -> ["action" -> ["type" -> "string", "description" -> "The action or emotion to express (e.g., 'nods approvingly', 'grins', 'looks thoughtful')"]], "required" -> {"action"}], this, "emote");
     agent:add_tool("emote", emote_tool);
     "Register directed_say tool";
-    directed_say_tool = $llm_agent_tool:mk("directed_say", "Say something directed at a specific person in the room. Use when you want to specifically address someone (like when answering their direct question, or making a pointed remark to them). The message will be shown as 'Mr. Welcome [to Person]: message'.", ["type" -> "object", "properties" -> ["target_name" -> ["type" -> "string", "description" -> "The name of the person to address"], "message" -> ["type" -> "string", "description" -> "What to say to them"]], "required" -> {"target_name", "message"}], this, "_tool_directed_say");
+    directed_say_tool = $llm_agent_tool:mk("directed_say", "Say something directed at a specific person in the room. Use when you want to specifically address someone (like when answering their direct question, or making a pointed remark to them). The message will be shown as 'Mr. Welcome [to Person]: message'.", ["type" -> "object", "properties" -> ["target_name" -> ["type" -> "string", "description" -> "The name of the person to address"], "message" -> ["type" -> "string", "description" -> "What to say to them"]], "required" -> {"target_name", "message"}], this, "directed_say");
     agent:add_tool("directed_say", directed_say_tool);
     "Register think tool";
-    think_tool = $llm_agent_tool:mk("think", "Playfully express your internal thoughts in a visible thought bubble. Use this for whimsical observations, amusing asides, ponderings, or fun meta-commentary that adds personality and humor to the conversation. It's a delightful way to show what you're thinking without actually saying it aloud. The thought will be shown as 'Mr. Welcome . o O ( your thought )'.", ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "The thought or observation to express"]], "required" -> {"thought"}], this, "_tool_think");
+    think_tool = $llm_agent_tool:mk("think", "Playfully express your internal thoughts in a visible thought bubble. Use this for whimsical observations, amusing asides, ponderings, or fun meta-commentary that adds personality and humor to the conversation. It's a delightful way to show what you're thinking without actually saying it aloud. The thought will be shown as 'Mr. Welcome . o O ( your thought )'.", ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "The thought or observation to express"]], "required" -> {"thought"}], this, "think");
     agent:add_tool("think", think_tool);
     "Register inspect_object tool";
-    inspect_object_tool = $llm_agent_tool:mk("inspect_object", "Examine an object in detail to get comprehensive information about it. Shows name, description, owner, parent, location, and available commands. Use this when you want detailed information about what an object is and what players can do with it.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to inspect (e.g., 'compass', 'welcome', 'chair')"]], "required" -> {"object_name"}], this, "_tool_inspect_object");
+    inspect_object_tool = $llm_agent_tool:mk("inspect_object", "Examine an object in detail to get comprehensive information about it. Shows name, description, owner, parent, location, and available commands. Use this when you want detailed information about what an object is and what players can do with it.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to inspect (e.g., 'compass', 'welcome', 'chair')"]], "required" -> {"object_name"}], this, "inspect_object");
     agent:add_tool("inspect_object", inspect_object_tool);
     "Register help_lookup tool";
-    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands, features, and how to do things. Pass empty string to list all available topics. Use this when someone asks how to do something.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'movement', 'communication', 'look'). Pass empty string to list all."]], "required" -> {"topic"}], this, "_tool_help_lookup");
+    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands, features, and how to do things. Pass empty string to list all available topics. Use this when someone asks how to do something.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'movement', 'communication', 'look'). Pass empty string to list all."]], "required" -> {"topic"}], this, "help_lookup");
     agent:add_tool("help_lookup", help_lookup_tool);
     "Register memory tools for long-term fact retention";
     this:_register_memory_tools(agent);
@@ -133,7 +133,7 @@ object MR_WELCOME
 
   verb _tool_list_players (this none this) owner: HACKER flags: "rxd"
     "Tool: Get list of all connected players with activity information";
-    {args_map} = args;
+    {args_map, actor} = args;
     player_list = connected_players();
     result = {};
     for p in (player_list)
@@ -158,7 +158,7 @@ object MR_WELCOME
 
   verb _tool_player_info (this none this) owner: HACKER flags: "rxd"
     "Tool: Get information about a specific player";
-    {args_map} = args;
+    {args_map, actor} = args;
     player_name = args_map["player_name"];
     typeof(player_name) == STR || raise(E_TYPE("Expected player name string"));
     "Find player by name";
@@ -211,7 +211,7 @@ object MR_WELCOME
 
   verb _tool_area_map (this none this) owner: HACKER flags: "rxd"
     "Tool: Get list of all rooms in the current area";
-    {args_map} = args;
+    {args_map, actor} = args;
     "Get the current room and area";
     current_room = this.location;
     if (!valid(current_room))
@@ -238,7 +238,7 @@ object MR_WELCOME
 
   verb _tool_find_route (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Find route from current location to a destination";
-    {args_map} = args;
+    {args_map, actor} = args;
     destination_name = args_map["destination"];
     typeof(destination_name) == STR || raise(E_TYPE("Expected destination name string"));
     "Get current room and area";
@@ -296,7 +296,7 @@ object MR_WELCOME
   verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Find an object by name in current room";
     try
-      {args_map} = args;
+      {args_map, actor} = args;
       object_name = args_map["object_name"];
       typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
       current_room = this.location;
@@ -331,7 +331,7 @@ object MR_WELCOME
   verb _tool_list_commands (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List command verbs available on an object (includes inherited, readable verbs only)";
     try
-      {args_map} = args;
+      {args_map, actor} = args;
       object_name = args_map["object_name"];
       typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
       "Find the object first";
@@ -395,7 +395,7 @@ object MR_WELCOME
 
   verb _tool_emote (this none this) owner: HACKER flags: "rxd"
     "Tool: Express an action or emotion through an emote";
-    {args_map} = args;
+    {args_map, actor} = args;
     action = args_map["action"];
     typeof(action) == STR || raise(E_TYPE("Expected action string"));
     if (!valid(this.location))
@@ -407,7 +407,7 @@ object MR_WELCOME
 
   verb _tool_directed_say (this none this) owner: HACKER flags: "rxd"
     "Tool: Say something directed at a specific person";
-    {args_map} = args;
+    {args_map, actor} = args;
     "Check required parameters exist";
     if (!maphaskey(args_map, "target_name"))
       return "Error: Missing required parameter 'target_name'. You must specify who to address.";
@@ -437,7 +437,7 @@ object MR_WELCOME
 
   verb _tool_think (this none this) owner: HACKER flags: "rxd"
     "Tool: Express an internal thought";
-    {args_map} = args;
+    {args_map, actor} = args;
     thought = args_map["thought"];
     typeof(thought) == STR || raise(E_TYPE("Expected thought string"));
     if (!valid(this.location))
@@ -449,7 +449,7 @@ object MR_WELCOME
 
   verb _tool_inspect_object (this none this) owner: HACKER flags: "rxd"
     "Tool: Inspect an object and return detailed information using examination flyweight";
-    {args_map} = args;
+    {args_map, actor} = args;
     object_name = args_map["object_name"];
     typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
     "Find the object first";
@@ -574,7 +574,7 @@ object MR_WELCOME
 
   verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Look up a help topic to get information about commands and features.";
-    {args_map} = args;
+    {args_map, actor} = args;
     topic = args_map["topic"];
     typeof(topic) != STR && return "Error: topic must be a string.";
     "Use Mr. Welcome's location as reference for help environment";

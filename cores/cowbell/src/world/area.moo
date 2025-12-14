@@ -182,7 +182,6 @@ object AREA
   endverb
 
   verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
     "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
     "Optional third arg: only_open (default true) - skip closed passages.";
     {start_room, goal_room, ?only_open = true} = args;
@@ -346,6 +345,20 @@ object AREA
     {room_a, room_b, perms} = args;
     set_task_perms(perms);
     return this:clear_passage(room_a, room_b);
+  endverb
+
+  verb on_room_recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Clean up all passages to/from a room that is being recycled.";
+    set_task_perms(this.owner);
+    {room} = args;
+    typeof(room) == OBJ || return;
+    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+      return;
+    endif
+    tuples = this.passages_rel:select_containing(room);
+    for tuple in (tuples)
+      this.passages_rel:retract(tuple);
+    endfor
   endverb
 
   verb find_passage_by_direction (this none this) owner: HACKER flags: "rxd"

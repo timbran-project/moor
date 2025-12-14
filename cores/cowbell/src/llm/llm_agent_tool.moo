@@ -31,16 +31,16 @@ object LLM_AGENT_TOOL
   endverb
 
   verb execute (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Execute the tool with given arguments";
-    {args_json} = args;
+    "Execute the tool with given arguments and optional actor";
+    {args_json, ?actor = false} = args;
     "Parse arguments if they're JSON";
     if (typeof(args_json) == STR)
       tool_args = parse_json(args_json);
     else
       tool_args = args_json;
     endif
-    "Dispatch to target verb";
-    result = this.target_obj:((this.target_verb))(tool_args);
+    "Dispatch to target verb with _tool_ prefix convention, passing {args, actor}";
+    result = this.target_obj:(("_tool_" + this.target_verb))(tool_args, actor);
     return result;
   endverb
 endobject

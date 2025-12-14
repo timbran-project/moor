@@ -35,8 +35,8 @@ define FORMAT_TITLE = #31;
 define FORMAT_LIST = #32;
 define FORMAT_TABLE = #33;
 define FORMAT_CODE = #34;
-define FORMAT_DEFLIST = #72;
 define HTML = #35;
+define FORMAT_DEFLIST = #72;
 
 // help
 define HELP_UTILS = #58;
@@ -52,6 +52,8 @@ define BRASS_KEY = #65;
 define KIBBLE_CUPBOARD = #66;
 define CAT_KIBBLE = #67;
 define TEST_PLAYER = #74;
+define HOUSEKEEPING = #79;
+define HOUSEKEEPING_SWEEP_MSGS = #80;
 define MAIL_ROOM = #0000A3-9AECAF4AF1;
 define ARCH_WIZARD_MAILBOX = #0000FB-9AECAF7C16;
 define HENRI = #0008CA-9A95162D6A;
@@ -66,8 +68,6 @@ define KIBBLE_CAN_1 = #0008CA-9A95162D77;
 define KIBBLE_CAN_2 = #0008CA-9A95162D78;
 define KIBBLE_CAN_3 = #0008CA-9A95162D79;
 define COUCH = #0008CA-9A95162D7A;
-define HOUSEKEEPING = #79;
-define HOUSEKEEPING_SWEEP_MSGS = #80;
 
 // items
 define THING = #8;
@@ -87,6 +87,7 @@ define DATA_VISOR = #46;
 define ARCHITECTS_COMPASS = #47;
 define LLM_TASK = #61;
 define LLM_CHAT_OPTS = #68;
+define AGENT_BUILDING_TOOLS = #81;
 
 // messaging
 define MAILBOX = #73;

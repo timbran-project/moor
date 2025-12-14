@@ -20,7 +20,9 @@ object RELATION
     "Index each scalar element (lists/flyweights can't be map keys)";
     for i in [1..length(tuple)]
       element = tuple[i];
-      if (typeof(element) in {FLYWEIGHT, LIST, MAP}) continue; endif
+      if (typeof(element) in {FLYWEIGHT, LIST, MAP})
+        continue;
+      endif
       index_prop = "index_" + value_hash(element);
       index_map = `this.(index_prop) ! E_PROPNF => 0';
       if (typeof(index_map) != MAP)
@@ -44,13 +46,17 @@ object RELATION
     "Remove from all indexes (skip non-scalars)";
     for i in [1..length(tuple)]
       element = tuple[i];
-      if (typeof(element) in {FLYWEIGHT, LIST, MAP}) continue; endif
+      if (typeof(element) in {FLYWEIGHT, LIST, MAP})
+        continue;
+      endif
       index_prop = "index_" + value_hash(element);
-      if (!(index_prop in properties(this))) continue; endif
+      if (!(index_prop in properties(this)))
+        continue;
+      endif
       index_map = this.(index_prop);
       uuid_list = setremove(maphaskey(index_map, element) ? index_map[element] | {}, tuple_id);
       index_map = length(uuid_list) ? (index_map[element] = uuid_list) && index_map | mapdelete(index_map, element);
-      length(index_map) ? (this.(index_prop) = index_map) | delete_property(this, index_prop);
+      length(index_map) ? this.(index_prop) = index_map | delete_property(this, index_prop);
     endfor
     delete_property(this, "tuple_" + tuple_id);
     return true;
@@ -70,12 +76,12 @@ object RELATION
     {position, value} = args;
     typeof(position) != INT && raise(E_TYPE);
     position < 1 && raise(E_INVARG);
-    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
+    index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
     typeof(index_map) != MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
       tuple && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
     endfor
     return result;
@@ -85,12 +91,12 @@ object RELATION
     "Find all tuples containing value in any position.";
     set_task_perms(caller_perms());
     {value} = args;
-    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
+    index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
     typeof(index_map) != MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
       tuple && (result = {@result, tuple});
     endfor
     return result;
@@ -98,11 +104,12 @@ object RELATION
 
   verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return all tuples in the relation.";
-    set_task_perms(caller_perms());
     result = {};
     for prop in (properties(this))
       prop_str = tostr(prop);
-      if (length(prop_str) < 6 || prop_str[1..6] != "tuple_") continue; endif
+      if (length(prop_str) < 6 || prop_str[1..6] != "tuple_")
+        continue;
+      endif
       tuple = `this.(prop) ! E_PROPNF => 0';
       tuple && (result = {@result, tuple});
     endfor
@@ -125,11 +132,11 @@ object RELATION
     {tuple} = args;
     !length(tuple) && return 0;
     element = tuple[1];
-    index_map = `this.("index_" + value_hash(element)) ! E_PROPNF => 0';
+    index_map = `this.(("index_" + value_hash(element))) ! E_PROPNF => 0';
     typeof(index_map) != MAP && return 0;
     uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
     for tuple_id in (uuid_list)
-      stored_tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      stored_tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
       stored_tuple && stored_tuple == tuple && return tuple_id;
     endfor
     return 0;

@@ -148,7 +148,7 @@ object LLM_AGENT
     endif
     try
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_call) && this.tool_callback:on_tool_call(tool_name, tool_args);
-      result = tool:execute(tool_args);
+      result = tool:execute(tool_args, this.token_owner);
       suspend(0);
       content_out = typeof(result) == STR ? result | toliteral(result);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_complete) && `this.tool_callback:on_tool_complete(tool_name, tool_args, content_out) ! ANY';

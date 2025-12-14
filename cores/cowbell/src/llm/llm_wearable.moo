@@ -142,7 +142,7 @@ object LLM_WEARABLE
 
   verb _tool_explain (this none this) owner: HACKER flags: "rxd"
     "Tool: Communicate reasoning, progress updates, or error details to user";
-    {args_map} = args;
+    {args_map, actor} = args;
     message = args_map["message"];
     typeof(message) == STR || raise(E_TYPE("Expected message string"));
     "Message is displayed by on_tool_call callback, no need to display here";
@@ -151,8 +151,8 @@ object LLM_WEARABLE
 
   verb _tool_ask_user (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Ask the wearer a question, supporting choices or free-text responses";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     question = args_map["question"];
     typeof(question) == STR || raise(E_TYPE("Expected question string"));
     placeholder = `args_map["placeholder"] ! ANY => "Describe your requested changes..."';
@@ -454,22 +454,22 @@ object LLM_WEARABLE
     caller == this || caller_perms().wizard || raise(E_PERM);
     {agent} = args;
     "Register explain tool";
-    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
+    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "explain");
     agent:add_tool("explain", explain_tool);
     "Register ask_user tool";
-    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
+    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "ask_user");
     agent:add_tool("ask_user", ask_user_tool);
     "Register todo list tools";
-    todo_write_tool = $llm_agent_tool:mk("todo_write", "Replace the entire todo list. Use this to track multi-step tasks. Each todo needs 'content' (what to do) and 'status' ('pending', 'in_progress', or 'completed'). Mark tasks in_progress when starting, completed when done.", ["type" -> "object", "properties" -> ["todos" -> ["type" -> "array", "items" -> ["type" -> "object", "properties" -> ["content" -> ["type" -> "string"], "status" -> ["type" -> "string", "enum" -> {"pending", "in_progress", "completed"}]], "required" -> {"content", "status"}], "description" -> "List of todo items"]], "required" -> {"todos"}], this, "_tool_todo_write");
+    todo_write_tool = $llm_agent_tool:mk("todo_write", "Replace the entire todo list. Use this to track multi-step tasks. Each todo needs 'content' (what to do) and 'status' ('pending', 'in_progress', or 'completed'). Mark tasks in_progress when starting, completed when done.", ["type" -> "object", "properties" -> ["todos" -> ["type" -> "array", "items" -> ["type" -> "object", "properties" -> ["content" -> ["type" -> "string"], "status" -> ["type" -> "string", "enum" -> {"pending", "in_progress", "completed"}]], "required" -> {"content", "status"}], "description" -> "List of todo items"]], "required" -> {"todos"}], this, "todo_write");
     agent:add_tool("todo_write", todo_write_tool);
-    get_todos_tool = $llm_agent_tool:mk("get_todos", "Get the current todo list to see what tasks are pending, in progress, or completed.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_get_todos");
+    get_todos_tool = $llm_agent_tool:mk("get_todos", "Get the current todo list to see what tasks are pending, in progress, or completed.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "get_todos");
     agent:add_tool("get_todos", get_todos_tool);
   endverb
 
   verb _tool_todo_write (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Replace the entire todo list to track multi-step tasks";
-    {args_map} = args;
-    this:_action_perms_check();
+    {args_map, actor} = args;
+    actor || this:_action_perms_check();
     todos_input = args_map["todos"];
     typeof(todos_input) != LIST && raise(E_TYPE, "todos must be a list");
     todo_items = {};
@@ -490,8 +490,8 @@ object LLM_WEARABLE
 
   verb _tool_get_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the current todo list";
-    {args_map} = args;
-    this:_action_perms_check();
+    {args_map, actor} = args;
+    actor || this:_action_perms_check();
     return this.agent:format_todos();
   endverb
 
@@ -500,32 +500,32 @@ object LLM_WEARABLE
     caller == this || caller_perms().wizard || raise(E_PERM);
     {agent} = args;
     "Register doc_lookup tool";
-    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
+    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "doc_lookup");
     agent:add_tool("doc_lookup", doc_tool);
     "Register message tools";
-    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (*_msg) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
+    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (*_msg) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "list_messages");
     agent:add_tool("list_messages", list_messages_tool);
-    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
+    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "get_message_template");
     agent:add_tool("get_message_template", get_message_tool);
-    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
+    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "set_message_template");
     agent:add_tool("set_message_template", set_message_tool);
-    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_add_message_template");
+    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "add_message_template");
     agent:add_tool("add_message_template", add_message_tool);
-    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
+    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "delete_message_template");
     agent:add_tool("delete_message_template", del_message_tool);
     "Register rule tools";
-    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "_tool_list_rules");
+    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "list_rules");
     agent:add_tool("list_rules", list_rules_tool);
-    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "_tool_set_rule");
+    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "set_rule");
     agent:add_tool("set_rule", set_rule_tool);
-    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
+    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "show_rule");
     agent:add_tool("show_rule", show_rule_tool);
   endverb
 
   verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Fetch developer documentation for object/verb/property (like @doc)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     target_spec = args_map["target"];
     set_task_perms(wearer);
     "Handle special alias cases";
@@ -578,8 +578,8 @@ object LLM_WEARABLE
 
   verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List *_msg properties and message bags on an object (like @messages)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
@@ -597,8 +597,8 @@ object LLM_WEARABLE
 
   verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Read a single message template (like @getm)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     prop_name = args_map["property"];
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
     set_task_perms(wearer);
@@ -622,8 +622,8 @@ object LLM_WEARABLE
 
   verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set a message template (like @setm). Creates property if missing.";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     {prop_name, template} = {args_map["property"], args_map["template"]};
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
     template || raise(E_INVARG, "Template string required");
@@ -657,8 +657,8 @@ object LLM_WEARABLE
 
   verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Append a template to a message bag (like @add-message)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     {prop_name, template} = {args_map["property"], args_map["template"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
     template || raise(E_INVARG, "Template string required");
@@ -674,8 +674,8 @@ object LLM_WEARABLE
 
   verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Delete a template by index from a message bag (like @del-message)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     {prop_name, idx} = {args_map["property"], args_map["index"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
     typeof(idx) == INT || raise(E_TYPE, "Index must be integer");
@@ -691,8 +691,8 @@ object LLM_WEARABLE
 
   verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List *_rule properties on an object (like @rules)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
@@ -709,8 +709,8 @@ object LLM_WEARABLE
 
   verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set a rule on an object property (like @set-rule)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     {prop_name, expression} = {args_map["property"], args_map["expression"]};
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
     expression || raise(E_INVARG, "Rule expression required");
@@ -739,8 +739,8 @@ object LLM_WEARABLE
 
   verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Display a rule property expression (like @show-rule)";
-    {args_map} = args;
-    wearer = this:_action_perms_check();
+    {args_map, actor} = args;
+    wearer = actor || this:_action_perms_check();
     prop_name = args_map["property"];
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
     set_task_perms(wearer);
