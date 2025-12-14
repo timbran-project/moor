@@ -13,6 +13,7 @@ object HENRI
   property mood (owner: HACKER, flags: "rc") = "grouchy";
   property pets_received (owner: HACKER, flags: "rc") = 0;
   property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
+  property behaviours_disabled (owner: HACKER, flags: "rc") = false;
 
   property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .head = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}>;
   property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .head = 'henri_feed_rule, .body = {{'is_grouchy, 'This}, {'isa, 'Food, CAT_KIBBLE}, {'location_is, 'Food, 'Accessor}}, .variables = {'This, 'Food, 'Accessor}>;
@@ -414,6 +415,9 @@ object HENRI
 
   verb start_behaviours (this none this) owner: HACKER flags: "rxd"
     "Start Henri's periodic autonomous behaviours";
+    set_task_perms(this.owner);
+    "Clear disabled flag";
+    this.behaviours_disabled = false;
     "Check if behaviours are already running";
     if (length(this.scheduled_behaviours) > 0)
       player:inform_current($event:mk_info(player, "Henri's behaviours are already running."));
@@ -449,6 +453,9 @@ object HENRI
 
   verb stop_behaviours (this none this) owner: HACKER flags: "rxd"
     "Stop Henri's periodic autonomous behaviours";
+    set_task_perms(this.owner);
+    "Set disabled flag to prevent auto-restart";
+    this.behaviours_disabled = true;
     "Check if behaviours are running";
     if (length(this.scheduled_behaviours) == 0)
       player:inform_current($event:mk_info(player, "Henri's behaviours are not currently running."));
@@ -606,8 +613,12 @@ object HENRI
 
   verb _maybe_start_behaviours (none none none) owner: HACKER flags: "rxd"
     "Check if behaviors should auto-start and start them if needed.";
-    "Only start if: in a valid location, players present, not already running";
+    "Only start if: in a valid location, players present, not already running, not disabled";
     if (!valid(this.location))
+      return false;
+    endif
+    "Explicitly disabled by user?";
+    if (this.behaviours_disabled)
       return false;
     endif
     "Already running?";
