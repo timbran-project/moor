@@ -46,6 +46,7 @@ object LOOK
     integrated_contents = {};
     things = {};
     actors = {};
+    deeply_asleep = {};
     flyweight_contents = flycontents(this);
     for o in (flyweight_contents)
       if (o == player)
@@ -58,7 +59,10 @@ object LOOK
         "Format actor with idle status";
         status = this:actor_idle_status(o);
         actor_name = `o:name() ! E_VERBNF => o.name';
-        if (status)
+        if (status == "deeply asleep")
+          "Collect deeply asleep actors separately (just name, no status)";
+          deeply_asleep = {@deeply_asleep, actor_name};
+        elseif (status && status != "awake")
           actors = {@actors, actor_name + " (" + status + ")"};
         else
           actors = {@actors, actor_name};
@@ -95,6 +99,9 @@ object LOOK
     endif
     if (length(actors))
       block_elements = {@block_elements, actors:english_list() + " " + (length(actors) == 1 ? "is" | "are") + " here."};
+    endif
+    if (length(deeply_asleep))
+      block_elements = {@block_elements, deeply_asleep:english_list() + " " + (length(deeply_asleep) == 1 ? "is" | "are") + " deeply asleep."};
     endif
     b = $format.block:mk(@block_elements);
     event = $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset):with_group('look, this.what);

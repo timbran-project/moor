@@ -74,7 +74,7 @@ object ROOM
     valid(who) || return;
     if (is_player(who))
       look_d = this:look_self();
-      who:inform_current(look_d:into_event():with_audience('utility));
+      `who:tell(look_d:into_event():with_audience('utility)) ! ANY';
       "Notify objects in the room that a player arrived";
       for thing in (this.contents)
         if (thing != who)

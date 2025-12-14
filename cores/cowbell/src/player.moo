@@ -23,6 +23,7 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property wearing (owner: HACKER, flags: "rwc") = {};
+  property home (owner: ARCH_WIZARD, flags: "rc");
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -217,6 +218,14 @@ object PLAYER
     set_task_perms(perms);
     {new_password} = args;
     this.password = $password:mk(new_password);
+  endverb
+
+  verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
+    {this, perms} = this:check_permissions('set_home);
+    set_task_perms(perms);
+    {room} = args;
+    this.home = room;
   endverb
 
   verb "@password" (any any any) owner: ARCH_WIZARD flags: "rd"

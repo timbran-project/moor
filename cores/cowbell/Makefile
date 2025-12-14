@@ -1,10 +1,13 @@
 # MOORC binary selection via environment variable MOORC_TYPE
-# Options: cargo (default), direct
+# Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
 
 # DEBUG controls whether to run moorc under gdb
 # Set DEBUG=1 to enable gdb debugging
 DEBUG ?= 0
+
+# Docker image name for MOORC_TYPE=docker
+MOORC_IMAGE ?= moor-moor-daemon
 
 OPTIONS = --use-boolean-returns true \
           --use-symbols-in-builtins true \
@@ -27,6 +30,11 @@ SRC_DIRECTORY = src
 TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 MOORC = ../moor/target/debug/moorc $(OPTIONS)
+else ifeq ($(MOORC_TYPE),docker)
+SRC_DIRECTORY = /work/src
+TEST_DIRECTORY = /work/tests
+OUTPUT_DIRECTORY = /work
+MOORC = docker run --rm -v $(CURDIR):/work -w /work $(MOORC_IMAGE) /moor/moorc $(OPTIONS)
 endif
 
 # Target to generate an old-style MOO textdump from the compilation of the

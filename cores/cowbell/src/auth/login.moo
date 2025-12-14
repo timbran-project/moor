@@ -32,6 +32,7 @@ object LOGIN
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
   property new_player_letter (owner: ARCH_WIZARD, flags: "rc") = {ARCH_WIZARD, "Welcome to Cowbell!", {"Hello and welcome!", "", "We're glad you've joined us. Feel free to explore, meet other players, and make yourself at home.", "", "If you need help, try typing `help` or `what` to see what you can do.", "", "Enjoy your stay!"}};
+  property default_home (owner: ARCH_WIZARD, flags: "rc") = FIRST_ROOM;
 
   override description = "Login service handling player authentication, character creation, and OAuth2 integration.";
   override import_export_hierarchy = {"auth"};
@@ -352,6 +353,11 @@ object LOGIN
     endif
     if (typeof(oauth_entries) == LIST)
       setup_cap:set_oauth2_identities(oauth_entries);
+    endif
+    "Set the player's home to the default home (e.g., the dormitory)";
+    default_home = `this.default_home ! E_PROPNF => $nothing';
+    if (valid(default_home))
+      setup_cap:set_home(default_home);
     endif
     `setup_cap:moveto($first_room) ! ANY';
     return new_player;
