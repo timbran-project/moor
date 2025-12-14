@@ -5,13 +5,13 @@ object LLM_AGENT
   fertile: true
   readable: true
 
+  property all_failed_iterations (owner: ARCH_WIZARD, flags: "rc") = 0;
   property cancel_requested (owner: HACKER, flags: "rc") = false;
   property chat_opts (owner: ARCH_WIZARD, flags: "rc") = false;
   property client (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
   property consecutive_tool_failures (owner: ARCH_WIZARD, flags: "rc") = [];
-  property all_failed_iterations (owner: ARCH_WIZARD, flags: "rc") = 0;
   property context (owner: ARCH_WIZARD, flags: "c") = {};
   property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
   property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -38,6 +38,7 @@ object LLM_AGENT
   verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called automatically on creation. Creates anonymous client.";
     this.client = $llm_client:create(true);
+    this.client.name = "Client for " + this.name;
   endverb
 
   verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -179,6 +180,9 @@ object LLM_AGENT
     "Optional second arg: opts flyweight to override this.chat_opts for this call";
     {user_input, ?opts = false} = args;
     this:_challenge_permissions(caller);
+    "Repair any context corruption before proceeding";
+    repairs = this:_repair_context();
+    repairs > 0 && this:_log("Auto-repaired " + tostr(repairs) + " context issues before processing new message");
     this:add_message("user", user_input);
     this.cancel_requested = false;
     this.current_iteration = 0;
@@ -198,7 +202,16 @@ object LLM_AGENT
         this.current_iteration = 0;
         return tostr(response);
       endif
-      message = response["choices"][1]["message"];
+      choice = response["choices"][1];
+      message = choice["message"];
+      finish_reason = maphaskey(choice, "finish_reason") ? choice["finish_reason"] | "";
+      "Check finish_reason - 'stop' or 'end_turn' means model is done, exit loop";
+      if (finish_reason == "stop" || finish_reason == "end_turn")
+        content = maphaskey(message, "content") ? message["content"] | "";
+        content && this:add_message("assistant", content);
+        this.current_iteration = 0;
+        return content || "Task complete.";
+      endif
       "No tool calls = final response";
       if (!(maphaskey(message, "tool_calls") && message["tool_calls"]))
         this:add_message("assistant", message["content"]);
@@ -265,12 +278,32 @@ object LLM_AGENT
 
   verb compact_context (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Compact context by summarizing old messages and keeping recent ones";
+    "Respects tool_call boundaries - won't split assistant+tool_responses";
     this:_challenge_permissions(caller);
     length(this.context) <= this.min_messages_to_keep + 1 && return;
     valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_start) && `this.compaction_callback:on_compaction_start() ! ANY';
     system_msg = this.context[1];
-    old_messages = (this.context)[2..$ - this.min_messages_to_keep];
-    recent_messages = (this.context)[$ - this.min_messages_to_keep + 1..$];
+    "Find a safe split point that doesn't break tool_call sequences";
+    target_split = length(this.context) - this.min_messages_to_keep;
+    split_point = target_split;
+    "Walk backwards from target to find a safe split (not in middle of tool sequence)";
+    for i in [target_split..2]
+      msg = this.context[i];
+      "Safe to split before user/system messages, or before assistant without tool_calls";
+      if (typeof(msg) == MAP && maphaskey(msg, "role"))
+        role = msg["role"];
+        if (role == "user" || role == "system")
+          split_point = i;
+          break;
+        elseif (role == "assistant" && !(maphaskey(msg, "tool_calls") && msg["tool_calls"]))
+          split_point = i;
+          break;
+        endif
+      endif
+    endfor
+    old_messages = (this.context)[2..split_point - 1];
+    recent_messages = (this.context)[split_point..$];
+    length(old_messages) == 0 && return;
     summary_context = {system_msg, ["role" -> "user", "content" -> "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages)]};
     try
       response = this.client:chat(summary_context, false, false, {});
@@ -545,5 +578,60 @@ object LLM_AGENT
         this.consecutive_tool_failures = mapdelete(failures, tool_name);
       endif
     endif
+  endverb
+
+  verb _repair_context (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Detect and repair context corruption (orphaned tool_calls without responses).";
+    "Returns number of repairs made.";
+    caller == this || raise(E_PERM);
+    ctx = this.context;
+    repairs = 0;
+    new_ctx = {};
+    i = 1;
+    while (i <= length(ctx))
+      msg = ctx[i];
+      new_ctx = {@new_ctx, msg};
+      "Check if this is an assistant message with tool_calls";
+      if (typeof(msg) == MAP && maphaskey(msg, "tool_calls") && msg["tool_calls"])
+        tool_calls = msg["tool_calls"];
+        expected_ids = { tc["id"] for tc in (tool_calls) };
+        "Collect tool responses that follow";
+        found_ids = {};
+        j = i + 1;
+        while (j <= length(ctx))
+          next_msg = ctx[j];
+          if (typeof(next_msg) == MAP && maphaskey(next_msg, "role"))
+            if (next_msg["role"] == "tool" && maphaskey(next_msg, "tool_call_id"))
+              found_ids = {@found_ids, next_msg["tool_call_id"]};
+              new_ctx = {@new_ctx, next_msg};
+              j = j + 1;
+            else
+              "Hit a non-tool message, stop looking for responses";
+              break;
+            endif
+          else
+            break;
+          endif
+        endwhile
+        "Add synthetic responses for any missing tool_call_ids";
+        for tc in (tool_calls)
+          tc_id = tc["id"];
+          if (!(tc_id in found_ids))
+            tc_name = tc["function"]["name"];
+            synthetic = ["role" -> "tool", "tool_call_id" -> tc_id, "name" -> tc_name, "content" -> "Tool call interrupted or response lost."];
+            new_ctx = {@new_ctx, synthetic};
+            repairs = repairs + 1;
+            this:_log("Repaired orphaned tool_call: " + tc_id + " (" + tc_name + ")");
+          endif
+        endfor
+        i = j;
+      else
+        i = i + 1;
+      endif
+    endwhile
+    if (repairs > 0)
+      this.context = new_ctx;
+    endif
+    return repairs;
   endverb
 endobject

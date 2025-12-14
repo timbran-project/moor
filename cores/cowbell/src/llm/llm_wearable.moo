@@ -542,7 +542,17 @@ object LLM_WEARABLE
     else
       parsed = $prog_utils:parse_target_spec(target_spec);
       parsed || raise(E_INVARG, "Invalid format. Use object, object:verb, or object.property");
-      {type, object_str, item_name} = {parsed['type], parsed['object_str], parsed['item_name]};
+      object_str = parsed['object_str];
+      selectors = parsed['selectors];
+      "Determine type and item_name from selectors";
+      if (length(selectors) > 0)
+        selector = selectors[1];
+        type = selector['kind];
+        item_name = selector['item_name];
+      else
+        type = 'object;
+        item_name = "";
+      endif
       target_obj = $match:match_object(object_str, wearer);
       typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
       valid(target_obj) || raise(E_INVARG, "Object no longer exists");

@@ -562,7 +562,10 @@ object STR_PROTO
     "";
     "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading and trailing copies of that character removed.  For example, $string:trim(\"***foo***\", \"*\") => \"foo\".";
     {string, ?space = " "} = args;
+    !string && return "";
+    len = length(string);
     m = match(string, tostr("[^", space, "]%(.*[^", space, "]%)?%|$"));
+    !m || m[1] < 1 || m[2] > len || m[1] > m[2] && return "";
     return string[m[1]..m[2]];
   endverb
 
