@@ -41,6 +41,9 @@ object PASSAGE
   property side_a_label (owner: HACKER, flags: "rc") = "";
   property side_a_leave_msg (owner: HACKER, flags: "rc") = {};
   property side_a_room (owner: HACKER, flags: "rc") = #-1;
+  property side_a_prose_style (owner: HACKER, flags: "rc") = 'fragment;
+  property side_a_departure_phrase (owner: HACKER, flags: "rc") = "";
+  property side_a_arrival_phrase (owner: HACKER, flags: "rc") = "";
   property side_b_aliases (owner: HACKER, flags: "rc") = {};
   property side_b_ambient (owner: HACKER, flags: "rc") = true;
   property side_b_arrive_msg (owner: HACKER, flags: "rc") = {};
@@ -48,6 +51,9 @@ object PASSAGE
   property side_b_label (owner: HACKER, flags: "rc") = "";
   property side_b_leave_msg (owner: HACKER, flags: "rc") = {};
   property side_b_room (owner: HACKER, flags: "rc") = #-1;
+  property side_b_prose_style (owner: HACKER, flags: "rc") = 'fragment;
+  property side_b_departure_phrase (owner: HACKER, flags: "rc") = "";
+  property side_b_arrival_phrase (owner: HACKER, flags: "rc") = "";
 
   override description = "Bidirectional passage configuration.";
   override import_export_hierarchy = {"world"};
@@ -73,7 +79,29 @@ object PASSAGE
     ambient_a = ambient_a ? true | false;
     ambient_b = ambient_b ? true | false;
     is_open = is_open ? true | false;
-    return <this, .side_a_room = room_a, .side_a_label = label_a, .side_a_aliases = aliases_a, .side_a_description = description_a, .side_a_ambient = ambient_a, .side_a_leave_msg = {}, .side_a_arrive_msg = {}, .side_b_room = room_b, .side_b_label = label_b, .side_b_aliases = aliases_b, .side_b_description = description_b, .side_b_ambient = ambient_b, .side_b_leave_msg = {}, .side_b_arrive_msg = {}, .is_open = is_open>;
+    return <this,
+      .side_a_room = room_a,
+      .side_a_label = label_a,
+      .side_a_aliases = aliases_a,
+      .side_a_description = description_a,
+      .side_a_ambient = ambient_a,
+      .side_a_leave_msg = {},
+      .side_a_arrive_msg = {},
+      .side_a_prose_style = 'fragment,
+      .side_a_departure_phrase = "",
+      .side_a_arrival_phrase = "",
+      .side_b_room = room_b,
+      .side_b_label = label_b,
+      .side_b_aliases = aliases_b,
+      .side_b_description = description_b,
+      .side_b_ambient = ambient_b,
+      .side_b_leave_msg = {},
+      .side_b_arrive_msg = {},
+      .side_b_prose_style = 'fragment,
+      .side_b_departure_phrase = "",
+      .side_b_arrival_phrase = "",
+      .is_open = is_open
+    >;
   endverb
 
   verb _value (this none this) owner: HACKER flags: "rxd"
@@ -122,6 +150,15 @@ object PASSAGE
       elseif (attr == 'arrive_msg)
         prop = "side_a_arrive_msg";
         default = {};
+      elseif (attr == 'prose_style)
+        prop = "side_a_prose_style";
+        default = 'fragment;
+      elseif (attr == 'departure_phrase)
+        prop = "side_a_departure_phrase";
+        default = "";
+      elseif (attr == 'arrival_phrase)
+        prop = "side_a_arrival_phrase";
+        default = "";
       endif
     elseif (side == 'b)
       if (attr == 'room)
@@ -145,6 +182,15 @@ object PASSAGE
       elseif (attr == 'arrive_msg)
         prop = "side_b_arrive_msg";
         default = {};
+      elseif (attr == 'prose_style)
+        prop = "side_b_prose_style";
+        default = 'fragment;
+      elseif (attr == 'departure_phrase)
+        prop = "side_b_departure_phrase";
+        default = "";
+      elseif (attr == 'arrival_phrase)
+        prop = "side_b_arrival_phrase";
+        default = "";
       endif
     endif
     if (!prop)
@@ -238,6 +284,45 @@ object PASSAGE
     endif
   endverb
 
+  verb prose_style_for (this none this) owner: HACKER flags: "rxd"
+    "Get the prose style for the side facing a given room.";
+    "Returns 'sentence (include as-is) or 'fragment (wrap in 'You see X').";
+    {room} = args;
+    if (room == this:_side_lookup('a, 'room))
+      return this:_side_lookup('a, 'prose_style);
+    elseif (room == this:_side_lookup('b, 'room))
+      return this:_side_lookup('b, 'prose_style);
+    else
+      return 'fragment;
+    endif
+  endverb
+
+  verb departure_phrase_for (this none this) owner: HACKER flags: "rxd"
+    "Get the departure phrase for the side facing a given room.";
+    "Used in messages like 'heads [direction] through [phrase]'.";
+    {room} = args;
+    if (room == this:_side_lookup('a, 'room))
+      return this:_side_lookup('a, 'departure_phrase);
+    elseif (room == this:_side_lookup('b, 'room))
+      return this:_side_lookup('b, 'departure_phrase);
+    else
+      return "";
+    endif
+  endverb
+
+  verb arrival_phrase_for (this none this) owner: HACKER flags: "rxd"
+    "Get the arrival phrase for the side facing a given room.";
+    "Used in messages like 'arrives from [phrase]'.";
+    {room} = args;
+    if (room == this:_side_lookup('a, 'room))
+      return this:_side_lookup('a, 'arrival_phrase);
+    elseif (room == this:_side_lookup('b, 'room))
+      return this:_side_lookup('b, 'arrival_phrase);
+    else
+      return "";
+    endif
+  endverb
+
   verb matches_command (this none this) owner: HACKER flags: "rxd"
     "Check if command matches this passage's label or aliases from given room.";
     "Also handles direction abbreviations (n/north, e/east, etc).";
@@ -301,7 +386,8 @@ object PASSAGE
     else
       "Fall back to default message generation";
       from_description = this:description_for(from_room);
-      departure = `player:mk_departure_event(from_room, from_label, from_description, to_room) ! E_VERBNF => 0';
+      departure_phrase = this:departure_phrase_for(from_room);
+      departure = `player:mk_departure_event(from_room, from_label, from_description, to_room, departure_phrase) ! E_VERBNF => 0';
     endif
     if (departure)
       departure = departure:with_audience('narrative);
@@ -331,7 +417,8 @@ object PASSAGE
     else
       "Fall back to default message generation";
       to_description = this:description_for(to_room);
-      arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room) ! E_VERBNF => 0';
+      arrival_phrase = this:arrival_phrase_for(to_room);
+      arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room, arrival_phrase) ! E_VERBNF => 0';
     endif
     if (arrival)
       arrival = arrival:with_audience('narrative);
@@ -369,8 +456,8 @@ object PASSAGE
   endverb
 
   verb side_info_for (this none this) owner: HACKER flags: "rxd"
-    "Get label, description, and ambient flag for a given room side.";
-    "Returns [label, description, ambient] or empty list if room not found.";
+    "Get label, description, ambient flag, and prose_style for a given room side.";
+    "Returns [label, description, ambient, prose_style] or empty list if room not found.";
     {room} = args;
     label = this:label_for(room);
     description = this:description_for(room);
@@ -379,7 +466,36 @@ object PASSAGE
       return {};
     endif
     ambient = this:_side_lookup(side, 'ambient);
-    return {label, description, ambient};
+    prose_style = this:_side_lookup(side, 'prose_style);
+    return {label, description, ambient, prose_style};
+  endverb
+
+  verb _mk_from_props (this none this) owner: HACKER flags: "rxd"
+    "Construct a passage flyweight from a props map. Internal helper for transformer verbs.";
+    {props} = args;
+    return <$passage,
+      .side_a_room = props['room_a],
+      .side_a_label = props['label_a],
+      .side_a_aliases = props['aliases_a],
+      .side_a_description = props['desc_a],
+      .side_a_ambient = props['ambient_a],
+      .side_a_leave_msg = props['leave_msg_a],
+      .side_a_arrive_msg = props['arrive_msg_a],
+      .side_a_prose_style = props['prose_style_a],
+      .side_a_departure_phrase = props['departure_phrase_a],
+      .side_a_arrival_phrase = props['arrival_phrase_a],
+      .side_b_room = props['room_b],
+      .side_b_label = props['label_b],
+      .side_b_aliases = props['aliases_b],
+      .side_b_description = props['desc_b],
+      .side_b_ambient = props['ambient_b],
+      .side_b_leave_msg = props['leave_msg_b],
+      .side_b_arrive_msg = props['arrive_msg_b],
+      .side_b_prose_style = props['prose_style_b],
+      .side_b_departure_phrase = props['departure_phrase_b],
+      .side_b_arrival_phrase = props['arrival_phrase_b],
+      .is_open = props['is_open]
+    >;
   endverb
 
   verb _extract_all (this none this) owner: HACKER flags: "rxd"
@@ -399,6 +515,12 @@ object PASSAGE
       'leave_msg_b -> this:_side_lookup('b, 'leave_msg),
       'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg),
       'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg),
+      'prose_style_a -> this:_side_lookup('a, 'prose_style),
+      'prose_style_b -> this:_side_lookup('b, 'prose_style),
+      'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase),
+      'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase),
+      'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase),
+      'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase),
       'is_open -> this:_value("is_open", true)
     ];
   endverb
@@ -416,7 +538,7 @@ object PASSAGE
     else
       props['label_b] = label;
     endif
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .is_open = props['is_open]>;
+    return this:_mk_from_props(props);
   endverb
 
   verb with_description_from (this none this) owner: HACKER flags: "rxd"
@@ -440,7 +562,7 @@ object PASSAGE
     else
       props['desc_b] = description;
     endif
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .is_open = props['is_open]>;
+    return this:_mk_from_props(props);
   endverb
 
   verb with_aliases_from (this none this) owner: HACKER flags: "rxd"
@@ -461,7 +583,7 @@ object PASSAGE
     else
       props['aliases_b] = aliases;
     endif
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .is_open = props['is_open]>;
+    return this:_mk_from_props(props);
   endverb
 
   verb with_ambient_from (this none this) owner: HACKER flags: "rxd"
@@ -476,14 +598,66 @@ object PASSAGE
     else
       props['ambient_b] = is_ambient ? true | false;
     endif
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .is_open = props['is_open]>;
+    return this:_mk_from_props(props);
   endverb
 
   verb with_open (this none this) owner: HACKER flags: "rxd"
     "Update whether the passage is open/traversable. Returns new passage flyweight.";
     {is_open} = args;
     props = this:_extract_all();
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .is_open = is_open ? true | false>;
+    props['is_open] = is_open ? true | false;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_prose_style_from (this none this) owner: HACKER flags: "rxd"
+    "Update the prose style for the side visible from a given room. Returns new passage flyweight.";
+    "'sentence means include description as-is; 'fragment means wrap in 'You see X'.";
+    {room, style} = args;
+    typeof(room) == OBJ || raise(E_TYPE);
+    style in {'sentence, 'fragment} || raise(E_INVARG, "prose_style must be 'sentence or 'fragment");
+    side = this:side_for(room);
+    side == 'none && raise(E_INVARG, "Room not connected by this passage");
+    props = this:_extract_all();
+    if (side == 'a)
+      props['prose_style_a] = style;
+    else
+      props['prose_style_b] = style;
+    endif
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_departure_phrase_from (this none this) owner: HACKER flags: "rxd"
+    "Update the departure phrase for the side visible from a given room. Returns new passage flyweight.";
+    "Used in messages like 'heads [direction] through [phrase]'.";
+    {room, phrase} = args;
+    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(phrase) == STR || raise(E_TYPE);
+    side = this:side_for(room);
+    side == 'none && raise(E_INVARG, "Room not connected by this passage");
+    props = this:_extract_all();
+    if (side == 'a)
+      props['departure_phrase_a] = phrase;
+    else
+      props['departure_phrase_b] = phrase;
+    endif
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_arrival_phrase_from (this none this) owner: HACKER flags: "rxd"
+    "Update the arrival phrase for the side visible from a given room. Returns new passage flyweight.";
+    "Used in messages like 'arrives from [phrase]'.";
+    {room, phrase} = args;
+    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(phrase) == STR || raise(E_TYPE);
+    side = this:side_for(room);
+    side == 'none && raise(E_INVARG, "Room not connected by this passage");
+    props = this:_extract_all();
+    if (side == 'a)
+      props['arrival_phrase_a] = phrase;
+    else
+      props['arrival_phrase_b] = phrase;
+    endif
+    return this:_mk_from_props(props);
   endverb
 
   verb mk_movement_context (this none this) owner: HACKER flags: "rxd"

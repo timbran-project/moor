@@ -83,8 +83,33 @@ object LOOK
       endfor
     endif
     if (length(ambient_passages))
-      lowercased_passages = { desc:initial_lowercase() for desc in (ambient_passages) };
-      desc_content = {@desc_content, "  You see ", lowercased_passages:english_list(), "."};
+      "Process ambient passages based on prose_style";
+      fragment_passages = {};
+      for ap in (ambient_passages)
+        "Handle both old format (just string) and new format ({description, prose_style})";
+        if (typeof(ap) == LIST && length(ap) >= 2)
+          {description, prose_style} = ap;
+        else
+          description = ap;
+          prose_style = 'fragment;
+        endif
+        if (prose_style == 'sentence)
+          "Complete sentence - include as-is with proper capitalization and punctuation";
+          formatted = description:capitalize();
+          if (typeof(formatted) == STR && !formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
+            formatted = formatted + ".";
+          endif
+          desc_content = {@desc_content, "  ", formatted};
+        else
+          "Fragment - collect for 'You see X' treatment";
+          fragment_passages = {@fragment_passages, description};
+        endif
+      endfor
+      "Combine fragment passages with 'You see' wrapper";
+      if (length(fragment_passages))
+        lowercased = { desc:initial_lowercase() for desc in (fragment_passages) };
+        desc_content = {@desc_content, "  You see ", lowercased:english_list(), "."};
+      endif
     endif
     block_elements = {title, desc_content};
     "Add exits if present";

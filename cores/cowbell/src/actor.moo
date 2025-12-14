@@ -174,18 +174,26 @@ object ACTOR
   endverb
 
   verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
-    {from_room, ?direction = "", ?passage_desc = "", ?to_room = #-1} = args;
+    "Create a departure event. Optional departure_phrase overrides default template.";
+    {from_room, ?direction = "", ?passage_desc = "", ?to_room = #-1, ?departure_phrase = ""} = args;
     typeof(direction) == STR || (direction = "");
     typeof(passage_desc) == STR || (passage_desc = "");
-    passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
+    typeof(departure_phrase) == STR || (departure_phrase = "");
     parts = {$sub:nc(), " ", $sub:self_alt("head", "heads")};
-    if (direction)
-      parts = {@parts, " ", direction};
+    if (departure_phrase)
+      "Use custom departure phrase if provided";
+      parts = {@parts, " ", departure_phrase};
     else
-      parts = {@parts, " out"};
-    endif
-    if (passage_desc)
-      parts = {@parts, " through ", passage_desc};
+      "Default: construct from direction and passage description";
+      if (direction)
+        parts = {@parts, " ", direction};
+      else
+        parts = {@parts, " out"};
+      endif
+      if (passage_desc)
+        passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
+        parts = {@parts, " through ", passage_desc};
+      endif
     endif
     parts = {@parts, "."};
     event = $event:mk_move(this, @parts);
@@ -198,16 +206,31 @@ object ACTOR
   endverb
 
   verb mk_arrival_event (this none this) owner: HACKER flags: "rxd"
-    {to_room, ?direction = "", ?passage_desc = "", ?from_room = #-1} = args;
+    "Create an arrival event. Optional arrival_phrase overrides default template.";
+    {to_room, ?direction = "", ?passage_desc = "", ?from_room = #-1, ?arrival_phrase = ""} = args;
     typeof(direction) == STR || (direction = "");
     typeof(passage_desc) == STR || (passage_desc = "");
-    passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
+    typeof(arrival_phrase) == STR || (arrival_phrase = "");
     parts = {$sub:nc(), " ", $sub:self_alt("arrive", "arrives")};
-    if (direction)
-      parts = {@parts, " from the ", direction};
-    endif
-    if (passage_desc)
-      parts = {@parts, ", emerging from ", passage_desc};
+    if (arrival_phrase)
+      "Use custom arrival phrase if provided";
+      parts = {@parts, " ", arrival_phrase};
+    else
+      "Default: construct from direction and passage description";
+      if (direction)
+        "Handle direction grammar - vertical directions need different phrasing";
+        if (direction in {"up", "down"})
+          parts = {@parts, " from ", direction == "up" ? "below" | "above"};
+        elseif (direction in {"in", "out"})
+          parts = {@parts, " from ", direction == "in" ? "outside" | "inside"};
+        else
+          parts = {@parts, " from the ", direction};
+        endif
+      endif
+      if (passage_desc)
+        passage_desc = $sub:phrase(passage_desc, {'strip_period, 'initial_lowercase});
+        parts = {@parts, ", emerging from ", passage_desc};
+      endif
     endif
     parts = {@parts, "."};
     event = $event:mk_move(this, @parts);

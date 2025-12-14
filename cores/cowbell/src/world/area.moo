@@ -364,6 +364,7 @@ object AREA
 
   verb get_exit_info (this none this) owner: HACKER flags: "rxd"
     "Get exit labels and ambient passage descriptions for a room. Returns {exits, ambient_passages}.";
+    "ambient_passages is a list of {description, prose_style} pairs where prose_style is 'sentence or 'fragment.";
     {room} = args;
     typeof(room) == OBJ || raise(E_TYPE);
     passages = this:passages_from(room);
@@ -378,11 +379,11 @@ object AREA
       if (length(info) == 0)
         continue;
       endif
-      {label, description, ambient} = info;
+      {label, description, ambient, ?prose_style = 'fragment} = info;
       if (label)
         if (ambient && description)
           "Ambient passages with descriptions integrate into room description";
-          ambient_passages = {@ambient_passages, description};
+          ambient_passages = {@ambient_passages, {description, prose_style}};
         else
           "Non-ambient or description-less passages show as simple exits";
           exits = {@exits, label};
