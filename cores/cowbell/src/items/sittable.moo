@@ -323,12 +323,10 @@ object SITTABLE
     return pass(@args);
   endverb
 
-  verb exitfunc (none none none) owner: HACKER flags: "rxd"
-    "Remove departing player from sitting list.";
+  verb on_location_exit (this none this) owner: HACKER flags: "rxd"
+    "Stand up departing player when they leave the room.";
     {who} = args;
-    pos = who in this.sitting;
-    pos && (this.sitting = listdelete(this.sitting, pos));
-    return pass(@args);
+    who in this.sitting && this:remove_sitter(who);
   endverb
 
   verb test_sitting (none none none) owner: HACKER flags: "rxd"

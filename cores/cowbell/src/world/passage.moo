@@ -364,6 +364,8 @@ object PASSAGE
     to_label = this:label_for(to_room);
     "Create movement context for message rendering";
     move_context = this:mk_movement_context(player, from_room, to_room, from_label, to_label);
+    "Notify room contents before departure (e.g., stand up from furniture)";
+    `from_room:notify_pre_exit(player) ! E_VERBNF => 0';
     "Render and announce departure event";
     from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
     leave_msg = this:_side_lookup(from_side, 'leave_msg);

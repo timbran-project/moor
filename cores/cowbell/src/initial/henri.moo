@@ -661,7 +661,7 @@ object HENRI
     return result;
   endverb
 
-  verb _on_player_entered (none none none) owner: HACKER flags: "rxd"
+  verb on_location_enter (this none this) owner: HACKER flags: "rxd"
     "Called by room when a player enters. Auto-start behaviors if needed.";
     {who} = args;
     this:_maybe_start_behaviours();

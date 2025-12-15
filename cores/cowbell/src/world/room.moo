@@ -78,7 +78,7 @@ object ROOM
       "Notify objects in the room that a player arrived";
       for thing in (this.contents)
         if (thing != who)
-          `thing:_on_player_entered(who) ! E_VERBNF => 0';
+          `thing:on_location_enter(who) ! E_VERBNF => 0';
         endif
       endfor
     endif
@@ -88,6 +88,18 @@ object ROOM
   verb exitfunc (this none this) owner: HACKER flags: "rxd"
     "Fire parent triggers for exit";
     pass(@args);
+  endverb
+
+  verb notify_pre_exit (this none this) owner: HACKER flags: "rxd"
+    "Notify contents before a player leaves (called by passage before departure message).";
+    {who} = args;
+    if (valid(who) && is_player(who))
+      for thing in (this.contents)
+        if (thing != who)
+          `thing:on_location_exit(who) ! E_VERBNF => 0';
+        endif
+      endfor
+    endif
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
