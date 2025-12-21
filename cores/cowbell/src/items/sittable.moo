@@ -8,39 +8,39 @@ object SITTABLE
 
   property already_sitting_msg (owner: HACKER, flags: "rc") = {
     "You're already sitting on ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
   property cant_reach_msg (owner: HACKER, flags: "rc") = {
     "You can't reach ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     " from here."
   };
   property dumped_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'dobj, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'dobj>,
     " ",
-    <#19, .type = 'verb_be, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'verb_be>,
     " dumped off ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
   property no_room_msg (owner: HACKER, flags: "rc") = {
     "There's no room on ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
   property not_sitting_msg (owner: HACKER, flags: "rc") = {
     "You aren't sitting on ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
   property seats (owner: HACKER, flags: "r") = 2;
   property sit_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
-    <#19, .type = 'self_alt, .for_self = "sit", .for_others = "sits", .capitalize = false>,
+    <#19, .capitalize = false, .type = 'self_alt, .for_self = "sit", .for_others = "sits">,
     " on ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
   property sitting (owner: HACKER, flags: "r") = {};
@@ -48,19 +48,19 @@ object SITTABLE
   property sitting_verb (owner: HACKER, flags: "rc") = "sitting";
   property squeeze (owner: HACKER, flags: "rc") = 0;
   property squeezed_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'dobj, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'dobj>,
     " ",
-    <#19, .type = 'verb_be, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'verb_be>,
     " squeezed off ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
   property stand_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
-    <#19, .type = 'self_alt, .for_self = "stand", .for_others = "stands", .capitalize = false>,
+    <#19, .capitalize = false, .type = 'self_alt, .for_self = "stand", .for_others = "stands">,
     " up from ",
-    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
   };
 

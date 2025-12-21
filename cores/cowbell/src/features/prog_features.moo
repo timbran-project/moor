@@ -43,29 +43,6 @@ object PROG_FEATURES
     player:inform_current(result_event);
   endverb
 
-  verb _format_eval_result (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Format an eval result. Returns {type, content} where type is 'simple or 'deflist.";
-    "For simple values, content is a string. For objects, content is a deflist flyweight.";
-    {result} = args;
-    if (typeof(result) == OBJ)
-      "Format object as definition list";
-      obj_str = tostr(result);
-      if (valid(result))
-        name = `result.name ! ANY => "(no name)"';
-        owner = `result.owner ! ANY => #-1';
-        owner_str = valid(owner) ? owner.name + " (" + tostr(owner) + ")" | "???";
-        loc = `result.location ! ANY => #-1';
-        loc_str = valid(loc) ? loc.name + " (" + tostr(loc) + ")" | "nowhere";
-        items = {{"Object", obj_str}, {"Name", name}, {"Owner", owner_str}, {"Location", loc_str}};
-        return {'deflist, $format.deflist:mk(items)};
-      else
-        return {'simple, obj_str + " (invalid)"};
-      endif
-    endif
-    "For non-objects, just use toliteral";
-    return {'simple, toliteral(result)};
-  endverb
-
   verb _do_check_verb_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal helper to check verb exists with elevated permissions";
     caller == this || raise(E_PERM);
@@ -795,87 +772,6 @@ object PROG_FEATURES
     endfor
   endverb
 
-  verb _display_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Display object summary with counts and usage hints.";
-    caller == this || raise(E_PERM);
-    set_task_perms(player);
-    {target_obj} = args;
-    "Get object info";
-    obj_name = `target_obj.name ! ANY => "(no name)"';
-    obj_owner = `target_obj.owner ! ANY => #-1';
-    obj_parent = `parent(target_obj) ! ANY => #-1';
-    obj_location = `target_obj.location ! ANY => #-1';
-    "Count local properties and verbs";
-    local_props = this:_do_get_properties(target_obj);
-    local_verbs = this:_do_get_verbs(target_obj);
-    local_prop_count = length(local_props);
-    local_verb_count = length(local_verbs);
-    "Count inherited (walk up parent chain)";
-    inherited_prop_count = 0;
-    inherited_verb_count = 0;
-    current = `parent(target_obj) ! ANY => #-1';
-    while (valid(current))
-      inherited_prop_count = inherited_prop_count + length(`properties(current) ! ANY => {}');
-      inherited_verb_count = inherited_verb_count + length(`verbs(current) ! ANY => {}');
-      current = `parent(current) ! ANY => #-1';
-    endwhile
-    "Build single deflist with all info - wrap object refs in djot backticks";
-    obj_ref = tostr(target_obj);
-    items = {{"Object", "`" + obj_ref + "`"}};
-    items = {@items, {"Name", obj_name}};
-    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
-    items = {@items, {"Owner", owner_str}};
-    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
-    items = {@items, {"Parent", parent_str}};
-    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
-    items = {@items, {"Location", loc_str}};
-    "Add counts to same deflist";
-    prop_summary = tostr(local_prop_count) + " local";
-    if (inherited_prop_count > 0)
-      prop_summary = prop_summary + ", " + tostr(inherited_prop_count) + " inherited";
-    endif
-    verb_summary = tostr(local_verb_count) + " local";
-    if (inherited_verb_count > 0)
-      verb_summary = verb_summary + ", " + tostr(inherited_verb_count) + " inherited";
-    endif
-    items = {@items, {"Properties", prop_summary}};
-    items = {@items, {"Verbs", verb_summary}};
-    deflist = $format.deflist:mk(items);
-    "Build concise usage hint with djot code formatting";
-    hint = "Try: `@show " + obj_ref + ".:` (local) or `" + obj_ref + "..::` (all). See `@show` for syntax.";
-    "Combine and display with djot content type";
-    content = $format.block:mk(deflist, hint);
-    event = $event:mk_info(player, content);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    player:inform_current(event);
-  endverb
-
-  verb _display_header (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Display object header info only (no counts/hints).";
-    caller == this || raise(E_PERM);
-    set_task_perms(player);
-    {target_obj} = args;
-    "Get object info";
-    obj_name = `target_obj.name ! ANY => "(no name)"';
-    obj_owner = `target_obj.owner ! ANY => #-1';
-    obj_parent = `parent(target_obj) ! ANY => #-1';
-    obj_location = `target_obj.location ! ANY => #-1';
-    "Build deflist with object info - wrap object refs in djot backticks";
-    obj_ref = tostr(target_obj);
-    items = {{"Object", "`" + obj_ref + "`"}};
-    items = {@items, {"Name", obj_name}};
-    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
-    items = {@items, {"Owner", owner_str}};
-    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
-    items = {@items, {"Parent", parent_str}};
-    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
-    items = {@items, {"Location", loc_str}};
-    deflist = $format.deflist:mk(items);
-    event = $event:mk_info(player, deflist);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    player:inform_current(event);
-  endverb
-
   verb _display_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -1583,5 +1479,109 @@ object PROG_FEATURES
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'programming) ! ANY => 0';
     typeof(verb_help) != INT && return verb_help;
     return 0;
+  endverb
+
+  verb _format_eval_result (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format an eval result. Returns {type, content} where type is 'simple or 'deflist.";
+    "For simple values, content is a string. For objects, content is a deflist flyweight.";
+    {result} = args;
+    if (typeof(result) == OBJ)
+      "Format object as definition list";
+      obj_str = tostr(result);
+      if (valid(result))
+        name = `result.name ! ANY => "(no name)"';
+        owner = `result.owner ! ANY => #-1';
+        owner_str = valid(owner) ? owner.name + " (" + tostr(owner) + ")" | "???";
+        loc = `result.location ! ANY => #-1';
+        loc_str = valid(loc) ? loc.name + " (" + tostr(loc) + ")" | "nowhere";
+        items = {{"Object", obj_str}, {"Name", name}, {"Owner", owner_str}, {"Location", loc_str}};
+        return {'deflist, $format.deflist:mk(items)};
+      else
+        return {'simple, obj_str + " (invalid)"};
+      endif
+    endif
+    "For non-objects, just use toliteral";
+    return {'simple, toliteral(result)};
+  endverb
+
+  verb _display_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display object summary with counts and usage hints.";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {target_obj} = args;
+    "Get object info";
+    obj_name = `target_obj.name ! ANY => "(no name)"';
+    obj_owner = `target_obj.owner ! ANY => #-1';
+    obj_parent = `parent(target_obj) ! ANY => #-1';
+    obj_location = `target_obj.location ! ANY => #-1';
+    "Count local properties and verbs";
+    local_props = this:_do_get_properties(target_obj);
+    local_verbs = this:_do_get_verbs(target_obj);
+    local_prop_count = length(local_props);
+    local_verb_count = length(local_verbs);
+    "Count inherited (walk up parent chain)";
+    inherited_prop_count = 0;
+    inherited_verb_count = 0;
+    current = `parent(target_obj) ! ANY => #-1';
+    while (valid(current))
+      inherited_prop_count = inherited_prop_count + length(`properties(current) ! ANY => {}');
+      inherited_verb_count = inherited_verb_count + length(`verbs(current) ! ANY => {}');
+      current = `parent(current) ! ANY => #-1';
+    endwhile
+    "Build single deflist with all info - wrap object refs in djot backticks";
+    obj_ref = tostr(target_obj);
+    items = {{"Object", "`" + obj_ref + "`"}};
+    items = {@items, {"Name", obj_name}};
+    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
+    items = {@items, {"Owner", owner_str}};
+    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
+    items = {@items, {"Parent", parent_str}};
+    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
+    items = {@items, {"Location", loc_str}};
+    "Add counts to same deflist";
+    prop_summary = tostr(local_prop_count) + " local";
+    if (inherited_prop_count > 0)
+      prop_summary = prop_summary + ", " + tostr(inherited_prop_count) + " inherited";
+    endif
+    verb_summary = tostr(local_verb_count) + " local";
+    if (inherited_verb_count > 0)
+      verb_summary = verb_summary + ", " + tostr(inherited_verb_count) + " inherited";
+    endif
+    items = {@items, {"Properties", prop_summary}};
+    items = {@items, {"Verbs", verb_summary}};
+    deflist = $format.deflist:mk(items);
+    "Build concise usage hint with djot code formatting";
+    hint = "Try: `@show " + obj_ref + ".:` (local) or `" + obj_ref + "..::` (all). See `@show` for syntax.";
+    "Combine and display with djot content type";
+    content = $format.block:mk(deflist, hint);
+    event = $event:mk_info(player, content);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    player:inform_current(event);
+  endverb
+
+  verb _display_header (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display object header info only (no counts/hints).";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {target_obj} = args;
+    "Get object info";
+    obj_name = `target_obj.name ! ANY => "(no name)"';
+    obj_owner = `target_obj.owner ! ANY => #-1';
+    obj_parent = `parent(target_obj) ! ANY => #-1';
+    obj_location = `target_obj.location ! ANY => #-1';
+    "Build deflist with object info - wrap object refs in djot backticks";
+    obj_ref = tostr(target_obj);
+    items = {{"Object", "`" + obj_ref + "`"}};
+    items = {@items, {"Name", obj_name}};
+    owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
+    items = {@items, {"Owner", owner_str}};
+    parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
+    items = {@items, {"Parent", parent_str}};
+    loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
+    items = {@items, {"Location", loc_str}};
+    deflist = $format.deflist:mk(items);
+    event = $event:mk_info(player, deflist);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    player:inform_current(event);
   endverb
 endobject

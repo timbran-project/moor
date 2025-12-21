@@ -242,104 +242,104 @@ object DATA_VISOR
     "Register common tools from parent class (explain, ask_user, todo_write, get_todos)";
     this:_register_common_tools(agent);
     "Register dump_object tool";
-    dump_object_tool = $llm_agent_tool:mk("dump_object", "Get the complete source listing of a MOO object including all properties, verbs, and code. This is the most comprehensive way to inspect an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to dump (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "dump_object");
+    dump_object_tool = $llm_agent_tool:mk("dump_object", "Get the complete source listing of a MOO object including all properties, verbs, and code. This is the most comprehensive way to inspect an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to dump (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_dump_object");
     this.agent:add_tool("dump_object", dump_object_tool);
     "Register get_verb_code tool";
-    get_verb_code_tool = $llm_agent_tool:mk("get_verb_code", "Get the MOO code for a specific verb on an object", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name (e.g. 'initialize' or 'look')"]], "required" -> {"object", "verb"}], this, "get_verb_code");
+    get_verb_code_tool = $llm_agent_tool:mk("get_verb_code", "Get the MOO code for a specific verb on an object", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name (e.g. 'initialize' or 'look')"]], "required" -> {"object", "verb"}], this, "_tool_get_verb_code");
     this.agent:add_tool("get_verb_code", get_verb_code_tool);
     "Register list_verbs tool";
-    list_verbs_tool = $llm_agent_tool:mk("list_verbs", "List all verb names on a MOO object and its ancestors. Returns list of {object_id, object_name, {verb_names}} for the object and each ancestor.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "list_verbs");
+    list_verbs_tool = $llm_agent_tool:mk("list_verbs", "List all verb names on a MOO object and its ancestors. Returns list of {object_id, object_name, {verb_names}} for the object and each ancestor.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_list_verbs");
     this.agent:add_tool("list_verbs", list_verbs_tool);
     "Register read_property tool";
-    read_property_tool = $llm_agent_tool:mk("read_property", "Read the value of a property on a MOO object", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to read from (e.g. '#1', '$login', or 'here')"], "property" -> ["type" -> "string", "description" -> "The property name to read"]], "required" -> {"object", "property"}], this, "read_property");
+    read_property_tool = $llm_agent_tool:mk("read_property", "Read the value of a property on a MOO object", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to read from (e.g. '#1', '$login', or 'here')"], "property" -> ["type" -> "string", "description" -> "The property name to read"]], "required" -> {"object", "property"}], this, "_tool_read_property");
     this.agent:add_tool("read_property", read_property_tool);
     "Register find_object tool";
-    find_object_tool = $llm_agent_tool:mk("find_object", "Find a MOO object by name, system reference ($login), object number (#12), or special name (here, me). Returns detailed object information.", ["type" -> "object", "properties" -> ["reference" -> ["type" -> "string", "description" -> "Object reference: name, $sysobj, #number, @player, 'here', or 'me'"]], "required" -> {"reference"}], this, "find_object");
+    find_object_tool = $llm_agent_tool:mk("find_object", "Find a MOO object by name, system reference ($login), object number (#12), or special name (here, me). Returns detailed object information.", ["type" -> "object", "properties" -> ["reference" -> ["type" -> "string", "description" -> "Object reference: name, $sysobj, #number, @player, 'here', or 'me'"]], "required" -> {"reference"}], this, "_tool_find_object");
     this.agent:add_tool("find_object", find_object_tool);
     "Register ancestors tool";
-    ancestors_tool = $llm_agent_tool:mk("ancestors", "Get the inheritance chain (ancestors) of a MOO object, from immediate parent to root.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "ancestors");
+    ancestors_tool = $llm_agent_tool:mk("ancestors", "Get the inheritance chain (ancestors) of a MOO object, from immediate parent to root.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_ancestors");
     this.agent:add_tool("ancestors", ancestors_tool);
     "Register descendants tool";
-    descendants_tool = $llm_agent_tool:mk("descendants", "Get all objects that inherit from a MOO object (its descendants/children).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "descendants");
+    descendants_tool = $llm_agent_tool:mk("descendants", "Get all objects that inherit from a MOO object (its descendants/children).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_descendants");
     this.agent:add_tool("descendants", descendants_tool);
     "Register function_info tool";
-    function_info_tool = $llm_agent_tool:mk("function_info", "Get information about a specific MOO builtin function. Returns {name, min_args, max_args, types} where types is a list of type codes: -2=int/float, -1=any, 0=INT, 1=OBJ, 2=STR, 3=ERR, 4=LIST, 9=FLOAT, 10=MAP, 14=BOOL, 15=FLYWEIGHT, 16=SYMBOL, 17=BINARY, 18=LAMBDA. Max_args of -1 means unlimited args.", ["type" -> "object", "properties" -> ["function_name" -> ["type" -> "string", "description" -> "The name of the builtin function (e.g. 'tostr', 'verb_code', 'ancestors')"]], "required" -> {"function_name"}], this, "function_info");
+    function_info_tool = $llm_agent_tool:mk("function_info", "Get information about a specific MOO builtin function. Returns {name, min_args, max_args, types} where types is a list of type codes: -2=int/float, -1=any, 0=INT, 1=OBJ, 2=STR, 3=ERR, 4=LIST, 9=FLOAT, 10=MAP, 14=BOOL, 15=FLYWEIGHT, 16=SYMBOL, 17=BINARY, 18=LAMBDA. Max_args of -1 means unlimited args.", ["type" -> "object", "properties" -> ["function_name" -> ["type" -> "string", "description" -> "The name of the builtin function (e.g. 'tostr', 'verb_code', 'ancestors')"]], "required" -> {"function_name"}], this, "_tool_function_info");
     this.agent:add_tool("function_info", function_info_tool);
     "Register list_builtin_functions tool";
-    list_builtin_functions_tool = $llm_agent_tool:mk("list_builtin_functions", "Get a list of all available MOO builtin functions. Returns a formatted list with function signatures. Use function_info(name) for detailed info about a specific function.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "list_builtin_functions");
+    list_builtin_functions_tool = $llm_agent_tool:mk("list_builtin_functions", "Get a list of all available MOO builtin functions. Returns a formatted list with function signatures. Use function_info(name) for detailed info about a specific function.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_list_builtin_functions");
     this.agent:add_tool("list_builtin_functions", list_builtin_functions_tool);
     "Register get_verb_code_range tool";
-    get_verb_code_range_tool = $llm_agent_tool:mk("get_verb_code_range", "Get specific lines from a verb's code. Use this to show focused code snippets to the user with line numbers.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "start_line" -> ["type" -> "integer", "description" -> "First line to retrieve (1-indexed, optional)"], "end_line" -> ["type" -> "integer", "description" -> "Last line to retrieve (inclusive, optional)"]], "required" -> {"object", "verb"}], this, "get_verb_code_range");
+    get_verb_code_range_tool = $llm_agent_tool:mk("get_verb_code_range", "Get specific lines from a verb's code. Use this to show focused code snippets to the user with line numbers.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "start_line" -> ["type" -> "integer", "description" -> "First line to retrieve (1-indexed, optional)"], "end_line" -> ["type" -> "integer", "description" -> "Last line to retrieve (inclusive, optional)"]], "required" -> {"object", "verb"}], this, "_tool_get_verb_code_range");
     this.agent:add_tool("get_verb_code_range", get_verb_code_range_tool);
     "Register get_verb_metadata tool";
-    get_verb_metadata_tool = $llm_agent_tool:mk("get_verb_metadata", "Get metadata about a verb including owner, flags, and argument specification.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"]], "required" -> {"object", "verb"}], this, "get_verb_metadata");
+    get_verb_metadata_tool = $llm_agent_tool:mk("get_verb_metadata", "Get metadata about a verb including owner, flags, and argument specification.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"]], "required" -> {"object", "verb"}], this, "_tool_get_verb_metadata");
     this.agent:add_tool("get_verb_metadata", get_verb_metadata_tool);
     "Register get_properties tool";
-    get_properties_tool = $llm_agent_tool:mk("get_properties", "Get list of all properties defined directly on a MOO object (not inherited).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "get_properties");
+    get_properties_tool = $llm_agent_tool:mk("get_properties", "Get list of all properties defined directly on a MOO object (not inherited).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to inspect (e.g. '#1', '$login', or 'here')"]], "required" -> {"object"}], this, "_tool_get_properties");
     this.agent:add_tool("get_properties", get_properties_tool);
     "Register authoring tools from parent class (doc_lookup, message tools, rule tools)";
     this:_register_authoring_tools(this.agent);
     "Register present_verb_code tool";
-    present_verb_code_tool = $llm_agent_tool:mk("present_verb_code", "PREFERRED: Present formatted verb code to the user with syntax highlighting and metadata table. Use this instead of get_verb_code when showing code to the user.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "show_line_numbers" -> ["type" -> "boolean", "description" -> "Include line numbers (default: true)"]], "required" -> {"object", "verb"}], this, "present_verb_code");
+    present_verb_code_tool = $llm_agent_tool:mk("present_verb_code", "PREFERRED: Present formatted verb code to the user with syntax highlighting and metadata table. Use this instead of get_verb_code when showing code to the user.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "show_line_numbers" -> ["type" -> "boolean", "description" -> "Include line numbers (default: true)"]], "required" -> {"object", "verb"}], this, "_tool_present_verb_code");
     this.agent:add_tool("present_verb_code", present_verb_code_tool);
     "Register present_verb_code_range tool";
-    present_verb_code_range_tool = $llm_agent_tool:mk("present_verb_code_range", "PREFERRED: Present a specific range of verb code to the user with syntax highlighting. Use this to show focused code regions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "start_line" -> ["type" -> "integer", "description" -> "First line to show (1-indexed)"], "end_line" -> ["type" -> "integer", "description" -> "Last line to show (inclusive)"], "context_lines" -> ["type" -> "integer", "description" -> "Additional context lines before/after (default: 0)"]], "required" -> {"object", "verb", "start_line", "end_line"}], this, "present_verb_code_range");
+    present_verb_code_range_tool = $llm_agent_tool:mk("present_verb_code_range", "PREFERRED: Present a specific range of verb code to the user with syntax highlighting. Use this to show focused code regions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object (e.g. '#1', '$login', or 'here')"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "start_line" -> ["type" -> "integer", "description" -> "First line to show (1-indexed)"], "end_line" -> ["type" -> "integer", "description" -> "Last line to show (inclusive)"], "context_lines" -> ["type" -> "integer", "description" -> "Additional context lines before/after (default: 0)"]], "required" -> {"object", "verb", "start_line", "end_line"}], this, "_tool_present_verb_code_range");
     this.agent:add_tool("present_verb_code_range", present_verb_code_range_tool);
     "Register add_verb tool";
-    add_verb_tool = $llm_agent_tool:mk("add_verb", "Add a new verb to an object. You must provide a clear rationale explaining what this verb is for. The verb will be created with empty code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add verb to (e.g. '#1', '$login')"], "verb_names" -> ["type" -> "string", "description" -> "Verb name(s), space-separated for aliases (e.g. 'look' or 'get take')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this verb is for and why it's needed. What functionality will it provide?"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any' (default: 'this')"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep (default: 'none')"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any' (default: 'none')"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwxd' (default: 'rxd')"]], "required" -> {"object", "verb_names", "rationale"}], this, "add_verb");
+    add_verb_tool = $llm_agent_tool:mk("add_verb", "Add a new verb to an object. You must provide a clear rationale explaining what this verb is for. The verb will be created with empty code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add verb to (e.g. '#1', '$login')"], "verb_names" -> ["type" -> "string", "description" -> "Verb name(s), space-separated for aliases (e.g. 'look' or 'get take')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this verb is for and why it's needed. What functionality will it provide?"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any' (default: 'this')"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep (default: 'none')"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any' (default: 'none')"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwxd' (default: 'rxd')"]], "required" -> {"object", "verb_names", "rationale"}], this, "_tool_add_verb");
     this.agent:add_tool("add_verb", add_verb_tool);
     "Register delete_verb tool";
-    delete_verb_tool = $llm_agent_tool:mk("delete_verb", "Delete a verb from an object. You must provide a clear rationale explaining why this verb should be deleted. This is permanent and cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to delete verb from"], "verb" -> ["type" -> "string", "description" -> "The verb name to delete"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this verb should be deleted. What problem does removing it solve?"]], "required" -> {"object", "verb", "rationale"}], this, "delete_verb");
+    delete_verb_tool = $llm_agent_tool:mk("delete_verb", "Delete a verb from an object. You must provide a clear rationale explaining why this verb should be deleted. This is permanent and cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to delete verb from"], "verb" -> ["type" -> "string", "description" -> "The verb name to delete"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this verb should be deleted. What problem does removing it solve?"]], "required" -> {"object", "verb", "rationale"}], this, "_tool_delete_verb");
     this.agent:add_tool("delete_verb", delete_verb_tool);
     "Register set_verb_code tool";
-    set_verb_code_tool = $llm_agent_tool:mk("set_verb_code", "Compile and set new code for a verb. You must provide a clear rationale explaining what changes you're making and why. Code must be valid MOO syntax.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're changing and why. Be specific about the problem being fixed or feature being added."], "code" -> ["type" -> "string", "description" -> "The new MOO code (without verb header)"]], "required" -> {"object", "verb", "rationale", "code"}], this, "set_verb_code");
+    set_verb_code_tool = $llm_agent_tool:mk("set_verb_code", "Compile and set new code for a verb. You must provide a clear rationale explaining what changes you're making and why. Code must be valid MOO syntax.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're changing and why. Be specific about the problem being fixed or feature being added."], "code" -> ["type" -> "string", "description" -> "The new MOO code (without verb header)"]], "required" -> {"object", "verb", "rationale", "code"}], this, "_tool_set_verb_code");
     this.agent:add_tool("set_verb_code", set_verb_code_tool);
     "Register set_verb_args tool";
-    set_verb_args_tool = $llm_agent_tool:mk("set_verb_args", "Change the argument specification (dobj/prep/iobj) for an existing verb without modifying its code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any'"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any'"]], "required" -> {"object", "verb", "dobj", "prep", "iobj"}], this, "set_verb_args");
+    set_verb_args_tool = $llm_agent_tool:mk("set_verb_args", "Change the argument specification (dobj/prep/iobj) for an existing verb without modifying its code.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec: 'none', 'this', or 'any'"], "prep" -> ["type" -> "string", "description" -> "Preposition spec: 'none', 'any', or specific prep"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec: 'none', 'this', or 'any'"]], "required" -> {"object", "verb", "dobj", "prep", "iobj"}], this, "_tool_set_verb_args");
     this.agent:add_tool("set_verb_args", set_verb_args_tool);
     "Register set_verb_perms tool";
-    set_verb_perms_tool = $llm_agent_tool:mk("set_verb_perms", "Change the permissions and/or owner of a verb. Permission flags are 'r' (readable), 'w' (writable), 'x' (executable), 'd' (debug). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwxd', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "verb", "permissions"}], this, "set_verb_perms");
+    set_verb_perms_tool = $llm_agent_tool:mk("set_verb_perms", "Change the permissions and/or owner of a verb. Permission flags are 'r' (readable), 'w' (writable), 'x' (executable), 'd' (debug). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the verb"], "verb" -> ["type" -> "string", "description" -> "The verb name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwxd', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "verb", "permissions"}], this, "_tool_set_verb_perms");
     this.agent:add_tool("set_verb_perms", set_verb_perms_tool);
     "Register add_property tool";
-    add_property_tool = $llm_agent_tool:mk("add_property", "Add a new property to an object with initial value. You must provide a clear rationale explaining what this property is for.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add property to"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "Initial value as MOO literal (e.g. '0', '\"hello\"', '{}')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this property is for and why it's needed. What data will it hold?"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwc' (default: 'rc')"]], "required" -> {"object", "property", "value", "rationale"}], this, "add_property");
+    add_property_tool = $llm_agent_tool:mk("add_property", "Add a new property to an object with initial value. You must provide a clear rationale explaining what this property is for.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to add property to"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "Initial value as MOO literal (e.g. '0', '\"hello\"', '{}')"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this property is for and why it's needed. What data will it hold?"], "permissions" -> ["type" -> "string", "description" -> "Permission flags 'rwc' (default: 'rc')"]], "required" -> {"object", "property", "value", "rationale"}], this, "_tool_add_property");
     this.agent:add_tool("add_property", add_property_tool);
     "Register delete_property tool";
-    delete_property_tool = $llm_agent_tool:mk("delete_property", "Delete a property from an object. You must provide a clear rationale explaining why this property should be deleted. This is permanent and cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to delete property from"], "property" -> ["type" -> "string", "description" -> "The property name to delete"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this property should be deleted. What problem does removing it solve?"]], "required" -> {"object", "property", "rationale"}], this, "delete_property");
+    delete_property_tool = $llm_agent_tool:mk("delete_property", "Delete a property from an object. You must provide a clear rationale explaining why this property should be deleted. This is permanent and cannot be undone.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to delete property from"], "property" -> ["type" -> "string", "description" -> "The property name to delete"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this property should be deleted. What problem does removing it solve?"]], "required" -> {"object", "property", "rationale"}], this, "_tool_delete_property");
     this.agent:add_tool("delete_property", delete_property_tool);
     "Register set_property tool";
-    set_property_tool = $llm_agent_tool:mk("set_property", "Set the value of an existing property on an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "New value as MOO literal (e.g. '0', '\"hello\"', '{}', '[$player]')"]], "required" -> {"object", "property", "value"}], this, "set_property");
+    set_property_tool = $llm_agent_tool:mk("set_property", "Set the value of an existing property on an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "value" -> ["type" -> "string", "description" -> "New value as MOO literal (e.g. '0', '\"hello\"', '{}', '[$player]')"]], "required" -> {"object", "property", "value"}], this, "_tool_set_property");
     this.agent:add_tool("set_property", set_property_tool);
     "Register set_property_perms tool";
-    set_property_perms_tool = $llm_agent_tool:mk("set_property_perms", "Change the permissions and/or owner of a property. Permission flags are 'r' (readable), 'w' (writable), 'c' (chown). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwc', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "property", "permissions"}], this, "set_property_perms");
+    set_property_perms_tool = $llm_agent_tool:mk("set_property_perms", "Change the permissions and/or owner of a property. Permission flags are 'r' (readable), 'w' (writable), 'c' (chown). Use empty string to clear all permissions.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object containing the property"], "property" -> ["type" -> "string", "description" -> "The property name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags: combination of 'rwc', or empty string to clear"], "owner" -> ["type" -> "string", "description" -> "New owner (optional, e.g., '#2', '$wizard')"]], "required" -> {"object", "property", "permissions"}], this, "_tool_set_property_perms");
     this.agent:add_tool("set_property_perms", set_property_perms_tool);
     "Register evaluate_rule tool (visor-specific - tests existing rules with bindings)";
-    evaluate_rule_tool = $llm_agent_tool:mk("evaluate_rule", "Evaluate a rule with specific variable bindings to test object behavior. Returns success/failure and variable bindings. Useful for understanding how rules work dynamically.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing the rule"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"], "bindings" -> ["type" -> "string", "description" -> "Initial variable bindings as MOO map literal (e.g., \"['This -> #10, 'Accessor -> player]\")"]], "required" -> {"object", "property"}], this, "evaluate_rule");
+    evaluate_rule_tool = $llm_agent_tool:mk("evaluate_rule", "Evaluate a rule with specific variable bindings to test object behavior. Returns success/failure and variable bindings. Useful for understanding how rules work dynamically.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing the rule"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"], "bindings" -> ["type" -> "string", "description" -> "Initial variable bindings as MOO map literal (e.g., \"['This -> #10, 'Accessor -> player]\")"]], "required" -> {"object", "property"}], this, "_tool_evaluate_rule");
     this.agent:add_tool("evaluate_rule", evaluate_rule_tool);
     "Register eval tool";
-    eval_tool = $llm_agent_tool:mk("eval", "Execute MOO code and return the result. You must provide a clear rationale explaining what you're trying to accomplish and why. IMPORTANT: Code executes as a verb body (not a REPL), so you must use valid MOO statements terminated by semicolons. The code runs with 'player' set to the visor wearer. To get return values, you MUST use 'return' statement - the last expression is NOT automatically returned. Example: 'x = 5; return x * 2;' NOT just 'x = 5; x * 2'.", ["type" -> "object", "properties" -> ["rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're trying to accomplish with this code and why. Be specific about what you're testing or investigating."], "code" -> ["type" -> "string", "description" -> "MOO code to execute. Must be valid statements with semicolons. Use 'return' to get values back."]], "required" -> {"rationale", "code"}], this, "eval");
+    eval_tool = $llm_agent_tool:mk("eval", "Execute MOO code and return the result. You must provide a clear rationale explaining what you're trying to accomplish and why. IMPORTANT: Code executes as a verb body (not a REPL), so you must use valid MOO statements terminated by semicolons. The code runs with 'player' set to the visor wearer. To get return values, you MUST use 'return' statement - the last expression is NOT automatically returned. Example: 'x = 5; return x * 2;' NOT just 'x = 5; x * 2'.", ["type" -> "object", "properties" -> ["rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what you're trying to accomplish with this code and why. Be specific about what you're testing or investigating."], "code" -> ["type" -> "string", "description" -> "MOO code to execute. Must be valid statements with semicolons. Use 'return' to get values back."]], "required" -> {"rationale", "code"}], this, "_tool_eval");
     this.agent:add_tool("eval", eval_tool);
     "Register create_object tool";
-    create_object_tool = $llm_agent_tool:mk("create_object", "Create a new object as a child of a parent object. You must provide a clear rationale explaining what this object is for. The new object is placed in the wearer's inventory.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "The parent object (e.g. '$thing', '#1', or 'here')"], "name" -> ["type" -> "string", "description" -> "Primary name for the new object"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this object is for and why it's needed. What role will it play?"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of alias names"]], "required" -> {"parent", "name", "rationale"}], this, "create_object");
+    create_object_tool = $llm_agent_tool:mk("create_object", "Create a new object as a child of a parent object. You must provide a clear rationale explaining what this object is for. The new object is placed in the wearer's inventory.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "The parent object (e.g. '$thing', '#1', or 'here')"], "name" -> ["type" -> "string", "description" -> "Primary name for the new object"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain what this object is for and why it's needed. What role will it play?"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of alias names"]], "required" -> {"parent", "name", "rationale"}], this, "_tool_create_object");
     this.agent:add_tool("create_object", create_object_tool);
     "Register recycle_object tool";
-    recycle_object_tool = $llm_agent_tool:mk("recycle_object", "Permanently destroy an object. You must provide a clear rationale explaining why this object should be destroyed. This cannot be undone. You must own the object or be a wizard.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to recycle/destroy"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this object should be destroyed. What problem does removing it solve?"]], "required" -> {"object", "rationale"}], this, "recycle_object");
+    recycle_object_tool = $llm_agent_tool:mk("recycle_object", "Permanently destroy an object. You must provide a clear rationale explaining why this object should be destroyed. This cannot be undone. You must own the object or be a wizard.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to recycle/destroy"], "rationale" -> ["type" -> "string", "description" -> "REQUIRED: Explain why this object should be destroyed. What problem does removing it solve?"]], "required" -> {"object", "rationale"}], this, "_tool_recycle_object");
     this.agent:add_tool("recycle_object", recycle_object_tool);
     "Register grep tool";
-    grep_tool = $llm_agent_tool:mk("grep", "Search verb code across objects for patterns. Returns matching lines with context. Useful for finding where specific functionality is implemented or understanding existing code.", ["type" -> "object", "properties" -> ["pattern" -> ["type" -> "string", "description" -> "Text pattern to search for (e.g., 'fire', 'parse_verb', or regex patterns)"], "object" -> ["type" -> "string", "description" -> "Optional: specific object to search (e.g., '#1', '$login', 'here'). If omitted, searches all objects."]], "required" -> {"pattern"}], this, "grep");
+    grep_tool = $llm_agent_tool:mk("grep", "Search verb code across objects for patterns. Returns matching lines with context. Useful for finding where specific functionality is implemented or understanding existing code.", ["type" -> "object", "properties" -> ["pattern" -> ["type" -> "string", "description" -> "Text pattern to search for (e.g., 'fire', 'parse_verb', or regex patterns)"], "object" -> ["type" -> "string", "description" -> "Optional: specific object to search (e.g., '#1', '$login', 'here'). If omitted, searches all objects."]], "required" -> {"pattern"}], this, "_tool_grep");
     this.agent:add_tool("grep", grep_tool);
     "Register task management tools";
-    create_task_tool = $llm_agent_tool:mk("create_task", "Create a new investigation task to track progress on database analysis. Returns task object. The task can record findings, create subtasks, and track status across multiple discovery steps.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Human-readable description of the investigation (e.g., 'Audit authentication verbs in $login')"]], "required" -> {"description"}], this, "create_task");
+    create_task_tool = $llm_agent_tool:mk("create_task", "Create a new investigation task to track progress on database analysis. Returns task object. The task can record findings, create subtasks, and track status across multiple discovery steps.", ["type" -> "object", "properties" -> ["description" -> ["type" -> "string", "description" -> "Human-readable description of the investigation (e.g., 'Audit authentication verbs in $login')"]], "required" -> {"description"}], this, "_tool_create_task");
     this.agent:add_tool("create_task", create_task_tool);
-    record_finding_tool = $llm_agent_tool:mk("record_finding", "Record a discovery in the current task's knowledge base. Findings are stored with provenance (task_id, subject, key, value) for traceability. Use subject for the thing being investigated (e.g., 'authentication', 'permissions'), key for the finding type (e.g., 'verbs', 'security_holes'), and value for the actual discovery.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "What's being investigated (e.g., '$login', 'permission_checks', 'error_handling')"], "key" -> ["type" -> "string", "description" -> "Type of finding (e.g., 'verbs', 'patterns', 'issues', 'security_concerns')"], "value" -> ["type" -> "string", "description" -> "The actual finding (can be multiline)"]], "required" -> {"subject", "key", "value"}], this, "record_finding");
+    record_finding_tool = $llm_agent_tool:mk("record_finding", "Record a discovery in the current task's knowledge base. Findings are stored with provenance (task_id, subject, key, value) for traceability. Use subject for the thing being investigated (e.g., 'authentication', 'permissions'), key for the finding type (e.g., 'verbs', 'security_holes'), and value for the actual discovery.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "What's being investigated (e.g., '$login', 'permission_checks', 'error_handling')"], "key" -> ["type" -> "string", "description" -> "Type of finding (e.g., 'verbs', 'patterns', 'issues', 'security_concerns')"], "value" -> ["type" -> "string", "description" -> "The actual finding (can be multiline)"]], "required" -> {"subject", "key", "value"}], this, "_tool_record_finding");
     this.agent:add_tool("record_finding", record_finding_tool);
-    get_findings_tool = $llm_agent_tool:mk("get_findings", "Retrieve all findings for a subject from the current task. Returns findings recorded so far, filtered by subject.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "The subject to query (e.g., 'authentication', 'permissions')"]], "required" -> {"subject"}], this, "get_findings");
+    get_findings_tool = $llm_agent_tool:mk("get_findings", "Retrieve all findings for a subject from the current task. Returns findings recorded so far, filtered by subject.", ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "The subject to query (e.g., 'authentication', 'permissions')"]], "required" -> {"subject"}], this, "_tool_get_findings");
     this.agent:add_tool("get_findings", get_findings_tool);
-    task_status_tool = $llm_agent_tool:mk("task_status", "Get complete status of the current investigation task including status, findings count, subtasks, and completion info.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "task_status");
+    task_status_tool = $llm_agent_tool:mk("task_status", "Get complete status of the current investigation task including status, findings count, subtasks, and completion info.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_task_status");
     this.agent:add_tool("task_status", task_status_tool);
     "Register architect's compass building tools if available";
     this:_register_compass_tools_if_available();
     "Register help_lookup tool";
-    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands and features. Pass empty string to list all available topics.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'programming', 'inspect', '@examine'). Pass empty string to list all."]], "required" -> {"topic"}], this, "help_lookup");
+    help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands and features. Pass empty string to list all available topics.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'programming', 'inspect', '@examine'). Pass empty string to list all."]], "required" -> {"topic"}], this, "_tool_help_lookup");
     agent:add_tool("help_lookup", help_lookup_tool);
   endverb
 
@@ -376,27 +376,27 @@ object DATA_VISOR
     building_addendum = " BUILDING TOOLS: When architect's compass is available, you also have access to spatial construction tools: build_room (create rooms in areas), dig_passage (create exits between rooms), create_object (instantiate from prototypes), recycle_object (destroy objects), rename_object (change names/aliases), describe_object (set descriptions), grant_capability (grant building permissions), audit_owned (list owned objects). These delegate to the compass. When users ask how to do building tasks manually, mention @command equivalents (@build, @dig, @create, @recycle, @rename, @describe, @grant, @audit).";
     this.agent.system_prompt = original_prompt + building_addendum;
     "Register delegating tools that call compass methods";
-    build_room_tool = $llm_agent_tool:mk("build_room", "Create a new room in an area. If no area specified, creates free-floating room.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "Area to build in (optional, use 'here' for current area, 'ether' for free-floating)"], "parent" -> ["type" -> "string", "description" -> "Parent room object (optional, default: $room)"]], "required" -> {"name"}], compass, "build_room");
+    build_room_tool = $llm_agent_tool:mk("build_room", "Create a new room in an area. If no area specified, creates free-floating room.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "Area to build in (optional, use 'here' for current area, 'ether' for free-floating)"], "parent" -> ["type" -> "string", "description" -> "Parent room object (optional, default: $room)"]], "required" -> {"name"}], compass, "_tool_build_room");
     this.agent:add_tool("build_room", build_room_tool);
-    dig_passage_tool = $llm_agent_tool:mk("dig_passage", "Create a passage between current room and target room. Can be one-way or bidirectional.", ["type" -> "object", "properties" -> ["direction" -> ["type" -> "string", "description" -> "Exit direction from current room (e.g. 'north', 'up', 'north,n' for aliases)"], "target_room" -> ["type" -> "string", "description" -> "Destination room reference"], "return_direction" -> ["type" -> "string", "description" -> "Return direction (optional, will be inferred if omitted)"], "oneway" -> ["type" -> "boolean", "description" -> "True for one-way passage (default: false)"]], "required" -> {"direction", "target_room"}], compass, "dig_passage");
+    dig_passage_tool = $llm_agent_tool:mk("dig_passage", "Create a passage between current room and target room. Can be one-way or bidirectional.", ["type" -> "object", "properties" -> ["direction" -> ["type" -> "string", "description" -> "Exit direction from current room (e.g. 'north', 'up', 'north,n' for aliases)"], "target_room" -> ["type" -> "string", "description" -> "Destination room reference"], "return_direction" -> ["type" -> "string", "description" -> "Return direction (optional, will be inferred if omitted)"], "oneway" -> ["type" -> "boolean", "description" -> "True for one-way passage (default: false)"]], "required" -> {"direction", "target_room"}], compass, "_tool_dig_passage");
     this.agent:add_tool("dig_passage", dig_passage_tool);
-    create_object_tool_compass = $llm_agent_tool:mk("create_object_from_prototype", "Create a new object from a parent prototype (via compass). Different from create_object - this is for world building, not low-level database work.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "Parent object (e.g. '$thing', '$wearable')"], "name" -> ["type" -> "string", "description" -> "Primary name"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional alias names"]], "required" -> {"parent", "name"}], compass, "create_object");
+    create_object_tool_compass = $llm_agent_tool:mk("create_object_from_prototype", "Create a new object from a parent prototype (via compass). Different from create_object - this is for world building, not low-level database work.", ["type" -> "object", "properties" -> ["parent" -> ["type" -> "string", "description" -> "Parent object (e.g. '$thing', '$wearable')"], "name" -> ["type" -> "string", "description" -> "Primary name"], "aliases" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional alias names"]], "required" -> {"parent", "name"}], compass, "_tool_create_object");
     this.agent:add_tool("create_object_from_prototype", create_object_tool_compass);
-    recycle_object_tool_compass = $llm_agent_tool:mk("recycle_object_compass", "Permanently destroy an object (via compass). Use for world building object cleanup.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to recycle"]], "required" -> {"object"}], compass, "recycle_object");
+    recycle_object_tool_compass = $llm_agent_tool:mk("recycle_object_compass", "Permanently destroy an object (via compass). Use for world building object cleanup.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to recycle"]], "required" -> {"object"}], compass, "_tool_recycle_object");
     this.agent:add_tool("recycle_object_compass", recycle_object_tool_compass);
-    rename_object_tool = $llm_agent_tool:mk("rename_object", "Change an object's name and aliases.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to rename"], "name" -> ["type" -> "string", "description" -> "New name (can include aliases like 'name:alias1,alias2')"]], "required" -> {"object", "name"}], compass, "rename_object");
+    rename_object_tool = $llm_agent_tool:mk("rename_object", "Change an object's name and aliases.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to rename"], "name" -> ["type" -> "string", "description" -> "New name (can include aliases like 'name:alias1,alias2')"]], "required" -> {"object", "name"}], compass, "_tool_rename_object");
     this.agent:add_tool("rename_object", rename_object_tool);
-    describe_object_tool = $llm_agent_tool:mk("describe_object", "Set an object's description text.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to describe"], "description" -> ["type" -> "string", "description" -> "New description text"]], "required" -> {"object", "description"}], compass, "describe_object");
+    describe_object_tool = $llm_agent_tool:mk("describe_object", "Set an object's description text.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to describe"], "description" -> ["type" -> "string", "description" -> "New description text"]], "required" -> {"object", "description"}], compass, "_tool_describe_object");
     this.agent:add_tool("describe_object", describe_object_tool);
-    grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], compass, "grant_capability");
+    grant_capability_tool = $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], compass, "_tool_grant_capability");
     this.agent:add_tool("grant_capability", grant_capability_tool);
-    audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> [], "required" -> {}], compass, "audit_owned");
+    audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> [], "required" -> {}], compass, "_tool_audit_owned");
     this.agent:add_tool("audit_owned", audit_owned_tool);
   endverb
 
   verb _tool_dump_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the complete source dump of an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -408,7 +408,7 @@ object DATA_VISOR
 
   verb _tool_get_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the code of a specific verb on an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -422,7 +422,7 @@ object DATA_VISOR
 
   verb _tool_list_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all verb names on an object and its ancestors";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -440,7 +440,7 @@ object DATA_VISOR
 
   verb _tool_read_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Read a property value from an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -454,7 +454,7 @@ object DATA_VISOR
 
   verb _tool_evaluate_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Evaluate a rule with variable bindings to test behavior";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     {prop_name, bindings_str} = {args_map["property"], args_map["bindings"]};
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
@@ -477,7 +477,7 @@ object DATA_VISOR
 
   verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Find an object by name, reference, or ID and return detailed information";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     ref = args_map["reference"];
@@ -492,7 +492,7 @@ object DATA_VISOR
 
   verb _tool_ancestors (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get the ancestor chain of an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
@@ -502,7 +502,7 @@ object DATA_VISOR
 
   verb _tool_descendants (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get all descendants of an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
@@ -512,7 +512,7 @@ object DATA_VISOR
 
   verb _tool_function_info (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get information about a builtin function";
-    {args_map, actor} = args;
+    {args_map} = args;
     this:_action_perms_check();
     func_name = args_map["function_name"];
     typeof(func_name) == STR || raise(E_TYPE("Expected function name string"));
@@ -521,7 +521,7 @@ object DATA_VISOR
 
   verb _tool_list_builtin_functions (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all builtin functions with signatures";
-    {args_map, actor} = args;
+    {args_map} = args;
     this:_action_perms_check();
     all_funcs = function_info();
     type_names = [0 -> "INT", 1 -> "OBJ", 2 -> "STR", 3 -> "ERR", 4 -> "LIST", 9 -> "FLOAT", 10 -> "MAP", 14 -> "BOOL", 15 -> "FLYWEIGHT", 16 -> "SYMBOL", 17 -> "BINARY", 18 -> "LAMBDA", -1 -> "any", -2 -> "int|float"];
@@ -536,7 +536,7 @@ object DATA_VISOR
 
   verb _tool_get_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get specific lines from a verb's code";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
@@ -551,7 +551,7 @@ object DATA_VISOR
 
   verb _tool_get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get metadata about a verb";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
@@ -565,7 +565,7 @@ object DATA_VISOR
 
   verb _tool_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get list of properties on an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
@@ -580,7 +580,7 @@ object DATA_VISOR
 
   verb _tool_present_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present formatted verb code to the user";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
@@ -614,7 +614,7 @@ object DATA_VISOR
 
   verb _tool_present_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present a range of verb code to the user";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -662,7 +662,7 @@ object DATA_VISOR
 
   verb _tool_add_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Add a new verb to an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_names, rationale, o} = {args_map["verb_names"], args_map["rationale"], $match:match_object(args_map["object"])};
@@ -707,7 +707,7 @@ object DATA_VISOR
 
   verb _tool_delete_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Delete a verb from an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, rationale, o} = {args_map["verb"], args_map["rationale"], $match:match_object(args_map["object"])};
@@ -741,7 +741,7 @@ object DATA_VISOR
 
   verb _tool_set_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Compile and set new code for a verb";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, rationale, code_str, o} = {args_map["verb"], args_map["rationale"], args_map["code"], $match:match_object(args_map["object"])};
@@ -794,7 +794,7 @@ object DATA_VISOR
 
   verb _tool_set_verb_args (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Change verb argument specification";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -835,7 +835,7 @@ object DATA_VISOR
 
   verb _tool_add_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Add a new property to an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -889,7 +889,7 @@ object DATA_VISOR
 
   verb _tool_delete_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Delete a property from an object";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -923,7 +923,7 @@ object DATA_VISOR
 
   verb _tool_set_property (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set the value of a property";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -973,7 +973,7 @@ object DATA_VISOR
 
   verb _tool_set_verb_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Change verb permissions";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -1022,7 +1022,7 @@ object DATA_VISOR
 
   verb _tool_set_property_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Change property permissions";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -1068,7 +1068,7 @@ object DATA_VISOR
 
   verb _tool_eval (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Execute MOO code and return result";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     rationale = maphaskey(args_map, "rationale") ? args_map["rationale"] | "";
@@ -1125,7 +1125,7 @@ object DATA_VISOR
 
   verb _tool_create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create a new object as child of parent";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     parent_str = args_map["parent"];
@@ -1184,7 +1184,7 @@ object DATA_VISOR
 
   verb _tool_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Destroy an object permanently";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     obj_str = args_map["object"];
@@ -1225,7 +1225,7 @@ object DATA_VISOR
 
   verb _tool_grep (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Search verb code for patterns";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     pattern = args_map["pattern"];
@@ -1271,7 +1271,7 @@ object DATA_VISOR
 
   verb _tool_create_task (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create a new investigation task";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:_action_perms_check();
     description = args_map["description"];
     typeof(description) == STR || raise(E_TYPE("Description must be string"));
@@ -1283,7 +1283,7 @@ object DATA_VISOR
 
   verb _tool_record_finding (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Record a finding in current task's knowledge base";
-    {args_map, actor} = args;
+    {args_map} = args;
     this:_action_perms_check();
     {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
     typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
@@ -1297,7 +1297,7 @@ object DATA_VISOR
 
   verb _tool_get_findings (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Retrieve findings for a subject from current task";
-    {args_map, actor} = args;
+    {args_map} = args;
     this:_action_perms_check();
     subject = args_map["subject"];
     typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
@@ -1319,7 +1319,7 @@ object DATA_VISOR
 
   verb _tool_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get current investigation task status";
-    {args_map, actor} = args;
+    {args_map} = args;
     this:_action_perms_check();
     this.current_investigation_task == -1 && return "No active investigation task.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
@@ -1624,7 +1624,7 @@ object DATA_VISOR
 
   verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Look up a help topic to get information about commands and features.";
-    {args_map, actor} = args;
+    {args_map} = args;
     wearer = this:wearer();
     !valid(wearer) && return "Error: Visor is not being worn.";
     topic = args_map["topic"];

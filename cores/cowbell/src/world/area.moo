@@ -182,6 +182,7 @@ object AREA
   endverb
 
   verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
+    set_task_perms(caller_perms());
     "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
     "Optional third arg: only_open (default true) - skip closed passages.";
     {start_room, goal_room, ?only_open = true} = args;

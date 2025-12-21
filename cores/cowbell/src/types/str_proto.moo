@@ -540,21 +540,34 @@ object STR_PROTO
   endverb
 
   verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
-    "Test parse_name_aliases with various formats";
-    result = $str_proto:parse_name_aliases("simple");
-    result != {"simple", {}} && raise(E_ASSERT, "Failed simple name: " + toliteral(result));
-    result = $str_proto:parse_name_aliases("box,container,chest");
-    result != {"box", {"container", "chest"}} && raise(E_ASSERT, "Failed comma-separated: " + toliteral(result));
-    result = $str_proto:parse_name_aliases("box:container,chest");
-    result != {"box", {"container", "chest"}} && raise(E_ASSERT, "Failed colon-separated: " + toliteral(result));
-    result = $str_proto:parse_name_aliases("\"secret box (totally absolutely secret, not joking)\",box");
-    result != {"secret box (totally absolutely secret, not joking)", {"box"}} && raise(E_ASSERT, "Failed quoted name with comma: " + toliteral(result));
-    result = $str_proto:parse_name_aliases("\"box with \\\"quotes\\\"\",container");
-    result != {"box with \"quotes\"", {"container"}} && raise(E_ASSERT, "Failed escaped quotes: " + toliteral(result));
-    result = $str_proto:parse_name_aliases("\"name\":alias1,alias2");
-    result != {"name", {"alias1", "alias2"}} && raise(E_ASSERT, "Failed quoted name with colon: " + toliteral(result));
-    result = $str_proto:parse_name_aliases("  spaced  ,  also  ");
-    result != {"spaced", {"also"}} && raise(E_ASSERT, "Failed whitespace trimming: " + toliteral(result));
+    "Test colon-separated format (name:alias,alias)";
+    {primary, aliases} = this:parse_name_aliases("lamp:light, lamp,shiny");
+    primary != "lamp" && raise(E_ASSERT, "Primary should be 'lamp': " + toliteral(primary));
+    aliases != {"light", "shiny"} && raise(E_ASSERT, "Aliases dedupe/trim failed: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases(":alpha,beta");
+    primary != "alpha" && raise(E_ASSERT, "First alias should become primary when name missing: " + toliteral(primary));
+    aliases != {"beta"} && raise(E_ASSERT, "Remaining alias list incorrect: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("Porcupine:\"Karl Porcupine\",\"You can pet this Porcupine, I bet!\"");
+    primary != "Porcupine" && raise(E_ASSERT, "Quoted name parsing wrong: " + toliteral(primary));
+    aliases != {"Karl Porcupine", "You can pet this Porcupine, I bet!"} && raise(E_ASSERT, "Quoted alias handling failed: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("\"Standalone Thing\"");
+    primary != "Standalone Thing" && raise(E_ASSERT, "Standalone quoted name parsing failed: " + toliteral(primary));
+    aliases != {} && raise(E_ASSERT, "Standalone quoted name should not record aliases: " + toliteral(aliases));
+    "Test comma-only format (name,alias,alias) - LambdaCore style";
+    {primary, aliases} = this:parse_name_aliases("test,bonk");
+    primary != "test" && raise(E_ASSERT, "Comma format: primary should be 'test': " + toliteral(primary));
+    aliases != {"bonk"} && raise(E_ASSERT, "Comma format: aliases should be {\"bonk\"}: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("lamp,light,shiny");
+    primary != "lamp" && raise(E_ASSERT, "Comma format: primary should be 'lamp': " + toliteral(primary));
+    aliases != {"light", "shiny"} && raise(E_ASSERT, "Comma format: aliases failed: " + toliteral(aliases));
+    {primary, aliases} = this:parse_name_aliases("\"Quoted Thing\",alias1,alias2");
+    primary != "Quoted Thing" && raise(E_ASSERT, "Comma format: quoted primary failed: " + toliteral(primary));
+    aliases != {"alias1", "alias2"} && raise(E_ASSERT, "Comma format: quoted with aliases failed: " + toliteral(aliases));
+    "Empty/whitespace tests";
+    {primary, aliases} = this:parse_name_aliases("  ");
+    primary != "" && raise(E_ASSERT, "Blank spec should return empty primary: " + toliteral(primary));
+    aliases != {} && raise(E_ASSERT, "Blank spec should have empty alias list: " + toliteral(aliases));
+    return true;
   endverb
 
   verb trim (this none this) owner: HACKER flags: "rxd"
@@ -684,11 +697,12 @@ object STR_PROTO
     "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
     s = args[1];
     colon = index(s, ":");
-    !colon && return false;
-    {object, verbname} = {s[1..colon - 1], s[colon + 1..length(s)]};
-    !(object && verbname) && return false;
-    if (object[1] == "$" && 0)
-      let pname = object[2..length(object)];
+    colon || return false;
+    object = s[1..colon - 1];
+    verbname = s[colon + 1..$];
+    object && verbname || return false;
+    if (object[1] == "$")
+      pname = object[2..$];
       if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != OBJ)
         return false;
       endif

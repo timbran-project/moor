@@ -262,45 +262,6 @@ object PASSAGE
     endif
   endverb
 
-  verb prose_style_for (this none this) owner: HACKER flags: "rxd"
-    "Get the prose style for the side facing a given room.";
-    "Returns 'sentence (include as-is) or 'fragment (wrap in 'You see X').";
-    {room} = args;
-    if (room == this:_side_lookup('a, 'room))
-      return this:_side_lookup('a, 'prose_style);
-    elseif (room == this:_side_lookup('b, 'room))
-      return this:_side_lookup('b, 'prose_style);
-    else
-      return 'fragment;
-    endif
-  endverb
-
-  verb departure_phrase_for (this none this) owner: HACKER flags: "rxd"
-    "Get the departure phrase for the side facing a given room.";
-    "Used in messages like 'heads [direction] through [phrase]'.";
-    {room} = args;
-    if (room == this:_side_lookup('a, 'room))
-      return this:_side_lookup('a, 'departure_phrase);
-    elseif (room == this:_side_lookup('b, 'room))
-      return this:_side_lookup('b, 'departure_phrase);
-    else
-      return "";
-    endif
-  endverb
-
-  verb arrival_phrase_for (this none this) owner: HACKER flags: "rxd"
-    "Get the arrival phrase for the side facing a given room.";
-    "Used in messages like 'arrives from [phrase]'.";
-    {room} = args;
-    if (room == this:_side_lookup('a, 'room))
-      return this:_side_lookup('a, 'arrival_phrase);
-    elseif (room == this:_side_lookup('b, 'room))
-      return this:_side_lookup('b, 'arrival_phrase);
-    else
-      return "";
-    endif
-  endverb
-
   verb matches_command (this none this) owner: HACKER flags: "rxd"
     "Check if command matches this passage's label or aliases from given room.";
     "Also handles direction abbreviations (n/north, e/east, etc).";
@@ -450,12 +411,6 @@ object PASSAGE
     return {label, description, ambient, prose_style};
   endverb
 
-  verb _mk_from_props (this none this) owner: HACKER flags: "rxd"
-    "Construct a passage flyweight from a props map. Internal helper for transformer verbs.";
-    {props} = args;
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open]>;
-  endverb
-
   verb _extract_all (this none this) owner: HACKER flags: "rxd"
     "Extract all passage properties into a map. Internal helper for transformer verbs.";
     return ['room_a -> this:_side_lookup('a, 'room), 'room_b -> this:_side_lookup('b, 'room), 'label_a -> this:_side_lookup('a, 'label), 'label_b -> this:_side_lookup('b, 'label), 'aliases_a -> this:_side_lookup('a, 'aliases), 'aliases_b -> this:_side_lookup('b, 'aliases), 'desc_a -> this:_side_lookup('a, 'description), 'desc_b -> this:_side_lookup('b, 'description), 'ambient_a -> this:_side_lookup('a, 'ambient), 'ambient_b -> this:_side_lookup('b, 'ambient), 'leave_msg_a -> this:_side_lookup('a, 'leave_msg), 'leave_msg_b -> this:_side_lookup('b, 'leave_msg), 'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg), 'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg), 'prose_style_a -> this:_side_lookup('a, 'prose_style), 'prose_style_b -> this:_side_lookup('b, 'prose_style), 'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase), 'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase), 'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase), 'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase), 'is_open -> this:_value("is_open", true)];
@@ -545,6 +500,87 @@ object PASSAGE
     return this:_mk_from_props(props);
   endverb
 
+  verb mk_movement_context (this none this) owner: HACKER flags: "rxd"
+    "Create a movement context flyweight with get_binding() support for message rendering.";
+    {actor, from_room, to_room, from_direction, to_direction} = args;
+    typeof(actor) == OBJ || raise(E_TYPE);
+    typeof(from_room) == OBJ || raise(E_TYPE);
+    typeof(to_room) == OBJ || raise(E_TYPE);
+    return <$passage, .actor = actor, .from_room = from_room, .to_room = to_room, .passage = this, .from_direction = from_direction, .to_direction = to_direction>;
+  endverb
+
+  verb get_binding (this none this) owner: HACKER flags: "rxd"
+    "Implement the binding protocol for message substitution.";
+    {name} = args;
+    if (name == 'actor)
+      return this.actor;
+    endif
+    if (name == 'direction)
+      return this.from_direction;
+    endif
+    if (name == 'from_direction)
+      return this.from_direction;
+    endif
+    if (name == 'to_direction)
+      return this.to_direction;
+    endif
+    if (name == 'from_room)
+      return this.from_room;
+    endif
+    if (name == 'to_room)
+      return this.to_room;
+    endif
+    if (name == 'passage)
+      return this.passage;
+    endif
+    return false;
+  endverb
+
+  verb prose_style_for (this none this) owner: HACKER flags: "rxd"
+    "Get the prose style for the side facing a given room.";
+    "Returns 'sentence (include as-is) or 'fragment (wrap in 'You see X').";
+    {room} = args;
+    if (room == this:_side_lookup('a, 'room))
+      return this:_side_lookup('a, 'prose_style);
+    elseif (room == this:_side_lookup('b, 'room))
+      return this:_side_lookup('b, 'prose_style);
+    else
+      return 'fragment;
+    endif
+  endverb
+
+  verb departure_phrase_for (this none this) owner: HACKER flags: "rxd"
+    "Get the departure phrase for the side facing a given room.";
+    "Used in messages like 'heads [direction] through [phrase]'.";
+    {room} = args;
+    if (room == this:_side_lookup('a, 'room))
+      return this:_side_lookup('a, 'departure_phrase);
+    elseif (room == this:_side_lookup('b, 'room))
+      return this:_side_lookup('b, 'departure_phrase);
+    else
+      return "";
+    endif
+  endverb
+
+  verb arrival_phrase_for (this none this) owner: HACKER flags: "rxd"
+    "Get the arrival phrase for the side facing a given room.";
+    "Used in messages like 'arrives from [phrase]'.";
+    {room} = args;
+    if (room == this:_side_lookup('a, 'room))
+      return this:_side_lookup('a, 'arrival_phrase);
+    elseif (room == this:_side_lookup('b, 'room))
+      return this:_side_lookup('b, 'arrival_phrase);
+    else
+      return "";
+    endif
+  endverb
+
+  verb _mk_from_props (this none this) owner: HACKER flags: "rxd"
+    "Construct a passage flyweight from a props map. Internal helper for transformer verbs.";
+    {props} = args;
+    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open]>;
+  endverb
+
   verb with_prose_style_from (this none this) owner: HACKER flags: "rxd"
     "Update the prose style for the side visible from a given room. Returns new passage flyweight.";
     "'sentence means include description as-is; 'fragment means wrap in 'You see X'.";
@@ -594,41 +630,5 @@ object PASSAGE
       props['arrival_phrase_b] = phrase;
     endif
     return this:_mk_from_props(props);
-  endverb
-
-  verb mk_movement_context (this none this) owner: HACKER flags: "rxd"
-    "Create a movement context flyweight with get_binding() support for message rendering.";
-    {actor, from_room, to_room, from_direction, to_direction} = args;
-    typeof(actor) == OBJ || raise(E_TYPE);
-    typeof(from_room) == OBJ || raise(E_TYPE);
-    typeof(to_room) == OBJ || raise(E_TYPE);
-    return <$passage, .actor = actor, .from_room = from_room, .to_room = to_room, .passage = this, .from_direction = from_direction, .to_direction = to_direction>;
-  endverb
-
-  verb get_binding (this none this) owner: HACKER flags: "rxd"
-    "Implement the binding protocol for message substitution.";
-    {name} = args;
-    if (name == 'actor)
-      return this.actor;
-    endif
-    if (name == 'direction)
-      return this.from_direction;
-    endif
-    if (name == 'from_direction)
-      return this.from_direction;
-    endif
-    if (name == 'to_direction)
-      return this.to_direction;
-    endif
-    if (name == 'from_room)
-      return this.from_room;
-    endif
-    if (name == 'to_room)
-      return this.to_room;
-    endif
-    if (name == 'passage)
-      return this.passage;
-    endif
-    return false;
   endverb
 endobject

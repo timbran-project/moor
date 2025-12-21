@@ -6,11 +6,11 @@ object HENRI_PET_SLEEPY_MSGS
 
   override entries = {
     {
-      <#19, .type = 'actor, .capitalize = true>,
+      <#19, .capitalize = true, .type = 'actor>,
       " purrs reluctantly, as if doing you a great favor. \"I suppose this is acceptable. For now.\""
     },
     {
-      <#19, .type = 'actor, .capitalize = true>,
+      <#19, .capitalize = true, .type = 'actor>,
       " leans into the petting for a moment before remembering ",
       <#19, .type = 'subject>,
       " is supposed to be annoyed. ",
@@ -18,7 +18,7 @@ object HENRI_PET_SLEEPY_MSGS
       " pulls away with a huff."
     },
     {
-      <#19, .type = 'actor, .capitalize = true>,
+      <#19, .capitalize = true, .type = 'actor>,
       " closes ",
       <#19, .type = 'pos_adj>,
       " eyes and pretends to enjoy it, though you can tell ",
@@ -28,7 +28,7 @@ object HENRI_PET_SLEEPY_MSGS
       " just too tired to protest properly."
     },
     {
-      <#19, .type = 'actor, .capitalize = true>,
+      <#19, .capitalize = true, .type = 'actor>,
       " murmurs something that sounds like \"The vibrations are almost as good as the old heating vent... almost.\""
     }
   };

@@ -104,6 +104,7 @@ object RELATION
 
   verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return all tuples in the relation.";
+    set_task_perms(caller_perms());
     result = {};
     for prop in (properties(this))
       prop_str = tostr(prop);

@@ -6,82 +6,82 @@ object CONTAINER
   fertile: true
   readable: true
 
-  property already_closed_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already closed."};
-  property already_locked_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already locked."};
-  property already_open_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already open."};
-  property already_unlocked_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already unlocked."};
-  property close_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't close."};
+  property already_closed_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is already closed."};
+  property already_locked_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is already locked."};
+  property already_open_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is already open."};
+  property already_unlocked_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is already unlocked."};
+  property close_denied_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " won't close."};
   property close_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
     <#19, .type = 'self_alt, .for_self = "close", .for_others = "closes">,
     " ",
-    <#19, .type = 'dobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'dobj>,
     "."
   };
   property close_rule (owner: HACKER, flags: "rc") = 0;
-  property lock_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't lock."};
+  property lock_denied_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " won't lock."};
   property lock_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
     <#19, .type = 'self_alt, .for_self = "lock", .for_others = "locks">,
     " ",
-    <#19, .type = 'iobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'iobj>,
     " with ",
-    <#19, .type = 'dobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'dobj>,
     "."
   };
   property lock_rule (owner: HACKER, flags: "rc") = 0;
   property locked (owner: HACKER, flags: "r") = false;
-  property not_closeable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " can't be closed."};
-  property not_lockable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " doesn't have a lock."};
-  property not_openable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " can't be opened."};
-  property not_unlockable_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " doesn't have a lock."};
+  property not_closeable_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " can't be closed."};
+  property not_lockable_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " doesn't have a lock."};
+  property not_openable_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " can't be opened."};
+  property not_unlockable_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " doesn't have a lock."};
   property open (owner: HACKER, flags: "r") = true;
-  property open_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't open."};
-  property open_locked_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is locked."};
+  property open_denied_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " won't open."};
+  property open_locked_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is locked."};
   property open_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
     <#19, .type = 'self_alt, .for_self = "open", .for_others = "opens">,
     " ",
-    <#19, .type = 'dobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'dobj>,
     "."
   };
   property open_rule (owner: HACKER, flags: "rc") = 0;
-  property put_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " is closed."};
+  property put_denied_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " is closed."};
   property put_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
     <#19, .type = 'self_alt, .for_self = "put", .for_others = "puts">,
     " ",
-    <#19, .type = 'dobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'dobj>,
     " in ",
-    <#19, .type = 'iobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'iobj>,
     "."
   };
   property put_rule (owner: HACKER, flags: "rc") = 0;
-  property take_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " is closed."};
+  property take_denied_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " is closed."};
   property take_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
     <#19, .type = 'self_alt, .for_self = "take", .for_others = "takes">,
     " ",
-    <#19, .type = 'dobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'dobj>,
     " from ",
-    <#19, .type = 'iobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'iobj>,
     "."
   };
   property take_rule (owner: HACKER, flags: "rc") = 0;
-  property unlock_denied_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'iobj, .capitalize = true>, " won't unlock."};
+  property unlock_denied_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'iobj>, " won't unlock."};
   property unlock_msg (owner: HACKER, flags: "rc") = {
-    <#19, .type = 'actor, .capitalize = true>,
+    <#19, .capitalize = true, .type = 'actor>,
     " ",
     <#19, .type = 'self_alt, .for_self = "unlock", .for_others = "unlocks">,
     " ",
-    <#19, .type = 'iobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'iobj>,
     " with ",
-    <#19, .type = 'dobj, .capitalize = false>,
+    <#19, .capitalize = false, .type = 'dobj>,
     "."
   };
   property unlock_rule (owner: HACKER, flags: "rc") = 0;
