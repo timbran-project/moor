@@ -57,7 +57,7 @@ object OBJ_UTILS
     set_task_perms(caller_perms());
     {dobj, prep, iobj} = args;
     "Targetable if either dobj or iobj is 'this'";
-    return (dobj == "this" || iobj == "this");
+    return dobj == "this" || iobj == "this";
   endverb
 
   verb collect_targetable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -258,5 +258,4 @@ object OBJ_UTILS
     endfor
     return result;
   endverb
-
 endobject

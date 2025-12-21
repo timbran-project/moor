@@ -464,5 +464,4 @@ object ARCHITECTS_COMPASS
     endfor
     return 0;
   endverb
-
 endobject

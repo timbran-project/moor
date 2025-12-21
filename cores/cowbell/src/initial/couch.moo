@@ -5,39 +5,33 @@ object COUCH
   owner: HACKER
   readable: true
 
+  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <#69, .when = <#63, .name = 'henri_sitting, .head = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .variables = {'This, 'Actor}>, .trigger = 'on_sit, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
+
   override aliases = {"couch", "sofa", "ratty couch"};
   override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";
-
+  override get_denied_msg = {"The couch is far too heavy to pick up."};
+  override get_rule = <#63, .name = 'is_portable, .head = 'is_portable, .body = {{'is_portable, 'This}}, .variables = {'This}>;
+  override import_export_hierarchy = {"initial"};
+  override import_export_id = "couch";
   override seats = 3;
-  override squeeze = 1;
-  override sitting_verb = "lounging";
-  override sitting_prep = "on";
-
   override sit_msg = {
-    <SUB, .type = 'actor, .capitalize = true>,
+    <#19, .type = 'actor, .capitalize = true>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "sink", .for_others = "sinks", .capitalize = false>,
+    <#19, .type = 'self_alt, .for_self = "sink", .for_others = "sinks", .capitalize = false>,
     " into ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
     ", stirring up a small cloud of cat hair."
   };
-
+  override sitting_verb = "lounging";
+  override squeeze = 1;
   override stand_msg = {
-    <SUB, .type = 'actor, .capitalize = true>,
+    <#19, .type = 'actor, .capitalize = true>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "stand", .for_others = "stands", .capitalize = false>,
+    <#19, .type = 'self_alt, .for_self = "stand", .for_others = "stands", .capitalize = false>,
     " up from ",
-    <SUB, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
+    <#19, .binding_name = 'This, .type = 'article_the, .capitalize = false>,
     ", brushing off some cat hair."
   };
-
-  override import_export_id = "couch";
-  override import_export_hierarchy = {"initial"};
-
-  override get_denied_msg = {"The couch is far too heavy to pick up."};
-  override get_rule = <RULE, .name = 'is_portable, .head = 'is_portable, .body = {{'is_portable, 'This}}, .variables = {'This}>;
-
-  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .head = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .variables = {'This, 'Actor}>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
 
   verb fact_is_portable (this none this) owner: HACKER flags: "rxd"
     "Couches are not portable.";

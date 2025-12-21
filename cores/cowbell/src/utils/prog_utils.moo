@@ -163,7 +163,7 @@ object PROG_UTILS
       verb_index = 0;
     endtry
     "Return as flyweight with $verb delegate and slots for metadata";
-    return < $verb, .owner_obj = verb_obj, .location = verb_obj, .name = verb_name, .verb_owner = verb_owner, .flags = verb_flags, .dobj = dobj, .prep = prep, .iobj = iobj, .index = verb_index >;
+    return <$verb, .owner_obj = verb_obj, .location = verb_obj, .name = verb_name, .verb_owner = verb_owner, .flags = verb_flags, .dobj = dobj, .prep = prep, .iobj = iobj, .index = verb_index>;
   endverb
 
   verb get_verbs_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -180,7 +180,7 @@ object PROG_UTILS
       {verb_owner, verb_flags, verb_names} = verb_info_data;
       verb_args_data = verb_args(verb_obj, verb_name);
       {dobj, prep, iobj} = verb_args_data;
-      metadata = < $verb, .owner_obj = verb_obj, .location = verb_obj, .name = verb_name, .verb_owner = verb_owner, .flags = verb_flags, .dobj = dobj, .prep = prep, .iobj = iobj, .index = verb_index >;
+      metadata = <$verb, .owner_obj = verb_obj, .location = verb_obj, .name = verb_name, .verb_owner = verb_owner, .flags = verb_flags, .dobj = dobj, .prep = prep, .iobj = iobj, .index = verb_index>;
       metadata_list = {@metadata_list, metadata};
     endfor
     return metadata_list;
@@ -196,7 +196,7 @@ object PROG_UTILS
     {prop_owner, prop_perms} = prop_info_data;
     is_clear = is_clear_property(prop_obj, prop_name);
     "Return as flyweight with $property delegate and slots for metadata";
-    return < $property, .owner_obj = prop_obj, .location = prop_obj, .name = prop_name, .owner = prop_owner, .perms = prop_perms, .is_clear = is_clear >;
+    return <$property, .owner_obj = prop_obj, .location = prop_obj, .name = prop_name, .owner = prop_owner, .perms = prop_perms, .is_clear = is_clear>;
   endverb
 
   verb test_format_line_numbers (this none this) owner: HACKER flags: "rxd"
@@ -263,10 +263,8 @@ object PROG_UTILS
     "  type is 'object for plain object, 'compound for selectors";
     "  selectors is a list of maps with keys: kind ('property or 'verb), inherited (bool), item_name (str or \"\")";
     "Returns 0 if invalid";
-
     spec = args[1]:trim();
     !spec && return 0;
-
     "Find where the object reference ends and selectors begin";
     "Selectors start at first . or : that isn't part of $name or #num";
     obj_end = 0;
@@ -286,15 +284,12 @@ object PROG_UTILS
         break;
       endif
     endfor
-
     "If no separators found, it's just an object";
     if (obj_end == 0)
       return ['type -> 'object, 'object_str -> spec, 'selectors -> {}];
     endif
-
     object_str = spec[1..obj_end]:trim();
     selector_str = spec[obj_end + 1..length(spec)];
-
     "Parse selector string into individual selectors";
     "Valid patterns: . .. .name : :: :name and combinations";
     selectors = {};
@@ -344,22 +339,18 @@ object PROG_UTILS
         return 0;
       endif
     endwhile
-
     if (!selectors)
       return 0;
     endif
-
     return ['type -> 'compound, 'object_str -> object_str, 'selectors -> selectors];
   endverb
 
   verb test_parse_target_spec (this none this) owner: HACKER flags: "rxd"
     "Test target spec parsing with new selector syntax";
-
     "Test plain object reference";
     result = this:parse_target_spec("me");
     result['type] == 'object || raise(E_ASSERT, "me should parse as object");
     result['object_str] == "me" || raise(E_ASSERT, "object_str should be 'me'");
-
     "Test specific property reference";
     result = this:parse_target_spec("me.description");
     result['type] == 'compound || raise(E_ASSERT, "me.description should parse as compound");
@@ -368,14 +359,12 @@ object PROG_UTILS
     selector['kind] == 'property || raise(E_ASSERT, "selector kind should be 'property");
     selector['item_name] == "description" || raise(E_ASSERT, "item_name should be 'description'");
     !selector['inherited] || raise(E_ASSERT, "should not be inherited");
-
     "Test specific verb reference";
     result = this:parse_target_spec("me:test");
     result['type] == 'compound || raise(E_ASSERT, "me:test should parse as compound");
     selector = result['selectors][1];
     selector['kind] == 'verb || raise(E_ASSERT, "selector kind should be 'verb");
     selector['item_name] == "test" || raise(E_ASSERT, "item_name should be 'test'");
-
     "Test local properties (trailing dot)";
     result = this:parse_target_spec("me.");
     result['type] == 'compound || raise(E_ASSERT, "me. should parse as compound");
@@ -383,40 +372,34 @@ object PROG_UTILS
     selector['kind] == 'property || raise(E_ASSERT, "selector kind should be 'property");
     selector['item_name] == "" || raise(E_ASSERT, "item_name should be empty for all props");
     !selector['inherited] || raise(E_ASSERT, "single dot should not be inherited");
-
     "Test inherited properties (double dot)";
     result = this:parse_target_spec("me..");
     result['type] == 'compound || raise(E_ASSERT, "me.. should parse as compound");
     selector = result['selectors][1];
     selector['inherited] || raise(E_ASSERT, "double dot should be inherited");
-
     "Test local verbs (trailing colon)";
     result = this:parse_target_spec("me:");
     result['type] == 'compound || raise(E_ASSERT, "me: should parse as compound");
     selector = result['selectors][1];
     selector['kind] == 'verb || raise(E_ASSERT, "selector kind should be 'verb");
     !selector['inherited] || raise(E_ASSERT, "single colon should not be inherited");
-
     "Test inherited verbs (double colon)";
     result = this:parse_target_spec("me::");
     result['type] == 'compound || raise(E_ASSERT, "me:: should parse as compound");
     selector = result['selectors][1];
     selector['inherited] || raise(E_ASSERT, "double colon should be inherited");
-
     "Test combination: local props + local verbs";
     result = this:parse_target_spec("me.:");
     result['type] == 'compound || raise(E_ASSERT, "me.: should parse as compound");
     length(result['selectors]) == 2 || raise(E_ASSERT, "should have 2 selectors");
     result['selectors][1]['kind] == 'property || raise(E_ASSERT, "first selector should be property");
     result['selectors][2]['kind] == 'verb || raise(E_ASSERT, "second selector should be verb");
-
     "Test combination: all props + all verbs";
     result = this:parse_target_spec("me..::");
     result['type] == 'compound || raise(E_ASSERT, "me..:: should parse as compound");
     length(result['selectors]) == 2 || raise(E_ASSERT, "should have 2 selectors");
     result['selectors][1]['inherited] || raise(E_ASSERT, "first selector should be inherited");
     result['selectors][2]['inherited] || raise(E_ASSERT, "second selector should be inherited");
-
     return true;
   endverb
 
@@ -429,14 +412,11 @@ object PROG_UTILS
     "IMPORTANT: Runs with caller's permissions, not elevated";
     input_str = args[1]:trim();
     original_len = length(input_str);
-
     if (!input_str)
       return {false, "Empty input", ""};
     endif
-
     "Set permissions to caller to prevent privilege escalation";
     set_task_perms(caller_perms());
-
     "Determine where the literal ends";
     lit_end = 0;
     if (input_str[1] == "(")
@@ -461,48 +441,37 @@ object PROG_UTILS
       "Find first whitespace for simple tokens";
       lit_end = index(input_str + " ", " ") - 1;
     endif
-
     "Extract the literal part";
     literal_part = input_str[1..lit_end];
     remaining = lit_end < original_len ? input_str[lit_end + 1..original_len]:trim() | "";
-
     "Try to evaluate the literal";
     eval_result = eval("return " + literal_part + ";", ['me -> player, 'here -> player.location], 1, 2);
     if (!eval_result[1])
       return {false, tostr(eval_result[2]), ""};
     endif
-
     return {true, eval_result[2], remaining};
   endverb
 
   verb test_eval_literal (this none this) owner: HACKER flags: "rxd"
     "Test literal evaluation";
-
     "Test simple integer literal";
     result = this:eval_literal("42");
     result[1] && result[2] == 42 || raise(E_ASSERT, "42 should parse as integer 42");
-
     "Test integer with remaining text";
     result = this:eval_literal("42 rc");
     result[1] && result[2] == 42 && result[3] == "rc" || raise(E_ASSERT, "42 rc should parse 42 with remainder rc");
-
     "Test parenthesized expression";
     result = this:eval_literal("(123 / 2)");
     result[1] && result[2] == 61 || raise(E_ASSERT, "(123 / 2) should evaluate to 61");
-
     "Test parenthesized expression with remaining text";
     result = this:eval_literal("(123 / 2) rc");
     result[1] && result[2] == 61 && result[3] == "rc" || raise(E_ASSERT, "(123 / 2) rc should parse expr with remainder rc");
-
     "Test symbol";
     result = this:eval_literal("'atom");
     result[1] && result[2] == 'atom || raise(E_ASSERT, "'atom should parse as symbol");
-
     "Test object reference";
     result = this:eval_literal("$root");
     result[1] && result[2] == $root || raise(E_ASSERT, "$root should parse as object");
-
     return true;
   endverb
-
 endobject

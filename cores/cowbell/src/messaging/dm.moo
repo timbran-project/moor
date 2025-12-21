@@ -107,14 +107,14 @@ object DM
 
   verb sender_echo_event (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return event confirming DM was sent, shown to the sender.";
-    "Format: You (in Location) → Target: message";
+    "Format: You (in Location) \u2192 Target: message";
     sender = this.from;
     recipient = this.to;
     loc = this.location;
     recipient_name = valid(recipient) ? recipient.name | "???";
     "Build colorized display";
     loc_str = valid(loc) ? " (in " + $ansi:colorize(loc.name, 'dim) + ")" | "";
-    arrow = $ansi:colorize(" → ", 'bright_black);
+    arrow = $ansi:colorize(" \u2192 ", 'bright_black);
     colored_you = $ansi:colorize("You", 'bright_cyan);
     colored_target = $ansi:colorize(recipient_name, 'bright_magenta);
     display_str = colored_you + loc_str + arrow + colored_target + ": " + this.text;

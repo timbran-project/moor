@@ -78,7 +78,7 @@ object EVENT
   endverb
 
   verb normalize_content (this none this) owner: HACKER flags: "rxd"
-    return {this:wrap_content_entry(e) for e in (args)};
+    return { this:wrap_content_entry(e) for e in (args) };
   endverb
 
   verb wrap_content_entry (this none this) owner: HACKER flags: "rxd"

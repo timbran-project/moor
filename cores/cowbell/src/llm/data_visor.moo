@@ -1490,7 +1490,7 @@ object DATA_VISOR
     elseif (tool_name == "grep")
       obj_spec = maphaskey(tool_args, "object") ? " in " + tool_args["object"] | " globally";
       return "Searching for pattern " + tool_args["pattern"] + obj_spec;
-    "Write operations";
+      "Write operations";
     elseif (tool_name == "add_verb")
       return "Creating verb " + tool_args["object"] + " " + tool_args["verb_names"];
     elseif (tool_name == "delete_verb")

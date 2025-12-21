@@ -6,27 +6,27 @@ object HOUSEKEEPING_SWEEP_MSGS
   override entries = {
     {
       "A member of housekeeping gently guides ",
-      <SUB, .capitalize = false, .type = 'actor>,
+      <#19, .type = 'actor, .capitalize = false>,
       " back to bed."
     },
     {
       "Housekeeping escorts ",
-      <SUB, .capitalize = false, .type = 'actor>,
+      <#19, .type = 'actor, .capitalize = false>,
       " away to ",
-      <SUB, .capitalize = false, .type = 'pos_adj>,
+      <#19, .type = 'pos_adj, .capitalize = false>,
       " room."
     },
     {
-      <SUB, .capitalize = true, .type = 'actor>,
+      <#19, .type = 'actor, .capitalize = true>,
       " is quietly led away by a tired-looking porter."
     },
     {
       "A woman with a broom nudges ",
-      <SUB, .capitalize = false, .type = 'actor>,
+      <#19, .type = 'actor, .capitalize = false>,
       " awake and points toward the back stairs."
     },
     {
-      <SUB, .capitalize = true, .type = 'actor>,
+      <#19, .type = 'actor, .capitalize = true>,
       " is gently but firmly ushered toward the dormitory."
     }
   };

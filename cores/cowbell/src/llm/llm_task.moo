@@ -39,18 +39,7 @@ object LLM_TASK
   verb get_status (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return complete task status as a map for reporting.";
     caller == this || caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
-    status_map = [
-      "task_id" -> this.task_id,
-      "description" -> this.description,
-      "status" -> this.status,
-      "parent_task_id" -> this.parent_task_id,
-      "created_at" -> this.created_at,
-      "started_at" -> this.started_at,
-      "completed_at" -> this.completed_at,
-      "result" -> this.result,
-      "error" -> this.error,
-      "subtask_count" -> length(this.subtasks)
-    ];
+    status_map = ["task_id" -> this.task_id, "description" -> this.description, "status" -> this.status, "parent_task_id" -> this.parent_task_id, "created_at" -> this.created_at, "started_at" -> this.started_at, "completed_at" -> this.completed_at, "result" -> this.result, "error" -> this.error, "subtask_count" -> length(this.subtasks)];
     return status_map;
   endverb
 
@@ -175,5 +164,4 @@ object LLM_TASK
     "Task will auto-garbage-collect as it's anonymous";
     return true;
   endverb
-
 endobject

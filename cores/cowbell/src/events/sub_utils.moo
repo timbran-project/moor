@@ -100,11 +100,11 @@ object SUB_UTILS
     "",
     "## Functions",
     "",
-    "### compile(template_string) → list",
+    "### compile(template_string) \u2192 list",
     "",
     "Parses a template string and returns a list of strings and $sub flyweights.",
     "",
-    "### decompile(content_list) → string",
+    "### decompile(content_list) \u2192 string",
     "",
     "Reconstructs a template string from a compiled content list.",
     "",
@@ -184,7 +184,7 @@ object SUB_UTILS
     typeof(content) != LIST && raise(E_TYPE, "content must be list");
     result = "";
     for item in (content)
-      result = result + (typeof(item) == STR ? item | typeof(item) == FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item));
+      result = result + (typeof(item) == STR ? item | (typeof(item) == FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item)));
     endfor
     return result;
   endverb
@@ -289,11 +289,8 @@ object SUB_UTILS
     "Test decompile with nc and d substitutions.";
     original = "{nc} dropped {d}.";
     compiled = this:compile(original);
-
-
     decompiled = this:decompile(compiled);
     decompiled != original && raise(E_ASSERT, "Decompilation failed: " + decompiled);
     return true;
   endverb
-
 endobject

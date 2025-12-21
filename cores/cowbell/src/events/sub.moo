@@ -7,11 +7,6 @@ object SUB
   override description = "Flyweight delegate and factory for template substitution in events.";
   override import_export_hierarchy = {"events"};
   override import_export_id = "sub";
-
-  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Return false so article tests work correctly.";
-    return false;
-  endverb
   override object_documentation = {
     "# $sub - Event Substitution System",
     "",
@@ -233,7 +228,7 @@ object SUB
     "## Article Substitutions",
     "",
     "Articles (a, an, the) are determined by the object's noun properties and the builder's template choice.",
-    "Article substitutions render both the article and the binding's name (e.g., `{the d}` → \"the sword\"). Proper nouns or self-targets drop the article.",
+    "Article substitutions render both the article and the binding's name (e.g., `{the d}` \u2192 \"the sword\"). Proper nouns or self-targets drop the article.",
     "",
     "### Indefinite Articles (a/an)",
     "",
@@ -323,6 +318,11 @@ object SUB
     ""
   };
 
+  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return false so article tests work correctly.";
+    return false;
+  endverb
+
   verb render_as (this none this) owner: HACKER flags: "rxd"
     {render_for, content_type, event} = args;
     content = this:eval_sub(event, render_for);
@@ -395,24 +395,24 @@ object SUB
     endif
     if (this.type == 'article_a)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      (binding_value == false || typeof(binding_value) != OBJ) && return "";
+      binding_value == false || typeof(binding_value) != OBJ && return "";
       capitalize_name = `this.capitalize_binding ! E_PROPNF => false';
       is_self = binding_value == render_for;
       is_proper = `binding_value:is_proper_noun() ! E_VERBNF => false';
       is_plural = `binding_value:is_plural() ! E_VERBNF => false';
       name = is_self ? "you" | `binding_value:name() ! E_VERBNF => tostr(binding_value)';
-      article = (is_proper || is_plural || is_self) ? "" | this:a_or_an(name);
+      article = is_proper || is_plural || is_self ? "" | this:a_or_an(name);
       this.capitalize && length(article) && (article = article:capitalize());
       capitalize_name && length(name) && (name = name:capitalize());
       return length(article) ? article + " " + name | name;
     endif
     if (this.type == 'article_the)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      (binding_value == false || typeof(binding_value) != OBJ) && return "";
+      binding_value == false || typeof(binding_value) != OBJ && return "";
       capitalize_name = `this.capitalize_binding ! E_PROPNF => false';
       is_self = binding_value == render_for;
       is_proper = `binding_value:is_proper_noun() ! E_VERBNF => false';
-      article = (is_proper || is_self) ? "" | "the";
+      article = is_proper || is_self ? "" | "the";
       name = is_self ? "you" | `binding_value:name() ! E_VERBNF => tostr(binding_value)';
       this.capitalize && length(article) && (article = article:capitalize());
       capitalize_name && length(name) && (name = name:capitalize());
@@ -448,31 +448,31 @@ object SUB
 
   verb "o*c o*_dobj o*_iobj oc*_dobj oc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_object | verb:ends_with("_iobj") ? 'iobj_object | 'object;
+    type = verb:ends_with("_dobj") ? 'dobj_object | (verb:ends_with("_iobj") ? 'iobj_object | 'object);
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "p*c p*_dobj p*_iobj pc*_dobj pc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_pos_adj | verb:ends_with("_iobj") ? 'iobj_pos_adj | 'pos_adj;
+    type = verb:ends_with("_dobj") ? 'dobj_pos_adj | (verb:ends_with("_iobj") ? 'iobj_pos_adj | 'pos_adj);
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "q*c q*_dobj q*_iobj qc*_dobj qc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_pos_noun | verb:ends_with("_iobj") ? 'iobj_pos_noun | 'pos_noun;
+    type = verb:ends_with("_dobj") ? 'dobj_pos_noun | (verb:ends_with("_iobj") ? 'iobj_pos_noun | 'pos_noun);
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "r*c r*_dobj r*_iobj rc*_dobj rc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_reflexive | verb:ends_with("_iobj") ? 'iobj_reflexive | 'reflexive;
+    type = verb:ends_with("_dobj") ? 'dobj_reflexive | (verb:ends_with("_iobj") ? 'iobj_reflexive | 'reflexive);
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "s*c s*_dobj s*_iobj sc*_dobj sc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_subject | verb:ends_with("_iobj") ? 'iobj_subject | 'subject;
+    type = verb:ends_with("_dobj") ? 'dobj_subject | (verb:ends_with("_iobj") ? 'iobj_subject | 'subject);
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
@@ -483,19 +483,19 @@ object SUB
 
   verb "verb_be verb_be_dobj verb_be_iobj" (this none this) owner: HACKER flags: "rxd"
     "Verb conjugation for 'be' (is/are).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_be | verb:ends_with("_iobj") ? 'iobj_verb_be | 'verb_be;
+    type = verb:ends_with("_dobj") ? 'dobj_verb_be | (verb:ends_with("_iobj") ? 'iobj_verb_be | 'verb_be);
     return <this, .type = type>;
   endverb
 
   verb "verb_have verb_have_dobj verb_have_iobj" (this none this) owner: HACKER flags: "rxd"
     "Verb conjugation for 'have' (has/have).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_have | verb:ends_with("_iobj") ? 'iobj_verb_have | 'verb_have;
+    type = verb:ends_with("_dobj") ? 'dobj_verb_have | (verb:ends_with("_iobj") ? 'iobj_verb_have | 'verb_have);
     return <this, .type = type>;
   endverb
 
   verb "verb_look verb_look_dobj verb_look_iobj" (this none this) owner: HACKER flags: "rxd"
     "Verb conjugation for 'look' (look/looks).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_look | verb:ends_with("_iobj") ? 'iobj_verb_look | 'verb_look;
+    type = verb:ends_with("_dobj") ? 'dobj_verb_look | (verb:ends_with("_iobj") ? 'iobj_verb_look | 'verb_look);
     return <this, .type = type>;
   endverb
 
@@ -533,7 +533,7 @@ object SUB
   verb a_or_an (this none this) owner: HACKER flags: "rxd"
     "Return 'a' or 'an' depending on the word. Handles exceptions like 'unicycle'.";
     {word} = args;
-    (typeof(word) != STR || !length(word)) && return "a";
+    typeof(word) != STR || !length(word) && return "a";
     first = word[1]:lowercase();
     "Words starting with 'uni' or 'unu' use 'a' (pronounced 'yoo')";
     if (length(word) >= 3 && first == "u" && word[2]:lowercase() == "n" && index("iu", word[3]:lowercase()))

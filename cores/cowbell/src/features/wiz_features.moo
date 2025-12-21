@@ -18,7 +18,7 @@ object WIZ_FEATURES
       player:inform_current($event:mk_error(player, "Usage: @announce <message>"):with_audience('utility));
       return;
     endif
-    msg = "“" + msg + "”";
+    msg = "\u201C" + msg + "\u201D";
     title = $format.title:mk("Announcement from " + player:name());
     content = $format.block:mk(title, msg);
     event = $event:mk_info(player, content):with_audience('utility):with_presentation_hint('inset);

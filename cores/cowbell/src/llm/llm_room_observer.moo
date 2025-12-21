@@ -6,6 +6,9 @@ object LLM_ROOM_OBSERVER
   readable: true
 
   property agent (owner: HACKER, flags: "rc") = #-1;
+  property already_off_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already switched off."};
+  property already_on_msg (owner: HACKER, flags: "rc") = {<#19, .type = 'dobj, .capitalize = true>, " is already active."};
+  property enabled (owner: HACKER, flags: "rc") = true;
   property knowledge_base (owner: HACKER, flags: "rc") = #-1;
   property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
   property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
@@ -14,6 +17,18 @@ object LLM_ROOM_OBSERVER
   property response_opts (owner: HACKER, flags: "rc") = false;
   property response_prompt (owner: HACKER, flags: "rc") = "Based on what you've observed, say something witty or insightful to the room.";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
+  property shut_off_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    " behind ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "'s head and ",
+    <#19, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    " a small switch. ",
+    <#19, .type = 'dobj, .capitalize = true>,
+    " freezes mid-motion, eyes going vacant."
+  };
   property significant_events (owner: HACKER, flags: "rc") = {
     "arrival",
     "departure",
@@ -35,11 +50,18 @@ object LLM_ROOM_OBSERVER
   property thinking_task (owner: HACKER, flags: "rc") = 0;
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
-  property enabled (owner: HACKER, flags: "rc") = true;
-  property shut_off_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">, " behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head and ", <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">, " a small switch. ", <SUB, .capitalize = true, .type = 'dobj>, " freezes mid-motion, eyes going vacant."};
-  property turn_on_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">, " behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head and ", <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">, " the switch back. ", <SUB, .capitalize = true, .type = 'dobj>, " blinks and looks around, reorienting."};
-  property already_off_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already switched off."};
-  property already_on_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already active."};
+  property turn_on_msg (owner: HACKER, flags: "rc") = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    " behind ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "'s head and ",
+    <#19, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    " the switch back. ",
+    <#19, .type = 'dobj, .capitalize = true>,
+    " blinks and looks around, reorienting."
+  };
 
   override description = "Room-observing bot powered by an LLM agent. Watches room events and responds when poked.";
   override import_export_hierarchy = {"llm"};
@@ -280,7 +302,7 @@ object LLM_ROOM_OBSERVER
     this:reset();
   endverb
 
-  verb "shut" (this off none) owner: ARCH_WIZARD flags: "rd"
+  verb shut (this off none) owner: ARCH_WIZARD flags: "rd"
     "Shut off the observer - stops listening to room events";
     if (!player.wizard && player != this.owner)
       player:inform_current($event:mk_error(player, "You can't do that."));
@@ -298,7 +320,7 @@ object LLM_ROOM_OBSERVER
     endif
   endverb
 
-  verb "turn" (this on none) owner: ARCH_WIZARD flags: "rd"
+  verb turn (this on none) owner: ARCH_WIZARD flags: "rd"
     "Turn on the observer - resumes listening to room events";
     if (!player.wizard && player != this.owner)
       player:inform_current($event:mk_error(player, "You can't do that."));

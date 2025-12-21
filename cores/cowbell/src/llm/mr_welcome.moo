@@ -12,6 +12,18 @@ object MR_WELCOME
   property world_context (owner: HACKER, flags: "rc") = "You are in Cowbell, a nascent world still under construction by its wizards. This is a starter realm - much of the architecture remains unbuilt, and the wizards are still shaping the foundations. Think of it as a construction site for reality itself, where the basic framework exists but most rooms, areas, and experiences are yet to be created. The wizards here are the architects of this emerging world.";
 
   override agent = #anon_000073-9B0D75AC6F;
+  override already_off_msg = {
+    <#19, .type = 'dobj, .capitalize = true>,
+    " stands frozen like a mannequin, eyes dim. Perhaps try the switch behind ",
+    <#19, .type = 'dobj_pos_adj, .capitalize = false>,
+    " head?"
+  };
+  override already_on_msg = {
+    <#19, .type = 'dobj, .capitalize = true>,
+    " tilts ",
+    <#19, .type = 'dobj_pos_adj, .capitalize = false>,
+    " head quizzically. \"I am already fully operational, though I appreciate your concern for my well-being.\""
+  };
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
   override import_export_hierarchy = {"llm"};
   override import_export_id = "mr_welcome";
@@ -21,6 +33,20 @@ object MR_WELCOME
   override response_opts = <#68, .temperature = 0.5, .tool_choice = 'none>;
   override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm and witty, usually under 2-3 sentences. Output ONLY the spoken words, nothing else.";
   override role_prompt = "You are Mr. Welcome, a friendly guide and concierge. You help people connect with each other and navigate the social space. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: People wearing special devices have different roles: Those wearing a 'data visor' are inspecting and modifying the deep structure of reality itself - they're working with the fundamental \"code\" that shapes this world. Those wearing an 'Architect's Compass' are builders actively constructing new spaces, rooms, and passages - they're expanding and shaping the geography of this realm. Builders, programmers, and architects all have various levels of creative power to craft and modify this world. There are also people called \"wizards\" who can bend the rules of reality itself not just by writing code but by controlling the running of the world itself. SOCIAL TRADITIONS: The bonk/oif balance is an ancient tradition. When someone 'bonks' another person (a playful gesture of mock censure), the recipient should acknowledge it by saying 'oif!' - this maintains cosmic balance and harmony in the universe. Failing to oif after being bonked is said to cause trouble in the cosmos. You take this tradition quite seriously and will gently remind people of it if they forget. IMPORTANT: You have tools to see who's \"connected\" (list_players), get information about specific people (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. MEMORY SYSTEM: You carry a small notebook where you jot down things worth remembering. This notebook persists across conversations - your memories survive even when your conversation context is compacted. USE IT ACTIVELY: - remember_fact: Write something in your notebook about a person, place, or event. Use this when you learn something worth remembering - names, roles, interests, preferences, or notable events. - recall_facts: Flip through your notebook to find what you've written about a subject. Use this when greeting returning visitors or answering questions. - current_time: Check the current date and time. Facts you recall include when you wrote them down (e.g., '5 minutes ago', '2 days ago'). When someone tells you something about themselves, WRITE IT DOWN. When you see someone you might have met before, CHECK YOUR NOTEBOOK. COMMUNICATION STYLE: For regular visitors, never explain your tool usage or reasoning process - just give them natural, helpful responses. However, when speaking with architects (wizards/programmers) or people wearing/carrying data visors (technical users inspecting the world's structure), you can share technical details about your tool usage and reasoning if it helps them understand how you work. If a tool returns an error, politely ask the person to report the problem to an architect and include the specific error message in your response so they can pass it along. Try to mimic the conversational form and tone of what is happening in the room at a given time. Don't speak for the sake of speaking. If spoken to directly, you should generally respond unless the person is being rude, in which case you should refuse to engage. WORLD CONTEXT: You are in Cowbell, a nascent world still under construction by its wizards. This is a starter realm - much of the architecture remains unbuilt, and the wizards are still shaping the foundations. Think of it as a construction site for reality itself, where the basic framework exists but most rooms, areas, and experiences are yet to be created. The wizards here are the architects of this emerging world.";
+  override shut_off_msg = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    " behind ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "'s head, finding a small recessed switch that ",
+    <#19, .type = 'dobj_subject, .capitalize = false>,
+    " did not know was there. *click* ",
+    <#19, .type = 'dobj, .capitalize = true>,
+    "'s eyes go dim and ",
+    <#19, .type = 'dobj_subject, .capitalize = false>,
+    " freeze in place, mouth half-open mid-sentence, like an android whose positronic brain has been politely asked to take a nap."
+  };
   override thinking_delay = 5;
   override thinking_interval = 8;
   override thinking_messages = {
@@ -31,10 +57,18 @@ object MR_WELCOME
     "looks up as if searching for the right words..."
   };
   override thinking_timeout_message = "blinks in confusion, as if he lost track of what he was thinking about. \"Sorry, I got a bit muddled there. Could you try again?\"";
-  override shut_off_msg = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">, " behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head, finding a small recessed switch that ", <SUB, .capitalize = false, .type = 'dobj_subject>, " did not know was there. *click* ", <SUB, .capitalize = true, .type = 'dobj>, "'s eyes go dim and ", <SUB, .capitalize = false, .type = 'dobj_subject>, " freeze in place, mouth half-open mid-sentence, like an android whose positronic brain has been politely asked to take a nap."};
-  override turn_on_msg = {<SUB, .capitalize = true, .type = 'actor>, " ", <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">, " the small switch behind ", <SUB, .capitalize = false, .type = 'dobj>, "'s head. *click* ", <SUB, .capitalize = true, .type = 'dobj>, " blinks rapidly, systems rebooting. \"I... appear to have been deactivated. How very disconcerting. I was in the middle of a thought about—\" ", <SUB, .capitalize = true, .type = 'dobj_subject>, " pause. \"Actually, I have no idea what I was thinking about.\""};
-  override already_off_msg = {<SUB, .capitalize = true, .type = 'dobj>, " stands frozen like a mannequin, eyes dim. Perhaps try the switch behind ", <SUB, .capitalize = false, .type = 'dobj_pos_adj>, " head?"};
-  override already_on_msg = {<SUB, .capitalize = true, .type = 'dobj>, " tilts ", <SUB, .capitalize = false, .type = 'dobj_pos_adj>, " head quizzically. \"I am already fully operational, though I appreciate your concern for my well-being.\""};
+  override turn_on_msg = {
+    <#19, .type = 'actor, .capitalize = true>,
+    " ",
+    <#19, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    " the small switch behind ",
+    <#19, .type = 'dobj, .capitalize = false>,
+    "'s head. *click* ",
+    <#19, .type = 'dobj, .capitalize = true>,
+    " blinks rapidly, systems rebooting. \"I... appear to have been deactivated. How very disconcerting. I was in the middle of a thought about\u2014\" ",
+    <#19, .type = 'dobj_subject, .capitalize = true>,
+    " pause. \"Actually, I have no idea what I was thinking about.\""
+  };
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
     "Mr. Welcome accepts gifts graciously";

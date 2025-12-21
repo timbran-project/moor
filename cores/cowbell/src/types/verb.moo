@@ -1,4 +1,3 @@
-// Verb metadata and operations
 object VERB
   name: "Verb"
   parent: ROOT
@@ -62,7 +61,7 @@ object VERB
   verb code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get the verb's code as a list of lines";
     set_task_perms(caller_perms());
-    code_lines = `verb_code(this:location(), this:index(), false, true) ! ANY => {}'  ;
+    code_lines = `verb_code(this:location(), this:index(), false, true) ! ANY => {}';
     if (typeof(code_lines) == ERR)
       return {};
     endif
@@ -91,5 +90,4 @@ object VERB
     typeof(args_spec) == STR || raise(E_ASSERT("args_spec is not a string"));
     return true;
   endverb
-
 endobject

@@ -1,4 +1,3 @@
-// Property metadata and operations
 object PROPERTY
   name: "Property"
   parent: ROOT
@@ -41,7 +40,7 @@ object PROPERTY
       return "(clear)";
     endif
     try
-      val = this:location().(this:name());
+      val = this:location().((this:name()));
       return toliteral(val);
     except (ANY)
       return "(error reading property)";
@@ -74,5 +73,4 @@ object PROPERTY
     endif
     return true;
   endverb
-
 endobject

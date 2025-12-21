@@ -25,10 +25,10 @@ object HELP_UTILS
     for line in (code_lines)
       "A comment line is a string literal: starts with \" and ends with \"; (or just ;)";
       line_trimmed = line:trim();
-      if (line_trimmed && line_trimmed[1] == "\"" && (line_trimmed[length(line_trimmed)] == ";" || line_trimmed[length(line_trimmed)-1..length(line_trimmed)] == "\";"))
+      if (line_trimmed && line_trimmed[1] == "\"" && (line_trimmed[length(line_trimmed)] == ";" || line_trimmed[length(line_trimmed) - 1..length(line_trimmed)] == "\";"))
         "This is a comment line, add it";
         "Remove the quotes and semicolon";
-        doc_line = line_trimmed[2..length(line_trimmed)-2];
+        doc_line = line_trimmed[2..length(line_trimmed) - 2];
         doc_lines = {@doc_lines, doc_line};
       else
         "Hit a non-comment line, stop collecting";
@@ -198,5 +198,4 @@ object HELP_UTILS
     endif
     return $help:mk(verb_name, description, content, {}, category, {});
   endverb
-
 endobject

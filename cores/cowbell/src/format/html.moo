@@ -32,12 +32,11 @@ object HTML
         "Entry is a list of things we should be able to do rendering for...";
         e = {};
         for subentry in (entry)
-      	entry_num = entry_num + 1;
-      if (entry_num % 10 == 0)
-        suspend_if_needed();
-      endif
-
-      if (typeof(subentry) == FLYWEIGHT)
+          entry_num = entry_num + 1;
+          if (entry_num % 10 == 0)
+            suspend_if_needed();
+          endif
+          if (typeof(subentry) == FLYWEIGHT)
             e = {@e, subentry:to_xml_tag()};
           elseif (typeof(subentry) == LIST)
             " Need to handle nested lists recursively ";

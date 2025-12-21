@@ -25,7 +25,7 @@ object MSG_BAG
     {idx} = args;
     typeof(idx) == INT || raise(E_TYPE);
     idx < 1 || idx > length(this.entries) && raise(E_RANGE);
-    this.entries = {@this.entries[1..idx - 1], @this.entries[idx + 1..$]};
+    this.entries = {@(this.entries)[1..idx - 1], @(this.entries)[idx + 1..$]};
     return length(this.entries);
   endverb
 

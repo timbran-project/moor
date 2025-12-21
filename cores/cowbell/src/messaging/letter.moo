@@ -11,10 +11,11 @@ object LETTER
   property read_at (owner: TEST_PLAYER, flags: "rc") = 0;
   property sealed (owner: TEST_PLAYER, flags: "rc") = 0;
   property sent_at (owner: TEST_PLAYER, flags: "rc") = 0;
+
   override aliases = {"letter"};
-  override object_documentation = "A letter is a note with communication metadata: author, addressee, timestamps, and sealing. When sealed, only the addressee can read it.";
   override import_export_hierarchy = {"messaging"};
   override import_export_id = "letter";
+  override object_documentation = "A letter is a note with communication metadata: author, addressee, timestamps, and sealing. When sealed, only the addressee can read it.";
 
   verb can_read (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if accessor can read this letter. Sealed letters are addressee-only.";
@@ -229,13 +230,7 @@ object LETTER
     session_id = player:start_edit_session(this, "receive_edit", {conn});
     editor_title = "Edit: " + this.name;
     current_body = this.text:join("\n");
-    present(player, session_id, "text/djot", "text-editor", current_body, {
-      {"object", $url_utils:to_curie_str(this)},
-      {"verb", "receive_edit"},
-      {"title", editor_title},
-      {"text_mode", "string"},
-      {"session_id", session_id}
-    });
+    present(player, session_id, "text/djot", "text-editor", current_body, {{"object", $url_utils:to_curie_str(this)}, {"verb", "receive_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
   endverb
 
   verb receive_edit (this none this) owner: ARCH_WIZARD flags: "rxd"

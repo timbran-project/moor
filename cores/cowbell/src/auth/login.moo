@@ -8,18 +8,32 @@ object LOGIN
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
   property connection_quiet_period (owner: ARCH_WIZARD, flags: "rc") = 7200;
+  property default_home (owner: ARCH_WIZARD, flags: "rc") = FIRST_ROOM;
   property default_player_class (owner: ARCH_WIZARD, flags: "r") = PLAYER;
   property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
   property new_player_arrival_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} has just arrived.";
-  property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
-  property player_setup_capability (owner: LOGIN, flags: "") = <#5, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
-  property player_wakeup_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} {have|has} woken up.";
-  property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
+  property new_player_letter (owner: ARCH_WIZARD, flags: "rc") = {
+    ARCH_WIZARD,
+    "Welcome to Cowbell!",
+    {
+      "Hello and welcome!",
+      "",
+      "We're glad you've joined us. Feel free to explore, meet other players, and make yourself at home.",
+      "",
+      "If you need help, try typing `help` or `what` to see what you can do.",
+      "",
+      "Enjoy your stay!"
+    }
+  };
   property new_player_welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
     "Welcome to {TITLE}!",
     "",
     "Try entering `help` to see what kind of things you can do where you are."
   };
+  property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
+  property player_setup_capability (owner: LOGIN, flags: "") = <#5, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
+  property player_wakeup_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} {have|has} woken up.";
+  property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
   property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
     "## Welcome to the _mooR_ *Cowbell* core.",
     "",
@@ -31,8 +45,6 @@ object LOGIN
     "You will probably want to change this text which is stored in $login.welcome_message property."
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
-  property new_player_letter (owner: ARCH_WIZARD, flags: "rc") = {ARCH_WIZARD, "Welcome to Cowbell!", {"Hello and welcome!", "", "We're glad you've joined us. Feel free to explore, meet other players, and make yourself at home.", "", "If you need help, try typing `help` or `what` to see what you can do.", "", "Enjoy your stay!"}};
-  property default_home (owner: ARCH_WIZARD, flags: "rc") = FIRST_ROOM;
 
   override description = "Login service handling player authentication, character creation, and OAuth2 integration.";
   override import_export_hierarchy = {"auth"};
