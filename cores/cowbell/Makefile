@@ -54,7 +54,7 @@ gen.objdir: $(wildcard src/*.moo)
 # overwrite them -- and is meant  mainly as the last step before performing a
 # git commit.
 rebuild: gen.objdir
-	cp gen.objdir/*.moo ./src
+	cp -r gen.objdir/* ./src/
 
 test:  $(wildcard src/*.moo)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
