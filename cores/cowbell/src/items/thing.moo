@@ -8,17 +8,17 @@ object THING
 
   property drop_denied_msg (owner: HACKER, flags: "rc") = {"You can't drop that."};
   property drop_msg (owner: HACKER, flags: "rc") = {
-    <#19, .capitalize = true, .type = 'actor>,
+    <SUB, .capitalize = true, .type = 'actor>,
     " dropped ",
-    <#19, .capitalize = false, .type = 'dobj>,
+    <SUB, .capitalize = false, .type = 'dobj>,
     "."
   };
   property drop_rule (owner: HACKER, flags: "rc") = 0;
   property get_denied_msg (owner: HACKER, flags: "rc") = {"You can't pick that up."};
   property get_msg (owner: HACKER, flags: "rc") = {
-    <#19, .capitalize = true, .type = 'actor>,
+    <SUB, .capitalize = true, .type = 'actor>,
     " picked up ",
-    <#19, .capitalize = false, .type = 'dobj>,
+    <SUB, .capitalize = false, .type = 'dobj>,
     "."
   };
   property get_rule (owner: HACKER, flags: "rc") = 0;
@@ -26,7 +26,7 @@ object THING
   property is_countable_noun (owner: HACKER, flags: "rc") = true;
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = <#28, .is_plural = false, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .pq = "its", .pp = "its", .po = "it", .pr = "itself">;
+  property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false>;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};

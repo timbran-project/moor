@@ -6,8 +6,8 @@ object LLM_ROOM_OBSERVER
   readable: true
 
   property agent (owner: HACKER, flags: "rc") = #-1;
-  property already_off_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is already switched off."};
-  property already_on_msg (owner: HACKER, flags: "rc") = {<#19, .capitalize = true, .type = 'dobj>, " is already active."};
+  property already_off_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already switched off."};
+  property already_on_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already active."};
   property enabled (owner: HACKER, flags: "rc") = true;
   property knowledge_base (owner: HACKER, flags: "rc") = #-1;
   property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
@@ -18,15 +18,15 @@ object LLM_ROOM_OBSERVER
   property response_prompt (owner: HACKER, flags: "rc") = "Based on what you've observed, say something witty or insightful to the room.";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
   property shut_off_msg (owner: HACKER, flags: "rc") = {
-    <#19, .capitalize = true, .type = 'actor>,
+    <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <#19, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
-    <#19, .capitalize = false, .type = 'dobj>,
+    <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <#19, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " a small switch. ",
-    <#19, .capitalize = true, .type = 'dobj>,
+    <SUB, .capitalize = true, .type = 'dobj>,
     " freezes mid-motion, eyes going vacant."
   };
   property significant_events (owner: HACKER, flags: "rc") = {
@@ -51,15 +51,15 @@ object LLM_ROOM_OBSERVER
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
   property turn_on_msg (owner: HACKER, flags: "rc") = {
-    <#19, .capitalize = true, .type = 'actor>,
+    <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <#19, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
-    <#19, .capitalize = false, .type = 'dobj>,
+    <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <#19, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " the switch back. ",
-    <#19, .capitalize = true, .type = 'dobj>,
+    <SUB, .capitalize = true, .type = 'dobj>,
     " blinks and looks around, reorienting."
   };
 

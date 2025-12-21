@@ -7,19 +7,19 @@ object WEARABLE
 
   property body_area (owner: HACKER, flags: "rw") = false;
   property remove_msg (owner: HACKER, flags: "rw") = {
-    <#19, .capitalize = true, .type = 'actor>,
+    <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <#19, .type = 'self_alt, .for_self = "remove", .for_others = "removes">,
+    <SUB, .for_self = "remove", .type = 'self_alt, .for_others = "removes">,
     " ",
-    <#19, .capitalize = false, .type = 'dobj>,
+    <SUB, .capitalize = false, .type = 'dobj>,
     "."
   };
   property wear_msg (owner: HACKER, flags: "rw") = {
-    <#19, .capitalize = true, .type = 'actor>,
+    <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <#19, .type = 'self_alt, .for_self = "put on", .for_others = "puts on">,
+    <SUB, .for_self = "put on", .type = 'self_alt, .for_others = "puts on">,
     " ",
-    <#19, .capitalize = false, .type = 'dobj>,
+    <SUB, .capitalize = false, .type = 'dobj>,
     "."
   };
 
