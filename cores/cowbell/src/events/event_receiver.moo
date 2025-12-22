@@ -147,4 +147,9 @@ object EVENT_RECEIVER
     caller == this || raise(E_PERM);
     notify(@args);
   endverb
+
+  verb _present (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    present(@args);
+  endverb
 endobject

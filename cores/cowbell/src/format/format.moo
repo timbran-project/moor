@@ -8,6 +8,7 @@ object FORMAT
   property block (owner: HACKER, flags: "r") = FORMAT_BLOCK;
   property code (owner: HACKER, flags: "r") = FORMAT_CODE;
   property deflist (owner: HACKER, flags: "r") = FORMAT_DEFLIST;
+  property link (owner: HACKER, flags: "r") = FORMAT_LINK;
   property list (owner: HACKER, flags: "r") = FORMAT_LIST;
   property table (owner: HACKER, flags: "r") = FORMAT_TABLE;
   property title (owner: HACKER, flags: "r") = FORMAT_TITLE;

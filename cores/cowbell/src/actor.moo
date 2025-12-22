@@ -298,4 +298,19 @@ object ACTOR
     "Delegate to room's action_go";
     return `this.location:action_go(this, context, direction) ! ANY => false';
   endverb
+
+  verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return structured data for client inspection popover.";
+    {?who = player} = args;
+    actor_name = `this:name() ! E_VERBNF => this.name';
+    this_ref = $url_utils:to_curie_str(this);
+    who_ref = $url_utils:to_curie_str(who);
+    actions = {};
+    actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
+    return [
+      "title" -> actor_name,
+      "description" -> this:description(),
+      "actions" -> actions
+    ];
+  endverb
 endobject

@@ -344,4 +344,24 @@ object THING
     "Basic get/drop covered by global help - things can override for special behavior";
     return topic == "" ? {} | 0;
   endverb
+
+  verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return structured data for client inspection popover.";
+    {?who = player} = args;
+    actions = {};
+    item_name = `this:name() ! E_VERBNF => this.name';
+    this_ref = $url_utils:to_curie_str(this);
+    who_ref = $url_utils:to_curie_str(who);
+    if (this.location == who)
+      actions = {@actions, ["label" -> "Drop", "verb" -> "drop", "target" -> this_ref]};
+    else
+      actions = {@actions, ["label" -> "Take", "verb" -> "get", "target" -> this_ref]};
+    endif
+    actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
+    return [
+      "title" -> item_name,
+      "description" -> this:description(),
+      "actions" -> actions
+    ];
+  endverb
 endobject

@@ -56,19 +56,17 @@ object LOOK
       if (integrated_description)
         integrated_contents = {@integrated_contents, integrated_description};
       elseif (o:is_actor())
-        "Format actor with idle status";
+        "Collect actor with idle status for inspect links";
         status = this:actor_idle_status(o);
-        actor_name = `o:name() ! E_VERBNF => o.name';
         if (status == "deeply asleep")
-          "Collect deeply asleep actors separately (just name, no status)";
-          deeply_asleep = {@deeply_asleep, actor_name};
+          deeply_asleep = {@deeply_asleep, {o, ""}};
         elseif (status && status != "awake")
-          actors = {@actors, actor_name + " (" + status + ")"};
+          actors = {@actors, {o, status}};
         else
-          actors = {@actors, actor_name};
+          actors = {@actors, {o, ""}};
         endif
       else
-        things = {@things, `o:display_name() ! E_VERBNF => o.name'};
+        things = {@things, o};
       endif
     endfor
     "Combine integrated object descriptions and ambient passages into the main paragraph";
@@ -112,21 +110,19 @@ object LOOK
       endif
     endif
     block_elements = {title, desc_content};
-    "Add exits if present";
+    "Add exits if present (with command links)";
     exits = `this.exits ! E_PROPNF => {}';
-    if (length(exits) > 1)
-      block_elements = {@block_elements, "Exits lead out " + exits:join(", ") + "."};
-    elseif (length(exits) == 1)
-      block_elements = {@block_elements, "An exit leads out " + exits[1] + "."};
+    if (length(exits) > 0)
+      block_elements = {@block_elements, $format.link:exits_line(exits)};
     endif
     if (length(things))
-      block_elements = {@block_elements, "You see " + things:english_list() + " here."};
+      block_elements = {@block_elements, $format.link:things_line(things)};
     endif
     if (length(actors))
-      block_elements = {@block_elements, actors:english_list() + " " + (length(actors) == 1 ? "is" | "are") + " here."};
+      block_elements = {@block_elements, $format.link:actors_line(actors)};
     endif
     if (length(deeply_asleep))
-      block_elements = {@block_elements, deeply_asleep:english_list() + " " + (length(deeply_asleep) == 1 ? "is" | "are") + " deeply asleep."};
+      block_elements = {@block_elements, $format.link:sleeping_line(deeply_asleep)};
     endif
     b = $format.block:mk(@block_elements);
     event = $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset):with_group('look, this.what);
