@@ -98,7 +98,6 @@ object AREA
   endverb
 
   verb passages_from (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
     "Return all passages connected to a room.";
     {room} = args;
     typeof(room) == OBJ || raise(E_TYPE);
@@ -182,7 +181,6 @@ object AREA
   endverb
 
   verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
     "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
     "Optional third arg: only_open (default true) - skip closed passages.";
     {start_room, goal_room, ?only_open = true} = args;
@@ -378,7 +376,7 @@ object AREA
 
   verb get_exit_info (this none this) owner: HACKER flags: "rxd"
     "Get exit labels and ambient passage descriptions for a room. Returns {exits, ambient_passages}.";
-    "ambient_passages is a list of {description, prose_style} pairs where prose_style is 'sentence or 'fragment.";
+    "ambient_passages is a list of {description, prose_style, label} tuples where prose_style is 'sentence or 'fragment.";
     {room} = args;
     typeof(room) == OBJ || raise(E_TYPE);
     passages = this:passages_from(room);
@@ -397,7 +395,8 @@ object AREA
       if (label)
         if (ambient && description)
           "Ambient passages with descriptions integrate into room description";
-          ambient_passages = {@ambient_passages, {description, prose_style}};
+          "Include label so it can be linkified";
+          ambient_passages = {@ambient_passages, {description, prose_style, label}};
         else
           "Non-ambient or description-less passages show as simple exits";
           exits = {@exits, label};

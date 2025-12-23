@@ -5,6 +5,7 @@ object PASSAGE
   fertile: true
   readable: true
 
+  property close_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
   property direction_abbrevs (owner: HACKER, flags: "rc") = [
     "d" -> "down",
     "down" -> "d",
@@ -33,7 +34,11 @@ object PASSAGE
     "w" -> "west",
     "west" -> "w"
   ];
+  property is_locked (owner: ARCH_WIZARD, flags: "rc") = 0;
   property is_open (owner: HACKER, flags: "rc") = true;
+  property lock_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property locked_msg (owner: ARCH_WIZARD, flags: "rc") = "";
+  property open_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
   property side_a_aliases (owner: HACKER, flags: "rc") = {};
   property side_a_ambient (owner: HACKER, flags: "rc") = true;
   property side_a_arrival_phrase (owner: HACKER, flags: "rc") = "";
@@ -54,6 +59,8 @@ object PASSAGE
   property side_b_leave_msg (owner: HACKER, flags: "rc") = {};
   property side_b_prose_style (owner: HACKER, flags: "rc") = 'fragment;
   property side_b_room (owner: HACKER, flags: "rc") = #-1;
+  property unlock_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property unlock_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "Bidirectional passage configuration.";
   override import_export_hierarchy = {"world"};
@@ -296,6 +303,7 @@ object PASSAGE
     valid(player) || return false;
     valid(from_room) || return false;
     this:_value("is_open", true) || return this:_notify_blocked(player, from_room);
+    this:check_unlock(player, from_room) || return this:_notify_locked(player, from_room);
     to_room = this:other_room(from_room);
     valid(to_room) || return false;
     "Get passage metadata";
@@ -369,14 +377,12 @@ object PASSAGE
   endverb
 
   verb _notify_blocked (this none this) owner: HACKER flags: "rxd"
+    "Notify player that passage is blocked/closed.";
     {player, from_room} = args;
-    message = "That way is blocked.";
-    label = this:label_for(from_room);
-    if (label)
-      message = "The " + label + " passage is blocked.";
-    endif
+    door_name = this:door_name_for(from_room);
+    message = "The " + door_name + " is closed.";
     player:inform_current($event:mk_error(player, message));
-    return false;
+    return true;
   endverb
 
   verb expand_direction_aliases (this none this) owner: HACKER flags: "rxd"
@@ -413,7 +419,7 @@ object PASSAGE
 
   verb _extract_all (this none this) owner: HACKER flags: "rxd"
     "Extract all passage properties into a map. Internal helper for transformer verbs.";
-    return ['room_a -> this:_side_lookup('a, 'room), 'room_b -> this:_side_lookup('b, 'room), 'label_a -> this:_side_lookup('a, 'label), 'label_b -> this:_side_lookup('b, 'label), 'aliases_a -> this:_side_lookup('a, 'aliases), 'aliases_b -> this:_side_lookup('b, 'aliases), 'desc_a -> this:_side_lookup('a, 'description), 'desc_b -> this:_side_lookup('b, 'description), 'ambient_a -> this:_side_lookup('a, 'ambient), 'ambient_b -> this:_side_lookup('b, 'ambient), 'leave_msg_a -> this:_side_lookup('a, 'leave_msg), 'leave_msg_b -> this:_side_lookup('b, 'leave_msg), 'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg), 'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg), 'prose_style_a -> this:_side_lookup('a, 'prose_style), 'prose_style_b -> this:_side_lookup('b, 'prose_style), 'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase), 'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase), 'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase), 'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase), 'is_open -> this:_value("is_open", true)];
+    return ['room_a -> this:_side_lookup('a, 'room), 'room_b -> this:_side_lookup('b, 'room), 'label_a -> this:_side_lookup('a, 'label), 'label_b -> this:_side_lookup('b, 'label), 'aliases_a -> this:_side_lookup('a, 'aliases), 'aliases_b -> this:_side_lookup('b, 'aliases), 'desc_a -> this:_side_lookup('a, 'description), 'desc_b -> this:_side_lookup('b, 'description), 'ambient_a -> this:_side_lookup('a, 'ambient), 'ambient_b -> this:_side_lookup('b, 'ambient), 'leave_msg_a -> this:_side_lookup('a, 'leave_msg), 'leave_msg_b -> this:_side_lookup('b, 'leave_msg), 'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg), 'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg), 'prose_style_a -> this:_side_lookup('a, 'prose_style), 'prose_style_b -> this:_side_lookup('b, 'prose_style), 'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase), 'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase), 'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase), 'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase), 'is_open -> this:_value("is_open", true), 'is_locked -> this:_value("is_locked", false), 'unlock_rule -> this:_value("unlock_rule", 0), 'locked_msg -> this:_value("locked_msg", "")];
   endverb
 
   verb with_label_from (this none this) owner: HACKER flags: "rxd"
@@ -578,7 +584,7 @@ object PASSAGE
   verb _mk_from_props (this none this) owner: HACKER flags: "rxd"
     "Construct a passage flyweight from a props map. Internal helper for transformer verbs.";
     {props} = args;
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open]>;
+    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open], .is_locked = props['is_locked], .unlock_rule = props['unlock_rule], .locked_msg = props['locked_msg]>;
   endverb
 
   verb with_prose_style_from (this none this) owner: HACKER flags: "rxd"
@@ -630,5 +636,130 @@ object PASSAGE
       props['arrival_phrase_b] = phrase;
     endif
     return this:_mk_from_props(props);
+  endverb
+
+  verb with_locked (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Update whether the passage is locked. Returns new passage flyweight.";
+    {is_locked} = args;
+    props = this:_extract_all();
+    props['is_locked] = is_locked ? true | false;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_unlock_rule (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set the unlock rule for the passage. Pass a compiled rule or 0 to clear.";
+    {rule} = args;
+    props = this:_extract_all();
+    props['unlock_rule] = rule;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_locked_msg (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set the message shown when passage is locked.";
+    {msg} = args;
+    props = this:_extract_all();
+    props['locked_msg] = msg;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb check_unlock (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Check if player can unlock this passage. Returns true if unlocked or can unlock.";
+    {player, from_room} = args;
+    "If not locked, always passes";
+    if (!this:_value("is_locked", false))
+      return true;
+    endif
+    "Check unlock rule if one exists";
+    unlock_rule = this:_value("unlock_rule", 0);
+    if (typeof(unlock_rule) != FLYWEIGHT)
+      "Locked with no unlock rule - cannot pass";
+      return false;
+    endif
+    "Evaluate rule to see which room(s) the lock protects";
+    "If player is INSIDE the locked room, they can always exit (egress is free)";
+    to_room = this:other_room(from_room);
+    for item in (player.contents)
+      "Check if key unlocks FROM_ROOM - means player is inside locked room, can exit";
+      bindings = ['Accessor -> player, 'This -> from_room, 'Key -> item, 'Passage -> this];
+      result = $rule_engine:evaluate(unlock_rule, bindings);
+      if (typeof(result) == MAP && result['success])
+        "Player has key to room they're leaving - always allowed";
+        return true;
+      endif
+      "Check if key unlocks TO_ROOM - means player can enter";
+      bindings = ['Accessor -> player, 'This -> to_room, 'Key -> item, 'Passage -> this];
+      result = $rule_engine:evaluate(unlock_rule, bindings);
+      if (typeof(result) == MAP && result['success])
+        return true;
+      endif
+    endfor
+    "No key found - but check if lock protects TO_ROOM (not from_room)";
+    "If lock is on the destination side, we're blocked. If on our side, we can exit.";
+    "Test if the lock targets to_room by trying with a hypothetical match";
+    "For now, use simpler logic: if player is exiting a $guest_room, allow it";
+    if (isa(from_room, $guest_room))
+      return true;
+    endif
+    return false;
+  endverb
+
+  verb _notify_locked (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Notify player that passage is locked.";
+    {player, from_room} = args;
+    locked_msg = this:_value("locked_msg", "");
+    if (locked_msg != "")
+      message = locked_msg;
+    else
+      door_name = this:door_name_for(from_room);
+      message = "The " + door_name + " is locked.";
+    endif
+    player:inform_current($event:mk_error(player, message));
+    return true;
+  endverb
+
+  verb with_open_msg (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set the message shown when passage is opened.";
+    {msg} = args;
+    props = this:_extract_all();
+    props['open_msg] = msg;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_close_msg (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set the message shown when passage is closed.";
+    {msg} = args;
+    props = this:_extract_all();
+    props['close_msg] = msg;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_lock_msg (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set the message shown when passage is locked.";
+    {msg} = args;
+    props = this:_extract_all();
+    props['lock_msg] = msg;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb with_unlock_msg (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set the message shown when passage is unlocked.";
+    {msg} = args;
+    props = this:_extract_all();
+    props['unlock_msg] = msg;
+    return this:_mk_from_props(props);
+  endverb
+
+  verb door_name_for (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return a display name for this passage when used as a door.";
+    "If the passage has open/locked state, it's a door - return 'door'.";
+    "Otherwise return the directional label.";
+    {from_room} = args;
+    "Check if this passage acts as a door (has is_open property)";
+    is_door = this:_value("is_open", "not_set") != "not_set";
+    if (is_door)
+      return "door";
+    endif
+    "Not a door, use the directional label";
+    return this:label_for(from_room);
   endverb
 endobject

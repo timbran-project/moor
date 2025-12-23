@@ -6,7 +6,7 @@ object ACTOR
   fertile: true
   readable: true
 
-  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true>;
+  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .is_plural = true, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
 
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";
@@ -297,6 +297,12 @@ object ACTOR
     !valid(this.location) && return false;
     "Delegate to room's action_go";
     return `this.location:action_go(this, context, direction) ! ANY => false';
+  endverb
+
+  verb mk_stagetalk (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Stagetalk: directed speech 'Name [to Target]: message'";
+    {target, message} = args;
+    return $event:mk_stagetalk(this, this:name(), " [to ", $sub:i(), "]: ", message):with_iobj(target):with_this(this.location);
   endverb
 
   verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"

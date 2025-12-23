@@ -2,6 +2,7 @@ object HTML
   name: "HTML Tree Flyweight"
   parent: ROOT
   owner: HACKER
+  fertile: true
   readable: true
 
   override description = "Flyweight delegate for HTML tree structures.";

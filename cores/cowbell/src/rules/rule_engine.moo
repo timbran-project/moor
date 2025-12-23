@@ -187,8 +187,10 @@ object RULE_ENGINE
     target_obj = substituted_args[1];
     typeof(target_obj) == OBJ || raise(E_TYPE, "first goal argument must be object");
     fact_results = `target_obj:(("fact_" + tostr(predicate_name)))(@substituted_args) ! E_VERBNF => false';
-    "Check for falsy results (0, false, empty string/list all mean failure)";
-    !fact_results && return {};
+    "Check for failure (false, 0, empty string, empty list - but NOT valid objects)";
+    if (fact_results == false || fact_results == 0 || fact_results == "" || fact_results == {})
+      return {};
+    endif
     typeof(fact_results) != LIST && (fact_results = {fact_results});
     "Unify each result with the original goal to get bindings";
     unified_solutions = {};

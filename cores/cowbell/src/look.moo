@@ -84,32 +84,69 @@ object LOOK
       "Process ambient passages based on prose_style";
       fragment_passages = {};
       for ap in (ambient_passages)
-        "Handle both old format (just string) and new format ({description, prose_style})";
-        if (typeof(ap) == LIST && length(ap) >= 2)
+        "Handle formats: string, {desc, style}, or {desc, style, label}";
+        label = "";
+        if (typeof(ap) == LIST && length(ap) >= 3)
+          {description, prose_style, label} = ap;
+        elseif (typeof(ap) == LIST && length(ap) >= 2)
           {description, prose_style} = ap;
         else
           description = ap;
           prose_style = 'fragment;
         endif
         if (prose_style == 'sentence)
-          "Complete sentence - include as-is with proper capitalization and punctuation";
-          formatted = description:capitalize();
-          if (typeof(formatted) == STR && !formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
-            formatted = formatted + ".";
+          "Complete sentence - linkify direction if label provided";
+          if (label)
+            formatted = $format.link:linkify_direction(description, label);
+            "Capitalize the result";
+            if (typeof(formatted) == STR)
+              formatted = formatted:capitalize();
+              if (!formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
+                formatted = formatted + ".";
+              endif
+            endif
+          else
+            formatted = description:capitalize();
+            if (typeof(formatted) == STR && !formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
+              formatted = formatted + ".";
+            endif
           endif
           desc_content = {@desc_content, "  ", formatted};
         else
-          "Fragment - collect for 'You see X' treatment";
-          fragment_passages = {@fragment_passages, description};
+          "Fragment - strip trailing punctuation since we wrap in 'You see X.'";
+          if (typeof(description) == STR)
+            while (length(description) > 0 && (description:ends_with(".") || description:ends_with("!") || description:ends_with("?")))
+              description = description[1..length(description) - 1];
+            endwhile
+          endif
+          "Linkify with lowercase if label provided, collect for 'You see X' treatment";
+          if (label)
+            linkified = $format.link:linkify_direction(description, label, true);
+            fragment_passages = {@fragment_passages, linkified};
+          else
+            fragment_passages = {@fragment_passages, description:initial_lowercase()};
+          endif
         endif
       endfor
       "Combine fragment passages with 'You see' wrapper";
       if (length(fragment_passages))
-        lowercased = { desc:initial_lowercase() for desc in (fragment_passages) };
-        desc_content = {@desc_content, "  You see ", lowercased:english_list(), "."};
+        "Build inline content: 'You see X, Y and Z.'";
+        parts = {"  You see "};
+        for i in [1..length(fragment_passages)]
+          frag = fragment_passages[i];
+          if (i > 1 && i == length(fragment_passages))
+            parts = {@parts, " and "};
+          elseif (i > 1)
+            parts = {@parts, ", "};
+          endif
+          parts = {@parts, frag};
+        endfor
+        parts = {@parts, "."};
+        desc_content = {@desc_content, $format.link:inline(parts)};
       endif
     endif
-    block_elements = {title, desc_content};
+    "Wrap desc_content in inline so it composes properly as a flyweight";
+    block_elements = {title, $format.link:inline(desc_content)};
     "Add exits if present (with command links)";
     exits = `this.exits ! E_PROPNF => {}';
     if (length(exits) > 0)

@@ -72,7 +72,6 @@ object RELATION
 
   verb select (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
-    set_task_perms(caller_perms());
     {position, value} = args;
     typeof(position) != INT && raise(E_TYPE);
     position < 1 && raise(E_INVARG);
@@ -89,7 +88,6 @@ object RELATION
 
   verb select_containing (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find all tuples containing value in any position.";
-    set_task_perms(caller_perms());
     {value} = args;
     index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
     typeof(index_map) != MAP && return {};
@@ -104,7 +102,6 @@ object RELATION
 
   verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return all tuples in the relation.";
-    set_task_perms(caller_perms());
     result = {};
     for prop in (properties(this))
       prop_str = tostr(prop);

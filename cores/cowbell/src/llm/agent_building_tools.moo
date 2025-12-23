@@ -62,7 +62,7 @@ object AGENT_BUILDING_TOOLS
     return {colon_parts[1], @$str_proto:split(colon_parts[2], ",")};
   endverb
 
-  verb _tool_build_room (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb build_room (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create a new room";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -100,7 +100,7 @@ object AGENT_BUILDING_TOOLS
     return "Created \"" + room_name + "\" (" + tostr(new_room) + ")" + area_str + ".";
   endverb
 
-  verb _tool_dig_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb dig_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create a passage between two rooms";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -157,7 +157,7 @@ object AGENT_BUILDING_TOOLS
     return msg;
   endverb
 
-  verb _tool_remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Remove a passage between two rooms";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -196,7 +196,7 @@ object AGENT_BUILDING_TOOLS
     return result ? "Removed passage" + label_str + " between " + tostr(source_room) + " and " + tostr(target_room) + "." | "Failed to remove passage (may have already been removed).";
   endverb
 
-  verb _tool_set_passage_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb set_passage_description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set description and ambient flag for a passage";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -224,7 +224,7 @@ object AGENT_BUILDING_TOOLS
     return "Set description for '" + direction + "' passage" + (ambient ? " (ambient - integrates into room description)" | " (explicit - shows in exits list)") + ".";
   endverb
 
-  verb _tool_create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Create an object from a parent";
     {args_map, actor} = args;
     {parent_spec, name_spec, extra_aliases} = {args_map["parent"], args_map["name"], maphaskey(args_map, "aliases") ? args_map["aliases"] | {}};
@@ -245,7 +245,7 @@ object AGENT_BUILDING_TOOLS
     return message;
   endverb
 
-  verb _tool_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Permanently destroy an object";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -258,7 +258,7 @@ object AGENT_BUILDING_TOOLS
     return "Recycled \"" + obj_name + "\" (" + obj_id + ").";
   endverb
 
-  verb _tool_rename_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb rename_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Rename an object";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -275,7 +275,7 @@ object AGENT_BUILDING_TOOLS
     return message;
   endverb
 
-  verb _tool_describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set object description";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -288,7 +288,7 @@ object AGENT_BUILDING_TOOLS
     return "Set description of \"" + `target_obj.name ! ANY => tostr(target_obj)' + "\" (" + tostr(target_obj) + ").";
   endverb
 
-  verb _tool_move_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb move_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Move an object to a new location";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -305,7 +305,7 @@ object AGENT_BUILDING_TOOLS
     return "Moved \"" + `target_obj.name ! ANY => tostr(target_obj)' + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + `dest_obj.name ! ANY => tostr(dest_obj)' + "\" (" + tostr(dest_obj) + ").";
   endverb
 
-  verb _tool_set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set object's integrated description";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -318,7 +318,7 @@ object AGENT_BUILDING_TOOLS
     return args_map["integrated_description"] == "" ? "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + ")." | "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description.";
   endverb
 
-  verb _tool_grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Grant capabilities to a player";
     {args_map, actor} = args;
     {target_spec, category, perms, grantee_spec} = {args_map["target"], args_map["category"], args_map["permissions"], args_map["grantee"]};
@@ -335,7 +335,7 @@ object AGENT_BUILDING_TOOLS
     return "Granted " + $grant_utils:format_grant_with_name(target_obj, tostr(category):to_symbol(), perm_symbols) + " to " + grantee:name() + " (" + tostr(grantee) + ").";
   endverb
 
-  verb _tool_audit_owned (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb audit_owned (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all owned objects";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -348,7 +348,7 @@ object AGENT_BUILDING_TOOLS
     return result;
   endverb
 
-  verb _tool_area_map (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb area_map (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get list of all rooms in the current area";
     {args_map, actor} = args;
     current_room = actor.location;
@@ -364,7 +364,7 @@ object AGENT_BUILDING_TOOLS
     return result:join("\n");
   endverb
 
-  verb _tool_find_route (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb find_route (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Find route between two rooms";
     {args_map, actor} = args;
     {to_spec, from_spec} = {args_map["to_room"], maphaskey(args_map, "from_room") ? args_map["from_room"] | ""};
@@ -392,7 +392,7 @@ object AGENT_BUILDING_TOOLS
     return result:join("\n");
   endverb
 
-  verb _tool_list_prototypes (this none this) owner: HACKER flags: "rxd"
+  verb list_prototypes (this none this) owner: HACKER flags: "rxd"
     "Tool: List available prototype objects for building";
     {args_map, actor} = args;
     prototypes = $sysobj:list_builder_prototypes();
@@ -403,7 +403,7 @@ object AGENT_BUILDING_TOOLS
     return {@result, "Use these with the create_object tool or as the 'parent' parameter in build_room."}:join("\n");
   endverb
 
-  verb _tool_inspect_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb inspect_object (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Inspect an object and return detailed information";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -453,7 +453,7 @@ object AGENT_BUILDING_TOOLS
     return result:join("\n");
   endverb
 
-  verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List all rule properties on an object";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -481,7 +481,7 @@ object AGENT_BUILDING_TOOLS
     return lines:join("\n");
   endverb
 
-  verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set a rule on an object property";
     {args_map, actor} = args;
     {obj_str, prop_name, expression} = {args_map["object"], args_map["property"], args_map["expression"]};
@@ -502,7 +502,7 @@ object AGENT_BUILDING_TOOLS
     return "Set " + tostr(target_obj) + "." + prop_name + " = " + expression;
   endverb
 
-  verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Show a specific rule property";
     {args_map, actor} = args;
     {obj_str, prop_name} = {args_map["object"], args_map["property"]};
@@ -522,7 +522,7 @@ object AGENT_BUILDING_TOOLS
     return tostr(target_obj) + "." + prop_name + ": " + toliteral(value);
   endverb
 
-  verb _tool_test_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb test_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Test a rule expression with specific variable bindings";
     {args_map, actor} = args;
     {expression, bindings} = {args_map["expression"], args_map["bindings"]};
@@ -546,7 +546,7 @@ object AGENT_BUILDING_TOOLS
     return "FAILED: Rule evaluated to false. Reason: " + reason + ". Bindings: " + toliteral(converted_bindings);
   endverb
 
-  verb _tool_list_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb list_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List reactions on an object with details";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -594,7 +594,7 @@ object AGENT_BUILDING_TOOLS
     return lines:join("\n");
   endverb
 
-  verb _tool_add_reaction (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb add_reaction (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Add a reaction to an object";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -650,7 +650,7 @@ object AGENT_BUILDING_TOOLS
     return "Set " + tostr(target_obj) + "." + prop_name;
   endverb
 
-  verb _tool_set_reaction_enabled (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb set_reaction_enabled (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Enable or disable a reaction";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -677,7 +677,7 @@ object AGENT_BUILDING_TOOLS
     return (enabled ? "Enabled" | "Disabled") + " " + tostr(target_obj) + "." + prop_name;
   endverb
 
-  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: List message template properties on an object";
     {args_map, actor} = args;
     set_task_perms(actor);
@@ -716,7 +716,7 @@ object AGENT_BUILDING_TOOLS
     return lines:join("\n");
   endverb
 
-  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Get a message template value";
     {args_map, actor} = args;
     {obj_str, prop_name} = {args_map["object"], args_map["property"]};
@@ -751,7 +751,7 @@ object AGENT_BUILDING_TOOLS
     return tostr(target_obj) + "." + prop_name + ": " + toliteral(value);
   endverb
 
-  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set a message template on an object";
     {args_map, actor} = args;
     {obj_str, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
@@ -779,7 +779,7 @@ object AGENT_BUILDING_TOOLS
     return "Set " + tostr(target_obj) + "." + prop_name;
   endverb
 
-  verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Add a message to a message bag";
     {args_map, actor} = args;
     {obj_str, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
@@ -800,7 +800,7 @@ object AGENT_BUILDING_TOOLS
     return "Added message to " + tostr(target_obj) + "." + prop_name;
   endverb
 
-  verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Delete a message from a message bag by index";
     {args_map, actor} = args;
     {obj_str, prop_name, index} = {args_map["object"], args_map["property"], args_map["index"]};
@@ -817,7 +817,7 @@ object AGENT_BUILDING_TOOLS
     return "Deleted message " + tostr(index) + " from " + tostr(target_obj) + "." + prop_name;
   endverb
 
-  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Fetch developer documentation for object/verb/property";
     {args_map, actor} = args;
     target_spec = args_map["target"];
@@ -870,7 +870,7 @@ object AGENT_BUILDING_TOOLS
     return title + "\n\n" + (doc_body ? doc_body | "(No documentation available)");
   endverb
 
-  verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Look up a help topic";
     {args_map, actor} = args;
     topic = args_map["topic"];

@@ -28,12 +28,7 @@ object FORMAT_BLOCK
     for line_no in [1..length(contents)]
       content = contents[line_no];
       composed = content:compose(@args);
-      if (content_type == 'text_html && typeof(composed) == STR)
-        "Wrap bare text in paragraph tags for HTML";
-        result = {@result, <$html, {"p", {}, {composed}}>};
-      else
-        result = {@result, composed};
-      endif
+      result = {@result, composed};
     endfor
     if (content_type == 'text_html)
       return <$html, {"div", {}, result}>;
@@ -50,7 +45,7 @@ object FORMAT_BLOCK
         endfor
       endif
     endfor
-    "Join lines: empty strings become blank lines (double newline for djot paragraphs)";
+    "Join lines";
     output = "";
     for i in [1..length(text_lines)]
       line = text_lines[i];
