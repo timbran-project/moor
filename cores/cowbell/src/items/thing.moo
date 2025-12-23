@@ -358,10 +358,6 @@ object THING
       actions = {@actions, ["label" -> "Take", "verb" -> "get", "target" -> this_ref]};
     endif
     actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
-    return [
-      "title" -> item_name,
-      "description" -> this:description(),
-      "actions" -> actions
-    ];
+    return ["title" -> item_name, "description" -> this:description(), "actions" -> actions];
   endverb
 endobject

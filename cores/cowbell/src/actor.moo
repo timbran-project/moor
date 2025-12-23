@@ -307,10 +307,6 @@ object ACTOR
     who_ref = $url_utils:to_curie_str(who);
     actions = {};
     actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
-    return [
-      "title" -> actor_name,
-      "description" -> this:description(),
-      "actions" -> actions
-    ];
+    return ["title" -> actor_name, "description" -> this:description(), "actions" -> actions];
   endverb
 endobject

@@ -614,19 +614,16 @@ object PLAYER
     this:inform_current(event);
   endverb
 
-  verb "_format_examination" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb _format_examination (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Format examination data for display.";
     "Args: {target}";
     "Returns: [title -> str, html -> str, object_ref -> obj]";
     {target} = args;
-
     "Get the examination flyweight";
     exam = target:examination();
     typeof(exam) != FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
-
     "Build the display output";
     lines = {};
-
     "Header with object name, aliases, and number";
     header_parts = {exam.name};
     if (exam.aliases && length(exam.aliases) > 0)
@@ -635,7 +632,6 @@ object PLAYER
     header_parts = {@header_parts, "and", tostr(exam.object_ref)};
     header = header_parts:join(" ");
     lines = {@lines, $format.title:mk(header)};
-
     "Ownership";
     if (valid(exam.owner))
       owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
@@ -643,14 +639,12 @@ object PLAYER
     else
       lines = {@lines, "(Unowned)"};
     endif
-
     "Description";
     if (exam.description && exam.description != "")
       lines = {@lines, exam.description};
     else
       lines = {@lines, "(No description set.)"};
     endif
-
     "Obvious verbs if any";
     if (exam.verbs && length(exam.verbs) > 0)
       lines = {@lines, ""};
@@ -659,27 +653,22 @@ object PLAYER
       verb_title = $format.title:mk("Obvious verbs");
       lines = {@lines, verb_title, verb_list};
     endif
-
     "Create formatted block and compose to HTML";
     content = $format.block:mk(@lines);
     html_fw = content:compose(this, 'text_html, $event:mk_info(this, ""));
     html_str = html_fw:render('text_html);
-
     return ["title" -> exam.name, "html" -> html_str, "object_ref" -> exam.object_ref];
   endverb
 
-  verb "do_examine" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb do_examine (this none this) owner: ARCH_WIZARD flags: "rxd"
     "RPC entry point for examination - displays in tools panel.";
     "Args: {target_object}";
     set_task_perms(this);
     {target} = args;
-
     typeof(target) == OBJ || raise(E_TYPE, "Target must be an object");
     valid(target) || raise(E_INVARG, "Target is not a valid object");
-
     "Format the examination";
     result = this:_format_examination(target);
-
     "Present in tools panel";
     panel_id = "exam-" + tostr(target);
     attrs = {{"title", result["title"]}, {"object", $url_utils:to_curie_str(target)}};
