@@ -6,7 +6,7 @@ object ACTOR
   fertile: true
   readable: true
 
-  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .is_plural = true, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
+  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true>;
 
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";

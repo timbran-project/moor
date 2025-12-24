@@ -33,6 +33,34 @@ object LOGIN
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = <PLAYER, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
   property player_wakeup_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} {have|has} woken up.";
+  property privacy_policy (owner: ARCH_WIZARD, flags: "rc") = {
+    "## Privacy Policy",
+    "",
+    "### What We Collect",
+    "",
+    "When you create an account, we store:",
+    "",
+    "- Your chosen player name",
+    "- Your password (encrypted)",
+    "- Your session history (encrypted with your encryption password)",
+    "",
+    "### How We Use Your Data",
+    "",
+    "Your data is used solely to provide you with access to this server. We do not sell or share your information with third parties.",
+    "",
+    "### Session History",
+    "",
+    "Your session history is end-to-end encrypted. Only you can decrypt it using your encryption password. Server administrators cannot read your history.",
+    "",
+    "### Data Retention",
+    "",
+    "Your account and history are retained as long as you maintain an active account. You may request deletion of your account and all associated data at any time.",
+    "",
+    "### Contact",
+    "",
+    "For privacy concerns, contact the server administrator."
+  };
+  property privacy_policy_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
   property registration_string (owner: ARCH_WIZARD, flags: "rc") = "Character creation is disabled.";
   property welcome_message (owner: ARCH_WIZARD, flags: "rc") = {
     "## Welcome to the _mooR_ *Cowbell* core.",

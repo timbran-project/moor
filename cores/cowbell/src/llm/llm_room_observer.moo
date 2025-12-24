@@ -20,11 +20,11 @@ object LLM_ROOM_OBSERVER
   property shut_off_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " a small switch. ",
     <SUB, .capitalize = true, .type = 'dobj>,
     " freezes mid-motion, eyes going vacant."
@@ -53,11 +53,11 @@ object LLM_ROOM_OBSERVER
   property turn_on_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " the switch back. ",
     <SUB, .capitalize = true, .type = 'dobj>,
     " blinks and looks around, reorienting."

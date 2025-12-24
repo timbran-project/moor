@@ -7,7 +7,6 @@ object ARCHITECTS_COMPASS
 
   property current_building_task (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
-
   override description = "A precision instrument for spatial construction and world building. When worn, it provides tools for creating rooms, passages, and objects. Can interface with neural augmentation systems for conversational operation.";
   override import_export_hierarchy = {"llm"};
   override import_export_id = "architects_compass";
