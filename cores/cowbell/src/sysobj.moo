@@ -198,7 +198,23 @@ object SYSOBJ
     caller == this || raise(E_PERM);
     {command, match_env} = args;
     "Parse command using match environment (all visible objects for dobj/iobj matching)";
-    pc = parse_command(command, match_env, true);
+    try
+      pc = parse_command(command, match_env, true);
+    except e (ANY)
+      "parse_command failed - report to programmers, friendly message to others";
+      if (player.programmer || player.wizard)
+        traceback = {"Parse error: " + toliteral(e[2]) + ":"};
+        for tb in (e[4])
+          traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
+        endfor
+        traceback = {@traceback, "(End of traceback)"};
+        traceback = {@traceback, " [when called with " + toliteral(args) + "]"};
+        player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
+      else
+        player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility));
+      endif
+      return true;
+    endtry
     "Get command environment (only player and location for primary verb searching)";
     command_env = player:command_environment();
     if (pc["dobj"] == $ambiguous_match)

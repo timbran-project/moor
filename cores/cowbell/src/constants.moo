@@ -38,6 +38,7 @@ define FORMAT_CODE = #34;
 define HTML = #35;
 define FORMAT_DEFLIST = #72;
 define FORMAT_LINK = #82;
+define FORMAT_PARAGRAPH = #00007A-9B4D16F3B0;
 
 // help
 define HELP_UTILS = #58;

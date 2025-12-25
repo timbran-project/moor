@@ -183,4 +183,14 @@ object EVENT
     bindings = ['dobj -> this.dobj, 'd -> this.dobj, 'dc -> this.dobj, 'iobj -> this.iobj, 'i -> this.iobj, 'ic -> this.iobj, 'actor -> this.actor, 'n -> this.actor, 'nc -> this.actor, 'location -> this.actor.location, 'l -> this.actor.location, 'lc -> this.actor.location, 'this -> this.this_obj, 't -> this.this_obj, 'tc -> this.this_obj];
     return maphaskey(bindings, name) ? bindings[name] | false;
   endverb
+
+  verb ensure_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Ensure event has the specified audience, return event.";
+    {audience} = args;
+    current = `this.audience ! E_PROPNF => 0';
+    if (current == audience)
+      return this;
+    endif
+    return this:with_audience(audience);
+  endverb
 endobject

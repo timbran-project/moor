@@ -230,12 +230,31 @@ object LIST_PROTO
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"
-    "Runs :compose on all elements in turn then joins them together into a result";
+    "Runs :compose on all elements in turn then combines them appropriately for content type";
+    {lst, render_for, content_type, @rest} = args;
     results = {};
-    for x in (args[1])
-      results = {@results, x:compose(@args[2..$])};
+    for x in (lst)
+      results = {@results, x:compose(render_for, content_type, @rest)};
     endfor
-    return results:join("");
+    "For HTML, return list of composed elements (caller wraps in container)";
+    "For text formats, join strings";
+    if (content_type == 'text_html)
+      return results;
+    endif
+    "Join text results, handling any non-strings gracefully";
+    text_parts = {};
+    for r in (results)
+      if (typeof(r) == STR)
+        text_parts = {@text_parts, r};
+      elseif (typeof(r) == FLYWEIGHT)
+        "Flyweight in text mode - try to render it";
+        rendered = `r:render(content_type) ! ANY => tostr(r)';
+        text_parts = {@text_parts, rendered};
+      else
+        text_parts = {@text_parts, tostr(r)};
+      endif
+    endfor
+    return text_parts:join("");
   endverb
 
   verb test_map (this none this) owner: HACKER flags: "rxd"

@@ -26,7 +26,7 @@ object THING
   property is_countable_noun (owner: HACKER, flags: "rc") = true;
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself", .is_plural = false>;
+  property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};

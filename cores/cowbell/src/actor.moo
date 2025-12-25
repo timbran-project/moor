@@ -6,7 +6,7 @@ object ACTOR
   fertile: true
   readable: true
 
-  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves", .is_plural = true>;
+  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .is_plural = true, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
 
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";
@@ -314,5 +314,12 @@ object ACTOR
     actions = {};
     actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
     return ["title" -> actor_name, "description" -> this:description(), "actions" -> actions];
+  endverb
+
+  verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return the display string for the player's pronouns (e.g. 'they/them').";
+    {target, perms} = this:check_permissions('pronouns_display);
+    set_task_perms(perms);
+    return $pronouns:display(target.pronouns);
   endverb
 endobject

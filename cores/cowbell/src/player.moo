@@ -185,6 +185,26 @@ object PLAYER
     this:inform_current(event:with_audience('utility));
   endverb
 
+  verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return the display string for the player's pronouns (e.g. 'they/them').";
+    {target, perms} = this:check_permissions('pronouns_display);
+    set_task_perms(perms);
+    return $pronouns:display(target.pronouns);
+  endverb
+
+  verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Programmatically set pronouns from a string like 'they/them'.";
+    {target, perms} = this:check_permissions('set_pronouns);
+    set_task_perms(perms);
+    {pronouns_str} = args;
+    typeof(pronouns_str) == STR || raise(E_TYPE, "Pronouns must be a string");
+    pronoun_set = $pronouns:lookup(pronouns_str:trim());
+    if (typeof(pronoun_set) != FLYWEIGHT)
+      raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
+    endif
+    target.pronouns = pronoun_set;
+  endverb
+
   verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     return !is_player(args[1]);
@@ -203,13 +223,13 @@ object PLAYER
 
   verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Update the profile picture of the given player.";
-    caller == #-1 || caller == this || caller.wizard || raise(E_PERM);
-    set_task_perms(this);
+    {target, perms} = this:check_permissions('set_profile_picture);
+    set_task_perms(perms);
     {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 23) && raise(E_INVARG("Profile picture too large"));
     typeof(content_type) == STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == BINARY || raise(E_TYPE);
-    this.profile_picture = {content_type, picbin};
+    target.profile_picture = {content_type, picbin};
   endverb
 
   verb set_password (this none this) owner: ARCH_WIZARD flags: "rxd"

@@ -130,7 +130,7 @@ object LOOK
       endfor
       "Combine fragment passages with 'You see' wrapper";
       if (length(fragment_passages))
-        "Build inline content: 'You see X, Y and Z.'";
+        "Build paragraph content: 'You see X, Y and Z.'";
         parts = {"  You see "};
         for i in [1..length(fragment_passages)]
           frag = fragment_passages[i];
@@ -142,24 +142,24 @@ object LOOK
           parts = {@parts, frag};
         endfor
         parts = {@parts, "."};
-        desc_content = {@desc_content, $format.link:inline(parts)};
+        desc_content = {@desc_content, $format.paragraph:mk(parts)};
       endif
     endif
-    "Wrap desc_content in inline so it composes properly as a flyweight";
-    block_elements = {title, $format.link:inline(desc_content)};
+    "Wrap desc_content in paragraph so it composes as block-level HTML";
+    block_elements = {title, $format.paragraph:mk(desc_content)};
     "Add exits if present (with command links)";
     exits = `this.exits ! E_PROPNF => {}';
     if (length(exits) > 0)
-      block_elements = {@block_elements, $format.link:exits_line(exits)};
+      block_elements = {@block_elements, this:format_exits(exits)};
     endif
     if (length(things))
-      block_elements = {@block_elements, $format.link:things_line(things)};
+      block_elements = {@block_elements, this:format_things(things)};
     endif
     if (length(actors))
-      block_elements = {@block_elements, $format.link:actors_line(actors)};
+      block_elements = {@block_elements, this:format_actors(actors)};
     endif
     if (length(deeply_asleep))
-      block_elements = {@block_elements, $format.link:sleeping_line(deeply_asleep)};
+      block_elements = {@block_elements, this:format_sleeping(deeply_asleep)};
     endif
     b = $format.block:mk(@block_elements);
     event = $event:mk_look(player, b):with_dobj(this.what):with_metadata('preferred_content_types, {'text_html, 'text_plain}):with_presentation_hint('inset):with_group('look, this.what);
@@ -180,5 +180,97 @@ object LOOK
     except (E_PROPNF)
       return false;
     endtry
+  endverb
+
+  verb format_exits (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a paragraph for exit links.";
+    "Args: list of exit direction strings.";
+    {exits} = args;
+    typeof(exits) == LIST || raise(E_TYPE, "Exits must be a list");
+    length(exits) == 0 && return "";
+    "Build parts list with links separated by commas";
+    "Use 'go <direction>' as command so non-standard exit names work";
+    parts = {};
+    if (length(exits) == 1)
+      parts = {"An exit leads out ", $format.link:cmd("go " + exits[1], exits[1]), "."};
+    else
+      parts = {"Exits lead out "};
+      for i in [1..length(exits)]
+        if (i > 1 && i == length(exits))
+          parts = {@parts, " and "};
+        elseif (i > 1)
+          parts = {@parts, ", "};
+        endif
+        parts = {@parts, $format.link:cmd("go " + exits[i], exits[i])};
+      endfor
+      parts = {@parts, "."};
+    endif
+    return $format.paragraph:mk(parts);
+  endverb
+
+  verb format_things (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a paragraph for 'You see X, Y and Z here.' with inspect links.";
+    "Args: list of objects.";
+    {objects} = args;
+    typeof(objects) == LIST || raise(E_TYPE, "Objects must be a list");
+    length(objects) == 0 && return "";
+    parts = {"You see "};
+    for i in [1..length(objects)]
+      if (i > 1 && i == length(objects))
+        parts = {@parts, " and "};
+      elseif (i > 1)
+        parts = {@parts, ", "};
+      endif
+      item = objects[i];
+      label = `item:display_name() ! E_VERBNF => item.name';
+      parts = {@parts, $format.link:inspect(item, label)};
+    endfor
+    parts = {@parts, " here."};
+    return $format.paragraph:mk(parts);
+  endverb
+
+  verb format_actors (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a paragraph for 'X, Y and Z are here.' with inspect links.";
+    "Args: list of {actor, status} pairs where status can be empty string.";
+    {actor_data} = args;
+    typeof(actor_data) == LIST || raise(E_TYPE, "Actor data must be a list");
+    length(actor_data) == 0 && return "";
+    parts = {};
+    for i in [1..length(actor_data)]
+      if (i > 1 && i == length(actor_data))
+        parts = {@parts, " and "};
+      elseif (i > 1)
+        parts = {@parts, ", "};
+      endif
+      {actor, status} = actor_data[i];
+      actor_name = `actor:name() ! E_VERBNF => actor.name';
+      label = status && status != "" ? actor_name + " (" + status + ")" | actor_name;
+      parts = {@parts, $format.link:inspect(actor, label)};
+    endfor
+    verb_form = length(actor_data) == 1 ? " is" | " are";
+    parts = {@parts, verb_form, " here."};
+    return $format.paragraph:mk(parts);
+  endverb
+
+  verb format_sleeping (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a paragraph for 'X, Y and Z are deeply asleep.' with inspect links.";
+    "Args: list of {actor, status} pairs (status ignored for sleeping).";
+    {actor_data} = args;
+    typeof(actor_data) == LIST || raise(E_TYPE, "Actor data must be a list");
+    length(actor_data) == 0 && return "";
+    parts = {};
+    for i in [1..length(actor_data)]
+      if (i > 1 && i == length(actor_data))
+        parts = {@parts, " and "};
+      elseif (i > 1)
+        parts = {@parts, ", "};
+      endif
+      {actor, status} = actor_data[i];
+      actor_name = `actor:name() ! E_VERBNF => actor.name';
+      parts = {@parts, $format.link:inspect(actor, actor_name)};
+    endfor
+    verb_form = length(actor_data) == 1 ? " is" | " are";
+    parts = {@parts, verb_form, " deeply asleep."};
+    return $format.paragraph:mk(parts);
   endverb
 endobject

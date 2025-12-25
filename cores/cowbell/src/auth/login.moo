@@ -10,6 +10,8 @@ object LOGIN
   property connection_quiet_period (owner: ARCH_WIZARD, flags: "rc") = 7200;
   property default_home (owner: ARCH_WIZARD, flags: "rc") = FIRST_ROOM;
   property default_player_class (owner: ARCH_WIZARD, flags: "r") = PLAYER;
+  property intercepted_actions (owner: ARCH_WIZARD, flags: "rc") = {};
+  property intercepted_players (owner: ARCH_WIZARD, flags: "rc") = {};
   property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
   property new_player_arrival_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} has just arrived.";
   property new_player_letter (owner: ARCH_WIZARD, flags: "rc") = {
@@ -33,6 +35,9 @@ object LOGIN
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = <PLAYER, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
   property player_wakeup_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} {have|has} woken up.";
+  property post_creation_setup_enabled (owner: ARCH_WIZARD, flags: "rc") = true;
+  property post_creation_setup_fields (owner: ARCH_WIZARD, flags: "rc") = "pronouns,description,picture";
+  property post_creation_setup_title (owner: ARCH_WIZARD, flags: "rc") = "Set Up Your Profile";
   property privacy_policy (owner: ARCH_WIZARD, flags: "rc") = {
     "## Privacy Policy",
     "",
@@ -118,35 +123,40 @@ object LOGIN
       notify(player, tostr("Usage:  ", verb, " <existing-player-name> <password>"));
       return 0;
     endtry
-    "Is our candidate name invalid?";
-    if (!valid(candidate = orig_candidate = this:_match_player(name)))
-      raise(E_INVARG, tostr("`", name, "' matches no player name."));
-    endif
-    "We have a valid candidate, so we can now attempt to challenge it.";
-    {status, _} = this:_password_state(candidate, password);
-    if (status == 'ok)
-      "Password verified.";
-    elseif (status == 'missing)
-      "We assume the password is a $password frob; prompt for it interactively.";
-      set_connection_option(player, "binary", 1);
-      notify(player, "Password: ");
-      set_connection_option(player, "binary", 0);
-      set_connection_option(player, "client-echo", 0);
-      this:add_interception(player, "intercepted_password", candidate);
+    try
+      "Is our candidate name invalid?";
+      if (!valid(candidate = orig_candidate = this:_match_player(name)))
+        raise(E_INVARG, tostr("`", name, "' matches no player name."));
+      endif
+      "We have a valid candidate, so we can now attempt to challenge it.";
+      {status, _} = this:_password_state(candidate, password);
+      if (status == 'ok)
+        "Password verified.";
+      elseif (status == 'missing)
+        "We assume the password is a $password frob; prompt for it interactively.";
+        set_connection_option(player, "binary", 1);
+        notify(player, "Password: ");
+        set_connection_option(player, "binary", 0);
+        set_connection_option(player, "client-echo", 0);
+        this:add_interception(player, "intercepted_password", candidate);
+        return 0;
+      elseif (status == 'external_only)
+        server_log(tostr("FAILED CONNECT (NO PASSWORD): ", name, " (", candidate, ") on ", connection_name(player)));
+        raise(E_INVARG, "This account uses external authentication.");
+      elseif (status == 'invalid_type)
+        server_log(tostr("FAILED CONNECT (BAD PASSWORD TYPE): ", name, " (", candidate, ") on ", connection_name(player)));
+        raise(E_INVARG, "Cannot authenticate this account.");
+      else
+        server_log(tostr("FAILED CONNECT: ", name, " (", candidate, ") on ", connection_name(player)));
+        raise(E_INVARG, "Invalid password.");
+      endif
+      "TODO: block lists, guests, etc";
+      "Log the player in!";
+      return candidate;
+    except (E_INVARG)
+      notify(player, "Either that player does not exist, or has a different password.");
       return 0;
-    elseif (status == 'external_only)
-      server_log(tostr("FAILED CONNECT (NO PASSWORD): ", name, " (", candidate, ") on ", connection_name(player)));
-      raise(E_INVARG, "This account uses external authentication.");
-    elseif (status == 'invalid_type)
-      server_log(tostr("FAILED CONNECT (BAD PASSWORD TYPE): ", name, " (", candidate, ") on ", connection_name(player)));
-      raise(E_INVARG, "Cannot authenticate this account.");
-    else
-      server_log(tostr("FAILED CONNECT: ", name, " (", candidate, ") on ", connection_name(player)));
-      raise(E_INVARG, "Invalid password.");
-    endif
-    "TODO: block lists, guests, etc";
-    "Log the player in!";
-    return candidate;
+    endtry
   endverb
 
   verb oauth2_check (any none any) owner: ARCH_WIZARD flags: "rxd"
@@ -318,10 +328,17 @@ object LOGIN
     "returns either a valid player corresponding to name or $failed_match.";
     caller == this || caller.wizard || raise(E_PERM);
     name = args[1];
-    if (valid(candidate = name:literal_object()) && is_player(candidate))
-      return candidate;
+    "Try to parse as object number first";
+    if (name[1] == "#")
+      try
+        candidate = toobj(name);
+        if (valid(candidate) && is_player(candidate))
+          return candidate;
+        endif
+      except (ANY)
+      endtry
     endif
-    "Simple brute force player name scan without considering aliases. Other cores have a $player_db, we might do the same when we grow up.";
+    "Simple brute force player name scan without considering aliases.";
     for candidate in (players())
       if (candidate.name == name)
         return candidate;
@@ -336,6 +353,10 @@ object LOGIN
     "  returns the actual $login verb to call and the args to use.";
     "Commands available to not-logged-in users should be located on this object and given the verb_args \"any none any\"";
     caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    "Check for active interception (e.g., waiting for password input)";
+    if (li = this:interception(player))
+      return {@li, @args};
+    endif
     !args && return {this.blank_command, @args};
     if ((verb = args[1]) && !verb:is_numeric())
       for i in ({this, @ancestors(this)})
@@ -465,5 +486,128 @@ object LOGIN
     event = $event:mk_info(new_player, content):with_audience('utility):with_presentation_hint('inset);
     event = event:with_metadata('preferred_content_types, {'text_html, 'text_plain});
     new_player:inform_current(event);
+    "Trigger profile setup presentation if enabled";
+    if (this.post_creation_setup_enabled)
+      setup_title = this.post_creation_setup_title;
+      fields = this.post_creation_setup_fields;
+      present(new_player, tostr("profile-setup-", new_player), "text/plain", "profile-setup", "", ["title" -> setup_title, "fields" -> fields]);
+    endif
+  endverb
+
+  verb add_interception (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Add an interception for a player at login prompt.";
+    "Args: {who, verbname, ...arguments}";
+    "When the player types anything, parse_command routes to verbname instead.";
+    caller == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
+    {who, verbname, @arguments} = args;
+    who in this.intercepted_players && raise(E_INVARG, "Player already has an interception set.");
+    this.intercepted_players = {@this.intercepted_players, who};
+    this.intercepted_actions = {@this.intercepted_actions, {verbname, @arguments}};
+    return 1;
+  endverb
+
+  verb delete_interception (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Remove an interception for a player.";
+    "Args: {who}";
+    caller == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
+    {who} = args;
+    if (loc = who in this.intercepted_players)
+      this.intercepted_players = listdelete(this.intercepted_players, loc);
+      this.intercepted_actions = listdelete(this.intercepted_actions, loc);
+      return 1;
+    else
+      return 0;
+    endif
+  endverb
+
+  verb interception (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if a player has an active interception.";
+    "Args: {who}";
+    "Returns the interception action list or 0.";
+    caller == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
+    {who} = args;
+    return (loc = who in this.intercepted_players) ? this.intercepted_actions[loc] | 0;
+  endverb
+
+  verb intercepted_password (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Handle password input after prompting telnet user.";
+    "Called via interception when user enters password.";
+    caller == #0 || raise(E_PERM);
+    this:delete_interception(player);
+    set_connection_option(player, "client-echo", 1);
+    notify(player, "");
+    try
+      {candidate, ?password = ""} = args;
+    except (E_ARGS)
+      return 0;
+    endtry
+    "Re-attempt connection with the password";
+    return this:connect(tostr(candidate), password);
+  endverb
+
+  verb "?" (any none any) owner: ARCH_WIZARD flags: "rxd"
+    "Handle unrecognized commands at login prompt.";
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    "Collect available commands from this object";
+    clist = {};
+    for j in ({this, @ancestors(this)})
+      for i in [1..length(verbs(j))]
+        try
+          info = verb_info(j, i);
+          if (verb_args(j, i) == {"any", "none", "any"} && index(info[2], "x"))
+            vname = info[3]:split(" ")[1];
+            "Strip the * abbreviation marker";
+            star = index(vname, "*");
+            if (star > 0)
+              vname = vname[1..star - 1] + vname[star + 1..$];
+            endif
+            "Skip @ prefixed aliases";
+            if (vname[1] != "@")
+              clist = {@clist, vname};
+            endif
+          endif
+        except (ANY)
+        endtry
+      endfor
+    endfor
+    notify(player, "I don't understand that. Available commands:");
+    notify(player, "   " + setremove(clist, "?"):join(", "));
+    return 0;
+  endverb
+
+  verb "q*uit @q*uit" (any none any) owner: ARCH_WIZARD flags: "rxd"
+    "Disconnect from the server.";
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    boot_player(player);
+    return 0;
+  endverb
+
+  verb "h*elp @h*elp" (any none any) owner: ARCH_WIZARD flags: "rxd"
+    "Display help message for login screen.";
+    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    msg = {"## Getting Started", "", "To sign in to an existing account, use your **player name** and **password**.", "", "To create a new account, choose a unique player name and password.", "", "### Available commands", "", "- `connect <name> <password>` - Sign in to an existing account", "- `connect <name>` - Sign in (will prompt for password)", "- `create <name> <password>` - Create a new account", "- `quit` - Disconnect from the server", "", "For more detailed help once you're logged in, type `help` after connecting."};
+    notify(player, msg:join("\n"), false, false, "text/djot");
+    return 0;
+  endverb
+
+  verb apply_profile_setup (any none any) owner: ARCH_WIZARD flags: "rxd"
+    "Apply profile setup data from client. Called via RPC.";
+    "Args: {player_oid_str, profile_data_map}";
+    caller == #0 || caller_perms().wizard || raise(E_PERM);
+    {player_oid_str, profile_data} = args;
+    target_player = player_oid_str:literal_object();
+    !valid(target_player) && raise(E_INVARG, "Invalid player object");
+    !is_player(target_player) && raise(E_INVARG, "Not a player object");
+    "Apply pronouns if provided";
+    if (profile_data["pronouns"])
+      pronouns_str = profile_data["pronouns"];
+      target_player:set_pronouns(pronouns_str);
+    endif
+    "Apply description if provided";
+    if (profile_data["description"])
+      desc_str = profile_data["description"];
+      target_player.description = desc_str;
+    endif
+    return 1;
   endverb
 endobject

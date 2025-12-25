@@ -100,6 +100,14 @@ object HELP_TOPICS
     "basics",
     {"exits", "look"}
   };
+  property topic_privacy (owner: ARCH_WIZARD, flags: "rc") = {
+    "privacy",
+    "Privacy policy and data practices",
+    "## Timbran Hotel Privacy Policy\n\n*Your privacy is respected at the Timbran Hotel.*\n\n### What We Collect\n\nWhen you register as a guest, we store:\n- Your chosen name\n- Your password (securely encrypted)\n- Your personal event history (encrypted with your encryption passphrase)\n\n### What We Don't Do\n\n- We do **not** algorithmically profile or target you\n- We do **not** sell or share your data with advertisers or data brokers\n- We do **not** read your encrypted event history\u2014only you can decrypt it\n\n### Public Spaces\n\nThe Timbran Hotel has many public rooms\u2014the lobby, corridors, common areas. Conversations and actions in public spaces are naturally visible to other guests present. This is the nature of a shared world, not data collection.\n\nIf you wish for privacy, seek out private rooms or communicate through the mail system.\n\n### Mail & Direct Messages\n\nMail and direct messages between guests are currently stored unencrypted. We plan to add encryption in the future.\n\nWhile administrators technically have access, we maintain a strict policy against reading private correspondence. Treat these as you would a postcard\u2014private in practice, but not cryptographically secured.\n\n### User Creations\n\nObjects you create, customizations you make, and programs you write are stored in the world database. Even if you mark them as private, administrators can view them for maintenance and moderation purposes.\n\n### AI & LLM Agents\n\nCertain areas of the hotel feature AI-powered characters\u2014such as Mr. Welcome in the lobby or staff at the front desk. These agents use large language models to interact with guests.\n\nWhen you interact in rooms with these agents:\n\n- Your actions and speech in that room may be processed by external AI services\n- We prioritize open-weight models and may run self-hosted models in the future\n- We transmit only what's necessary for the interaction\n\nAI-powered items (like the Architect's Compass or Data Visor) work similarly\u2014using them sends your input to AI services.\n\nWe plan to offer an opt-out so your direct actions aren't shared with room-based agents. However, if other guests mention you or have conversations about you, that content may still be processed.\n\n### Data Retention\n\nYour account and encrypted history remain as long as you're a guest. You may request deletion of your account and all associated data at any time by contacting the management.\n\n### Contact\n\nFor privacy concerns, speak with the hotel management or contact the server administrator.",
+    {"privacy policy", "data", "gdpr"},
+    "basics",
+    {}
+  };
   property topic_quit (owner: ARCH_WIZARD, flags: "rc") = {
     "@quit",
     "Disconnect",

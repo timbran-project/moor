@@ -141,7 +141,7 @@ object HENRI
     "- Dramatic sighs (every 12-18 minutes)",
     "- Construction reactions (every 10-16 minutes)"
   };
-  override pronouns = <PRONOUNS, .verb_be = "is", .verb_have = "has", .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself", .is_plural = false>;
+  override pronouns = <PRONOUNS, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
 
   verb _pick_message (this none this) owner: HACKER flags: "rxd"
     "Pick a message from a bag/string or use a compiled list directly, returning empty string on failure.";

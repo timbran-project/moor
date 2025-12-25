@@ -202,16 +202,7 @@ object LLM_AGENT
         this.current_iteration = 0;
         return tostr(response);
       endif
-      choice = response["choices"][1];
-      message = choice["message"];
-      finish_reason = maphaskey(choice, "finish_reason") ? choice["finish_reason"] | "";
-      "Check finish_reason - 'stop' or 'end_turn' means model is done, exit loop";
-      if (finish_reason == "stop" || finish_reason == "end_turn")
-        content = maphaskey(message, "content") ? message["content"] | "";
-        content && this:add_message("assistant", content);
-        this.current_iteration = 0;
-        return content || "Task complete.";
-      endif
+      message = response["choices"][1]["message"];
       "No tool calls = final response";
       if (!(maphaskey(message, "tool_calls") && message["tool_calls"]))
         this:add_message("assistant", message["content"]);

@@ -515,7 +515,7 @@ object CONTAINER
     endtry
   endverb
 
-  verb lock (this with any) owner: ARCH_WIZARD flags: "rd"
+  verb lock (this with any) owner: ARCH_WIZARD flags: "rxd"
     "Lock this container with a key";
     set_task_perms(this.owner);
     "Check if container is lockable";
@@ -552,7 +552,7 @@ object CONTAINER
     this:do_lock(player, key);
   endverb
 
-  verb unlock (this with any) owner: ARCH_WIZARD flags: "rd"
+  verb unlock (this with any) owner: ARCH_WIZARD flags: "rxd"
     "Unlock this container with a key";
     set_task_perms(this.owner);
     "Check if container is unlockable";
@@ -623,7 +623,7 @@ object CONTAINER
     endif
   endverb
 
-  verb "open op*" (this none none) owner: ARCH_WIZARD flags: "rd"
+  verb "open op*" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Open this container";
     set_task_perms(this.owner);
     "Check if already open";
@@ -648,7 +648,7 @@ object CONTAINER
     this:do_open(player);
   endverb
 
-  verb close (this none none) owner: ARCH_WIZARD flags: "rd"
+  verb close (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Close this container";
     set_task_perms(this.owner);
     "Check if already closed";

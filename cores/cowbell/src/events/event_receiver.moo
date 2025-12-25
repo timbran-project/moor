@@ -11,22 +11,37 @@ object EVENT_RECEIVER
   override import_export_id = "event_receiver";
 
   verb tell (this none this) owner: HACKER flags: "rxd"
-    "Broadcast an event to all connections (via player), persisting it when the audience is narrative.";
+    "Broadcast an event to all connections for this player, with per-connection content negotiation.";
+    "Persists djot version to event log for replay.";
     {event, @rest} = args;
-    "Events for `tell`, the content type can only ever be text/plain or text/djot";
-    transformed = event:transform_for(this, 'text_djot);
-    "Process through _extend_output to handle flyweights";
-    output = {};
+    event_slots = flyslots(event);
+    "First, log the djot version to the event log for persistence/replay";
+    transformed_djot = event:transform_for(this, 'text_djot);
+    output_djot = {};
     entry_num = 0;
-    for entry in (transformed)
+    for entry in (transformed_djot)
       entry_num = entry_num + 1;
       if (entry_num % 50 == 0)
         suspend_if_needed();
       endif
-      output = this:_extend_output(output, entry, 'text_djot);
+      output_djot = this:_extend_output(output_djot, entry, 'text_djot);
     endfor
-    event_slots = flyslots(event);
-    this:_notify(this, output, false, false, 'text_djot, event_slots);
+    this:_event_log(this, output_djot, 'text_djot, event_slots);
+    "Now render per-connection and notify each with appropriate content type";
+    conns = this:_connections();
+    if (!conns)
+      return;
+    endif
+    contents = this:_event_render(conns, event);
+    entry_num = 0;
+    for content in (contents)
+      entry_num = entry_num + 1;
+      if (entry_num % 50 == 0)
+        suspend_if_needed();
+      endif
+      {conn, content_type, output} = content;
+      this:_notify(conn, output, false, false, content_type, event_slots);
+    endfor
   endverb
 
   verb inform_connection (this none this) owner: HACKER flags: "rxd"
@@ -54,9 +69,18 @@ object EVENT_RECEIVER
     this:_can_inform() || raise(E_PERM);
     {event} = args;
     event = event:with_audience('utility);
-    conns = this:_connections();
-    conns || return this:tell(event);
-    current = conns[1][1];
+    "connections() returns current connection first (but all connections globally)";
+    all_conns = connections();
+    if (!all_conns)
+      return this:tell(event);
+    endif
+    current = all_conns[1][1];
+    "Verify this connection belongs to us by looking it up in our connections";
+    info = `this:_connection_entry(current) ! E_INVARG => 0';
+    if (!info)
+      "Current connection is not ours, fall back to broadcast";
+      return this:tell(event);
+    endif
     return this:inform_connection(current, event);
   endverb
 
@@ -66,7 +90,8 @@ object EVENT_RECEIVER
 
   verb _connections (this none this) owner: ARCH_WIZARD flags: "rxd"
     this:_can_inform() || raise(E_PERM);
-    return connections();
+    set_task_perms(this);
+    return connections(this);
   endverb
 
   verb _event_render (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -151,5 +176,10 @@ object EVENT_RECEIVER
   verb _present (this none this) owner: ARCH_WIZARD flags: "rxd"
     caller == this || raise(E_PERM);
     present(@args);
+  endverb
+
+  verb _event_log (this none this) owner: ARCH_WIZARD flags: "rxd"
+    caller == this || raise(E_PERM);
+    event_log(@args);
   endverb
 endobject
