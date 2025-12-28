@@ -995,12 +995,26 @@ object BUILDER_FEATURES
       target_spec = args[1];
       "Parse property reference";
       parsed = $prog_utils:parse_target_spec(target_spec);
-      if (!parsed || parsed['type] != 'property)
-        player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
+      if (!parsed)
+        player:inform_current($event:mk_error(player, "Usage: @set-message <object>.<prop-name> template..."));
         return;
       endif
-      object_str = parsed['object_str];
-      prop_name = parsed['item_name];
+      "Handle both old 'property type and new 'compound type";
+      if (parsed['type] == 'property)
+        object_str = parsed['object_str];
+        prop_name = parsed['item_name];
+      elseif (parsed['type] == 'compound && length(parsed['selectors]) > 0)
+        sel = parsed['selectors][1];
+        if (sel['kind] != 'property)
+          player:inform_current($event:mk_error(player, "Usage: @set-message <object>.<prop-name> template..."));
+          return;
+        endif
+        object_str = parsed['object_str];
+        prop_name = sel['item_name];
+      else
+        player:inform_current($event:mk_error(player, "Usage: @set-message <object>.<prop-name> template..."));
+        return;
+      endif
       prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
       "Match the target object";
       try
@@ -1009,10 +1023,6 @@ object BUILDER_FEATURES
         player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
         return;
       endtry
-      "Get initial value and remaining args";
-      value = 0;
-      perms = "rw";
-      owner = player;
       "Get remainder after target spec";
       offset = index(argstr, target_spec) + length(target_spec);
       template_string = argstr[offset..length(argstr)]:trim();
@@ -1383,7 +1393,7 @@ object BUILDER_FEATURES
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr || length(args) < 4)
-      raise(E_INVARG, "Usage: @add-reaction OBJECT.NAME_reaction TRIGGER WHEN {...}");
+      raise(E_INVARG, "Usage: @add-reaction OBJECT.NAME_reaction TRIGGER WHEN EFFECTS");
     endif
     try
       prop_spec = args[1];
@@ -1401,9 +1411,16 @@ object BUILDER_FEATURES
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
-      trigger = args[2];
-      when_clause = args[3] == "0" ? 0 | args[3];
-      effects = args[4];
+      "Parse trigger - evaluate as MOO expression";
+      trigger_str = args[2];
+      trigger = eval("return " + trigger_str + ";")[2];
+      "Parse when clause";
+      when_str = args[3];
+      when_clause = when_str == "0" ? 0 | when_str;
+      "Parse effects - join args from 4 onwards and evaluate";
+      effects_parts = args[4..length(args)];
+      effects_str = $list_proto:join(effects_parts, " ");
+      effects = eval("return " + effects_str + ";")[2];
       reaction = $reaction:mk(trigger, when_clause, effects);
       "Add or update property";
       if (prop_name in target_obj:all_properties())
@@ -1411,9 +1428,8 @@ object BUILDER_FEATURES
       else
         add_property(target_obj, prop_name, reaction, {player, "r"});
       endif
-      trigger_str = typeof(trigger) == SYM ? tostr(trigger) | "threshold";
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      message = "Set " + tostr(target_obj) + "." + prop_name + ": trigger=" + trigger_str + ", effects=" + tostr(length(effects));
+      trigger_display = typeof(trigger) == SYM ? tostr(trigger) | "threshold";
+      message = "Set " + tostr(target_obj) + "." + prop_name + ": trigger=" + trigger_display + ", effects=" + tostr(length(effects));
       player:inform_current($event:mk_info(player, message));
       return reaction;
     except e (ANY)

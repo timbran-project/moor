@@ -32,26 +32,30 @@ object WIZ_FEATURES
     "Grant or upgrade a player to programmer status";
     this:_challenge_command_perms();
     set_task_perms(player);
-    if (!valid(dobj))
+    if (!dobjstr || dobjstr == "")
       raise(E_INVARG, "Usage: @programmer <player>");
     endif
-    if (!is_player(dobj))
-      raise(E_INVARG, tostr(dobj) + " is not a player.");
+    target = `$match:match_player(dobjstr) ! E_INVARG => $nothing';
+    if (!valid(target))
+      raise(E_INVARG, "No player found matching '" + dobjstr + "'");
+    endif
+    if (!is_player(target))
+      raise(E_INVARG, tostr(target) + " is not a player.");
     endif
     "Check current status";
-    if (dobj.authoring_features == $prog_features)
-      player:inform_current($event:mk_error(player, dobj:name() + " is already a programmer."));
+    if (target.authoring_features == $prog_features)
+      player:inform_current($event:mk_error(player, target:name() + " is already a programmer."));
       return;
     endif
-    is_upgrade = dobj.authoring_features == $builder_features;
+    is_upgrade = target.authoring_features == $builder_features;
     "Check if player has a description (skip for upgrades)";
     if (!is_upgrade)
-      desc = `dobj:description() ! ANY => ""';
+      desc = `target:description() ! ANY => ""';
       if (!desc || desc == "")
         "Get pronouns for proper grammar";
-        pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
+        pronouns = `target:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
         possessive = `pronouns.possessive ! ANY => "their"';
-        question = "Grant " + dobj:name() + " programmer bit despite " + possessive + " lack of description?";
+        question = "Grant " + target:name() + " programmer bit despite " + possessive + " lack of description?";
         "Use yes_no for confirmation";
         metadata = {{"input_type", "yes_no"}, {"prompt", question}};
         response = player:read_with_prompt(metadata);
@@ -62,48 +66,48 @@ object WIZ_FEATURES
       endif
     endif
     "Set features and flags";
-    dobj.authoring_features = $prog_features;
-    dobj.programmer = true;
-    dobj.is_builder = true;
+    target.authoring_features = $prog_features;
+    target.programmer = true;
+    target.is_builder = true;
     "Handle tools";
-    owner_name = dobj:name();
+    owner_name = target:name();
     if (is_upgrade)
       "Already has compass from builder, just add visor";
-      visor = create($data_visor, dobj);
-      visor.owner = dobj;
+      visor = create($data_visor, target);
+      visor.owner = target;
       visor.name = owner_name + "'s " + $data_visor.name;
       visor.aliases = $data_visor.aliases;
-      visor:moveto(dobj);
+      visor:moveto(target);
       "Announce upgrade";
-      if (valid(dobj.location))
-        event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been upgraded to programmer privileges."):with_this(dobj.location);
-        dobj.location:announce(event);
-        tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted a Data Visor."):with_this(dobj.location);
-        dobj.location:announce(tools_event);
+      if (valid(target.location))
+        event = $event:mk_info(target, $sub:nc(), " ", $sub:verb_have(), " been upgraded to programmer privileges."):with_this(target.location);
+        target.location:announce(event);
+        tools_event = $event:mk_info(target, $sub:nc(), " ", $sub:verb_have(), " been granted a Data Visor."):with_this(target.location);
+        target.location:announce(tools_event);
       endif
-      dobj:tell($event:mk_info(dobj, "You have been upgraded to programmer. A Data Visor has been added to your inventory for code editing and advanced features."));
-      player:inform_current($event:mk_info(player, "You upgraded ", dobj:name(), " to programmer privileges."));
+      target:tell($event:mk_info(target, "You have been upgraded to programmer. A Data Visor has been added to your inventory for code editing and advanced features."));
+      player:inform_current($event:mk_info(player, "You upgraded ", target:name(), " to programmer privileges."));
     else
       "Fresh grant - create both tools";
-      compass = create($architects_compass, dobj);
-      compass.owner = dobj;
+      compass = create($architects_compass, target);
+      compass.owner = target;
       compass.name = owner_name + "'s " + $architects_compass.name;
       compass.aliases = $architects_compass.aliases;
-      compass:moveto(dobj);
-      visor = create($data_visor, dobj);
-      visor.owner = dobj;
+      compass:moveto(target);
+      visor = create($data_visor, target);
+      visor.owner = target;
       visor.name = owner_name + "'s " + $data_visor.name;
       visor.aliases = $data_visor.aliases;
-      visor:moveto(dobj);
+      visor:moveto(target);
       "Announce fresh grant";
-      if (valid(dobj.location))
-        event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted programmer and builder privileges."):with_this(dobj.location);
-        dobj.location:announce(event);
-        tools_event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass and a Data Visor."):with_this(dobj.location);
-        dobj.location:announce(tools_event);
+      if (valid(target.location))
+        event = $event:mk_info(target, $sub:nc(), " ", $sub:verb_have(), " been granted programmer and builder privileges."):with_this(target.location);
+        target.location:announce(event);
+        tools_event = $event:mk_info(target, $sub:nc(), " ", $sub:verb_have(), " been granted an Architect's Compass and a Data Visor."):with_this(target.location);
+        target.location:announce(tools_event);
       endif
-      dobj:tell($event:mk_info(dobj, "In your inventory there are now an Architect's Compass and a Data Visor - powerful instruments bonded to you alone. Wear them to activate their capabilities: the Compass for building and spatial construction, the Visor for analyzing, writing code, creating objects, adding properties, and shaping the world's logic. Guard them carefully, as they grant significant power over the world."));
-      player:inform_current($event:mk_info(player, "You granted ", dobj:name(), " programmer and builder privileges."));
+      target:tell($event:mk_info(target, "In your inventory there are now an Architect's Compass and a Data Visor - powerful instruments bonded to you alone. Wear them to activate their capabilities: the Compass for building and spatial construction, the Visor for analyzing, writing code, creating objects, adding properties, and shaping the world's logic. Guard them carefully, as they grant significant power over the world."));
+      player:inform_current($event:mk_info(player, "You granted ", target:name(), " programmer and builder privileges."));
     endif
   endverb
 
