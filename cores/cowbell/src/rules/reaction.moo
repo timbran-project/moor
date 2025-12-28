@@ -551,18 +551,20 @@ object REACTION
       target.((effect.prop)) = new_value;
       target:_check_thresholds(effect.prop, old_value, new_value, context);
     elseif (effect.type == 'announce)
-      "Create event with compiled $sub content, target as actor for pronoun resolution";
+      "Announce to actor's room - actor is the player, dobj is the reacting object";
       msg = this:_resolve_msg(effect.msg, target);
-      event = $event:mk_info(target, @msg):with_dobj(actor);
-      if (valid(target.location))
-        target.location:announce(event);
+      event = $event:mk_info(actor, @msg):with_dobj(target);
+      room = isa(actor, $player) ? actor.location | target.location;
+      if (valid(room) && isa(room, $room))
+        room:announce(event);
       endif
     elseif (effect.type == 'emote)
-      "Object 'does' something - auto-prefix actor name like emote command";
+      "Object 'does' something - auto-prefix target name like emote command";
       msg = this:_resolve_msg(effect.msg, target);
       event = $event:mk_emote(target, target.name, " ", @msg):with_dobj(actor);
-      if (valid(target.location))
-        target.location:announce(event);
+      room = isa(actor, $player) ? actor.location | target.location;
+      if (valid(room) && isa(room, $room))
+        room:announce(event);
       endif
     elseif (effect.type == 'tell)
       "Private message to a specific target";

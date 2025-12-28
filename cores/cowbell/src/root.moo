@@ -765,10 +765,12 @@ object ROOT
     return typeof(target) == OBJ && valid(target) && isa(target, proto);
   endverb
 
-  verb get_reactions (this none this) owner: HACKER flags: "rxd"
+  verb get_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Gather all reactions from this object (properties ending with _reaction).";
+    set_task_perms(caller_perms());
     result = {};
-    for prop_name in (this:all_properties())
+    all_props = this:all_properties();
+    for prop_name in (all_props)
       if (!prop_name:ends_with("_reaction"))
         continue;
       endif
@@ -784,7 +786,7 @@ object ROOT
     return result;
   endverb
 
-  verb fire_trigger (this none this) owner: HACKER flags: "rxd"
+  verb fire_trigger (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Fire a trigger on this object, executing all matching reactions.";
     "Context is a map with bindings like ['Actor -> player, 'Key -> key_obj]";
     {trigger_name, ?context = []} = args;
@@ -799,7 +801,7 @@ object ROOT
     endfor
   endverb
 
-  verb _check_thresholds (this none this) owner: HACKER flags: "rxd"
+  verb _check_thresholds (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if any threshold reactions should fire after a property change.";
     "Called by $reaction:execute_effect after set/increment/decrement effects.";
     {prop, old_value, new_value, context} = args;

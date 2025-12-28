@@ -8,7 +8,7 @@ object LOOK
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     {what, @contents} = args;
-    return <this, .what = what, .title = what:name(), .description = what:description(), .exits = {}, .ambient_passages = {}, {@contents}>;
+    return <this, .what = what, .title = what:name(), .description = what:description(), .exits = {}, .ambient_passages = {}, .actions = {}, {@contents}>;
   endverb
 
   verb actor_idle_status (this none this) owner: HACKER flags: "rxd"
@@ -73,11 +73,10 @@ object LOOK
     ambient_passages = `this.ambient_passages ! E_PROPNF => {}';
     if (length(integrated_contents))
       for ic in (integrated_contents)
-        ic_formatted = ic:capitalize();
-        if (typeof(ic_formatted) == STR && !ic_formatted:ends_with("."))
-          ic_formatted = ic_formatted + ".";
+        if (typeof(ic) == STR && !ic:ends_with("."))
+          ic = ic + ".";
         endif
-        desc_content = {@desc_content, "  ", ic_formatted};
+        desc_content = {@desc_content, "  ", ic};
       endfor
     endif
     if (length(ambient_passages))
@@ -151,6 +150,11 @@ object LOOK
     exits = `this.exits ! E_PROPNF => {}';
     if (length(exits) > 0)
       block_elements = {@block_elements, this:format_exits(exits)};
+    endif
+    "Add actions if present (interactive object commands)";
+    actions = `this.actions ! E_PROPNF => {}';
+    if (length(actions) > 0)
+      block_elements = {@block_elements, this:format_actions(actions)};
     endif
     if (length(things))
       block_elements = {@block_elements, this:format_things(things)};
@@ -271,6 +275,24 @@ object LOOK
     endfor
     verb_form = length(actor_data) == 1 ? " is" | " are";
     parts = {@parts, verb_form, " deeply asleep."};
+    return $format.paragraph:mk(parts);
+  endverb
+
+  verb format_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a paragraph for action links from interactive objects.";
+    "Args: list of {command, label} tuples.";
+    {actions} = args;
+    typeof(actions) == LIST || raise(E_TYPE, "Actions must be a list");
+    length(actions) == 0 && return "";
+    "Build parts list with links";
+    parts = {};
+    for i in [1..length(actions)]
+      {cmd, label} = actions[i];
+      if (i > 1)
+        parts = {@parts, " "};
+      endif
+      parts = {@parts, $format.link:cmd(cmd, label)};
+    endfor
     return $format.paragraph:mk(parts);
   endverb
 endobject

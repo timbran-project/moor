@@ -193,6 +193,8 @@ object AREA
     "Queue entries: {current_room, path_so_far}";
     queue = {{start_room, {}}};
     while (length(queue) > 0)
+      "Suspend if ticks are getting low - use higher threshold for expensive queries";
+      suspend_if_needed(50000);
       {current, path} = queue[1];
       queue = listdelete(queue, 1);
       "Try forward edges: current -> next";

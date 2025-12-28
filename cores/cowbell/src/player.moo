@@ -23,6 +23,7 @@ object PLAYER
   property oauth2_identities (owner: ARCH_WIZARD, flags: "c") = {};
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
+  property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
   property wearing (owner: HACKER, flags: "rwc") = {};
 
   override description = "You see a player who should get around to describing themself.";
@@ -421,23 +422,32 @@ object PLAYER
   endverb
 
   verb confunc (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called when player connects. Check for DMs and unread mail.";
-    "Check for DMs";
-    dm_count = length(this.direct_messages);
-    if (dm_count > 0)
-      msg = dm_count == 1 ? "*You have a direct message.* Type `dms` to read it." | tostr("*You have ", dm_count, " direct messages.* Type `dms` to read them.");
+    "Called when player connects. Check for new DMs and unread mail.";
+    "Check for DMs received since last connection";
+    last_conn = this.last_connected;
+    new_dm_count = 0;
+    for dm in (this.direct_messages)
+      if (dm.sent > last_conn)
+        new_dm_count = new_dm_count + 1;
+      endif
+    endfor
+    if (new_dm_count > 0)
+      msg = new_dm_count == 1 ? "*You have a new direct message.* Type `dms` to read it." | tostr("*You have ", new_dm_count, " new direct messages.* Type `dms` to read them.");
       event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('dm_notify);
       this:inform_current(event);
     endif
     "Check for unread mail";
     mailbox = `this:find_mailbox() ! ANY => #-1';
-    !valid(mailbox) && return;
-    unread = mailbox:unread_count();
-    unread == 0 && return;
-    "Notify about unread mail";
-    msg = unread == 1 ? "*You have an unread letter.* Type `mail` to check your mailbox." | tostr("*You have ", unread, " unread letters.* Type `mail` to check your mailbox.");
-    event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('mail_notify);
-    this:inform_current(event);
+    if (valid(mailbox))
+      unread = mailbox:unread_count();
+      if (unread > 0)
+        msg = unread == 1 ? "*You have an unread letter.* Type `mail` to check your mailbox." | tostr("*You have ", unread, " unread letters.* Type `mail` to check your mailbox.");
+        event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('mail_notify);
+        this:inform_current(event);
+      endif
+    endif
+    "Update last_connected timestamp for next login";
+    this.last_connected = time();
   endverb
 
   verb is_wearing (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -741,8 +751,11 @@ object PLAYER
         this:inform_current(event);
         return;
       endif
-      "Neither object nor topic found";
-      this:inform_current($event:mk_error(this, "No help found for '" + dobjstr + "'."):with_audience('utility));
+      "Neither object nor topic found - try LLM suggestions";
+      if (!this:suggest_help_topic(dobjstr))
+        "LLM not available, show static error";
+        this:inform_current($event:mk_error(this, "No help found for '" + dobjstr + "'. Try 'help' to see available topics."):with_audience('utility));
+      endif
       return;
     endif
     "No argument - show help summary";
@@ -1361,5 +1374,399 @@ object PLAYER
       "Letter";
       msg:action_read(this, []);
     endif
+  endverb
+
+  verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
+    {this, perms} = this:check_permissions('set_home);
+    set_task_perms(perms);
+    {room} = args;
+    this.home = room;
+  endverb
+
+  verb _format_examination (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format examination data for display.";
+    "Args: {target}";
+    "Returns: [title -> str, html -> str, object_ref -> obj]";
+    {target} = args;
+    "Get the examination flyweight";
+    exam = target:examination();
+    typeof(exam) != FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
+    "Build the display output";
+    lines = {};
+    "Header with object name, aliases, and number";
+    header_parts = {exam.name};
+    if (exam.aliases && length(exam.aliases) > 0)
+      header_parts = {@header_parts, "aka " + exam.aliases:join(" and ")};
+    endif
+    header_parts = {@header_parts, "and", tostr(exam.object_ref)};
+    header = header_parts:join(" ");
+    lines = {@lines, $format.title:mk(header)};
+    "Ownership";
+    if (valid(exam.owner))
+      owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
+      lines = {@lines, "Owned by " + owner_name + "."};
+    else
+      lines = {@lines, "(Unowned)"};
+    endif
+    "Description";
+    if (exam.description && exam.description != "")
+      lines = {@lines, exam.description};
+    else
+      lines = {@lines, "(No description set.)"};
+    endif
+    "Obvious verbs if any";
+    if (exam.verbs && length(exam.verbs) > 0)
+      lines = {@lines, ""};
+      verb_sigs = $obj_utils:format_verb_signatures(exam.verbs, exam.name);
+      verb_list = $format.list:mk(verb_sigs);
+      verb_title = $format.title:mk("Obvious verbs");
+      lines = {@lines, verb_title, verb_list};
+    endif
+    "Create formatted block and compose to HTML";
+    content = $format.block:mk(@lines);
+    html_fw = content:compose(this, 'text_html, $event:mk_info(this, ""));
+    html_str = html_fw:render('text_html);
+    return ["title" -> exam.name, "html" -> html_str, "object_ref" -> exam.object_ref];
+  endverb
+
+  verb do_examine (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "RPC entry point for examination - displays in tools panel.";
+    "Args: {target_object}";
+    set_task_perms(this);
+    {target} = args;
+    typeof(target) == OBJ || raise(E_TYPE, "Target must be an object");
+    valid(target) || raise(E_INVARG, "Target is not a valid object");
+    "Format the examination";
+    result = this:_format_examination(target);
+    "Present in tools panel";
+    panel_id = "exam-" + tostr(target);
+    attrs = {{"title", result["title"]}, {"object", $url_utils:to_curie_str(target)}};
+    this:_present(this, panel_id, "text/html", "tools", result["html"], attrs);
+  endverb
+
+  verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Programmatically set pronouns from a string like 'they/them'.";
+    {target, perms} = this:check_permissions('set_pronouns);
+    set_task_perms(perms);
+    {pronouns_str} = args;
+    typeof(pronouns_str) == STR || raise(E_TYPE, "Pronouns must be a string");
+    pronoun_set = $pronouns:lookup(pronouns_str:trim());
+    if (typeof(pronoun_set) != FLYWEIGHT)
+      raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
+    endif
+    target.pronouns = pronoun_set;
+  endverb
+
+  verb suggest_command_alternatives (this none none) owner: ARCH_WIZARD flags: "rxd"
+    "Suggest alternative commands when a command fails using LLM.";
+    "Args: pc (parsed command from parse_command)";
+    "Returns true if handled (placeholder sent), false if LLM not available.";
+    caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
+    {pc} = args;
+    "Check if LLM is available";
+    llm_client = $player.suggestions_llm_client;
+    if (typeof(llm_client) != OBJ || !valid(llm_client))
+      return false;
+    endif
+    cmd_verb = pc["verb"];
+    cmd_dobjstr = pc["dobjstr"];
+    cmd_prepstr = pc["prepstr"];
+    cmd_iobjstr = pc["iobjstr"];
+    "Capture current connection BEFORE forking";
+    all_conns = connections();
+    if (!all_conns || length(all_conns) == 0)
+      return false;
+    endif
+    current_conn = all_conns[1][1];
+    "Send immediate placeholder with rewritable event";
+    rewrite_id = uuid();
+    placeholder = $event:mk_do_not_understand(this, "I don't understand that. (Finding suggestions...)"):with_rewritable(rewrite_id, 30, "I don't understand that."):with_presentation_hint('processing):with_audience('utility);
+    this:inform_current(placeholder);
+    "Fork the LLM query so we return immediately";
+    fork (0)
+      "Gather context about player and environment";
+      player_name = this:name();
+      location = this.location;
+      location_name = valid(location) ? location:name() | "nowhere";
+      location_desc = "";
+      if (valid(location))
+        location_desc = `location:description() ! ANY => ""';
+        if (typeof(location_desc) != STR)
+          location_desc = `tostr(location_desc) ! ANY => ""';
+        endif
+      endif
+      "=== COLLECT AMBIENT/GLOBAL COMMANDS ===";
+      ambient_verbs = [];
+      cmd_env = this:command_environment();
+      for o in (cmd_env)
+        if (!valid(o))
+          continue;
+        endif
+        for definer in ({o, @`ancestors(o) ! ANY => {}'})
+          if (!valid(definer))
+            continue;
+          endif
+          for verb_name in (`verbs(definer) ! ANY => {}')
+            verb_sig = `verb_args(definer, verb_name) ! ANY => false';
+            if (typeof(verb_sig) != LIST || length(verb_sig) < 3)
+              continue;
+            endif
+            {dobj, prep, iobj} = verb_sig;
+            if (dobj == "this" || iobj == "this")
+              continue;
+            endif
+            if (dobj == "none" && prep == "none" && iobj == "none")
+              ambient_verbs[verb_name] = 1;
+            elseif (dobj == "any" && prep == "none" && iobj == "none")
+              ambient_verbs[verb_name] = 1;
+            elseif (dobj == "any" && iobj != "this")
+              ambient_verbs[verb_name] = 1;
+            endif
+          endfor
+        endfor
+      endfor
+      "=== COLLECT AVAILABLE EXITS ===";
+      exits = {};
+      if (valid(location) && valid(location.location) && respond_to(location.location, 'get_exit_info))
+        {exit_labels, ambient_passages} = `location.location:get_exit_info(location) ! ANY => {{}, {}}';
+        exits = exit_labels;
+        for ap in (ambient_passages)
+          if (typeof(ap) == LIST && length(ap) >= 3 && ap[3])
+            exits = {@exits, ap[3]};
+          endif
+        endfor
+      endif
+      "=== COLLECT ROOM-SPECIFIC COMMAND HINTS ===";
+      room_hints = {};
+      if (valid(location) && respond_to(location, 'command_hints))
+        room_hints = `location:command_hints() ! ANY => {}';
+      endif
+      "=== COLLECT OBJECTS WITH CONTEXT ===";
+      inventory_objects = {};
+      for item in (this.contents)
+        if (!valid(item))
+          continue;
+        endif
+        obj_info = this:_collect_object_info(item);
+        inventory_objects = {@inventory_objects, obj_info};
+      endfor
+      room_objects = {};
+      if (valid(location))
+        for item in (location.contents)
+          if (!valid(item) || item == this)
+            continue;
+          endif
+          obj_info = this:_collect_object_info(item);
+          room_objects = {@room_objects, obj_info};
+        endfor
+      endif
+      "=== ANALYZE MATCH FAILURES ===";
+      dobj_status = "";
+      if (pc["dobj"] == $failed_match)
+        dobj_status = "NOT FOUND (no object matched '" + cmd_dobjstr + "')";
+      elseif (pc["dobj"] == $ambiguous_match)
+        dobj_status = "AMBIGUOUS (multiple objects matched)";
+      elseif (valid(pc["dobj"]))
+        dobj_status = "matched: " + pc["dobj"]:name();
+      else
+        dobj_status = "(none specified)";
+      endif
+      iobj_status = "";
+      if (pc["iobj"] == $failed_match)
+        iobj_status = "NOT FOUND (no object matched '" + cmd_iobjstr + "')";
+      elseif (pc["iobj"] == $ambiguous_match)
+        iobj_status = "AMBIGUOUS (multiple objects matched)";
+      elseif (valid(pc["iobj"]))
+        iobj_status = "matched: " + pc["iobj"]:name();
+      else
+        iobj_status = "(none specified)";
+      endif
+      "=== BUILD PROMPT ===";
+      prompt = "You help players in a text adventure. " + player_name + " is in " + location_name + ".\n\n";
+      if (length(location_desc) > 0)
+        prompt = prompt + "LOCATION DESCRIPTION:\n" + location_desc + "\n\n";
+      endif
+      prompt = prompt + "FAILED COMMAND:\n";
+      prompt = prompt + "- Verb: \"" + cmd_verb + "\"\n";
+      prompt = prompt + "- Direct object: " + (length(cmd_dobjstr) > 0 ? "\"" + cmd_dobjstr + "\" -> " + dobj_status | dobj_status) + "\n";
+      if (length(cmd_prepstr) > 0)
+        prompt = prompt + "- Preposition: \"" + cmd_prepstr + "\"\n";
+      endif
+      prompt = prompt + "- Indirect object: " + (length(cmd_iobjstr) > 0 ? "\"" + cmd_iobjstr + "\" -> " + iobj_status | iobj_status) + "\n\n";
+      prompt = prompt + "AVAILABLE COMMANDS (no object needed):\n";
+      prompt = prompt + mapkeys(ambient_verbs):join(", ") + "\n\n";
+      if (length(room_hints) > 0)
+        prompt = prompt + "SPECIAL COMMANDS IN THIS LOCATION:\n";
+        for hint in (room_hints)
+          prompt = prompt + "- " + hint["command"] + ": " + hint["description"] + "\n";
+        endfor
+        prompt = prompt + "\n";
+      endif
+      if (length(exits) > 0)
+        prompt = prompt + "EXITS FROM HERE: " + exits:join(", ") + "\n";
+        prompt = prompt + "(Use: go <direction>)\n\n";
+      endif
+      prompt = prompt + "COMMUNICATION:\n";
+      prompt = prompt + "- To speak: say <message> or just \"<message> (quote at start)\n";
+      prompt = prompt + "- To emote: emote <action> (e.g., emote waves) or just :<action> (colon at start). Plus they could try social actions like bow wave nod bonk etc\n\n";
+      prompt = prompt + "GETTING HELP:\n";
+      prompt = prompt + "- help <topic> - Get general help on a topic (e.g., help building, help communication, help commands)\n";
+      prompt = prompt + "- If the player seems confused about a general concept or feature, suggest they try help <relevant topic>\n\n";
+      if (length(inventory_objects) > 0)
+        prompt = prompt + "INVENTORY (player is carrying):\n";
+        prompt = prompt + toliteral(inventory_objects) + "\n\n";
+      endif
+      if (length(room_objects) > 0)
+        prompt = prompt + "OBJECTS IN ROOM:\n";
+        prompt = prompt + toliteral(room_objects) + "\n\n";
+      endif
+      prompt = prompt + "RULES:\n";
+      prompt = prompt + "1. Suggest 1-3 WORKING commands based on what's available\n";
+      prompt = prompt + "2. If they tried a simple command like 'exits', just tell them the correct command\n";
+      prompt = prompt + "3. If object not found, suggest correct object names from the lists above\n";
+      prompt = prompt + "4. Keep response under 80 words\n";
+      prompt = prompt + "5. Format for djot (like markdown)\n";
+      "Call LLM and rewrite the placeholder";
+      try
+        response = llm_client:simple_query(prompt);
+        if (typeof(response) == STR && length(response) > 0)
+          result_event = $event:mk_info(this, $format.block:mk("I didn't understand that, but...\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          this:rewrite_event(rewrite_id, result_event, current_conn);
+        else
+          this:rewrite_event(rewrite_id, "I don't understand that command.", current_conn);
+        endif
+      except e (ANY)
+        this:rewrite_event(rewrite_id, "I don't understand that command.", current_conn);
+      endtry
+    endfork
+    return true;
+  endverb
+
+  verb _collect_object_info (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Collect object info for LLM command suggestions.";
+    "Returns a map with name, aliases, state info, and usable verbs.";
+    {item} = args;
+    obj_name = item:name();
+    obj_aliases = `item:aliases() ! ANY => {}';
+    "Collect usable verbs";
+    usable = `item:usable_verbs() ! ANY => {}';
+    verb_list = {};
+    for v in (usable)
+      {vname, definer, dobj_spec, prep_spec, iobj_spec} = v;
+      verb_list = {@verb_list, vname};
+    endfor
+    "Build base info";
+    info = ["name" -> obj_name];
+    if (length(obj_aliases) > 0)
+      info["aliases"] = obj_aliases;
+    endif
+    if (length(verb_list) > 0)
+      info["verbs"] = verb_list;
+    endif
+    "Add state for containers (properties are .open and .locked)";
+    is_container = $container in {item, @ancestors(item)};
+    if (is_container)
+      is_open = `item.open ! ANY => #-1';
+      is_locked = `item.locked ! ANY => #-1';
+      if (is_open == true)
+        info["state"] = "open";
+      elseif (is_open == false)
+        if (is_locked == true)
+          info["state"] = "closed and locked";
+        else
+          info["state"] = "closed";
+        endif
+      endif
+    endif
+    "Add state for sittables";
+    is_sittable = $sittable in {item, @ancestors(item)};
+    if (is_sittable)
+      occupants = `item.sitting ! ANY => {}';
+      if (length(occupants) > 0)
+        names = {};
+        for o in (occupants)
+          if (valid(o))
+            names = {@names, o:name()};
+          endif
+        endfor
+        if (length(names) > 0)
+          info["occupied_by"] = names:join(", ");
+        endif
+      endif
+    endif
+    return info;
+  endverb
+
+  verb suggest_help_topic (this none none) owner: ARCH_WIZARD flags: "rxd"
+    "Suggest help topics when a topic isn't found, using LLM.";
+    "Args: query (the topic the user searched for)";
+    "Returns true if handled (placeholder sent), false if LLM not available.";
+    caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
+    {query} = args;
+    "Check if LLM is available";
+    llm_client = $player.suggestions_llm_client;
+    if (typeof(llm_client) != OBJ || !valid(llm_client))
+      return false;
+    endif
+    "Capture current connection BEFORE forking";
+    all_conns = connections();
+    if (!all_conns || length(all_conns) == 0)
+      return false;
+    endif
+    current_conn = all_conns[1][1];
+    "Send immediate placeholder with rewritable event";
+    rewrite_id = uuid();
+    placeholder = $event:mk_error(this, "No help found for '" + query + "'. (Finding suggestions...)"):with_rewritable(rewrite_id, 30, "No help found for '" + query + "'."):with_presentation_hint('processing):with_audience('utility);
+    this:inform_current(placeholder);
+    "Capture programmer status before forking";
+    is_programmer = this.programmer;
+    "Fork the LLM query so we return immediately";
+    fork (0)
+      "Collect all available help topics with summaries";
+      all_topics = this:_collect_help_topics();
+      topic_list = {};
+      for t in (all_topics)
+        topic_list = {@topic_list, ["name" -> t.name, "summary" -> t.summary, "aliases" -> t.aliases]};
+      endfor
+      "Build prompt";
+      prompt = "You are a help assistant for a text-based virtual world (MOO). ";
+      prompt = prompt + "A player searched for help on '" + query + "' but no exact match was found.\n\n";
+      prompt = prompt + "AVAILABLE HELP TOPICS (for everyone, use `help <topic>`):\n";
+      for t in (topic_list)
+        prompt = prompt + "- " + t["name"];
+        if (length(t["aliases"]) > 0)
+          prompt = prompt + " (also: " + t["aliases"]:join(", ") + ")";
+        endif
+        prompt = prompt + ": " + t["summary"] + "\n";
+      endfor
+      prompt = prompt + "\n";
+      if (is_programmer)
+        prompt = prompt + "TECHNICAL DOCUMENTATION (separate from help topics):\n";
+        prompt = prompt + "This user has programmer privileges, so they also have access to `@doc` for technical/programming documentation.\n";
+        prompt = prompt + "- `@doc <object>` or `@doc <object>:verb` - for MOO programming: verbs, properties, objects, code\n";
+        prompt = prompt + "- ONLY suggest @doc if the query is clearly about programming (e.g., 'verbs', 'properties', 'eval', 'coding')\n";
+        prompt = prompt + "- Do NOT mention @doc or programming for general gameplay queries like movement, communication, building, etc.\n\n";
+      endif
+      prompt = prompt + "INSTRUCTIONS:\n";
+      prompt = prompt + "1. Suggest 1-3 help topics from the list above that might match what they're looking for\n";
+      prompt = prompt + "2. If nothing seems close, say so and suggest 'help' to see all topics\n";
+      prompt = prompt + "3. Keep response under 60 words\n";
+      prompt = prompt + "4. Format for djot (like markdown)\n";
+      prompt = prompt + "5. Format suggestions like: `help <topic>`\n";
+      "Call LLM and rewrite the placeholder";
+      try
+        response = llm_client:simple_query(prompt);
+        if (typeof(response) == STR && length(response) > 0)
+          result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          this:rewrite_event(rewrite_id, result_event, current_conn);
+        else
+          this:rewrite_event(rewrite_id, "No help found for '" + query + "'. Try 'help' to see available topics.", current_conn);
+        endif
+      except e (ANY)
+        this:rewrite_event(rewrite_id, "No help found for '" + query + "'. Try 'help' to see available topics.", current_conn);
+      endtry
+    endfork
+    return true;
   endverb
 endobject
