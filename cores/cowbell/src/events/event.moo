@@ -193,4 +193,16 @@ object EVENT
     endif
     return this:with_audience(audience);
   endverb
+
+  verb with_rewritable (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Mark event as rewritable. Caller provides ID, optional TTL (default 60s), optional fallback.";
+    {rewrite_id, ?ttl = 60, ?fallback = 0} = args;
+    self = this:with_metadata('rewritable_id, rewrite_id);
+    self = self:with_metadata('rewritable_owner, this.actor);
+    self = self:with_metadata('rewritable_ttl, ttl);
+    if (fallback)
+      self = self:with_metadata('rewritable_fallback, fallback);
+    endif
+    return self;
+  endverb
 endobject

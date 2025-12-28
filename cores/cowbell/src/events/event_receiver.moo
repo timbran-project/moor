@@ -182,4 +182,37 @@ object EVENT_RECEIVER
     caller == this || raise(E_PERM);
     event_log(@args);
   endverb
+
+  verb rewrite_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Replace a previously-sent rewritable event with new content.";
+    "Args: rewrite_id, new_content, ?connection (optional - required if called from fork)";
+    this:_can_inform() || raise(E_PERM);
+    {rewrite_id, new_content, ?target_conn = 0} = args;
+    "Build the replacement event";
+    if (typeof(new_content) == STR)
+      event = $event:mk_rewrite(this, new_content);
+    elseif (typeof(new_content) == FLYWEIGHT && new_content.delegate == $event)
+      event = new_content;
+    else
+      event = $event:mk_rewrite(this, new_content);
+    endif
+    "Mark it as a rewrite targeting the original";
+    event = event:with_metadata('rewrite_target, rewrite_id);
+    event = event:with_audience('utility);
+    "Determine which connection to send to";
+    if (!target_conn)
+      "No connection specified - try to find current connection";
+      all_conns = connections();
+      if (!all_conns || length(all_conns) == 0)
+        return this:tell(event);
+      endif
+      target_conn = all_conns[1][1];
+    endif
+    "Verify and send to the target connection";
+    info = `this:_connection_entry(target_conn) ! E_INVARG => 0';
+    if (!info)
+      return this:tell(event);
+    endif
+    return this:inform_connection(target_conn, event);
+  endverb
 endobject

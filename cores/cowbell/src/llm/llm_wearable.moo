@@ -10,6 +10,10 @@ object LLM_WEARABLE
   property placeholder_text (owner: HACKER, flags: "rc") = "Ask a question...";
   property preferred_model (owner: HACKER, flags: "rc") = "";
   property processing_message (owner: HACKER, flags: "rc") = "Processing request...";
+  property progress_connection (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property progress_max_visible (owner: ARCH_WIZARD, flags: "rc") = 5;
+  property progress_rewrite_id (owner: ARCH_WIZARD, flags: "rc") = "";
+  property progress_steps (owner: ARCH_WIZARD, flags: "rc") = {};
   property prompt_color (owner: HACKER, flags: "rc") = 'bright_cyan;
   property prompt_label (owner: HACKER, flags: "rc") = "[TOOL]";
   property prompt_text (owner: HACKER, flags: "rc") = "Enter your query:";
@@ -230,7 +234,7 @@ object LLM_WEARABLE
   endverb
 
   verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Callback when agent uses a tool - children customize via _format_hud_message and _get_tool_content_types";
+    "Callback when agent uses a tool - per-tool rewritable placeholder.";
     caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args} = args;
     "Get user - prefer wearer, fall back to token_owner for carried-but-not-worn items";
@@ -245,48 +249,27 @@ object LLM_WEARABLE
     if (typeof(tool_args) == STR)
       tool_args = parse_json(tool_args);
     endif
-    try
-      "Let child format the message (handles all tools including explain/ask_user)";
+    "Explain is not rewritable; emit once";
+    if (tool_name == "explain")
       message = this:_format_hud_message(tool_name, tool_args);
-      tts_msg = this:_format_tts_message(tool_name, tool_args);
-      "Prepend iteration info if agent is available";
-      if (valid(this.agent))
-        iter = `this.agent.current_iteration ! ANY => 0';
-        max_iter = `this.agent.max_iterations ! ANY => 0';
-        cont = `this.agent.current_continuation ! ANY => 0';
-        if (iter > 0)
-          iter_info = $ansi:colorize("[" + tostr(iter) + "/" + tostr(max_iter), 'dim);
-          if (cont > 0)
-            iter_info = iter_info + " cont:" + tostr(cont);
-          endif
-          iter_info = iter_info + "] ";
-          message = iter_info + message;
-          "TTS version with spoken iteration info";
-          tts_iter = "Step " + tostr(iter) + " of " + tostr(max_iter);
-          if (cont > 0)
-            tts_iter = tts_iter + ", continuation " + tostr(cont);
-          endif
-          tts_msg = tts_iter + ". " + tts_msg;
-        endif
-      endif
-      "Get content types from child (allows markdown rendering for specific tools)";
-      content_types = this:_get_tool_content_types(tool_name, tool_args);
-      "Build and send event";
-      event = $event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg);
-      if (content_types && length(content_types) > 0)
-        event = event:with_metadata('preferred_content_types, content_types);
-      endif
-      wearer:inform_current(event);
-    except e (ANY)
-      "Fall back to generic message if formatting fails";
-      message = $ansi:colorize("[PROCESS]", 'cyan) + " Tool active: " + tool_name;
-      wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts("Processing tool: " + tool_name));
-      server_log("LLM wearable callback error: " + toliteral(e));
-    endtry
+      wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this));
+      return;
+    endif
+    "Create per-tool rewritable placeholder on current connection";
+    rewrite_id = uuid();
+    message = this:_format_hud_message(tool_name, tool_args);
+    placeholder = $event:mk_info(wearer, message):with_rewritable(rewrite_id, 300, message):with_presentation_hint('processing):with_group('llm, this);
+    wearer:inform_current(placeholder);
+    "Track rewrite id by tool name (FIFO queue)";
+    steps = typeof(this.progress_steps) == MAP ? this.progress_steps | [];
+    queue = maphaskey(steps, tool_name) ? steps[tool_name] | {};
+    queue = {@queue, rewrite_id};
+    steps[tool_name] = queue;
+    this.progress_steps = steps;
   endverb
 
   verb on_tool_complete (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Callback after tool execution - show success or error";
+    "Callback after tool execution - rewrite per-tool placeholder once.";
     caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args, result} = args;
     "Skip explain tool - the message IS the result";
@@ -301,24 +284,62 @@ object LLM_WEARABLE
     if (!valid(wearer))
       return;
     endif
+    "Prepare result text (truncated)";
+    result_text = typeof(result) == STR ? result | toliteral(result);
+    if (length(result_text) > 100)
+      result_text = result_text[1..100] + "...";
+    endif
     "Check if error";
     is_error = typeof(result) == STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
+    "For ask_user, include the question in the completion message";
+    if (tool_name == "ask_user" && typeof(tool_args) == STR)
+      tool_args = parse_json(tool_args);
+    endif
+    question_text = "";
+    if (tool_name == "ask_user" && typeof(tool_args) == MAP && maphaskey(tool_args, "question"))
+      question_text = tool_args["question"];
+      if (length(question_text) > 60)
+        question_text = question_text[1..60] + "...";
+      endif
+    endif
+    "Find rewrite target for this tool";
+    steps = typeof(this.progress_steps) == MAP ? this.progress_steps | [];
+    if (maphaskey(steps, tool_name) && length(steps[tool_name]) > 0)
+      rewrite_id = steps[tool_name][1];
+      if (length(steps[tool_name]) > 1)
+        steps[tool_name] = (steps[tool_name])[2..length(steps[tool_name])];
+      else
+        steps = mapdelete(steps, tool_name);
+      endif
+      this.progress_steps = steps;
+      if (is_error)
+        message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+        tts_msg = "Error from " + tool_name + ": " + result_text;
+      else
+        if (tool_name == "ask_user" && question_text != "")
+          message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + " \"" + question_text + "\": " + result_text;
+          tts_msg = "Response to question: " + question_text + ". " + result_text;
+        else
+          message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+          tts_msg = tool_name + " completed: " + result_text;
+        endif
+      endif
+      event = $event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg):with_audience('utility);
+      wearer:rewrite_event(rewrite_id, event);
+      return;
+    endif
+    "Fallback: no rewrite target; emit normal event";
     if (is_error)
-      "Show error in red";
-      error_text = result;
-      if (length(error_text) > 256)
-        error_text = error_text[1..256] + "...";
-      endif
-      message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + error_text;
-      tts_msg = "Error from " + tool_name + ": " + error_text;
+      message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+      tts_msg = "Error from " + tool_name + ": " + result_text;
     else
-      "Show success in green - truncate long results";
-      result_text = typeof(result) == STR ? result | toliteral(result);
-      if (length(result_text) > 256)
-        result_text = result_text[1..256] + "...";
+      if (tool_name == "ask_user" && question_text != "")
+        message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + " \"" + question_text + "\": " + result_text;
+        tts_msg = "Response to question: " + question_text + ". " + result_text;
+      else
+        message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+        tts_msg = tool_name + " completed: " + result_text;
       endif
-      message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
-      tts_msg = tool_name + " completed: " + result_text;
     endif
     wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
   endverb
@@ -454,15 +475,15 @@ object LLM_WEARABLE
     caller == this || caller_perms().wizard || raise(E_PERM);
     {agent} = args;
     "Register explain tool";
-    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "explain");
+    explain_tool = $llm_agent_tool:mk("explain", "Share your thought process, findings, or reasoning with the user. Use this frequently to narrate what you're investigating, explain what you discovered from tool results, or describe your plan before taking actions.", ["type" -> "object", "properties" -> ["message" -> ["type" -> "string", "description" -> "Your explanation, findings, or thought process to share with the user"]], "required" -> {"message"}], this, "_tool_explain");
     agent:add_tool("explain", explain_tool);
     "Register ask_user tool";
-    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "ask_user");
+    ask_user_tool = $llm_agent_tool:mk("ask_user", "Ask the user a question and receive their response. Provide 'choices' for a multiple-choice prompt or set 'input_type' to 'text'/'text_area' with an optional 'placeholder' (and 'rows' for text_area) to gather free-form input. If no options are provided, the prompt defaults to Accept/Stop/Request Change with a follow-up text box for requested changes.", ["type" -> "object", "properties" -> ["question" -> ["type" -> "string", "description" -> "The question or proposal to present to the user"], "choices" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Optional list of explicit choices to show the user"], "input_type" -> ["type" -> "string", "description" -> "Optional input style: 'text', 'text_area', or 'yes_no'"], "placeholder" -> ["type" -> "string", "description" -> "Placeholder to show in free-form prompts"], "rows" -> ["type" -> "integer", "description" -> "Number of rows when using text_area prompts"]], "required" -> {"question"}], this, "_tool_ask_user");
     agent:add_tool("ask_user", ask_user_tool);
     "Register todo list tools";
-    todo_write_tool = $llm_agent_tool:mk("todo_write", "Replace the entire todo list. Use this to track multi-step tasks. Each todo needs 'content' (what to do) and 'status' ('pending', 'in_progress', or 'completed'). Mark tasks in_progress when starting, completed when done.", ["type" -> "object", "properties" -> ["todos" -> ["type" -> "array", "items" -> ["type" -> "object", "properties" -> ["content" -> ["type" -> "string"], "status" -> ["type" -> "string", "enum" -> {"pending", "in_progress", "completed"}]], "required" -> {"content", "status"}], "description" -> "List of todo items"]], "required" -> {"todos"}], this, "todo_write");
+    todo_write_tool = $llm_agent_tool:mk("todo_write", "Replace the entire todo list. Use this to track multi-step tasks. Each todo needs 'content' (what to do) and 'status' ('pending', 'in_progress', or 'completed'). Mark tasks in_progress when starting, completed when done.", ["type" -> "object", "properties" -> ["todos" -> ["type" -> "array", "items" -> ["type" -> "object", "properties" -> ["content" -> ["type" -> "string"], "status" -> ["type" -> "string", "enum" -> {"pending", "in_progress", "completed"}]], "required" -> {"content", "status"}], "description" -> "List of todo items"]], "required" -> {"todos"}], this, "_tool_todo_write");
     agent:add_tool("todo_write", todo_write_tool);
-    get_todos_tool = $llm_agent_tool:mk("get_todos", "Get the current todo list to see what tasks are pending, in progress, or completed.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "get_todos");
+    get_todos_tool = $llm_agent_tool:mk("get_todos", "Get the current todo list to see what tasks are pending, in progress, or completed.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_get_todos");
     agent:add_tool("get_todos", get_todos_tool);
   endverb
 
@@ -500,25 +521,25 @@ object LLM_WEARABLE
     caller == this || caller_perms().wizard || raise(E_PERM);
     {agent} = args;
     "Register doc_lookup tool";
-    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "doc_lookup");
+    doc_tool = $llm_agent_tool:mk("doc_lookup", "Read developer documentation for an object, verb, or property. Use formats: obj, obj:verb, obj.property.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Object/verb/property reference, e.g., '$sub_utils', '#61:drop_msg', '#61.get_msg'"]], "required" -> {"target"}], this, "_tool_doc_lookup");
     agent:add_tool("doc_lookup", doc_tool);
     "Register message tools";
-    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (*_msg) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "list_messages");
+    list_messages_tool = $llm_agent_tool:mk("list_messages", "List message template properties (*_msg) and message bags (*_msg_bag/_msgs) on an object. Equivalent to @messages.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#62', '$room', 'here')"]], "required" -> {"object"}], this, "_tool_list_messages");
     agent:add_tool("list_messages", list_messages_tool);
-    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "get_message_template");
+    get_message_tool = $llm_agent_tool:mk("get_message_template", "Show a single message template or list the entries of a message bag. Equivalent to @getm.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"]], "required" -> {"object", "property"}], this, "_tool_get_message_template");
     agent:add_tool("get_message_template", get_message_tool);
-    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "set_message_template");
+    set_message_tool = $llm_agent_tool:mk("set_message_template", "Set a message template on an object property. For bags (_msgs/_msg_bag), replace all entries with a single template; use add_message_template to append instead.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msg, _msgs, or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_set_message_template");
     agent:add_tool("set_message_template", set_message_tool);
-    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "add_message_template");
+    add_message_tool = $llm_agent_tool:mk("add_message_template", "Append a message template to a message bag property (_msgs or _msg_bag). Equivalent to @add-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "template" -> ["type" -> "string", "description" -> "Template string using {sub} syntax"]], "required" -> {"object", "property", "template"}], this, "_tool_add_message_template");
     agent:add_tool("add_message_template", add_message_tool);
-    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "delete_message_template");
+    del_message_tool = $llm_agent_tool:mk("delete_message_template", "Remove a message entry by index from a message bag property. Equivalent to @del-message.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Property name (must end with _msgs or _msg_bag)"], "index" -> ["type" -> "integer", "description" -> "1-based index to remove"]], "required" -> {"object", "property", "index"}], this, "_tool_delete_message_template");
     agent:add_tool("delete_message_template", del_message_tool);
     "Register rule tools";
-    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "list_rules");
+    list_rules_tool = $llm_agent_tool:mk("list_rules", "List all rule properties (*_rule) on an object and their current expressions. Rules control access to object operations like locking containers. Equivalent to @rules.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to inspect (e.g., '#10', '$container', 'chest')"]], "required" -> {"object"}], this, "_tool_list_rules");
     agent:add_tool("list_rules", list_rules_tool);
-    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "set_rule");
+    set_rule_tool = $llm_agent_tool:mk("set_rule", "Set an access control rule on an object property. Rules are logical expressions like 'Key is(\"golden key\")?' or 'NOT This is_locked()?'. See $rule_engine docs for syntax. Equivalent to @set-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule, e.g., 'lock_rule')"], "expression" -> ["type" -> "string", "description" -> "Rule expression using Datalog syntax (see $rule_engine docs)"]], "required" -> {"object", "property", "expression"}], this, "_tool_set_rule");
     agent:add_tool("set_rule", set_rule_tool);
-    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "show_rule");
+    show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
     agent:add_tool("show_rule", show_rule_tool);
   endverb
 
@@ -774,9 +795,10 @@ object LLM_WEARABLE
       player:inform_current($event:mk_error(player, "Query cancelled - no input provided."));
       return;
     endif
-    "Show received and processing messages";
+    "Show query received";
     player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset):with_group('llm, this):with_tts("Query received: " + query));
-    player:inform_current($event:mk_info(player, $ansi:colorize("[PROCESSING]", 'yellow) + " " + this.processing_message):with_presentation_hint('inset):with_group('llm, this):with_tts("Processing: " + this.processing_message));
+    "Start progress tracking (replaces the old [PROCESSING] message)";
+    tracking_active = this:_start_progress_tracking(player);
     "Set token owner for budget tracking";
     this.agent.token_owner = player;
     "Send to agent with continuation support (max 3 continuations)";
@@ -784,23 +806,31 @@ object LLM_WEARABLE
     continuations = 0;
     max_continuations = 3;
     while (typeof(response) == ERR && error_code(response) == E_QUOTA && continuations < max_continuations)
-      "Hit iteration limit - ask user if they want to continue";
+      "Hit iteration limit - end current progress and ask user";
+      if (tracking_active)
+        this:_end_progress_tracking('complete);
+      endif
       player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset):with_group('llm, this):with_tts(this.tool_name + " hit iteration limit after " + tostr(this.agent.max_iterations) + " iterations."));
       metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
       user_choice = player:read_with_prompt(metadata);
       if (user_choice != "yes")
-        "User chose not to continue";
         this.agent.current_iteration = 0;
         this:_show_token_usage(player);
         player:inform_current($event:mk_info(player, "Agent stopped at user request after reaching iteration limit."):with_presentation_hint('inset):with_group('llm, this));
         return;
       endif
-      "User chose to continue";
+      "User chose to continue - restart progress tracking";
       continuations = continuations + 1;
       player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset):with_group('llm, this):with_tts("Continuing, continuation " + tostr(continuations) + " of " + tostr(max_continuations) + "."));
+      tracking_active = this:_start_progress_tracking(player);
       response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
     endwhile
-    "Reset iteration counter in case we hit limit";
+    "End progress tracking";
+    if (tracking_active)
+      final_status = typeof(response) == ERR ? 'error | 'complete;
+      this:_end_progress_tracking(final_status);
+    endif
+    "Reset iteration counter";
     this.agent.current_iteration = 0;
     "Show token usage summary";
     this:_show_token_usage(player);
@@ -819,5 +849,150 @@ object LLM_WEARABLE
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
     event = event:with_presentation_hint('inset):with_group('llm, this);
     player:inform_current(event);
+  endverb
+
+  verb _start_progress_tracking (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Begin tracking progress.";
+    {wearer} = args;
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    return false;
+  endverb
+
+  verb _format_progress_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format the current progress steps for display.";
+    "Returns a formatted block showing recent steps with status indicators.";
+    "Permission check";
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    steps = this.progress_steps;
+    total = length(steps);
+    if (total == 0)
+      return $ansi:colorize("[" + this.tool_name + "]", 'yellow) + " Initializing...";
+    endif
+    "Count completed vs in-progress";
+    completed = 0;
+    in_progress = 0;
+    errors = 0;
+    for step in (steps)
+      if (step[2] == 'complete)
+        completed = completed + 1;
+      elseif (step[2] == 'in_progress)
+        in_progress = in_progress + 1;
+      elseif (step[2] == 'error)
+        errors = errors + 1;
+      endif
+    endfor
+    "Build header with iteration info";
+    iter_info = "";
+    if (valid(this.agent))
+      iter = `this.agent.current_iteration ! ANY => 0';
+      max_iter = `this.agent.max_iterations ! ANY => 10';
+      if (iter > 0)
+        iter_info = " Step " + tostr(iter) + "/" + tostr(max_iter);
+      endif
+    endif
+    header = $ansi:colorize("\u2500\u2500\u2500 " + this.tool_name + iter_info + " ", 'cyan);
+    status_parts = {};
+    if (completed > 0)
+      status_parts = {@status_parts, tostr(completed) + " done"};
+    endif
+    if (in_progress > 0)
+      status_parts = {@status_parts, tostr(in_progress) + " active"};
+    endif
+    if (errors > 0)
+      status_parts = {@status_parts, $ansi:colorize(tostr(errors) + " errors", 'red)};
+    endif
+    if (length(status_parts) > 0)
+      header = header + $ansi:colorize("(" + status_parts:join(", ") + ")", 'dim);
+    endif
+    "Build list of paragraph elements";
+    visible_lines = {$format.paragraph:mk(header)};
+    max_visible = this.progress_max_visible;
+    start_idx = max(1, total - max_visible + 1);
+    "Add ellipsis if we truncated";
+    if (start_idx > 1)
+      visible_lines = {@visible_lines, $format.paragraph:mk($ansi:colorize("  ... (" + tostr(start_idx - 1) + " earlier)", 'dim))};
+    endif
+    for i in [start_idx..total]
+      step = steps[i];
+      {name, status, summary} = step;
+      if (status == 'complete)
+        line = $ansi:colorize("  \u2713 ", 'green) + summary;
+      elseif (status == 'error)
+        line = $ansi:colorize("  \u2717 ", 'red) + summary;
+      else
+        line = $ansi:colorize("  \u25BA ", 'yellow) + summary;
+      endif
+      visible_lines = {@visible_lines, $format.paragraph:mk(line)};
+    endfor
+    return $format.block:mk(@visible_lines);
+  endverb
+
+  verb _update_progress (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Update progress tracking with a new step or status change.";
+    "Args: tool_name, status ('started, 'complete, 'error), ?summary";
+    "For 'complete status, summary is optional - keeps original if not provided.";
+    {tool_name, status, ?summary = ""} = args;
+    "Permission check";
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    if (!this.progress_rewrite_id)
+      return false;
+    endif
+    "Update steps list based on status";
+    if (status == 'started)
+      "Add new in-progress step";
+      this.progress_steps = {@this.progress_steps, {tool_name, 'in_progress, summary}};
+    elseif (status == 'complete || status == 'error)
+      "Mark last matching in-progress step, preserving summary unless error with new message";
+      found = false;
+      new_steps = {};
+      for i in [length(this.progress_steps)..1]
+        step = this.progress_steps[i];
+        if (!found && step[1] == tool_name && step[2] == 'in_progress)
+          "Keep original summary for complete, use new summary only for errors with message";
+          new_summary = status == 'error && summary ? summary | step[3];
+          step = {tool_name, status, new_summary};
+          found = true;
+        endif
+        new_steps = {step, @new_steps};
+      endfor
+      this.progress_steps = new_steps;
+    endif
+    return true;
+  endverb
+
+  verb _end_progress_tracking (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "End progress tracking with a final summary rewrite.";
+    "Args: ?final_status ('complete or 'error, default 'complete)";
+    {?final_status = 'complete} = args;
+    "Permission check";
+    caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    wearer = this:wearer();
+    if (valid(wearer) && this.progress_rewrite_id)
+      "Build final summary";
+      total = length(this.progress_steps);
+      errors = 0;
+      for step in (this.progress_steps)
+        if (step[2] == 'error)
+          errors = errors + 1;
+        endif
+      endfor
+      if (final_status == 'error || errors > 0)
+        summary = $ansi:colorize("\u2500\u2500\u2500 " + this.tool_name + " ", 'yellow);
+        if (errors > 0)
+          summary = summary + $ansi:colorize("Completed with " + tostr(errors) + " error(s)", 'red);
+        else
+          summary = summary + $ansi:colorize("Error", 'red);
+        endif
+      else
+        summary = $ansi:colorize("\u2500\u2500\u2500 " + this.tool_name + " Complete ", 'bright_green);
+      endif
+      summary = summary + $ansi:colorize(" (" + tostr(total) + " operations)", 'dim);
+      final_event = $event:mk_info(wearer, summary):with_presentation_hint('inset):with_group('llm, this);
+      wearer:rewrite_event(this.progress_rewrite_id, final_event, this.progress_connection);
+    endif
+    "Clear tracking state";
+    this.progress_rewrite_id = "";
+    this.progress_connection = 0;
+    this.progress_steps = {};
   endverb
 endobject

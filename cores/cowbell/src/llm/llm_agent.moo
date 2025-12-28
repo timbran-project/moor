@@ -191,7 +191,7 @@ object LLM_AGENT
       if (this.cancel_requested)
         this.cancel_requested = false;
         this.current_iteration = 0;
-        return "Operation cancelled by user.";
+        return "Operation cancelled.";
       endif
       budget_check = this:_check_token_budget(this.token_owner);
       typeof(budget_check) == STR && return budget_check;
@@ -203,22 +203,21 @@ object LLM_AGENT
         return tostr(response);
       endif
       message = response["choices"][1]["message"];
+      "Get tool_calls, ensuring it's a list";
+      tool_calls = maphaskey(message, "tool_calls") ? message["tool_calls"] | {};
+      if (typeof(tool_calls) != LIST)
+        tool_calls = {};
+      endif
       "No tool calls = final response";
-      if (!(maphaskey(message, "tool_calls") && message["tool_calls"]))
+      if (length(tool_calls) == 0)
         this:add_message("assistant", message["content"]);
         this.current_iteration = 0;
         return message["content"];
       endif
-      "Execute each tool call and track failures";
+      "Execute ALL tool calls in this batch before checking cancel";
       tool_results = {};
       all_blocked = true;
-      for tool_call in (message["tool_calls"])
-        if (this.cancel_requested)
-          this.cancel_requested = false;
-          this.current_iteration = 0;
-          this.context = {@this.context, message, @tool_results};
-          return "Operation cancelled by user. " + tostr(length(tool_results)) + " of " + tostr(length(message["tool_calls"])) + " tools completed before cancellation.";
-        endif
+      for tool_call in (tool_calls)
         result = this:_execute_tool_call(tool_call);
         tool_results = {@tool_results, result};
         "Check if this result was not a blocked/error response";
@@ -624,5 +623,29 @@ object LLM_AGENT
       this.context = new_ctx;
     endif
     return repairs;
+  endverb
+
+  verb send_message_no_tools (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Send a message and get response WITHOUT tool execution.";
+    "Useful for simple prompts where tools aren't needed.";
+    {user_input, ?opts = false} = args;
+    this:_challenge_permissions(caller);
+    this:add_message("user", user_input);
+    opts = opts || this.chat_opts;
+    try
+      "Call LLM with empty tool schemas";
+      response = this.client:chat(this.context, opts, false, false, {});
+    except e (ANY)
+      raise(E_INVARG, "LLM API call failed: " + toliteral(e));
+    endtry
+    this:_track_token_usage(response);
+    "Extract content from response";
+    if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+      message = response["choices"][1]["message"];
+      content = message["content"] || "";
+      this:add_message("assistant", content);
+      return content;
+    endif
+    return tostr(response);
   endverb
 endobject

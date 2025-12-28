@@ -12,6 +12,10 @@ object ARCHITECTS_COMPASS
   override import_export_id = "architects_compass";
   override placeholder_text = "Ask about building rooms, passages, objects...";
   override processing_message = "Analyzing spatial construction request...";
+  override progress_steps = {
+    {"list_prototypes", 'complete, "[SCAN] Listing prototypes"},
+    {"doc_lookup", 'in_progress, "[DOC] Loading $thing docs"}
+  };
   override prompt_color = 'bright_green;
   override prompt_label = "[COMPASS]";
   override prompt_text = "Enter building query:";

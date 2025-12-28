@@ -235,7 +235,8 @@ object AGENT_BUILDING_TOOLS
     parent_obj = $match:match_object(parent_spec, actor);
     typeof(parent_obj) == OBJ || raise(E_INVARG, "Parent not found");
     valid(parent_obj) || raise(E_INVARG, "Parent no longer exists");
-    is_fertile = `parent_obj.fertile ! E_PROPNF => false';
+    "Use fertile flag (f) to allow child creation";
+    is_fertile = `parent_obj.f ! ANY => false';
     !is_fertile && !actor.wizard && parent_obj.owner != actor && raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj));
     new_obj = parent_obj:create();
     new_obj:set_name_aliases(primary_name, final_aliases);

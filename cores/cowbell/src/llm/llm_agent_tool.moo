@@ -39,8 +39,15 @@ object LLM_AGENT_TOOL
     else
       tool_args = args_json;
     endif
-    "Dispatch to target verb with _tool_ prefix convention, passing {args, actor}";
-    result = this.target_obj:(("_tool_" + this.target_verb))(tool_args, actor);
+    "Dispatch to target verb with _tool_ prefix when available; fall back to direct verb";
+    prefixed_verb = "_tool_" + this.target_verb;
+    if (respond_to(this.target_obj, prefixed_verb))
+      result = this.target_obj:(prefixed_verb)(tool_args, actor);
+    elseif (respond_to(this.target_obj, this.target_verb))
+      result = this.target_obj:((this.target_verb))(tool_args, actor);
+    else
+      raise(E_VERBNF, "Tool handler not found: " + prefixed_verb + " or " + this.target_verb);
+    endif
     return result;
   endverb
 endobject

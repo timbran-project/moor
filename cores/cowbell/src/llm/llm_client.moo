@@ -44,32 +44,30 @@ object LLM_CLIENT
     "Construct headers with API key";
     headers = {{"Content-Type", "application/json"}, {"Authorization", "Bearer " + this.api_key}};
     "Make the worker request";
+    req_start = ftime();
     response = worker_request('curl, {"POST", this.api_endpoint, body_json, headers});
+    req_end = ftime();
     "Parse and return the response";
     "worker_request returns {status_code, headers, body_string}";
-    if (typeof(response) == LIST && length(response) >= 3)
-      {status, response_headers, body} = response;
-      "Check for HTTP errors";
-      if (status < 200 || status >= 300)
-        raise(E_INVARG("LLM API error: HTTP " + tostr(status) + " - " + body));
-      endif
-      if (typeof(body) == STR)
-        "Don't try to parse empty responses";
-        if (body == "")
-          raise(E_INVARG("LLM API returned empty response"));
-        endif
-        parsed = parse_json(body);
-        return parsed;
-      endif
-      return body;
-    elseif (typeof(response) == STR)
-      if (response == "")
+    if (typeof(response) != LIST || length(response) < 3)
+      server_log("fail " + toliteral(response));
+      raise(E_INVARG, "Invalid response from LLM: " + toliteral(response));
+    endif
+    {status, response_headers, body} = response;
+    server_log("LLM response " + tostr(status) + " time: " + tostr(req_end - req_start) + "s (" + this.model + " @ " + this.api_endpoint + ")");
+    "Check for HTTP errors";
+    if (status < 200 || status >= 300)
+      raise(E_INVARG("LLM API error: HTTP " + tostr(status) + " - " + body));
+    endif
+    if (typeof(body) == STR)
+      "Don't try to parse empty responses";
+      if (body == "")
         raise(E_INVARG("LLM API returned empty response"));
       endif
-      parsed = parse_json(response);
+      parsed = parse_json(body);
       return parsed;
     endif
-    return response;
+    return body;
   endverb
 
   verb set_api_key (this none this) owner: ARCH_WIZARD flags: "rxd"
