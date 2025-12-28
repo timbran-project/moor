@@ -12,6 +12,14 @@ object HELP_TOPICS
     "basics",
     {"look", "movement", "inventory", "communicating"}
   };
+  property topic_bite (owner: ARCH_WIZARD, flags: "rc") = {
+    "bite",
+    "Take a bite of food",
+    "Use `bite <food>` to take a small bite of food. Takes less than eating the whole thing.\n\nSee also `nibble` for even smaller portions.",
+    {},
+    "basics",
+    {"eat", "nibble"}
+  };
   property topic_communicating (owner: ARCH_WIZARD, flags: "rc") = {
     "communicating",
     "Talking and expressing yourself",
@@ -28,6 +36,14 @@ object HELP_TOPICS
     "basics",
     {"look"}
   };
+  property topic_drink (owner: ARCH_WIZARD, flags: "rc") = {
+    "drink",
+    "Drink a beverage",
+    "Use `drink <beverage>` to drink from a vessel you're holding.\n\nRelated commands:\n- `sip <beverage>` - take a small sip\n- `gulp <beverage>` or `quaff <beverage>` - drink quickly\n- `refill <vessel> from <source>` - refill from a tap or fountain",
+    {},
+    "basics",
+    {"eat", "sip"}
+  };
   property topic_drop (owner: ARCH_WIZARD, flags: "rc") = {
     "drop",
     "Put something down",
@@ -35,6 +51,14 @@ object HELP_TOPICS
     {},
     "basics",
     {"get", "inventory"}
+  };
+  property topic_eat (owner: ARCH_WIZARD, flags: "rc") = {
+    "eat",
+    "Eat food",
+    "Use `eat <food>` to consume food you're holding or that's nearby. Eating consumes the whole portion.\n\nRelated commands:\n- `bite <food>` - take a smaller bite\n- `nibble <food>` - nibble delicately",
+    {"consume"},
+    "basics",
+    {"drink", "bite"}
   };
   property topic_emote (owner: ARCH_WIZARD, flags: "rc") = {
     "emote",
@@ -116,6 +140,14 @@ object HELP_TOPICS
     "basics",
     {}
   };
+  property topic_refill (owner: ARCH_WIZARD, flags: "rc") = {
+    "refill",
+    "Refill a drink vessel",
+    "Use `refill <vessel> from <source>` to refill an empty or partially empty drink vessel from a source like a fountain, tap, or dispenser.",
+    {},
+    "basics",
+    {"drink"}
+  };
   property topic_say (owner: ARCH_WIZARD, flags: "rc") = {
     "say",
     "Speak to others",
@@ -123,6 +155,14 @@ object HELP_TOPICS
     {"talk", "speak", "\""},
     "social",
     {"emote", "communicating"}
+  };
+  property topic_sip (owner: ARCH_WIZARD, flags: "rc") = {
+    "sip",
+    "Sip a drink",
+    "Use `sip <beverage>` to take a small, delicate sip from a drink.\n\nSee also `gulp` or `quaff` for larger drinks.",
+    {},
+    "basics",
+    {"drink", "gulp"}
   };
   property topic_who (owner: ARCH_WIZARD, flags: "rc") = {
     "who",

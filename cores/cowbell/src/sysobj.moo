@@ -14,13 +14,16 @@ object SYSOBJ
   property bg_ticks (owner: HACKER, flags: "r") = 300000;
   property brass_key (owner: HACKER, flags: "r") = BRASS_KEY;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
-  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, SITTABLE, ACTOR, NOTE, AREA};
+  property builder_prototypes (owner: HACKER, flags: "r") = {#7, THING, WEARABLE, CONTAINER, SITTABLE, ACTOR, NOTE, AREA, FOOD, DRINK};
   property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
+  property consumable (owner: ARCH_WIZARD, flags: "r") = CONSUMABLE;
   property container (owner: HACKER, flags: "r") = CONTAINER;
   property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.0.2";
   property couch (owner: HACKER, flags: "r") = COUCH;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dm (owner: HACKER, flags: "r") = DM;
+  property drink (owner: ARCH_WIZARD, flags: "r") = DRINK;
+  property dump_interval (owner: ARCH_WIZARD, flags: "r") = 3600;
   property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
   property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
@@ -29,6 +32,7 @@ object SYSOBJ
   property fg_ticks (owner: HACKER, flags: "r") = 600000;
   property first_area (owner: HACKER, flags: "r") = FIRST_AREA;
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
+  property food (owner: ARCH_WIZARD, flags: "r") = FOOD;
   property format (owner: HACKER, flags: "r") = FORMAT;
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
@@ -263,6 +267,21 @@ object SYSOBJ
     "Dispatch any unmatched action out to the room for potential special handling (furniture, passages, etc.)";
     set_task_perms(player);
     player.location:maybe_handle_command(pc) && return true;
+    "No verb matches found - try LLM suggestion";
+    try
+      player:suggest_command_alternatives(pc) && return true;
+    except e (ANY)
+      if (player.programmer || player.wizard)
+        traceback = {"Command failed: " + toliteral(e[2]) + ":"};
+        for tb in (e[4])
+          traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
+        endfor
+        traceback = {@traceback, "(End of traceback)"};
+        player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
+      else
+        player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."));
+      endif
+    endtry
     player:inform_current($event:mk_do_not_understand(player, "I don't know how to do that."):with_audience('utility));
     return true;
   endverb

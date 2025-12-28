@@ -77,6 +77,9 @@ define WEARABLE = #9;
 define CONTAINER = #10;
 define SITTABLE = #70;
 define NOTE = #71;
+define CONSUMABLE = #0027A2-9B5B8D69F3;
+define FOOD = #002873-9B5B906C36;
+define DRINK = #002972-9B5B93CEFA;
 
 // llm
 define LLM_CLIENT = #40;
