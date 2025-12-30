@@ -5,11 +5,11 @@ object PRONOUNS
   owner: HACKER
   readable: true
 
-  property he_him (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
-  property it_its (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
-  property she_her (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "she/her", .ps = "she", .po = "her", .pp = "her", .pq = "hers", .pr = "herself">;
-  property spivak (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "e/em", .ps = "e", .po = "em", .pp = "eir", .pq = "eirs", .pr = "emself">;
-  property they_them (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .is_plural = true, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
+  property he_him (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .display = "he/him", .verb_be = "is", .verb_have = "has", .is_plural = false, .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
+  property it_its (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .display = "it/its", .verb_be = "is", .verb_have = "has", .is_plural = false, .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
+  property she_her (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .display = "she/her", .verb_be = "is", .verb_have = "has", .is_plural = false, .ps = "she", .po = "her", .pp = "her", .pq = "hers", .pr = "herself">;
+  property spivak (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .display = "e/em", .verb_be = "is", .verb_have = "has", .is_plural = false, .ps = "e", .po = "em", .pp = "eir", .pq = "eirs", .pr = "emself">;
+  property they_them (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .display = "they/them", .verb_be = "are", .verb_have = "have", .is_plural = true, .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
 
   override description = "Pronoun system providing preset and custom pronoun sets for objects and players.";
   override import_export_id = "pronouns";
