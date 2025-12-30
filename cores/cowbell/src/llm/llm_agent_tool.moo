@@ -12,11 +12,11 @@ object LLM_AGENT_TOOL
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create a tool definition flyweight";
     {name, description, parameters, target_obj, target_verb} = args;
-    typeof(name) == STR || raise(E_TYPE);
-    typeof(description) == STR || raise(E_TYPE);
-    typeof(parameters) == MAP || raise(E_TYPE);
-    typeof(target_obj) == OBJ || raise(E_TYPE);
-    typeof(target_verb) == STR || raise(E_TYPE);
+    typeof(name) == TYPE_STR || raise(E_TYPE);
+    typeof(description) == TYPE_STR || raise(E_TYPE);
+    typeof(parameters) == TYPE_MAP || raise(E_TYPE);
+    typeof(target_obj) == TYPE_OBJ || raise(E_TYPE);
+    typeof(target_verb) == TYPE_STR || raise(E_TYPE);
     return <this, .name = name, .description = description, .parameters = parameters, .target_obj = target_obj, .target_verb = target_verb>;
   endverb
 
@@ -34,7 +34,7 @@ object LLM_AGENT_TOOL
     "Execute the tool with given arguments and optional actor";
     {args_json, ?actor = false} = args;
     "Parse arguments if they're JSON";
-    if (typeof(args_json) == STR)
+    if (typeof(args_json) == TYPE_STR)
       tool_args = parse_json(args_json);
     else
       tool_args = args_json;

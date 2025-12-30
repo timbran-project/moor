@@ -117,11 +117,11 @@ object RULE_ENGINE
     "Evaluate a rule to find all satisfying variable bindings.";
     "Returns: {success: bool, bindings: map, alternatives: list of maps, warnings: list}";
     {rule, ?initial_bindings = []} = args;
-    typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
     body = rule.body;
     warnings = this:_check_negation_warnings(body, initial_bindings);
     "Check if body is OR-structured (nested lists) or AND-structured (flat goals)";
-    is_branches = length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0 && typeof(body[1][1]) == LIST;
+    is_branches = length(body) > 0 && typeof(body[1]) == TYPE_LIST && length(body[1]) > 0 && typeof(body[1][1]) == TYPE_LIST;
     result = is_branches ? this:_prove_alternatives(body, initial_bindings) | this:_prove_goals(body, initial_bindings, {});
     result['warnings] = warnings;
     return result;
@@ -130,15 +130,15 @@ object RULE_ENGINE
   verb _prove_alternatives (this none this) owner: HACKER flags: "rxd"
     "Prove a list of alternative goal branches (OR).";
     {alternatives, bindings} = args;
-    typeof(alternatives) == LIST || raise(E_TYPE, "alternatives must be list");
+    typeof(alternatives) == TYPE_LIST || raise(E_TYPE, "alternatives must be list");
     all_solutions = {};
     for branch in (alternatives)
-      typeof(branch) == LIST || raise(E_TYPE, "each branch must be list of goals");
+      typeof(branch) == TYPE_LIST || raise(E_TYPE, "each branch must be list of goals");
       result = this:_prove_goals(branch, bindings, {});
       if (result['success])
         all_solutions = {@all_solutions, result['bindings]};
         branch_alts = result['alternatives];
-        if (typeof(branch_alts) == LIST)
+        if (typeof(branch_alts) == TYPE_LIST)
           for alt in (branch_alts)
             all_solutions = {@all_solutions, alt};
           endfor
@@ -152,8 +152,8 @@ object RULE_ENGINE
   verb _prove_goals (this none this) owner: HACKER flags: "rxd"
     "Prove a list of goals with backtracking. Returns all solutions.";
     {goals, bindings, ?_choice_stack = {}} = args;
-    typeof(goals) == LIST || raise(E_TYPE, "goals must be list");
-    typeof(bindings) == MAP || raise(E_TYPE, "bindings must be map");
+    typeof(goals) == TYPE_LIST || raise(E_TYPE, "goals must be list");
+    typeof(bindings) == TYPE_MAP || raise(E_TYPE, "bindings must be map");
     length(goals) == 0 && return ['success -> true, 'bindings -> bindings, 'alternatives -> {}];
     first_goal = goals[1];
     rest_goals = listdelete(goals, 1);
@@ -177,21 +177,21 @@ object RULE_ENGINE
   verb _solve_goal (this none this) owner: HACKER flags: "rxd"
     "Solve a single goal by calling fact predicates. Returns list of bindings.";
     {goal, bindings} = args;
-    typeof(goal) == LIST || raise(E_TYPE, "goal must be list");
+    typeof(goal) == TYPE_LIST || raise(E_TYPE, "goal must be list");
     length(goal) >= 1 || raise(E_INVARG, "goal must have predicate name");
     predicate_name = goal[1];
     goal_args = goal[2..$];
-    typeof(predicate_name) == STR || typeof(predicate_name) == SYM || raise(E_TYPE, "predicate name must be string or symbol");
+    typeof(predicate_name) == TYPE_STR || typeof(predicate_name) == TYPE_SYM || raise(E_TYPE, "predicate name must be string or symbol");
     substituted_args = this:_substitute_args(goal_args, bindings);
     length(substituted_args) == 0 && raise(E_INVARG, "goal needs at least one argument (the object)");
     target_obj = substituted_args[1];
-    typeof(target_obj) == OBJ || raise(E_TYPE, "first goal argument must be object");
+    typeof(target_obj) == TYPE_OBJ || raise(E_TYPE, "first goal argument must be object");
     fact_results = `target_obj:(("fact_" + tostr(predicate_name)))(@substituted_args) ! E_VERBNF => false';
     "Check for failure (false, 0, empty string, empty list - but NOT valid objects)";
     if (fact_results == false || fact_results == 0 || fact_results == "" || fact_results == {})
       return {};
     endif
-    typeof(fact_results) != LIST && (fact_results = {fact_results});
+    typeof(fact_results) != TYPE_LIST && (fact_results = {fact_results});
     "Unify each result with the original goal to get bindings";
     unified_solutions = {};
     for result in (fact_results)
@@ -215,7 +215,7 @@ object RULE_ENGINE
   verb _substitute_value (this none this) owner: HACKER flags: "rxd"
     "Substitute a single value, resolving variables.";
     {value, bindings} = args;
-    typeof(value) == SYM && maphaskey(bindings, value) && return bindings[value];
+    typeof(value) == TYPE_SYM && maphaskey(bindings, value) && return bindings[value];
     return value;
   endverb
 
@@ -226,7 +226,7 @@ object RULE_ENGINE
     "Find first unbound variable and bind it to result";
     for i in [1..length(goal_args)]
       arg = goal_args[i];
-      if (typeof(arg) == SYM && !maphaskey(bindings, arg))
+      if (typeof(arg) == TYPE_SYM && !maphaskey(bindings, arg))
         bindings[arg] = result;
         return bindings;
       endif
@@ -241,7 +241,7 @@ object RULE_ENGINE
     "Capitalized words are variables, lowercase are constants. ? marks a predicate.";
     "Quoted strings like \"key\" are matched to objects from match_perspective.";
     {expression_string, ?rule_name = 'parsed_rule, ?match_perspective = player} = args;
-    typeof(expression_string) == STR || raise(E_TYPE, "expression must be string");
+    typeof(expression_string) == TYPE_STR || raise(E_TYPE, "expression must be string");
     "Tokenize the expression";
     tokens = this:_tokenize(expression_string);
     "Parse tokens into goal list";
@@ -265,8 +265,8 @@ object RULE_ENGINE
     "OR expression: goals = {branch1, branch2, ...} where branch is {goal1, goal2, ...}";
     "So: if goals[1] is LIST and goals[1][1] is LIST, then it's OR (branches of goals)";
     "    if goals[1] is LIST and goals[1][1] is SYM, then single branch (list of goals)";
-    if (length(goals) > 0 && typeof(goals[1]) == LIST)
-      if (length(goals[1]) > 0 && typeof(goals[1][1]) == LIST)
+    if (length(goals) > 0 && typeof(goals[1]) == TYPE_LIST)
+      if (length(goals[1]) > 0 && typeof(goals[1][1]) == TYPE_LIST)
         "OR expression - goals is list of branches";
         for branch in (goals)
           warnings = {@warnings, @this:_check_branch_negation(branch, all_vars)};
@@ -293,13 +293,13 @@ object RULE_ENGINE
     bound_vars = [];
     for goal in (branch)
       "Check if this is a negated goal";
-      if (typeof(goal) == LIST && length(goal) > 0 && goal[1] == 'not)
+      if (typeof(goal) == TYPE_LIST && length(goal) > 0 && goal[1] == 'not)
         "Negated goal - check bounded negation";
         inner_goal = goal[2];
         "Find unbound variables in this negated goal";
         unbound_vars = [];
         for arg in (inner_goal[2..$])
-          if (typeof(arg) == SYM && !maphaskey(bound_vars, arg))
+          if (typeof(arg) == TYPE_SYM && !maphaskey(bound_vars, arg))
             unbound_vars[arg] = true;
           endif
         endfor
@@ -310,7 +310,7 @@ object RULE_ENGINE
       else
         "Positive goal - track which variables get bound";
         for arg in (goal[2..$])
-          if (typeof(arg) == SYM && arg in all_vars)
+          if (typeof(arg) == TYPE_SYM && arg in all_vars)
             bound_vars[arg] = true;
           endif
         endfor
@@ -634,10 +634,10 @@ object RULE_ENGINE
     {goals} = args;
     variables = {};
     for goal in (goals)
-      if (typeof(goal) == LIST && length(goal) >= 2)
+      if (typeof(goal) == TYPE_LIST && length(goal) >= 2)
         for i in [2..length(goal)]
           arg = goal[i];
-          typeof(arg) == SYM && !(arg in variables) && (variables = {@variables, arg});
+          typeof(arg) == TYPE_SYM && !(arg in variables) && (variables = {@variables, arg});
         endfor
       endif
     endfor
@@ -651,16 +651,16 @@ object RULE_ENGINE
     {goals, current_bindings} = args;
     warnings = {};
     for goal in (goals)
-      if (typeof(goal) == LIST && length(goal) > 0 && goal[1] == 'not)
+      if (typeof(goal) == TYPE_LIST && length(goal) > 0 && goal[1] == 'not)
         "This is a negated goal";
         inner_goals = listdelete(goal, 1);
         "Count unbound variables across all inner goals";
         unbound_vars = {};
         for inner_goal in (inner_goals)
-          if (typeof(inner_goal) == LIST && length(inner_goal) >= 2)
+          if (typeof(inner_goal) == TYPE_LIST && length(inner_goal) >= 2)
             for i in [2..length(inner_goal)]
               arg = inner_goal[i];
-              if (typeof(arg) == SYM && !maphaskey(current_bindings, arg))
+              if (typeof(arg) == TYPE_SYM && !maphaskey(current_bindings, arg))
                 "Collect unbound variables (deduplicate)";
                 if (!(arg in unbound_vars))
                   unbound_vars = {@unbound_vars, arg};
@@ -683,10 +683,10 @@ object RULE_ENGINE
   verb decompile_rule (this none this) owner: HACKER flags: "rxd"
     "Convert a rule flyweight back to DSL expression string.";
     {rule} = args;
-    typeof(rule) == FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
     body = rule.body;
     "Check if body is OR-structured (nested lists) or AND-structured (flat goals)";
-    is_or = length(body) > 0 && typeof(body[1]) == LIST && length(body[1]) > 0 && typeof(body[1][1]) == LIST;
+    is_or = length(body) > 0 && typeof(body[1]) == TYPE_LIST && length(body[1]) > 0 && typeof(body[1][1]) == TYPE_LIST;
     is_or || return this:_decompile_goals(body);
     return { this:_decompile_goals(branch) for branch in (body) }:join(" OR ");
   endverb
@@ -700,7 +700,7 @@ object RULE_ENGINE
   verb _decompile_goal (this none this) owner: HACKER flags: "rxd"
     "Decompile a single goal into DSL syntax.";
     {goal} = args;
-    typeof(goal) == LIST || raise(E_TYPE, "goal must be list");
+    typeof(goal) == TYPE_LIST || raise(E_TYPE, "goal must be list");
     length(goal) >= 1 || raise(E_INVARG, "goal must have predicate");
     goal[1] == 'not && return "NOT " + this:_decompile_goals(listdelete(goal, 1));
     predicate = goal[1];
@@ -734,7 +734,7 @@ object RULE_ENGINE
     empty_bindings = [];
     goal = {'true, test_obj};
     result = this:_solve_goal(goal, empty_bindings);
-    typeof(result) == LIST || raise(E_ASSERT, "Result should be list");
+    typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
     length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
     return true;
   endverb
@@ -746,7 +746,7 @@ object RULE_ENGINE
     goals = {{'reputation, test_guild, 5}, {'reputation, test_guild, 3}};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Both goals should succeed");
     return true;
   endverb
@@ -758,7 +758,7 @@ object RULE_ENGINE
     goal = {'reputation, test_guild, 10};
     empty_bindings = [];
     result = this:_solve_goal(goal, empty_bindings);
-    typeof(result) == LIST || raise(E_ASSERT, "Result should be list");
+    typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
     length(result) == 0 || raise(E_ASSERT, "Should have no solutions");
     return true;
   endverb
@@ -773,11 +773,11 @@ object RULE_ENGINE
     goal = {'parent, test_obj, 'X};
     empty_bindings = [];
     result = this:_solve_goal(goal, empty_bindings);
-    typeof(result) == LIST || raise(E_ASSERT, "Result should be list");
+    typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
     length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
     "First solution should bind 'X to $root";
     first_solution = result[1];
-    typeof(first_solution) == MAP || raise(E_ASSERT, "Solution should be map");
+    typeof(first_solution) == TYPE_MAP || raise(E_ASSERT, "Solution should be map");
     first_solution['X] == $root || raise(E_ASSERT, "'X should be bound to $root");
     return true;
   endverb
@@ -792,11 +792,11 @@ object RULE_ENGINE
     goal = {'parent, test_obj, 'X};
     empty_bindings = [];
     result = this:_prove_goals({goal}, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Goal should succeed");
     "Check that we have alternatives (multiple solutions)";
     alternatives = result['alternatives];
-    typeof(alternatives) == LIST || raise(E_ASSERT, "Alternatives should be list");
+    typeof(alternatives) == TYPE_LIST || raise(E_ASSERT, "Alternatives should be list");
     length(alternatives) > 0 || raise(E_ASSERT, "Should have alternative solutions");
     return true;
   endverb
@@ -815,11 +815,11 @@ object RULE_ENGINE
     goals = {{'parent, test_obj, 'Y}, {'parent, 'Y, 'X}};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should find grandparent");
     "Verify that X is bound to the grandfather";
     first_binding = result['bindings];
-    typeof(first_binding) == MAP || raise(E_ASSERT, "Binding should be map");
+    typeof(first_binding) == TYPE_MAP || raise(E_ASSERT, "Binding should be map");
     first_binding['X] == $arch_wizard || raise(E_ASSERT, "X should be $arch_wizard (grandfather)");
     first_binding['Y] == mother_obj || raise(E_ASSERT, "Y should be mother_obj");
     return true;
@@ -855,13 +855,13 @@ object RULE_ENGINE
     "Find: does cousin_obj's grandparent equal test_obj's grandparent?";
     goals_test_obj = {{'parent, test_obj, 'P1}, {'parent, 'P1, 'TestGrandparent}};
     result_test = this:_prove_goals(goals_test_obj, []);
-    typeof(result_test) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result_test) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result_test['success] || raise(E_ASSERT, "Should find test_obj's grandparent");
     test_grandparent = result_test['bindings]['TestGrandparent];
     "Now check cousin_obj's grandparent";
     goals_cousin = {{'parent, cousin_obj, 'P2}, {'parent, 'P2, 'CousinGrandparent}};
     result_cousin = this:_prove_goals(goals_cousin, []);
-    typeof(result_cousin) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result_cousin) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result_cousin['success] || raise(E_ASSERT, "Should find cousin's grandparent");
     cousin_grandparent = result_cousin['bindings]['CousinGrandparent];
     "Verify they share the same grandparent";
@@ -874,13 +874,13 @@ object RULE_ENGINE
     "Parse: 'player has_key?'";
     expression = "player has_key?";
     rule = this:parse_expression(expression, 'simple_parse_test);
-    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     rule.head == 'simple_parse_test || raise(E_ASSERT, "Rule head should match");
-    typeof(rule.body) == LIST || raise(E_ASSERT, "Rule body should be list");
+    typeof(rule.body) == TYPE_LIST || raise(E_ASSERT, "Rule body should be list");
     length(rule.body) == 1 || raise(E_ASSERT, "Should have 1 goal");
     "Check the goal structure";
     goal = rule.body[1];
-    typeof(goal) == LIST || raise(E_ASSERT, "Goal should be list");
+    typeof(goal) == TYPE_LIST || raise(E_ASSERT, "Goal should be list");
     length(goal) == 2 || raise(E_ASSERT, "Goal should have 2 elements");
     goal[1] == 'has_key || raise(E_ASSERT, "Predicate should be has_key");
     return true;
@@ -891,7 +891,7 @@ object RULE_ENGINE
     "Parse: 'Player has_key? AND Player is_trusted?'";
     expression = "Player has_key? AND Player is_trusted?";
     rule = this:parse_expression(expression, 'variable_test);
-    typeof(rule.body) == LIST || raise(E_ASSERT, "Body should be list");
+    typeof(rule.body) == TYPE_LIST || raise(E_ASSERT, "Body should be list");
     length(rule.body) == 2 || raise(E_ASSERT, "Should have 2 goals");
     "Check variables were extracted";
     length(rule.variables) > 0 || raise(E_ASSERT, "Should have variables");
@@ -938,7 +938,7 @@ object RULE_ENGINE
     "This should find: Grandparent=mother_obj, GreatGrandparent=$arch_wizard";
     bindings = ['Child -> test_obj];
     result = this:evaluate(rule, bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should find ancestors");
     "Check bindings";
     result_bindings = result['bindings];
@@ -952,17 +952,17 @@ object RULE_ENGINE
     "Parse: 'Player has_key? OR Player has_lockpick?'";
     expression = "Player has_key? OR Player has_lockpick?";
     rule = this:parse_expression(expression, 'key_or_pick);
-    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    typeof(rule.body) == LIST || raise(E_ASSERT, "Body should be list");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(rule.body) == TYPE_LIST || raise(E_ASSERT, "Body should be list");
     length(rule.body) == 2 || raise(E_ASSERT, "Should have 2 branches");
     "Check first branch";
     branch1 = rule.body[1];
-    typeof(branch1) == LIST || raise(E_ASSERT, "Branch should be list");
+    typeof(branch1) == TYPE_LIST || raise(E_ASSERT, "Branch should be list");
     length(branch1) == 1 || raise(E_ASSERT, "First branch should have 1 goal");
     branch1[1][1] == 'has_key || raise(E_ASSERT, "First goal should be has_key");
     "Check second branch";
     branch2 = rule.body[2];
-    typeof(branch2) == LIST || raise(E_ASSERT, "Branch should be list");
+    typeof(branch2) == TYPE_LIST || raise(E_ASSERT, "Branch should be list");
     length(branch2) == 1 || raise(E_ASSERT, "Second branch should have 1 goal");
     branch2[1][1] == 'has_lockpick || raise(E_ASSERT, "Second goal should be has_lockpick");
     return true;
@@ -980,7 +980,7 @@ object RULE_ENGINE
     "Evaluate rule with Player=test_obj";
     bindings = ['Player -> test_obj];
     result = this:evaluate(rule, bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should succeed (lockpick branch works)");
     return true;
   endverb
@@ -999,7 +999,7 @@ object RULE_ENGINE
     "Prove alternatives: branch1 OR branch2";
     alternatives = {branch1, branch2};
     result = this:_prove_alternatives(alternatives, []);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should succeed (second branch succeeds)");
     return true;
   endverb
@@ -1033,7 +1033,7 @@ object RULE_ENGINE
     "This should find: Parent1=mother1_obj, Parent2=mother2_obj, Grandparent=$arch_wizard";
     bindings = ['Person1 -> person1_obj, 'Person2 -> person2_obj];
     result = this:evaluate(rule, bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should find shared grandparent");
     result_bindings = result['bindings];
     result_bindings['Grandparent] == $arch_wizard || raise(E_ASSERT, "Grandparent should be $arch_wizard");
@@ -1064,7 +1064,7 @@ object RULE_ENGINE
     goals = {{'parent, test_obj, 'P1}, {'parent, 'P1, 'P2}, {'parent, 'P2, 'P3}, {'parent, 'P3, 'Result}};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should find 4-generation ancestor chain");
     bindings = result['bindings];
     bindings['Result] == great_great_grandmother_obj || raise(E_ASSERT, "Should find great-great-grandmother through 4-step chain");
@@ -1076,13 +1076,13 @@ object RULE_ENGINE
     "Expression: 'NOT Object predicate?'";
     expression = "NOT player has_magic?";
     rule = this:parse_expression(expression, 'test_not);
-    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     rule.body != {} || raise(E_ASSERT, "Body should not be empty");
     "Body should contain a NOT goal: {{'not, {...}}}";
     body = rule.body;
     length(body) > 0 || raise(E_ASSERT, "Body should have at least one goal");
     first_goal = body[1];
-    typeof(first_goal) == LIST || raise(E_ASSERT, "First goal should be list");
+    typeof(first_goal) == TYPE_LIST || raise(E_ASSERT, "First goal should be list");
     length(first_goal) > 0 || raise(E_ASSERT, "First goal should have content");
     first_goal[1] == 'not || raise(E_ASSERT, "First goal should start with 'not marker");
     return true;
@@ -1098,7 +1098,7 @@ object RULE_ENGINE
     goals = {not_goal};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "NOT of failing goal should succeed");
     return true;
   endverb
@@ -1113,7 +1113,7 @@ object RULE_ENGINE
     goals = {not_goal};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     !result['success] || raise(E_ASSERT, "NOT of succeeding goal should fail");
     return true;
   endverb
@@ -1129,7 +1129,7 @@ object RULE_ENGINE
     goals = {goal1, not_goal};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "goal1 AND NOT goal2 should succeed");
     return true;
   endverb
@@ -1145,7 +1145,7 @@ object RULE_ENGINE
     goals = {goal1, not_goal};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     "First goal fails (8 < 100), so whole expression fails";
     !result['success] || raise(E_ASSERT, "Expression should fail because first goal fails");
     return true;
@@ -1157,12 +1157,12 @@ object RULE_ENGINE
     test_obj = #64;
     expression = "this reputation(5)? AND NOT this reputation(100)?";
     rule = this:parse_expression(expression, 'test_not_parsed);
-    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should parse to flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should parse to flyweight");
     rule.body != {} || raise(E_ASSERT, "Body should not be empty");
     "Evaluate with initial binding this -> test_obj";
     bindings = ['this -> test_obj];
     result = this:evaluate(rule, bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     "First goal succeeds (8 >= 5), NOT goal succeeds (8 < 100), so conjunction succeeds";
     result['success] || raise(E_ASSERT, "Expression should succeed");
     return true;
@@ -1174,11 +1174,11 @@ object RULE_ENGINE
     "This should parse to: (reputation(5) AND NOT reputation(100)) OR reputation(3)";
     expression = "this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?";
     rule = this:parse_expression(expression, 'test_not_complex);
-    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should parse to flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should parse to flyweight");
     "Evaluate with initial binding this -> test_obj";
     bindings = ['this -> test_obj];
     result = this:evaluate(rule, bindings);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     "First branch: reputation(5) AND NOT reputation(100) should succeed (8 >= 5, 8 < 100)";
     result['success] || raise(E_ASSERT, "Expression should succeed");
     return true;
@@ -1195,7 +1195,7 @@ object RULE_ENGINE
     rule = <$rule, .name = 'test_bounded_not, .head = 'test_bounded_not, .body = {not_goal}, .variables = {'Parent}>;
     "Evaluate with no bindings - should NOT have errors";
     result = this:evaluate(rule, []);
-    typeof(result) == MAP || raise(E_ASSERT, "Result should be map");
+    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     "Check for ERROR messages (warnings are OK, but errors mean 2+ unbound)";
     has_error = false;
     for warning in (result['warnings])
@@ -1220,7 +1220,7 @@ object RULE_ENGINE
     rule = this:parse_expression(expr, 'test_decomp);
     "Decompile it back";
     result = this:decompile_rule(rule);
-    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    typeof(result) == TYPE_STR || raise(E_ASSERT, "Result should be string");
     "Result should contain the key parts";
     index(result, "this") > 0 || raise(E_ASSERT, "Should contain 'this'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
@@ -1233,7 +1233,7 @@ object RULE_ENGINE
     expr = "this reputation(5)? AND this reputation(3)?";
     rule = this:parse_expression(expr, 'test_and_decomp);
     result = this:decompile_rule(rule);
-    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    typeof(result) == TYPE_STR || raise(E_ASSERT, "Result should be string");
     index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     return true;
@@ -1244,7 +1244,7 @@ object RULE_ENGINE
     expr = "this reputation(5)? OR this reputation(3)?";
     rule = this:parse_expression(expr, 'test_or_decomp);
     result = this:decompile_rule(rule);
-    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    typeof(result) == TYPE_STR || raise(E_ASSERT, "Result should be string");
     index(result, "OR") > 0 || raise(E_ASSERT, "Should contain 'OR'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     return true;
@@ -1255,7 +1255,7 @@ object RULE_ENGINE
     expr = "NOT this reputation(100)?";
     rule = this:parse_expression(expr, 'test_not_decomp);
     result = this:decompile_rule(rule);
-    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    typeof(result) == TYPE_STR || raise(E_ASSERT, "Result should be string");
     index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     return true;
@@ -1266,7 +1266,7 @@ object RULE_ENGINE
     expr = "this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?";
     rule = this:parse_expression(expr, 'test_complex_decomp);
     result = this:decompile_rule(rule);
-    typeof(result) == STR || raise(E_ASSERT, "Result should be string");
+    typeof(result) == TYPE_STR || raise(E_ASSERT, "Result should be string");
     index(result, "OR") > 0 || raise(E_ASSERT, "Should contain 'OR'");
     index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
     index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
@@ -1303,7 +1303,7 @@ object RULE_ENGINE
     "Non-owner should fail";
     check = chest:can_take_from(other, sword);
     !check['allowed] || raise(E_ASSERT, "Non-owner should be denied");
-    typeof(check['reason]) == LIST || raise(E_ASSERT, "Should have denial reason");
+    typeof(check['reason]) == TYPE_LIST || raise(E_ASSERT, "Should have denial reason");
     return true;
   endverb
 

@@ -21,11 +21,11 @@ object URL_UTILS
       return result;
     endtry
     "Parse response";
-    if (typeof(response) != LIST || length(response) < 3)
+    if (typeof(response) != TYPE_LIST || length(response) < 3)
       return result;
     endif
     {status, resp_headers, body} = response;
-    if (status < 200 || status >= 300 || typeof(body) != STR)
+    if (status < 200 || status >= 300 || typeof(body) != TYPE_STR)
       return result;
     endif
     "Extract OpenGraph and meta tags";
@@ -68,7 +68,7 @@ object URL_UTILS
     "Returns strings like 'uuid:...', 'oid:...' depending on object type.";
     "Usage: $url_utils:to_curie_str(target)";
     {target} = args;
-    typeof(target) == OBJ || raise(E_TYPE);
+    typeof(target) == TYPE_OBJ || raise(E_TYPE);
     target_str = tostr(target);
     if (is_uuobjid(target))
       return "uuid:" + target_str[2..$];

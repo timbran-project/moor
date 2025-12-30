@@ -316,7 +316,7 @@ object NOTE
     if (!can_write)
       raise(E_PERM, "You can't write on this.");
     endif
-    if (typeof(new_text) != LIST)
+    if (typeof(new_text) != TYPE_LIST)
       raise(E_TYPE, "Text must be a list of strings.");
     endif
     this.text = new_text;

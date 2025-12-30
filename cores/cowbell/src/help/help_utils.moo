@@ -17,7 +17,7 @@ object HELP_UTILS
     {verb_location, verb_name} = args;
     "Get the verb code with line numbers";
     code_lines = `verb_code(verb_location, verb_name, false, true) ! ANY => {}';
-    if (typeof(code_lines) != LIST || length(code_lines) == 0)
+    if (typeof(code_lines) != TYPE_LIST || length(code_lines) == 0)
       return {};
     endif
     "Collect comment lines from the start of the verb";
@@ -73,7 +73,7 @@ object HELP_UTILS
       return {};
     endif
     "If doc is already a list, return it; if it's a string, wrap it";
-    if (typeof(doc) == LIST)
+    if (typeof(doc) == TYPE_LIST)
       return doc;
     else
       return {doc};
@@ -86,12 +86,12 @@ object HELP_UTILS
     "Returns: formatted block flyweight";
     set_task_perms(caller_perms());
     {title, doc_text} = args;
-    typeof(title) == STR || raise(E_TYPE("Documentation title must be a string, got " + toliteral(title)));
-    if (!doc_text || doc_text == "" || (typeof(doc_text) == LIST && length(doc_text) == 0))
+    typeof(title) == TYPE_STR || raise(E_TYPE("Documentation title must be a string, got " + toliteral(title)));
+    if (!doc_text || doc_text == "" || (typeof(doc_text) == TYPE_LIST && length(doc_text) == 0))
       return $format.block:mk(title, "(No documentation available)");
     endif
     "If doc_text is a list, join with newlines; otherwise use as-is";
-    if (typeof(doc_text) == LIST)
+    if (typeof(doc_text) == TYPE_LIST)
       doc_text = doc_text:join("\n");
     endif
     return $format.block:mk(title, doc_text);

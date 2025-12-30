@@ -104,7 +104,7 @@ object MAIL_FEATURES
     overview:matches(topic) && return overview;
     "Try to generate help from verb HINT tags";
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'mail) ! ANY => 0';
-    typeof(verb_help) != INT && return verb_help;
+    typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
   endverb
 endobject

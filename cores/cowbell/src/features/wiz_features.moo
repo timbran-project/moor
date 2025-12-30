@@ -260,7 +260,7 @@ object WIZ_FEATURES
     parts = msg:split(" ");
     if (length(parts) >= 2 && parts[1] == "in")
       possible_delay = `toint(parts[2]) ! ANY => -1';
-      if (typeof(possible_delay) == INT && possible_delay > 0)
+      if (typeof(possible_delay) == TYPE_INT && possible_delay > 0)
         delay_minutes = possible_delay;
         remaining = length(parts) >= 3 ? parts[3..$] | {};
         msg = remaining ? remaining:join(" ") | "Server is shutting down.";
@@ -375,7 +375,7 @@ object WIZ_FEATURES
     endif
     "Parse budget value";
     new_budget = tonum(iobjstr);
-    typeof(new_budget) == INT || raise(E_INVARG, "Budget must be a number.");
+    typeof(new_budget) == TYPE_INT || raise(E_INVARG, "Budget must be a number.");
     new_budget > 0 || raise(E_INVARG, "Budget must be positive.");
     "Get current values for confirmation";
     old_budget = `target.llm_token_budget ! ANY => 20000000';
@@ -538,7 +538,7 @@ object WIZ_FEATURES
     "Match the new owner";
     try
       new_owner = $match:match_object(owner_str, player);
-      typeof(new_owner) != OBJ && raise(E_INVARG, "Owner must be an object.");
+      typeof(new_owner) != TYPE_OBJ && raise(E_INVARG, "Owner must be an object.");
       !valid(new_owner) && raise(E_INVARG, "Owner object no longer exists.");
     except e (ANY)
       player:inform_current($event:mk_error(player, "Could not find owner: " + e[2]));

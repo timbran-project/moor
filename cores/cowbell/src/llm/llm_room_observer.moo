@@ -22,11 +22,11 @@ object LLM_ROOM_OBSERVER
   property shut_off_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " a small switch. ",
     <SUB, .capitalize = true, .type = 'dobj>,
     " freezes mid-motion, eyes going vacant."
@@ -58,11 +58,11 @@ object LLM_ROOM_OBSERVER
   property turn_on_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " the switch back. ",
     <SUB, .capitalize = true, .type = 'dobj>,
     " blinks and looks around, reorienting."
@@ -127,13 +127,13 @@ object LLM_ROOM_OBSERVER
       return;
     endif
     "Skip events from other NPCs to avoid cross-chatter";
-    if (typeof(event_actor) == OBJ && valid(event_actor) && isa(event_actor, $llm_room_observer))
+    if (typeof(event_actor) == TYPE_OBJ && valid(event_actor) && isa(event_actor, $llm_room_observer))
       return;
     endif
     "Check if event is addressed to someone (target is a direct property)";
     event_target = `event.target ! ANY => #-1';
-    addressed_to_us = typeof(event_target) == OBJ && valid(event_target) && event_target == this;
-    addressed_to_other = typeof(event_target) == OBJ && valid(event_target) && event_target != this;
+    addressed_to_us = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target == this;
+    addressed_to_other = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target != this;
     "Skip events addressed to other NPCs - not our business";
     if (addressed_to_other)
       return;
@@ -144,7 +144,7 @@ object LLM_ROOM_OBSERVER
       return;
     endif
     "Ensure agent is configured";
-    if (typeof(this.agent) != OBJ || !valid(this.agent))
+    if (typeof(this.agent) != TYPE_OBJ || !valid(this.agent))
       this:configure();
     endif
     "Fork to not block event processing";
@@ -202,7 +202,7 @@ object LLM_ROOM_OBSERVER
     "Show token usage to player";
     this:_show_token_usage(player);
     "Strip SPEAK: prefix if LLM included it (learned from maybe_speak context)";
-    if (typeof(response) == STR)
+    if (typeof(response) == TYPE_STR)
       response = response:trim();
       if (response:starts_with("SPEAK: "))
         response = response[8..$];
@@ -252,7 +252,7 @@ object LLM_ROOM_OBSERVER
     endtry
     this:_stop_thinking();
     "Only announce if we got a non-empty text response that isn't just tool acknowledgment";
-    if (typeof(response) == STR)
+    if (typeof(response) == TYPE_STR)
       "Strip SPEAK: prefix if present";
       if (index(response, "SPEAK: ") == 1)
         response = response[8..$];
@@ -288,7 +288,7 @@ object LLM_ROOM_OBSERVER
     budget = `user.llm_token_budget ! ANY => 20000000';
     used = `user.llm_tokens_used ! ANY => 0';
     last_usage = this.agent.last_token_usage;
-    if (typeof(last_usage) == MAP && maphaskey(last_usage, "total_tokens"))
+    if (typeof(last_usage) == TYPE_MAP && maphaskey(last_usage, "total_tokens"))
       last_tokens = last_usage["total_tokens"];
       remaining = budget - used;
       percent_used = used * 100 / budget;
@@ -424,10 +424,10 @@ object LLM_ROOM_OBSERVER
     subject = `args_map["subject"] ! E_RANGE => ""';
     fact = `args_map["fact"] ! E_RANGE => ""';
     "Check for missing required fields";
-    if (typeof(subject) != STR || subject == "")
+    if (typeof(subject) != TYPE_STR || subject == "")
       return "ERROR: Missing 'subject' parameter. You must provide both 'subject' and 'fact'. Example: {\"subject\": \"Ryan\", \"fact\": \"is a wizard\"}";
     endif
-    if (typeof(fact) != STR || fact == "")
+    if (typeof(fact) != TYPE_STR || fact == "")
       return "ERROR: Missing 'fact' parameter. You must provide both 'subject' and 'fact'. Example: {\"subject\": \"Ryan\", \"fact\": \"is a wizard\"}";
     endif
     "Check for values starting with any kind of quote character (ASCII or Unicode curly quotes)";
@@ -460,7 +460,7 @@ object LLM_ROOM_OBSERVER
     "Tool: Retrieve stored facts about a subject.";
     {args_map, actor} = args;
     subject = args_map["subject"];
-    typeof(subject) != STR && raise(E_TYPE, "subject must be a string");
+    typeof(subject) != TYPE_STR && raise(E_TYPE, "subject must be a string");
     if (!valid(this.knowledge_base))
       return "No memories stored yet.";
     endif
@@ -650,7 +650,7 @@ object LLM_ROOM_OBSERVER
       return;
     endtry
     "Extract content from response - handle both string and map responses";
-    if (typeof(response) == MAP)
+    if (typeof(response) == TYPE_MAP)
       "API response format - extract content from choices[1].message.content";
       try
         response = response["choices"][1]["message"]["content"];
@@ -660,7 +660,7 @@ object LLM_ROOM_OBSERVER
       endtry
     endif
     "Check response type";
-    if (typeof(response) != STR)
+    if (typeof(response) != TYPE_STR)
       player:inform_current($event:mk_error(player, "LLM response was not a string: " + toliteral(response)):with_audience('utility));
       return;
     endif
@@ -680,7 +680,7 @@ object LLM_ROOM_OBSERVER
       return;
     endtry
     "Validate we got a list";
-    if (typeof(new_facts) != LIST)
+    if (typeof(new_facts) != TYPE_LIST)
       player:inform_current($event:mk_error(player, "LLM returned non-list: " + toliteral(new_facts)):with_audience('utility));
       return;
     endif
@@ -695,10 +695,10 @@ object LLM_ROOM_OBSERVER
     new_count = 0;
     now = time();
     for fact_obj in (new_facts)
-      if (typeof(fact_obj) == MAP)
+      if (typeof(fact_obj) == TYPE_MAP)
         subject = `fact_obj["subject"] ! E_RANGE => ""';
         fact = `fact_obj["fact"] ! E_RANGE => ""';
-        if (typeof(subject) == STR && typeof(fact) == STR && length(subject) > 1 && length(fact) > 2)
+        if (typeof(subject) == TYPE_STR && typeof(fact) == TYPE_STR && length(subject) > 1 && length(fact) > 2)
           this.knowledge_base:assert({subject, fact, now});
           new_count = new_count + 1;
         endif
@@ -745,14 +745,14 @@ object LLM_ROOM_OBSERVER
     endtry
     "Extract content from response";
     content = "";
-    if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+    if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
       message = response["choices"][1]["message"];
-      if (typeof(message) == MAP && maphaskey(message, "content"))
+      if (typeof(message) == TYPE_MAP && maphaskey(message, "content"))
         content = message["content"];
       endif
     endif
     "Check for ENGAGE";
-    if (typeof(content) == STR)
+    if (typeof(content) == TYPE_STR)
       return index(content, "ENGAGE") > 0 || index(content, "Engage") > 0;
     endif
     return false;
@@ -793,7 +793,7 @@ object LLM_ROOM_OBSERVER
     endtry
     this:_stop_thinking();
     "Announce text response if meaningful";
-    if (typeof(response) == STR)
+    if (typeof(response) == TYPE_STR)
       response = response:trim();
       "Skip empty, system messages, or tool acknowledgments";
       skip_prefixes = {"Operation cancelled", "I've used", "I used", "Done", "SILENT", "Said to"};

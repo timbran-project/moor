@@ -8,7 +8,7 @@ object EXAMINATION
 
   verb validate (this none this) owner: HACKER flags: "rxd"
     "Check if this is a valid examination flyweight.";
-    typeof(this) == FLYWEIGHT || return false;
+    typeof(this) == TYPE_FLYWEIGHT || return false;
     return `this.object_ref && this.name && this.verbs ! E_PROPNF => false';
   endverb
 endobject

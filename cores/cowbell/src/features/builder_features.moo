@@ -106,7 +106,7 @@ object BUILDER_FEATURES
     endif
     try
       parent_obj = $match:match_object(dobjstr, player);
-      typeof(parent_obj) != OBJ && raise(E_INVARG, "That parent reference is not an object.");
+      typeof(parent_obj) != TYPE_OBJ && raise(E_INVARG, "That parent reference is not an object.");
       !valid(parent_obj) && raise(E_INVARG, "That parent object no longer exists.");
       if (!parent_obj.f && !player.wizard && parent_obj.owner != player)
         raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj) + ".");
@@ -128,7 +128,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return new_obj;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -154,7 +154,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to recycle " + tostr(target_obj) + ".");
@@ -165,7 +165,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, "Recycled \"" + obj_name + "\" (" + obj_id + ")."));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -191,7 +191,7 @@ object BUILDER_FEATURES
       else
         grantee = iobj;
       endif
-      if (typeof(grantee) != OBJ)
+      if (typeof(grantee) != TYPE_OBJ)
         raise(E_INVARG, "Grantee must be an object.");
       endif
       if (grantee == #-1 || grantee == #-2 || grantee == #-3)
@@ -209,7 +209,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return cap;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -224,7 +224,7 @@ object BUILDER_FEATURES
       "Determine which player to audit";
       if (dobjstr)
         target = $match:match_object(dobjstr, player);
-        typeof(target) != OBJ && raise(E_INVARG, "That reference is not an object.");
+        typeof(target) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
         !valid(target) && raise(E_INVARG, "That object no longer exists.");
       else
         target = player;
@@ -278,7 +278,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, footer));
       return count;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -303,7 +303,7 @@ object BUILDER_FEATURES
         "Use capability if we have one, otherwise use area directly";
         cap = player:find_capability_for(target_area, 'area);
         "Use capability if found, otherwise use area directly";
-        area_target = typeof(cap) == FLYWEIGHT ? cap | target_area;
+        area_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | target_area;
         try
           new_room = area_target:make_room_in(parent_obj);
           area_str = " in " + tostr(target_area);
@@ -322,7 +322,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return new_room;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -346,7 +346,7 @@ object BUILDER_FEATURES
         target_area = #-1;
       else
         target_area = $match:match_object(area_spec, player);
-        typeof(target_area) != OBJ && raise(E_INVARG, "That area reference is not an object.");
+        typeof(target_area) != TYPE_OBJ && raise(E_INVARG, "That area reference is not an object.");
         !valid(target_area) && raise(E_INVARG, "That area no longer exists.");
       endif
     else
@@ -358,7 +358,7 @@ object BUILDER_FEATURES
       name_part = as_match[2]:trim();
       parent_spec = as_match[3];
       parent_obj = $match:match_object(parent_spec, player);
-      typeof(parent_obj) != OBJ && raise(E_INVARG, "That parent reference is not an object.");
+      typeof(parent_obj) != TYPE_OBJ && raise(E_INVARG, "That parent reference is not an object.");
       !valid(parent_obj) && raise(E_INVARG, "That parent object no longer exists.");
     endif
     "Parse room name using same logic as @create";
@@ -389,18 +389,18 @@ object BUILDER_FEATURES
       area = current_room.location;
       !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
       "Find target room - only accept iobj if it's actually in this area";
-      if (typeof(iobj) == OBJ && valid(iobj) && iobj in area.contents)
+      if (typeof(iobj) == TYPE_OBJ && valid(iobj) && iobj in area.contents)
         target_room = iobj;
       else
         "Search only in area's rooms by name";
         target_room = $match:resolve_in_scope(iobjstr, area.contents);
-        if (typeof(target_room) != OBJ || !valid(target_room))
+        if (typeof(target_room) != TYPE_OBJ || !valid(target_room))
           raise(E_INVARG, "No room found matching '" + iobjstr + "' in this area.");
         endif
       endif
       "Check permissions on both rooms using capabilities if we have them";
       from_room_cap = player:find_capability_for(current_room, 'room);
-      from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
+      from_room_target = typeof(from_room_cap) == TYPE_FLYWEIGHT ? from_room_cap | current_room;
       try
         from_room_target:check_can_dig_from();
       except (E_PERM)
@@ -408,7 +408,7 @@ object BUILDER_FEATURES
         raise(E_PERM, message);
       endtry
       to_room_cap = player:find_capability_for(target_room, 'room);
-      to_room_target = typeof(to_room_cap) == FLYWEIGHT ? to_room_cap | target_room;
+      to_room_target = typeof(to_room_cap) == TYPE_FLYWEIGHT ? to_room_cap | target_room;
       try
         to_room_target:check_can_dig_into();
       except (E_PERM)
@@ -426,7 +426,7 @@ object BUILDER_FEATURES
       endif
       "Register with area using capability if we have one";
       area_cap = player:find_capability_for(area, 'area);
-      area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
+      area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
       area_target:create_passage(from_room_target, to_room_target, passage);
       "Report success";
       if (is_oneway)
@@ -437,7 +437,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return passage;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -481,11 +481,11 @@ object BUILDER_FEATURES
       endfor
       "If no direction match, try matching as room reference";
       if (!valid(target_room))
-        if (typeof(dobj) == OBJ && valid(dobj))
+        if (typeof(dobj) == TYPE_OBJ && valid(dobj))
           target_room = dobj;
         else
           target_room = `$match:match_object(dobjstr, area) ! ANY => #-1';
-          typeof(target_room) != OBJ && raise(E_INVARG, "No passage or room found matching '" + dobjstr + "'.");
+          typeof(target_room) != TYPE_OBJ && raise(E_INVARG, "No passage or room found matching '" + dobjstr + "'.");
         endif
         !valid(target_room) && raise(E_INVARG, "That room no longer exists.");
         "Check target room is in same area";
@@ -493,7 +493,7 @@ object BUILDER_FEATURES
       endif
       "Look up passage (can be flyweight or $passage object)";
       passage = area:passage_for(current_room, target_room);
-      if (typeof(passage) != FLYWEIGHT && (typeof(passage) != OBJ || !valid(passage)))
+      if (typeof(passage) != TYPE_FLYWEIGHT && (typeof(passage) != TYPE_OBJ || !valid(passage)))
         raise(E_INVARG, "No passage found between here and " + tostr(target_room) + ".");
       endif
       labels = {};
@@ -523,7 +523,7 @@ object BUILDER_FEATURES
       endif
       "Check permissions - must have dig_from on current room";
       from_room_cap = player:find_capability_for(current_room, 'room);
-      from_room_target = typeof(from_room_cap) == FLYWEIGHT ? from_room_cap | current_room;
+      from_room_target = typeof(from_room_cap) == TYPE_FLYWEIGHT ? from_room_cap | current_room;
       try
         from_room_target:check_can_dig_from();
       except (E_PERM)
@@ -532,7 +532,7 @@ object BUILDER_FEATURES
       endtry
       "Remove passage via area using capability if we have one";
       area_cap = player:find_capability_for(area, 'area);
-      area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
+      area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
       result = area_target:remove_passage(from_room_target, target_room);
       "Report success";
       if (result)
@@ -544,7 +544,7 @@ object BUILDER_FEATURES
         raise(E_INVARG, "Failed to remove passage (may have already been removed).");
       endif
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -609,7 +609,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to rename " + tostr(target_obj) + ".");
@@ -628,7 +628,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -659,7 +659,7 @@ object BUILDER_FEATURES
       except (ANY)
         "Not an object - will try as passage below";
       endtry
-      if (typeof(target_obj) == OBJ && valid(target_obj))
+      if (typeof(target_obj) == TYPE_OBJ && valid(target_obj))
         "It's an object - use existing object description logic";
         if (!player.wizard && target_obj.owner != player)
           raise(E_PERM, "You do not have permission to describe " + tostr(target_obj) + ".");
@@ -681,7 +681,7 @@ object BUILDER_FEATURES
         endif
       endif
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -710,7 +710,7 @@ object BUILDER_FEATURES
       editor_title = "Edit Description: " + target_obj.name;
       present(player, session_id, "text/djot", "text-editor", current_desc, {{"object", $url_utils:to_curie_str($builder_features)}, {"verb", "receive_description_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
     endtry
   endverb
@@ -768,7 +768,7 @@ object BUILDER_FEATURES
     endif
     "Check permissions";
     cap = player:find_capability_for(current_room, 'room);
-    room_target = typeof(cap) == FLYWEIGHT ? cap | current_room;
+    room_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | current_room;
     room_target:check_can_dig_from();
     "Update passage description and set ambient flag";
     new_passage = target_passage:with_description_from(current_room, description);
@@ -791,7 +791,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       let parent = parent(target_obj);
       let obj_name = target_obj.name;
@@ -804,7 +804,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return parent;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return false;
     endtry
@@ -821,7 +821,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       children_list = children(target_obj);
       descendants_list = descendants(target_obj);
@@ -838,7 +838,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, content));
       return children_list;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return false;
     endtry
@@ -855,7 +855,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to set integrated description on " + tostr(target_obj) + ".");
@@ -871,7 +871,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -897,7 +897,7 @@ object BUILDER_FEATURES
     try
       "Match the object to move";
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That object reference is not valid.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That object reference is not valid.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       "Check permissions - must own the object or be a wizard";
       if (!player.wizard && target_obj.owner != player)
@@ -905,7 +905,7 @@ object BUILDER_FEATURES
       endif
       "Match the destination location";
       dest_loc = $match:match_object(iobjstr, player);
-      typeof(dest_loc) != OBJ && raise(E_INVARG, "That destination reference is not valid.");
+      typeof(dest_loc) != TYPE_OBJ && raise(E_INVARG, "That destination reference is not valid.");
       !valid(dest_loc) && raise(E_INVARG, "That destination no longer exists.");
       "Get current location for messaging";
       old_loc = target_obj.location;
@@ -927,7 +927,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1026,7 +1026,7 @@ object BUILDER_FEATURES
       "Get remainder after target spec";
       offset = index(argstr, target_spec) + length(target_spec);
       template_string = argstr[offset..length(argstr)]:trim();
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
       "Check if property is writable";
       {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, player);
@@ -1041,7 +1041,7 @@ object BUILDER_FEATURES
       compiled_list = result;
       "Set the compiled message";
       existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
-      if (typeof(existing) == OBJ && isa(existing, $msg_bag))
+      if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
         existing.entries = {compiled_list};
       else
         $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
@@ -1051,7 +1051,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return true;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1077,14 +1077,14 @@ object BUILDER_FEATURES
       prop_name = parsed['item_name];
       prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
       target_obj = $match:match_object(object_str, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
       if (!(prop_name in target_obj:all_properties()))
         raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
       endif
       value = target_obj.(prop_name);
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      if (typeof(value) == OBJ && isa(value, $msg_bag))
+      if (typeof(value) == TYPE_OBJ && isa(value, $msg_bag))
         entries = value:entries();
         if (!entries)
           header = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = (empty message bag)";
@@ -1094,7 +1094,7 @@ object BUILDER_FEATURES
           rows = {};
           idx = 1;
           for entry in (entries)
-            template_str = typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry);
+            template_str = typeof(entry) == TYPE_LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry);
             rows = {@rows, {tostr(idx), template_str}};
             idx = idx + 1;
           endfor
@@ -1104,13 +1104,13 @@ object BUILDER_FEATURES
         endif
       else
         "If compiled template list, decompile to readable string";
-        display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+        display_value = typeof(value) == TYPE_LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
         message = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = " + display_value;
         player:inform_current($event:mk_info(player, message));
       endif
       return value;
     except e (ANY)
-      msg = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      msg = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, msg));
       return 0;
     endtry
@@ -1195,7 +1195,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, message));
       return true;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1257,9 +1257,9 @@ object BUILDER_FEATURES
       for prop_info in (msg_props)
         {prop_name, prop_value} = prop_info;
         "Summarize the value - decompile if it's a compiled template list";
-        if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
+        if (typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag))
           value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
-        elseif (typeof(prop_value) == LIST)
+        elseif (typeof(prop_value) == TYPE_LIST)
           value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
         else
           value_summary = toliteral(prop_value);
@@ -1273,7 +1273,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, table_result));
       return length(msg_props);
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1290,7 +1290,7 @@ object BUILDER_FEATURES
     try
       target_obj = $match:match_object(dobjstr, player);
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1335,7 +1335,7 @@ object BUILDER_FEATURES
     try
       target_obj = $match:match_object(dobjstr, player);
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1354,12 +1354,12 @@ object BUILDER_FEATURES
     for prop_info in (reaction_props)
       {prop_name, reaction} = prop_info;
       trigger_str = "??";
-      if (typeof(reaction.trigger) == SYM)
+      if (typeof(reaction.trigger) == TYPE_SYM)
         trigger_str = tostr(reaction.trigger);
-      elseif (typeof(reaction.trigger) == LIST && length(reaction.trigger) >= 4 && reaction.trigger[1] == 'when)
+      elseif (typeof(reaction.trigger) == TYPE_LIST && length(reaction.trigger) >= 4 && reaction.trigger[1] == 'when)
         {_, prop, op, val} = reaction.trigger;
         trigger_str = tostr(prop) + " " + tostr(op) + " " + tostr(val);
-      elseif (typeof(reaction.trigger) == LIST)
+      elseif (typeof(reaction.trigger) == TYPE_LIST)
         trigger_str = toliteral(reaction.trigger);
       endif
       if (reaction.when == 0)
@@ -1369,9 +1369,9 @@ object BUILDER_FEATURES
       endif
       effects_parts = {};
       for effect in (reaction.effects)
-        if (typeof(effect) == FLYWEIGHT && effect.type)
+        if (typeof(effect) == TYPE_FLYWEIGHT && effect.type)
           effects_parts = {@effects_parts, tostr(effect.type)};
-        elseif (typeof(effect) == LIST && length(effect) > 0)
+        elseif (typeof(effect) == TYPE_LIST && length(effect) > 0)
           effects_parts = {@effects_parts, tostr(effect[1])};
         endif
       endfor
@@ -1428,12 +1428,12 @@ object BUILDER_FEATURES
       else
         add_property(target_obj, prop_name, reaction, {player, "r"});
       endif
-      trigger_display = typeof(trigger) == SYM ? tostr(trigger) | "threshold";
+      trigger_display = typeof(trigger) == TYPE_SYM ? tostr(trigger) | "threshold";
       message = "Set " + tostr(target_obj) + "." + prop_name + ": trigger=" + trigger_display + ", effects=" + tostr(length(effects));
       player:inform_current($event:mk_info(player, message));
       return reaction;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1466,14 +1466,14 @@ object BUILDER_FEATURES
       "Check property exists and is a reaction";
       prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
       reaction = target_obj.(prop_name);
-      typeof(reaction) == FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
+      typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
       "Enable the reaction";
       reaction.enabled = true;
       target_obj.(prop_name) = reaction;
       player:inform_current($event:mk_info(player, "Enabled " + tostr(target_obj) + "." + prop_name));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1506,14 +1506,14 @@ object BUILDER_FEATURES
       "Check property exists and is a reaction";
       prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
       reaction = target_obj.(prop_name);
-      typeof(reaction) == FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
+      typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
       "Disable the reaction";
       reaction.enabled = false;
       target_obj.(prop_name) = reaction;
       player:inform_current($event:mk_info(player, "Disabled " + tostr(target_obj) + "." + prop_name));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1530,7 +1530,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       ancestors_list = ancestors(target_obj);
       obj_display = tostr(target_obj.name, " (", target_obj, ")");
@@ -1543,7 +1543,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, content));
       return ancestors_list;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return false;
     endtry
@@ -1560,7 +1560,7 @@ object BUILDER_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to set thumbnail on " + tostr(target_obj) + ".");
@@ -1577,7 +1577,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_info(player, "Set thumbnail for " + obj_name + " (" + tostr(target_obj) + ")."));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1594,7 +1594,7 @@ object BUILDER_FEATURES
     overview:matches(topic) && return overview;
     "Try to generate help from verb HINT tags";
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'building) ! ANY => 0';
-    typeof(verb_help) != INT && return verb_help;
+    typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
   endverb
 endobject

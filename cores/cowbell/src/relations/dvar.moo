@@ -16,7 +16,7 @@ object DVAR
 
   verb name (this none this) owner: HACKER flags: "rxd"
     "Return the variable name symbol from this dvar flyweight, or the object name if called on the prototype";
-    if (typeof(this) == FLYWEIGHT)
+    if (typeof(this) == TYPE_FLYWEIGHT)
       return flycontents(this)[1];
     endif
     return this.name;

@@ -13,7 +13,7 @@ object FORMAT_DEFLIST
     "Create deflist flyweight from a list of {term, definition} pairs.";
     "Preserves order (unlike maps which sort alphabetically).";
     {items} = args;
-    typeof(items) != LIST && raise(E_TYPE, "Items must be a list of {term, definition} pairs");
+    typeof(items) != TYPE_LIST && raise(E_TYPE, "Items must be a list of {term, definition} pairs");
     return toflyweight(this, ['items -> items]);
   endverb
 

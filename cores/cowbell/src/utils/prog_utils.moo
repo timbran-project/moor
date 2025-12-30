@@ -17,7 +17,7 @@ object PROG_UTILS
     {pattern, object, vnum, casematters} = args;
     "Try to get verb code - may fail due to permissions or non-existent verb";
     vc = `verb_code(object, vnum) ! ANY => false';
-    if (typeof(vc) == ERR || !vc)
+    if (typeof(vc) == TYPE_ERR || !vc)
       return 0;
     endif
     "Quick check: does pattern exist anywhere in the verb code?";
@@ -70,7 +70,7 @@ object PROG_UTILS
     "Args: {prep_string}";
     set_task_perms(caller_perms());
     {prep_str} = args;
-    typeof(prep_str) == STR || return false;
+    typeof(prep_str) == TYPE_STR || return false;
     "Check for special cases";
     if (prep_str == "none" || prep_str == "any")
       return true;
@@ -115,7 +115,7 @@ object PROG_UTILS
       verb_name = metadata:name();
       verb_index = metadata:index();
       match_result = this:grep_verb_code(pattern, search_obj, verb_index, casematters);
-      if (typeof(match_result) == LIST)
+      if (typeof(match_result) == TYPE_LIST)
         "Found a match - return just the essential data";
         {line_num, matching_line} = match_result;
         matches = {@matches, {search_obj, verb_name, line_num, matching_line}};
@@ -130,7 +130,7 @@ object PROG_UTILS
     "Args: {code_lines}";
     set_task_perms(caller_perms());
     {code_lines} = args;
-    if (typeof(code_lines) != LIST || length(code_lines) == 0)
+    if (typeof(code_lines) != TYPE_LIST || length(code_lines) == 0)
       return {};
     endif
     num_lines = length(code_lines);
@@ -204,7 +204,7 @@ object PROG_UTILS
     lines = {"line one", "line two", "line three"};
     numbered = this:format_line_numbers(lines);
     "Should return a list";
-    if (typeof(numbered) != LIST)
+    if (typeof(numbered) != TYPE_LIST)
       return E_ASSERT;
     endif
     "Should have same length";
@@ -213,12 +213,12 @@ object PROG_UTILS
     endif
     "First line should start with '1: '";
     first = numbered[1];
-    if (typeof(first) != STR || !index(first, "1:"))
+    if (typeof(first) != TYPE_STR || !index(first, "1:"))
       return E_ASSERT;
     endif
     "Last line should contain '3: '";
     last = numbered[3];
-    if (typeof(last) != STR || !index(last, "3:"))
+    if (typeof(last) != TYPE_STR || !index(last, "3:"))
       return E_ASSERT;
     endif
     return true;

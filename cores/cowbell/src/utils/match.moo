@@ -18,7 +18,7 @@ object MATCH
     "  - What 'here' resolves to (context_object.location)";
     "  - Which objects to search for name matching (context_object.contents and context_object.location.contents)";
     {ref_string, ?context = player} = args;
-    typeof(ref_string) != STR && raise(E_TYPE, "Object reference must be a string");
+    typeof(ref_string) != TYPE_STR && raise(E_TYPE, "Object reference must be a string");
     !ref_string && raise(E_INVARG, "Empty object reference");
     if (ref_string[1] == "#")
       result = toobj(ref_string);
@@ -35,7 +35,7 @@ object MATCH
         for prop_name in (prop_path:split("."))
           current_obj = current_obj.(prop_name);
         endfor
-        typeof(current_obj) == OBJ || raise(E_TYPE, "System reference $" + prop_path + " is not an object");
+        typeof(current_obj) == TYPE_OBJ || raise(E_TYPE, "System reference $" + prop_path + " is not an object");
         return current_obj;
       except e (E_PROPNF)
         raise(E_PROPNF, "System property $" + prop_path + " does not exist");
@@ -90,14 +90,14 @@ object MATCH
     "  'allow_literals (bool, default true) - skip straight to literal #obj/uuobjid lookups";
     "  'fuzzy_threshold (num/bool, default 0.5) - fuzzy matching tolerance passed to complex_match";
     {token, scope, ?options = []} = args;
-    typeof(token) == STR || raise(E_TYPE, "Token must be a string");
-    typeof(scope) == LIST || raise(E_TYPE, "Scope must be a list");
-    options = typeof(options) == MAP ? options | [];
+    typeof(token) == TYPE_STR || raise(E_TYPE, "Token must be a string");
+    typeof(scope) == TYPE_LIST || raise(E_TYPE, "Scope must be a list");
+    options = typeof(options) == TYPE_MAP ? options | [];
     allow_literals = maphaskey(options, 'allow_literals) ? options['allow_literals] | true;
     fuzzy_threshold = maphaskey(options, 'fuzzy_threshold) ? options['fuzzy_threshold] | 0.5;
-    if (typeof(fuzzy_threshold) == BOOL)
+    if (typeof(fuzzy_threshold) == TYPE_BOOL)
       fuzzy_threshold = fuzzy_threshold ? 0.5 | 0.0;
-    elseif (typeof(fuzzy_threshold) == INT)
+    elseif (typeof(fuzzy_threshold) == TYPE_INT)
       fuzzy_threshold = fuzzy_threshold + 0.0;
     endif
     token_trimmed = token:trim();
@@ -109,7 +109,7 @@ object MATCH
       if (literal && literal['start] == 1 && literal['end] == length(token_trimmed))
         try
           let candidate_obj = toobj(token_trimmed);
-          if (typeof(candidate_obj) == OBJ && valid(candidate_obj))
+          if (typeof(candidate_obj) == TYPE_OBJ && valid(candidate_obj))
             return candidate_obj;
           endif
         except (ANY)
@@ -120,14 +120,14 @@ object MATCH
     keys = {};
     has_keys = false;
     for entry in (scope)
-      if (typeof(entry) == OBJ)
+      if (typeof(entry) == TYPE_OBJ)
         targets = {@targets, entry};
         keys = {@keys, {}};
-      elseif (typeof(entry) == LIST && entry && typeof(entry[1]) == OBJ)
+      elseif (typeof(entry) == TYPE_LIST && entry && typeof(entry[1]) == TYPE_OBJ)
         let entry_obj = entry[1];
         alias_list = {};
         for alias in (entry[2..$])
-          if (typeof(alias) == STR && alias)
+          if (typeof(alias) == TYPE_STR && alias)
             alias_list = {@alias_list, alias};
           endif
         endfor

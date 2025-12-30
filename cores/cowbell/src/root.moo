@@ -30,7 +30,7 @@ object ROOT
     "";
     "Returns: New child object with caller_perms() as owner (or run_as from capability)";
     "Check fertility first - object-creation specific permission";
-    if (typeof(this) == FLYWEIGHT)
+    if (typeof(this) == TYPE_FLYWEIGHT)
       target = this.delegate;
     else
       target = this;
@@ -123,8 +123,8 @@ object ROOT
     set_task_perms(this.owner);
     {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 20) && raise(E_INVARG, "Thumbnail too large (5MB max)");
-    typeof(content_type) == STR && content_type:starts_with("image/") || raise(E_TYPE);
-    typeof(picbin) == BINARY || raise(E_TYPE);
+    typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
+    typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
     target.thumbnail = {content_type, picbin};
   endverb
 
@@ -133,7 +133,7 @@ object ROOT
     set_task_perms(perms);
     {description} = args;
     "If description is a string with { } tokens, compile it into $sub content so substitutions can render in looks";
-    if (typeof(description) == STR && "{" in description && "}" in description)
+    if (typeof(description) == TYPE_STR && "{" in description && "}" in description)
       compiled = description;
       try
         compiled = $sub_utils:compile(description);
@@ -335,14 +335,14 @@ object ROOT
     caller_perms().wizard || raise(E_PERM);
     {cap1, cap2, ?key = 0} = args;
     "Both must be flyweights with tokens";
-    typeof(cap1) == FLYWEIGHT && typeof(cap2) == FLYWEIGHT || raise(E_TYPE);
+    typeof(cap1) == TYPE_FLYWEIGHT && typeof(cap2) == TYPE_FLYWEIGHT || raise(E_TYPE);
     maphaskey(flyslots(cap1), 'token) && maphaskey(flyslots(cap2), 'token) || raise(E_INVARG);
     "Both must be for the same target";
-    cap1.delegate == cap2.delegate || raise(E_INVARG, "Capabilities must be for same target");
-    target = cap1.delegate;
+    (cap1).delegate == (cap2).delegate || raise(E_INVARG, "Capabilities must be for same target");
+    target = (cap1).delegate;
     "Decode both tokens";
-    claims1 = key ? paseto_verify_local(cap1.token, key) | paseto_verify_local(cap1.token);
-    claims2 = key ? paseto_verify_local(cap2.token, key) | paseto_verify_local(cap2.token);
+    claims1 = key ? paseto_verify_local((cap1).token, key) | paseto_verify_local((cap1).token);
+    claims2 = key ? paseto_verify_local((cap2).token, key) | paseto_verify_local((cap2).token);
     "Combine capability lists (remove duplicates)";
     all_caps = {@claims1["caps"], @claims2["caps"]};
     unique_caps = {};
@@ -371,7 +371,7 @@ object ROOT
     "Permission: wizard, owner of target_obj, or TODO: 'grant capability";
     caller_perms().wizard || caller_perms() == target_obj.owner || raise(E_PERM);
     "Validate category is a symbol";
-    typeof(category) == SYM || raise(E_TYPE);
+    typeof(category) == TYPE_SYM || raise(E_TYPE);
     "Construct property name from category";
     prop_name = "grants_" + tostr(category);
     "Check that grantee has this grants bucket";
@@ -381,7 +381,7 @@ object ROOT
     except (E_PROPNF)
       raise(E_INVARG, tostr(grantee) + " cannot accept grants of category " + tostr(category) + " (missing property: " + prop_name + ")");
     endtry
-    typeof(grants_map) == MAP || raise(E_INVARG, tostr(grantee) + "." + prop_name + " must be a map");
+    typeof(grants_map) == TYPE_MAP || raise(E_INVARG, tostr(grantee) + "." + prop_name + " must be a map");
     "Issue new capability";
     new_cap = target_obj:issue_capability(target_obj, cap_list, 0, 0, key);
     "Check if grantee already has a grant for this object";
@@ -453,7 +453,7 @@ object ROOT
     if (caller == expected)
       return;
     endif
-    if (typeof(caller) == FLYWEIGHT && caller.delegate == expected)
+    if (typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == expected)
       return;
     endif
     raise(E_PERM);
@@ -462,7 +462,7 @@ object ROOT
   verb check_permissions (this none this) owner: HACKER flags: "rxd"
     "Check wizard, owner, or capability permission. Returns {target, perms_object}.";
     "Anyone can call this - authorization is checked internally based on caller_perms()";
-    target = typeof(this) == FLYWEIGHT ? this.delegate | this;
+    target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
     if (caller_perms().wizard)
       return {target, caller_perms()};
     endif
@@ -474,12 +474,12 @@ object ROOT
 
   verb _capability_challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal: Validate capability with optional custom signing key.";
-    if (!(caller == this || (typeof(this) == FLYWEIGHT && caller == this.delegate)))
+    if (!(caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate)))
       raise(E_PERM);
     endif
     {required_caps, key} = args;
     "Type check - this must be a flyweight";
-    if (typeof(this) != FLYWEIGHT)
+    if (typeof(this) != TYPE_FLYWEIGHT)
       raise(E_PERM);
     endif
     "Structure check - must have token slot";
@@ -600,14 +600,14 @@ object ROOT
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Test 1: Issue capability with custom key";
     cap = this:issue_capability(this, {'read}, 0, 0, test_key);
-    typeof(cap) == FLYWEIGHT || raise(E_ASSERT, "Cap should be flyweight");
+    typeof(cap) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Cap should be flyweight");
     cap.delegate == this || raise(E_ASSERT, "Cap delegate should be this");
     maphaskey(flyslots(cap), 'token) || raise(E_ASSERT, "Cap should have token slot");
     "Test 2: Challenge returns {delegate, run_as}";
     {target, run_as} = cap:challenge_for_with_key({'read}, test_key);
-    typeof(target) == OBJ || raise(E_ASSERT, "Target should be OBJ");
+    typeof(target) == TYPE_OBJ || raise(E_ASSERT, "Target should be OBJ");
     target == this || raise(E_ASSERT, "Target should be this");
-    typeof(run_as) == OBJ || raise(E_ASSERT, "run_as should be OBJ");
+    typeof(run_as) == TYPE_OBJ || raise(E_ASSERT, "run_as should be OBJ");
     run_as == $hacker || raise(E_ASSERT, "run_as should be $hacker");
     "Test 3: Multiple capabilities";
     multi_cap = this:issue_capability(this, {'read, 'write, 'execute}, 0, 0, test_key);
@@ -646,7 +646,7 @@ object ROOT
     cap1 = this:issue_capability(this, {'read, 'write}, 0, 0, test_key);
     cap2 = this:issue_capability(this, {'execute, 'delete}, 0, 0, test_key);
     merged = $root:merge_capability(cap1, cap2, test_key);
-    typeof(merged) == FLYWEIGHT || raise(E_ASSERT("Merged result should be a flyweight"));
+    typeof(merged) == TYPE_FLYWEIGHT || raise(E_ASSERT("Merged result should be a flyweight"));
     merged.delegate == this || raise(E_ASSERT("Merged delegate should match original"));
     "Test 2: Verify merged capability contains all permissions";
     {target, perms} = merged:challenge_for_with_key({'read, 'write, 'execute, 'delete}, test_key);
@@ -655,14 +655,14 @@ object ROOT
     cap3 = this:issue_capability(this, {'read, 'write}, 0, 0, test_key);
     cap4 = this:issue_capability(this, {'write, 'execute}, 0, 0, test_key);
     merged2 = $root:merge_capability(cap3, cap4, test_key);
-    {target2, perms2} = merged2:challenge_for_with_key({'read, 'write, 'execute}, test_key);
+    {target2, perms2} = (merged2):challenge_for_with_key({'read, 'write, 'execute}, test_key);
     target2 == this || raise(E_ASSERT("Merged overlapping should contain all unique permissions"));
     "Test 4: Merge with expiration - should take later expiration";
     future = time() + 3600;
     cap5 = this:issue_capability(this, {'read}, 0, 0, test_key);
     cap6 = this:issue_capability(this, {'write}, future, 0, test_key);
     merged3 = $root:merge_capability(cap5, cap6, test_key);
-    claims = paseto_verify_local(merged3.token, test_key);
+    claims = paseto_verify_local((merged3).token, test_key);
     maphaskey(claims, "exp") || raise(E_ASSERT("Merged should have expiration from cap6"));
     claims["exp"] == future || raise(E_ASSERT("Merged expiration should be later time"));
     "Test 5: Cannot merge capabilities for different targets";
@@ -688,16 +688,16 @@ object ROOT
     test_player = create($player);
     "Test 1: Grant initial capability";
     cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area, test_key);
-    typeof(cap1) == FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
-    cap1.delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
+    typeof(cap1) == TYPE_FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
+    (cap1).delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
     "Test 2: Verify capability was stored in grants_area";
-    typeof(test_player.grants_area) == MAP || raise(E_ASSERT("grants_area should be a map"));
+    typeof(test_player.grants_area) == TYPE_MAP || raise(E_ASSERT("grants_area should be a map"));
     maphaskey(test_player.grants_area, test_area) || raise(E_ASSERT("Should have grant for test_area"));
     stored_cap = test_player.grants_area[test_area];
     stored_cap == cap1 || raise(E_ASSERT("Stored capability should match returned one"));
     "Test 3: Grant additional capability - should auto-merge";
     cap2 = $root:grant_capability(test_area, {'create_passage}, test_player, 'area, test_key);
-    typeof(cap2) == FLYWEIGHT || raise(E_ASSERT("Second grant should return flyweight"));
+    typeof(cap2) == TYPE_FLYWEIGHT || raise(E_ASSERT("Second grant should return flyweight"));
     "Test 4: Verify merged capability has both permissions";
     merged_cap = test_player.grants_area[test_area];
     {target, perms} = merged_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
@@ -708,7 +708,7 @@ object ROOT
     "Test 6: Different category (room grants)";
     test_room = create($room);
     room_cap = $root:grant_capability(test_room, {'dig_from}, test_player, 'room, test_key);
-    typeof(test_player.grants_room) == MAP || raise(E_ASSERT("grants_room should be created"));
+    typeof(test_player.grants_room) == TYPE_MAP || raise(E_ASSERT("grants_room should be created"));
     maphaskey(test_player.grants_room, test_room) || raise(E_ASSERT("Should have grant for test_room"));
     found_room_cap = test_player:find_capability_for(test_room, 'room);
     found_room_cap == room_cap || raise(E_ASSERT("Should find room grant"));
@@ -728,7 +728,7 @@ object ROOT
       return 0;
     endif
     "Format as djot content";
-    if (typeof(help_text) == LIST)
+    if (typeof(help_text) == TYPE_LIST)
       return $format.block:mk(this:display_name(), @help_text);
     else
       return $format.block:mk(this:display_name(), {help_text});
@@ -762,7 +762,7 @@ object ROOT
   verb fact_isa (this none this) owner: HACKER flags: "rxd"
     "Rule predicate: Is target a descendant of proto?";
     {target, proto} = args;
-    return typeof(target) == OBJ && valid(target) && isa(target, proto);
+    return typeof(target) == TYPE_OBJ && valid(target) && isa(target, proto);
   endverb
 
   verb get_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -776,7 +776,7 @@ object ROOT
       endif
       try
         val = this.(prop_name);
-        if (typeof(val) == FLYWEIGHT && val.delegate == $reaction)
+        if (typeof(val) == TYPE_FLYWEIGHT && val.delegate == $reaction)
           result = {@result, val};
         endif
       except (E_PROPNF, E_PERM)
@@ -814,7 +814,7 @@ object ROOT
       endif
       trigger = reaction.trigger;
       "Skip non-threshold triggers";
-      if (typeof(trigger) != LIST || length(trigger) < 4 || trigger[1] != 'when)
+      if (typeof(trigger) != TYPE_LIST || length(trigger) < 4 || trigger[1] != 'when)
         continue;
       endif
       {_, trigger_prop, op, threshold} = trigger;

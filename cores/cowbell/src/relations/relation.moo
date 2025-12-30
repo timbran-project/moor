@@ -13,19 +13,19 @@ object RELATION
     "Add a tuple to the relation. Returns the UUID of the tuple.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    typeof(tuple) != LIST && raise(E_TYPE);
+    typeof(tuple) != TYPE_LIST && raise(E_TYPE);
     !length(tuple) && raise(E_INVARG);
     tuple_id = uuid();
     add_property(this, "tuple_" + tuple_id, tuple, {this.owner, "r"});
     "Index each scalar element (lists/flyweights can't be map keys)";
     for i in [1..length(tuple)]
       element = tuple[i];
-      if (typeof(element) in {FLYWEIGHT, LIST, MAP})
+      if (typeof(element) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
         continue;
       endif
       index_prop = "index_" + value_hash(element);
       index_map = `this.(index_prop) ! E_PROPNF => 0';
-      if (typeof(index_map) != MAP)
+      if (typeof(index_map) != TYPE_MAP)
         index_map = mapdelete(['_dummy -> 0], '_dummy);
         add_property(this, index_prop, index_map, {this.owner, "r"});
       endif
@@ -40,13 +40,13 @@ object RELATION
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    typeof(tuple) != LIST && raise(E_TYPE);
+    typeof(tuple) != TYPE_LIST && raise(E_TYPE);
     tuple_id = this:_find_tuple_id(tuple);
     !tuple_id && return false;
     "Remove from all indexes (skip non-scalars)";
     for i in [1..length(tuple)]
       element = tuple[i];
-      if (typeof(element) in {FLYWEIGHT, LIST, MAP})
+      if (typeof(element) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
         continue;
       endif
       index_prop = "index_" + value_hash(element);
@@ -66,17 +66,17 @@ object RELATION
     "Check if a tuple exists in the relation.";
     set_task_perms(caller_perms());
     {tuple} = args;
-    typeof(tuple) != LIST && raise(E_TYPE);
+    typeof(tuple) != TYPE_LIST && raise(E_TYPE);
     return this:_find_tuple_id(tuple) ? true | false;
   endverb
 
   verb select (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
     {position, value} = args;
-    typeof(position) != INT && raise(E_TYPE);
+    typeof(position) != TYPE_INT && raise(E_TYPE);
     position < 1 && raise(E_INVARG);
     index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
-    typeof(index_map) != MAP && return {};
+    typeof(index_map) != TYPE_MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
@@ -90,7 +90,7 @@ object RELATION
     "Find all tuples containing value in any position.";
     {value} = args;
     index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
-    typeof(index_map) != MAP && return {};
+    typeof(index_map) != TYPE_MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
@@ -131,7 +131,7 @@ object RELATION
     !length(tuple) && return 0;
     element = tuple[1];
     index_map = `this.(("index_" + value_hash(element))) ! E_PROPNF => 0';
-    typeof(index_map) != MAP && return 0;
+    typeof(index_map) != TYPE_MAP && return 0;
     uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
     for tuple_id in (uuid_list)
       stored_tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
@@ -291,11 +291,11 @@ object RELATION
   verb query (this none this) owner: HACKER flags: "rxd"
     "Match pattern with variables against tuples, return bindings. Variables are created with $dvar:mk_name().";
     {pattern} = args;
-    typeof(pattern) != LIST && raise(E_TYPE);
+    typeof(pattern) != TYPE_LIST && raise(E_TYPE);
     "Find first concrete (non-variable) value to narrow search";
     concrete_value = false;
     for elem in (pattern)
-      if (typeof(elem) != FLYWEIGHT || !valid(elem.delegate) || elem.delegate != $dvar)
+      if (typeof(elem) != TYPE_FLYWEIGHT || !valid(elem.delegate) || elem.delegate != $dvar)
         concrete_value = elem;
         break;
       endif
@@ -316,7 +316,7 @@ object RELATION
     bindings = [];
     for i in [1..length(pattern)]
       p = pattern[i];
-      if (typeof(p) == FLYWEIGHT && valid(p.delegate) && p.delegate == $dvar)
+      if (typeof(p) == TYPE_FLYWEIGHT && valid(p.delegate) && p.delegate == $dvar)
         var_name = p:name();
         maphaskey(bindings, var_name) && bindings[var_name] != tuple[i] && return false;
         bindings[var_name] = tuple[i];

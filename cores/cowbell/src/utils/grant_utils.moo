@@ -11,9 +11,9 @@ object GRANT_UTILS
   verb format_grant (this none this) owner: HACKER flags: "rxd"
     "Format a grant specification as target.category(cap1,cap2,...).";
     {target, category, cap_list} = args;
-    typeof(target) == OBJ || raise(E_TYPE);
-    typeof(category) == SYM || raise(E_TYPE);
-    typeof(cap_list) == LIST || raise(E_TYPE);
+    typeof(target) == TYPE_OBJ || raise(E_TYPE);
+    typeof(category) == TYPE_SYM || raise(E_TYPE);
+    typeof(cap_list) == TYPE_LIST || raise(E_TYPE);
     target_str = tostr(target);
     category_str = tostr(category);
     cap_names = { tostr(c) for c in (cap_list) };
@@ -24,9 +24,9 @@ object GRANT_UTILS
   verb format_grant_with_name (this none this) owner: HACKER flags: "rxd"
     "Format a grant specification including the target object's name.";
     {target, category, cap_list} = args;
-    typeof(target) == OBJ || raise(E_TYPE);
-    typeof(category) == SYM || raise(E_TYPE);
-    typeof(cap_list) == LIST || raise(E_TYPE);
+    typeof(target) == TYPE_OBJ || raise(E_TYPE);
+    typeof(category) == TYPE_SYM || raise(E_TYPE);
+    typeof(cap_list) == TYPE_LIST || raise(E_TYPE);
     target_name = valid(target) ? target:name() | "invalid object";
     target_str = target_name + " (" + tostr(target) + ")";
     category_str = tostr(category);
@@ -39,7 +39,7 @@ object GRANT_UTILS
     "Parse a grant specification like #38.area(add_room,create_passage) into components.";
     "Returns {target, category, cap_list} or raises E_INVARG on parse error.";
     {grant_str} = args;
-    typeof(grant_str) == STR || raise(E_TYPE);
+    typeof(grant_str) == TYPE_STR || raise(E_TYPE);
     "Find the dots separating target.category";
     dot_idx = "." in grant_str;
     if (dot_idx == 0)
@@ -65,7 +65,7 @@ object GRANT_UTILS
     except (ANY)
       raise(E_INVARG, "Invalid target object: " + target_str);
     endtry
-    if (typeof(target) != OBJ || !valid(target))
+    if (typeof(target) != TYPE_OBJ || !valid(target))
       raise(E_INVARG, "Invalid target object: " + target_str);
     endif
     "Parse category";
@@ -87,9 +87,9 @@ object GRANT_UTILS
   verb format_denial (this none this) owner: HACKER flags: "rxd"
     "Format a permission denial message for missing capabilities.";
     {target, category, required_caps} = args;
-    typeof(target) == OBJ || raise(E_TYPE);
-    typeof(category) == SYM || raise(E_TYPE);
-    typeof(required_caps) == LIST || raise(E_TYPE);
+    typeof(target) == TYPE_OBJ || raise(E_TYPE);
+    typeof(category) == TYPE_SYM || raise(E_TYPE);
+    typeof(required_caps) == TYPE_LIST || raise(E_TYPE);
     target_name = valid(target) ? target:name() | "invalid object";
     target_str = "\"" + target_name + "\" (" + tostr(target) + ")";
     grant_spec = this:format_grant(target, category, required_caps);

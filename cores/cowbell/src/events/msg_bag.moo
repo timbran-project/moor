@@ -23,7 +23,7 @@ object MSG_BAG
     "Remove a message by 1-based index.";
     set_task_perms(caller_perms());
     {idx} = args;
-    typeof(idx) == INT || raise(E_TYPE);
+    typeof(idx) == TYPE_INT || raise(E_TYPE);
     idx < 1 || idx > length(this.entries) && raise(E_RANGE);
     this.entries = {@(this.entries)[1..idx - 1], @(this.entries)[idx + 1..$]};
     return length(this.entries);
@@ -48,7 +48,7 @@ object MSG_BAG
     "Replace entry at index with new text.";
     set_task_perms(caller_perms());
     {idx, text} = args;
-    typeof(idx) == INT || raise(E_TYPE);
+    typeof(idx) == TYPE_INT || raise(E_TYPE);
     idx < 1 || idx > length(this.entries) && raise(E_RANGE);
     this.entries[idx] = text;
     return text;

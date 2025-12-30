@@ -21,9 +21,9 @@ object LLM_CLIENT
       raise(E_INVARG("LLM API key not configured"));
     endif
     "Convert input to messages array if it's a string";
-    if (typeof(input) == STR)
+    if (typeof(input) == TYPE_STR)
       messages = {["role" -> "user", "content" -> input]};
-    elseif (typeof(input) == LIST)
+    elseif (typeof(input) == TYPE_LIST)
       messages = input;
     else
       raise(E_TYPE);
@@ -35,7 +35,7 @@ object LLM_CLIENT
       body["tools"] = tools;
     endif
     "Merge in options from flyweight";
-    if (typeof(opts) == FLYWEIGHT)
+    if (typeof(opts) == TYPE_FLYWEIGHT)
       for key in (mapkeys(opts_params = opts:to_body_params()))
         body[key] = opts_params[key];
       endfor
@@ -49,7 +49,7 @@ object LLM_CLIENT
     req_end = ftime();
     "Parse and return the response";
     "worker_request returns {status_code, headers, body_string}";
-    if (typeof(response) != LIST || length(response) < 3)
+    if (typeof(response) != TYPE_LIST || length(response) < 3)
       server_log("fail " + toliteral(response));
       raise(E_INVARG, "Invalid response from LLM: " + toliteral(response));
     endif
@@ -59,7 +59,7 @@ object LLM_CLIENT
     if (status < 200 || status >= 300)
       raise(E_INVARG("LLM API error: HTTP " + tostr(status) + " - " + body));
     endif
-    if (typeof(body) == STR)
+    if (typeof(body) == TYPE_STR)
       "Don't try to parse empty responses";
       if (body == "")
         raise(E_INVARG("LLM API returned empty response"));
@@ -75,7 +75,7 @@ object LLM_CLIENT
     {this, perms} = this:check_permissions('set_api_key);
     set_task_perms(perms);
     {new_key} = args;
-    typeof(new_key) == STR || raise(E_TYPE);
+    typeof(new_key) == TYPE_STR || raise(E_TYPE);
     this.api_key = new_key;
   endverb
 
@@ -83,7 +83,7 @@ object LLM_CLIENT
     "Convenience method for simple string queries, returns just the message content";
     {query} = args;
     response = this:chat(query);
-    if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+    if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
       choice = response["choices"][1];
       if (maphaskey(choice, "message") && maphaskey(choice["message"], "content"))
         return choice["message"]["content"];
@@ -94,6 +94,6 @@ object LLM_CLIENT
 
   verb is_configured (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if the LLM client has an API key configured";
-    return this.api_key && typeof(this.api_key) == STR && length(this.api_key) > 0;
+    return this.api_key && typeof(this.api_key) == TYPE_STR && length(this.api_key) > 0;
   endverb
 endobject

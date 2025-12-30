@@ -11,7 +11,7 @@ object FORMAT_LIST
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create list flyweight with optional ordered attribute";
     {content, ?ordered = false} = args;
-    typeof(content) != LIST && raise(E_TYPE, "List content must be a list");
+    typeof(content) != TYPE_LIST && raise(E_TYPE, "List content must be a list");
     return <this, .ordered = ordered, {@content}>;
   endverb
 
@@ -46,7 +46,7 @@ object FORMAT_LIST
     list_obj = this:mk(items);
     html_result = list_obj:compose($nothing, 'text_html, $nothing);
     xml_result = html_result:render('text_html);
-    parsed = xml_parse(xml_result, LIST);
+    parsed = xml_parse(xml_result, TYPE_LIST);
     expected = {"ul", {"li", "Coffee"}, {"li", "Tea"}, {"li", "Milk"}};
     parsed != expected && raise(E_ASSERT, "Expected: " + toliteral(expected) + " Got: " + toliteral(parsed));
     return true;
@@ -58,7 +58,7 @@ object FORMAT_LIST
     list_obj = this:mk(items, true);
     html_result = list_obj:compose($nothing, 'text_html, $nothing);
     xml_result = html_result:render('text_html);
-    parsed = xml_parse(xml_result, LIST);
+    parsed = xml_parse(xml_result, TYPE_LIST);
     expected = {"ol", {"li", "First"}, {"li", "Second"}, {"li", "Third"}};
     parsed != expected && return E_ASSERT;
     return true;

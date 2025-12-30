@@ -11,8 +11,8 @@ object FORMAT_TABLE
   verb mk (this none this) owner: HACKER flags: "rxd"
     "Create table flyweight with headers and rows";
     {headers, rows} = args;
-    typeof(headers) != LIST && raise(E_TYPE, "Headers must be a list");
-    typeof(rows) != LIST && raise(E_TYPE, "Rows must be a list");
+    typeof(headers) != TYPE_LIST && raise(E_TYPE, "Headers must be a list");
+    typeof(rows) != TYPE_LIST && raise(E_TYPE, "Rows must be a list");
     return toflyweight(this, ['headers -> headers, 'rows -> rows]);
   endverb
 
@@ -145,7 +145,7 @@ object FORMAT_TABLE
     table_obj = this:mk(headers, rows);
     html_result = table_obj:compose($nothing, 'text_html, $nothing);
     xml_result = html_result:render('text_html);
-    parsed = xml_parse(xml_result, LIST);
+    parsed = xml_parse(xml_result, TYPE_LIST);
     "Verify basic table structure";
     parsed[1] != "table" && return E_ASSERT;
     "Should have thead and tbody";

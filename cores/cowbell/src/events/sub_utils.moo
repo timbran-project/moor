@@ -126,7 +126,7 @@ object SUB_UTILS
   verb compile (this none this) owner: HACKER flags: "rxd"
     "Parse template string into list of strings and $sub flyweights.";
     {template} = args;
-    typeof(template) != STR && raise(E_TYPE, "template must be string");
+    typeof(template) != TYPE_STR && raise(E_TYPE, "template must be string");
     content = {};
     pos = 1;
     len = length(template);
@@ -142,7 +142,7 @@ object SUB_UTILS
       !token_end_offset && raise(E_INVARG, "Unclosed brace in template at position " + token_start);
       token_end = token_start + token_end_offset;
       fw = this:_parse_token(template[token_start + 1..token_end - 1]);
-      typeof(fw) == FLYWEIGHT && (content = {@content, fw});
+      typeof(fw) == TYPE_FLYWEIGHT && (content = {@content, fw});
       pos = token_end + 1;
     endwhile
     return content;
@@ -181,10 +181,10 @@ object SUB_UTILS
   verb decompile (this none this) owner: HACKER flags: "rxd"
     "Reconstruct template string from compiled content list.";
     {content} = args;
-    typeof(content) != LIST && raise(E_TYPE, "content must be list");
+    typeof(content) != TYPE_LIST && raise(E_TYPE, "content must be list");
     result = "";
     for item in (content)
-      result = result + (typeof(item) == STR ? item | (typeof(item) == FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item)));
+      result = result + (typeof(item) == TYPE_STR ? item | (typeof(item) == TYPE_FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item)));
     endfor
     return result;
   endverb
@@ -192,7 +192,7 @@ object SUB_UTILS
   verb _reconstruct_token (this none this) owner: HACKER flags: "rxd"
     "Reconstruct {token} syntax from a flyweight.";
     {fw} = args;
-    typeof(fw) != FLYWEIGHT && raise(E_TYPE, "must be flyweight");
+    typeof(fw) != TYPE_FLYWEIGHT && raise(E_TYPE, "must be flyweight");
     token_type = fw.type;
     !token_type && return "{?}";
     token_type == 'self_alt && return "{" + tostr(fw.for_self) + "|" + tostr(fw.for_others) + "}";
@@ -209,9 +209,9 @@ object SUB_UTILS
       return "{" + (fw.capitalize ? name_str:capitalize() | name_str) + "}";
     endif
     "Map type symbols back to token names";
-    type_map = ['actor -> "n", 'dobj -> "d", 'iobj -> "i", 'location -> "l", 'this -> "t", 'subject -> "s", 'object -> "o", 'pos_adj -> "p", 'pos_noun -> "q", 'reflexive -> "r", 'verb_be -> "be", 'verb_have -> "have", 'verb_look -> "look"];
-    if (maphaskey(type_map, token_type))
-      base = type_map[token_type];
+    typemap = ['actor -> "n", 'dobj -> "d", 'iobj -> "i", 'location -> "l", 'this -> "t", 'subject -> "s", 'object -> "o", 'pos_adj -> "p", 'pos_noun -> "q", 'reflexive -> "r", 'verb_be -> "be", 'verb_have -> "have", 'verb_look -> "look"];
+    if (maphaskey(typemap, token_type))
+      base = typemap[token_type];
       return "{" + base + (fw.capitalize ? "c" | "") + "}";
     endif
     "Object-specific versions (dobj_*, iobj_*)";
@@ -238,7 +238,7 @@ object SUB_UTILS
     result = this:compile("You see {actor}.");
     length(result) != 3 && raise(E_ASSERT);
     result[1] != "You see " && raise(E_ASSERT);
-    typeof(result[2]) != FLYWEIGHT && raise(E_ASSERT);
+    typeof(result[2]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
     result[2].type != 'binding && raise(E_ASSERT);
     result[3] != "." && raise(E_ASSERT);
     return true;
@@ -248,7 +248,7 @@ object SUB_UTILS
     "Test compile with article.";
     result = this:compile("{the direction}");
     length(result) != 1 && raise(E_ASSERT);
-    typeof(result[1]) != FLYWEIGHT && raise(E_ASSERT);
+    typeof(result[1]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
     result[1].type != 'article_the && raise(E_ASSERT);
     result[1].binding_name != 'direction && raise(E_ASSERT);
     return true;
@@ -258,7 +258,7 @@ object SUB_UTILS
     "Test compile with self-alternation.";
     result = this:compile("{tired|exhausted}");
     length(result) != 1 && raise(E_ASSERT);
-    typeof(result[1]) != FLYWEIGHT && raise(E_ASSERT);
+    typeof(result[1]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
     result[1].type != 'self_alt && raise(E_ASSERT);
     result[1].for_self != "tired" && raise(E_ASSERT);
     result[1].for_others != "exhausted" && raise(E_ASSERT);
@@ -269,9 +269,9 @@ object SUB_UTILS
     "Test compile with mixed content.";
     result = this:compile("{nc} heads {the direction}.");
     length(result) != 4 && raise(E_ASSERT);
-    typeof(result[1]) != FLYWEIGHT && raise(E_ASSERT);
+    typeof(result[1]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
     result[2] != " heads " && raise(E_ASSERT);
-    typeof(result[3]) != FLYWEIGHT && raise(E_ASSERT);
+    typeof(result[3]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
     result[4] != "." && raise(E_ASSERT);
     return true;
   endverb

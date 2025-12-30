@@ -148,11 +148,11 @@ object HENRI
     {source} = args;
     if (valid(source) && isa(source, $msg_bag))
       msg = source:pick();
-      return typeof(msg) == ERR ? "" | msg;
-    elseif (typeof(source) == LIST)
+      return typeof(msg) == TYPE_ERR ? "" | msg;
+    elseif (typeof(source) == TYPE_LIST)
       "Assume this is a compiled template list; return as-is";
       return source;
-    elseif (typeof(source) == STR)
+    elseif (typeof(source) == TYPE_STR)
       return source;
     endif
     return "";
@@ -232,13 +232,13 @@ object HENRI
       "Henri doesn't allow this petting attempt";
       if (valid(this.location))
         reaction_content = access_check['reason];
-        if (typeof(reaction_content) == STR)
+        if (typeof(reaction_content) == TYPE_STR)
           try
             reaction_content = $sub_utils:compile(reaction_content);
           except (ANY)
             reaction_content = {reaction_content};
           endtry
-        elseif (typeof(reaction_content) != LIST)
+        elseif (typeof(reaction_content) != TYPE_LIST)
           reaction_content = {reaction_content};
         endif
         event = $event:mk_emote(this, @reaction_content):with_dobj(player):with_audience('narrative);
@@ -274,23 +274,23 @@ object HENRI
       if (complaint && complaint != "")
         "Ensure both reaction and complaint are lists before combining";
         reaction_content = reaction;
-        if (typeof(reaction_content) == STR)
+        if (typeof(reaction_content) == TYPE_STR)
           try
             reaction_content = $sub_utils:compile(reaction_content);
           except (ANY)
             reaction_content = {reaction_content};
           endtry
-        elseif (typeof(reaction_content) != LIST)
+        elseif (typeof(reaction_content) != TYPE_LIST)
           reaction_content = {reaction_content};
         endif
         complaint_content = complaint;
-        if (typeof(complaint_content) == STR)
+        if (typeof(complaint_content) == TYPE_STR)
           try
             complaint_content = $sub_utils:compile(complaint_content);
           except (ANY)
             complaint_content = {complaint_content};
           endtry
-        elseif (typeof(complaint_content) != LIST)
+        elseif (typeof(complaint_content) != TYPE_LIST)
           complaint_content = {complaint_content};
         endif
         reaction = $format.block:mk(reaction_content, complaint_content);
@@ -299,13 +299,13 @@ object HENRI
     "Announce Henri's reaction";
     if (valid(this.location))
       reaction_content = reaction;
-      if (typeof(reaction_content) == STR)
+      if (typeof(reaction_content) == TYPE_STR)
         try
           reaction_content = $sub_utils:compile(reaction_content);
         except (ANY)
           reaction_content = {reaction_content};
         endtry
-      elseif (typeof(reaction_content) != LIST)
+      elseif (typeof(reaction_content) != TYPE_LIST)
         reaction_content = {reaction_content};
       endif
       event = $event:mk_emote(this, @reaction_content):with_dobj(player):with_audience('narrative);
@@ -341,9 +341,9 @@ object HENRI
   verb look_self (this none this) owner: HACKER flags: "rxd"
     look_data = pass(@args);
     base_desc = look_data.description;
-    desc_parts = typeof(base_desc) == LIST ? base_desc | {base_desc};
+    desc_parts = typeof(base_desc) == TYPE_LIST ? base_desc | {base_desc};
     mood_extra = this:_pick_message(this.look_self_msg_bag);
-    if (typeof(mood_extra) != LIST)
+    if (typeof(mood_extra) != TYPE_LIST)
       mood_extra = {mood_extra};
     endif
     merged = mood_extra ? {@desc_parts, "\n", @mood_extra} | desc_parts;
@@ -365,7 +365,7 @@ object HENRI
       player:inform_current(event);
       return;
     endtry
-    if (!valid(food) || typeof(food) != OBJ)
+    if (!valid(food) || typeof(food) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
       return;
@@ -381,13 +381,13 @@ object HENRI
       "Henri doesn't accept this food offering";
       if (valid(this.location))
         reaction_content = access_check['reason];
-        if (typeof(reaction_content) == STR)
+        if (typeof(reaction_content) == TYPE_STR)
           try
             reaction_content = $sub_utils:compile(reaction_content);
           except (ANY)
             reaction_content = {reaction_content};
           endtry
-        elseif (typeof(reaction_content) != LIST)
+        elseif (typeof(reaction_content) != TYPE_LIST)
           reaction_content = {reaction_content};
         endif
         event = $event:mk_emote(this, @reaction_content):with_dobj(player):with_audience('narrative);
@@ -530,13 +530,13 @@ object HENRI
     if (random(2) == 1)
       complaint = this:_pick_message(this.complaints_msg_bag);
       if (complaint && complaint != "")
-        if (typeof(complaint) == STR)
+        if (typeof(complaint) == TYPE_STR)
           try
             complaint = $sub_utils:compile(complaint);
           except (ANY)
             complaint = {complaint};
           endtry
-        elseif (typeof(complaint) != LIST)
+        elseif (typeof(complaint) != TYPE_LIST)
           complaint = {complaint};
         endif
         behaviour = $format.block:mk({"", complaint});
@@ -648,7 +648,7 @@ object HENRI
     "Check for players in the room";
     has_players = false;
     for thing in (this.location.contents)
-      if (typeof(thing) == OBJ && valid(thing) && is_player(thing))
+      if (typeof(thing) == TYPE_OBJ && valid(thing) && is_player(thing))
         has_players = true;
         break;
       endif

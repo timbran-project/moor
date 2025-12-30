@@ -25,7 +25,6 @@ object MR_WELCOME
     " head quizzically. \"I am already fully operational, though I appreciate your concern for my well-being.\""
   };
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
-  override event_buffer = {};
   override import_export_hierarchy = {"llm"};
   override import_export_id = "mr_welcome";
   override knowledge_base = #000044-9AE10253C8;
@@ -62,7 +61,7 @@ object MR_WELCOME
   override turn_on_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " the small switch behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head. *click* ",
@@ -173,7 +172,7 @@ object MR_WELCOME
     player_list = connected_players();
     result = {};
     for p in (player_list)
-      if (valid(p) && typeof(idle_time = idle_seconds(p)) != ERR)
+      if (valid(p) && typeof(idle_time = idle_seconds(p)) != TYPE_ERR)
         name = p:name();
         idle_str = idle_time:format_time_seconds();
         conn_str = connected_seconds(p):format_time_seconds();
@@ -196,7 +195,7 @@ object MR_WELCOME
     "Tool: Get information about a specific player";
     {args_map, actor} = args;
     player_name = args_map["player_name"];
-    typeof(player_name) == STR || raise(E_TYPE("Expected player name string"));
+    typeof(player_name) == TYPE_STR || raise(E_TYPE("Expected player name string"));
     "Find player by name";
     found_player = #-1;
     for p in (players())
@@ -223,7 +222,7 @@ object MR_WELCOME
     endif
     "Add connection and activity information if connected";
     if (found_player in connected_players())
-      if (typeof(idle_time = idle_seconds(found_player)) != ERR)
+      if (typeof(idle_time = idle_seconds(found_player)) != TYPE_ERR)
         idle_str = idle_time:format_time_seconds();
         conn_str = connected_seconds(found_player):format_time_seconds();
         location_name = valid(found_player.location) ? found_player.location:name() | "(nowhere)";
@@ -276,7 +275,7 @@ object MR_WELCOME
     "Tool: Find route from current location to a destination";
     {args_map, actor} = args;
     destination_name = args_map["destination"];
-    typeof(destination_name) == STR || raise(E_TYPE("Expected destination name string"));
+    typeof(destination_name) == TYPE_STR || raise(E_TYPE("Expected destination name string"));
     "Get current room and area";
     current_room = this.location;
     if (!valid(current_room))
@@ -334,7 +333,7 @@ object MR_WELCOME
     try
       {args_map, actor} = args;
       object_name = args_map["object_name"];
-      typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
+      typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
       current_room = this.location;
       if (!valid(current_room))
         return "Error: Mr. Welcome is not in a room";
@@ -369,7 +368,7 @@ object MR_WELCOME
     try
       {args_map, actor} = args;
       object_name = args_map["object_name"];
-      typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
+      typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
       "Find the object first";
       current_room = this.location;
       if (!valid(current_room))
@@ -433,7 +432,7 @@ object MR_WELCOME
     "Tool: Express an action or emotion through an emote";
     {args_map, actor} = args;
     action = args_map["action"];
-    typeof(action) == STR || raise(E_TYPE("Expected action string"));
+    typeof(action) == TYPE_STR || raise(E_TYPE("Expected action string"));
     if (!valid(this.location))
       return "Error: Not in a room";
     endif
@@ -453,8 +452,8 @@ object MR_WELCOME
     endif
     target_name = args_map["target_name"];
     message = args_map["message"];
-    typeof(target_name) == STR || raise(E_TYPE("Expected target_name string"));
-    typeof(message) == STR || raise(E_TYPE("Expected message string"));
+    typeof(target_name) == TYPE_STR || raise(E_TYPE("Expected target_name string"));
+    typeof(message) == TYPE_STR || raise(E_TYPE("Expected message string"));
     if (!valid(this.location))
       return "Error: Not in a room";
     endif
@@ -464,7 +463,7 @@ object MR_WELCOME
     except e (ANY)
       return "Error: Could not find '" + target_name + "' in the room";
     endtry
-    if (!valid(target) || typeof(target) != OBJ)
+    if (!valid(target) || typeof(target) != TYPE_OBJ)
       return "Error: Could not find '" + target_name + "' in the room";
     endif
     this.location:announce(this:mk_directed_say_event(target, message));
@@ -479,7 +478,7 @@ object MR_WELCOME
     "Tool: Express an internal thought";
     {args_map, actor} = args;
     thought = args_map["thought"];
-    typeof(thought) == STR || raise(E_TYPE("Expected thought string"));
+    typeof(thought) == TYPE_STR || raise(E_TYPE("Expected thought string"));
     if (!valid(this.location))
       return "Error: Not in a room";
     endif
@@ -491,7 +490,7 @@ object MR_WELCOME
     "Tool: Inspect an object and return detailed information using examination flyweight";
     {args_map, actor} = args;
     object_name = args_map["object_name"];
-    typeof(object_name) == STR || raise(E_TYPE("Expected object name string"));
+    typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
     "Find the object first";
     current_room = this.location;
     if (!valid(current_room))
@@ -511,7 +510,7 @@ object MR_WELCOME
     endif
     "Get examination flyweight";
     exam = found:examination();
-    if (typeof(exam) != FLYWEIGHT)
+    if (typeof(exam) != TYPE_FLYWEIGHT)
       return "Error: Could not examine '" + object_name + "'.";
     endif
     "Build detailed information from examination";
@@ -616,7 +615,7 @@ object MR_WELCOME
     "Tool: Look up a help topic to get information about commands and features.";
     {args_map, actor} = args;
     topic = args_map["topic"];
-    typeof(topic) != STR && return "Error: topic must be a string.";
+    typeof(topic) != TYPE_STR && return "Error: topic must be a string.";
     "Use Mr. Welcome's location as reference for help environment";
     current_room = this.location;
     !valid(current_room) && return "Error: Mr. Welcome is not in a room.";
@@ -630,7 +629,7 @@ object MR_WELCOME
         if (valid(o) && o.r && respond_to(o, 'help_topics))
           topics = `o:help_topics(this, "") ! ANY => {}';
           for t in (topics)
-            if (typeof(t) == FLYWEIGHT && !(t.name in seen_names))
+            if (typeof(t) == TYPE_FLYWEIGHT && !(t.name in seen_names))
               all_topics = {@all_topics, t};
               seen_names = {@seen_names, t.name};
             endif
@@ -647,7 +646,7 @@ object MR_WELCOME
     for o in (env)
       if (valid(o) && o.r && respond_to(o, 'help_topics))
         found = `o:help_topics(this, topic) ! ANY => 0';
-        if (typeof(found) == FLYWEIGHT)
+        if (typeof(found) == TYPE_FLYWEIGHT)
           return "Topic: " + found.name + "\n\n" + found.summary + "\n\n" + found.content + (found.see_also ? "\n\nSee also: " + found.see_also:join(", ") | "");
         endif
       endif

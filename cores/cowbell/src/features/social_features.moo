@@ -24,7 +24,7 @@ object SOCIAL_FEATURES
         player:inform_current(event);
         return;
       endtry
-      if (!valid(target) || typeof(target) != OBJ)
+      if (!valid(target) || typeof(target) != TYPE_OBJ)
         event = $event:mk_error(player, "Nod at/to whom?");
         player:inform_current(event);
         return;
@@ -51,7 +51,7 @@ object SOCIAL_FEATURES
         player:inform_current(event);
         return;
       endtry
-      if (!valid(target) || typeof(target) != OBJ)
+      if (!valid(target) || typeof(target) != TYPE_OBJ)
         event = $event:mk_error(player, "Wave at/to whom?");
         player:inform_current(event);
         return;
@@ -78,7 +78,7 @@ object SOCIAL_FEATURES
         player:inform_current(event);
         return;
       endtry
-      if (!valid(target) || typeof(target) != OBJ)
+      if (!valid(target) || typeof(target) != TYPE_OBJ)
         event = $event:mk_error(player, "Bow to/at whom?");
         player:inform_current(event);
         return;
@@ -108,7 +108,7 @@ object SOCIAL_FEATURES
       player:inform_current(event);
       return;
     endtry
-    if (!valid(target) || typeof(target) != OBJ)
+    if (!valid(target) || typeof(target) != TYPE_OBJ)
       event = $event:mk_error(player, "Bonk whom?");
       player:inform_current(event);
       return;
@@ -146,7 +146,7 @@ object SOCIAL_FEATURES
         player:inform_current(event);
         return;
       endtry
-      if (!valid(target) || typeof(target) != OBJ)
+      if (!valid(target) || typeof(target) != TYPE_OBJ)
         event = $event:mk_error(player, "Smile at/to whom?");
         player:inform_current(event);
         return;
@@ -294,7 +294,7 @@ object SOCIAL_FEATURES
     preview = `$url_utils:fetch_preview(url) ! ANY => false';
     event = $event:mk_url_share(player, $sub:nc(), " ", $sub:self_alt("share", "shares"), ": ", url):with_metadata('url, url):with_presentation_hint('inset);
     "Attach preview if we got useful data";
-    if (typeof(preview) == MAP && (preview["title"] || preview["description"] || preview["image"]))
+    if (typeof(preview) == TYPE_MAP && (preview["title"] || preview["description"] || preview["image"]))
       event = event:with_metadata('link_preview, preview);
     endif
     player.location:announce(event);
@@ -306,7 +306,7 @@ object SOCIAL_FEATURES
       return;
     endif
     content = player:read_multiline("Enter content to @paste");
-    if (content == "@abort" || typeof(content) != STR)
+    if (content == "@abort" || typeof(content) != TYPE_STR)
       player:inform_current($event:mk_info(player, "Paste aborted."));
       return;
     endif
@@ -331,7 +331,7 @@ object SOCIAL_FEATURES
     endfor
     "Try to generate help from verb HINT tags";
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'social) ! ANY => 0';
-    typeof(verb_help) != INT && return verb_help;
+    typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
   endverb
 endobject

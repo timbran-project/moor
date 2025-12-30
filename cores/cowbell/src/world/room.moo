@@ -42,7 +42,7 @@ object ROOM
       player:inform_current($event:mk_error(player, "I don't see '", target_name, "' here."));
       return;
     endtry
-    if (!valid(target) || typeof(target) != OBJ)
+    if (!valid(target) || typeof(target) != TYPE_OBJ)
       player:inform_current($event:mk_error(player, "I don't see '", target_name, "' here."));
       return;
     endif

@@ -402,7 +402,7 @@ object DATA_VISOR
     set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     dump_lines = dump_object(o);
     return dump_lines:join("\n");
   endverb
@@ -415,8 +415,8 @@ object DATA_VISOR
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     code_lines = verb_code(o, verb_name, false, true);
     return code_lines:join("\n");
   endverb
@@ -428,7 +428,7 @@ object DATA_VISOR
     set_task_perms(wearer);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     result = {};
     "Add verbs for the object itself";
     result = {@result, {tostr(o), o:name(), verbs(o)}};
@@ -447,8 +447,8 @@ object DATA_VISOR
     obj_str = args_map["object"];
     prop_name = args_map["property"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
     value = o.(prop_name);
     return toliteral(value);
   endverb
@@ -461,13 +461,13 @@ object DATA_VISOR
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     rule = target_obj.(prop_name);
     rule == 0 && return tostr(target_obj) + "." + prop_name + " = (not set) - cannot evaluate";
     bindings = bindings_str ? eval(bindings_str)[1] | [];
-    typeof(bindings) == MAP || raise(E_TYPE, "Bindings must be a map");
+    typeof(bindings) == TYPE_MAP || raise(E_TYPE, "Bindings must be a map");
     result = $rule_engine:evaluate(rule, bindings);
     lines = {"Evaluation of " + tostr(target_obj) + "." + prop_name + ":", "Expression: " + $rule_engine:decompile_rule(rule), "Initial bindings: " + toliteral(bindings), "Success: " + tostr(result['success])};
     result['success] && (lines = {@lines, "Result bindings: " + toliteral(result['bindings])});
@@ -482,7 +482,7 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     ref = args_map["reference"];
-    typeof(ref) == STR || raise(E_TYPE("Expected reference string"));
+    typeof(ref) == TYPE_STR || raise(E_TYPE("Expected reference string"));
     try
       o = $match:match_object(ref);
       return {"=== Object: " + tostr(o) + " ===", "Name: " + o:name(), "Parent: " + tostr(`parent(o) ! ANY => #-1'), "Owner: " + tostr(o.owner), "Location: " + tostr(o.location), "Properties: " + toliteral(properties(o)), "Verbs: " + toliteral(verbs(o))}:join("\n");
@@ -497,7 +497,7 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     return toliteral({ {tostr(a), a:name()} for a in (ancestors(o)) });
   endverb
 
@@ -507,7 +507,7 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     return toliteral({ {tostr(d), d:name()} for d in (descendants(o)) });
   endverb
 
@@ -516,7 +516,7 @@ object DATA_VISOR
     {args_map, actor} = args;
     this:_action_perms_check();
     func_name = args_map["function_name"];
-    typeof(func_name) == STR || raise(E_TYPE("Expected function name string"));
+    typeof(func_name) == TYPE_STR || raise(E_TYPE("Expected function name string"));
     return toliteral(["info" -> function_info(func_name), "help" -> function_help(func_name)]);
   endverb
 
@@ -541,8 +541,8 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     code_lines = verb_code(o, verb_name, false, true);
     start_line = max(1, maphaskey(args_map, "start_line") ? args_map["start_line"] | 1);
     end_line = min(length(code_lines), maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines));
@@ -556,8 +556,8 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
@@ -570,7 +570,7 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     result = {};
     for prop_name in (properties(o))
       metadata = $prog_utils:get_property_metadata(o, prop_name);
@@ -586,8 +586,8 @@ object DATA_VISOR
     set_task_perms(wearer);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
     show_line_numbers = maphaskey(args_map, "show_line_numbers") ? args_map["show_line_numbers"] | true;
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     valid(wearer) || raise(E_INVARG("Visor has no wearer"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
@@ -624,8 +624,8 @@ object DATA_VISOR
     end_line = args_map["end_line"];
     context_lines = maphaskey(args_map, "context_lines") ? args_map["context_lines"] | 0;
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
@@ -671,9 +671,9 @@ object DATA_VISOR
     prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
     iobj = maphaskey(args_map, "iobj") ? args_map["iobj"] | "none";
     permissions = maphaskey(args_map, "permissions") ? args_map["permissions"] | "rxd";
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_names) == STR || raise(E_TYPE("Expected verb names string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_names) == TYPE_STR || raise(E_TYPE("Expected verb names string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
     dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
     iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
     $prog_utils:is_valid_prep(prep) || raise(E_INVARG("prep must be 'none', 'any', or a valid preposition"));
@@ -694,7 +694,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -712,9 +712,9 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, rationale, o} = {args_map["verb"], args_map["rationale"], $match:match_object(args_map["object"])};
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Show rationale first";
@@ -731,7 +731,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -746,10 +746,10 @@ object DATA_VISOR
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     {verb_name, rationale, code_str, o} = {args_map["verb"], args_map["rationale"], args_map["code"], $match:match_object(args_map["object"])};
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
-    typeof(code_str) == STR || raise(E_TYPE("Expected code string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
+    typeof(code_str) == TYPE_STR || raise(E_TYPE("Expected code string"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Parse code into lines early for display and compilation";
@@ -775,7 +775,7 @@ object DATA_VISOR
       elseif (result == 'yes_all)
         "Enable auto-confirm for future changes";
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -804,11 +804,11 @@ object DATA_VISOR
     prep = args_map["prep"];
     iobj = args_map["iobj"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    typeof(dobj) == STR || raise(E_TYPE("Expected dobj string"));
-    typeof(prep) == STR || raise(E_TYPE("Expected prep string"));
-    typeof(iobj) == STR || raise(E_TYPE("Expected iobj string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
+    typeof(dobj) == TYPE_STR || raise(E_TYPE("Expected dobj string"));
+    typeof(prep) == TYPE_STR || raise(E_TYPE("Expected prep string"));
+    typeof(iobj) == TYPE_STR || raise(E_TYPE("Expected iobj string"));
     "Validate dobj/iobj";
     dobj in {"none", "this", "any"} || raise(E_INVARG("dobj must be 'none', 'this', or 'any'"));
     iobj in {"none", "this", "any"} || raise(E_INVARG("iobj must be 'none', 'this', or 'any'"));
@@ -825,7 +825,7 @@ object DATA_VISOR
       "User cancelled - stop the agent flow";
       this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
+    elseif (typeof(result) == TYPE_STR)
       return "User provided alternative: " + result;
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating argspec: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating argument spec for " + tostr(verb_location) + ":" + verb_name));
@@ -845,15 +845,15 @@ object DATA_VISOR
     rationale = args_map["rationale"];
     permissions = maphaskey(args_map, "permissions") ? args_map["permissions"] | "rc";
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
-    typeof(value_str) == STR || raise(E_TYPE("Expected value string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
+    typeof(value_str) == TYPE_STR || raise(E_TYPE("Expected value string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
     "Parse value from literal using eval with return statement";
     eval_code = "return " + value_str + ";";
     eval_result = eval(eval_code);
     if (!eval_result[1])
-      error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
       error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
       error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(error_event);
@@ -878,7 +878,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -897,9 +897,9 @@ object DATA_VISOR
     prop_name = args_map["property"];
     rationale = args_map["rationale"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed deletion of " + tostr(o) + "." + prop_name);
     rationale_content = $format.block:mk(rationale_title, rationale);
@@ -914,7 +914,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -931,15 +931,15 @@ object DATA_VISOR
     prop_name = args_map["property"];
     value_str = args_map["value"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
-    typeof(value_str) == STR || raise(E_TYPE("Expected value string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
+    typeof(value_str) == TYPE_STR || raise(E_TYPE("Expected value string"));
     "Parse value from literal using eval with return statement";
     eval_code = "return " + value_str + ";";
     eval_result = eval(eval_code);
     if (!eval_result[1])
       "Compilation error - show error to user";
-      error_text = typeof(eval_result[2]) == LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
       error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
       error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(error_event);
@@ -964,7 +964,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -982,9 +982,9 @@ object DATA_VISOR
     perms_str = args_map["permissions"];
     owner_str = args_map["owner"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == STR || raise(E_TYPE("Expected verb name string"));
-    typeof(perms_str) == STR || raise(E_TYPE("Expected permissions string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
+    typeof(perms_str) == TYPE_STR || raise(E_TYPE("Expected permissions string"));
     "Find where verb is defined";
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
@@ -995,9 +995,9 @@ object DATA_VISOR
     "Determine new owner";
     new_owner = current_owner;
     if (owner_str)
-      typeof(owner_str) == STR || raise(E_TYPE("Expected owner string"));
+      typeof(owner_str) == TYPE_STR || raise(E_TYPE("Expected owner string"));
       new_owner = $match:match_object(owner_str);
-      typeof(new_owner) == OBJ || raise(E_TYPE("Owner must be valid object"));
+      typeof(new_owner) == TYPE_OBJ || raise(E_TYPE("Owner must be valid object"));
     endif
     "Validate permissions";
     for i in [1..length(perms_str)]
@@ -1012,7 +1012,7 @@ object DATA_VISOR
       "User cancelled";
       this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
+    elseif (typeof(result) == TYPE_STR)
       return "User provided alternative: " + result;
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating verb permissions: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating verb permissions for " + tostr(verb_location) + ":" + verb_name));
@@ -1031,9 +1031,9 @@ object DATA_VISOR
     perms_str = args_map["permissions"];
     owner_str = args_map["owner"];
     o = $match:match_object(obj_str);
-    typeof(o) == OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(prop_name) == STR || raise(E_TYPE("Expected property name string"));
-    typeof(perms_str) == STR || raise(E_TYPE("Expected permissions string"));
+    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
+    typeof(perms_str) == TYPE_STR || raise(E_TYPE("Expected permissions string"));
     "Get current metadata";
     metadata = $prog_utils:get_property_metadata(o, prop_name);
     current_owner = metadata:owner();
@@ -1041,9 +1041,9 @@ object DATA_VISOR
     "Determine new owner";
     new_owner = current_owner;
     if (owner_str)
-      typeof(owner_str) == STR || raise(E_TYPE("Expected owner string"));
+      typeof(owner_str) == TYPE_STR || raise(E_TYPE("Expected owner string"));
       new_owner = $match:match_object(owner_str);
-      typeof(new_owner) == OBJ || raise(E_TYPE("Owner must be valid object"));
+      typeof(new_owner) == TYPE_OBJ || raise(E_TYPE("Owner must be valid object"));
     endif
     "Validate permissions";
     for i in [1..length(perms_str)]
@@ -1058,7 +1058,7 @@ object DATA_VISOR
       "User cancelled";
       this.agent.cancel_requested = true;
       return "Operation cancelled by user.";
-    elseif (typeof(result) == STR)
+    elseif (typeof(result) == TYPE_STR)
       return "User provided alternative: " + result;
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating property permissions: " + tostr(o) + "." + prop_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating property permissions for " + tostr(o) + "." + prop_name));
@@ -1074,10 +1074,10 @@ object DATA_VISOR
     set_task_perms(wearer);
     rationale = maphaskey(args_map, "rationale") ? args_map["rationale"] | "";
     code_str = maphaskey(args_map, "code") ? args_map["code"] | "";
-    if (typeof(rationale) != STR)
+    if (typeof(rationale) != TYPE_STR)
       return "ERROR: 'rationale' must be a STRING, not " + toliteral(typeof(rationale)) + ". You passed: " + toliteral(rationale)[1..min(100, length(toliteral(rationale)))];
     endif
-    if (typeof(code_str) != STR)
+    if (typeof(code_str) != TYPE_STR)
       return "ERROR: 'code' must be a STRING containing MOO code, not " + toliteral(typeof(code_str)) + ". You passed: " + toliteral(code_str)[1..min(200, length(toliteral(code_str)))] + ". REMINDER: In MOO, {} is for LISTS and [] is for MAPS. Code must be a simple string like \"return 1 + 2;\"";
     endif
     if (code_str == "")
@@ -1101,7 +1101,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -1116,7 +1116,7 @@ object DATA_VISOR
     else
       "Error - show error to user and return to LLM";
       error_content = result[2];
-      error_text = typeof(error_content) == LIST ? error_content:join("\n") | toliteral(error_content);
+      error_text = typeof(error_content) == TYPE_LIST ? error_content:join("\n") | toliteral(error_content);
       error_event = $event:mk_eval_error(wearer, $format.code:mk(error_text));
       error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
       wearer:inform_current(error_event);
@@ -1133,13 +1133,13 @@ object DATA_VISOR
     name = args_map["name"];
     rationale = args_map["rationale"];
     aliases = maphaskey(args_map, "aliases") ? args_map["aliases"] | {};
-    typeof(parent_str) == STR || raise(E_TYPE("Expected parent string"));
-    typeof(name) == STR || raise(E_TYPE("Expected name string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
-    typeof(aliases) == LIST || raise(E_TYPE("Expected aliases list"));
+    typeof(parent_str) == TYPE_STR || raise(E_TYPE("Expected parent string"));
+    typeof(name) == TYPE_STR || raise(E_TYPE("Expected name string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
+    typeof(aliases) == TYPE_LIST || raise(E_TYPE("Expected aliases list"));
     "Match parent object";
     parent_obj = $match:match_object(parent_str);
-    typeof(parent_obj) == OBJ || raise(E_TYPE("Parent must be an object"));
+    typeof(parent_obj) == TYPE_OBJ || raise(E_TYPE("Parent must be an object"));
     !valid(parent_obj) && raise(E_INVARG, "Parent object no longer exists");
     "Check fertility unless wearer is wizard or owner";
     is_fertile = `parent_obj.fertile ! E_PROPNF => false';
@@ -1168,7 +1168,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -1190,11 +1190,11 @@ object DATA_VISOR
     set_task_perms(wearer);
     obj_str = args_map["object"];
     rationale = args_map["rationale"];
-    typeof(obj_str) == STR || raise(E_TYPE("Expected object string"));
-    typeof(rationale) == STR || raise(E_TYPE("Expected rationale string"));
+    typeof(obj_str) == TYPE_STR || raise(E_TYPE("Expected object string"));
+    typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
     "Match object";
     target_obj = $match:match_object(obj_str);
-    typeof(target_obj) == OBJ || raise(E_TYPE("Target must be an object"));
+    typeof(target_obj) == TYPE_OBJ || raise(E_TYPE("Target must be an object"));
     !valid(target_obj) && raise(E_INVARG, "Object no longer exists");
     "Check permission - must be owner or wizard";
     if (!wearer.wizard && target_obj.owner != wearer)
@@ -1216,7 +1216,7 @@ object DATA_VISOR
         return "Operation cancelled by user.";
       elseif (result == 'yes_all)
         this.auto_confirm = true;
-      elseif (typeof(result) == STR)
+      elseif (typeof(result) == TYPE_STR)
         return "User provided alternative: " + result;
       endif
     endif
@@ -1231,7 +1231,7 @@ object DATA_VISOR
     set_task_perms(wearer);
     pattern = args_map["pattern"];
     object_spec = maphaskey(args_map, "object") ? args_map["object"] | false;
-    typeof(pattern) == STR || raise(E_TYPE("Pattern must be string"));
+    typeof(pattern) == TYPE_STR || raise(E_TYPE("Pattern must be string"));
     "Determine search scope";
     search_objects = {};
     if (object_spec)
@@ -1275,7 +1275,7 @@ object DATA_VISOR
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
     description = args_map["description"];
-    typeof(description) == STR || raise(E_TYPE("Description must be string"));
+    typeof(description) == TYPE_STR || raise(E_TYPE("Description must be string"));
     task = this.agent:create_task(description);
     this.current_investigation_task = task.task_id;
     task:mark_in_progress();
@@ -1287,8 +1287,8 @@ object DATA_VISOR
     {args_map, actor} = args;
     this:_action_perms_check();
     {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
-    typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
-    typeof(key) == STR || raise(E_TYPE("Key must be string"));
+    typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
+    typeof(key) == TYPE_STR || raise(E_TYPE("Key must be string"));
     this.current_investigation_task == -1 && return "No active investigation task. Create one with create_task first.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
     !valid(task_obj) && return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
@@ -1301,7 +1301,7 @@ object DATA_VISOR
     {args_map, actor} = args;
     this:_action_perms_check();
     subject = args_map["subject"];
-    typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
+    typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
     this.current_investigation_task == -1 && return "No active investigation task.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
     !valid(task_obj) && return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
@@ -1311,7 +1311,7 @@ object DATA_VISOR
     for tuple in (findings)
       if (length(tuple) >= 4)
         {task_id, subj, k, v} = tuple;
-        v_str = typeof(v) == STR ? v | toliteral(v);
+        v_str = typeof(v) == TYPE_STR ? v | toliteral(v);
         result_lines = {@result_lines, "  [" + k + "] " + (length(v_str) > 60 ? v_str[1..60] + "..." | v_str)};
       endif
     endfor
@@ -1338,7 +1338,7 @@ object DATA_VISOR
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
     "Parse JSON string to map";
-    if (typeof(tool_args) == STR)
+    if (typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
     "Extract reason if provided";
@@ -1405,10 +1405,10 @@ object DATA_VISOR
     elseif (tool_name == "eval")
       "Truncate code for display - handle both string and list formats";
       code_preview = maphaskey(tool_args, "code") ? tool_args["code"] | "?";
-      if (typeof(code_preview) == LIST)
+      if (typeof(code_preview) == TYPE_LIST)
         code_preview = code_preview:join("; ");
       endif
-      if (typeof(code_preview) != STR)
+      if (typeof(code_preview) != TYPE_STR)
         code_preview = toliteral(code_preview);
       endif
       if (length(code_preview) > 50)
@@ -1424,7 +1424,7 @@ object DATA_VISOR
     elseif (tool_name == "explain")
       "Explain messages are rendered as markdown - ensure it's a string";
       msg = maphaskey(tool_args, "message") ? tool_args["message"] | "";
-      if (typeof(msg) != STR)
+      if (typeof(msg) != TYPE_STR)
         msg = toliteral(msg);
       endif
       return msg;
@@ -1451,7 +1451,7 @@ object DATA_VISOR
   verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
     "TTS-friendly descriptions for visor tool operations";
     {tool_name, tool_args} = args;
-    if (typeof(tool_args) == STR)
+    if (typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
     "Read-only operations";
@@ -1522,7 +1522,7 @@ object DATA_VISOR
       return "Requesting user input";
     elseif (tool_name == "explain")
       msg = maphaskey(tool_args, "message") ? tool_args["message"] | "";
-      if (typeof(msg) != STR)
+      if (typeof(msg) != TYPE_STR)
         msg = toliteral(msg);
       endif
       return "Info: " + msg;
@@ -1629,7 +1629,7 @@ object DATA_VISOR
     wearer = this:wearer();
     !valid(wearer) && return "Error: Visor is not being worn.";
     topic = args_map["topic"];
-    typeof(topic) != STR && return "Error: topic must be a string.";
+    typeof(topic) != TYPE_STR && return "Error: topic must be a string.";
     "If empty topic, list available topics";
     if (topic == "")
       all_topics = wearer:_collect_help_topics();
@@ -1641,7 +1641,7 @@ object DATA_VISOR
     endif
     "Search for specific topic";
     found = wearer:find_help_topic(topic);
-    if (typeof(found) == INT)
+    if (typeof(found) == TYPE_INT)
       return "No help found for: " + topic;
     endif
     "Return structured help";

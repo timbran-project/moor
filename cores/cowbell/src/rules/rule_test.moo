@@ -16,7 +16,7 @@ object RULE_TEST
   verb fact_reputation (this none this) owner: HACKER flags: "rxd"
     "Fact: reputation(Guild, MinLevel) - does Guild have reputation >= MinLevel?";
     {guild, min_level} = args;
-    typeof(min_level) == INT || raise(E_TYPE, "min_level must be integer");
+    typeof(min_level) == TYPE_INT || raise(E_TYPE, "min_level must be integer");
     if (guild != this)
       return false;
     endif
@@ -49,7 +49,7 @@ object RULE_TEST
     endif
     "If parent arg is unbound (a variable), return all parents";
     "If parent arg is bound, return parent only if it matches";
-    if (typeof(parent) == SYM)
+    if (typeof(parent) == TYPE_SYM)
       "parent is a variable - return all valid bindings";
       return parents;
     else

@@ -19,12 +19,12 @@ object SCHEDULER
       raise(E_INVARG, "Usage: schedule_after(seconds, object, verb, [args])");
     endif
     {delay, target, verb_name, ?task_args = {}} = args;
-    typeof(delay) in {INT, FLOAT} || raise(E_TYPE, "Delay must be number");
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be object");
+    typeof(delay) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "Delay must be number");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be object");
     valid(target) || raise(E_INVARG, "Target must be valid object");
-    typeof(verb_name) in {STR, SYM} || raise(E_TYPE, "Verb must be string or symbol");
+    typeof(verb_name) in {TYPE_STR, TYPE_SYM} || raise(E_TYPE, "Verb must be string or symbol");
     verb_name = tostr(verb_name);
-    typeof(task_args) == LIST || raise(E_TYPE, "Args must be list");
+    typeof(task_args) == TYPE_LIST || raise(E_TYPE, "Args must be list");
     run_at = time() + delay;
     schedule_id = this.next_schedule_id;
     this.next_schedule_id = schedule_id + 1;
@@ -42,12 +42,12 @@ object SCHEDULER
       raise(E_INVARG, "Usage: schedule_at(timestamp, object, verb, [args])");
     endif
     {run_at, target, verb_name, ?task_args = {}} = args;
-    typeof(run_at) == INT || raise(E_TYPE, "Timestamp must be integer");
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be object");
+    typeof(run_at) == TYPE_INT || raise(E_TYPE, "Timestamp must be integer");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be object");
     valid(target) || raise(E_INVARG, "Target must be valid object");
-    typeof(verb_name) in {STR, SYM} || raise(E_TYPE, "Verb must be string or symbol");
+    typeof(verb_name) in {TYPE_STR, TYPE_SYM} || raise(E_TYPE, "Verb must be string or symbol");
     verb_name = tostr(verb_name);
-    typeof(task_args) == LIST || raise(E_TYPE, "Args must be list");
+    typeof(task_args) == TYPE_LIST || raise(E_TYPE, "Args must be list");
     if (run_at <= time())
       raise(E_INVARG, "Timestamp must be in the future");
     endif
@@ -68,23 +68,23 @@ object SCHEDULER
       raise(E_INVARG, "Usage: schedule_every(interval, object, verb, [args])");
     endif
     {interval, target, verb_name, ?task_args = {}} = args;
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be object");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be object");
     valid(target) || raise(E_INVARG, "Target must be valid object");
-    typeof(verb_name) in {STR, SYM} || raise(E_TYPE, "Verb must be string or symbol");
+    typeof(verb_name) in {TYPE_STR, TYPE_SYM} || raise(E_TYPE, "Verb must be string or symbol");
     verb_name = tostr(verb_name);
-    typeof(task_args) == LIST || raise(E_TYPE, "Args must be list");
+    typeof(task_args) == TYPE_LIST || raise(E_TYPE, "Args must be list");
     "Validate interval format";
     interval_type = typeof(interval);
-    if (interval_type == INT || interval_type == FLOAT)
+    if (interval_type == TYPE_INT || interval_type == TYPE_FLOAT)
       interval > 0 || raise(E_INVARG, "Interval must be positive");
       next_run = time() + interval;
-    elseif (interval_type == STR)
+    elseif (interval_type == TYPE_STR)
       "Parse HH:MM:SS format";
       next_run = interval:parse_time_of_day();
-    elseif (interval_type == LIST && length(interval) == 2)
+    elseif (interval_type == TYPE_LIST && length(interval) == 2)
       {min_delay, range_delay} = interval;
-      typeof(min_delay) in {INT, FLOAT} || raise(E_TYPE, "Random interval min must be number");
-      typeof(range_delay) in {INT, FLOAT} || raise(E_TYPE, "Random interval range must be number");
+      typeof(min_delay) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "Random interval min must be number");
+      typeof(range_delay) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "Random interval range must be number");
       min_delay > 0 || raise(E_INVARG, "Random interval min must be positive");
       range_delay >= 0 || raise(E_INVARG, "Random interval range must be non-negative");
       next_run = time() + min_delay + random(toint(range_delay));
@@ -104,7 +104,7 @@ object SCHEDULER
   verb cancel (this none this) owner: HACKER flags: "rxd"
     "Cancel a scheduled task by schedule ID. Returns true if found and cancelled.";
     {schedule_id} = args;
-    typeof(schedule_id) == INT || raise(E_TYPE, "Schedule ID must be integer");
+    typeof(schedule_id) == TYPE_INT || raise(E_TYPE, "Schedule ID must be integer");
     prop_name = "scheduled_task_" + tostr(schedule_id);
     try
       this.(prop_name);
@@ -118,8 +118,8 @@ object SCHEDULER
   verb is_scheduled (this none this) owner: HACKER flags: "rxd"
     "Check if a specific verb on an object is scheduled. Returns schedule ID or 0.";
     {target, verb_name} = args;
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be object");
-    typeof(verb_name) in {STR, SYM} || raise(E_TYPE, "Verb must be string or symbol");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be object");
+    typeof(verb_name) in {TYPE_STR, TYPE_SYM} || raise(E_TYPE, "Verb must be string or symbol");
     verb_name = tostr(verb_name);
     for prop_name in (properties(this))
       prop_str = tostr(prop_name);
@@ -136,7 +136,7 @@ object SCHEDULER
   verb when_scheduled (this none this) owner: HACKER flags: "rxd"
     "Get the next run time for a scheduled task by ID. Returns timestamp or 0 if not found.";
     {schedule_id} = args;
-    typeof(schedule_id) == INT || raise(E_TYPE, "Schedule ID must be integer");
+    typeof(schedule_id) == TYPE_INT || raise(E_TYPE, "Schedule ID must be integer");
     prop_name = "scheduled_task_" + tostr(schedule_id);
     try
       return this.(prop_name).run_at;
@@ -379,11 +379,11 @@ object SCHEDULER
     caller == this || raise(E_PERM);
     {interval, current_time} = args;
     interval_type = typeof(interval);
-    if (interval_type == INT || interval_type == FLOAT)
+    if (interval_type == TYPE_INT || interval_type == TYPE_FLOAT)
       return current_time + interval;
-    elseif (interval_type == STR)
+    elseif (interval_type == TYPE_STR)
       return interval:parse_time_of_day();
-    elseif (interval_type == LIST)
+    elseif (interval_type == TYPE_LIST)
       {min_delay, range_delay} = interval;
       return current_time + min_delay + random(toint(range_delay));
     endif
@@ -555,7 +555,7 @@ object SCHEDULER
     prop_name = "scheduled_task_" + tostr(schedule_id);
     try
       task = this.(prop_name);
-      typeof(task.verb) == STR || raise(E_ASSERT, "Verb should be stored as string");
+      typeof(task.verb) == TYPE_STR || raise(E_ASSERT, "Verb should be stored as string");
     except (E_PROPNF)
       raise(E_ASSERT, "Task property should exist");
     endtry

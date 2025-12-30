@@ -16,7 +16,7 @@ object FORMAT_BLOCK
     "Append this block to a content flyweight while preserving block structure";
     {target_flyweight} = args;
     "Just append our content to the target flyweight";
-    typeof(target_flyweight) == FLYWEIGHT || raise(E_TYPE, "Target must be a flyweight");
+    typeof(target_flyweight) == TYPE_FLYWEIGHT || raise(E_TYPE, "Target must be a flyweight");
     target_flyweight = target_flyweight:append_element(this);
     return target_flyweight;
   endverb
@@ -36,12 +36,12 @@ object FORMAT_BLOCK
     "For text formats, collect string elements";
     text_lines = {};
     for element in (result)
-      if (typeof(element) == STR)
+      if (typeof(element) == TYPE_STR)
         text_lines = {@text_lines, element};
-      elseif (typeof(element) == LIST)
+      elseif (typeof(element) == TYPE_LIST)
         "Flatten nested lists";
         for nested in (element)
-          typeof(nested) == STR && (text_lines = {@text_lines, nested});
+          typeof(nested) == TYPE_STR && (text_lines = {@text_lines, nested});
         endfor
       endif
     endfor

@@ -96,7 +96,7 @@ object LOGIN
     "Accepts string or list of strings.";
     set_task_perms(caller_perms());
     {message} = args;
-    if (typeof(message) == LIST)
+    if (typeof(message) == TYPE_LIST)
       result = {};
       for line in (message)
         line = this:_apply_template(line);
@@ -255,7 +255,7 @@ object LOGIN
     endtry
     if (length(identities) > 0)
       for identity in (identities)
-        if (typeof(identity) == LIST && length(identity) == 2)
+        if (typeof(identity) == TYPE_LIST && length(identity) == 2)
           if (identity[1] == provider && identity[2] == external_id)
             notify(player, "This OAuth2 identity is already linked to that account.");
             return candidate;
@@ -273,7 +273,7 @@ object LOGIN
         candidate.email_address = email;
         current_email = email;
       endtry
-      if (typeof(current_email) != STR || length(current_email) == 0)
+      if (typeof(current_email) != TYPE_STR || length(current_email) == 0)
         candidate.email_address = email;
       endif
     endif
@@ -385,7 +385,7 @@ object LOGIN
           identities = {};
         endtry
         for identity in (identities)
-          if (typeof(identity) == LIST && length(identity) == 2 && identity[1] == provider && identity[2] == external_id)
+          if (typeof(identity) == TYPE_LIST && length(identity) == 2 && identity[1] == provider && identity[2] == external_id)
             return candidate;
           endif
         endfor
@@ -409,10 +409,10 @@ object LOGIN
     if (password_value)
       setup_cap:set_password(password_value);
     endif
-    if (typeof(email) == STR)
+    if (typeof(email) == TYPE_STR)
       setup_cap:set_email_address(email);
     endif
-    if (typeof(oauth_entries) == LIST)
+    if (typeof(oauth_entries) == TYPE_LIST)
       setup_cap:set_oauth2_identities(oauth_entries);
     endif
     "Set the player's home to the default home (e.g., the dormitory)";
@@ -434,7 +434,7 @@ object LOGIN
       return {'invalid_type, 0};
     endtry
     stored == 0 && return {'external_only, stored};
-    typeof(stored) == FLYWEIGHT || return {'invalid_type, stored};
+    typeof(stored) == TYPE_FLYWEIGHT || return {'invalid_type, stored};
     attempt || return {'missing, stored};
     stored:challenge(attempt) || return {'mismatch, stored};
     return {'ok, stored};
@@ -448,8 +448,8 @@ object LOGIN
     server_log(tostr("setup_new_player called for ", new_player));
     "Create welcome letter if configured";
     letter_config = this.new_player_letter;
-    server_log(tostr("setup_new_player: letter_config type = ", typeof(letter_config), " length = ", typeof(letter_config) == LIST ? length(letter_config) | 0));
-    if (typeof(letter_config) == LIST && length(letter_config) == 3)
+    server_log(tostr("setup_new_player: letter_config type = ", typeof(letter_config), " length = ", typeof(letter_config) == TYPE_LIST ? length(letter_config) | 0));
+    if (typeof(letter_config) == TYPE_LIST && length(letter_config) == 3)
       {from_obj, subject, msg_lines} = letter_config;
       "Create mailbox for new player";
       mailbox = create($mailbox, new_player);
@@ -463,7 +463,7 @@ object LOGIN
       letter.addressee = new_player;
       letter.sealed = true;
       letter.sent_at = time();
-      if (typeof(msg_lines) == LIST)
+      if (typeof(msg_lines) == TYPE_LIST)
         for line in (msg_lines)
           letter.text = {@letter.text, tostr(line)};
         endfor

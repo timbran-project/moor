@@ -24,12 +24,12 @@ object HOUSEKEEPING
         continue;
       endif
       "Skip players without a valid location";
-      if (typeof(p.location) != OBJ || !valid(p.location))
+      if (typeof(p.location) != TYPE_OBJ || !valid(p.location))
         continue;
       endif
       "Skip players without a valid home";
       home = `p.home ! E_PROPNF => #-1';
-      if (typeof(home) != OBJ || !valid(home))
+      if (typeof(home) != TYPE_OBJ || !valid(home))
         continue;
       endif
       "Skip players already at home";

@@ -191,7 +191,7 @@ object PROG_FEATURES
     editor_id = "text-edit-" + tostr(target_obj) + "-" + verb_name;
     editor_title = title || "Edit text for " + tostr(target_obj);
     "Convert content to string for presentation";
-    if (typeof(initial_content) == LIST)
+    if (typeof(initial_content) == TYPE_LIST)
       content_str = initial_content:join("\n");
     else
       content_str = tostr(initial_content);
@@ -535,7 +535,7 @@ object PROG_FEATURES
                 "Try to match owner";
                 try
                   owner = $match:match_object(remaining_words[2], player);
-                  if (!valid(owner) || typeof(owner) != OBJ)
+                  if (!valid(owner) || typeof(owner) != TYPE_OBJ)
                     player:inform_current($event:mk_error(player, "Invalid owner object"));
                     return;
                   endif
@@ -830,7 +830,7 @@ object PROG_FEATURES
           seen = {@seen, prop_name};
           "Skip properties we can't access";
           metadata = `$prog_utils:get_property_metadata(current, prop_name) ! E_PERM => 0';
-          if (typeof(metadata) != FLYWEIGHT)
+          if (typeof(metadata) != TYPE_FLYWEIGHT)
             continue;
           endif
           prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(current, prop_name) ! E_PERM => "(no access)"');
@@ -853,7 +853,7 @@ object PROG_FEATURES
       for prop_name in (props)
         "Skip properties we can't access";
         metadata = `$prog_utils:get_property_metadata(target_obj, prop_name) ! E_PERM => 0';
-        if (typeof(metadata) != FLYWEIGHT)
+        if (typeof(metadata) != TYPE_FLYWEIGHT)
           continue;
         endif
         prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(target_obj, prop_name) ! E_PERM => "(no access)"');
@@ -1273,7 +1273,7 @@ object PROG_FEATURES
       return;
     endif
     content = player:read_multiline("Enter MOO code to paste");
-    if (content == "@abort" || typeof(content) != STR)
+    if (content == "@abort" || typeof(content) != TYPE_STR)
       player:inform_current($event:mk_info(player, "Code paste aborted."));
       return;
     endif
@@ -1392,7 +1392,7 @@ object PROG_FEATURES
         {object_str, verb_name} = parsed;
         "Match the object";
         target_obj = $match:match_object(object_str, player);
-        typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+        typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
         !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
         "Check verb exists";
         info = `verb_info(target_obj, verb_name) ! E_VERBNF => 0';
@@ -1414,7 +1414,7 @@ object PROG_FEATURES
         player:inform_current($event:mk_info(player, message));
         return 1;
       except e (ANY)
-        message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+        message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
         player:inform_current($event:mk_error(player, message));
         return 0;
       endtry
@@ -1426,7 +1426,7 @@ object PROG_FEATURES
     endif
     try
       target_obj = $match:match_object(dobjstr, player);
-      typeof(target_obj) != OBJ && raise(E_INVARG, "That reference is not an object.");
+      typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You do not have permission to rename " + tostr(target_obj) + ".");
@@ -1445,7 +1445,7 @@ object PROG_FEATURES
       player:inform_current($event:mk_info(player, message));
       return 1;
     except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
@@ -1485,7 +1485,7 @@ object PROG_FEATURES
     show_topic:matches(topic) && return show_topic;
     "Try to generate help from verb HINT tags";
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'programming) ! ANY => 0';
-    typeof(verb_help) != INT && return verb_help;
+    typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
   endverb
 
@@ -1493,7 +1493,7 @@ object PROG_FEATURES
     "Format an eval result. Returns {type, content} where type is 'simple or 'deflist.";
     "For simple values, content is a string. For objects, content is a deflist flyweight.";
     {result} = args;
-    if (typeof(result) == OBJ)
+    if (typeof(result) == TYPE_OBJ)
       "Format object as definition list";
       obj_str = tostr(result);
       if (valid(result))
@@ -1600,7 +1600,7 @@ object PROG_FEATURES
     {failure_type, target_spec, ?target_obj = #-1, ?item_name = ""} = args;
     "Check if LLM is available";
     llm_client = $player.suggestions_llm_client;
-    if (typeof(llm_client) != OBJ || !valid(llm_client))
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
       return false;
     endif
     "Capture current connection BEFORE forking";
@@ -1647,7 +1647,7 @@ object PROG_FEATURES
           sysrefs = {};
           for prop in (properties(#0))
             val = `#0.(prop) ! ANY => 0';
-            if (typeof(val) == OBJ && valid(val))
+            if (typeof(val) == TYPE_OBJ && valid(val))
               sysrefs = {@sysrefs, "$" + prop};
             endif
           endfor
@@ -1706,7 +1706,7 @@ object PROG_FEATURES
       "Call LLM and rewrite the placeholder";
       try
         response = llm_client:simple_query(prompt);
-        if (typeof(response) == STR && length(response) > 0)
+        if (typeof(response) == TYPE_STR && length(response) > 0)
           result_event = $event:mk_info(player, $format.block:mk(error_msg + "\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
           player:rewrite_event(rewrite_id, result_event, current_conn);
         else

@@ -24,8 +24,8 @@ object LLM_TASK
   verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a task (typically called by agent). Returns task object.";
     {task_id, description, ?agent = #-1, ?knowledge_base = #-1, ?parent_task_id = 0} = args;
-    typeof(task_id) == INT || raise(E_TYPE);
-    typeof(description) == STR || raise(E_TYPE);
+    typeof(task_id) == TYPE_INT || raise(E_TYPE);
+    typeof(description) == TYPE_STR || raise(E_TYPE);
     this.task_id = task_id;
     this.description = description;
     this.agent = agent;
@@ -80,8 +80,8 @@ object LLM_TASK
     "Add a finding to the knowledge base. Stores (task_id, subject, key, value) tuple.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {subject, key, value} = args;
-    typeof(subject) == STR || raise(E_TYPE);
-    typeof(key) == STR || raise(E_TYPE);
+    typeof(subject) == TYPE_STR || raise(E_TYPE);
+    typeof(key) == TYPE_STR || raise(E_TYPE);
     valid(this.knowledge_base) || raise(E_INVARG, "Knowledge base not available for this task");
     this.knowledge_base:assert({this.task_id, subject, key, value});
     return true;
@@ -91,7 +91,7 @@ object LLM_TASK
     "Query findings by subject from knowledge base. Returns tuples matching this task.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {subject} = args;
-    typeof(subject) == STR || raise(E_TYPE);
+    typeof(subject) == TYPE_STR || raise(E_TYPE);
     !valid(this.knowledge_base) && return {};
     results = this.knowledge_base:select_containing(subject);
     filtered = {};
@@ -105,7 +105,7 @@ object LLM_TASK
     "Create and register a subtask. Returns the new task object.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {description} = args;
-    typeof(description) == STR || raise(E_TYPE);
+    typeof(description) == TYPE_STR || raise(E_TYPE);
     valid(this.agent) || raise(E_INVARG, "Parent task's agent is invalid");
     subtask = this.agent:create_task(description, this.task_id);
     this.subtasks = {@this.subtasks, subtask};

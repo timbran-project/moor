@@ -19,11 +19,11 @@ object PRONOUNS
     "Usage: $pronouns:mk(subject, object, possessive_adj, possessive_noun, reflexive [, is_plural])";
     "Example: $pronouns:mk(\"ze\", \"zir\", \"zir\", \"zirs\", \"zirself\")";
     {ps, po, pp, pq, pr, ?is_plural = false} = args;
-    typeof(ps) == STR || raise(E_TYPE, "All pronoun arguments must be strings");
-    typeof(po) == STR || raise(E_TYPE, "All pronoun arguments must be strings");
-    typeof(pp) == STR || raise(E_TYPE, "All pronoun arguments must be strings");
-    typeof(pq) == STR || raise(E_TYPE, "All pronoun arguments must be strings");
-    typeof(pr) == STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(ps) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(po) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(pp) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(pq) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(pr) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
     verb_be = is_plural ? "are" | "is";
     verb_have = is_plural ? "have" | "has";
     display = ps + "/" + po;
@@ -34,7 +34,7 @@ object PRONOUNS
     "Display pronouns in common format like 'they/them' or 'it/its'.";
     "Can be called on preset or custom flyweight.";
     {pronoun_set} = args;
-    typeof(pronoun_set) == FLYWEIGHT || raise(E_TYPE, "Argument must be a pronoun flyweight");
+    typeof(pronoun_set) == TYPE_FLYWEIGHT || raise(E_TYPE, "Argument must be a pronoun flyweight");
     try
       return pronoun_set.display;
     except (E_PROPNF)

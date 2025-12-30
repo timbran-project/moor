@@ -27,10 +27,10 @@ object HTML
       if (entry_num % 10 == 0)
         suspend_if_needed();
       endif
-      if (typeof(entry) == FLYWEIGHT)
+      if (typeof(entry) == TYPE_FLYWEIGHT)
         "Entry is a flyweight and thus something that can itself be rendered to xml tag form,, we hope...";
         result = entry:to_xml_tag();
-      elseif (typeof(entry) == LIST)
+      elseif (typeof(entry) == TYPE_LIST)
         "Entry is a list of things we should be able to do rendering for...";
         e = {};
         for subentry in (entry)
@@ -38,9 +38,9 @@ object HTML
           if (entry_num % 10 == 0)
             suspend_if_needed();
           endif
-          if (typeof(subentry) == FLYWEIGHT)
+          if (typeof(subentry) == TYPE_FLYWEIGHT)
             e = {@e, subentry:to_xml_tag()};
-          elseif (typeof(subentry) == LIST)
+          elseif (typeof(subentry) == TYPE_LIST)
             " Need to handle nested lists recursively ";
             e = {@e, subentry};
           else

@@ -40,7 +40,7 @@ object OBJ_UTILS
     "verb_list should be from examination().verbs, where each item is {name, definer, dobj, prep, iobj}";
     set_task_perms(caller_perms());
     {verb_list, ?object_name = "<thing>"} = args;
-    typeof(verb_list) != LIST && return {};
+    typeof(verb_list) != TYPE_LIST && return {};
     verb_sigs = {};
     for verb_info in (verb_list)
       {verb_name, definer, dobj, prep, iobj} = verb_info;
@@ -66,7 +66,7 @@ object OBJ_UTILS
     "Args: {objects_list}";
     set_task_perms(caller_perms());
     {obj_list} = args;
-    typeof(obj_list) != LIST && return {};
+    typeof(obj_list) != TYPE_LIST && return {};
     result = {};
     seen_objects = [];
     caller_obj = `caller ! E_INVIND => #-1';
@@ -85,7 +85,7 @@ object OBJ_UTILS
       seen_objects[tostr(o)] = true;
       "Get examination data";
       exam = `o:examination() ! ANY => false';
-      if (typeof(exam) != FLYWEIGHT || !exam.verbs)
+      if (typeof(exam) != TYPE_FLYWEIGHT || !exam.verbs)
         continue;
       endif
       "Filter for targetable verbs only";
@@ -111,7 +111,7 @@ object OBJ_UTILS
     "Args: {objects_list}";
     set_task_perms(caller_perms());
     {obj_list} = args;
-    typeof(obj_list) != LIST && return {};
+    typeof(obj_list) != TYPE_LIST && return {};
     result = {};
     seen = [];
     for o in (obj_list)
@@ -131,7 +131,7 @@ object OBJ_UTILS
         for verb_name in (all_verbs)
           "Get verb signature";
           verb_sig = `verb_args(definer, verb_name) ! ANY => false';
-          if (typeof(verb_sig) != LIST || length(verb_sig) < 3)
+          if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
             continue;
           endif
           {dobj, prep, iobj} = verb_sig;
@@ -155,12 +155,12 @@ object OBJ_UTILS
     "If success is true, result is the compiled list.";
     "If success is false, result is the error message.";
     {template_string} = args;
-    typeof(template_string) != STR && raise(E_TYPE, "template_string must be string");
+    typeof(template_string) != TYPE_STR && raise(E_TYPE, "template_string must be string");
     try
       compiled = $sub_utils:compile(template_string);
       return {true, compiled};
     except e (ANY)
-      error_msg = length(e) > 2 && typeof(e[2]) == STR ? e[2] | toliteral(e);
+      error_msg = length(e) > 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       return {false, error_msg};
     endtry
   endverb
@@ -169,9 +169,9 @@ object OBJ_UTILS
     "Check if a player can write to a message property on an object.";
     "Returns {writable, error_msg} where writable is true/false.";
     {target_obj, prop_name, who} = args;
-    typeof(target_obj) != OBJ && raise(E_TYPE, "target_obj must be object");
-    typeof(prop_name) != STR && raise(E_TYPE, "prop_name must be string");
-    typeof(who) != OBJ && raise(E_TYPE, "who must be object");
+    typeof(target_obj) != TYPE_OBJ && raise(E_TYPE, "target_obj must be object");
+    typeof(prop_name) != TYPE_STR && raise(E_TYPE, "prop_name must be string");
+    typeof(who) != TYPE_OBJ && raise(E_TYPE, "who must be object");
     set_task_perms(who);
     "Check property exists";
     if (!(prop_name in target_obj:all_properties()))
@@ -206,7 +206,7 @@ object OBJ_UTILS
     !valid(target_obj) && return {};
     result = {};
     all_props = target_obj:all_properties();
-    typeof(all_props) != LIST && return {};
+    typeof(all_props) != TYPE_LIST && return {};
     for prop_name in (all_props)
       "Check if property ends with message suffix";
       if (prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag"))
@@ -226,7 +226,7 @@ object OBJ_UTILS
     !valid(target_obj) && return {};
     result = {};
     all_props = target_obj:all_properties();
-    typeof(all_props) != LIST && return {};
+    typeof(all_props) != TYPE_LIST && return {};
     for prop_name in (all_props)
       "Check if property ends with _rule";
       if (prop_name:ends_with("_rule"))
@@ -246,12 +246,12 @@ object OBJ_UTILS
     !valid(target_obj) && return {};
     result = {};
     all_props = target_obj:all_properties();
-    typeof(all_props) != LIST && return {};
+    typeof(all_props) != TYPE_LIST && return {};
     for prop_name in (all_props)
       if (prop_name:ends_with("_reaction"))
         prop_value = target_obj.(prop_name);
         "Only include if it's actually a reaction flyweight";
-        if (typeof(prop_value) == FLYWEIGHT && prop_value.delegate == $reaction)
+        if (typeof(prop_value) == TYPE_FLYWEIGHT && prop_value.delegate == $reaction)
           result = {@result, {prop_name, prop_value}};
         endif
       endif

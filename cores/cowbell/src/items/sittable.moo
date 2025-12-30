@@ -309,7 +309,7 @@ object SITTABLE
     desc = pass(@args);
     sitters = this:sitters_string();
     length(sitters) == 0 && return desc;
-    typeof(desc) == LIST && return {@desc, sitters};
+    typeof(desc) == TYPE_LIST && return {@desc, sitters};
     return desc + " " + sitters;
   endverb
 

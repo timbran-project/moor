@@ -44,7 +44,7 @@ object PLAYER
         "Object match failed - try as passage direction";
       endtry
       "If object match failed, try passage direction";
-      if (typeof(target) == ERR)
+      if (typeof(target) == TYPE_ERR)
         passage_desc = this:_look_passage(dobjstr);
         if (passage_desc)
           return this:inform_current($event:mk_info(player, passage_desc):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
@@ -95,7 +95,7 @@ object PLAYER
         return description ? description | "You see a passage leading " + label + ".";
       endif
       for alias in (aliases)
-        if (typeof(alias) == STR && alias == direction)
+        if (typeof(alias) == TYPE_STR && alias == direction)
           return description ? description | "You see a passage leading " + label + ".";
         endif
       endfor
@@ -129,7 +129,7 @@ object PLAYER
     headers = {"Name", "Idle", "Connected", "Location"};
     rows = {};
     for p in (players)
-      if (typeof(idle_time = idle_seconds(p)) != ERR)
+      if (typeof(idle_time = idle_seconds(p)) != TYPE_ERR)
         name = p:name();
         idle_str = idle_time:format_time_seconds();
         conn_str = connected_seconds(p):format_time_seconds();
@@ -174,7 +174,7 @@ object PLAYER
     endif
     "Try to look up the pronoun set";
     pronoun_set = $pronouns:lookup(argstr:trim());
-    if (typeof(pronoun_set) != FLYWEIGHT)
+    if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
       event = $event:mk_error(this, "Unknown pronoun set: " + argstr, "", "Available: " + $pronouns:list_presets():join(", "));
       this:inform_current(event:with_audience('utility));
       return;
@@ -198,9 +198,9 @@ object PLAYER
     {target, perms} = this:check_permissions('set_pronouns);
     set_task_perms(perms);
     {pronouns_str} = args;
-    typeof(pronouns_str) == STR || raise(E_TYPE, "Pronouns must be a string");
+    typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
     pronoun_set = $pronouns:lookup(pronouns_str:trim());
-    if (typeof(pronoun_set) != FLYWEIGHT)
+    if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
       raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
     endif
     target.pronouns = pronoun_set;
@@ -228,8 +228,8 @@ object PLAYER
     set_task_perms(perms);
     {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 23) && raise(E_INVARG("Profile picture too large"));
-    typeof(content_type) == STR && content_type:starts_with("image/") || raise(E_TYPE);
-    typeof(picbin) == BINARY || raise(E_TYPE);
+    typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
+    typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
     target.profile_picture = {content_type, picbin};
   endverb
 
@@ -254,7 +254,7 @@ object PLAYER
     caller != this && raise(E_PERM);
     set_task_perms(this);
     "If password not set, only need new password";
-    if (typeof(this.password) != FLYWEIGHT)
+    if (typeof(this.password) != TYPE_FLYWEIGHT)
       if (length(args) != 1)
         return this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <new-password>")):with_audience('utility));
       endif
@@ -355,7 +355,7 @@ object PLAYER
       "Let the room/location contribute additional objects (e.g., its contents, and passages).";
       if (respond_to(location, 'match_scope_for))
         ambient = `location:match_scope_for(this) ! ANY => {}';
-        typeof(ambient) == LIST && (env = {@env, @ambient});
+        typeof(ambient) == TYPE_LIST && (env = {@env, @ambient});
       endif
     endif
     return env;
@@ -368,7 +368,7 @@ object PLAYER
     location = this.location;
     env = {this};
     features = this.features;
-    if (typeof(features) != LIST)
+    if (typeof(features) != TYPE_LIST)
       features = {};
     endif
     env = {@env, @features};
@@ -391,11 +391,11 @@ object PLAYER
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(this);
     {target_obj, category} = args;
-    typeof(target_obj) == OBJ || return false;
-    typeof(category) == SYM || return false;
+    typeof(target_obj) == TYPE_OBJ || return false;
+    typeof(category) == TYPE_SYM || return false;
     "Get the grants map via wizard-owned accessor";
     grants_map = this:_get_grants(category);
-    typeof(grants_map) == MAP || return false;
+    typeof(grants_map) == TYPE_MAP || return false;
     "Check if we have a grant for this specific object";
     if (maphaskey(grants_map, target_obj))
       return grants_map[target_obj];
@@ -411,7 +411,7 @@ object PLAYER
     endif
     found = {};
     for item in (owned_objects(this))
-      if (typeof(item) == OBJ && valid(item) && isa(item, $mailbox))
+      if (typeof(item) == TYPE_OBJ && valid(item) && isa(item, $mailbox))
         found = {@found, item};
       endif
     endfor
@@ -455,7 +455,7 @@ object PLAYER
     set_task_perms(caller_perms());
     {item} = args;
     wearing_list = `this.wearing ! ANY => {}';
-    return typeof(wearing_list) == LIST && is_member(item, wearing_list);
+    return typeof(wearing_list) == TYPE_LIST && is_member(item, wearing_list);
   endverb
 
   verb confirm (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -464,7 +464,7 @@ object PLAYER
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "yes_no_alternative"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
-    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
+    typeof(tts_prompt) == TYPE_STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
     set_task_perms(this);
     if (response == "yes")
@@ -490,9 +490,9 @@ object PLAYER
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {question, ?placeholder = "Enter your response...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "text_area"}, {"prompt", question}, {"placeholder", placeholder}, {"rows", 4}};
-    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
+    typeof(tts_prompt) == TYPE_STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
-    if (response == "@abort" || typeof(response) != STR)
+    if (response == "@abort" || typeof(response) != TYPE_STR)
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
@@ -511,16 +511,16 @@ object PLAYER
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {question, ?accept_content_types = {}, ?max_file_size = 0, ?tts_prompt = 0} = args;
     metadata = {{"input_type", "file"}, {"prompt", question}};
-    typeof(accept_content_types) == LIST && length(accept_content_types) > 0 && (metadata = {@metadata, {"accept_content_types", accept_content_types}});
-    typeof(max_file_size) == INT && max_file_size > 0 && (metadata = {@metadata, {"max_file_size", max_file_size}});
-    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
+    typeof(accept_content_types) == TYPE_LIST && length(accept_content_types) > 0 && (metadata = {@metadata, {"accept_content_types", accept_content_types}});
+    typeof(max_file_size) == TYPE_INT && max_file_size > 0 && (metadata = {@metadata, {"max_file_size", max_file_size}});
+    typeof(tts_prompt) == TYPE_STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
-    if (typeof(response) != LIST || length(response) != 2)
+    if (typeof(response) != TYPE_LIST || length(response) != 2)
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
     {content_type, data} = response;
-    if (typeof(content_type) != STR || typeof(data) != BINARY)
+    if (typeof(content_type) != TYPE_STR || typeof(data) != TYPE_BINARY)
       this:inform_current($event:mk_info(this, "Invalid upload format."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
@@ -541,10 +541,10 @@ object PLAYER
     "Host (both web and telnet) is expected to handle this via metadata.";
     {?prompt = 0, ?tts_prompt = 0} = args;
     metadata = {{'input_type, "text_area"}};
-    if (typeof(prompt) == STR && length(prompt))
+    if (typeof(prompt) == TYPE_STR && length(prompt))
       metadata = {@metadata, {'prompt, prompt}};
     endif
-    typeof(tts_prompt) == STR && (metadata = {@metadata, {'tts_prompt, tts_prompt}});
+    typeof(tts_prompt) == TYPE_STR && (metadata = {@metadata, {'tts_prompt, tts_prompt}});
     return this:read_with_prompt(metadata);
   endverb
 
@@ -556,7 +556,7 @@ object PLAYER
     perms = caller_perms();
     "Allow if caller is wizard, the player, or the task perms already match the player (after set_task_perms)";
     perms.wizard || caller == this || perms == this || raise(E_PERM);
-    typeof(metadata) == LIST || raise(E_TYPE, "Metadata must be list");
+    typeof(metadata) == TYPE_LIST || raise(E_TYPE, "Metadata must be list");
     return read(this, metadata);
   endverb
 
@@ -584,7 +584,7 @@ object PLAYER
     set_task_perms(this);
     "Check if called with direct object reference first";
     target = E_NONE;
-    if (length(args) > 0 && typeof(args[1]) == OBJ && valid(args[1]))
+    if (length(args) > 0 && typeof(args[1]) == TYPE_OBJ && valid(args[1]))
       target = args[1];
     elseif (dobjstr == "")
       return this:inform_current($event:mk_not_found(this, "Examine what?"):with_audience('utility));
@@ -595,14 +595,14 @@ object PLAYER
       except e (ANY)
         return this:inform_current($event:mk_not_found(player, "Could not find '" + dobjstr + "' to examine."):with_audience('utility));
       endtry
-      if (typeof(target) == ERR)
+      if (typeof(target) == TYPE_ERR)
         return this:inform_current($event:mk_not_found(player, "No object found matching '" + dobjstr + "'."):with_audience('utility));
       endif
     endif
     !valid(target) && return this:inform_current(this:msg_no_dobj_match());
     "Get the examination flyweight";
     exam = target:examination();
-    if (typeof(exam) != FLYWEIGHT)
+    if (typeof(exam) != TYPE_FLYWEIGHT)
       return this:inform_current($event:mk_error(this, "Could not examine that object."):with_audience('utility));
     endif
     "Build the display output following LambdaCore style";
@@ -651,7 +651,7 @@ object PLAYER
     {target} = args;
     "Get the examination flyweight";
     exam = target:examination();
-    typeof(exam) != FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
+    typeof(exam) != TYPE_FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
     "Build the display output";
     lines = {};
     "Header with object name, aliases, and number";
@@ -695,7 +695,7 @@ object PLAYER
     "Args: {target_object}";
     set_task_perms(this);
     {target} = args;
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be an object");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be an object");
     valid(target) || raise(E_INVARG, "Target is not a valid object");
     "Format the examination";
     result = this:_format_examination(target);
@@ -730,7 +730,7 @@ object PLAYER
       endif
       "No object match - try topic search";
       topic_result = this:find_help_topic(dobjstr);
-      if (typeof(topic_result) == LIST)
+      if (typeof(topic_result) == TYPE_LIST)
         "Multiple matches - show disambiguation";
         lines = {"Multiple help topics match '" + dobjstr + "':", ""};
         for match in (topic_result)
@@ -743,7 +743,7 @@ object PLAYER
         event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
         this:inform_current(event);
         return;
-      elseif (typeof(topic_result) != INT)
+      elseif (typeof(topic_result) != TYPE_INT)
         prose_lines = topic_result:render_prose();
         content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
         event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
@@ -849,7 +849,7 @@ object PLAYER
     help_content = `target_obj:object_help() ! ANY => 0';
     if (help_content && help_content != 0)
       has_doc = true;
-      if (typeof(help_content) == LIST)
+      if (typeof(help_content) == TYPE_LIST)
         lines = {@lines, @help_content};
       else
         lines = {@lines, help_content};
@@ -970,7 +970,7 @@ object PLAYER
         continue;
       endif
       result = `o:help_topics(this, topic) ! ANY => 0';
-      if (typeof(result) != INT)
+      if (typeof(result) != TYPE_INT)
         matches = {@matches, {o, result}};
       endif
     endfor
@@ -995,7 +995,7 @@ object PLAYER
         continue;
       endif
       topics = `o:help_topics(this, "") ! ANY => {}';
-      if (typeof(topics) == LIST)
+      if (typeof(topics) == TYPE_LIST)
         all_topics = {@all_topics, @topics};
       endif
     endfor
@@ -1067,7 +1067,7 @@ object PLAYER
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {message, ?alt_label = "Or suggest an alternative:", ?alt_placeholder = "Describe your alternative approach...", ?tts_prompt = 0} = args;
     metadata = {{"input_type", "yes_no_alternative_all"}, {"prompt", message}, {"alternative_label", alt_label}, {"alternative_placeholder", alt_placeholder}};
-    typeof(tts_prompt) == STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
+    typeof(tts_prompt) == TYPE_STR && (metadata = {@metadata, {"tts_prompt", tts_prompt}});
     response = this:read_with_prompt(metadata);
     set_task_perms(this);
     if (response == "yes")
@@ -1113,7 +1113,7 @@ object PLAYER
         all_verb_names = `verbs(definer) ! ANY => {}';
         for verb_name in (all_verb_names)
           verb_sig = `verb_args(definer, verb_name) ! ANY => false';
-          if (typeof(verb_sig) != LIST || length(verb_sig) < 3)
+          if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
             continue;
           endif
           {dobj, prep, iobj} = verb_sig;
@@ -1280,7 +1280,7 @@ object PLAYER
     rows = {};
     idx = 1;
     for msg in (messages)
-      if (typeof(msg) == FLYWEIGHT)
+      if (typeof(msg) == TYPE_FLYWEIGHT)
         "DM flyweight - show full text";
         msg_type = "DM";
         from_name = valid(msg.from) ? msg.from.name | "???";
@@ -1301,7 +1301,7 @@ object PLAYER
     "Count unread";
     unread = 0;
     for msg in (messages)
-      if (typeof(msg) != FLYWEIGHT && msg.read_at == 0)
+      if (typeof(msg) != TYPE_FLYWEIGHT && msg.read_at == 0)
         unread = unread + 1;
       endif
     endfor
@@ -1366,7 +1366,7 @@ object PLAYER
       return this:inform_current($event:mk_error(this, "No message #" + tostr(idx) + "."):with_audience('utility));
     endif
     msg = messages[idx];
-    if (typeof(msg) == FLYWEIGHT)
+    if (typeof(msg) == TYPE_FLYWEIGHT)
       "DM - display it";
       display = msg:display(this);
       this:inform_current($event:mk_info(this, display):with_audience('utility):with_presentation_hint('inset):with_group('messages));
@@ -1391,7 +1391,7 @@ object PLAYER
     {target} = args;
     "Get the examination flyweight";
     exam = target:examination();
-    typeof(exam) != FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
+    typeof(exam) != TYPE_FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
     "Build the display output";
     lines = {};
     "Header with object name, aliases, and number";
@@ -1435,7 +1435,7 @@ object PLAYER
     "Args: {target_object}";
     set_task_perms(this);
     {target} = args;
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be an object");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be an object");
     valid(target) || raise(E_INVARG, "Target is not a valid object");
     "Format the examination";
     result = this:_format_examination(target);
@@ -1450,9 +1450,9 @@ object PLAYER
     {target, perms} = this:check_permissions('set_pronouns);
     set_task_perms(perms);
     {pronouns_str} = args;
-    typeof(pronouns_str) == STR || raise(E_TYPE, "Pronouns must be a string");
+    typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
     pronoun_set = $pronouns:lookup(pronouns_str:trim());
-    if (typeof(pronoun_set) != FLYWEIGHT)
+    if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
       raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
     endif
     target.pronouns = pronoun_set;
@@ -1466,7 +1466,7 @@ object PLAYER
     {pc} = args;
     "Check if LLM is available";
     llm_client = $player.suggestions_llm_client;
-    if (typeof(llm_client) != OBJ || !valid(llm_client))
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
       return false;
     endif
     cmd_verb = pc["verb"];
@@ -1492,7 +1492,7 @@ object PLAYER
       location_desc = "";
       if (valid(location))
         location_desc = `location:description() ! ANY => ""';
-        if (typeof(location_desc) != STR)
+        if (typeof(location_desc) != TYPE_STR)
           location_desc = `tostr(location_desc) ! ANY => ""';
         endif
       endif
@@ -1509,7 +1509,7 @@ object PLAYER
           endif
           for verb_name in (`verbs(definer) ! ANY => {}')
             verb_sig = `verb_args(definer, verb_name) ! ANY => false';
-            if (typeof(verb_sig) != LIST || length(verb_sig) < 3)
+            if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
               continue;
             endif
             {dobj, prep, iobj} = verb_sig;
@@ -1532,7 +1532,7 @@ object PLAYER
         {exit_labels, ambient_passages} = `location.location:get_exit_info(location) ! ANY => {{}, {}}';
         exits = exit_labels;
         for ap in (ambient_passages)
-          if (typeof(ap) == LIST && length(ap) >= 3 && ap[3])
+          if (typeof(ap) == TYPE_LIST && length(ap) >= 3 && ap[3])
             exits = {@exits, ap[3]};
           endif
         endfor
@@ -1630,7 +1630,7 @@ object PLAYER
       "Call LLM and rewrite the placeholder";
       try
         response = llm_client:simple_query(prompt);
-        if (typeof(response) == STR && length(response) > 0)
+        if (typeof(response) == TYPE_STR && length(response) > 0)
           result_event = $event:mk_info(this, $format.block:mk("I didn't understand that, but...\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
           this:rewrite_event(rewrite_id, result_event, current_conn);
         else
@@ -1706,7 +1706,7 @@ object PLAYER
     {query} = args;
     "Check if LLM is available";
     llm_client = $player.suggestions_llm_client;
-    if (typeof(llm_client) != OBJ || !valid(llm_client))
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
       return false;
     endif
     "Capture current connection BEFORE forking";
@@ -1757,7 +1757,7 @@ object PLAYER
       "Call LLM and rewrite the placeholder";
       try
         response = llm_client:simple_query(prompt);
-        if (typeof(response) == STR && length(response) > 0)
+        if (typeof(response) == TYPE_STR && length(response) > 0)
           result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
           this:rewrite_event(rewrite_id, result_event, current_conn);
         else

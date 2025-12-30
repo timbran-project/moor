@@ -197,7 +197,7 @@ object REACTION
   verb test_mk_event_trigger (this none this) owner: HACKER flags: "rxd"
     "Test creating a reaction with a simple event trigger.";
     reaction = this:mk('on_unlock, 0, {});
-    typeof(reaction) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(reaction) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     reaction.delegate == this || raise(E_ASSERT, "Delegate should be $reaction");
     reaction.trigger == 'on_unlock || raise(E_ASSERT, "Trigger should be 'on_unlock");
     reaction.when == 0 || raise(E_ASSERT, "When should be 0 (no condition)");
@@ -209,8 +209,8 @@ object REACTION
   verb test_mk_threshold_trigger (this none this) owner: HACKER flags: "rxd"
     "Test creating a reaction with a threshold trigger.";
     reaction = this:mk({'when, 'pets_received, 'ge, 10}, 0, {});
-    typeof(reaction) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    typeof(reaction.trigger) == LIST || raise(E_ASSERT, "Trigger should be list");
+    typeof(reaction) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(reaction.trigger) == TYPE_LIST || raise(E_ASSERT, "Trigger should be list");
     reaction.trigger[1] == 'when || raise(E_ASSERT, "Trigger[1] should be 'when");
     reaction.trigger[2] == 'pets_received || raise(E_ASSERT, "Trigger[2] should be property");
     reaction.trigger[3] == 'ge || raise(E_ASSERT, "Trigger[3] should be operator");
@@ -221,9 +221,9 @@ object REACTION
   verb test_mk_with_condition (this none this) owner: HACKER flags: "rxd"
     "Test creating a reaction with a when condition.";
     reaction = this:mk('on_pet, "NOT This is_grouchy?", {});
-    typeof(reaction) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(reaction) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     reaction.when != 0 || raise(E_ASSERT, "When should be parsed rule");
-    typeof(reaction.when) == FLYWEIGHT || raise(E_ASSERT, "When should be rule flyweight");
+    typeof(reaction.when) == TYPE_FLYWEIGHT || raise(E_ASSERT, "When should be rule flyweight");
     return true;
   endverb
 
@@ -249,7 +249,7 @@ object REACTION
   verb test_parse_effect_set (this none this) owner: HACKER flags: "rxd"
     "Test parsing a 'set' effect.";
     effect = this:parse_effect({'set, 'locked, false});
-    typeof(effect) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     effect.type == 'set || raise(E_ASSERT, "Type should be 'set");
     effect.prop == 'locked || raise(E_ASSERT, "Prop should be 'locked");
     effect.value == false || raise(E_ASSERT, "Value should be false");
@@ -259,22 +259,22 @@ object REACTION
   verb test_parse_effect_increment (this none this) owner: HACKER flags: "rxd"
     "Test parsing an 'increment' effect.";
     effect = this:parse_effect({'increment, 'counter});
-    typeof(effect) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     effect.type == 'increment || raise(E_ASSERT, "Type should be 'increment");
     effect.prop == 'counter || raise(E_ASSERT, "Prop should be 'counter");
     effect.by == 1 || raise(E_ASSERT, "Default increment should be 1");
     "Test with explicit amount";
     effect2 = this:parse_effect({'increment, 'counter, 5});
-    effect2.by == 5 || raise(E_ASSERT, "Explicit increment should be 5");
+    (effect2).by == 5 || raise(E_ASSERT, "Explicit increment should be 5");
     return true;
   endverb
 
   verb test_parse_effect_announce (this none this) owner: HACKER flags: "rxd"
     "Test parsing an 'announce' effect with template compilation.";
     effect = this:parse_effect({'announce, "{nc} hears a click."});
-    typeof(effect) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     effect.type == 'announce || raise(E_ASSERT, "Type should be 'announce");
-    typeof(effect.msg) == LIST || raise(E_ASSERT, "Msg should be compiled to list");
+    typeof(effect.msg) == TYPE_LIST || raise(E_ASSERT, "Msg should be compiled to list");
     length(effect.msg) > 0 || raise(E_ASSERT, "Msg should have content");
     return true;
   endverb
@@ -282,16 +282,16 @@ object REACTION
   verb test_parse_effect_emote (this none this) owner: HACKER flags: "rxd"
     "Test parsing an 'emote' effect.";
     effect = this:parse_effect({'emote, "purrs contentedly."});
-    typeof(effect) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     effect.type == 'emote || raise(E_ASSERT, "Type should be 'emote");
-    typeof(effect.msg) == LIST || raise(E_ASSERT, "Msg should be compiled to list");
+    typeof(effect.msg) == TYPE_LIST || raise(E_ASSERT, "Msg should be compiled to list");
     return true;
   endverb
 
   verb test_parse_effect_trigger (this none this) owner: HACKER flags: "rxd"
     "Test parsing a 'trigger' effect.";
     effect = this:parse_effect({'trigger, $root, 'on_activate});
-    typeof(effect) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     effect.type == 'trigger || raise(E_ASSERT, "Type should be 'trigger");
     effect.target == $root || raise(E_ASSERT, "Target should be $root");
     effect.event == 'on_activate || raise(E_ASSERT, "Event should be 'on_activate");
@@ -301,10 +301,10 @@ object REACTION
   verb test_parse_effect_delay (this none this) owner: HACKER flags: "rxd"
     "Test parsing a 'delay' effect with nested effect.";
     effect = this:parse_effect({'delay, 5, {'announce, "Boom!"}});
-    typeof(effect) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     effect.type == 'delay || raise(E_ASSERT, "Type should be 'delay");
     effect.seconds == 5 || raise(E_ASSERT, "Seconds should be 5");
-    typeof(effect.effect) == FLYWEIGHT || raise(E_ASSERT, "Nested effect should be flyweight");
+    typeof(effect.effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Nested effect should be flyweight");
     effect.effect.type == 'announce || raise(E_ASSERT, "Nested effect should be announce");
     return true;
   endverb
@@ -375,7 +375,7 @@ object REACTION
     this:validate_trigger(trigger);
     "Parse when clause if provided";
     parsed_when = 0;
-    if (when_clause && typeof(when_clause) == STR)
+    if (when_clause && typeof(when_clause) == TYPE_STR)
       parsed_when = $rule_engine:parse_expression(when_clause);
     endif
     "Parse and validate effects";
@@ -390,15 +390,15 @@ object REACTION
     "Validate a trigger specification.";
     {trigger} = args;
     "Event trigger - just a symbol";
-    if (typeof(trigger) == SYM)
+    if (typeof(trigger) == TYPE_SYM)
       return true;
     endif
     "Threshold trigger - {'when, 'prop, 'op, value}";
-    if (typeof(trigger) == LIST)
+    if (typeof(trigger) == TYPE_LIST)
       length(trigger) == 4 || raise(E_INVARG, "Threshold trigger must be {'when, 'prop, 'op, value}");
       {kind, prop, op, value} = trigger;
       kind == 'when || raise(E_INVARG, "Threshold trigger must start with 'when");
-      typeof(prop) == SYM || raise(E_INVARG, "Property must be symbol");
+      typeof(prop) == TYPE_SYM || raise(E_INVARG, "Property must be symbol");
       op in this.comparison_ops || raise(E_INVARG, "Invalid comparison operator: " + tostr(op));
       return true;
     endif
@@ -408,7 +408,7 @@ object REACTION
   verb parse_effect (this none this) owner: HACKER flags: "rxd"
     "Parse an effect spec into a validated flyweight.";
     {spec} = args;
-    typeof(spec) == LIST || raise(E_INVARG, "Effect must be list");
+    typeof(spec) == TYPE_LIST || raise(E_INVARG, "Effect must be list");
     length(spec) >= 2 || raise(E_INVARG, "Effect must have at least type and one argument");
     effect_type = spec[1];
     effect_type in this.effect_types || raise(E_INVARG, "Unknown effect type: " + tostr(effect_type));
@@ -424,15 +424,15 @@ object REACTION
       return <$reaction, .type = 'decrement, .prop = prop, .by = by>;
     elseif (effect_type == 'announce)
       {_, msg} = spec;
-      compiled_msg = typeof(msg) == STR ? $sub_utils:compile(msg) | msg;
+      compiled_msg = typeof(msg) == TYPE_STR ? $sub_utils:compile(msg) | msg;
       return <$reaction, .type = 'announce, .msg = compiled_msg>;
     elseif (effect_type == 'emote)
       {_, msg} = spec;
-      compiled_msg = typeof(msg) == STR ? $sub_utils:compile(msg) | msg;
+      compiled_msg = typeof(msg) == TYPE_STR ? $sub_utils:compile(msg) | msg;
       return <$reaction, .type = 'emote, .msg = compiled_msg>;
     elseif (effect_type == 'tell)
       {_, target_var, msg} = spec;
-      compiled_msg = typeof(msg) == STR ? $sub_utils:compile(msg) | msg;
+      compiled_msg = typeof(msg) == TYPE_STR ? $sub_utils:compile(msg) | msg;
       return <$reaction, .type = 'tell, .target = target_var, .msg = compiled_msg>;
     elseif (effect_type == 'move)
       {_, dest} = spec;
@@ -446,7 +446,7 @@ object REACTION
       return <$reaction, .type = 'delay, .seconds = seconds, .effect = parsed_inner>;
     elseif (effect_type == 'action)
       {_, action_name, ?action_target = 0} = spec;
-      typeof(action_name) == SYM || raise(E_INVARG, "'action requires symbol for action name");
+      typeof(action_name) == TYPE_SYM || raise(E_INVARG, "'action requires symbol for action name");
       return <$reaction, .type = 'action, .action = action_name, .action_target = action_target>;
     endif
     raise(E_INVARG, "Unhandled effect type: " + tostr(effect_type));
@@ -511,14 +511,14 @@ object REACTION
     "Returns a list suitable for @-splat into $event:mk_info.";
     {msg, target} = args;
     "If it's a symbol, look up the property on target";
-    if (typeof(msg) == SYM)
+    if (typeof(msg) == TYPE_SYM)
       prop_name = tostr(msg);
       prop_value = `target.(prop_name) ! E_PROPNF => 0';
       if (prop_value == 0)
         return {"(missing message: " + prop_name + ")"};
       endif
       "If it's a msg_bag, pick randomly";
-      if (typeof(prop_value) == OBJ && isa(prop_value, $msg_bag))
+      if (typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag))
         return prop_value:pick();
       endif
       "Otherwise use the property value directly (should be compiled list)";
@@ -532,7 +532,7 @@ object REACTION
     "Execute a single effect in context. Effect can be flyweight or raw list.";
     {effect, context, target} = args;
     "Parse list effects on the fly for convenience";
-    if (typeof(effect) == LIST)
+    if (typeof(effect) == TYPE_LIST)
       effect = this:parse_effect(effect);
     endif
     actor = context['Actor] || player;
@@ -575,7 +575,7 @@ object REACTION
         recipient:inform_current(event);
       endif
     elseif (effect.type == 'move)
-      dest = typeof(effect.destination) == SYM ? context[effect.destination] | effect.destination;
+      dest = typeof(effect.destination) == TYPE_SYM ? context[effect.destination] | effect.destination;
       if (valid(dest))
         move(target, dest);
       endif
@@ -592,7 +592,7 @@ object REACTION
     elseif (effect.type == 'action)
       "Call action_<name> on action_target, passing the reacting object and context";
       action_target = effect.action_target;
-      if (typeof(action_target) == SYM)
+      if (typeof(action_target) == TYPE_SYM)
         action_target = context[action_target];
       endif
       if (valid(action_target))

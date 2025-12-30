@@ -14,7 +14,7 @@ object SYSOBJ
   property bg_ticks (owner: HACKER, flags: "r") = 300000;
   property brass_key (owner: HACKER, flags: "r") = BRASS_KEY;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
-  property builder_prototypes (owner: HACKER, flags: "r") = {#7, THING, WEARABLE, CONTAINER, SITTABLE, ACTOR, NOTE, AREA, FOOD, DRINK};
+  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, SITTABLE, ACTOR, NOTE, AREA, FOOD, DRINK};
   property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property consumable (owner: ARCH_WIZARD, flags: "r") = CONSUMABLE;
   property container (owner: HACKER, flags: "r") = CONTAINER;
@@ -291,7 +291,7 @@ object SYSOBJ
     "Allows direct recycle() if: wizard, object not rooted in #1, or called from :destroy";
     {target} = args;
     "If not an object, let builtin raise the appropriate error";
-    if (typeof(target) != OBJ)
+    if (typeof(target) != TYPE_OBJ)
       return recycle(target);
     endif
     "IMPORTANT: Run as the caller, so that the right permissions are applied...";

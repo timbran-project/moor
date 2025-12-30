@@ -68,7 +68,7 @@ object AGENT_BUILDING_TOOLS
     set_task_perms(actor);
     {room_name, area_spec, parent_spec} = {args_map["name"], maphaskey(args_map, "area") ? args_map["area"] | "", maphaskey(args_map, "parent") ? args_map["parent"] | "$room"};
     parent_obj = $match:match_object(parent_spec, actor);
-    typeof(parent_obj) == OBJ || raise(E_INVARG, "Invalid parent object: " + parent_spec);
+    typeof(parent_obj) == TYPE_OBJ || raise(E_INVARG, "Invalid parent object: " + parent_spec);
     "Parse area - default to current area if not specified, 'ether' means free-floating";
     target_area = #-1;
     if (!area_spec || area_spec == "" || area_spec == "here")
@@ -77,7 +77,7 @@ object AGENT_BUILDING_TOOLS
     elseif (area_spec != "ether")
       target_area = $match:match_object(area_spec, actor);
       "Validate that target_area is actually an area, not a room";
-      if (valid(target_area) && typeof(target_area) == OBJ && valid(target_area.location) && target_area.location != #-1)
+      if (valid(target_area) && typeof(target_area) == TYPE_OBJ && valid(target_area.location) && target_area.location != #-1)
         actual_area = target_area.location;
         return "Error: " + tostr(target_area) + " is a room, not an area. To build in the same area as that room, omit the 'area' parameter or use 'here'. The area containing that room is " + tostr(actual_area) + ".";
       endif
@@ -88,7 +88,7 @@ object AGENT_BUILDING_TOOLS
       area_str = " (free-floating)";
     else
       cap = actor:find_capability_for(target_area, 'area);
-      area_target = typeof(cap) == FLYWEIGHT ? cap | target_area;
+      area_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | target_area;
       try
         new_room = area_target:make_room_in(parent_obj);
         area_str = " in " + tostr(target_area);
@@ -122,10 +122,10 @@ object AGENT_BUILDING_TOOLS
     endif
     "Find source room - default to actor's location if not specified";
     source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, actor) | actor.location;
-    typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
+    typeof(source_room) == TYPE_OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
     target_room = $match:match_object(target_spec, actor);
-    typeof(target_room) == OBJ || raise(E_INVARG, "Target room not found");
+    typeof(target_room) == TYPE_OBJ || raise(E_INVARG, "Target room not found");
     valid(target_room) || raise(E_INVARG, "Target room no longer exists");
     "Get area - both rooms must be in the same area";
     area = source_room.location;
@@ -133,14 +133,14 @@ object AGENT_BUILDING_TOOLS
     target_room.location == area || raise(E_INVARG, "Both rooms must be in the same area");
     "Check permissions";
     from_cap = actor:find_capability_for(source_room, 'room);
-    from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
+    from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
       return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
     to_cap = actor:find_capability_for(target_room, 'room);
-    to_target = typeof(to_cap) == FLYWEIGHT ? to_cap | target_room;
+    to_target = typeof(to_cap) == TYPE_FLYWEIGHT ? to_cap | target_room;
     try
       to_target:check_can_dig_into();
     except (E_PERM)
@@ -150,7 +150,7 @@ object AGENT_BUILDING_TOOLS
     passage = oneway_flag || !to_dirs ? $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, "", {}, "", false, true) | $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, to_dirs[1], to_dirs, "", true, true);
     "Register with area";
     area_cap = actor:find_capability_for(area, 'area);
-    area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
+    area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
     area_target:create_passage(from_target, to_target, passage);
     "Report";
     msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way)." | (!to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred)." | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ".");
@@ -163,16 +163,16 @@ object AGENT_BUILDING_TOOLS
     set_task_perms(actor);
     {target_spec, source_spec} = {args_map["target_room"], maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
     source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, actor) | actor.location;
-    typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
+    typeof(source_room) == TYPE_OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
     target_room = $match:match_object(target_spec, actor);
-    typeof(target_room) == OBJ || raise(E_INVARG, "Target room not found");
+    typeof(target_room) == TYPE_OBJ || raise(E_INVARG, "Target room not found");
     valid(target_room) || raise(E_INVARG, "Target room no longer exists");
     area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
     target_room.location == area || raise(E_INVARG, "Both rooms must be in the same area");
     passage = area:passage_for(source_room, target_room);
-    typeof(passage) != FLYWEIGHT && return "No passage found between " + tostr(source_room) + " and " + tostr(target_room) + ".";
+    typeof(passage) != TYPE_FLYWEIGHT && return "No passage found between " + tostr(source_room) + " and " + tostr(target_room) + ".";
     "Collect labels for reporting";
     {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
     labels = {};
@@ -182,7 +182,7 @@ object AGENT_BUILDING_TOOLS
     target_room == side_b_room && `passage.side_b_label ! ANY => ""' != "" && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
     "Check permissions";
     from_cap = actor:find_capability_for(source_room, 'room);
-    from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
+    from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
@@ -190,7 +190,7 @@ object AGENT_BUILDING_TOOLS
     endtry
     "Remove passage via area";
     area_cap = actor:find_capability_for(area, 'area);
-    area_target = typeof(area_cap) == FLYWEIGHT ? area_cap | area;
+    area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
     result = area_target:remove_passage(from_target, target_room);
     label_str = labels ? " (" + labels:join("/") + ")" | "";
     return result ? "Removed passage" + label_str + " between " + tostr(source_room) + " and " + tostr(target_room) + "." | "Failed to remove passage (may have already been removed).";
@@ -201,19 +201,19 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     {direction, description, ambient, source_spec} = {args_map["direction"], args_map["description"], maphaskey(args_map, "ambient") ? args_map["ambient"] | true, maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
-    typeof(description) == STR && "{" in description && "}" in description && (description = `$sub_utils:compile(description) ! ANY => description');
+    typeof(description) == TYPE_STR && "{" in description && "}" in description && (description = `$sub_utils:compile(description) ! ANY => description');
     source_room = source_spec && source_spec != "" ? $match:match_object(source_spec, actor) | actor.location;
-    typeof(source_room) == OBJ || raise(E_INVARG, "Source room not found");
+    typeof(source_room) == TYPE_OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
     area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
     passages = area:passages_from(source_room);
-    typeof(passages) != LIST && return "No passages from " + tostr(source_room) + ".";
+    typeof(passages) != TYPE_LIST && return "No passages from " + tostr(source_room) + ".";
     length(passages) == 0 && return "No passages from " + tostr(source_room) + ".";
     target_passage = area:find_passage_by_direction(source_room, direction);
-    typeof(target_passage) != FLYWEIGHT && return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
+    typeof(target_passage) != TYPE_FLYWEIGHT && return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
     from_cap = actor:find_capability_for(source_room, 'room);
-    from_target = typeof(from_cap) == FLYWEIGHT ? from_cap | source_room;
+    from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
@@ -233,7 +233,7 @@ object AGENT_BUILDING_TOOLS
     !primary_name && raise(E_INVARG, "Object name cannot be blank");
     set_task_perms(actor);
     parent_obj = $match:match_object(parent_spec, actor);
-    typeof(parent_obj) == OBJ || raise(E_INVARG, "Parent not found");
+    typeof(parent_obj) == TYPE_OBJ || raise(E_INVARG, "Parent not found");
     valid(parent_obj) || raise(E_INVARG, "Parent no longer exists");
     "Use fertile flag (f) to allow child creation";
     is_fertile = `parent_obj.f ! ANY => false';
@@ -251,7 +251,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     target_obj = $match:match_object(args_map["object"], actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to recycle " + tostr(target_obj));
     {obj_name, obj_id} = {target_obj.name, tostr(target_obj)};
@@ -264,7 +264,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     target_obj = $match:match_object(args_map["object"], actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to rename " + tostr(target_obj));
     {new_name, new_aliases} = $str_proto:parse_name_aliases(args_map["name"]);
@@ -281,7 +281,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     target_obj = $match:match_object(args_map["object"], actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to describe " + tostr(target_obj));
     !args_map["description"] && raise(E_INVARG, "Description cannot be blank");
@@ -295,11 +295,11 @@ object AGENT_BUILDING_TOOLS
     set_task_perms(actor);
     {obj_spec, dest_spec} = {args_map["object"], args_map["destination"]};
     target_obj = $match:match_object(obj_spec, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to move " + tostr(target_obj));
     dest_obj = $match:match_object(dest_spec, actor);
-    typeof(dest_obj) == OBJ || raise(E_INVARG, "Destination not found");
+    typeof(dest_obj) == TYPE_OBJ || raise(E_INVARG, "Destination not found");
     valid(dest_obj) || raise(E_INVARG, "Destination no longer exists");
     old_location_name = valid(target_obj.location) ? `target_obj.location.name ! ANY => tostr(target_obj.location)' | "(nowhere)";
     target_obj:moveto(dest_obj);
@@ -311,7 +311,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     target_obj = $match:match_object(args_map["object"], actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to modify " + tostr(target_obj));
     target_obj.integrated_description = args_map["integrated_description"];
@@ -325,10 +325,10 @@ object AGENT_BUILDING_TOOLS
     {target_spec, category, perms, grantee_spec} = {args_map["target"], args_map["category"], args_map["permissions"], args_map["grantee"]};
     set_task_perms(actor);
     target_obj = $match:match_object(target_spec, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Target not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Target not found");
     valid(target_obj) || raise(E_INVARG, "Target no longer exists");
     grantee = $match:match_object(grantee_spec, actor);
-    typeof(grantee) == OBJ || raise(E_INVARG, "Grantee not found");
+    typeof(grantee) == TYPE_OBJ || raise(E_INVARG, "Grantee not found");
     valid(grantee) || raise(E_INVARG, "Grantee no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj));
     perm_symbols = { tostr(p):to_symbol() for p in (perms) };
@@ -371,12 +371,12 @@ object AGENT_BUILDING_TOOLS
     {to_spec, from_spec} = {args_map["to_room"], maphaskey(args_map, "from_room") ? args_map["from_room"] | ""};
     set_task_perms(actor);
     from_room = from_spec && from_spec != "" ? $match:match_object(from_spec, actor) | actor.location;
-    typeof(from_room) == OBJ || return "Error: Could not find starting room '" + from_spec + "'.";
+    typeof(from_room) == TYPE_OBJ || return "Error: Could not find starting room '" + from_spec + "'.";
     !valid(from_room) && return "Error: You are not in a room.";
     area = from_room.location;
     !valid(area) && return "Error: Starting room is not in an area.";
     to_room = $match:match_object(to_spec, actor);
-    typeof(to_room) == OBJ || return "Error: Could not find destination room '" + to_spec + "'.";
+    typeof(to_room) == TYPE_OBJ || return "Error: Could not find destination room '" + to_spec + "'.";
     !valid(to_room) && return "Error: Destination room does not exist.";
     {from_name, to_name} = {`from_room:name() ! ANY => tostr(from_room)', `to_room:name() ! ANY => tostr(to_room)'};
     to_room == from_room && return "You are already at " + to_name + "!";
@@ -409,7 +409,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     target = $match:match_object(args_map["object"], actor);
-    typeof(target) == OBJ || return "Error: Could not find object '" + args_map["object"] + "'.";
+    typeof(target) == TYPE_OBJ || return "Error: Could not find object '" + args_map["object"] + "'.";
     !valid(target) && return "Error: Object does not exist.";
     obj_name = `target:name() ! ANY => `target.name ! ANY => "(unnamed)"'';
     desc = `target:description() ! ANY => `target.description ! ANY => "(no description)"'';
@@ -459,7 +459,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     target_obj = $match:match_object(args_map["object"], actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     all_props = target_obj:all_properties();
     rule_props = {};
@@ -472,7 +472,7 @@ object AGENT_BUILDING_TOOLS
       value = `target_obj.(prop) ! ANY => 0';
       if (value == 0)
         lines = {@lines, "  " + prop + ": (no rule set)"};
-      elseif (typeof(value) == FLYWEIGHT)
+      elseif (typeof(value) == TYPE_FLYWEIGHT)
         rule_str = $rule_engine:decompile_rule(value);
         lines = {@lines, "  " + prop + ": " + rule_str};
       else
@@ -488,7 +488,7 @@ object AGENT_BUILDING_TOOLS
     {obj_str, prop_name, expression} = {args_map["object"], args_map["property"], args_map["expression"]};
     set_task_perms(actor);
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set rules on " + tostr(target_obj));
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property name must end with '_rule'");
@@ -509,14 +509,14 @@ object AGENT_BUILDING_TOOLS
     {obj_str, prop_name} = {args_map["object"], args_map["property"]};
     set_task_perms(actor);
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property name must end with '_rule'");
     prop_name in target_obj:all_properties() || return tostr(target_obj) + "." + prop_name + " is not defined.";
     value = target_obj.(prop_name);
     if (value == 0)
       return tostr(target_obj) + "." + prop_name + ": (no rule set)";
-    elseif (typeof(value) == FLYWEIGHT)
+    elseif (typeof(value) == TYPE_FLYWEIGHT)
       rule_str = $rule_engine:decompile_rule(value);
       return tostr(target_obj) + "." + prop_name + ": " + rule_str;
     endif
@@ -527,8 +527,8 @@ object AGENT_BUILDING_TOOLS
     "Tool: Test a rule expression with specific variable bindings";
     {args_map, actor} = args;
     {expression, bindings} = {args_map["expression"], args_map["bindings"]};
-    typeof(expression) == STR || raise(E_TYPE, "expression must be string");
-    typeof(bindings) == MAP || raise(E_TYPE, "bindings must be object/map");
+    typeof(expression) == TYPE_STR || raise(E_TYPE, "expression must be string");
+    typeof(bindings) == TYPE_MAP || raise(E_TYPE, "bindings must be object/map");
     set_task_perms(actor);
     compiled = `$rule_engine:parse_expression(expression, 'test_rule, actor) ! ANY => E_INVARG';
     compiled == E_INVARG && return "ERROR: Rule parsing failed. Check syntax. Expression: " + expression;
@@ -543,7 +543,7 @@ object AGENT_BUILDING_TOOLS
     if (result['success])
       return "SUCCESS: Rule evaluated to true. Bindings: " + toliteral(converted_bindings);
     endif
-    reason = maphaskey(result, 'reason) ? typeof(result['reason]) == STR ? result['reason] | toliteral(result['reason]) | "rule did not match";
+    reason = maphaskey(result, 'reason) ? typeof(result['reason]) == TYPE_STR ? result['reason] | toliteral(result['reason]) | "rule did not match";
     return "FAILED: Rule evaluated to false. Reason: " + reason + ". Bindings: " + toliteral(converted_bindings);
   endverb
 
@@ -553,7 +553,7 @@ object AGENT_BUILDING_TOOLS
     set_task_perms(actor);
     obj_str = args_map["object"];
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     reaction_props = $obj_utils:reaction_properties(target_obj);
     if (!reaction_props || length(reaction_props) == 0)
@@ -564,9 +564,9 @@ object AGENT_BUILDING_TOOLS
       {prop_name, reaction} = prop_info;
       lines = {@lines, prop_name + ":"};
       "Trigger";
-      if (typeof(reaction.trigger) == SYM)
+      if (typeof(reaction.trigger) == TYPE_SYM)
         lines = {@lines, "  Trigger: " + tostr(reaction.trigger)};
-      elseif (typeof(reaction.trigger) == LIST)
+      elseif (typeof(reaction.trigger) == TYPE_LIST)
         {kind, prop, op, value} = reaction.trigger;
         lines = {@lines, "  Trigger: threshold - " + tostr(prop) + " " + tostr(op) + " " + tostr(value)};
       else
@@ -582,7 +582,7 @@ object AGENT_BUILDING_TOOLS
       "Effects";
       lines = {@lines, "  Effects: " + tostr(length(reaction.effects)) + " items"};
       for effect in (reaction.effects)
-        if (typeof(effect) == LIST && length(effect) > 0)
+        if (typeof(effect) == TYPE_LIST && length(effect) > 0)
           lines = {@lines, "    - " + tostr(effect[1])};
         else
           lines = {@lines, "    - " + toliteral(effect)};
@@ -606,7 +606,7 @@ object AGENT_BUILDING_TOOLS
     effects_str = args_map["effects"];
     "Parse object";
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     "Validate property name";
     prop_name:ends_with("_reaction") || raise(E_INVARG, "Property name must end with '_reaction'");
@@ -660,7 +660,7 @@ object AGENT_BUILDING_TOOLS
     enabled = args_map["enabled"];
     "Parse object";
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     "Validate property name";
     prop_name:ends_with("_reaction") || raise(E_INVARG, "Property name must end with '_reaction'");
@@ -671,7 +671,7 @@ object AGENT_BUILDING_TOOLS
     "Check property exists and is a reaction";
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
     reaction = target_obj.(prop_name);
-    typeof(reaction) == FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
+    typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
     "Reconstruct flyweight with new enabled state (flyweights are immutable)";
     new_reaction = <reaction.delegate, .when = reaction.when, .trigger = reaction.trigger, .effects = reaction.effects, .enabled = enabled, .fired_at = reaction.fired_at>;
     target_obj.(prop_name) = new_reaction;
@@ -684,7 +684,7 @@ object AGENT_BUILDING_TOOLS
     set_task_perms(actor);
     obj_str = args_map["object"];
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     all_props = target_obj:all_properties();
     msg_props = {};
@@ -695,14 +695,14 @@ object AGENT_BUILDING_TOOLS
     lines = {"Messages on " + tostr(target_obj) + ":"};
     for prop in (msg_props)
       value = `target_obj.(prop) ! ANY => ""';
-      if (typeof(value) == STR)
+      if (typeof(value) == TYPE_STR)
         lines = {@lines, "  " + prop + ": \"" + (length(value) > 50 ? value[1..50] + "..." | value) + "\""};
-      elseif (typeof(value) == FLYWEIGHT)
+      elseif (typeof(value) == TYPE_FLYWEIGHT)
         lines = {@lines, "  " + prop + ": (compiled template)"};
-      elseif (typeof(value) == LIST)
+      elseif (typeof(value) == TYPE_LIST)
         "Check if it's a compiled template (first item not a list) or a message bag (list of lists)";
-        is_compiled = length(value) > 0 && typeof(value[1]) != LIST;
-        is_bag = length(value) > 0 && typeof(value[1]) == LIST;
+        is_compiled = length(value) > 0 && typeof(value[1]) != TYPE_LIST;
+        is_bag = length(value) > 0 && typeof(value[1]) == TYPE_LIST;
         if (is_compiled)
           lines = {@lines, "  " + prop + ": (compiled template)"};
         elseif (is_bag)
@@ -723,30 +723,30 @@ object AGENT_BUILDING_TOOLS
     {obj_str, prop_name} = {args_map["object"], args_map["property"]};
     set_task_perms(actor);
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name in target_obj:all_properties() || return tostr(target_obj) + "." + prop_name + " is not defined.";
     value = target_obj.(prop_name);
     "Helper to check if a list is a compiled template (contains strings/flyweights, not lists)";
-    is_compiled = typeof(value) == LIST && length(value) > 0 && typeof(value[1]) != LIST;
-    if (typeof(value) == LIST && is_compiled)
+    is_compiled = typeof(value) == TYPE_LIST && length(value) > 0 && typeof(value[1]) != TYPE_LIST;
+    if (typeof(value) == TYPE_LIST && is_compiled)
       "Single compiled template - decompile the whole thing";
       return tostr(target_obj) + "." + prop_name + ": " + $sub_utils:decompile(value);
-    elseif (typeof(value) == LIST)
+    elseif (typeof(value) == TYPE_LIST)
       "Message bag - list of compiled templates";
       lines = {tostr(target_obj) + "." + prop_name + " (" + tostr(length(value)) + " entries):"};
       for i in [1..length(value)]
         entry = value[i];
-        if (typeof(entry) == LIST)
+        if (typeof(entry) == TYPE_LIST)
           lines = {@lines, "  " + tostr(i) + ": " + $sub_utils:decompile(entry)};
         else
           lines = {@lines, "  " + tostr(i) + ": " + toliteral(entry)};
         endif
       endfor
       return lines:join("\n");
-    elseif (typeof(value) == FLYWEIGHT)
+    elseif (typeof(value) == TYPE_FLYWEIGHT)
       return tostr(target_obj) + "." + prop_name + ": (flyweight - not a standard message format)";
-    elseif (typeof(value) == STR)
+    elseif (typeof(value) == TYPE_STR)
       return tostr(target_obj) + "." + prop_name + ": \"" + value + "\"";
     endif
     return tostr(target_obj) + "." + prop_name + ": " + toliteral(value);
@@ -758,7 +758,7 @@ object AGENT_BUILDING_TOOLS
     {obj_str, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
     set_task_perms(actor);
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     "Compile the template";
@@ -786,14 +786,14 @@ object AGENT_BUILDING_TOOLS
     {obj_str, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
     set_task_perms(actor);
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs or _msg_bag");
     compiled = $sub_utils:compile(template);
     if (prop_name in target_obj:all_properties())
       current = target_obj.(prop_name);
-      typeof(current) == LIST || (current = {});
+      typeof(current) == TYPE_LIST || (current = {});
       target_obj.(prop_name) = {@current, compiled};
     else
       add_property(target_obj, prop_name, {compiled}, {actor, "r"});
@@ -807,12 +807,12 @@ object AGENT_BUILDING_TOOLS
     {obj_str, prop_name, index} = {args_map["object"], args_map["property"], args_map["index"]};
     set_task_perms(actor);
     target_obj = $match:match_object(obj_str, actor);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to modify messages on " + tostr(target_obj));
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
     current = target_obj.(prop_name);
-    typeof(current) == LIST || raise(E_INVARG, prop_name + " is not a list");
+    typeof(current) == TYPE_LIST || raise(E_INVARG, prop_name + " is not a list");
     index >= 1 && index <= length(current) || raise(E_RANGE, "Index out of range");
     target_obj.(prop_name) = listdelete(current, index);
     return "Deleted message " + tostr(index) + " from " + tostr(target_obj) + "." + prop_name;
@@ -825,7 +825,7 @@ object AGENT_BUILDING_TOOLS
     set_task_perms(actor);
     "Handle special alias cases";
     alias_obj = false;
-    if (typeof(target_spec) == STR)
+    if (typeof(target_spec) == TYPE_STR)
       alias_name = target_spec:starts_with("$") ? target_spec[2..$] | target_spec;
       alias_name == "sub_utils" && (alias_obj = $sub_utils);
       alias_name == "sub" && (alias_obj = $sub);
@@ -849,7 +849,7 @@ object AGENT_BUILDING_TOOLS
         item_name = "";
       endif
       target_obj = $match:match_object(object_str, actor);
-      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+      typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
       valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     endif
     "Fetch docs based on type";
@@ -867,7 +867,7 @@ object AGENT_BUILDING_TOOLS
     else
       raise(E_INVARG, "Unknown target type");
     endif
-    doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+    doc_body = typeof(doc_text) == TYPE_LIST ? doc_text:join("\n") | doc_text;
     return title + "\n\n" + (doc_body ? doc_body | "(No documentation available)");
   endverb
 
@@ -875,7 +875,7 @@ object AGENT_BUILDING_TOOLS
     "Tool: Look up a help topic";
     {args_map, actor} = args;
     topic = args_map["topic"];
-    typeof(topic) != STR && return "Error: topic must be a string.";
+    typeof(topic) != TYPE_STR && return "Error: topic must be a string.";
     "If empty topic, list available topics";
     if (topic == "")
       all_topics = actor:_collect_help_topics();
@@ -887,7 +887,7 @@ object AGENT_BUILDING_TOOLS
     endif
     "Search for specific topic";
     found = actor:find_help_topic(topic);
-    if (typeof(found) == INT)
+    if (typeof(found) == TYPE_INT)
       return "No help found for: " + topic;
     endif
     "Return structured help";

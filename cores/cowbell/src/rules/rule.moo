@@ -13,8 +13,8 @@ object RULE
     "Args: name, head_predicate, body_goals";
     "Example: $rule:mk('trusted, 'trusted, {{member, 'X, #guild}, {reputation, #guild, 5}})";
     {rule_name, head_predicate, body_goals} = args;
-    typeof(head_predicate) == SYM || typeof(head_predicate) == STR || raise(E_TYPE, "head_predicate must be symbol or string");
-    typeof(body_goals) == LIST || raise(E_TYPE, "body_goals must be list");
+    typeof(head_predicate) == TYPE_SYM || typeof(head_predicate) == TYPE_STR || raise(E_TYPE, "head_predicate must be symbol or string");
+    typeof(body_goals) == TYPE_LIST || raise(E_TYPE, "body_goals must be list");
     "Extract variables from body";
     variables = this:_extract_variables(body_goals);
     return <this, .name = rule_name, .head = tosym(head_predicate), .body = body_goals, .variables = variables>;
@@ -25,9 +25,9 @@ object RULE
     {goals} = args;
     variables = {};
     for goal in (goals)
-      if (typeof(goal) == LIST)
+      if (typeof(goal) == TYPE_LIST)
         for arg in (goal[2..$])
-          if (typeof(arg) == SYM)
+          if (typeof(arg) == TYPE_SYM)
             arg_str = tostr(arg);
             "Variables are symbols that don't map to objects";
             if (arg_str[1] == "'" && length(arg_str) > 1)
@@ -57,7 +57,7 @@ object RULE
     guild_obj = this;
     goal = {'member, 'X, guild_obj};
     rule = this:mk('test_rule, 'test_rule, {goal});
-    typeof(rule) == FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
+    typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     rule.head != 'test_rule && raise(E_ASSERT, "Head should be test_rule");
     length(rule.body) != 1 && raise(E_ASSERT, "Body should have 1 goal");
     return true;

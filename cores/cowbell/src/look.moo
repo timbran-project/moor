@@ -18,7 +18,7 @@ object LOOK
     is_player(who) || return "";
     "Players who aren't connected are sleeping";
     who in connected_players() || return "deeply asleep";
-    if (typeof(idle = idle_seconds(who)) == ERR)
+    if (typeof(idle = idle_seconds(who)) == TYPE_ERR)
       return "";
     endif
     idle < 60 && return "awake";
@@ -36,9 +36,9 @@ object LOOK
     "Normalize base description so lists with $sub flyweights remain intact";
     description = this.description;
     desc_content = {};
-    if (typeof(description) == LIST)
+    if (typeof(description) == TYPE_LIST)
       desc_content = description;
-    elseif (typeof(description) == STR)
+    elseif (typeof(description) == TYPE_STR)
       desc_content = {description};
     else
       desc_content = {tostr(description)};
@@ -73,7 +73,7 @@ object LOOK
     ambient_passages = `this.ambient_passages ! E_PROPNF => {}';
     if (length(integrated_contents))
       for ic in (integrated_contents)
-        if (typeof(ic) == STR && !ic:ends_with("."))
+        if (typeof(ic) == TYPE_STR && !ic:ends_with("."))
           ic = ic + ".";
         endif
         desc_content = {@desc_content, "  ", ic};
@@ -85,9 +85,9 @@ object LOOK
       for ap in (ambient_passages)
         "Handle formats: string, {desc, style}, or {desc, style, label}";
         label = "";
-        if (typeof(ap) == LIST && length(ap) >= 3)
+        if (typeof(ap) == TYPE_LIST && length(ap) >= 3)
           {description, prose_style, label} = ap;
-        elseif (typeof(ap) == LIST && length(ap) >= 2)
+        elseif (typeof(ap) == TYPE_LIST && length(ap) >= 2)
           {description, prose_style} = ap;
         else
           description = ap;
@@ -98,7 +98,7 @@ object LOOK
           if (label)
             formatted = $format.link:linkify_direction(description, label);
             "Capitalize the result";
-            if (typeof(formatted) == STR)
+            if (typeof(formatted) == TYPE_STR)
               formatted = formatted:capitalize();
               if (!formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
                 formatted = formatted + ".";
@@ -106,14 +106,14 @@ object LOOK
             endif
           else
             formatted = description:capitalize();
-            if (typeof(formatted) == STR && !formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
+            if (typeof(formatted) == TYPE_STR && !formatted:ends_with(".") && !formatted:ends_with("!") && !formatted:ends_with("?"))
               formatted = formatted + ".";
             endif
           endif
           desc_content = {@desc_content, "  ", formatted};
         else
           "Fragment - strip trailing punctuation since we wrap in 'You see X.'";
-          if (typeof(description) == STR)
+          if (typeof(description) == TYPE_STR)
             while (length(description) > 0 && (description:ends_with(".") || description:ends_with("!") || description:ends_with("?")))
               description = description[1..length(description) - 1];
             endwhile
@@ -170,7 +170,7 @@ object LOOK
     "Add thumbnail if the target has one";
     if (respond_to(this.what, 'thumbnail))
       pic = `this.what:thumbnail() ! ANY => false';
-      if (pic && typeof(pic) == LIST && length(pic) == 2)
+      if (pic && typeof(pic) == TYPE_LIST && length(pic) == 2)
         event = event:with_metadata('thumbnail, pic);
       endif
     endif
@@ -178,7 +178,7 @@ object LOOK
   endverb
 
   verb validate (this none this) owner: HACKER flags: "rxd"
-    typeof(this) != FLYWEIGHT && return false;
+    typeof(this) != TYPE_FLYWEIGHT && return false;
     try
       return this.what && this.title && this.description;
     except (E_PROPNF)
@@ -190,7 +190,7 @@ object LOOK
     "Create a paragraph for exit links.";
     "Args: list of exit direction strings.";
     {exits} = args;
-    typeof(exits) == LIST || raise(E_TYPE, "Exits must be a list");
+    typeof(exits) == TYPE_LIST || raise(E_TYPE, "Exits must be a list");
     length(exits) == 0 && return "";
     "Build parts list with links separated by commas";
     "Use 'go <direction>' as command so non-standard exit names work";
@@ -216,7 +216,7 @@ object LOOK
     "Create a paragraph for 'You see X, Y and Z here.' with inspect links.";
     "Args: list of objects.";
     {objects} = args;
-    typeof(objects) == LIST || raise(E_TYPE, "Objects must be a list");
+    typeof(objects) == TYPE_LIST || raise(E_TYPE, "Objects must be a list");
     length(objects) == 0 && return "";
     parts = {"You see "};
     for i in [1..length(objects)]
@@ -237,7 +237,7 @@ object LOOK
     "Create a paragraph for 'X, Y and Z are here.' with inspect links.";
     "Args: list of {actor, status} pairs where status can be empty string.";
     {actor_data} = args;
-    typeof(actor_data) == LIST || raise(E_TYPE, "Actor data must be a list");
+    typeof(actor_data) == TYPE_LIST || raise(E_TYPE, "Actor data must be a list");
     length(actor_data) == 0 && return "";
     parts = {};
     for i in [1..length(actor_data)]
@@ -260,7 +260,7 @@ object LOOK
     "Create a paragraph for 'X, Y and Z are deeply asleep.' with inspect links.";
     "Args: list of {actor, status} pairs (status ignored for sleeping).";
     {actor_data} = args;
-    typeof(actor_data) == LIST || raise(E_TYPE, "Actor data must be a list");
+    typeof(actor_data) == TYPE_LIST || raise(E_TYPE, "Actor data must be a list");
     length(actor_data) == 0 && return "";
     parts = {};
     for i in [1..length(actor_data)]
@@ -282,7 +282,7 @@ object LOOK
     "Create a paragraph for action links from interactive objects.";
     "Args: list of {command, label} tuples.";
     {actions} = args;
-    typeof(actions) == LIST || raise(E_TYPE, "Actions must be a list");
+    typeof(actions) == TYPE_LIST || raise(E_TYPE, "Actions must be a list");
     length(actions) == 0 && return "";
     "Build parts list with links";
     parts = {};

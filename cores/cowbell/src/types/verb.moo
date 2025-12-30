@@ -62,7 +62,7 @@ object VERB
     "Get the verb's code as a list of lines";
     set_task_perms(caller_perms());
     code_lines = `verb_code(this:location(), this:index(), false, true) ! ANY => {}';
-    if (typeof(code_lines) == ERR)
+    if (typeof(code_lines) == TYPE_ERR)
       return {};
     endif
     return code_lines;
@@ -80,14 +80,14 @@ object VERB
     "Test that verb metadata flyweight returns expected values";
     "Get metadata for a known verb";
     metadata = $prog_utils:get_verb_metadata($root, 'description);
-    typeof(metadata) == FLYWEIGHT || raise(E_ASSERT("Invalid metadata -- expected flyweight got " + toliteral(metadata)));
+    typeof(metadata) == TYPE_FLYWEIGHT || raise(E_ASSERT("Invalid metadata -- expected flyweight got " + toliteral(metadata)));
     metadata.location == $root || raise(E_ASSERT("location does not match"));
     metadata.name == 'description || raise(E_ASSERT("name does not match"));
     valid(metadata.verb_owner) || raise(E_ASSERT("verb_owner is not valid"));
-    typeof(metadata.flags) == STR || raise(E_ASSERT("flags is not a string"));
+    typeof(metadata.flags) == TYPE_STR || raise(E_ASSERT("flags is not a string"));
     "Check args_spec returns a string";
     args_spec = metadata:args_spec();
-    typeof(args_spec) == STR || raise(E_ASSERT("args_spec is not a string"));
+    typeof(args_spec) == TYPE_STR || raise(E_ASSERT("args_spec is not a string"));
     return true;
   endverb
 endobject

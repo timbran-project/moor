@@ -15,11 +15,11 @@ object SCHEDULED_TASK
       raise(E_INVARG, "Usage: mk(schedule_id, target, verb, args, run_at, recurring, [task_id], [interval])");
     endif
     {schedule_id, target, verb_name, task_args, run_at, recurring, ?task_id = 0, ?interval = 0} = args;
-    typeof(schedule_id) == INT || raise(E_TYPE, "Schedule ID must be integer");
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be object");
-    typeof(verb_name) == STR || raise(E_TYPE, "Verb must be string");
-    typeof(task_args) == LIST || raise(E_TYPE, "Args must be list");
-    typeof(run_at) == INT || raise(E_TYPE, "Run_at must be timestamp");
+    typeof(schedule_id) == TYPE_INT || raise(E_TYPE, "Schedule ID must be integer");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be object");
+    typeof(verb_name) == TYPE_STR || raise(E_TYPE, "Verb must be string");
+    typeof(task_args) == TYPE_LIST || raise(E_TYPE, "Args must be list");
+    typeof(run_at) == TYPE_INT || raise(E_TYPE, "Run_at must be timestamp");
     slots = ['schedule_id -> schedule_id, 'task_id -> task_id, 'target -> target, 'verb -> verb_name, 'args -> task_args, 'run_at -> run_at, 'recurring -> recurring];
     if (recurring)
       slots['interval] = interval;
@@ -70,7 +70,7 @@ object SCHEDULED_TASK
   verb set_run_at (this none this) owner: HACKER flags: "rxd"
     "Update the run_at time for this task. Returns new flyweight.";
     {new_run_at} = args;
-    typeof(new_run_at) == INT || raise(E_TYPE, "Run_at must be timestamp");
+    typeof(new_run_at) == TYPE_INT || raise(E_TYPE, "Run_at must be timestamp");
     "Create new flyweight with updated run_at";
     new_slots = this.slots;
     new_slots['run_at] = new_run_at;
@@ -80,7 +80,7 @@ object SCHEDULED_TASK
   verb set_task_id (this none this) owner: HACKER flags: "rxd"
     "Update the MOO runtime task_id for this task. Returns new flyweight.";
     {new_task_id} = args;
-    typeof(new_task_id) == INT || raise(E_TYPE, "Task ID must be integer");
+    typeof(new_task_id) == TYPE_INT || raise(E_TYPE, "Task ID must be integer");
     "Create new flyweight with updated task_id";
     new_slots = this.slots;
     new_slots['task_id] = new_task_id;

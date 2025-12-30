@@ -12,7 +12,7 @@ object FORMAT_LINK
     "Create a command link that executes as if typed.";
     "Args: (command) or (command, label)";
     {command, ?label = false} = args;
-    typeof(command) == STR || raise(E_TYPE, "Command must be a string");
+    typeof(command) == TYPE_STR || raise(E_TYPE, "Command must be a string");
     label = label ? label | command;
     return <this, .link_type = 'cmd, .command = command, .label = label>;
   endverb
@@ -21,7 +21,7 @@ object FORMAT_LINK
     "Create an inspect link that shows object info in a popover.";
     "Args: (target) or (target, label)";
     {target, ?label = false} = args;
-    typeof(target) == OBJ || raise(E_TYPE, "Target must be an object");
+    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be an object");
     label = label ? label | `target:name() ! E_VERBNF => target.name';
     return <this, .link_type = 'inspect, .target = target, .label = label>;
   endverb
@@ -30,7 +30,7 @@ object FORMAT_LINK
     "Create a help link that opens documentation.";
     "Args: (topic) or (topic, label)";
     {topic, ?label = false} = args;
-    typeof(topic) == STR || raise(E_TYPE, "Topic must be a string");
+    typeof(topic) == TYPE_STR || raise(E_TYPE, "Topic must be a string");
     label = label ? label | topic;
     return <this, .link_type = 'help, .topic = topic, .label = label>;
   endverb
@@ -39,7 +39,7 @@ object FORMAT_LINK
     "Create an external link that opens a URL in a new tab.";
     "Args: (url) or (url, label)";
     {url, ?label = false} = args;
-    typeof(url) == STR || raise(E_TYPE, "URL must be a string");
+    typeof(url) == TYPE_STR || raise(E_TYPE, "URL must be a string");
     label = label ? label | url;
     return <this, .link_type = 'external, .url = url, .label = label>;
   endverb
@@ -100,7 +100,7 @@ object FORMAT_LINK
     "Args: list of strings and link flyweights to be composed inline.";
     "Example: $format.link:inline({'Exits: ', $format.link:cmd('north'), ', ', $format.link:cmd('south')})";
     {parts} = args;
-    typeof(parts) == LIST || raise(E_TYPE, "Parts must be a list");
+    typeof(parts) == TYPE_LIST || raise(E_TYPE, "Parts must be a list");
     return <this, .link_type = 'inline, {@parts}>;
   endverb
 
@@ -112,7 +112,7 @@ object FORMAT_LINK
       "Build HTML span with mixed content";
       html_parts = {};
       for part in (parts)
-        if (typeof(part) == FLYWEIGHT)
+        if (typeof(part) == TYPE_FLYWEIGHT)
           html_parts = {@html_parts, part:compose(render_for, content_type, event)};
         else
           html_parts = {@html_parts, tostr(part)};
@@ -123,7 +123,7 @@ object FORMAT_LINK
     "Djot or plain text: concatenate as string";
     result = "";
     for part in (parts)
-      if (typeof(part) == FLYWEIGHT)
+      if (typeof(part) == TYPE_FLYWEIGHT)
         result = result + part:compose(render_for, content_type, event);
       else
         result = result + tostr(part);
@@ -136,8 +136,8 @@ object FORMAT_LINK
     "Create an ambient passage description with the direction as a command link.";
     "Args: {description, direction} - description text containing direction word, direction is the command.";
     {description, direction} = args;
-    typeof(description) == STR || raise(E_TYPE, "Description must be a string");
-    typeof(direction) == STR || raise(E_TYPE, "Direction must be a string");
+    typeof(description) == TYPE_STR || raise(E_TYPE, "Description must be a string");
+    typeof(direction) == TYPE_STR || raise(E_TYPE, "Direction must be a string");
     "Find the direction in the description";
     idx = index(description, direction);
     if (idx == 0)
@@ -158,8 +158,8 @@ object FORMAT_LINK
     "Replace a direction word in a description with a command link.";
     "Args: (description, direction, ?lowercase=false) - returns inline flyweight or original string if not found.";
     {description, direction, ?lowercase = false} = args;
-    typeof(description) == STR || return description;
-    typeof(direction) == STR || return description;
+    typeof(description) == TYPE_STR || return description;
+    typeof(direction) == TYPE_STR || return description;
     "Find the direction word in the description (case-insensitive)";
     pos = index(description, direction);
     !pos && return lowercase ? description:initial_lowercase() | description;

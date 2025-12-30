@@ -17,7 +17,7 @@ object LLM_CHAT_OPTS
   verb with_temperature (this none this) owner: HACKER flags: "rxd"
     "Set sampling temperature (0-2, lower = more deterministic)";
     {temp} = args;
-    typeof(temp) in {INT, FLOAT} || raise(E_TYPE, "temperature must be a number");
+    typeof(temp) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "temperature must be a number");
     slots = flyslots(this);
     slots['temperature] = temp;
     return toflyweight(this.delegate, slots);
@@ -26,7 +26,7 @@ object LLM_CHAT_OPTS
   verb with_max_tokens (this none this) owner: HACKER flags: "rxd"
     "Set maximum output tokens";
     {max} = args;
-    typeof(max) == INT || raise(E_TYPE, "max_tokens must be an integer");
+    typeof(max) == TYPE_INT || raise(E_TYPE, "max_tokens must be an integer");
     slots = flyslots(this);
     slots['max_tokens] = max;
     return toflyweight(this.delegate, slots);
@@ -43,7 +43,7 @@ object LLM_CHAT_OPTS
   verb with_top_p (this none this) owner: HACKER flags: "rxd"
     "Set nucleus sampling threshold (0-1)";
     {p} = args;
-    typeof(p) in {INT, FLOAT} || raise(E_TYPE, "top_p must be a number");
+    typeof(p) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "top_p must be a number");
     slots = flyslots(this);
     slots['top_p] = p;
     return toflyweight(this.delegate, slots);
@@ -52,7 +52,7 @@ object LLM_CHAT_OPTS
   verb with_frequency_penalty (this none this) owner: HACKER flags: "rxd"
     "Set frequency penalty (-2 to 2, penalizes repeated tokens)";
     {penalty} = args;
-    typeof(penalty) in {INT, FLOAT} || raise(E_TYPE, "frequency_penalty must be a number");
+    typeof(penalty) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "frequency_penalty must be a number");
     slots = flyslots(this);
     slots['frequency_penalty] = penalty;
     return toflyweight(this.delegate, slots);
@@ -61,7 +61,7 @@ object LLM_CHAT_OPTS
   verb with_presence_penalty (this none this) owner: HACKER flags: "rxd"
     "Set presence penalty (-2 to 2, encourages new topics)";
     {penalty} = args;
-    typeof(penalty) in {INT, FLOAT} || raise(E_TYPE, "presence_penalty must be a number");
+    typeof(penalty) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "presence_penalty must be a number");
     slots = flyslots(this);
     slots['presence_penalty] = penalty;
     return toflyweight(this.delegate, slots);
@@ -89,7 +89,7 @@ object LLM_CHAT_OPTS
     for key in (mapkeys(slots))
       val = slots[key];
       "Convert symbol tool_choice value to string for API";
-      if (key == 'tool_choice && typeof(val) == SYM)
+      if (key == 'tool_choice && typeof(val) == TYPE_SYM)
         val = tostr(val);
       endif
       "Use string key for JSON compatibility";

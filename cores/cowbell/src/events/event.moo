@@ -39,12 +39,12 @@ object EVENT
       entry = this:wrap_content_entry(raw_entry);
       {entry_type, entry_value} = entry;
       if (entry_type == 'string)
-        typeof(entry_value) == STR || raise(E_TYPE("Event string content must be a string"));
+        typeof(entry_value) == TYPE_STR || raise(E_TYPE("Event string content must be a string"));
         composed = this:append_rendered(composed, entry_value);
         continue;
       endif
       if (entry_type == 'flyweight)
-        typeof(entry_value) == FLYWEIGHT || raise(E_TYPE("Event flyweight content must be a flyweight"));
+        typeof(entry_value) == TYPE_FLYWEIGHT || raise(E_TYPE("Event flyweight content must be a flyweight"));
         rendered = entry_value:compose(render_for, content_type, this);
         composed = this:append_rendered(composed, rendered);
         continue;
@@ -60,7 +60,7 @@ object EVENT
 
   verb validate (this none this) owner: HACKER flags: "rxd"
     "Validate that the event has all the correct fields. Return false if not.";
-    typeof(this) == FLYWEIGHT || return false;
+    typeof(this) == TYPE_FLYWEIGHT || return false;
     s = flyslots(this);
     required_keys = {'actor, 'actor_name, 'verb, 'dobj, 'iobj, 'timestamp, 'this_obj};
     for k in (required_keys)
@@ -83,39 +83,39 @@ object EVENT
 
   verb wrap_content_entry (this none this) owner: HACKER flags: "rxd"
     entry = args[1];
-    typeof(entry) == ERR && raise(E_INVARG("Event content cannot contain error values: " + toliteral(entry)));
-    typeof(entry) == STR && return {'string, entry};
-    typeof(entry) == FLYWEIGHT && return {'flyweight, entry};
-    typeof(entry) == LIST && length(entry) == 2 && entry[1] in {'string, 'flyweight, 'list} && return entry;
-    typeof(entry) == LIST && return {'list, entry};
+    typeof(entry) == TYPE_ERR && raise(E_INVARG("Event content cannot contain error values: " + toliteral(entry)));
+    typeof(entry) == TYPE_STR && return {'string, entry};
+    typeof(entry) == TYPE_FLYWEIGHT && return {'flyweight, entry};
+    typeof(entry) == TYPE_LIST && length(entry) == 2 && entry[1] in {'string, 'flyweight, 'list} && return entry;
+    typeof(entry) == TYPE_LIST && return {'list, entry};
     raise(E_TYPE("Unsupported event content entry type: " + toliteral(entry)));
   endverb
 
   verb append_rendered (this none this) owner: HACKER flags: "rxd"
     {acc, value} = args;
-    if (typeof(value) == LIST && length(value) == 2 && value[1] in {'string, 'flyweight, 'list})
+    if (typeof(value) == TYPE_LIST && length(value) == 2 && value[1] in {'string, 'flyweight, 'list})
       return this:append_rendered(acc, value[2]);
     endif
-    if (typeof(value) == LIST && length(value) == 3 && typeof(value[1]) == STR)
+    if (typeof(value) == TYPE_LIST && length(value) == 3 && typeof(value[1]) == TYPE_STR)
       return {@acc, value};
     endif
-    if (typeof(value) == LIST)
+    if (typeof(value) == TYPE_LIST)
       for element in (value)
         acc = this:append_rendered(acc, element);
       endfor
       return acc;
     endif
-    if (typeof(value) == STR)
-      if (length(acc) > 0 && typeof(acc[$]) == STR)
+    if (typeof(value) == TYPE_STR)
+      if (length(acc) > 0 && typeof(acc[$]) == TYPE_STR)
         acc[$] = acc[$] + value;
         return acc;
       endif
       return {@acc, value};
     endif
-    if (typeof(value) == FLYWEIGHT)
+    if (typeof(value) == TYPE_FLYWEIGHT)
       return {@acc, value};
     endif
-    if (typeof(value) == ERR)
+    if (typeof(value) == TYPE_ERR)
       raise(E_TYPE("Event content evaluated to error: " + toliteral(value)));
     endif
     raise(E_TYPE("Unsupported rendered event content: " + toliteral(value)));
@@ -160,7 +160,7 @@ object EVENT
     "Attach a group_id for client-side message bundling.";
     "Call with (prefix) for unique per-event grouping, or (prefix, target) for stable grouping.";
     {prefix, ?target = $nothing} = args;
-    if (target != $nothing && typeof(target) == OBJ && valid(target))
+    if (target != $nothing && typeof(target) == TYPE_OBJ && valid(target))
       "Stable ID based on valid object reference";
       group_id = tostr(prefix) + "_" + tostr(target);
     else

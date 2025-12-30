@@ -12,7 +12,7 @@ object FORMAT_PARAGRAPH
     "Args: list of parts OR variable args of parts.";
     "Example: $format.paragraph:mk({\"Text \", $format.link:cmd(\"go north\", \"north\"), \".\"})";
     "Example: $format.paragraph:mk(\"Simple text paragraph\")";
-    if (length(args) == 1 && typeof(args[1]) == LIST)
+    if (length(args) == 1 && typeof(args[1]) == TYPE_LIST)
       parts = args[1];
     else
       parts = args;
@@ -29,7 +29,7 @@ object FORMAT_PARAGRAPH
       "Build HTML paragraph with mixed content";
       html_parts = {};
       for part in (parts)
-        if (typeof(part) == FLYWEIGHT)
+        if (typeof(part) == TYPE_FLYWEIGHT)
           html_parts = {@html_parts, part:compose(render_for, content_type, event)};
         else
           html_parts = {@html_parts, tostr(part)};
@@ -40,7 +40,7 @@ object FORMAT_PARAGRAPH
     "Djot or plain text: concatenate as string";
     result = "";
     for part in (parts)
-      if (typeof(part) == FLYWEIGHT)
+      if (typeof(part) == TYPE_FLYWEIGHT)
         result = result + part:compose(render_for, content_type, event);
       else
         result = result + tostr(part);

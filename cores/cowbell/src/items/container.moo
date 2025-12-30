@@ -430,7 +430,7 @@ object CONTAINER
       player:inform_current(event);
       return;
     endtry
-    if (!valid(dobj) || typeof(dobj) != OBJ)
+    if (!valid(dobj) || typeof(dobj) != TYPE_OBJ)
       event = $event:mk_error(player, $sub:i(), " doesn't have that."):with_iobj(this);
       player:inform_current(event);
       return;
@@ -478,7 +478,7 @@ object CONTAINER
       player:inform_current(event);
       return;
     endtry
-    if (!valid(dobj) || typeof(dobj) != OBJ)
+    if (!valid(dobj) || typeof(dobj) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
       return;
@@ -531,7 +531,7 @@ object CONTAINER
     endif
     "Match the key object from player's perspective";
     key = $match:match_object(iobjstr, player);
-    if (!valid(key) || typeof(key) != OBJ)
+    if (!valid(key) || typeof(key) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
       return;
@@ -568,7 +568,7 @@ object CONTAINER
     endif
     "Match the key object from player's perspective";
     key = $match:match_object(iobjstr, player);
-    if (!valid(key) || typeof(key) != OBJ)
+    if (!valid(key) || typeof(key) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
       return;

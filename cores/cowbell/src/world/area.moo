@@ -18,7 +18,7 @@ object AREA
 
   verb _ensure_passages_relation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Ensure this.passages_rel references a valid relation owned by the area's owner.";
-    if (typeof(this.passages_rel) == OBJ && valid(this.passages_rel))
+    if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
       return this.passages_rel;
     endif
     set_task_perms(valid(this.owner) ? this.owner | caller_perms());
@@ -31,8 +31,8 @@ object AREA
   verb _canonical_tuple (this none this) owner: HACKER flags: "rxd"
     "Build canonical tuple {min_room, max_room, passage} for storage.";
     {room_a, room_b, passage} = args;
-    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
-    typeof(passage) == OBJ || typeof(passage) == FLYWEIGHT || raise(E_TYPE);
+    typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
+    typeof(passage) == TYPE_OBJ || typeof(passage) == TYPE_FLYWEIGHT || raise(E_TYPE);
     if (room_a < room_b)
       return {room_a, room_b, passage};
     else
@@ -43,7 +43,7 @@ object AREA
   verb passage_for (this none this) owner: HACKER flags: "rxd"
     "Find the passage between two rooms.";
     {room_a, room_b} = args;
-    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
+    typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
     this:initialize();
     "Find all tuples containing room_a, then filter for room_b";
     candidates = this.passages_rel:select_containing(room_a);
@@ -74,7 +74,7 @@ object AREA
     set_task_perms(this.owner);
     "Remove the passage between two rooms.";
     {room_a, room_b} = args;
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return false;
     endif
     "Find and retract the tuple";
@@ -90,7 +90,7 @@ object AREA
   verb passages (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     "Return all passage objects.";
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return {};
     endif
     tuples = this.passages_rel:tuples();
@@ -100,8 +100,8 @@ object AREA
   verb passages_from (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return all passages connected to a room.";
     {room} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return {};
     endif
     tuples = this.passages_rel:select_containing(room);
@@ -132,8 +132,8 @@ object AREA
     "Find all rooms transitively reachable from the starting room.";
     "Optional second arg: only_open (default true) - skip closed passages.";
     {start_room, ?only_open = true} = args;
-    typeof(start_room) == OBJ || raise(E_TYPE);
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+    typeof(start_room) == TYPE_OBJ || raise(E_TYPE);
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return {start_room};
     endif
     visited = [start_room -> true];
@@ -175,7 +175,7 @@ object AREA
     "Check if two rooms are transitively connected via passages.";
     "Optional third arg: only_open (default true) - skip closed passages.";
     {room_a, room_b, ?only_open = true} = args;
-    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
+    typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
     reachable = this:rooms_from(room_a, only_open);
     return room_b in reachable;
   endverb
@@ -184,8 +184,8 @@ object AREA
     "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
     "Optional third arg: only_open (default true) - skip closed passages.";
     {start_room, goal_room, ?only_open = true} = args;
-    typeof(start_room) == OBJ && typeof(goal_room) == OBJ || raise(E_TYPE);
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+    typeof(start_room) == TYPE_OBJ && typeof(goal_room) == TYPE_OBJ || raise(E_TYPE);
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return start_room == goal_room ? {{start_room, false}} | false;
     endif
     start_room == goal_room && return {{start_room, false}};
@@ -248,7 +248,7 @@ object AREA
     "Add a room to this area. Requires 'add_room capability on area.";
     {this, perms} = this:check_permissions('add_room);
     {room} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
     room:moveto(this);
     return room;
   endverb
@@ -260,8 +260,8 @@ object AREA
     {this, perms} = this:check_permissions('create_passage);
     {room_a, room_b, passage} = args;
     "Extract actual room objects from capabilities if needed";
-    actual_room_a = typeof(room_a) == FLYWEIGHT ? room_a.delegate | room_a;
-    actual_room_b = typeof(room_b) == FLYWEIGHT ? room_b.delegate | room_b;
+    actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
+    actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
     "Check room_a allows digging from it and room_b allows digging into it";
     try
       room_a:check_permissions('dig_from);
@@ -308,14 +308,14 @@ object AREA
     "Update an existing passage between two rooms. Requires 'dig_from permission on source room.";
     set_task_perms(caller_perms());
     {source_room, dest_room, new_passage} = args;
-    typeof(source_room) == OBJ && typeof(dest_room) == OBJ || raise(E_TYPE);
-    typeof(new_passage) == OBJ || typeof(new_passage) == FLYWEIGHT || raise(E_TYPE);
+    typeof(source_room) == TYPE_OBJ && typeof(dest_room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(new_passage) == TYPE_OBJ || typeof(new_passage) == TYPE_FLYWEIGHT || raise(E_TYPE);
     "Extract actual room objects from capabilities if needed";
-    actual_source = typeof(source_room) == FLYWEIGHT ? source_room.delegate | source_room;
-    actual_dest = typeof(dest_room) == FLYWEIGHT ? dest_room.delegate | dest_room;
+    actual_source = typeof(source_room) == TYPE_FLYWEIGHT ? source_room.delegate | source_room;
+    actual_dest = typeof(dest_room) == TYPE_FLYWEIGHT ? dest_room.delegate | dest_room;
     "Check that source room allows digging from it";
     cap = caller_perms():find_capability_for(actual_source, 'room);
-    room_target = typeof(cap) == FLYWEIGHT ? cap | actual_source;
+    room_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | actual_source;
     room_target:check_can_dig_from();
     "Update the passage";
     this:set_passage(actual_source, actual_dest, new_passage);
@@ -327,8 +327,8 @@ object AREA
     {this, perms} = this:check_permissions('remove_passage);
     {room_a, room_b} = args;
     "Extract actual room objects from capabilities if needed";
-    actual_room_a = typeof(room_a) == FLYWEIGHT ? room_a.delegate | room_a;
-    actual_room_b = typeof(room_b) == FLYWEIGHT ? room_b.delegate | room_b;
+    actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
+    actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
     "Check that source room allows digging from it (implies permission to remove passages)";
     try
       room_a:check_permissions('dig_from);
@@ -352,8 +352,8 @@ object AREA
     "Clean up all passages to/from a room that is being recycled.";
     set_task_perms(this.owner);
     {room} = args;
-    typeof(room) == OBJ || return;
-    if (typeof(this.passages_rel) != OBJ || !valid(this.passages_rel))
+    typeof(room) == TYPE_OBJ || return;
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return;
     endif
     tuples = this.passages_rel:select_containing(room);
@@ -365,8 +365,8 @@ object AREA
   verb find_passage_by_direction (this none this) owner: HACKER flags: "rxd"
     "Find a passage from a room matching a direction/label/alias. Returns passage or false.";
     {room, direction} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
-    typeof(direction) == STR || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(direction) == TYPE_STR || raise(E_TYPE);
     passages = this:passages_from(room);
     for p in (passages)
       if (p:matches_command(room, direction))
@@ -380,7 +380,7 @@ object AREA
     "Get exit labels and ambient passage descriptions for a room. Returns {exits, ambient_passages}.";
     "ambient_passages is a list of {description, prose_style, label} tuples where prose_style is 'sentence or 'fragment.";
     {room} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
     passages = this:passages_from(room);
     exits = {};
     ambient_passages = {};

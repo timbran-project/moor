@@ -107,7 +107,7 @@ object EVENT_RECEIVER
     for connection in (connections)
       let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
       preferred_types = event:preferred_content_types();
-      if (typeof(preferred_types) != LIST)
+      if (typeof(preferred_types) != TYPE_LIST)
         preferred_types = {};
       endif
       if (!preferred_types)
@@ -139,17 +139,17 @@ object EVENT_RECEIVER
   verb _extend_output (this none this) owner: HACKER flags: "rxd"
     "Flatten rendered entries into strings, recursively handling flyweights.";
     {acc, entry, content_type} = args;
-    if (typeof(entry) == STR)
+    if (typeof(entry) == TYPE_STR)
       return {@acc, entry};
-    elseif (typeof(entry) == LIST)
+    elseif (typeof(entry) == TYPE_LIST)
       for element in (entry)
         acc = this:_extend_output(acc, element, content_type);
       endfor
       return acc;
-    elseif (typeof(entry) == FLYWEIGHT)
+    elseif (typeof(entry) == TYPE_FLYWEIGHT)
       rendered = entry:render(content_type);
       return this:_extend_output(acc, rendered, content_type);
-    elseif (typeof(entry) == ERR)
+    elseif (typeof(entry) == TYPE_ERR)
       return {@acc, toliteral(entry)};
     else
       return {@acc, tostr(entry)};
@@ -189,9 +189,9 @@ object EVENT_RECEIVER
     this:_can_inform() || raise(E_PERM);
     {rewrite_id, new_content, ?target_conn = 0} = args;
     "Build the replacement event";
-    if (typeof(new_content) == STR)
+    if (typeof(new_content) == TYPE_STR)
       event = $event:mk_rewrite(this, new_content);
-    elseif (typeof(new_content) == FLYWEIGHT && new_content.delegate == $event)
+    elseif (typeof(new_content) == TYPE_FLYWEIGHT && new_content.delegate == $event)
       event = new_content;
     else
       event = $event:mk_rewrite(this, new_content);

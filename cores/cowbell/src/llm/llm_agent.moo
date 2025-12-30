@@ -46,7 +46,7 @@ object LLM_AGENT
     {tool_name, tool_args, error_msg} = args;
     caller == this || caller_perms().wizard || raise(E_PERM);
     "Do not downgrade perms; server_log requires wizard perms.";
-    safe_args = typeof(tool_args) == STR ? tool_args | toliteral(tool_args);
+    safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
     server_log("LLM tool error [" + toliteral(tool_name) + "]: " + toliteral(error_msg) + " args=" + toliteral(safe_args));
     return true;
   endverb
@@ -55,8 +55,8 @@ object LLM_AGENT
     "Register a tool for this agent to use";
     this:_challenge_permissions(caller);
     {tool_name, tool_flyweight} = args;
-    typeof(tool_name) != STR && raise(E_TYPE);
-    typeof(tool_flyweight) != FLYWEIGHT && raise(E_TYPE);
+    typeof(tool_name) != TYPE_STR && raise(E_TYPE);
+    typeof(tool_flyweight) != TYPE_FLYWEIGHT && raise(E_TYPE);
     tools = this.tools;
     tools[tool_name] = tool_flyweight;
     this.tools = tools;
@@ -114,7 +114,7 @@ object LLM_AGENT
     "Track token usage from response and trigger compaction if needed.";
     caller == this || raise(E_PERM);
     {response} = args;
-    !(typeof(response) == MAP && maphaskey(response, "usage")) && return;
+    !(typeof(response) == TYPE_MAP && maphaskey(response, "usage")) && return;
     this.last_token_usage = response["usage"];
     if (maphaskey(response["usage"], "total_tokens"))
       tokens_this_call = response["usage"]["total_tokens"];
@@ -132,7 +132,7 @@ object LLM_AGENT
     tool_args = tool_call["function"]["arguments"];
     tool_call_id = tool_call["id"];
     "Check if this tool has failed too many times consecutively";
-    failures = typeof(this.consecutive_tool_failures) == MAP ? this.consecutive_tool_failures | [];
+    failures = typeof(this.consecutive_tool_failures) == TYPE_MAP ? this.consecutive_tool_failures | [];
     tool_failure_count = maphaskey(failures, tool_name) ? failures[tool_name] | 0;
     if (tool_failure_count >= this.max_consecutive_failures)
       error_msg = "TOOL BLOCKED: This tool has failed " + tostr(tool_failure_count) + " times in a row. STOP trying to use it and move on. Do NOT retry.";
@@ -141,7 +141,7 @@ object LLM_AGENT
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
     endif
     tool = this:_find_tool(tool_name);
-    if (typeof(tool) != FLYWEIGHT)
+    if (typeof(tool) != TYPE_FLYWEIGHT)
       this:log_tool_error(tool_name, tool_args, "Tool not found");
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, "Tool not found") ! ANY';
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> "Error: tool not found"];
@@ -150,10 +150,10 @@ object LLM_AGENT
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_call) && this.tool_callback:on_tool_call(tool_name, tool_args);
       result = tool:execute(tool_args, this.token_owner);
       suspend(0);
-      content_out = typeof(result) == STR ? result | toliteral(result);
+      content_out = typeof(result) == TYPE_STR ? result | toliteral(result);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_complete) && `this.tool_callback:on_tool_complete(tool_name, tool_args, content_out) ! ANY';
       "Check if result indicates an error (starts with ERROR:)";
-      is_error_response = typeof(result) == STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
+      is_error_response = typeof(result) == TYPE_STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
       if (is_error_response)
         "Increment failure count for error responses";
         failures[tool_name] = tool_failure_count + 1;
@@ -165,7 +165,7 @@ object LLM_AGENT
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> content_out];
     except e (ANY)
       error_msg = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
-      length(e) > 2 && typeof(e[3]) == LIST && (error_msg = error_msg + "\nTraceback: " + toliteral(e[3]));
+      length(e) > 2 && typeof(e[3]) == TYPE_LIST && (error_msg = error_msg + "\nTraceback: " + toliteral(e[3]));
       this:log_tool_error(tool_name, tool_args, error_msg);
       valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_error) && `this.tool_callback:on_tool_error(tool_name, tool_args, error_msg) ! ANY';
       "Increment failure count for this tool";
@@ -194,18 +194,18 @@ object LLM_AGENT
         return "Operation cancelled.";
       endif
       budget_check = this:_check_token_budget(this.token_owner);
-      typeof(budget_check) == STR && return budget_check;
+      typeof(budget_check) == TYPE_STR && return budget_check;
       response = this:_call_llm_with_retry(this:_get_tool_schemas(), opts);
       this:_track_token_usage(response);
       "Check if response has tool calls";
-      if (!(typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0))
+      if (!(typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0))
         this.current_iteration = 0;
         return tostr(response);
       endif
       message = response["choices"][1]["message"];
       "Get tool_calls, ensuring it's a list";
       tool_calls = maphaskey(message, "tool_calls") ? message["tool_calls"] | {};
-      if (typeof(tool_calls) != LIST)
+      if (typeof(tool_calls) != TYPE_LIST)
         tool_calls = {};
       endif
       "No tool calls = final response";
@@ -261,7 +261,7 @@ object LLM_AGENT
   verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if context needs compaction based on token usage";
     this:_challenge_permissions(caller);
-    typeof(this.last_token_usage) != MAP && return false;
+    typeof(this.last_token_usage) != TYPE_MAP && return false;
     !maphaskey(this.last_token_usage, "prompt_tokens") && return false;
     return this.last_token_usage["prompt_tokens"] > this.token_limit * this.compaction_threshold;
   endverb
@@ -280,7 +280,7 @@ object LLM_AGENT
     for i in [target_split..2]
       msg = this.context[i];
       "Safe to split before user/system messages, or before assistant without tool_calls";
-      if (typeof(msg) == MAP && maphaskey(msg, "role"))
+      if (typeof(msg) == TYPE_MAP && maphaskey(msg, "role"))
         role = msg["role"];
         if (role == "user" || role == "system")
           split_point = i;
@@ -297,7 +297,7 @@ object LLM_AGENT
     summary_context = {system_msg, ["role" -> "user", "content" -> "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages)]};
     try
       response = this.client:chat(summary_context, false, false, {});
-      if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+      if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
         summary = response["choices"][1]["message"]["content"];
         this.context = {system_msg, ["role" -> "assistant", "content" -> "Previous conversation summary: " + summary], @recent_messages};
         this:_log("LLM agent context compacted: " + tostr(length(old_messages)) + " messages summarized, " + tostr(length(recent_messages)) + " kept");
@@ -340,7 +340,7 @@ object LLM_AGENT
     caller == this || caller.wizard || raise(E_PERM);
     {player_obj, tokens_used} = args;
     !valid(player_obj) || !is_player(player_obj) && return;
-    typeof(tokens_used) == INT || raise(E_INVARG, "tokens_used must be an integer");
+    typeof(tokens_used) == TYPE_INT || raise(E_INVARG, "tokens_used must be an integer");
     tokens_used >= 0 || raise(E_INVARG, "tokens_used cannot be negative");
     tokens_used <= 1000000 || raise(E_INVARG, "tokens_used suspiciously large");
     player_obj.llm_tokens_used = player_obj.llm_tokens_used + tokens_used;
@@ -357,7 +357,7 @@ object LLM_AGENT
     "Add a todo item. Returns the new todo's id.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {content} = args;
-    typeof(content) != STR && raise(E_TYPE, "content must be string");
+    typeof(content) != TYPE_STR && raise(E_TYPE, "content must be string");
     todo_id = this.next_todo_id;
     this.next_todo_id = todo_id + 1;
     this.todos = {@this.todos, ["id" -> todo_id, "content" -> content, "status" -> 'pending]};
@@ -368,7 +368,7 @@ object LLM_AGENT
     "Update a todo's status. Status must be 'pending, 'in_progress, or 'completed.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {todo_id, new_status} = args;
-    typeof(todo_id) != INT && raise(E_TYPE, "todo_id must be integer");
+    typeof(todo_id) != TYPE_INT && raise(E_TYPE, "todo_id must be integer");
     !(new_status in {'pending, 'in_progress, 'completed}) && raise(E_INVARG, "status must be 'pending, 'in_progress, or 'completed");
     updated = false;
     new_todos = {};
@@ -389,7 +389,7 @@ object LLM_AGENT
     "Remove a specific todo by id.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {todo_id} = args;
-    typeof(todo_id) != INT && raise(E_TYPE, "todo_id must be integer");
+    typeof(todo_id) != TYPE_INT && raise(E_TYPE, "todo_id must be integer");
     new_todos = {};
     found = false;
     for todo in (this.todos)
@@ -431,10 +431,10 @@ object LLM_AGENT
     "Replace entire todo list. Each item must have content and status.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {todo_list} = args;
-    typeof(todo_list) != LIST && raise(E_TYPE, "todo_list must be a list");
+    typeof(todo_list) != TYPE_LIST && raise(E_TYPE, "todo_list must be a list");
     new_todos = {};
     for item in (todo_list)
-      typeof(item) != MAP && raise(E_TYPE, "each todo must be a map");
+      typeof(item) != TYPE_MAP && raise(E_TYPE, "each todo must be a map");
       !maphaskey(item, "content") && raise(E_INVARG, "todo missing content");
       !maphaskey(item, "status") && raise(E_INVARG, "todo missing status");
       !(item["status"] in {'pending, 'in_progress, 'completed}) && raise(E_INVARG, "invalid status");
@@ -462,7 +462,7 @@ object LLM_AGENT
     "Create a new task. If task_id not provided, auto-generates one. Returns task object.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {description, ?parent_task_id = 0} = args;
-    typeof(description) != STR && raise(E_TYPE);
+    typeof(description) != TYPE_STR && raise(E_TYPE);
     task_id = this.next_task_id;
     this.next_task_id = task_id + 1;
     kb = this:_ensure_knowledge_base();
@@ -476,7 +476,7 @@ object LLM_AGENT
     "Remove a task from tracking. Task object will be garbage collected if anonymous.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {task_id} = args;
-    typeof(task_id) != INT && raise(E_TYPE);
+    typeof(task_id) != TYPE_INT && raise(E_TYPE);
     !maphaskey(this.current_tasks, task_id) && return false;
     this.current_tasks = mapdelete(this.current_tasks, task_id);
     return true;
@@ -582,7 +582,7 @@ object LLM_AGENT
       msg = ctx[i];
       new_ctx = {@new_ctx, msg};
       "Check if this is an assistant message with tool_calls";
-      if (typeof(msg) == MAP && maphaskey(msg, "tool_calls") && msg["tool_calls"])
+      if (typeof(msg) == TYPE_MAP && maphaskey(msg, "tool_calls") && msg["tool_calls"])
         tool_calls = msg["tool_calls"];
         expected_ids = { tc["id"] for tc in (tool_calls) };
         "Collect tool responses that follow";
@@ -590,7 +590,7 @@ object LLM_AGENT
         j = i + 1;
         while (j <= length(ctx))
           next_msg = ctx[j];
-          if (typeof(next_msg) == MAP && maphaskey(next_msg, "role"))
+          if (typeof(next_msg) == TYPE_MAP && maphaskey(next_msg, "role"))
             if (next_msg["role"] == "tool" && maphaskey(next_msg, "tool_call_id"))
               found_ids = {@found_ids, next_msg["tool_call_id"]};
               new_ctx = {@new_ctx, next_msg};
@@ -640,7 +640,7 @@ object LLM_AGENT
     endtry
     this:_track_token_usage(response);
     "Extract content from response";
-    if (typeof(response) == MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
+    if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
       message = response["choices"][1]["message"];
       content = message["content"] || "";
       this:add_message("assistant", content);

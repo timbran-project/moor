@@ -281,7 +281,7 @@ object STR_PROTO
           break properties;
         endif
       endwhile
-      if (typeof(object) == OBJ)
+      if (typeof(object) == TYPE_OBJ)
         return object;
       else
         return $failed_match;
@@ -300,7 +300,7 @@ object STR_PROTO
     "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
     "len has an upper limit of 100,000.";
     {n, ?fill = " "} = args;
-    if (typeof(n) == STR)
+    if (typeof(n) == TYPE_STR)
       n = length(n);
     endif
     if ((n = abs(n)) > 100000)
@@ -358,19 +358,19 @@ object STR_PROTO
     "Returns a map with start/end offsets (1-based, inclusive), the matched text, and the identifier type.";
     "If no object identifier is present, returns false.";
     {s, ?anchored = false} = args;
-    typeof(s) == STR || raise(E_TYPE, "match_objid expects a string argument");
+    typeof(s) == TYPE_STR || raise(E_TYPE, "match_objid expects a string argument");
     len = length(s);
     if (len == 0)
       return false;
     endif
     fn is_digit(digit_char)
-      return typeof(digit_char) == STR && length(digit_char) == 1 && index("0123456789", digit_char) != 0;
+      return typeof(digit_char) == TYPE_STR && length(digit_char) == 1 && index("0123456789", digit_char) != 0;
     endfn
     fn is_hex(hex_char)
-      return typeof(hex_char) == STR && length(hex_char) == 1 && index("0123456789ABCDEFabcdef", hex_char) != 0;
+      return typeof(hex_char) == TYPE_STR && length(hex_char) == 1 && index("0123456789ABCDEFabcdef", hex_char) != 0;
     endfn
     fn is_alnum(alnum_char)
-      return typeof(alnum_char) == STR && length(alnum_char) == 1 && index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", alnum_char) != 0;
+      return typeof(alnum_char) == TYPE_STR && length(alnum_char) == 1 && index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", alnum_char) != 0;
     endfn
     for idx in [1..len]
       if (s[idx] != "#")
@@ -420,8 +420,8 @@ object STR_PROTO
   verb match_uuobjid_at (this none this) owner: HACKER flags: "rxd"
     "Check for a uuobjid starting at position start_index, returning {start,end} or false.";
     {s, start_index} = args;
-    typeof(s) == STR || raise(E_TYPE, "Source must be string");
-    typeof(start_index) == INT || raise(E_TYPE, "Start index must be integer");
+    typeof(s) == TYPE_STR || raise(E_TYPE, "Source must be string");
+    typeof(start_index) == TYPE_INT || raise(E_TYPE, "Start index must be integer");
     start_index >= 1 || raise(E_INVARG);
     len = length(s);
     end_index = start_index + 17;
@@ -453,7 +453,7 @@ object STR_PROTO
   verb parse_name_aliases (this none this) owner: HACKER flags: "rxd"
     "Parse a name/alias specification. Supports both 'name:alias,alias' and 'name,alias,alias' formats.";
     {spec} = args;
-    typeof(spec) == STR || raise(E_TYPE, "Specification must be a string");
+    typeof(spec) == TYPE_STR || raise(E_TYPE, "Specification must be a string");
     trimmed = spec:trim();
     if (!trimmed)
       return {"", {}};
@@ -703,7 +703,7 @@ object STR_PROTO
     object && verbname || return false;
     if (object[1] == "$")
       pname = object[2..$];
-      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != OBJ)
+      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != TYPE_OBJ)
         return false;
       endif
       object = tostr(object);
@@ -909,7 +909,7 @@ object STR_PROTO
     object && verbname || return false;
     if (object[1] == "$")
       pname = object[2..$];
-      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != OBJ)
+      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != TYPE_OBJ)
         return false;
       endif
       object = tostr(object);
@@ -954,7 +954,7 @@ object STR_PROTO
     "Parse HH:MM:SS time string and return next occurrence as Unix timestamp.";
     "Example: \"14:30:00\":parse_time_of_day() returns timestamp for next 2:30 PM.";
     {time_str} = args;
-    typeof(time_str) == STR || raise(E_TYPE, "Time must be string");
+    typeof(time_str) == TYPE_STR || raise(E_TYPE, "Time must be string");
     parts = time_str:split(":");
     length(parts) == 3 || raise(E_INVARG, "Time must be HH:MM:SS format");
     hours = toint(parts[1]);
@@ -984,7 +984,7 @@ object STR_PROTO
     "Test parsing daily time strings.";
     "Test valid time";
     next_run = "14:30:00":parse_time_of_day();
-    typeof(next_run) == INT || raise(E_ASSERT, "Should return timestamp");
+    typeof(next_run) == TYPE_INT || raise(E_ASSERT, "Should return timestamp");
     next_run > time() || raise(E_ASSERT, "Should be in future");
     "Test invalid formats";
     caught = `"25:00:00":parse_time_of_day() ! E_INVARG => true';
@@ -995,7 +995,7 @@ object STR_PROTO
     caught || raise(E_ASSERT, "Should reject missing seconds");
     "Test midnight";
     next_run = "00:00:00":parse_time_of_day();
-    typeof(next_run) == INT || raise(E_ASSERT, "Midnight should return timestamp");
+    typeof(next_run) == TYPE_INT || raise(E_ASSERT, "Midnight should return timestamp");
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"
@@ -1255,7 +1255,7 @@ object STR_PROTO
   verb indefinite_article (this none this) owner: HACKER flags: "rxd"
     "Return the appropriate indefinite article ('a' or 'an') for this string based on first letter.";
     s = args[1];
-    typeof(s) == STR || raise(E_TYPE("Expected string"));
+    typeof(s) == TYPE_STR || raise(E_TYPE("Expected string"));
     !s && return "a";
     first_char = s[1..1]:lowercase();
     return first_char in {"a", "e", "i", "o", "u"} ? "an" | "a";
@@ -1264,7 +1264,7 @@ object STR_PROTO
   verb with_indefinite_article (this none this) owner: HACKER flags: "rxd"
     "Return this string prefixed with the appropriate indefinite article.";
     s = args[1];
-    typeof(s) == STR || raise(E_TYPE("Expected string"));
+    typeof(s) == TYPE_STR || raise(E_TYPE("Expected string"));
     !s && return "a ";
     return s:indefinite_article() + " " + s;
   endverb
@@ -1276,7 +1276,7 @@ object STR_PROTO
     "Usage: \"oid:42\":parse_curie() => #42";
     "For match() strings, optional second arg provides context: \"match(\\\"sword\\\")\":parse_curie(player) => #123";
     {curie_str, ?context = player} = args;
-    typeof(curie_str) == STR || raise(E_TYPE, "CURIE must be a string");
+    typeof(curie_str) == TYPE_STR || raise(E_TYPE, "CURIE must be a string");
     "Check for oid: prefix";
     if (curie_str:starts_with("oid:"))
       oid_part = curie_str[5..$];
@@ -1305,7 +1305,7 @@ object STR_PROTO
         for part in (parts)
           target = target.(part);
         endfor
-        return typeof(target) == OBJ ? target | false;
+        return typeof(target) == TYPE_OBJ ? target | false;
       except (ANY)
         return false;
       endtry
@@ -1333,7 +1333,7 @@ object STR_PROTO
     result = "oid:1":parse_curie();
     result != #1 && raise(E_ASSERT, "oid:1 parsing failed, got " + toliteral(result));
     result = "oid:42":parse_curie();
-    typeof(result) != OBJ && raise(E_ASSERT, "oid:42 should return object type, got " + toliteral(result));
+    typeof(result) != TYPE_OBJ && raise(E_ASSERT, "oid:42 should return object type, got " + toliteral(result));
     result = "oid:0":parse_curie();
     result != #0 && raise(E_ASSERT, "oid:0 parsing failed, got " + toliteral(result));
     "Test invalid oid format";
@@ -1353,7 +1353,7 @@ object STR_PROTO
     result != false && raise(E_ASSERT, "sysobj: with no path should fail, got " + toliteral(result));
     "Test match() format with valid context";
     result = "match(\"here\")":parse_curie(#49);
-    typeof(result) == OBJ || result == false || raise(E_ASSERT, "match() should return object or false, got " + toliteral(result));
+    typeof(result) == TYPE_OBJ || result == false || raise(E_ASSERT, "match() should return object or false, got " + toliteral(result));
     "Test match() format with invalid context";
     result = "match(\"anything\")":parse_curie(#-1);
     result != false && raise(E_ASSERT, "match() with invalid context should fail, got " + toliteral(result));
@@ -1367,7 +1367,7 @@ object STR_PROTO
     result = "match(incomplete":parse_curie();
     result != false && raise(E_ASSERT, "Incomplete match() format should return false, got " + toliteral(result));
     "Test type checking";
-    caught = `123:parse_curie() ! E_VERBNF => true';
+    caught = `(123):parse_curie() ! E_VERBNF => true';
     caught || raise(E_ASSERT, "Should raise E_VERBNF for non-string input");
   endverb
 endobject

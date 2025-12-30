@@ -29,7 +29,7 @@ object LIST_PROTO
     for t in (lst)
       if (t[indx] == target)
         "... do this test first since it's the most likely to fail; this needs -d";
-        if (typeof(t) == LIST && length(t) >= indx)
+        if (typeof(t) == TYPE_LIST && length(t) >= indx)
           return t;
         endif
       endif
@@ -41,7 +41,7 @@ object LIST_PROTO
     "assoc_prefix(list, target[,index]) returns the first element of `list' whose own index-th element has target as a prefix.  Index defaults to 1.";
     {lst, target, ?indx = 1} = args;
     for t in (lst)
-      if (typeof(t) == LIST && (length(t) >= indx && index(t[indx], target) == 1))
+      if (typeof(t) == TYPE_LIST && (length(t) >= indx && index(t[indx], target) == 1))
         return t;
       endif
     endfor
@@ -53,7 +53,7 @@ object LIST_PROTO
     "Make sure all elements of <list> are of a given <type>.";
     "<type> can be either one of LIST, STR, OBJ, NUM, ERR, or a list of same.";
     "return true if all elements check, otherwise 0.";
-    typelist = typeof(args[2]) == LIST ? args[2] | {args[2]};
+    typelist = typeof(args[2]) == TYPE_LIST ? args[2] | {args[2]};
     for element in (args[1])
       if (!(typeof(element) in typelist))
         return false;
@@ -86,7 +86,7 @@ object LIST_PROTO
   verb join (this none this) owner: HACKER flags: "rxd"
     "join(list[, separator]) => string with list elements joined by separator (default: space)";
     {l, ?separator = " "} = args;
-    typeof(separator) == STR || raise(E_TYPE("join() separator must be string; got " + toliteral(separator)));
+    typeof(separator) == TYPE_STR || raise(E_TYPE("join() separator must be string; got " + toliteral(separator)));
     length(l) == 0 && return "";
     length(l) == 1 && return tostr(l[1]);
     result = tostr(l[1]);
@@ -244,9 +244,9 @@ object LIST_PROTO
     "Join text results, handling any non-strings gracefully";
     text_parts = {};
     for r in (results)
-      if (typeof(r) == STR)
+      if (typeof(r) == TYPE_STR)
         text_parts = {@text_parts, r};
-      elseif (typeof(r) == FLYWEIGHT)
+      elseif (typeof(r) == TYPE_FLYWEIGHT)
         "Flyweight in text mode - try to render it";
         rendered = `r:render(content_type) ! ANY => tostr(r)';
         text_parts = {@text_parts, rendered};

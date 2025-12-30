@@ -68,21 +68,21 @@ object PASSAGE
 
   verb mk (this none this) owner: HACKER flags: "rxd"
     {room_a, label_a, aliases_a, description_a, ambient_a, room_b, label_b, aliases_b, description_b, ambient_b, ?is_open = true} = args;
-    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
-    label_a = typeof(label_a) == STR ? label_a | "";
-    label_b = typeof(label_b) == STR ? label_b | "";
-    if (typeof(aliases_a) == STR)
+    typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
+    label_a = typeof(label_a) == TYPE_STR ? label_a | "";
+    label_b = typeof(label_b) == TYPE_STR ? label_b | "";
+    if (typeof(aliases_a) == TYPE_STR)
       aliases_a = aliases_a ? {aliases_a} | {};
-    elseif (typeof(aliases_a) != LIST)
+    elseif (typeof(aliases_a) != TYPE_LIST)
       aliases_a = {};
     endif
-    if (typeof(aliases_b) == STR)
+    if (typeof(aliases_b) == TYPE_STR)
       aliases_b = aliases_b ? {aliases_b} | {};
-    elseif (typeof(aliases_b) != LIST)
+    elseif (typeof(aliases_b) != TYPE_LIST)
       aliases_b = {};
     endif
-    description_a = typeof(description_a) == STR ? description_a | "";
-    description_b = typeof(description_b) == STR ? description_b | "";
+    description_a = typeof(description_a) == TYPE_STR ? description_a | "";
+    description_b = typeof(description_b) == TYPE_STR ? description_b | "";
     ambient_a = ambient_a ? true | false;
     ambient_b = ambient_b ? true | false;
     is_open = is_open ? true | false;
@@ -91,15 +91,15 @@ object PASSAGE
 
   verb _value (this none this) owner: HACKER flags: "rxd"
     {prop, default} = args;
-    typeof(prop) == STR || raise(E_TYPE);
-    if (typeof(this) == OBJ)
+    typeof(prop) == TYPE_STR || raise(E_TYPE);
+    if (typeof(this) == TYPE_OBJ)
       try
         return this.(prop);
       except (E_PROPNF)
         return default;
       endtry
     endif
-    if (typeof(this) == FLYWEIGHT)
+    if (typeof(this) == TYPE_FLYWEIGHT)
       try
         return this.(prop);
       except (E_PROPNF)
@@ -186,28 +186,28 @@ object PASSAGE
 
   verb configure (this none this) owner: HACKER flags: "rxd"
     {room_a, label_a, aliases_a, description_a, ambient_a, room_b, label_b, aliases_b, description_b, ambient_b} = args;
-    typeof(room_a) == OBJ && typeof(room_b) == OBJ || raise(E_TYPE);
+    typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
     this.side_a_room = room_a;
-    this.side_a_label = typeof(label_a) == STR ? label_a | "";
-    if (typeof(aliases_a) == LIST)
+    this.side_a_label = typeof(label_a) == TYPE_STR ? label_a | "";
+    if (typeof(aliases_a) == TYPE_LIST)
       this.side_a_aliases = aliases_a;
-    elseif (typeof(aliases_a) == STR && aliases_a)
+    elseif (typeof(aliases_a) == TYPE_STR && aliases_a)
       this.side_a_aliases = {aliases_a};
     else
       this.side_a_aliases = {};
     endif
-    this.side_a_description = typeof(description_a) == STR ? description_a | "";
+    this.side_a_description = typeof(description_a) == TYPE_STR ? description_a | "";
     this.side_a_ambient = ambient_a ? true | false;
     this.side_b_room = room_b;
-    this.side_b_label = typeof(label_b) == STR ? label_b | "";
-    if (typeof(aliases_b) == LIST)
+    this.side_b_label = typeof(label_b) == TYPE_STR ? label_b | "";
+    if (typeof(aliases_b) == TYPE_LIST)
       this.side_b_aliases = aliases_b;
-    elseif (typeof(aliases_b) == STR && aliases_b)
+    elseif (typeof(aliases_b) == TYPE_STR && aliases_b)
       this.side_b_aliases = {aliases_b};
     else
       this.side_b_aliases = {};
     endif
-    this.side_b_description = typeof(description_b) == STR ? description_b | "";
+    this.side_b_description = typeof(description_b) == TYPE_STR ? description_b | "";
     this.side_b_ambient = ambient_b ? true | false;
     return this;
   endverb
@@ -254,7 +254,7 @@ object PASSAGE
     elseif (room == this:_side_lookup('b, 'room))
       aliases = this:_side_lookup('b, 'aliases);
     endif
-    typeof(aliases) == LIST || (aliases = typeof(aliases) == STR ? {aliases} | {});
+    typeof(aliases) == TYPE_LIST || (aliases = typeof(aliases) == TYPE_STR ? {aliases} | {});
     return aliases;
   endverb
 
@@ -273,7 +273,7 @@ object PASSAGE
     "Check if command matches this passage's label or aliases from given room.";
     "Also handles direction abbreviations (n/north, e/east, etc).";
     {room, command} = args;
-    typeof(command) == STR || return false;
+    typeof(command) == TYPE_STR || return false;
     "Build list of commands to check (original + any expanded direction)";
     commands_to_check = {command};
     if (maphaskey(this.direction_abbrevs, command))
@@ -285,12 +285,12 @@ object PASSAGE
     "Check each command variant against aliases and label";
     for cmd in (commands_to_check)
       for alias in (this:aliases_for(room))
-        if (typeof(alias) == STR && alias == cmd)
+        if (typeof(alias) == TYPE_STR && alias == cmd)
           return true;
         endif
       endfor
       label = this:label_for(room);
-      if (typeof(label) == STR && label == cmd)
+      if (typeof(label) == TYPE_STR && label == cmd)
         return true;
       endif
     endfor
@@ -316,11 +316,11 @@ object PASSAGE
     "Render and announce departure event";
     from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
     leave_msg = this:_side_lookup(from_side, 'leave_msg);
-    if (typeof(leave_msg) == LIST && length(leave_msg) > 0)
+    if (typeof(leave_msg) == TYPE_LIST && length(leave_msg) > 0)
       "Render custom message with movement context";
       departure_text = "";
       for component in (leave_msg)
-        if (typeof(component) == FLYWEIGHT)
+        if (typeof(component) == TYPE_FLYWEIGHT)
           try
             rendered = component:render_as(player, 'text_plain, move_context);
             departure_text = departure_text + rendered;
@@ -347,11 +347,11 @@ object PASSAGE
     "Render and announce arrival event";
     to_side = to_room == this:_side_lookup('a, 'room) ? 'a | 'b;
     arrive_msg = this:_side_lookup(to_side, 'arrive_msg);
-    if (typeof(arrive_msg) == LIST && length(arrive_msg) > 0)
+    if (typeof(arrive_msg) == TYPE_LIST && length(arrive_msg) > 0)
       "Render custom message with movement context";
       arrival_text = "";
       for component in (arrive_msg)
-        if (typeof(component) == FLYWEIGHT)
+        if (typeof(component) == TYPE_FLYWEIGHT)
           try
             rendered = component:render_as(player, 'text_plain, move_context);
             arrival_text = arrival_text + rendered;
@@ -425,8 +425,8 @@ object PASSAGE
   verb with_label_from (this none this) owner: HACKER flags: "rxd"
     "Update the label visible from a given room. Returns new passage flyweight.";
     {room, label} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
-    typeof(label) == STR || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(label) == TYPE_STR || raise(E_TYPE);
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
     props = this:_extract_all();
@@ -441,14 +441,14 @@ object PASSAGE
   verb with_description_from (this none this) owner: HACKER flags: "rxd"
     "Update the description visible from a given room. Returns new passage flyweight.";
     {room, description} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
     "Allow strings or precompiled lists (with $sub flyweights)";
-    if (typeof(description) == STR && "{" in description && "}" in description)
+    if (typeof(description) == TYPE_STR && "{" in description && "}" in description)
       try
         description = $sub_utils:compile(description);
       except (ANY)
       endtry
-    elseif (typeof(description) != STR && typeof(description) != LIST)
+    elseif (typeof(description) != TYPE_STR && typeof(description) != TYPE_LIST)
       raise(E_TYPE);
     endif
     side = this:side_for(room);
@@ -465,13 +465,13 @@ object PASSAGE
   verb with_aliases_from (this none this) owner: HACKER flags: "rxd"
     "Update the aliases visible from a given room. Accepts string or list. Returns new passage flyweight.";
     {room, aliases} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
     "Normalize aliases (same as mk does)";
-    if (typeof(aliases) == STR)
+    if (typeof(aliases) == TYPE_STR)
       aliases = aliases ? {aliases} | {};
-    elseif (typeof(aliases) != LIST)
+    elseif (typeof(aliases) != TYPE_LIST)
       aliases = {};
     endif
     props = this:_extract_all();
@@ -486,7 +486,7 @@ object PASSAGE
   verb with_ambient_from (this none this) owner: HACKER flags: "rxd"
     "Update the ambient flag for the side visible from a given room. Returns new passage flyweight.";
     {room, is_ambient} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
     props = this:_extract_all();
@@ -509,9 +509,9 @@ object PASSAGE
   verb mk_movement_context (this none this) owner: HACKER flags: "rxd"
     "Create a movement context flyweight with get_binding() support for message rendering.";
     {actor, from_room, to_room, from_direction, to_direction} = args;
-    typeof(actor) == OBJ || raise(E_TYPE);
-    typeof(from_room) == OBJ || raise(E_TYPE);
-    typeof(to_room) == OBJ || raise(E_TYPE);
+    typeof(actor) == TYPE_OBJ || raise(E_TYPE);
+    typeof(from_room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(to_room) == TYPE_OBJ || raise(E_TYPE);
     return <$passage, .actor = actor, .from_room = from_room, .to_room = to_room, .passage = this, .from_direction = from_direction, .to_direction = to_direction>;
   endverb
 
@@ -591,7 +591,7 @@ object PASSAGE
     "Update the prose style for the side visible from a given room. Returns new passage flyweight.";
     "'sentence means include description as-is; 'fragment means wrap in 'You see X'.";
     {room, style} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
     style in {'sentence, 'fragment} || raise(E_INVARG, "prose_style must be 'sentence or 'fragment");
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
@@ -608,8 +608,8 @@ object PASSAGE
     "Update the departure phrase for the side visible from a given room. Returns new passage flyweight.";
     "Used in messages like 'heads [direction] through [phrase]'.";
     {room, phrase} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
-    typeof(phrase) == STR || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(phrase) == TYPE_STR || raise(E_TYPE);
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
     props = this:_extract_all();
@@ -625,8 +625,8 @@ object PASSAGE
     "Update the arrival phrase for the side visible from a given room. Returns new passage flyweight.";
     "Used in messages like 'arrives from [phrase]'.";
     {room, phrase} = args;
-    typeof(room) == OBJ || raise(E_TYPE);
-    typeof(phrase) == STR || raise(E_TYPE);
+    typeof(room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(phrase) == TYPE_STR || raise(E_TYPE);
     side = this:side_for(room);
     side == 'none && raise(E_INVARG, "Room not connected by this passage");
     props = this:_extract_all();
@@ -671,7 +671,7 @@ object PASSAGE
     endif
     "Check unlock rule if one exists";
     unlock_rule = this:_value("unlock_rule", 0);
-    if (typeof(unlock_rule) != FLYWEIGHT)
+    if (typeof(unlock_rule) != TYPE_FLYWEIGHT)
       "Locked with no unlock rule - cannot pass";
       return false;
     endif
@@ -682,14 +682,14 @@ object PASSAGE
       "Check if key unlocks FROM_ROOM - means player is inside locked room, can exit";
       bindings = ['Accessor -> player, 'This -> from_room, 'Key -> item, 'Passage -> this];
       result = $rule_engine:evaluate(unlock_rule, bindings);
-      if (typeof(result) == MAP && result['success])
+      if (typeof(result) == TYPE_MAP && result['success])
         "Player has key to room they're leaving - always allowed";
         return true;
       endif
       "Check if key unlocks TO_ROOM - means player can enter";
       bindings = ['Accessor -> player, 'This -> to_room, 'Key -> item, 'Passage -> this];
       result = $rule_engine:evaluate(unlock_rule, bindings);
-      if (typeof(result) == MAP && result['success])
+      if (typeof(result) == TYPE_MAP && result['success])
         return true;
       endif
     endfor

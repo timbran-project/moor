@@ -72,7 +72,7 @@ object ARCHITECTS_COMPASS
     wearer = this:wearer();
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Parse JSON string to map";
-    if (typeof(tool_args) == STR)
+    if (typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
     message = "";
@@ -226,9 +226,9 @@ object ARCHITECTS_COMPASS
         question = question[1..60] + "...";
       endif
       suffix = "";
-      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == TYPE_LIST && length(tool_args["choices"]) > 0)
         suffix = " [options]";
-      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == TYPE_STR)
         suffix = " [" + tool_args["input_type"] + "]";
       endif
       message = $ansi:colorize("[QUESTION]", 'bright_yellow) + " Asking: " + question + suffix;
@@ -251,7 +251,7 @@ object ARCHITECTS_COMPASS
     {tool_name, tool_args} = args;
     wearer = this:wearer();
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
-    if (typeof(tool_args) == STR)
+    if (typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
     if (tool_name == "explain")
@@ -342,9 +342,9 @@ object ARCHITECTS_COMPASS
         question = question[1..60] + "...";
       endif
       suffix = "";
-      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == TYPE_LIST && length(tool_args["choices"]) > 0)
         suffix = " with options";
-      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == TYPE_STR)
         suffix = ", " + tool_args["input_type"] + " input";
       endif
       return "Question: " + question + suffix;
@@ -357,7 +357,7 @@ object ARCHITECTS_COMPASS
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
     description = args_map["description"];
-    typeof(description) == STR || raise(E_TYPE("Description must be string"));
+    typeof(description) == TYPE_STR || raise(E_TYPE("Description must be string"));
     task = this.agent:create_task(description);
     this.current_building_task = task.task_id;
     task:mark_in_progress();
@@ -369,8 +369,8 @@ object ARCHITECTS_COMPASS
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
     {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
-    typeof(subject) == STR || raise(E_TYPE("Subject must be string"));
-    typeof(key) == STR || raise(E_TYPE("Key must be string"));
+    typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
+    typeof(key) == TYPE_STR || raise(E_TYPE("Key must be string"));
     this.current_building_task == -1 && return "No active building project. Create one with create_project first.";
     task_obj = this.agent.current_tasks[this.current_building_task];
     !valid(task_obj) && return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";

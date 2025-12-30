@@ -42,7 +42,7 @@ object ACTOR
       player:inform_current(event);
       return;
     endtry
-    if (!valid(dobj) || typeof(dobj) != OBJ)
+    if (!valid(dobj) || typeof(dobj) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
       return;
@@ -94,7 +94,7 @@ object ACTOR
       player:inform_current(event);
       return;
     endtry
-    if (!valid(dobj) || typeof(dobj) != OBJ)
+    if (!valid(dobj) || typeof(dobj) != TYPE_OBJ)
       event = $event:mk_error(player, $sub:t(), " doesn't have that."):with_this(this);
       player:inform_current(event);
       return;
@@ -176,9 +176,9 @@ object ACTOR
   verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
     "Create a departure event. Optional departure_phrase overrides default template.";
     {from_room, ?direction = "", ?passage_desc = "", ?to_room = #-1, ?departure_phrase = ""} = args;
-    typeof(direction) == STR || (direction = "");
-    typeof(passage_desc) == STR || (passage_desc = "");
-    typeof(departure_phrase) == STR || (departure_phrase = "");
+    typeof(direction) == TYPE_STR || (direction = "");
+    typeof(passage_desc) == TYPE_STR || (passage_desc = "");
+    typeof(departure_phrase) == TYPE_STR || (departure_phrase = "");
     parts = {$sub:nc(), " ", $sub:self_alt("head", "heads")};
     if (departure_phrase)
       "Use custom departure phrase if provided";
@@ -208,9 +208,9 @@ object ACTOR
   verb mk_arrival_event (this none this) owner: HACKER flags: "rxd"
     "Create an arrival event. Optional arrival_phrase overrides default template.";
     {to_room, ?direction = "", ?passage_desc = "", ?from_room = #-1, ?arrival_phrase = ""} = args;
-    typeof(direction) == STR || (direction = "");
-    typeof(passage_desc) == STR || (passage_desc = "");
-    typeof(arrival_phrase) == STR || (arrival_phrase = "");
+    typeof(direction) == TYPE_STR || (direction = "");
+    typeof(passage_desc) == TYPE_STR || (passage_desc = "");
+    typeof(arrival_phrase) == TYPE_STR || (arrival_phrase = "");
     parts = {$sub:nc(), " ", $sub:self_alt("arrive", "arrives")};
     if (arrival_phrase)
       "Use custom arrival phrase if provided";

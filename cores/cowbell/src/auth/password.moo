@@ -10,14 +10,14 @@ object PASSWORD
 
   verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
     "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";
-    if (typeof(this) == FLYWEIGHT)
+    if (typeof(this) == TYPE_FLYWEIGHT)
       raise(E_INVARG);
     endif
     if (length(args) != 1)
       raise(E_ARGS);
     endif
     {password} = args;
-    if (typeof(password) != STR)
+    if (typeof(password) != TYPE_STR)
       raise(E_INVARG);
     endif
     salt_str = salt();
@@ -26,7 +26,7 @@ object PASSWORD
   endverb
 
   verb challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
-    if (typeof(this) != FLYWEIGHT)
+    if (typeof(this) != TYPE_FLYWEIGHT)
       raise(E_INVARG);
     endif
     if (length(args) != 1)
@@ -35,7 +35,7 @@ object PASSWORD
     {password} = args;
     contents = flycontents(this);
     encrypted = contents[1];
-    if (typeof(encrypted) != STR)
+    if (typeof(encrypted) != TYPE_STR)
       raise(E_PERM);
     endif
     return argon2_verify(encrypted, password);

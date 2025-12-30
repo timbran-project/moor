@@ -216,7 +216,7 @@ object ANSI
   verb "color_256 colour_256" (this none this) owner: HACKER flags: "rxd"
     "Foreground color using 256-color palette (0-255)";
     {color_code} = args;
-    typeof(color_code) == INT || raise(E_TYPE("Color code must be an integer"));
+    typeof(color_code) == TYPE_INT || raise(E_TYPE("Color code must be an integer"));
     color_code >= 0 && color_code <= 255 || raise(E_RANGE("Color code must be 0-255"));
     return "\x1B[38;5;" + tostr(color_code) + "m";
   endverb
@@ -224,7 +224,7 @@ object ANSI
   verb "bg_color_256 bg_colour_256" (this none this) owner: HACKER flags: "rxd"
     "Background color using 256-color palette (0-255)";
     {color_code} = args;
-    typeof(color_code) == INT || raise(E_TYPE("Color code must be an integer"));
+    typeof(color_code) == TYPE_INT || raise(E_TYPE("Color code must be an integer"));
     color_code >= 0 && color_code <= 255 || raise(E_RANGE("Color code must be 0-255"));
     return "\x1B[48;5;" + tostr(color_code) + "m";
   endverb
@@ -232,9 +232,9 @@ object ANSI
   verb rgb (this none this) owner: HACKER flags: "rxd"
     "Foreground color using RGB values (0-255 each)";
     {r, g, b} = args;
-    typeof(r) == INT || raise(E_TYPE("R value must be an integer"));
-    typeof(g) == INT || raise(E_TYPE("G value must be an integer"));
-    typeof(b) == INT || raise(E_TYPE("B value must be an integer"));
+    typeof(r) == TYPE_INT || raise(E_TYPE("R value must be an integer"));
+    typeof(g) == TYPE_INT || raise(E_TYPE("G value must be an integer"));
+    typeof(b) == TYPE_INT || raise(E_TYPE("B value must be an integer"));
     r >= 0 && r <= 255 || raise(E_RANGE("R must be 0-255"));
     g >= 0 && g <= 255 || raise(E_RANGE("G must be 0-255"));
     b >= 0 && b <= 255 || raise(E_RANGE("B must be 0-255"));
@@ -244,9 +244,9 @@ object ANSI
   verb bg_rgb (this none this) owner: HACKER flags: "rxd"
     "Background color using RGB values (0-255 each)";
     {r, g, b} = args;
-    typeof(r) == INT || raise(E_TYPE("R value must be an integer"));
-    typeof(g) == INT || raise(E_TYPE("G value must be an integer"));
-    typeof(b) == INT || raise(E_TYPE("B value must be an integer"));
+    typeof(r) == TYPE_INT || raise(E_TYPE("R value must be an integer"));
+    typeof(g) == TYPE_INT || raise(E_TYPE("G value must be an integer"));
+    typeof(b) == TYPE_INT || raise(E_TYPE("B value must be an integer"));
     r >= 0 && r <= 255 || raise(E_RANGE("R must be 0-255"));
     g >= 0 && g <= 255 || raise(E_RANGE("G must be 0-255"));
     b >= 0 && b <= 255 || raise(E_RANGE("B must be 0-255"));
@@ -256,16 +256,16 @@ object ANSI
   verb "colorize colourize" (this none this) owner: HACKER flags: "rxd"
     "Wrap text in colour codes and reset. Usage: colorize(text, color_code) or colorize(text, 'red)";
     {text, color} = args;
-    typeof(text) == STR || raise(E_TYPE("Text must be a string"));
+    typeof(text) == TYPE_STR || raise(E_TYPE("Text must be a string"));
     "Handle symbolic color names";
-    if (typeof(color) == SYM)
+    if (typeof(color) == TYPE_SYM)
       color_str = tostr(color);
       if (respond_to(this, color_str))
         prefix = this:(color_str)();
       else
         raise(E_INVARG("Unknown color name: " + color_str));
       endif
-    elseif (typeof(color) == INT)
+    elseif (typeof(color) == TYPE_INT)
       prefix = this:color_256(color);
     else
       raise(E_TYPE("Color must be a symbol or integer"));
@@ -276,12 +276,12 @@ object ANSI
   verb wrap (this none this) owner: HACKER flags: "rxd"
     "Wrap text with ANSI codes. Usage: wrap(text, codes...) where codes are strings or symbols";
     {text, @codes} = args;
-    typeof(text) == STR || raise(E_TYPE("Text must be a string"));
+    typeof(text) == TYPE_STR || raise(E_TYPE("Text must be a string"));
     prefix = "";
     for code in (codes)
-      if (typeof(code) == STR)
+      if (typeof(code) == TYPE_STR)
         prefix = prefix + code;
-      elseif (typeof(code) == SYM)
+      elseif (typeof(code) == TYPE_SYM)
         code_str = tostr(code);
         if (respond_to(this, code_str))
           prefix = prefix + this:(code_str)();
@@ -298,7 +298,7 @@ object ANSI
   verb strip (this none this) owner: HACKER flags: "rxd"
     "Remove all ANSI escape sequences from text";
     {text} = args;
-    typeof(text) == STR || raise(E_TYPE("Text must be a string"));
+    typeof(text) == TYPE_STR || raise(E_TYPE("Text must be a string"));
     "Replace all ANSI escape sequences with empty string";
     "Pattern: ESC[ followed by any number of parameters and letter";
     result = text;

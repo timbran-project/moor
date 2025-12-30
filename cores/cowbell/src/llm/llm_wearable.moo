@@ -109,7 +109,7 @@ object LLM_WEARABLE
     endif
     "Check if there's been a recent API call";
     last_usage = this.agent.last_token_usage;
-    if (typeof(last_usage) == MAP && maphaskey(last_usage, "total_tokens"))
+    if (typeof(last_usage) == TYPE_MAP && maphaskey(last_usage, "total_tokens"))
       last_tokens = last_usage["total_tokens"];
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
       tts_msg = "Token usage: Last call used " + tostr(last_tokens) + " tokens. Total " + tostr(used) + " of " + tostr(budget) + ", " + tostr(percent_used) + " percent used.";
@@ -120,7 +120,7 @@ object LLM_WEARABLE
     endif
     wearer:inform_current($event:mk_info(wearer, usage_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
     "Show context size and compaction status if we have prompt token data";
-    if (typeof(last_usage) == MAP && maphaskey(last_usage, "prompt_tokens"))
+    if (typeof(last_usage) == TYPE_MAP && maphaskey(last_usage, "prompt_tokens"))
       prompt_tokens = last_usage["prompt_tokens"];
       token_limit = this.agent.token_limit;
       compaction_threshold = this.agent.compaction_threshold;
@@ -148,7 +148,7 @@ object LLM_WEARABLE
     "Tool: Communicate reasoning, progress updates, or error details to user";
     {args_map, actor} = args;
     message = args_map["message"];
-    typeof(message) == STR || raise(E_TYPE("Expected message string"));
+    typeof(message) == TYPE_STR || raise(E_TYPE("Expected message string"));
     "Message is displayed by on_tool_call callback, no need to display here";
     return "Message delivered to user.";
   endverb
@@ -158,19 +158,19 @@ object LLM_WEARABLE
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
     question = args_map["question"];
-    typeof(question) == STR || raise(E_TYPE("Expected question string"));
+    typeof(question) == TYPE_STR || raise(E_TYPE("Expected question string"));
     placeholder = `args_map["placeholder"] ! ANY => "Describe your requested changes..."';
     "If explicit choices are provided, present them directly";
     if (maphaskey(args_map, "choices"))
       choices = args_map["choices"];
-      typeof(choices) == LIST && length(choices) > 0 || raise(E_TYPE("choices must be a non-empty list when provided"));
+      typeof(choices) == TYPE_LIST && length(choices) > 0 || raise(E_TYPE("choices must be a non-empty list when provided"));
       "Always include a stop option so user can end the flow";
       if (!("Stop" in choices) && !("stop" in choices))
         choices = {@choices, "Stop"};
       endif
       metadata = {{"input_type", "choice"}, {"prompt", question}, {"choices", choices}};
       response = wearer:read_with_prompt(metadata);
-      if (typeof(response) != STR || response == "" || response == "Stop")
+      if (typeof(response) != TYPE_STR || response == "" || response == "Stop")
         this.agent.cancel_requested = true;
         return "User cancelled.";
       endif
@@ -181,12 +181,12 @@ object LLM_WEARABLE
     allowed_types = {"yes_no", "text", "text_area", "confirmation", "yes_no_alternative"};
     if (is_member(requested_type, allowed_types))
       metadata = {{"input_type", requested_type}, {"prompt", question}};
-      if (typeof(placeholder) == STR && placeholder != "")
+      if (typeof(placeholder) == TYPE_STR && placeholder != "")
         metadata = {@metadata, {"placeholder", placeholder}};
       endif
       if (requested_type == "text_area")
         rows = `args_map["rows"] ! ANY => 4';
-        typeof(rows) == INT && (metadata = {@metadata, {"rows", rows}});
+        typeof(rows) == TYPE_INT && (metadata = {@metadata, {"rows", rows}});
       endif
       response = wearer:read_with_prompt(metadata);
       if (!response || response == "@abort")
@@ -206,14 +206,14 @@ object LLM_WEARABLE
     "Default: Accept / Stop / Request Change flow";
     metadata = {{"input_type", "choice"}, {"prompt", question}, {"choices", {"Accept", "Stop", "Request Change"}}};
     response = wearer:read_with_prompt(metadata);
-    if (response == "Stop" || typeof(response) != STR || response == "")
+    if (response == "Stop" || typeof(response) != TYPE_STR || response == "")
       this.agent.cancel_requested = true;
       return "User cancelled.";
     elseif (response == "Request Change")
       "Follow up with multiline text input for the requested change";
       change_metadata = {{"input_type", "text_area"}, {"prompt", "What changes would you like?"}, {"placeholder", placeholder}, {"rows", 4}};
       change_request = wearer:read_with_prompt(change_metadata);
-      if (change_request == "@abort" || typeof(change_request) != STR || change_request:trim() == "")
+      if (change_request == "@abort" || typeof(change_request) != TYPE_STR || change_request:trim() == "")
         this.agent.cancel_requested = true;
         return "User cancelled.";
       endif
@@ -228,7 +228,7 @@ object LLM_WEARABLE
     {tool_name, tool_args, error_msg} = args;
     caller == this.agent || caller_perms().wizard || raise(E_PERM);
     "Do not downgrade perms; server_log requires wizard perms.";
-    safe_args = typeof(tool_args) == STR ? tool_args | toliteral(tool_args);
+    safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
     server_log("LLM tool error [" + tostr(tool_name) + "]: " + tostr(error_msg) + " args=" + safe_args);
     return true;
   endverb
@@ -246,7 +246,7 @@ object LLM_WEARABLE
       return;
     endif
     "Parse JSON string to map";
-    if (typeof(tool_args) == STR)
+    if (typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
     "Explain is not rewritable; emit once";
@@ -261,7 +261,7 @@ object LLM_WEARABLE
     placeholder = $event:mk_info(wearer, message):with_rewritable(rewrite_id, 300, message):with_presentation_hint('processing):with_group('llm, this);
     wearer:inform_current(placeholder);
     "Track rewrite id by tool name (FIFO queue)";
-    steps = typeof(this.progress_steps) == MAP ? this.progress_steps | [];
+    steps = typeof(this.progress_steps) == TYPE_MAP ? this.progress_steps | [];
     queue = maphaskey(steps, tool_name) ? steps[tool_name] | {};
     queue = {@queue, rewrite_id};
     steps[tool_name] = queue;
@@ -285,25 +285,25 @@ object LLM_WEARABLE
       return;
     endif
     "Prepare result text (truncated)";
-    result_text = typeof(result) == STR ? result | toliteral(result);
+    result_text = typeof(result) == TYPE_STR ? result | toliteral(result);
     if (length(result_text) > 100)
       result_text = result_text[1..100] + "...";
     endif
     "Check if error";
-    is_error = typeof(result) == STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
+    is_error = typeof(result) == TYPE_STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
     "For ask_user, include the question in the completion message";
-    if (tool_name == "ask_user" && typeof(tool_args) == STR)
+    if (tool_name == "ask_user" && typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
     question_text = "";
-    if (tool_name == "ask_user" && typeof(tool_args) == MAP && maphaskey(tool_args, "question"))
+    if (tool_name == "ask_user" && typeof(tool_args) == TYPE_MAP && maphaskey(tool_args, "question"))
       question_text = tool_args["question"];
       if (length(question_text) > 60)
         question_text = question_text[1..60] + "...";
       endif
     endif
     "Find rewrite target for this tool";
-    steps = typeof(this.progress_steps) == MAP ? this.progress_steps | [];
+    steps = typeof(this.progress_steps) == TYPE_MAP ? this.progress_steps | [];
     if (maphaskey(steps, tool_name) && length(steps[tool_name]) > 0)
       rewrite_id = steps[tool_name][1];
       if (length(steps[tool_name]) > 1)
@@ -357,9 +357,9 @@ object LLM_WEARABLE
         question = question[1..60] + "...";
       endif
       suffix = "";
-      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == TYPE_LIST && length(tool_args["choices"]) > 0)
         suffix = " [options]";
-      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == TYPE_STR)
         suffix = " [" + tool_args["input_type"] + "]";
       endif
       return $ansi:colorize("[QUESTION]", 'bright_yellow) + " Asking: " + question + suffix;
@@ -380,9 +380,9 @@ object LLM_WEARABLE
         question = question[1..100] + "...";
       endif
       suffix = "";
-      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == LIST && length(tool_args["choices"]) > 0)
+      if (maphaskey(tool_args, "choices") && typeof(tool_args["choices"]) == TYPE_LIST && length(tool_args["choices"]) > 0)
         suffix = " with options";
-      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == STR)
+      elseif (maphaskey(tool_args, "input_type") && typeof(tool_args["input_type"]) == TYPE_STR)
         suffix = ", " + tool_args["input_type"] + " input";
       endif
       return "Question: " + question + suffix;
@@ -434,7 +434,7 @@ object LLM_WEARABLE
       return "No agent configured";
     endif
     last_usage = this.agent.last_token_usage;
-    if (typeof(last_usage) != MAP || !maphaskey(last_usage, "prompt_tokens"))
+    if (typeof(last_usage) != TYPE_MAP || !maphaskey(last_usage, "prompt_tokens"))
       return "No prompt token data available";
     endif
     prompt_tokens = last_usage["prompt_tokens"];
@@ -492,7 +492,7 @@ object LLM_WEARABLE
     {args_map, actor} = args;
     actor || this:_action_perms_check();
     todos_input = args_map["todos"];
-    typeof(todos_input) != LIST && raise(E_TYPE, "todos must be a list");
+    typeof(todos_input) != TYPE_LIST && raise(E_TYPE, "todos must be a list");
     todo_items = {};
     for item in (todos_input)
       content = item["content"];
@@ -551,7 +551,7 @@ object LLM_WEARABLE
     set_task_perms(wearer);
     "Handle special alias cases";
     alias_obj = false;
-    if (typeof(target_spec) == STR)
+    if (typeof(target_spec) == TYPE_STR)
       alias_name = target_spec:starts_with("$") ? target_spec[2..$] | target_spec;
       alias_name == "sub_utils" && (alias_obj = $sub_utils);
       alias_name == "sub" && (alias_obj = $sub);
@@ -575,7 +575,7 @@ object LLM_WEARABLE
         item_name = "";
       endif
       target_obj = $match:match_object(object_str, wearer);
-      typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+      typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
       valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     endif
     "Fetch docs based on type";
@@ -593,7 +593,7 @@ object LLM_WEARABLE
     else
       raise(E_INVARG, "Unknown target type");
     endif
-    doc_body = typeof(doc_text) == LIST ? doc_text:join("\n") | doc_text;
+    doc_body = typeof(doc_text) == TYPE_LIST ? doc_text:join("\n") | doc_text;
     return title + "\n\n" + (doc_body ? doc_body | "(No documentation available)");
   endverb
 
@@ -603,14 +603,14 @@ object LLM_WEARABLE
     wearer = actor || this:_action_perms_check();
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     msg_props = $obj_utils:message_properties(target_obj);
     !msg_props && return tostr(target_obj) + " has no message properties. (@messages command available)";
     lines = {"Message properties for " + tostr(target_obj) + ":"};
     for prop_info in (msg_props)
       {prop_name, prop_value} = prop_info;
-      value_summary = typeof(prop_value) == OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | (typeof(prop_value) == LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value));
+      value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | (typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value));
       lines = {@lines, " - " + prop_name + ": " + value_summary};
     endfor
     return lines:join("\n");
@@ -624,20 +624,20 @@ object LLM_WEARABLE
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     value = target_obj.(prop_name);
-    if (typeof(value) == OBJ && isa(value, $msg_bag))
+    if (typeof(value) == TYPE_OBJ && isa(value, $msg_bag))
       entries = value:entries();
       !entries && return tostr(target_obj) + "." + prop_name + " = (empty message bag)";
       lines = {tostr(target_obj) + "." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):"};
       for i, entry in (entries)
-        lines = {@lines, tostr(i) + ". " + (typeof(entry) == LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry))};
+        lines = {@lines, tostr(i) + ". " + (typeof(entry) == TYPE_LIST ? `$sub_utils:decompile(entry) ! ANY => toliteral(entry)' | toliteral(entry))};
       endfor
       return lines:join("\n");
     endif
-    display_value = typeof(value) == LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
+    display_value = typeof(value) == TYPE_LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
     return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
   endverb
 
@@ -650,7 +650,7 @@ object LLM_WEARABLE
     template || raise(E_INVARG, "Template string required");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     {success, compiled} = $obj_utils:validate_and_compile_template(template);
     success || raise(E_INVARG, "Template compilation failed: " + compiled);
@@ -668,7 +668,7 @@ object LLM_WEARABLE
     {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
     writable || raise(E_PERM, error_msg);
     existing = target_obj.(prop_name);
-    if (typeof(existing) == OBJ && isa(existing, $msg_bag))
+    if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
       existing.entries = {compiled};
       return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
     endif
@@ -685,7 +685,7 @@ object LLM_WEARABLE
     template || raise(E_INVARG, "Template string required");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
     !valid(bag) && (bag = $msg_bag:create(true)) && (target_obj.(prop_name) = bag);
@@ -699,10 +699,10 @@ object LLM_WEARABLE
     wearer = actor || this:_action_perms_check();
     {prop_name, idx} = {args_map["property"], args_map["index"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
-    typeof(idx) == INT || raise(E_TYPE, "Index must be integer");
+    typeof(idx) == TYPE_INT || raise(E_TYPE, "Index must be integer");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
     valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
@@ -716,7 +716,7 @@ object LLM_WEARABLE
     wearer = actor || this:_action_perms_check();
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     rule_props = $obj_utils:rule_properties(target_obj);
     !rule_props && return tostr(target_obj) + " has no rule properties. (@rules command available)";
@@ -737,7 +737,7 @@ object LLM_WEARABLE
     expression || raise(E_INVARG, "Rule expression required");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Use add_property to create it first.");
     "Handle special cases";
@@ -766,7 +766,7 @@ object LLM_WEARABLE
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
     set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
-    typeof(target_obj) == OBJ || raise(E_INVARG, "Object not found");
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     rule = target_obj.(prop_name);
@@ -805,7 +805,7 @@ object LLM_WEARABLE
     response = this.agent:send_message(query);
     continuations = 0;
     max_continuations = 3;
-    while (typeof(response) == ERR && error_code(response) == E_QUOTA && continuations < max_continuations)
+    while (typeof(response) == TYPE_ERR && error_code(response) == E_QUOTA && continuations < max_continuations)
       "Hit iteration limit - end current progress and ask user";
       if (tracking_active)
         this:_end_progress_tracking('complete);
@@ -827,7 +827,7 @@ object LLM_WEARABLE
     endwhile
     "End progress tracking";
     if (tracking_active)
-      final_status = typeof(response) == ERR ? 'error | 'complete;
+      final_status = typeof(response) == TYPE_ERR ? 'error | 'complete;
       this:_end_progress_tracking(final_status);
     endif
     "Reset iteration counter";
@@ -835,12 +835,12 @@ object LLM_WEARABLE
     "Show token usage summary";
     this:_show_token_usage(player);
     "Check if we exhausted all continuations";
-    if (typeof(response) == ERR && error_code(response) == E_QUOTA)
+    if (typeof(response) == TYPE_ERR && error_code(response) == E_QUOTA)
       player:inform_current($event:mk_error(player, "Agent reached maximum iterations even after " + tostr(max_continuations) + " continuations. Task may be too complex."));
       return;
     endif
     "If response is still an ERR but not E_QUOTA, display it as an error";
-    if (typeof(response) == ERR)
+    if (typeof(response) == TYPE_ERR)
       player:inform_current($event:mk_error(player, "Error: " + toliteral(response)));
       return;
     endif

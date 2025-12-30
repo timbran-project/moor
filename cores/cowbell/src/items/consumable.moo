@@ -9,7 +9,7 @@ object CONSUMABLE
   property consume_denied_msg (owner: #-1, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "can't", .for_others = "can't">,
+    <SUB, .capitalize = false, .for_self = "can't", .type = 'self_alt, .for_others = "can't">,
     " consume ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -17,7 +17,7 @@ object CONSUMABLE
   property consume_msg (owner: #-1, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "consume", .for_others = "consumes">,
+    <SUB, .capitalize = false, .for_self = "consume", .type = 'self_alt, .for_others = "consumes">,
     " ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -30,7 +30,7 @@ object CONSUMABLE
   property finish_msg (owner: #-1, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "finish", .for_others = "finishes">,
+    <SUB, .capitalize = false, .for_self = "finish", .type = 'self_alt, .for_others = "finishes">,
     " ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."

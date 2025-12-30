@@ -337,9 +337,9 @@ object SUB
 
   verb phrase (this none this) owner: HACKER flags: "rxd"
     {text, ?options = []} = args;
-    typeof(text) != STR && return "";
-    strip_period = typeof(options) == LIST && 'strip_period in options;
-    initial_lowercase = typeof(options) == LIST && 'initial_lowercase in options;
+    typeof(text) != TYPE_STR && return "";
+    strip_period = typeof(options) == TYPE_LIST && 'strip_period in options;
+    initial_lowercase = typeof(options) == TYPE_LIST && 'initial_lowercase in options;
     strip_period && length(text) && text[$] == "." && (text = text[1..$ - 1]);
     initial_lowercase && length(text) && (text = text[1]:lowercase() + (length(text) >= 2 ? text[2..$] | ""));
     return text;
@@ -384,18 +384,18 @@ object SUB
     this.type == 'iobj_verb_look && return valid(event.iobj) ? event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
     if (this.type == 'self_alt)
       value = event.actor == render_for ? this.for_self | this.for_others;
-      typeof(value) == FLYWEIGHT && `value.type ! E_PROPNF => false' && return value:eval_sub(event, render_for);
+      typeof(value) == TYPE_FLYWEIGHT && `value.type ! E_PROPNF => false' && return value:eval_sub(event, render_for);
       return value;
     endif
     if (this.type == 'binding)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
       binding_value == false && return "<no-binding>";
-      typeof(binding_value) == OBJ && binding_value == render_for && return "you";
+      typeof(binding_value) == TYPE_OBJ && binding_value == render_for && return "you";
       return `binding_value:name() ! E_VERBNF => tostr(binding_value)';
     endif
     if (this.type == 'article_a)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      binding_value == false || typeof(binding_value) != OBJ && return "";
+      binding_value == false || typeof(binding_value) != TYPE_OBJ && return "";
       capitalize_name = `this.capitalize_binding ! E_PROPNF => false';
       is_self = binding_value == render_for;
       is_proper = `binding_value:is_proper_noun() ! E_VERBNF => false';
@@ -408,7 +408,7 @@ object SUB
     endif
     if (this.type == 'article_the)
       binding_value = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
-      binding_value == false || typeof(binding_value) != OBJ && return "";
+      binding_value == false || typeof(binding_value) != TYPE_OBJ && return "";
       capitalize_name = `this.capitalize_binding ! E_PROPNF => false';
       is_self = binding_value == render_for;
       is_proper = `binding_value:is_proper_noun() ! E_VERBNF => false';
@@ -533,7 +533,7 @@ object SUB
   verb a_or_an (this none this) owner: HACKER flags: "rxd"
     "Return 'a' or 'an' depending on the word. Handles exceptions like 'unicycle'.";
     {word} = args;
-    typeof(word) != STR || !length(word) && return "a";
+    typeof(word) != TYPE_STR || !length(word) && return "a";
     first = word[1]:lowercase();
     "Words starting with 'uni' or 'unu' use 'a' (pronounced 'yoo')";
     if (length(word) >= 3 && first == "u" && word[2]:lowercase() == "n" && index("iu", word[3]:lowercase()))
@@ -586,7 +586,7 @@ object SUB
   verb test_article_a_creation (this none this) owner: HACKER flags: "rxd"
     "Test a() article flyweight creation.";
     fw = this:a('test_binding);
-    typeof(fw) != FLYWEIGHT && return E_TYPE;
+    typeof(fw) != TYPE_FLYWEIGHT && return E_TYPE;
     fw.type != 'article_a && return E_ASSERT;
     fw.binding_name != 'test_binding && return E_ASSERT;
     fw.capitalize != false && return E_ASSERT;
@@ -604,7 +604,7 @@ object SUB
   verb test_article_the_creation (this none this) owner: HACKER flags: "rxd"
     "Test the() article flyweight creation.";
     fw = this:the('test_binding);
-    typeof(fw) != FLYWEIGHT && return E_TYPE;
+    typeof(fw) != TYPE_FLYWEIGHT && return E_TYPE;
     fw.type != 'article_the && return E_ASSERT;
     fw.binding_name != 'test_binding && return E_ASSERT;
     fw.capitalize != false && return E_ASSERT;
@@ -653,7 +653,7 @@ object SUB
   verb test_binding_creation (this none this) owner: HACKER flags: "rxd"
     "Test binding() flyweight creation.";
     fw = this:binding('test_name);
-    typeof(fw) != FLYWEIGHT && return E_TYPE;
+    typeof(fw) != TYPE_FLYWEIGHT && return E_TYPE;
     fw.type != 'binding && return E_ASSERT;
     fw.binding_name != 'test_name && return E_ASSERT;
     return true;
@@ -670,7 +670,7 @@ object SUB
   verb test_self_alt_creation (this none this) owner: HACKER flags: "rxd"
     "Test self_alt() flyweight creation.";
     fw = this:self_alt("for_self", "for_others");
-    typeof(fw) != FLYWEIGHT && return E_TYPE;
+    typeof(fw) != TYPE_FLYWEIGHT && return E_TYPE;
     fw.type != 'self_alt && return E_ASSERT;
     fw.for_self != "for_self" && return E_ASSERT;
     fw.for_others != "for_others" && return E_ASSERT;
