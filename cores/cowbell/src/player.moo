@@ -11,6 +11,7 @@ object PLAYER
   property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
   property email_address (owner: ARCH_WIZARD, flags: "") = "c";
   property features (owner: ARCH_WIZARD, flags: "rc") = {SOCIAL_FEATURES, MAIL_FEATURES};
+  property gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
   property home (owner: ARCH_WIZARD, flags: "rc");
@@ -21,6 +22,7 @@ object PLAYER
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
   property oauth2_identities (owner: ARCH_WIZARD, flags: "c") = {};
+  property object_gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
@@ -186,26 +188,6 @@ object PLAYER
     this:inform_current(event:with_audience('utility));
   endverb
 
-  verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Return the display string for the player's pronouns (e.g. 'they/them').";
-    {target, perms} = this:check_permissions('pronouns_display);
-    set_task_perms(perms);
-    return $pronouns:display(target.pronouns);
-  endverb
-
-  verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Programmatically set pronouns from a string like 'they/them'.";
-    {target, perms} = this:check_permissions('set_pronouns);
-    set_task_perms(perms);
-    {pronouns_str} = args;
-    typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
-    pronoun_set = $pronouns:lookup(pronouns_str:trim());
-    if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
-      raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
-    endif
-    target.pronouns = pronoun_set;
-  endverb
-
   verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
     set_task_perms(caller_perms());
     return !is_player(args[1]);
@@ -239,14 +221,6 @@ object PLAYER
     set_task_perms(perms);
     {new_password} = args;
     this.password = $password:mk(new_password);
-  endverb
-
-  verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
-    {this, perms} = this:check_permissions('set_home);
-    set_task_perms(perms);
-    {room} = args;
-    this.home = room;
   endverb
 
   verb "@password" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -644,105 +618,267 @@ object PLAYER
     this:inform_current(event);
   endverb
 
-  verb _format_examination (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Format examination data for display.";
-    "Args: {target}";
-    "Returns: [title -> str, html -> str, object_ref -> obj]";
-    {target} = args;
-    "Get the examination flyweight";
-    exam = target:examination();
-    typeof(exam) != TYPE_FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
-    "Build the display output";
-    lines = {};
-    "Header with object name, aliases, and number";
-    header_parts = {exam.name};
-    if (exam.aliases && length(exam.aliases) > 0)
-      header_parts = {@header_parts, "aka " + exam.aliases:join(" and ")};
-    endif
-    header_parts = {@header_parts, "and", tostr(exam.object_ref)};
-    header = header_parts:join(" ");
-    lines = {@lines, $format.title:mk(header)};
-    "Ownership";
-    if (valid(exam.owner))
-      owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
-      lines = {@lines, "Owned by " + owner_name + "."};
-    else
-      lines = {@lines, "(Unowned)"};
-    endif
-    "Description";
-    if (exam.description && exam.description != "")
-      lines = {@lines, exam.description};
-    else
-      lines = {@lines, "(No description set.)"};
-    endif
-    "Obvious verbs if any";
-    if (exam.verbs && length(exam.verbs) > 0)
-      lines = {@lines, ""};
-      verb_sigs = $obj_utils:format_verb_signatures(exam.verbs, exam.name);
-      verb_list = $format.list:mk(verb_sigs);
-      verb_title = $format.title:mk("Obvious verbs");
-      lines = {@lines, verb_title, verb_list};
-    endif
-    "Create formatted block and compose to HTML";
-    content = $format.block:mk(@lines);
-    html_fw = content:compose(this, 'text_html, $event:mk_info(this, ""));
-    html_str = html_fw:render('text_html);
-    return ["title" -> exam.name, "html" -> html_str, "object_ref" -> exam.object_ref];
-  endverb
-
-  verb do_examine (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "RPC entry point for examination - displays in tools panel.";
-    "Args: {target_object}";
-    set_task_perms(this);
-    {target} = args;
-    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be an object");
-    valid(target) || raise(E_INVARG, "Target is not a valid object");
-    "Format the examination";
-    result = this:_format_examination(target);
-    "Present in tools panel";
-    panel_id = "exam-" + tostr(target);
-    attrs = {{"title", result["title"]}, {"object", $url_utils:to_curie_str(target)}};
-    this:_present(this, panel_id, "text/html", "tools", result["html"], attrs);
-  endverb
-
-  verb "help what" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "help what" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Tell the player where they are and what's around.";
     "Display available commands and actions. If a target object is specified, show help for that object.";
     "If a topic name is given, search for help on that topic.";
     "Syntax: help [object|topic]";
+    "        help <topic>";
+    "        help <topic> from <source>";
+    "        help <source_ref>:<topic>";
+    "        help <category> <topic>";
+    "        help topic <topic>";
+    "        help object <ref>";
+    "        help source <source>";
     caller != this && raise(E_PERM);
     set_task_perms(this);
-    if (dobjstr && dobjstr != "")
-      "First try to match an object";
-      target_obj = `$match:match_object(dobjstr, this) ! ANY => $failed_match';
-      if (valid(target_obj))
-        result = this:_show_targeted_help(target_obj);
-        lines = result[1];
-        if (this.programmer)
-          lines = {@lines, "", $format.title:mk("Try programmer documentation with:")};
-          lines = {@lines, $format.code:mk("@doc " + dobjstr + "\n@doc " + dobjstr + ":verb")};
+    "No argument - show help summary";
+    if (!dobjstr || dobjstr == "")
+      lines = {};
+      "Location context first";
+      context_block = `$help_utils:display_location_context(this) ! ANY => 0';
+      if (context_block && context_block != 0)
+        lines = {@lines, context_block};
+      endif
+      "Help topics near the top";
+      topics = this:_collect_help_topics();
+      if (length(topics) > 0)
+        topic_names = {};
+        for t in (topics)
+          if (!(t.name in topic_names))
+            topic_names = {@topic_names, t.name};
+          endif
+        endfor
+        lines = {@lines, "", $format.title:mk("Help Topics", 4)};
+        lines = {@lines, $format.code:mk(topic_names:join(", "))};
+        lines = {@lines, "Type 'help <topic>' for details."};
+      endif
+      "Then commands";
+      cmd_env = this:command_environment();
+      ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
+      lines = this:_display_ambient_verbs(ambient_verbs, lines);
+      if (length(ambient_verbs) == 0)
+        lines = {@lines, "(No commands available)"};
+      endif
+      lines = {@lines, "", $format.title:mk("Need more detail?", 4)};
+      lines = {@lines, $format.code:mk("help <thing>\nexamine <thing>")};
+      lines = {@lines, "Use these on anything listed above to see its specific commands or description."};
+      if (this.programmer)
+        lines = {@lines, "", $format.title:mk("To look for programmer documentation...")};
+        lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
+      endif
+      content = $format.block:mk($format.title:mk("Help"), @lines);
+      event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+      event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+      this:inform_current(event);
+      return;
+    endif
+    query = dobjstr:trim();
+    force_topic = false;
+    force_object = false;
+    "Allow explicit disambiguation via leading keyword in dobjstr.";
+    if (index(query, "topic ") == 1)
+      force_topic = true;
+      query = query[7..$]:trim();
+    elseif (index(query, "object ") == 1)
+      force_object = true;
+      query = query[8..$]:trim();
+    endif
+    if (!query)
+      return this:inform_current($event:mk_error(this, "Usage: help [topic|object|source] <name>"):with_audience('utility));
+    endif
+    "Support: help source (list)";
+    if (query in {"source", "sources"})
+      return this:_display_help_sources();
+    endif
+    "Support: help source <source>";
+    if (index(query, "source ") == 1)
+      source_query = query[8..$]:trim();
+      if (!source_query)
+        return this:_display_help_sources();
+      endif
+      env = this:help_environment();
+      sources = {};
+      keys = {};
+      for o in (env)
+        if (!o.r)
+          continue;
         endif
-        content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
+        if (!respond_to(o, 'help_topics))
+          continue;
+        endif
+        name = `o.name ! ANY => ""';
+        if (!name)
+          continue;
+        endif
+        al = `o.aliases ! ANY => {}';
+        key_list = {name};
+        if (typeof(al) == TYPE_LIST)
+          for a in (al)
+            if (typeof(a) == TYPE_STR && a)
+              key_list = {@key_list, a};
+            endif
+          endfor
+        endif
+        sources = {@sources, o};
+        keys = {@keys, key_list};
+      endfor
+      if (!sources)
+        return this:inform_current($event:mk_error(this, "No help sources are available here."):with_audience('utility));
+      endif
+      src = complex_match(source_query, sources, keys, 0.3);
+      if (src == $failed_match)
+        names = {};
+        for s in (sources)
+          names = {@names, s.name};
+        endfor
+        content = $format.block:mk($format.title:mk("Unknown Help Source"), $format.paragraph:mk("No help source matches '" + source_query + "'."), "", $format.list:mk(names), "", $format.paragraph:mk("Try: `help source <name>`"));
         event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
         event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
         this:inform_current(event);
         return;
       endif
-      "No object match - try topic search";
-      topic_result = this:find_help_topic(dobjstr);
-      if (typeof(topic_result) == TYPE_LIST)
-        "Multiple matches - show disambiguation";
-        lines = {"Multiple help topics match '" + dobjstr + "':", ""};
-        for match in (topic_result)
-          {source, topic} = match;
-          source_name = `source.name ! ANY => tostr(source)';
-          lines = {@lines, "  " + topic.name + " (from " + source_name + ")"};
+      topics = `src:help_topics(this, "") ! ANY => {}';
+      lines = {"Help topics from " + src.name + ":", ""};
+      if (!topics || typeof(topics) != TYPE_LIST)
+        lines = {@lines, "(No topics)"};
+      else
+        for t in (topics)
+          if (typeof(t) != TYPE_FLYWEIGHT)
+            continue;
+          endif
+          summary = `t.summary ! ANY => ""';
+          if (summary)
+            lines = {@lines, "  " + t.name + " - " + summary};
+          else
+            lines = {@lines, "  " + t.name};
+          endif
         endfor
-        lines = {@lines, "", "Be more specific, or try 'help <source>' to see related topics."};
-        content = $format.block:mk($format.title:mk("Ambiguous Topic"), @lines);
-        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-        this:inform_current(event);
-        return;
+      endif
+      lines = {@lines, "", "Tip: help <topic> from " + src.name};
+      content = $format.block:mk($format.title:mk("Help Source"), lines:join("\n"));
+      event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+      event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+      this:inform_current(event);
+      return;
+    endif
+    "Support: help <source_ref>:<topic> (e.g. help $prog_features:@list)";
+    parts = query:split(":");
+    if (length(parts) >= 2)
+      topic_query = parts[$]:trim();
+      source_ref = parts[1..$ - 1]:join(":"):trim();
+      if (source_ref && topic_query)
+        src = `$match:match_object(source_ref, this) ! ANY => $failed_match';
+        if (valid(src) && respond_to(src, 'help_topics))
+          topic_result = `src:help_topics(this, topic_query) ! ANY => 0';
+          if (typeof(topic_result) != TYPE_INT)
+            prose_lines = topic_result:render_prose();
+            content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
+            event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+            event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+            this:inform_current(event);
+            return;
+          endif
+          return this:inform_current($event:mk_error(this, "No help found for '" + topic_query + "' from " + src.name + "."):with_audience('utility));
+        endif
+      endif
+    endif
+    "Heuristic disambiguation:";
+    "- '#...' or '$...' are almost certainly object references";
+    "- '@...' is almost certainly a command/help topic (not a player reference)";
+    if (!force_topic && !force_object)
+      if (query[1] in {"#", "$"})
+        force_object = true;
+      elseif (query[1] == "@")
+        force_topic = true;
+      endif
+    endif
+    "Detect scoped topic lookup: either via preposition ('from') or inline ' from ...' in dobjstr.";
+    source_scope = "";
+    if (prepstr == "from" && iobjstr && iobjstr != "")
+      source_scope = iobjstr:trim();
+    elseif (index(query, " from ") > 0)
+      pos = index(query, " from ");
+      source_scope = query[pos + 6..$]:trim();
+      query = query[1..pos - 1]:trim();
+    endif
+    "Support: help <category> <topic> (e.g. help programming @list)";
+    cat_query = "";
+    rest_query = "";
+    words = query:split(" ");
+    if (length(words) >= 2)
+      cat_query = words[1];
+      rest_query = words[2..$]:join(" "):trim();
+      if (cat_query && rest_query)
+        base = this:find_help_topic(rest_query);
+        if (typeof(base) == TYPE_LIST)
+          filtered = {};
+          cat_sym = 0;
+          try
+            cat_sym = tosym(cat_query);
+          except e (ANY)
+            cat_sym = 0;
+          endtry
+          for match in (base)
+            {source, topic} = match;
+            if (typeof(topic) != TYPE_FLYWEIGHT)
+              continue;
+            endif
+            if (cat_sym && topic.category == cat_sym)
+              filtered = {@filtered, match};
+            endif
+          endfor
+          if (length(filtered) == 1)
+            topic = filtered[1][2];
+            prose_lines = topic:render_prose();
+            content = $format.block:mk($format.title:mk(topic.name), @prose_lines);
+            event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+            event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+            this:inform_current(event);
+            return;
+          endif
+        endif
+      endif
+    endif
+    "Topics first (unless user forced object).";
+    if (!force_object)
+      if (source_scope)
+        force_topic = true;
+        env = this:help_environment();
+        sources = {};
+        keys = {};
+        for o in (env)
+          if (!o.r)
+            continue;
+          endif
+          if (!respond_to(o, 'help_topics))
+            continue;
+          endif
+          name = `o.name ! ANY => ""';
+          if (!name)
+            continue;
+          endif
+          sources = {@sources, o};
+          keys = {@keys, {name}};
+        endfor
+        src = complex_match(source_scope, sources, keys, 0.3);
+        if (src == $failed_match)
+          return this:inform_current($event:mk_error(this, "No help source matches '" + source_scope + "'. Try: help source <source>"):with_audience('utility));
+        endif
+        topic_result = `src:help_topics(this, query) ! ANY => 0';
+        if (typeof(topic_result) != TYPE_INT)
+          prose_lines = topic_result:render_prose();
+          content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
+          event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+          event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          this:inform_current(event);
+          return;
+        endif
+        return this:inform_current($event:mk_error(this, "No help found for '" + query + "' from " + src.name + "."):with_audience('utility));
+      endif
+      topic_result = this:find_help_topic(query);
+      if (typeof(topic_result) == TYPE_LIST)
+        return this:_display_ambiguous_topic_matches(query, topic_result);
       elseif (typeof(topic_result) != TYPE_INT)
         prose_lines = topic_result:render_prose();
         content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
@@ -751,51 +887,80 @@ object PLAYER
         this:inform_current(event);
         return;
       endif
-      "Neither object nor topic found - try LLM suggestions";
-      if (!this:suggest_help_topic(dobjstr))
-        "LLM not available, show static error";
-        this:inform_current($event:mk_error(this, "No help found for '" + dobjstr + "'. Try 'help' to see available topics."):with_audience('utility));
-      endif
-      return;
     endif
-    "No argument - show help summary";
-    lines = {};
-    "Location context first";
-    context_block = `$help_utils:display_location_context(this) ! ANY => 0';
-    if (context_block && context_block != 0)
-      lines = {@lines, context_block};
-    endif
-    "Help topics near the top";
-    topics = this:_collect_help_topics();
-    if (length(topics) > 0)
-      topic_names = {};
-      for t in (topics)
-        if (!(t.name in topic_names))
-          topic_names = {@topic_names, t.name};
+    "No topic match (or forced object) - try object help unless forced topic.";
+    if (!force_topic)
+      target_obj = $failed_match;
+      if (force_object || query in {"here", "me", "myself", "player"} || query[1] in {"#", "$"})
+        target_obj = `$match:match_object(query, this) ! ANY => $failed_match';
+      else
+        "Strict-ish match only against direct scope: me, here, room contents, inventory.";
+        targets = {};
+        if (valid(this))
+          targets = {@targets, this};
         endif
-      endfor
-      lines = {@lines, "", $format.title:mk("Help Topics", 4)};
-      lines = {@lines, $format.code:mk(topic_names:join(", "))};
-      lines = {@lines, "Type 'help <topic>' for details."};
+        if (valid(this.location))
+          targets = {@targets, this.location};
+          for item in (this.location.contents)
+            if (item != this)
+              targets = {@targets, item};
+            endif
+          endfor
+        endif
+        for item in (this.contents)
+          targets = {@targets, item};
+        endfor
+        keys = {};
+        final_targets = {};
+        for obj in (targets)
+          if (typeof(obj) != TYPE_OBJ || !valid(obj))
+            continue;
+          endif
+          "Respect readability if available.";
+          try
+            if (!obj.r)
+              continue;
+            endif
+          except e (ANY)
+          endtry
+          name = `obj.name ! ANY => ""';
+          if (!name)
+            continue;
+          endif
+          al = `obj.aliases ! ANY => {}';
+          key_list = {name};
+          if (typeof(al) == TYPE_LIST)
+            for a in (al)
+              if (typeof(a) == TYPE_STR && a)
+                key_list = {@key_list, a};
+              endif
+            endfor
+          endif
+          final_targets = {@final_targets, obj};
+          keys = {@keys, key_list};
+        endfor
+        if (final_targets)
+          target_obj = complex_match(query, final_targets, keys, 0.3);
+        endif
+      endif
+      if (valid(target_obj))
+        result = this:_show_targeted_help(target_obj);
+        lines = result[1];
+        if (this.programmer)
+          lines = {@lines, "", $format.title:mk("Try programmer documentation with:")};
+          lines = {@lines, $format.code:mk("@doc " + query + "\n@doc " + query + ":verb")};
+        endif
+        content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
+        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+        event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+        this:inform_current(event);
+        return;
+      endif
     endif
-    "Then commands";
-    cmd_env = this:command_environment();
-    ambient_verbs = $obj_utils:collect_ambient_verbs(cmd_env);
-    lines = this:_display_ambient_verbs(ambient_verbs, lines);
-    if (length(ambient_verbs) == 0)
-      lines = {@lines, "(No commands available)"};
+    "Neither object nor topic found - try LLM suggestions";
+    if (!this:suggest_help_topic(query))
+      this:inform_current($event:mk_error(this, "No help found for '" + query + "'. Try 'help' to see available topics."):with_audience('utility));
     endif
-    lines = {@lines, "", $format.title:mk("Need more detail?", 4)};
-    lines = {@lines, $format.code:mk("help <thing>\nexamine <thing>")};
-    lines = {@lines, "Use these on anything listed above to see its specific commands or description."};
-    if (this.programmer)
-      lines = {@lines, "", $format.title:mk("To look for programmer documentation...")};
-      lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
-    endif
-    content = $format.block:mk($format.title:mk("Help"), @lines);
-    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    this:inform_current(event);
   endverb
 
   verb _show_location_help (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1376,14 +1541,6 @@ object PLAYER
     endif
   endverb
 
-  verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
-    {this, perms} = this:check_permissions('set_home);
-    set_task_perms(perms);
-    {room} = args;
-    this.home = room;
-  endverb
-
   verb _format_examination (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Format examination data for display.";
     "Args: {target}";
@@ -1443,19 +1600,6 @@ object PLAYER
     panel_id = "exam-" + tostr(target);
     attrs = {{"title", result["title"]}, {"object", $url_utils:to_curie_str(target)}};
     this:_present(this, panel_id, "text/html", "tools", result["html"], attrs);
-  endverb
-
-  verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Programmatically set pronouns from a string like 'they/them'.";
-    {target, perms} = this:check_permissions('set_pronouns);
-    set_task_perms(perms);
-    {pronouns_str} = args;
-    typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
-    pronoun_set = $pronouns:lookup(pronouns_str:trim());
-    if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
-      raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
-    endif
-    target.pronouns = pronoun_set;
   endverb
 
   verb suggest_command_alternatives (this none none) owner: ARCH_WIZARD flags: "rxd"
@@ -1768,5 +1912,317 @@ object PLAYER
       endtry
     endfork
     return true;
+  endverb
+
+  verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return the display string for the player's pronouns (e.g. 'they/them').";
+    {target, perms} = this:check_permissions('pronouns_display);
+    set_task_perms(perms);
+    return $pronouns:display(target.pronouns);
+  endverb
+
+  verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Programmatically set pronouns from a string like 'they/them'.";
+    {target, perms} = this:check_permissions('set_pronouns);
+    set_task_perms(perms);
+    {pronouns_str} = args;
+    typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
+    pronoun_set = $pronouns:lookup(pronouns_str:trim());
+    if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
+      raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
+    endif
+    target.pronouns = pronoun_set;
+  endverb
+
+  verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
+    {this, perms} = this:check_permissions('set_home);
+    set_task_perms(perms);
+    {room} = args;
+    this.home = room;
+  endverb
+
+  verb "@gag" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "Add a player or object to your gag list.";
+    "Usage: @gag <player|object>";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    if (!args || length(args) < 1)
+      return this:inform_current($event:mk_error(this, "Usage: @gag <player|object>"):with_audience('utility));
+    endif
+    ref = args:join(" ");
+    target = 0;
+    "If it looks like an explicit object reference (#..., $..., @...), resolve it as such.";
+    if (length(ref) >= 1 && ref[1] in {"#", "$", "@"})
+      try
+        target = $match:match_object(ref, this);
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "I can't find '" + ref + "' to gag."):with_audience('utility));
+      endtry
+    else
+      "Try matching a player anywhere by name.";
+      try
+        target = $match:match_player(ref, this);
+      except e (E_INVARG)
+        "Fall back to matching an object in scope (here, inventory, room, etc.).";
+        try
+          target = $match:match_object(ref, this);
+        except e2 (ANY)
+          return this:inform_current($event:mk_error(this, "I can't find '" + ref + "' to gag."):with_audience('utility));
+        endtry
+      endtry
+    endif
+    if (target == this)
+      return this:inform_current($event:mk_error(this, "You can't gag yourself."):with_audience('utility));
+    endif
+    if (is_player(target))
+      gl = this.gaglist;
+      if (target in gl)
+        return this:inform_current($event:mk_error(this, target:name() + " is already gagged."):with_audience('utility));
+      endif
+      this.gaglist = {@gl, target};
+      this:inform_current($event:mk_say(this, "You gag ", target:name(), "."):with_audience('utility));
+    else
+      ogl = this.object_gaglist;
+      if (target in ogl)
+        return this:inform_current($event:mk_error(this, target:name() + " is already gagged."):with_audience('utility));
+      endif
+      this.object_gaglist = {@ogl, target};
+      this:inform_current($event:mk_say(this, "You gag ", target:name(), "."):with_audience('utility));
+    endif
+    return this:listgag();
+  endverb
+
+  verb "@ungag" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "Remove a player or object from your gag list.";
+    "Usage: @ungag <player|object>";
+    "       @ungag everyone";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    if (!args || length(args) < 1)
+      return this:inform_current($event:mk_error(this, "Usage: @ungag <player|object> | @ungag everyone"):with_audience('utility));
+    endif
+    ref = args:join(" ");
+    if (ref == "everyone")
+      this.gaglist = {};
+      this.object_gaglist = {};
+      this:inform_current($event:mk_say(this, "You clear your gag lists."):with_audience('utility));
+      return this:listgag();
+    endif
+    "Try to resolve a player/object reference first.";
+    target = 0;
+    if (length(ref) >= 1 && ref[1] in {"#", "$", "@"})
+      try
+        target = $match:match_object(ref, this);
+      except e (ANY)
+        target = 0;
+      endtry
+    else
+      try
+        target = $match:match_player(ref, this);
+      except e (E_INVARG)
+        try
+          target = $match:match_object(ref, this);
+        except e2 (ANY)
+          target = 0;
+        endtry
+      endtry
+    endif
+    if (typeof(target) == TYPE_OBJ && valid(target))
+      if (is_player(target))
+        gl = this.gaglist;
+        if (!(target in gl))
+          return this:inform_current($event:mk_error(this, target:name() + " is not gagged."):with_audience('utility));
+        endif
+        new = {};
+        for o in (gl)
+          if (o != target)
+            new = {@new, o};
+          endif
+        endfor
+        this.gaglist = new;
+        this:inform_current($event:mk_say(this, "You ungag ", target:name(), "."):with_audience('utility));
+        return this:listgag();
+      else
+        ogl = this.object_gaglist;
+        if (!(target in ogl))
+          return this:inform_current($event:mk_error(this, target:name() + " is not gagged."):with_audience('utility));
+        endif
+        new = {};
+        for o in (ogl)
+          if (o != target)
+            new = {@new, o};
+          endif
+        endfor
+        this.object_gaglist = new;
+        this:inform_current($event:mk_say(this, "You ungag ", target:name(), "."):with_audience('utility));
+        return this:listgag();
+      endif
+    endif
+    "If it didn't resolve, attempt to match against existing gag lists.";
+    match = 0;
+    try
+      match = complex_match(ref, this.gaglist);
+    except e (ANY)
+      match = $failed_match;
+    endtry
+    if (match != $failed_match)
+      gl = this.gaglist;
+      new = {};
+      for o in (gl)
+        if (o != match)
+          new = {@new, o};
+        endif
+      endfor
+      this.gaglist = new;
+      this:inform_current($event:mk_say(this, "You ungag ", match:name(), "."):with_audience('utility));
+      return this:listgag();
+    endif
+    try
+      match = complex_match(ref, this.object_gaglist);
+    except e (ANY)
+      match = $failed_match;
+    endtry
+    if (match != $failed_match)
+      ogl = this.object_gaglist;
+      new = {};
+      for o in (ogl)
+        if (o != match)
+          new = {@new, o};
+        endif
+      endfor
+      this.object_gaglist = new;
+      this:inform_current($event:mk_say(this, "You ungag ", match:name(), "."):with_audience('utility));
+      return this:listgag();
+    endif
+    return this:inform_current($event:mk_error(this, "'" + ref + "' isn't on your gag lists."):with_audience('utility));
+  endverb
+
+  verb "@listgag listgag" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "List players/objects you have gagged, and (optionally) who has gagged you.";
+    caller != this && raise(E_PERM);
+    set_task_perms(this);
+    from_command = !callers();
+    lines = {};
+    "Player gag list";
+    if (this.gaglist && length(this.gaglist) > 0)
+      lines = {@lines, "Gagged players:"};
+      for p in (this.gaglist)
+        if (valid(p))
+          lines = {@lines, "  " + p:name()};
+        endif
+      endfor
+    else
+      lines = {@lines, "Gagged players: (none)"};
+    endif
+    "Object gag list";
+    if (this.object_gaglist && length(this.object_gaglist) > 0)
+      lines = {@lines, "Gagged objects:"};
+      for o in (this.object_gaglist)
+        if (valid(o))
+          lines = {@lines, "  " + o:name()};
+        endif
+      endfor
+    else
+      lines = {@lines, "Gagged objects: (none)"};
+    endif
+    "Only do the database scan when invoked as a player command.";
+    if (from_command)
+      gaggers = {};
+      for p in (players())
+        if (p != this)
+          try
+            if (this in p.gaglist)
+              gaggers = {@gaggers, p};
+            endif
+          except e (E_PROPNF)
+          endtry
+        endif
+      endfor
+      if (gaggers && length(gaggers) > 0)
+        lines = {@lines, "", "You are gagged by:"};
+        for p in (gaggers)
+          if (valid(p))
+            lines = {@lines, "  " + p:name()};
+          endif
+        endfor
+      endif
+    endif
+    return this:inform_current($event:mk_say(this, lines:join("\n")):with_audience('utility));
+  endverb
+
+  verb _display_ambiguous_topic_matches (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Display a nicely formatted ambiguous-topic help panel.";
+    {query, matches} = args;
+    typeof(query) != TYPE_STR && (query = tostr(query));
+    typeof(matches) != TYPE_LIST && (matches = {});
+    items = {};
+    for match in (matches)
+      if (typeof(match) != TYPE_LIST || length(match) < 2)
+        continue;
+      endif
+      {source, topic} = match;
+      if (typeof(topic) != TYPE_FLYWEIGHT)
+        continue;
+      endif
+      source_name = `source.name ! ANY => tostr(source)';
+      summary = `topic.summary ! ANY => ""';
+      cat = `tostr(topic.category) ! ANY => ""';
+      "Primary (novice-friendly) disambiguation: natural language.";
+      lines = {};
+      header = topic.name;
+      summary && (header = header + " - " + summary);
+      header = header + " (from " + source_name + ")";
+      lines = {@lines, header};
+      lines = {@lines, "    Try: `help " + topic.name + " from " + source_name + "`"};
+      "Secondary (expert) options.";
+      if (this.programmer)
+        source_ref = toliteral(source);
+        source == $prog_features && (source_ref = "$prog_features");
+        source == $sysobj.help_topics && (source_ref = "$sysobj.help_topics");
+        lines = {@lines, "    Advanced: `help " + source_ref + ":" + topic.name + "`"};
+        cat && (lines = {@lines, "    Advanced: `help " + cat + " " + topic.name + "`"});
+      endif
+      items = {@items, lines:join("\n")};
+    endfor
+    content = $format.block:mk($format.title:mk("Ambiguous Topic"), $format.paragraph:mk("Multiple help topics match '" + query + "':"), "", $format.list:mk(items), "", $format.paragraph:mk("Be more specific, or browse with: `help source`"));
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    this:inform_current(event);
+    return;
+  endverb
+
+  verb _display_help_sources (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "List help sources available in the player's current help environment.";
+    env = this:help_environment();
+    sources = {};
+    for o in (env)
+      if (!o.r)
+        continue;
+      endif
+      if (!respond_to(o, 'help_topics))
+        continue;
+      endif
+      name = `o.name ! ANY => ""';
+      if (!name)
+        continue;
+      endif
+      sources = {@sources, name};
+    endfor
+    "De-dup";
+    unique = {};
+    for name in (sources)
+      if (!(name in unique))
+        unique = {@unique, name};
+      endif
+    endfor
+    if (!unique)
+      return this:inform_current($event:mk_error(this, "No help sources are available here."):with_audience('utility));
+    endif
+    content = $format.block:mk($format.title:mk("Help Sources"), $format.paragraph:mk("These objects provide help topics in your current context:"), "", $format.list:mk(unique), "", $format.paragraph:mk("Try: `help source <name>`"));
+    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
+    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    this:inform_current(event);
+    return;
   endverb
 endobject
