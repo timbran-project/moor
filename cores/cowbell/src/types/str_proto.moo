@@ -458,73 +458,87 @@ object STR_PROTO
     if (!trimmed)
       return {"", {}};
     endif
-    fn tokenize(input)
-      let tokens = {};
-      let current = "";
-      let in_quotes = false;
-      let i = 1;
-      while (i <= length(input))
-        let ch = input[i];
-        if (ch == "\\" && i < length(input))
-          current = current + input[i + 1];
-          i = i + 2;
-          continue;
-        endif
-        if (ch == "\"")
-          in_quotes = !in_quotes;
-          current = current + ch;
-          i = i + 1;
-          continue;
-        endif
-        if (!in_quotes && ch == ",")
-          tokens = {@tokens, current};
-          current = "";
-          i = i + 1;
-          continue;
-        endif
+    "Split on colon if present (LambdaCore-style name:alias,alias)";
+    colon_parts = this:to_list(trimmed, ":");
+    use_colon = length(colon_parts) >= 2;
+    if (use_colon)
+      primary_raw = colon_parts[1];
+      alias_input = colon_parts[2];
+    else
+      primary_raw = "";
+      alias_input = trimmed;
+    endif
+    "Tokenize comma-separated values, respecting quoted commas and backslash escapes";
+    tokens = {};
+    current = "";
+    in_quotes = false;
+    i = 1;
+    while (i <= length(alias_input))
+      ch = alias_input[i];
+      if (ch == "\\" && i < length(alias_input))
+        current = current + alias_input[i + 1];
+        i = i + 2;
+        continue;
+      endif
+      if (ch == "\"")
+        in_quotes = !in_quotes;
         current = current + ch;
         i = i + 1;
+        continue;
+      endif
+      if (!in_quotes && ch == ",")
+        tokens = {@tokens, current};
+        current = "";
+        i = i + 1;
+        continue;
+      endif
+      current = current + ch;
+      i = i + 1;
+    endwhile
+    tokens = {@tokens, current};
+    "For comma-only form, tokens[1] is primary";
+    if (!use_colon)
+      primary_raw = tokens[1];
+      tokens = length(tokens) > 1 ? tokens[2..$] | {};
+    endif
+    "Unquote primary";
+    primary = primary_raw:trim();
+    if (length(primary) >= 2 && primary[1] == "\"" && primary[$] == "\"")
+      inner = "";
+      j = 2;
+      limit = length(primary) - 1;
+      while (j <= limit)
+        ch = primary[j];
+        if (ch == "\\" && j < limit)
+          inner = inner + primary[j + 1];
+          j = j + 2;
+          continue;
+        endif
+        inner = inner + ch;
+        j = j + 1;
       endwhile
-      tokens = {@tokens, current};
-      return tokens;
-    endfn
-    fn unquote(text)
-      let s = text:trim();
-      if (length(s) >= 2 && s[1] == "\"" && s[$] == "\"")
-        let inner = "";
-        let i = 2;
-        let limit = length(s) - 1;
-        while (i <= limit)
-          let ch = s[i];
-          if (ch == "\\" && i < limit)
-            inner = inner + s[i + 1];
-            i = i + 2;
+      primary = inner;
+    endif
+    "Unquote, trim, and dedupe aliases";
+    aliases = {};
+    for alias_raw in (tokens)
+      alias = alias_raw:trim();
+      if (length(alias) >= 2 && alias[1] == "\"" && alias[$] == "\"")
+        inner = "";
+        j = 2;
+        limit = length(alias) - 1;
+        while (j <= limit)
+          ch = alias[j];
+          if (ch == "\\" && j < limit)
+            inner = inner + alias[j + 1];
+            j = j + 2;
             continue;
           endif
           inner = inner + ch;
-          i = i + 1;
+          j = j + 1;
         endwhile
-        return inner;
+        alias = inner;
       endif
-      return s;
-    endfn
-    "Check if colon-separated format (name:alias,alias)";
-    colon_parts = this:to_list(trimmed, ":");
-    if (length(colon_parts) >= 2)
-      primary = unquote(colon_parts[1]);
-      alias_tokens = tokenize(colon_parts[2]);
-    else
-      "Comma-separated format (name,alias,alias)";
-      all_tokens = tokenize(trimmed);
-      if (!all_tokens)
-        return {"", {}};
-      endif
-      primary = unquote(all_tokens[1]);
-      alias_tokens = length(all_tokens) > 1 ? all_tokens[2..$] | {};
-    endif
-    aliases = {};
-    for alias in (alias_tokens)
-      alias = unquote(alias);
       if (!alias || alias == primary)
         continue;
       endif
@@ -532,6 +546,7 @@ object STR_PROTO
         aliases = {@aliases, alias};
       endif
     endfor
+    "If primary is missing, promote first alias";
     if (!primary)
       primary = aliases ? aliases[1] | "";
       aliases = primary ? aliases[2..$] | {};

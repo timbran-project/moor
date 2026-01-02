@@ -403,8 +403,8 @@ object LOGIN
     setup_cap = cap:make_player();
     "Grab the actual underlying object for other uses";
     new_player = setup_cap.delegate;
+    "Configure the player while we still have temporary ownership (run_as)";
     setup_cap:set_player_flag(1);
-    setup_cap:set_owner(new_player);
     setup_cap:set_name_aliases(player_name, {player_name});
     if (password_value)
       setup_cap:set_password(password_value);
@@ -416,11 +416,38 @@ object LOGIN
       setup_cap:set_oauth2_identities(oauth_entries);
     endif
     "Set the player's home to the default home (e.g., the dormitory)";
-    default_home = `this.default_home ! E_PROPNF => $nothing';
+    default_home = $nothing;
+    try
+      default_home = this.default_home;
+    except ex (E_PROPNF)
+      default_home = $nothing;
+    endtry
     if (valid(default_home))
-      setup_cap:set_home(default_home);
+      "Note: set_home is capability-gated and may not be granted; log failures.";
+      try
+        setup_cap:set_home(default_home);
+      except ex (ANY)
+        server_log(tostr("_create_player: couldn't set home for ", new_player, ": ", ex));
+      endtry
     endif
-    `setup_cap:moveto($first_room) ! ANY';
+    "Move the player into the first room BEFORE handing ownership to the player.";
+    start_room = $nothing;
+    try
+      start_room = $first_room;
+    except ex (E_PROPNF)
+      start_room = $nothing;
+    endtry
+    if (valid(start_room))
+      try
+        setup_cap:moveto(start_room);
+      except ex (ANY)
+        server_log(tostr("_create_player: couldn't move ", new_player, " to ", start_room, ": ", ex));
+      endtry
+    else
+      server_log(tostr("_create_player: #0.first_room not valid; leaving ", new_player, " where it is"));
+    endif
+    "Now hand ownership to the player (self-owned)";
+    setup_cap:set_owner(new_player);
     return new_player;
   endverb
 

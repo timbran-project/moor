@@ -14,7 +14,7 @@ object HOUSEKEEPING
   verb sweep (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Sweep disconnected players back to their home rooms.";
     "Called periodically by the scheduler.";
-    set_task_perms($hacker);
+    caller_perms().wizard || raise(E_PERM);
     connected = connected_players();
     "Collect all swept players and their origin rooms";
     swept = {};
@@ -23,14 +23,12 @@ object HOUSEKEEPING
       if (p in connected)
         continue;
       endif
-      "Skip players without a valid location";
-      if (typeof(p.location) != TYPE_OBJ || !valid(p.location))
-        continue;
-      endif
       "Skip players without a valid home";
       home = `p.home ! E_PROPNF => #-1';
       if (typeof(home) != TYPE_OBJ || !valid(home))
-        continue;
+        server_log("Player with no home: " + tostr(p) + " (" + p.name + ") .. resetting to $login.default_home");
+        p.home = $login.default_home;
+        home = p.home;
       endif
       "Skip players already at home";
       if (p.location == home)
@@ -41,6 +39,7 @@ object HOUSEKEEPING
       try
         p:moveto(home);
         swept = {@swept, {old_loc, p}};
+        suspend(0);
       except e (ANY)
         "Move failed for this player, continue with others";
       endtry
