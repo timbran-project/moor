@@ -220,7 +220,7 @@ object EVENT_RECEIVER
     return this:inform_connection(target_conn, event);
   endverb
 
-  verb _is_gagged_event (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _is_gagged_event (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return true if this receiver should suppress the event due to gagging.";
     "Primary check: event metadata (dm_from / actor).";
     "Secondary check: callers() chain for initiating player/object (LambdaCore-style).";
