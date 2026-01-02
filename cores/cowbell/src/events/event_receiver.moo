@@ -14,6 +14,10 @@ object EVENT_RECEIVER
     "Broadcast an event to all connections for this player, with per-connection content negotiation.";
     "Persists djot version to event log for replay.";
     {event, @rest} = args;
+    "Gag filter: suppress events from gagged actors before logging or notifying.";
+    if (this:_is_gagged_event(event))
+      return;
+    endif
     event_slots = flyslots(event);
     "First, log the djot version to the event log for persistence/replay";
     transformed_djot = event:transform_for(this, 'text_djot);
@@ -214,5 +218,86 @@ object EVENT_RECEIVER
       return this:tell(event);
     endif
     return this:inform_connection(target_conn, event);
+  endverb
+
+  verb _is_gagged_event (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Return true if this receiver should suppress the event due to gagging.";
+    "Primary check: event metadata (dm_from / actor).";
+    "Secondary check: callers() chain for initiating player/object (LambdaCore-style).";
+    {event} = args;
+    "Fast path: if both lists are empty, nothing to do.";
+    try
+      gl = this.gaglist;
+    except e (E_PROPNF)
+      gl = {};
+    endtry
+    try
+      ogl = this.object_gaglist;
+    except e2 (E_PROPNF)
+      ogl = {};
+    endtry
+    if (!gl && !ogl)
+      return false;
+    endif
+    "Event-based detection.";
+    if (typeof(event) == TYPE_FLYWEIGHT)
+      slots = flyslots(event);
+      source = 0;
+      candidate = 0;
+      "Prefer explicit source metadata for receiver-personalized events (e.g. DMs).";
+      try
+        candidate = slots['dm_from];
+      except e3 (ANY)
+        candidate = 0;
+      endtry
+      if (typeof(candidate) == TYPE_OBJ && valid(candidate))
+        source = candidate;
+      else
+        candidate = 0;
+        try
+          candidate = slots['actor];
+        except e4 (ANY)
+          candidate = 0;
+        endtry
+        if (typeof(candidate) == TYPE_OBJ && valid(candidate))
+          source = candidate;
+        endif
+      endif
+      if (typeof(source) == TYPE_OBJ)
+        "Never suppress your own output.";
+        if (source == this)
+          return false;
+        endif
+        if (is_player(source))
+          if (source in gl)
+            return true;
+          endif
+        else
+          if (source in ogl)
+            return true;
+          endif
+        endif
+      endif
+    endif
+    "LambdaCore-style callers()-based detection.";
+    for frame in (callers())
+      {frame_this, verb_name, programmer, verb_loc, frame_player, line_number} = frame;
+      if (typeof(frame_player) == TYPE_OBJ && valid(frame_player) && frame_player != this)
+        if (frame_player in gl)
+          return true;
+        endif
+      endif
+      if (typeof(frame_this) == TYPE_OBJ && valid(frame_this) && frame_this != this)
+        if (frame_this in ogl)
+          return true;
+        endif
+      endif
+      if (typeof(verb_loc) == TYPE_OBJ && valid(verb_loc) && verb_loc != this)
+        if (verb_loc in ogl)
+          return true;
+        endif
+      endif
+    endfor
+    return false;
   endverb
 endobject

@@ -84,6 +84,22 @@ object HELP_TOPICS
     "basics",
     {"movement", "look"}
   };
+  property topic_gag (owner: ARCH_WIZARD, flags: "rc") = {
+    "@gag",
+    "Ignore output from a player or object",
+    "Use `@gag <player|object>` to add someone (or something) to your gag lists.\n\nExamples:\n\n- `@gag Alice` (gag a player by name)\n- `@gag #123` (gag an object by object number)\n\nNotes:\n\n- Players are matched globally by name.\n- Objects are matched in your current scope; use `#<id>` to gag a specific object anywhere.\n- Gagging is local to you and does not notify the other party.",
+    {"gag", "mute", "block"},
+    "communicating",
+    {"gagging", "@ungag", "@listgag"}
+  };
+  property topic_gagging (owner: ARCH_WIZARD, flags: "rc") = {
+    "gagging",
+    "Hide output from a player/object",
+    "Gagging lets you hide output that originates from a specific player or object.\n\nWhen someone is gagged, their speech, direct messages, and other output that they initiate will be suppressed on *your* client. This is a personal preference and abuse-avoidance tool.\n\n### What gagging does\n\n- Hides output that originates from the gagged player/object.\n- Works for both players and non-player objects.\n- Affects only what *you* see; it does not stop them from seeing you.\n- Does not notify the other party.\n\n### What gagging does not do\n\n- It is not a ban.\n- It does not prevent the other party from interacting with the world.\n- It does not remove them from public spaces.\n\n### If you're dealing with harassment or abuse\n\n- Use `@gag <name>` immediately to reduce exposure.\n- Preserve context if you can (room name, time, what happened).\n- Contact staff/moderators/administrators for help.\n- If you feel unsafe, disconnect and reach out out-of-band.\n\n### Related commands\n\n- `@gag <player|object>`\n- `@ungag <player|object>` (or `@ungag everyone`)\n- `@listgag`",
+    {"gag", "mute", "block", "harassment", "abuse", "spam"},
+    "communicating",
+    {"@gag", "@ungag", "@listgag", "communicating", "mail"}
+  };
   property topic_get (owner: ARCH_WIZARD, flags: "rc") = {
     "get",
     "Pick something up",
@@ -107,6 +123,14 @@ object HELP_TOPICS
     {"i", "inv"},
     "basics",
     {"get", "drop"}
+  };
+  property topic_listgag (owner: ARCH_WIZARD, flags: "rc") = {
+    "@listgag",
+    "Show your gag lists",
+    "Use `@listgag` to see which players and objects you currently have gagged.\n\nWhen run as a command, it also reports who has gagged you (if anyone).",
+    {"listgag", "gaglist"},
+    "communicating",
+    {"gagging", "@gag", "@ungag"}
   };
   property topic_look (owner: ARCH_WIZARD, flags: "rc") = {
     "look",
@@ -163,6 +187,14 @@ object HELP_TOPICS
     {},
     "basics",
     {"drink", "gulp"}
+  };
+  property topic_ungag (owner: ARCH_WIZARD, flags: "rc") = {
+    "@ungag",
+    "Remove someone from your gag list",
+    "Use `@ungag <player|object>` to remove someone (or something) from your gag lists.\n\nExamples:\n\n- `@ungag Alice`\n- `@ungag #123`\n- `@ungag everyone` (clear both gag lists)\n\nTip:\n\n- `@listgag` shows what is currently gagged.",
+    {"ungag", "unmute", "unblock"},
+    "communicating",
+    {"gagging", "@gag", "@listgag"}
   };
   property topic_who (owner: ARCH_WIZARD, flags: "rc") = {
     "who",
