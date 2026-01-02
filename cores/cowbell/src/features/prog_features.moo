@@ -82,6 +82,7 @@ object PROG_FEATURES
       endtry
       "Find and retrieve the verb code";
       try
+        verb_name = this:_do_resolve_verb_name(target_obj, verb_name);
         "Find where the verb is actually defined";
         verb_location = target_obj:find_verb_definer(verb_name);
         if (verb_location == #-1)
@@ -254,6 +255,7 @@ object PROG_FEATURES
     endtry
     "Find and retrieve the verb code";
     try
+      verb_name = this:_do_resolve_verb_name(target_obj, verb_name);
       verb_location = target_obj:find_verb_definer(verb_name);
       if (verb_location == #-1)
         player:inform_current($event:mk_error(player, "Verb '" + tostr(verb_name) + "' not found on " + target_obj.name + " or its ancestors."));
@@ -301,18 +303,30 @@ object PROG_FEATURES
       return;
     endif
     "Parse the arguments";
-    words = argstr:words();
-    if (length(words) < 1)
-      player:inform_current($event:mk_error(player, $format.code:mk(verb + " OBJECT:VERB-NAME(S) [DOBJ [PREP [IOBJ [PERMISSIONS [OWNER]]]]]")));
+    colon = index(argstr, ":");
+    if (!colon)
+      player:inform_current($event:mk_error(player, "Invalid verb reference format. Use 'object:verb-name(s)'"));
       return;
     endif
-    "Parse object:verb-name(s)";
-    parsed = words[1]:parse_verbref();
+    object_token = argstr[1..colon - 1]:trim();
+    remainder = argstr[colon + 1..length(argstr)]:trim();
+    if (!remainder)
+      player:inform_current($event:mk_error(player, "Verb name required. Use 'object:verb-name(s)'"));
+      return;
+    endif
+    verb_tokens = remainder:words();
+    if (!verb_tokens)
+      player:inform_current($event:mk_error(player, "Verb name required. Use 'object:verb-name(s)'"));
+      return;
+    endif
+    "Parse object:verb-name(s) (resolves $sysref object)";
+    parsed = (object_token + ":" + verb_tokens[1]):parse_verbref();
     if (!parsed)
       player:inform_current($event:mk_error(player, "Invalid verb reference format. Use 'object:verb-name(s)'"));
       return;
     endif
-    {object_str, verb_names} = parsed;
+    {object_str, first_verb_name} = parsed;
+    verb_tokens[1] = first_verb_name;
     "Match the object";
     try
       target_obj = $match:match_object(object_str, player);
@@ -324,11 +338,61 @@ object PROG_FEATURES
       return;
     endtry
     "Parse optional arguments with defaults";
-    dobj = length(words) >= 2 ? words[2] | "none";
-    prep = length(words) >= 3 ? words[3] | "none";
-    iobj = length(words) >= 4 ? words[4] | "none";
-    permissions = length(words) >= 5 ? words[5] | "rxd";
-    verb_owner = length(words) >= 6 ? $match:match_object(words[6], player) | player;
+    dobj = "none";
+    prep = "none";
+    iobj = "none";
+    permissions = "rxd";
+    verb_owner = player;
+    perms_set = 0;
+    cursor = length(verb_tokens);
+    fn is_perm_string(s)
+      if (!s)
+        return false;
+      endif
+      for i in [1..length(s)]
+        if (!(s[i] in {"r", "w", "x", "d"}))
+          return false;
+        endif
+      endfor
+      return true;
+    endfn
+    "Owner only parsed when perms are present immediately before it";
+    if (cursor >= 2)
+      maybe_perms = verb_tokens[cursor - 1];
+      maybe_owner = verb_tokens[cursor];
+      if (is_perm_string(maybe_perms))
+        try
+          verb_owner = $match:match_object(maybe_owner, player);
+          permissions = maybe_perms;
+          perms_set = 1;
+          cursor = cursor - 2;
+        except e (ANY)
+          "Not an owner token; leave for verb names";
+        endtry
+      endif
+    endif
+    if (!perms_set && cursor >= 1 && is_perm_string(verb_tokens[cursor]))
+      permissions = verb_tokens[cursor];
+      perms_set = 1;
+      cursor = cursor - 1;
+    endif
+    if (cursor >= 1 && verb_tokens[cursor] in {"none", "this", "any"})
+      iobj = verb_tokens[cursor];
+      cursor = cursor - 1;
+    endif
+    if (cursor >= 1 && $prog_utils:is_valid_prep(verb_tokens[cursor]))
+      prep = verb_tokens[cursor];
+      cursor = cursor - 1;
+    endif
+    if (cursor >= 1 && verb_tokens[cursor] in {"none", "this", "any"})
+      dobj = verb_tokens[cursor];
+      cursor = cursor - 1;
+    endif
+    if (cursor < 1)
+      player:inform_current($event:mk_error(player, "Verb name required. If your names look like args, wrap them in quotes."));
+      return;
+    endif
+    verb_names = verb_tokens[1..cursor]:join(" ");
     "Validate dobj and iobj";
     if (!(dobj in {"none", "this", "any"}))
       player:inform_current($event:mk_error(player, "Direct object must be 'none', 'this', or 'any'"));
@@ -343,16 +407,14 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "Invalid preposition: '" + prep + "'. Use 'none', 'any', or a valid preposition."));
       return;
     endif
-    "Validate permissions if provided";
-    if (length(words) >= 5)
-      for i in [1..length(permissions)]
-        char = permissions[i];
-        if (!(char in {"r", "w", "x", "d"}))
-          player:inform_current($event:mk_error(player, "Permissions must be subset of 'rwxd'"));
-          return;
-        endif
-      endfor
-    endif
+    "Validate permissions";
+    for i in [1..length(permissions)]
+      char = permissions[i];
+      if (!(char in {"r", "w", "x", "d"}))
+        player:inform_current($event:mk_error(player, "Permissions must be subset of 'rwxd'"));
+        return;
+      endif
+    endfor
     "Check owner permission";
     if (verb_owner != player && !player.wizard)
       player:inform_current($event:mk_error(player, "Only wizards can create verbs with other owners"));
@@ -397,6 +459,7 @@ object PROG_FEATURES
       return;
     endtry
     "Delete the verb via helper with elevated permissions";
+    verb_name = this:_do_resolve_verb_name(target_obj, verb_name);
     this:_do_delete_verb(target_obj, verb_name);
     player:inform_current($event:mk_info(player, "Verb " + tostr(target_obj) + ":" + verb_name + " removed."));
   endverb
@@ -640,6 +703,7 @@ object PROG_FEATURES
       return;
     endtry
     "Get current args from metadata";
+    verb_name = this:_do_resolve_verb_name(target_obj, verb_name);
     metadata = $prog_utils:get_verb_metadata(target_obj, verb_name);
     current_dobj = metadata:dobj();
     current_prep = metadata:prep();
@@ -1197,6 +1261,7 @@ object PROG_FEATURES
     "HINT: <pattern> [<object>] -- Search verb code for a pattern.";
     this:_challenge_command_perms();
     set_task_perms(player);
+    start_time = ftime();
     if (!argstr)
       player:inform_current($event:mk_error(player, $format.code:mk(verb + " PATTERN [OBJECT]")));
       return;
@@ -1240,7 +1305,9 @@ object PROG_FEATURES
     endfor
     "Format and display results";
     if (!all_matches)
+      elapsed = ftime() - start_time;
       player:inform_current($event:mk_info(player, "No matches found."));
+      player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
       return;
     endif
     "Build table rows";
@@ -1263,7 +1330,9 @@ object PROG_FEATURES
     result_table = $format.table:mk(headers, rows);
     summary = tostr("Found ", length(all_matches), " match", length(all_matches) != 1 ? "es" | "", " for \"", pattern, "\"");
     content = $format.block:mk(summary, result_table);
+    elapsed = ftime() - start_time;
     player:inform_current($event:mk_info(player, content));
+    player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
   endverb
 
   verb "@codep*aste" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -1289,16 +1358,46 @@ object PROG_FEATURES
   endverb
 
   verb "@doc*umentation" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "HINT: <object> -- Display developer documentation.";
+    "HINT: <object|builtin> -- Display developer documentation.";
     if (!argstr)
-      player:inform_current($event:mk_error(player, $format.code:mk("@doc OBJECT\n@doc OBJECT:VERB\n@doc OBJECT.PROPERTY")));
+      player:inform_current($event:mk_error(player, $format.code:mk("@doc OBJECT\n@doc OBJECT:VERB\n@doc OBJECT.PROPERTY\n@doc BUILTIN_FUNCTION")));
       return;
     endif
     target_spec = argstr:trim();
+    "Check if this might be a builtin function name (simple identifier, no : or . or # or $)";
+    if (index(target_spec, ":") == 0 && index(target_spec, ".") == 0 && index(target_spec, "#") == 0 && index(target_spec, "$") == 0)
+      "Could be a builtin function - try to look it up";
+      try
+        func_name = tosym(target_spec);
+        doc_lines = function_help(func_name);
+        "Success - it's a builtin function";
+        title = "Builtin Function: " + target_spec;
+        doc_text = doc_lines:join("\n");
+        "Also get function signature info";
+        for fn_info in (function_info())
+          if (fn_info[1] == target_spec)
+            min_args = fn_info[2];
+            max_args = fn_info[3];
+            arg_types = fn_info[4];
+            sig_info = "Arguments: " + tostr(min_args) + (max_args == -1 ? "+" | (max_args == min_args ? "" | "-" + tostr(max_args)));
+            doc_text = sig_info + "\n\n" + doc_text;
+            break;
+          endif
+        endfor
+        content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
+        player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+        return;
+      except e (E_INVARG)
+        "Not a builtin function - continue to try as object";
+      endtry
+    endif
     "Parse the target specification";
     parsed = $prog_utils:parse_target_spec(target_spec);
     if (!parsed)
-      player:inform_current($event:mk_error(player, "Invalid format. Use 'object', 'object:verb', or 'object.property'"));
+      "Failed to parse - might be a typo for a builtin function";
+      if (!this:suggest_doc_topic('builtin, target_spec))
+        player:inform_current($event:mk_error(player, "Invalid format. Use 'object', 'object:verb', 'object.property', or 'builtin_function'"));
+      endif
       return;
     endif
     object_str = parsed['object_str];
@@ -1395,6 +1494,7 @@ object PROG_FEATURES
         typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
         !valid(target_obj) && raise(E_INVARG, "That object no longer exists.");
         "Check verb exists";
+        verb_name = this:_do_resolve_verb_name(target_obj, verb_name);
         info = `verb_info(target_obj, verb_name) ! E_VERBNF => 0';
         if (!info)
           player:inform_current($event:mk_error(player, "Verb '" + verb_name + "' not found on " + tostr(target_obj) + "."));
@@ -1595,7 +1695,7 @@ object PROG_FEATURES
 
   verb suggest_doc_topic (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Suggest @doc targets when lookup fails, using LLM.";
-    "Args: failure_type ('object, 'verb, 'property), target_spec, ?target_obj, ?item_name";
+    "Args: failure_type ('object, 'verb, 'property, 'builtin), target_spec, ?target_obj, ?item_name";
     "Returns true if handled (placeholder sent), false if LLM not available.";
     {failure_type, target_spec, ?target_obj = #-1, ?item_name = ""} = args;
     "Check if LLM is available";
@@ -1609,23 +1709,25 @@ object PROG_FEATURES
       return false;
     endif
     current_conn = all_conns[1][1];
-    "Helper: get sysref name for an object (e.g. #13 -> '$str_proto')";
-    fn get_sysref(o)
+    "Get display name for target_obj - find sysref name (e.g. #13 -> '$str_proto')";
+    obj_display = target_spec;
+    if (valid(target_obj))
+      obj_display = tostr(target_obj);
       for prop in (properties(#0))
         val = `#0.(prop) ! ANY => 0';
-        if (val == o)
-          return "$" + prop;
+        if (val == target_obj)
+          obj_display = "$" + prop;
+          break;
         endif
       endfor
-      return tostr(o);
-    endfn
-    "Get display name for target_obj";
-    obj_display = valid(target_obj) ? get_sysref(target_obj) | target_spec;
+    endif
     "Build error message based on failure type";
     if (failure_type == 'object)
       error_msg = "Could not find object: " + target_spec;
     elseif (failure_type == 'verb)
       error_msg = "Verb '" + item_name + "' not found on " + obj_display + ".";
+    elseif (failure_type == 'builtin)
+      error_msg = "'" + target_spec + "' is not a recognized builtin function or object.";
     else
       error_msg = "Property '" + item_name + "' not found on " + obj_display + ".";
     endif
@@ -1638,7 +1740,16 @@ object PROG_FEATURES
       "Build context based on failure type";
       prompt = "You help programmers find documentation in a MOO (text-based virtual world). ";
       prompt = prompt + "A programmer tried '@doc " + target_spec + "' but it failed.\n\n";
-      if (failure_type == 'object)
+      if (failure_type == 'builtin)
+        "Builtin function not found - provide list of builtins";
+        prompt = prompt + "They tried to look up a builtin function.\n\n";
+        prompt = prompt + "AVAILABLE BUILTIN FUNCTIONS:\n";
+        builtin_names = {};
+        for fn_info in (function_info())
+          builtin_names = {@builtin_names, fn_info[1]};
+        endfor
+        prompt = prompt + builtin_names:join(", ") + "\n\n";
+      elseif (failure_type == 'object)
         "Object not found - provide list of sysref objects if they used $ prefix";
         if (target_spec[1] == "$")
           prompt = prompt + "They tried to look up a system object starting with '$'.\n\n";
@@ -1654,7 +1765,14 @@ object PROG_FEATURES
           prompt = prompt + sysrefs:join(", ") + "\n\n";
         else
           prompt = prompt + "They tried to look up an object but it wasn't found.\n";
-          prompt = prompt + "Suggest they use an object number (#123) or system object ($name).\n\n";
+          prompt = prompt + "Suggest they use an object number (#123) or system object ($name).\n";
+          prompt = prompt + "They might also have meant a builtin function.\n\n";
+          prompt = prompt + "AVAILABLE BUILTIN FUNCTIONS:\n";
+          builtin_names = {};
+          for fn_info in (function_info())
+            builtin_names = {@builtin_names, fn_info[1]};
+          endfor
+          prompt = prompt + builtin_names:join(", ") + "\n\n";
         endif
       elseif (failure_type == 'verb)
         "Verb not found - provide list of verbs on the object";
@@ -1698,6 +1816,8 @@ object PROG_FEATURES
         prompt = prompt + "2. Format suggestions as '@doc " + obj_display + ":VERBNAME'\n";
       elseif (failure_type == 'property)
         prompt = prompt + "2. Format suggestions as '@doc " + obj_display + ".PROPNAME'\n";
+      elseif (failure_type == 'builtin)
+        prompt = prompt + "2. Format suggestions as '@doc FUNCTION_NAME'\n";
       else
         prompt = prompt + "2. Format suggestions as '@doc <target>'\n";
       endif
@@ -1717,5 +1837,39 @@ object PROG_FEATURES
       endtry
     endfork
     return true;
+  endverb
+
+  verb _do_resolve_verb_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Resolve space-separated verb names to a single verb name.";
+    caller == this || raise(E_PERM);
+    set_task_perms(player);
+    {target_obj, verb_spec} = args;
+    verb_spec = verb_spec:trim();
+    if (!verb_spec)
+      raise(E_INVARG, "Verb name cannot be blank.");
+    endif
+    if (!index(verb_spec, " "))
+      return verb_spec;
+    endif
+    "Try each space-separated name and ensure they refer to one verb";
+    names = verb_spec:words();
+    found_info = 0;
+    found_name = "";
+    for name in (names)
+      info = `verb_info(target_obj, name) ! E_VERBNF => 0';
+      if (!info)
+        continue;
+      endif
+      if (!found_info)
+        found_info = info;
+        found_name = name;
+      elseif (info[3] != found_info[3])
+        raise(E_INVARG, "Verb name list refers to multiple verbs; use a single name.");
+      endif
+    endfor
+    if (!found_info)
+      raise(E_VERBNF, "Verb not found: " + verb_spec);
+    endif
+    return found_name;
   endverb
 endobject
