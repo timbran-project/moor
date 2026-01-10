@@ -22,11 +22,11 @@ object LLM_ROOM_OBSERVER
   property shut_off_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
+    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
+    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
     " a small switch. ",
     <SUB, .capitalize = true, .type = 'dobj>,
     " freezes mid-motion, eyes going vacant."
@@ -54,15 +54,15 @@ object LLM_ROOM_OBSERVER
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
   property triage_model (owner: ARCH_WIZARD, flags: "rc") = "deepseek-chat";
-  property triage_prompt (owner: ARCH_WIZARD, flags: "rc") = "You are a triage filter for an NPC named {name}. Given the recent room activity below, decide if {name} should engage.\n\nRespond with ONLY one word:\n- ENGAGE if {name} is directly addressed by name, asked for help, or a newcomer needs orientation\n- IGNORE if someone ELSE is being addressed by name (not {name})\n- IGNORE if this is just chatter between others that doesn't involve {name}\n\nRecent activity:\n{events}";
+  property triage_prompt (owner: ARCH_WIZARD, flags: "rc") = "You are a triage filter for an NPC named {name}. Given the recent room activity below, decide if {name} should engage.\n\nIMPORTANT: Default to IGNORE. Be conservative. Only respond ENGAGE if:\n- {name} is DIRECTLY and UNAMBIGUOUSLY addressed by name\n- Someone explicitly asks {name} for help\n- A newcomer arrives who clearly needs orientation AND no one else is helping them\n\nRespond IGNORE if:\n- Someone else is being addressed (not {name})\n- It's casual conversation or chatter between others\n- People are greeting the room generally (not {name} specifically)\n- Activity doesn't specifically require {name}'s input\n- You're unsure - when in doubt, IGNORE\n\nRespond with ONLY one word: ENGAGE or IGNORE\n\nRecent activity:\n{events}";
   property turn_on_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
+    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head and ",
-    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
+    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
     " the switch back. ",
     <SUB, .capitalize = true, .type = 'dobj>,
     " blinks and looks around, reorienting."
@@ -119,36 +119,37 @@ object LLM_ROOM_OBSERVER
     if (!$llm_client:is_configured())
       return;
     endif
-    set_task_perms(this.owner);
-    {event} = args;
-    "Skip own events to avoid feedback loops";
-    event_actor = `event.actor ! ANY => #-1';
-    if (event_actor == this)
-      return;
-    endif
-    "Skip events from other NPCs to avoid cross-chatter";
-    if (typeof(event_actor) == TYPE_OBJ && valid(event_actor) && isa(event_actor, $llm_room_observer))
-      return;
-    endif
-    "Check if event is addressed to someone (target is a direct property)";
-    event_target = `event.target ! ANY => #-1';
-    addressed_to_us = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target == this;
-    addressed_to_other = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target != this;
-    "Skip events addressed to other NPCs - not our business";
-    if (addressed_to_other)
-      return;
-    endif
-    "Check if significant event type";
-    event_verb = `event.verb ! ANY => ""';
-    if (!(event_verb in this.significant_events))
-      return;
-    endif
-    "Ensure agent is configured";
-    if (typeof(this.agent) != TYPE_OBJ || !valid(this.agent))
-      this:configure();
-    endif
-    "Fork to not block event processing";
-    fork (addressed_to_us ? 0 | 2)
+    "Fork to not block event processing for players.";
+    fork (0)
+      set_task_perms(this.owner);
+      {event} = args;
+      "Skip own events to avoid feedback loops";
+      event_actor = `event.actor ! ANY => #-1';
+      if (event_actor == this)
+        return;
+      endif
+      "Skip events from other NPCs to avoid cross-chatter";
+      if (typeof(event_actor) == TYPE_OBJ && valid(event_actor) && isa(event_actor, $llm_room_observer))
+        return;
+      endif
+      "Check if event is addressed to someone";
+      "directed_say uses .iobj for the target, not .target";
+      event_target = `event.iobj ! ANY => #-1';
+      addressed_to_us = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target == this;
+      addressed_to_other = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target != this;
+      "Skip events addressed to other NPCs - not our business";
+      if (addressed_to_other)
+        return;
+      endif
+      "Check if significant event type";
+      event_verb = `event.verb ! ANY => ""';
+      if (!(event_verb in this.significant_events))
+        return;
+      endif
+      "Ensure agent is configured";
+      if (typeof(this.agent) != TYPE_OBJ || !valid(this.agent))
+        this:configure();
+      endif
       "Add event to agent context";
       observation = toliteral(event);
       try
@@ -157,6 +158,15 @@ object LLM_ROOM_OBSERVER
         this:_handle_agent_error("tell/add_message", e);
         return;
       endtry
+      "Auto-compact if context is getting too large";
+      max_context = 100;
+      if (length(this.agent.context) > max_context)
+        try
+          this.agent:compact_context();
+        except e (ANY)
+          "Compaction failed - log but continue";
+        endtry
+      endif
       "If addressed to us, respond immediately. Otherwise triage first.";
       if (addressed_to_us)
         this:respond();
@@ -736,24 +746,38 @@ object LLM_ROOM_OBSERVER
     events_text = recent:join("\n");
     prompt = strsub(this.triage_prompt, "{name}", this:name());
     prompt = strsub(prompt, "{events}", events_text);
-    "Quick API call - minimal tokens";
-    opts = $llm_chat_opts:mk():with_max_tokens(10);
+    "Quick API call - use triage_model if set, otherwise default";
+    opts = $llm_chat_opts:mk():with_max_tokens(100);
+    model = this.triage_model || false;
     try
-      response = $llm_client:chat({["role" -> "user", "content" -> prompt]}, opts, this.triage_model);
+      response = $llm_client:chat({["role" -> "user", "content" -> prompt]}, opts, model);
     except e (ANY)
       return false;
     endtry
-    "Extract content from response";
+    "Extract content from response - check both content and reasoning_content";
+    "Some models put their answer in reasoning_content instead of content";
     content = "";
     if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
       message = response["choices"][1]["message"];
-      if (typeof(message) == TYPE_MAP && maphaskey(message, "content"))
-        content = message["content"];
+      if (typeof(message) == TYPE_MAP)
+        "Try content first";
+        if (maphaskey(message, "content") && typeof(message["content"]) == TYPE_STR)
+          content = message["content"];
+        endif
+        "If content is empty/null, check reasoning_content";
+        if (content == "" || content == "null" && maphaskey(message, "reasoning_content"))
+          rc = message["reasoning_content"];
+          if (typeof(rc) == TYPE_STR && rc != "null")
+            content = rc;
+          endif
+        endif
       endif
     endif
-    "Check for ENGAGE";
+    "Strict check: ENGAGE must be at start or be the only word";
+    "This prevents false positives from reasoning like 'I should ENGAGE'";
     if (typeof(content) == TYPE_STR)
-      return index(content, "ENGAGE") > 0 || index(content, "Engage") > 0;
+      content = content:trim():uppercase();
+      return content == "ENGAGE" || content:starts_with("ENGAGE");
     endif
     return false;
   endverb
@@ -803,6 +827,14 @@ object LLM_ROOM_OBSERVER
           should_skip = true;
         endif
       endfor
+      "Also skip meta-commentary about staying silent or waiting";
+      silence_patterns = {"remains silent", "stays silent", "stay silent", "remain silent", "waiting to be", "waits to be", "chooses not to", "decides not to", "doesn't interject", "does not interject", "quietly observes", "continues to observe", "listens quietly"};
+      response_lower = response:lowercase();
+      for pattern in (silence_patterns)
+        if (index(response_lower, pattern) > 0)
+          should_skip = true;
+        endif
+      endfor
       if (!should_skip && valid(this.location))
         "Parse out inline *actions* and emit as separate emotes";
         remaining = response;
@@ -819,7 +851,15 @@ object LLM_ROOM_OBSERVER
           end_pos = star_pos + end_pos;
           "Extract the action";
           action = remaining[star_pos + 1..end_pos - 1];
-          if (length(action) > 0 && length(action) < 100)
+          "Filter out silence-related emotes";
+          action_dominated_by_silence = false;
+          action_lower = action:lowercase();
+          for pattern in (silence_patterns)
+            if (index(action_lower, pattern) > 0)
+              action_dominated_by_silence = true;
+            endif
+          endfor
+          if (length(action) > 0 && length(action) < 100 && !action_dominated_by_silence)
             "Emit as emote";
             this.location:announce(this:mk_emote_event(action));
           endif

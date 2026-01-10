@@ -210,9 +210,16 @@ object LLM_AGENT
       endif
       "No tool calls = final response";
       if (length(tool_calls) == 0)
-        this:add_message("assistant", message["content"]);
+        "Extract content - check both content and reasoning_content for reasoning models";
+        content = "";
+        if (maphaskey(message, "content") && typeof(message["content"]) == TYPE_STR && message["content"] != "" && message["content"] != "null")
+          content = message["content"];
+        elseif (maphaskey(message, "reasoning_content") && typeof(message["reasoning_content"]) == TYPE_STR && message["reasoning_content"] != "null")
+          content = message["reasoning_content"];
+        endif
+        this:add_message("assistant", content);
         this.current_iteration = 0;
-        return message["content"];
+        return content;
       endif
       "Execute ALL tool calls in this batch before checking cancel";
       tool_results = {};
@@ -221,8 +228,8 @@ object LLM_AGENT
         result = this:_execute_tool_call(tool_call);
         tool_results = {@tool_results, result};
         "Check if this result was not a blocked/error response";
-        content = result["content"];
-        if (!(content:starts_with("TOOL BLOCKED:") || content:starts_with("ERROR:")))
+        tc_content = result["content"];
+        if (!(tc_content:starts_with("TOOL BLOCKED:") || tc_content:starts_with("ERROR:")))
           all_blocked = false;
         endif
       endfor

@@ -25,6 +25,13 @@ object MR_WELCOME
     " head quizzically. \"I am already fully operational, though I appreciate your concern for my well-being.\""
   };
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
+  override event_buffer = {
+    <EVENT, .verb = "emote", .dobj = false, .iobj = false, .actor = #00219A-9B37B01EB1, .actor_name = "Front Desk Clerk", .timestamp = 1766705789, .this_obj = false, {{'string, "Front Desk Clerk"}, {'string, " "}, {'string, "mulls it over..."}}>,
+    <EVENT, .verb = "emote", .dobj = false, .iobj = false, .actor = #00219A-9B37B01EB1, .actor_name = "Front Desk Clerk", .timestamp = 1766705793, .this_obj = false, {{'string, "Front Desk Clerk"}, {'string, " "}, {'string, "thinks..."}}>,
+    <EVENT, .verb = "emote", .dobj = false, .iobj = false, .actor = #00219A-9B37B01EB1, .actor_name = "Front Desk Clerk", .timestamp = 1766705797, .this_obj = false, {{'string, "Front Desk Clerk"}, {'string, " "}, {'string, "ponders..."}}>,
+    <EVENT, .verb = "emote", .dobj = false, .iobj = false, .actor = #00219A-9B37B01EB1, .actor_name = "Front Desk Clerk", .timestamp = 1766705801, .this_obj = false, {{'string, "Front Desk Clerk"}, {'string, " "}, {'string, "considers..."}}>,
+    <EVENT, .verb = "emote", .dobj = false, .iobj = false, .actor = #00219A-9B37B01EB1, .actor_name = "Front Desk Clerk", .timestamp = 1766705805, .this_obj = false, {{'string, "Front Desk Clerk"}, {'string, " "}, {'string, "looks confused and shakes head, seeming to have lost the thread."}}>
+  };
   override import_export_hierarchy = {"llm"};
   override import_export_id = "mr_welcome";
   override knowledge_base = #000044-9AE10253C8;
@@ -36,7 +43,7 @@ object MR_WELCOME
   override shut_off_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
+    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head, finding a small recessed switch that ",
@@ -61,7 +68,7 @@ object MR_WELCOME
   override turn_on_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
+    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
     " the small switch behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head. *click* ",
