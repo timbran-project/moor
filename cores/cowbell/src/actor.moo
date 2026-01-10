@@ -6,7 +6,7 @@ object ACTOR
   fertile: true
   readable: true
 
-  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .display = "they/them", .verb_be = "are", .verb_have = "have", .is_plural = true, .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
+  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .is_plural = true, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
 
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";
@@ -139,6 +139,7 @@ object ACTOR
   verb mk_say_event (this none this) owner: HACKER flags: "rxd"
     event = $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
     event = event:with_metadata('content, args[1]);
+    event = event:with_metadata('preferred_content_types, {'text_djot});
     event = event:with_presentation_hint('speech_bubble);
     return event;
   endverb
@@ -271,10 +272,10 @@ object ACTOR
     return actor.programmer;
   endverb
 
-  verb fact_is_builder (this none this) owner: HACKER flags: "rxd"
+  verb fact_is_builder (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Fact predicate: Does this actor have builder privileges?";
-    {actor} = args;
-    return actor.is_builder;
+    {?actor = this} = args;
+    return `actor.is_builder ! E_PROPNF => false';
   endverb
 
   verb fact_has_in_inventory (this none this) owner: HACKER flags: "rxd"
