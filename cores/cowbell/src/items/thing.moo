@@ -26,7 +26,8 @@ object THING
   property is_countable_noun (owner: HACKER, flags: "rc") = true;
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
-  property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
+  property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .is_plural = false, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
+  property unlocks (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};
@@ -343,6 +344,18 @@ object THING
     {for_player, ?topic = ""} = args;
     "Basic get/drop covered by global help - things can override for special behavior";
     return topic == "" ? {} | 0;
+  endverb
+
+  verb fact_unlocks (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Rule engine predicate: Key unlocks(Target)?";
+    "Returns target if this object's .unlocks property matches the target.";
+    "Rule engine passes (this_obj, target) as args.";
+    {_, target} = args;
+    unlocks = `this.unlocks ! E_PROPNF => #-1';
+    if (unlocks == target)
+      return target;
+    endif
+    return;
   endverb
 
   verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"
