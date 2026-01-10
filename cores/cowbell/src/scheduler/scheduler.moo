@@ -160,14 +160,14 @@ object SCHEDULER
   verb start (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Start the scheduler loop. Called automatically when tasks are added.";
     caller == #0 || caller_perms().wizard || raise(E_PERM);
-    if (this.running)
+    if (this.running && valid_task(this.running))
       return false;
     endif
     this:_log("Starting...");
-    this.running = true;
     fork loop (1)
       this:_run_loop();
     endfork
+    this.running = loop;
     this.loop_task_id = loop;
     return true;
   endverb
@@ -175,7 +175,7 @@ object SCHEDULER
   verb resume_if_needed (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Resume scheduler if there are persisted tasks. Called on server startup.";
     caller == #0 || caller_perms().wizard || raise(E_PERM);
-    if (this.running)
+    if (this.running && valid_task(this.running))
       return false;
     endif
     this:_log("Resuming...");
@@ -201,14 +201,15 @@ object SCHEDULER
   verb stop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Stop the scheduler loop and clear all tasks.";
     caller_perms().wizard || raise(E_PERM);
-    if (!this.running)
+    if (!this.running || !valid_task(this.running))
+      this.running = 0;
       return false;
     endif
-    this.running = false;
-    if (this.loop_task_id)
-      `kill_task(this.loop_task_id) ! ANY';
-      this.loop_task_id = 0;
+    if (this.running)
+      `kill_task(this.running) ! ANY';
+      this.running = 0;
     endif
+    this.loop_task_id = 0;
     if (this.sweep_task_id)
       `kill_task(this.sweep_task_id) ! ANY';
       this.sweep_task_id = 0;
@@ -272,11 +273,11 @@ object SCHEDULER
   verb _ensure_running (this none this) owner: HACKER flags: "rxd"
     "Internal: Ensure scheduler loop is running.";
     caller == this || raise(E_PERM);
-    if (!this.running)
-      this.running = true;
+    if (!this.running || !valid_task(this.running))
       fork loop (1)
         this:_run_loop();
       endfork
+      this.running = loop;
       this.loop_task_id = loop;
       "Start sweep loop";
       this:_start_sweep_loop();
@@ -338,7 +339,7 @@ object SCHEDULER
     endfor
     "Stop scheduler if no tasks remain";
     if (task_count == 0)
-      this.running = false;
+      this.running = 0;
     endif
   endverb
 
@@ -347,7 +348,7 @@ object SCHEDULER
     caller == this || raise(E_PERM);
     {schedule_id, target, verb_name, task_args, recurring} = args;
     "Fork execution to avoid blocking scheduler, and start in new transaction.";
-    fork (0)
+    fork forked_task_id (0)
       try
         set_task_perms(target);
         target:(verb_name)(@task_args);
@@ -366,6 +367,15 @@ object SCHEDULER
         endtry
       endif
     endfork
+    "Store the forked task_id in the task property";
+    try
+      prop_name = "scheduled_task_" + tostr(schedule_id);
+      task = this.(prop_name);
+      task = task:set_task_id(forked_task_id);
+      this.(prop_name) = task;
+    except e (ANY)
+      "Task property may have been deleted, ignore";
+    endtry
   endverb
 
   verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
