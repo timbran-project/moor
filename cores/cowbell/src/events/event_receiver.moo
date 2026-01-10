@@ -36,15 +36,24 @@ object EVENT_RECEIVER
     if (!conns)
       return;
     endif
-    contents = this:_event_render(conns, event);
+    "Wrap rendering in error handling - don't let one bad connection break all";
+    contents = {};
+    try
+      contents = this:_event_render(conns, event);
+    except e (ANY)
+      "Rendering failed - log but continue with empty contents";
+    endtry
     entry_num = 0;
     for content in (contents)
       entry_num = entry_num + 1;
-      if (entry_num % 50 == 0)
-        suspend_if_needed();
-      endif
       {conn, content_type, output} = content;
-      this:_notify(conn, output, false, false, content_type, event_slots);
+      "Wrap each notify in error handling so one failure doesn't break the rest";
+      try
+        suspend_if_needed();
+        this:_notify(conn, output, false, false, content_type, event_slots);
+      except e (ANY)
+        "Notification failed for this connection - continue with others";
+      endtry
     endfor
   endverb
 
@@ -109,33 +118,38 @@ object EVENT_RECEIVER
     endif
     results = {};
     for connection in (connections)
-      let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
-      preferred_types = event:preferred_content_types();
-      if (typeof(preferred_types) != TYPE_LIST)
-        preferred_types = {};
-      endif
-      if (!preferred_types)
-        preferred_types = {"text/html", "text/djot", "text/plain", 'text_html, 'text_djot, 'text_plain};
-      endif
-      content_type = 0;
-      for desired in (preferred_types)
-        if (desired in content_types)
-          content_type = desired;
-          break;
+      "Wrap each connection's rendering in error handling";
+      try
+        let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
+        preferred_types = event:preferred_content_types();
+        if (typeof(preferred_types) != TYPE_LIST)
+          preferred_types = {};
         endif
-      endfor
-      if (!content_type)
-        content_type = length(content_types) >= 1 ? content_types[1] | 'text_plain;
-      endif
-      transformed = event:transform_for(this, content_type);
-      "Iterate the transformed values and have it turn into its output form. Strings output as strings, while HTML trees are transformed, etc.";
-      output = {};
-      for entry in (transformed)
-        output = this:_extend_output(output, entry, content_type);
-      endfor
-      if (length(output) > 0)
-        results = {@results, {connection_obj, content_type, output}};
-      endif
+        if (!preferred_types)
+          preferred_types = {"text/html", "text/djot", "text/plain", 'text_html, 'text_djot, 'text_plain};
+        endif
+        content_type = 0;
+        for desired in (preferred_types)
+          if (desired in content_types)
+            content_type = desired;
+            break;
+          endif
+        endfor
+        if (!content_type)
+          content_type = length(content_types) >= 1 ? content_types[1] | 'text_plain;
+        endif
+        transformed = event:transform_for(this, content_type);
+        "Iterate the transformed values and have it turn into its output form.";
+        output = {};
+        for entry in (transformed)
+          output = this:_extend_output(output, entry, content_type);
+        endfor
+        if (length(output) > 0)
+          results = {@results, {connection_obj, content_type, output}};
+        endif
+      except e (ANY)
+        "Rendering failed for this connection - skip it and continue with others";
+      endtry
     endfor
     return results;
   endverb
@@ -147,6 +161,7 @@ object EVENT_RECEIVER
       return {@acc, entry};
     elseif (typeof(entry) == TYPE_LIST)
       for element in (entry)
+        suspend_if_needed();
         acc = this:_extend_output(acc, element, content_type);
       endfor
       return acc;

@@ -101,6 +101,7 @@ object EVENT
     endif
     if (typeof(value) == TYPE_LIST)
       for element in (value)
+        suspend_if_needed();
         acc = this:append_rendered(acc, element);
       endfor
       return acc;
