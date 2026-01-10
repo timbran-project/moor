@@ -21,9 +21,16 @@ object FORMAT_TITLE
     pieces = {};
     contents = flycontents(this);
     for content in (contents)
-      pieces = {@pieces, content:compose(@args)};
+      composed = content:compose(@args);
+      "If composed result is a list (HTML mode), flatten it into pieces";
+      if (typeof(composed) == TYPE_LIST)
+        pieces = {@pieces, @composed};
+      else
+        pieces = {@pieces, composed};
+      endif
     endfor
-    result = pieces:join(" ");
+    "Join without separator since content may already have spacing";
+    result = pieces:join("");
     level = `this.level ! E_PROPNF => 2';
     if (content_type == 'text_html)
       tag = "h" + tostr(level);

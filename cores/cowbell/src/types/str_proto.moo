@@ -586,15 +586,26 @@ object STR_PROTO
   endverb
 
   verb trim (this none this) owner: HACKER flags: "rxd"
-    ":trim (string [, space]) -- remove leading and trailing spaces";
+    ":trim (string [, chars]) -- remove leading and trailing whitespace";
     "";
-    "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading and trailing copies of that character removed.  For example, $string:trim(\"***foo***\", \"*\") => \"foo\".";
-    {string, ?space = " "} = args;
+    "`chars' should be a string of characters to trim; defaults to space, tab, newline, carriage return.";
+    "Returns a copy of string with all leading and trailing copies of those characters removed.";
+    "For example, $string:trim(\"***foo***\", \"*\") => \"foo\".";
+    {string, ?chars = " \t\n"} = args;
     !string && return "";
     len = length(string);
-    m = match(string, tostr("[^", space, "]%(.*[^", space, "]%)?%|$"));
-    !m || m[1] < 1 || m[2] > len || m[1] > m[2] && return "";
-    return string[m[1]..m[2]];
+    "Find first non-whitespace character";
+    start = 1;
+    while (start <= len && index(chars, string[start]) > 0)
+      start = start + 1;
+    endwhile
+    "Find last non-whitespace character";
+    finish = len;
+    while (finish >= start && index(chars, string[finish]) > 0)
+      finish = finish - 1;
+    endwhile
+    start > finish && return "";
+    return string[start..finish];
   endverb
 
   verb triml (this none this) owner: HACKER flags: "rxd"

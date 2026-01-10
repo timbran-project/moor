@@ -128,15 +128,20 @@ object PLAYER
     players = connected_players();
     !players && return this:inform_current($event:mk_not_found(this, "No players are currently connected."):with_audience('utility):with_group('who));
     "Build table data";
-    headers = {"Name", "Idle", "Connected", "Location"};
+    headers = {"Name", "Location", "Idle", "Connected"};
     rows = {};
+    show_ids = player.is_builder;
     for p in (players)
       if (typeof(idle_time = idle_seconds(p)) != TYPE_ERR)
-        name = p:name();
+        name = show_ids ? p:name() + " (" + tostr(p) + ")" | p:name();
         idle_str = idle_time:format_time_seconds();
         conn_str = connected_seconds(p):format_time_seconds();
-        location_name = valid(p.location) ? p.location:name() | "(nowhere)";
-        rows = {@rows, {name, idle_str, conn_str, location_name}};
+        if (valid(p.location))
+          location_name = show_ids ? p.location:name() + " (" + tostr(p.location) + ")" | p.location:name();
+        else
+          location_name = "(nowhere)";
+        endif
+        rows = {@rows, {name, location_name, idle_str, conn_str}};
       endif
     endfor
     "Create and display the table";

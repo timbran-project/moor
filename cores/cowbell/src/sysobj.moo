@@ -242,6 +242,7 @@ object SYSOBJ
             {target, verbspec} = m;
             {def, flags, verbnames, v} = verbspec;
             try
+              suspend(0);
               dispatch_command_verb(target, v, test_pc);
               return true;
             except e (ANY)
@@ -266,9 +267,11 @@ object SYSOBJ
     endfor
     "Dispatch any unmatched action out to the room for potential special handling (furniture, passages, etc.)";
     set_task_perms(player);
+    suspend(0);
     player.location:maybe_handle_command(pc) && return true;
     "No verb matches found - try LLM suggestion";
     try
+      suspend(0);
       player:suggest_command_alternatives(pc) && return true;
     except e (ANY)
       if (player.programmer || player.wizard)

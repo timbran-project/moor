@@ -80,6 +80,24 @@ object MATCH
     valid(context) && (search_objects = {@search_objects, @context.contents});
     "Let complex_match auto-detect object names";
     result = complex_match(name_string, search_objects);
+    if (result == $failed_match && length(search_objects))
+      "Fallback to light fuzzy matching (handles punctuation/spacing differences)";
+      keys = {};
+      for o in (search_objects)
+        key = o.name;
+        try
+          aliases = o.aliases;
+          if (typeof(aliases) == TYPE_LIST)
+            for a in (aliases)
+              key = key + " " + a;
+            endfor
+          endif
+        except e (ANY)
+        endtry
+        keys = {@keys, key};
+      endfor
+      result = complex_match(name_string, search_objects, keys, 0.3);
+    endif
     result == $failed_match && raise(E_INVARG, "No object found matching '" + name_string + "'");
     return result;
   endverb
