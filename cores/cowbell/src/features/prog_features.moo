@@ -33,9 +33,13 @@ object PROG_FEATURES
         result_event = $event:mk_eval_error(player, $format.code:mk(error_text)):with_group('eval);
       endif
     except id (ANY)
-      traceback = {"Eval failed: " + toliteral(id[2]) + ":"};
+      traceback = {"Eval failed: " + toliteral(id[1]) + " " + toliteral(id[2]) + ":"};
       for tb in (id[4])
-        traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
+        target = toliteral(tb[4]) + ":";
+        if (tb[4] == #-1)
+          target = "builtin function ";
+        endif
+        traceback = {@traceback, tostr("... called from ", target, tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
       endfor
       traceback = {@traceback, "(End of traceback)"};
       result_event = $event:mk_eval_exception(player, $format.code:mk(traceback)):with_group('eval);
@@ -1871,5 +1875,100 @@ object PROG_FEATURES
       raise(E_VERBNF, "Verb not found: " + verb_spec);
     endif
     return found_name;
+  endverb
+
+  verb "@ps @tasks" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Show active and queued tasks.";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    active = active_tasks();
+    queued = queued_tasks();
+    now = time();
+    blocks = {};
+    "Active tasks section";
+    if (length(active) > 0)
+      active_rows = {};
+      for task in (active)
+        {task_id, task_player, start_info} = task;
+        if (typeof(start_info) == TYPE_LIST && length(start_info) >= 1)
+          task_type = tostr(start_info[1]);
+          task_detail = length(start_info) >= 2 ? tostr(start_info[2]) | "";
+        else
+          task_type = tostr(start_info);
+          task_detail = "";
+        endif
+        active_rows = {@active_rows, {tostr(task_id), tostr(task_player), task_type, task_detail}};
+      endfor
+      active_table = $format.table:mk({"ID", "Player", "Type", "Start info"}, active_rows);
+      blocks = {@blocks, $format.title:mk("Active Tasks", 3), active_table};
+    else
+      blocks = {@blocks, $format.title:mk("Active Tasks", 3), "(none)"};
+    endif
+    "Queued/suspended tasks section";
+    if (length(queued) > 0)
+      queued_rows = {};
+      for task in (queued)
+        "Format: {task_id, start_time, 0, 0, programmer, verb_loc, verb_name, line, this}";
+        task_id = task[1];
+        resume_time = task[2];
+        programmer = task[5];
+        verb_loc = task[6];
+        verb_name = task[7];
+        line_num = task[8];
+        "Calculate time until resume";
+        delta = resume_time - now;
+        if (delta > 0)
+          if (delta < 60)
+            time_str = "in " + tostr(delta) + "s";
+          elseif (delta < 3600)
+            time_str = "in " + tostr(delta / 60) + "m";
+          else
+            time_str = "in " + tostr(delta / 3600) + "h";
+          endif
+        elseif (delta == 0)
+          time_str = "now";
+        else
+          time_str = "ready";
+        endif
+        verb_str = tostr(verb_loc) + ":" + verb_name;
+        if (line_num)
+          verb_str = verb_str + " (line " + tostr(line_num) + ")";
+        endif
+        queued_rows = {@queued_rows, {tostr(task_id), tostr(programmer), time_str, verb_str}};
+      endfor
+      queued_table = $format.table:mk({"ID", "Owner", "Resume", "Verb"}, queued_rows);
+      blocks = {@blocks, $format.title:mk("Queued Tasks", 3), queued_table};
+    else
+      blocks = {@blocks, $format.title:mk("Queued Tasks", 3), "(none)"};
+    endif
+    summary = tostr(length(active)) + " active, " + tostr(length(queued)) + " queued";
+    blocks = {@blocks, "", summary};
+    output = $format.block:mk(@blocks);
+    player:inform_current($event:mk_info(player, output));
+  endverb
+
+  verb "@kill-task @kill" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "USAGE: @kill <task-id> -- Kill a task by ID.";
+    this:_challenge_command_perms();
+    set_task_perms(player);
+    if (!argstr)
+      player:inform_current($event:mk_error(player, "Usage: @kill <task-id>"));
+      return;
+    endif
+    task_id = tonum(argstr:trim());
+    if (!task_id)
+      player:inform_current($event:mk_error(player, "Invalid task ID: " + argstr));
+      return;
+    endif
+    try
+      kill_task(task_id);
+      player:inform_current($event:mk_info(player, "Killed task " + tostr(task_id) + "."));
+    except e (E_INVARG)
+      player:inform_current($event:mk_error(player, "No such task: " + tostr(task_id)));
+    except e (E_PERM)
+      player:inform_current($event:mk_error(player, "Permission denied: you don't own task " + tostr(task_id) + "."));
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Error killing task: " + e[2]));
+    endtry
   endverb
 endobject
