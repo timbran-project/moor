@@ -5,7 +5,7 @@ object COUCH
   owner: HACKER
   readable: true
 
-  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .when = <RULE, .name = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .head = 'henri_sitting, .variables = {'This, 'Actor}>, .trigger = 'on_sit, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
+  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .head = 'henri_sitting, .variables = {'This, 'Actor}>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
 
   override aliases = {"couch", "sofa", "ratty couch"};
   override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";
@@ -17,7 +17,7 @@ object COUCH
   override sit_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .for_self = "sink", .type = 'self_alt, .for_others = "sinks">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "sink", .for_others = "sinks">,
     " into ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     ", stirring up a small cloud of cat hair."
@@ -27,7 +27,7 @@ object COUCH
   override stand_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .for_self = "stand", .type = 'self_alt, .for_others = "stands">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "stand", .for_others = "stands">,
     " up from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     ", brushing off some cat hair."

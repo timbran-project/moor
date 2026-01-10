@@ -10,7 +10,7 @@ object NOTE
   property erase_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "erase", .type = 'self_alt, .for_others = "erases">,
+    <SUB, .type = 'self_alt, .for_self = "erase", .for_others = "erases">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."
@@ -19,7 +19,7 @@ object NOTE
   property read_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "read", .type = 'self_alt, .for_others = "reads">,
+    <SUB, .type = 'self_alt, .for_self = "read", .for_others = "reads">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."
@@ -30,7 +30,7 @@ object NOTE
   property write_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "write", .type = 'self_alt, .for_others = "writes">,
+    <SUB, .type = 'self_alt, .for_self = "write", .for_others = "writes">,
     " on ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."

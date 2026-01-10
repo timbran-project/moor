@@ -5,8 +5,8 @@ object KIBBLE_CUPBOARD
   owner: ARCH_WIZARD
   readable: true
 
-  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .when = <RULE, .name = 'kibble_check, .body = {{'isa, 'Item, CAT_KIBBLE}}, .head = 'kibble_check, .variables = {'Item}>, .trigger = 'on_take, .effects = {{'trigger, HENRI, 'on_kibble_taken}}, .enabled = true, .fired_at = 0>;
-  property waft_reaction (owner: HACKER, flags: "r") = <REACTION, .when = 0, .trigger = 'on_open, .effects = {
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_take, .when = <RULE, .name = 'kibble_check, .body = {{'isa, 'Item, CAT_KIBBLE}}, .head = 'kibble_check, .variables = {'Item}>, .effects = {{'trigger, HENRI, 'on_kibble_taken}}, .enabled = true, .fired_at = 0>;
+  property waft_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_open, .when = 0, .effects = {
       {'announce, "A waft of kibble-scented air escapes from the cupboard."},
       {'trigger, HENRI, 'on_cupboard_open}
     }, .enabled = true, .fired_at = 0>;
@@ -15,7 +15,7 @@ object KIBBLE_CUPBOARD
   override close_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "close", .type = 'self_alt, .for_others = "closes">,
+    <SUB, .type = 'self_alt, .for_self = "close", .for_others = "closes">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     ", sealing away the kibble."
@@ -32,7 +32,7 @@ object KIBBLE_CUPBOARD
   override lock_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "lock", .type = 'self_alt, .for_others = "locks">,
+    <SUB, .type = 'self_alt, .for_self = "lock", .for_others = "locks">,
     " ",
     <SUB, .capitalize = false, .type = 'iobj>,
     " with ",
@@ -49,7 +49,7 @@ object KIBBLE_CUPBOARD
   override open_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "open", .type = 'self_alt, .for_others = "opens">,
+    <SUB, .type = 'self_alt, .for_self = "open", .for_others = "opens">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     ", revealing Henri's kibble storage."
@@ -69,7 +69,7 @@ object KIBBLE_CUPBOARD
   override unlock_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "unlock", .type = 'self_alt, .for_others = "unlocks">,
+    <SUB, .type = 'self_alt, .for_self = "unlock", .for_others = "unlocks">,
     " ",
     <SUB, .capitalize = false, .type = 'iobj>,
     " with ",

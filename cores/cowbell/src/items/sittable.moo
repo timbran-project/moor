@@ -38,7 +38,7 @@ object SITTABLE
   property sit_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .for_self = "sit", .type = 'self_alt, .for_others = "sits">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "sit", .for_others = "sits">,
     " on ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
@@ -58,7 +58,7 @@ object SITTABLE
   property stand_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .for_self = "stand", .type = 'self_alt, .for_others = "stands">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "stand", .for_others = "stands">,
     " up from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
@@ -323,12 +323,6 @@ object SITTABLE
     return pass(@args);
   endverb
 
-  verb on_location_exit (this none this) owner: HACKER flags: "rxd"
-    "Stand up departing player when they leave the room.";
-    {who} = args;
-    who in this.sitting && this:remove_sitter(who);
-  endverb
-
   verb test_sitting (none none none) owner: HACKER flags: "rxd"
     "Test basic sitting functionality.";
     test_obj = this:create(false);
@@ -360,5 +354,11 @@ object SITTABLE
       t:matches(topic) && return t;
     endfor
     return 0;
+  endverb
+
+  verb on_location_exit (this none this) owner: HACKER flags: "rxd"
+    "Stand up departing player when they leave the room.";
+    {who} = args;
+    who in this.sitting && this:remove_sitter(who);
   endverb
 endobject

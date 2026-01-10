@@ -14,7 +14,7 @@ object CONTAINER
   property close_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "close", .type = 'self_alt, .for_others = "closes">,
+    <SUB, .type = 'self_alt, .for_self = "close", .for_others = "closes">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."
@@ -24,7 +24,7 @@ object CONTAINER
   property lock_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "lock", .type = 'self_alt, .for_others = "locks">,
+    <SUB, .type = 'self_alt, .for_self = "lock", .for_others = "locks">,
     " ",
     <SUB, .capitalize = false, .type = 'iobj>,
     " with ",
@@ -43,7 +43,7 @@ object CONTAINER
   property open_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "open", .type = 'self_alt, .for_others = "opens">,
+    <SUB, .type = 'self_alt, .for_self = "open", .for_others = "opens">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."
@@ -53,7 +53,7 @@ object CONTAINER
   property put_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "put", .type = 'self_alt, .for_others = "puts">,
+    <SUB, .type = 'self_alt, .for_self = "put", .for_others = "puts">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     " in ",
@@ -65,7 +65,7 @@ object CONTAINER
   property take_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "take", .type = 'self_alt, .for_others = "takes">,
+    <SUB, .type = 'self_alt, .for_self = "take", .for_others = "takes">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     " from ",
@@ -77,7 +77,7 @@ object CONTAINER
   property unlock_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "unlock", .type = 'self_alt, .for_others = "unlocks">,
+    <SUB, .type = 'self_alt, .for_self = "unlock", .for_others = "unlocks">,
     " ",
     <SUB, .capitalize = false, .type = 'iobj>,
     " with ",
