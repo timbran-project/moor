@@ -217,71 +217,59 @@ object BUILDER_FEATURES
 
   verb "@audit @owned" (any none none) owner: ARCH_WIZARD flags: "rd"
     "HINT: [<player>] -- Show objects owned by a player.";
-    caller != player && raise(E_PERM);
+    caller == player || raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    try
-      "Determine which player to audit";
-      if (dobjstr)
-        target = $match:match_object(dobjstr, player);
-        typeof(target) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
-        !valid(target) && raise(E_INVARG, "That object no longer exists.");
-      else
-        target = player;
-      endif
-      "Get owned objects";
-      owned = sort(owned_objects(target));
-      if (!owned)
-        target_name = `target.name ! ANY => tostr(target)';
-        message = target == player ? "You don't own any objects." | target_name + " doesn't own any objects.";
-        player:inform_current($event:mk_info(player, message));
-        return 0;
-      endif
-      "Build header";
-      target_name = `target.name ! ANY => tostr(target)';
-      min_id = owned[1];
-      max_id = owned[length(owned)];
-      header = "Objects owned by " + target_name + " (from " + tostr(min_id) + " to " + tostr(max_id) + "):";
-      "Build table rows";
-      headers = {"Name", "Object", "Location", "Size"};
-      rows = {};
-      total_bytes = 0;
-      total_known = 0;
-      for o in (owned)
-        "Get object size if available";
-        obj_bytes = `o:estimated_size_bytes() ! ANY => false';
-        "Format size";
-        if (obj_bytes == false)
-          size_str = "unknown";
-        else
-          total_bytes = total_bytes + obj_bytes;
-          total_known = total_known + 1;
-          size_str = obj_bytes:format_bytes();
-        endif
-        "Get object info";
-        obj_id = tostr(o);
-        obj_name = `o.name ! ANY => "(no name)"';
-        loc = `o.location ! ANY => #-1';
-        loc_name = valid(loc) ? `loc.name ! ANY => tostr(loc)' | "Nowhere";
-        rows = {@rows, {obj_name, obj_id, "[" + loc_name + "]", size_str}};
-      endfor
-      "Build footer";
-      count = length(owned);
-      footer = tostr(count) + " object" + (count == 1 ? "" | "s") + ".";
-      if (total_known > 0)
-        footer = footer + "  Total bytes: " + tostr(total_bytes) + ".";
-      endif
-      "Output results";
-      player:inform_current($event:mk_info(player, header));
-      table_result = $format.table:mk(headers, rows);
-      player:inform_current($event:mk_info(player, table_result));
-      player:inform_current($event:mk_info(player, footer));
-      return count;
-    except e (ANY)
-      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
-      player:inform_current($event:mk_error(player, message));
+    "Determine target player";
+    target = dobjstr ? $match:match_player(dobjstr, player) | player;
+    "Get owned objects";
+    owned = sort(owned_objects(target));
+    target_name = `target.name ! ANY => tostr(target)';
+    if (!owned)
+      message = target == player ? "You don't own any objects." | target_name + " doesn't own any objects.";
+      player:inform_current($event:mk_info(player, message));
       return 0;
-    endtry
+    endif
+    "Build table, skipping non-readable objects when auditing others";
+    headers = {"Name", "Parent", "Location", "Flags"};
+    rows = {};
+    skipped = 0;
+    for item in (owned)
+      "Skip non-readable objects when auditing another player";
+      if (target != player && !item.r)
+        skipped = skipped + 1;
+        continue;
+      endif
+      obj_name = `item.name ! ANY => "(no name)"';
+      name_with_id = obj_name + " (" + tostr(item) + ")";
+      parent = parent(item);
+      parent_str = valid(parent) ? `parent.name ! ANY => tostr(parent)' + " (" + tostr(parent) + ")" | "none";
+      loc = `item.location ! ANY => #-1';
+      loc_str = valid(loc) ? `loc.name ! ANY => tostr(loc)' + " (" + tostr(loc) + ")" | "Nowhere";
+      "Build flags string: r=readable w=write f=fertile";
+      flags = "";
+      item.r && (flags = flags + "r");
+      item.w && (flags = flags + "w");
+      item.f && (flags = flags + "f");
+      rows = {@rows, {name_with_id, parent_str, loc_str, flags}};
+    endfor
+    "Output results";
+    if (!rows)
+      message = target_name + " has no readable objects.";
+      player:inform_current($event:mk_info(player, message));
+      return 0;
+    endif
+    {min_id, max_id} = {owned[1], owned[$]};
+    header = "Objects owned by " + target_name + " (from " + tostr(min_id) + " to " + tostr(max_id) + "):";
+    player:inform_current($event:mk_info(player, header));
+    player:inform_current($event:mk_info(player, $format.table:mk(headers, rows)));
+    count = length(rows);
+    footer = tostr(count) + " object" + (count == 1 ? "" | "s") + ".  Flags: r=readable w=write f=fertile";
+    if (skipped > 0)
+      footer = footer + "  (" + tostr(skipped) + " non-readable object" + (skipped == 1 ? "" | "s") + " hidden)";
+    endif
+    player:inform_current($event:mk_info(player, footer));
+    return count;
   endverb
 
   verb "@build" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -1587,14 +1575,307 @@ object BUILDER_FEATURES
     "Return help topics for builder commands.";
     {for_player, ?topic = ""} = args;
     "Main overview topic";
-    overview = $help:mk("building", "Builder commands", "Commands for creating and organizing the world:\n\n`@create`, `@recycle`, `@dig`, `@undig`, `@rename`, `@describe`, `@edit-description`, `@parent`, `@children`, `@integrate`, `@move`, `@messages`, `@rules`, `@reactions`, `@parents`, `@set-thumbnail`, `@grant`, `@audit`, `@build`\n\nUse `help <command>` for details on each command.", {"build", "create", "world"}, 'building, {"programming"});
-    "If asking for all topics, just return overview";
+    overview = $help:mk("building", "Builder commands", "Commands for creating and organizing the world:\n\n`@create`, `@recycle`, `@dig`, `@undig`, `@rename`, `@describe`, `@edit-description`, `@parent`, `@children`, `@integrate`, `@move`, `@messages`, `@rules`, `@reactions`, `@parents`, `@set-thumbnail`, `@grant`, `@audit`, `@build`, `#`\n\nUse `help <command>` for details on each command.", {"build", "create", "world"}, 'building, {"programming"});
+    "Help for the # command";
+    hash_help = $help:mk("#", "Quick object lookup", "Usage: `#<name>[.<property>...] [= <value>] [exit|player|inventory] [for <code>]`\n\nQuickly look up objects and their properties. Supports chained property access and assignment.\n\n**Basic usage:**\n- `#lamp` - Find object named 'lamp' in current room\n- `#lamp.description` - Get the description property\n- `#lamp.location.name` - Chained property access\n\n**Assignment (programmers only):**\n- `#me.description = \"A tall wizard.\"` - Set a property\n- `#lamp.brightness = 10` - Set numeric value\n- `#box.contents = {}` - Set to empty list\n\n**Scope modifiers:**\n- `#sword inventory` - Find in your inventory\n- `#north exit` - Find exit/passage info\n- `#bob player` - Find player by name\n\n**Code evaluation (programmers only):**\n- `#lamp for %#.owner` - Evaluate code with `%#` as the result\n- `#bob.location for length(%#.contents)` - Chain + eval", {"lookup", "find", "object-lookup", "hash"}, 'building, {});
+    "If asking for all topics, return overview";
     topic == "" && return {overview};
     "Check if topic matches overview";
     overview:matches(topic) && return overview;
+    "Check if topic matches # command";
+    hash_help:matches(topic) && return hash_help;
     "Try to generate help from verb HINT tags";
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'building) ! ANY => 0';
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
+  endverb
+
+  verb "@passage @passage-info @pinfo" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Show detailed passage information for a direction.";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    !argstr || !dobjstr && return player:inform_current($event:mk_error(player, $format.code:mk("@passage DIRECTION")));
+    try
+      direction = dobjstr:trim();
+      current_room = player.location;
+      !valid(current_room) && raise(E_INVARG, "You must be in a room.");
+      area = current_room.location;
+      !valid(area) && raise(E_INVARG, "Your current room is not in an area.");
+      passage = area:find_passage_by_direction(current_room, direction);
+      typeof(passage) != TYPE_FLYWEIGHT && raise(E_INVARG, "No passage found in direction '" + direction + "'.");
+      other_room = passage:other_room(current_room);
+      "Build info table";
+      rows = {{"Direction", passage:label_for(current_room)}, {"Aliases", passage:aliases_for(current_room):join(", ")}, {"Description", passage:description_for(current_room) || "(none)"}, {"Prose Style", tostr(passage:prose_style_for(current_room))}, {"Departure Phrase", passage:departure_phrase_for(current_room) || "(none)"}, {"Arrival Phrase", passage:arrival_phrase_for(current_room) || "(none)"}, {"", ""}, {"Destination", other_room.name + " (" + tostr(other_room) + ")"}, {"Return Direction", passage:label_for(other_room) || "(one-way)"}, {"Return Aliases", (passage:aliases_for(other_room) || {}):join(", ")}, {"Return Description", passage:description_for(other_room) || "(none)"}, {"", ""}, {"Open", passage.is_open ? "yes" | "no"}, {"Locked", `passage.is_locked ! E_PROPNF => false' ? "yes" | "no"}};
+      table = $format.table:mk({"Property", "Value"}, rows);
+      content = $format.block:mk($format.title:mk("Passage: " + direction, 3), table);
+      player:inform_current($event:mk_info(player, content));
+    except e (ANY)
+      message = typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+    endtry
+  endverb
+
+  verb "@set-passage @setp" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Set a passage property: description, departure, arrival, style, aliases.";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    if (!argstr || length(args) < 3)
+      lines = {"@set-passage DIRECTION PROPERTY VALUE", "", "Properties:", "  description DESC  - Ambient description (include direction word for links!)", "  departure PHRASE  - e.g., 'through the door'", "  arrival PHRASE    - e.g., 'from the kitchen'", "  style sentence|fragment", "  aliases A,B,C"};
+      return player:inform_current($event:mk_info(player, $format.block:mk(@lines)));
+    endif
+    try
+      {direction, prop} = {args[1]:trim(), args[2]:trim():initial_lowercase()};
+      "Get value - everything after first two args";
+      offset = index(argstr, args[2]) + length(args[2]);
+      value = argstr[offset..length(argstr)]:trim();
+      current_room = player.location;
+      !valid(current_room) && raise(E_INVARG, "You must be in a room.");
+      area = current_room.location;
+      !valid(area) && raise(E_INVARG, "Your room is not in an area.");
+      passage = area:find_passage_by_direction(current_room, direction);
+      typeof(passage) != TYPE_FLYWEIGHT && raise(E_INVARG, "No passage '" + direction + "' found.");
+      "Check permissions";
+      cap = player:find_capability_for(current_room, 'room);
+      room_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | current_room;
+      room_target:check_can_dig_from();
+      other_room = passage:other_room(current_room);
+      new_passage = 0;
+      "Apply the property change";
+      if (prop in {"description", "desc", "d"})
+        new_passage = passage:with_description_from(current_room, value):with_ambient_from(current_room, true);
+        prop_display = "description";
+      elseif (prop in {"departure", "depart", "leave"})
+        new_passage = passage:with_departure_phrase_from(current_room, value);
+        prop_display = "departure phrase";
+      elseif (prop in {"arrival", "arrive", "enter"})
+        new_passage = passage:with_arrival_phrase_from(current_room, value);
+        prop_display = "arrival phrase";
+      elseif (prop in {"style", "prose"})
+        value in {"sentence", "s"} && (new_passage = passage:with_prose_style_from(current_room, 'sentence));
+        value in {"fragment", "f"} && (new_passage = passage:with_prose_style_from(current_room, 'fragment));
+        typeof(new_passage) != TYPE_FLYWEIGHT && raise(E_INVARG, "Style must be 'sentence' or 'fragment'.");
+        prop_display = "style to " + value;
+      elseif (prop in {"aliases", "alias"})
+        aliases = {};
+        for a in (value:split(","))
+          trimmed = a:trim();
+          trimmed && (aliases = {@aliases, trimmed});
+        endfor
+        new_passage = passage:with_aliases_from(current_room, aliases);
+        prop_display = "aliases to " + aliases:join(", ");
+      else
+        raise(E_INVARG, "Unknown property. Use: description, departure, arrival, style, aliases");
+      endif
+      area:update_passage(current_room, other_room, new_passage);
+      player:inform_current($event:mk_info(player, "Set " + direction + " " + prop_display + "."));
+    except e (ANY)
+      message = typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+    endtry
+  endverb
+
+  verb "#*" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "HINT: #<string>[.<property>...] [= <value>] [exit|player|inventory] [for <code>]";
+    "Quick object lookup with optional property chain, assignment, and code evaluation.";
+    caller != player && raise(E_PERM);
+    player.is_builder || raise(E_PERM, "Builder features required.");
+    set_task_perms(player);
+    "Parse the verb name to extract object string and property chain";
+    verb_part = verb[2..$];
+    if (!verb_part)
+      player:inform_current($event:mk_info(player, "Usage: #<name>[.<property>...] [= <value>] [exit|player|inventory] [for <code>]\nType 'help #' for details."));
+      return;
+    endif
+    "Split by dots to get object name and property chain";
+    parts = verb_part:split(".");
+    obj_string = parts[1];
+    prop_chain = length(parts) > 1 ? parts[2..$] | {};
+    "Check for assignment (argstr starts with =)";
+    rest = argstr:trim();
+    assignment_value = 0;
+    is_assignment = false;
+    if (rest && rest[1] == "=")
+      is_assignment = true;
+      !player.programmer && raise(E_PERM, "Assignment requires programmer privileges.");
+      !length(prop_chain) && raise(E_INVARG, "Assignment requires a property (e.g., #obj.prop = value)");
+      value_str = rest[2..$]:trim();
+      !value_str && raise(E_INVARG, "Missing value after =");
+      "Parse the value using eval";
+      eval_result = eval("return " + value_str + ";");
+      !eval_result[1] && raise(E_INVARG, "Invalid value: " + toliteral(eval_result));
+      assignment_value = eval_result[2];
+      rest = "";
+    endif
+    "Parse remaining argstr for scope and for-clause";
+    scope = "";
+    for_code = "";
+    if (rest)
+      words = rest:split(" ");
+      first_word = words[1]:lowercase();
+      if (first_word in {"exit", "player", "inventory"})
+        scope = first_word;
+        rest = length(words) > 1 ? words[2..$]:join(" ") | "";
+      endif
+      rest = rest:trim();
+      if (index(rest:lowercase(), "for ") == 1)
+        for_code = rest[5..$]:trim();
+      elseif (rest && !(first_word in {"exit", "player", "inventory"}))
+        raise(E_INVARG, "Unknown argument: " + rest + ". Expected: exit, player, inventory, or 'for <code>'");
+      endif
+    endif
+    "Helper to match exits - returns {passage, side} where side is 'a or 'b";
+    fn match_exit(name)
+      room = player.location;
+      !valid(room) && return $failed_match;
+      area = room.location;
+      !valid(area) || !respond_to(area, 'passages_from) && return $failed_match;
+      passages = area:passages_from(room);
+      !length(passages) && return $failed_match;
+      search_objects = {};
+      keys = {};
+      sides = {};
+      for passage in (passages)
+        if (passage.side_a_room == room)
+          search_objects = {@search_objects, passage};
+          keys = {@keys, passage.side_a_aliases};
+          sides = {@sides, 'a};
+        else
+          search_objects = {@search_objects, passage};
+          keys = {@keys, passage.side_b_aliases};
+          sides = {@sides, 'b};
+        endif
+      endfor
+      match = complex_match(name, search_objects, keys);
+      match == $failed_match && return $failed_match;
+      idx = match in search_objects;
+      return {match, sides[idx]};
+    endfn
+    "Match the object based on scope";
+    passage_side = 0;
+    try
+      if (scope == "player")
+        thing = $match:match_player(obj_string, player);
+      elseif (scope == "inventory")
+        search_objects = player.contents;
+        !length(search_objects) && raise(E_INVARG, "Your inventory is empty");
+        keys = { {item.name, @`item.aliases ! ANY => {}'} for item in (search_objects) };
+        thing = complex_match(obj_string, search_objects, keys);
+        thing == $failed_match && raise(E_INVARG, "No object found matching '" + obj_string + "' in inventory");
+      elseif (scope == "exit")
+        match_result = match_exit(obj_string);
+        match_result == $failed_match && raise(E_INVARG, "No exit found matching '" + obj_string + "'");
+        {thing, passage_side} = match_result;
+      else
+        "Default: try room objects, then players, then exits";
+        thing = `$match:match_object(obj_string, player) ! ANY => $failed_match';
+        thing == $failed_match && (thing = `$match:match_player(obj_string, player) ! ANY => $failed_match');
+        if (thing == $failed_match)
+          match_result = match_exit(obj_string);
+          if (match_result != $failed_match)
+            {thing, passage_side} = match_result;
+          endif
+        endif
+        thing == $failed_match && raise(E_INVARG, "No match found for '" + obj_string + "'");
+      endif
+    except e (ANY)
+      msg = typeof(e) == TYPE_LIST && length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, msg));
+      return;
+    endtry
+    "Walk the property chain (for assignment, stop one short)";
+    result = thing;
+    current_prop = "";
+    walk_to = is_assignment ? length(prop_chain) - 1 | length(prop_chain);
+    try
+      for i in [1..walk_to]
+        current_prop = prop_chain[i];
+        if (current_prop == "parent")
+          result = parent(result);
+        else
+          result = result.(current_prop);
+        endif
+      endfor
+    except e (E_PROPNF)
+      player:inform_current($event:mk_error(player, "Property ." + current_prop + " not found on " + toliteral(result)));
+      return;
+    except e (E_INVIND)
+      player:inform_current($event:mk_error(player, "Cannot access ." + current_prop + " on " + toliteral(result) + " (not an object)"));
+      return;
+    except e (ANY)
+      msg = typeof(e) == TYPE_LIST && length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, msg));
+      return;
+    endtry
+    "Handle assignment";
+    if (is_assignment)
+      target_prop = prop_chain[$];
+      target_prop == "parent" && raise(E_INVARG, "Cannot assign to .parent (use @parent command)");
+      try
+        result.(target_prop) = assignment_value;
+        player:inform_current($event:mk_info(player, toliteral(thing) + "." + prop_chain:join(".") + " = " + toliteral(assignment_value)));
+        return assignment_value;
+      except e (E_PROPNF)
+        player:inform_current($event:mk_error(player, "Property ." + target_prop + " not found on " + toliteral(result)));
+        return;
+      except e (E_PERM)
+        player:inform_current($event:mk_error(player, "Permission denied setting ." + target_prop + " on " + toliteral(result)));
+        return;
+      except e (ANY)
+        msg = typeof(e) == TYPE_LIST && length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+        player:inform_current($event:mk_error(player, msg));
+        return;
+      endtry
+    endif
+    "If for-code given, evaluate it with %# substituted (programmers only)";
+    if (for_code)
+      !player.programmer && raise(E_PERM, "The 'for' clause requires programmer privileges.");
+      code = strsub(for_code, "%#", toliteral(result));
+      try
+        final_result = eval("return " + code + ";");
+        if (typeof(final_result) == TYPE_LIST && final_result[1])
+          result = final_result[2];
+        else
+          player:inform_current($event:mk_error(player, "Eval error: " + toliteral(final_result)));
+          return;
+        endif
+      except e (ANY)
+        msg = typeof(e) == TYPE_LIST && length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+        player:inform_current($event:mk_error(player, "Eval error: " + msg));
+        return;
+      endtry
+    endif
+    "Display the result";
+    if (passage_side && typeof(result) == TYPE_FLYWEIGHT && !prop_chain)
+      "Passage result with no property chain - show passage info";
+      passage = result;
+      if (passage_side == 'a)
+        from_room = passage.side_a_room;
+        to_room = passage.side_b_room;
+        label = passage.side_a_label;
+        aliases = passage.side_a_aliases;
+        desc = passage.side_a_description;
+      else
+        from_room = passage.side_b_room;
+        to_room = passage.side_a_room;
+        label = passage.side_b_label;
+        aliases = passage.side_b_aliases;
+        desc = passage.side_b_description;
+      endif
+      items = {{"Passage", label + " (" + aliases:join(", ") + ")"}, {"From", from_room.name + " (" + tostr(from_room) + ")"}, {"To", to_room.name + " (" + tostr(to_room) + ")"}, {"Open", passage.is_open ? "yes" | "no"}};
+      desc && (items = {@items, {"Description", desc}});
+      player:inform_current($event:mk_info(player, $format.deflist:mk(items)):with_presentation_hint('inset));
+    elseif (typeof(result) == TYPE_OBJ && valid(result))
+      owner = `result.owner ! ANY => #-1';
+      loc = `result.location ! ANY => #-1';
+      items = {{"Object", tostr(result)}, {"Name", `result.name ! ANY => "(no name)"'}, {"Owner", valid(owner) ? owner.name + " (" + tostr(owner) + ")" | "???"}, {"Location", valid(loc) ? loc.name + " (" + tostr(loc) + ")" | "nowhere"}};
+      player:inform_current($event:mk_info(player, $format.deflist:mk(items)):with_presentation_hint('inset));
+    elseif (typeof(result) == TYPE_OBJ)
+      player:inform_current($event:mk_info(player, "=> " + tostr(result) + " (invalid)"));
+    else
+      player:inform_current($event:mk_info(player, "=> " + toliteral(result)));
+    endif
+    return result;
   endverb
 endobject
