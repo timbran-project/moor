@@ -181,12 +181,17 @@ object AREA
   endverb
 
   verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Find a path from start_room to goal_room. Returns list of {room, passage} pairs, or false.";
+    "Find a path from start_room to goal_room. Returns list of {room, connector} pairs, or false.";
+    "Connector is either a passage flyweight or {'transport, label, transport_obj} for transports.";
     "Optional third arg: only_open (default true) - skip closed passages.";
-    {start_room, goal_room, ?only_open = true} = args;
+    "Optional fourth arg: include_transports (default true) - include transport connections.";
+    {start_room, goal_room, ?only_open = true, ?include_transports = true} = args;
     typeof(start_room) == TYPE_OBJ && typeof(goal_room) == TYPE_OBJ || raise(E_TYPE);
     if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
-      return start_room == goal_room ? {{start_room, false}} | false;
+      "No passage relation - still check for transport-only paths";
+      if (start_room == goal_room)
+        return {{start_room, false}};
+      endif
     endif
     start_room == goal_room && return {{start_room, false}};
     visited = [start_room -> true];
@@ -197,38 +202,59 @@ object AREA
       suspend_if_needed(50000);
       {current, path} = queue[1];
       queue = listdelete(queue, 1);
-      "Try forward edges: current -> next";
-      results = this.passages_rel:query({current, $dvar:mk_next(), $dvar:mk_passage()});
-      for binding in (results)
-        next = binding['next];
-        passage = binding['passage];
-        if (only_open && !`passage.is_open ! ANY => true')
-          continue;
+      "Try passage forward edges: current -> next";
+      if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
+        results = this.passages_rel:query({current, $dvar:mk_next(), $dvar:mk_passage()});
+        for binding in (results)
+          next = binding['next];
+          passage = binding['passage];
+          if (only_open && !`passage.is_open ! ANY => true')
+            continue;
+          endif
+          if (next == goal_room)
+            return {@path, {current, passage}, {goal_room, false}};
+          endif
+          if (!maphaskey(visited, next))
+            visited[next] = true;
+            queue = {@queue, {next, {@path, {current, passage}}}};
+          endif
+        endfor
+        "Try passage reverse edges: next -> current";
+        results = this.passages_rel:query({$dvar:mk_next(), current, $dvar:mk_passage()});
+        for binding in (results)
+          next = binding['next];
+          passage = binding['passage];
+          if (only_open && !`passage.is_open ! ANY => true')
+            continue;
+          endif
+          if (next == goal_room)
+            return {@path, {current, passage}, {goal_room, false}};
+          endif
+          if (!maphaskey(visited, next))
+            visited[next] = true;
+            queue = {@queue, {next, {@path, {current, passage}}}};
+          endif
+        endfor
+      endif
+      "Try transport connections from this room";
+      if (include_transports)
+        transports = `current:transport_destinations() ! ANY => {}';
+        if (typeof(transports) == TYPE_LIST)
+          for conn in (transports)
+            {next, label, transport_obj} = conn;
+            if (!valid(next))
+              continue;
+            endif
+            if (next == goal_room)
+              return {@path, {current, {'transport, label, transport_obj}}, {goal_room, false}};
+            endif
+            if (!maphaskey(visited, next))
+              visited[next] = true;
+              queue = {@queue, {next, {@path, {current, {'transport, label, transport_obj}}}}};
+            endif
+          endfor
         endif
-        if (next == goal_room)
-          return {@path, {current, passage}, {goal_room, false}};
-        endif
-        if (!maphaskey(visited, next))
-          visited[next] = true;
-          queue = {@queue, {next, {@path, {current, passage}}}};
-        endif
-      endfor
-      "Try reverse edges: next -> current";
-      results = this.passages_rel:query({$dvar:mk_next(), current, $dvar:mk_passage()});
-      for binding in (results)
-        next = binding['next];
-        passage = binding['passage];
-        if (only_open && !`passage.is_open ! ANY => true')
-          continue;
-        endif
-        if (next == goal_room)
-          return {@path, {current, passage}, {goal_room, false}};
-        endif
-        if (!maphaskey(visited, next))
-          visited[next] = true;
-          queue = {@queue, {next, {@path, {current, passage}}}};
-        endif
-      endfor
+      endif
     endwhile
     return false;
   endverb
@@ -507,5 +533,15 @@ object AREA
     length(reachable) != 2 && raise(E_ASSERT, "Should only reach 2 rooms with closed passage");
     reachable = area:rooms_from(r1, false);
     length(reachable) != 3 && raise(E_ASSERT, "Should reach all 3 rooms when ignoring closed");
+  endverb
+
+  verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Destroy this area, cleaning up the passages relation first.";
+    "Clean up passages relation if it exists";
+    if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
+      this.passages_rel:destroy();
+    endif
+    "Call parent destroy";
+    pass();
   endverb
 endobject
