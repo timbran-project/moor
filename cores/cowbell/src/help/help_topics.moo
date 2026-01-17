@@ -124,6 +124,14 @@ object HELP_TOPICS
     "basics",
     {"get", "drop"}
   };
+  property topic_join (owner: ARCH_WIZARD, flags: "rc") = {
+    "join",
+    "Walk to join another player",
+    "Use `join <player>` to automatically walk to where another player is.\n\nExamples:\n- `join ryan` - walk to Ryan's location\n- `join mr welcome` - walk to Mr. Welcome\n\nThe player name uses standard matching.\n\nTo stop: `walk stop` or `walk cancel`\n\nNote: Only works if the player is in the same area and reachable by walking (passages only, not elevators).",
+    {"@join"},
+    "social",
+    {"movement", "walk", "who"}
+  };
   property topic_listgag (owner: ARCH_WIZARD, flags: "rc") = {
     "@listgag",
     "Show your gag lists",
@@ -143,10 +151,10 @@ object HELP_TOPICS
   property topic_movement (owner: ARCH_WIZARD, flags: "rc") = {
     "movement",
     "Moving around",
-    "Move using compass directions: `north`, `south`, `east`, `west` (or `n`, `s`, `e`, `w`).\n\nSome places have other exits like `up`, `down`, `in`, `out`.\n\nUse `exits` to see available directions.",
-    {"go", "walk", "move", "travel"},
+    "Move using compass directions: `north`, `south`, `east`, `west` (or `n`, `s`, `e`, `w`).\n\nSome places have other exits like `up`, `down`, `in`, `out`.\n\nUse `exits` to see available directions.\n\n## Auto-walk\n\nYou can walk automatically to a destination:\n\n- `walk to <place>` - walk to a room by name\n- `join <player>` - walk to where another player is\n- `walk stop` - stop walking\n\nAuto-walk uses fuzzy matching, so `walk lobby` or `walk dorm` will work.",
+    {"go", "move", "travel"},
     "basics",
-    {"exits", "look"}
+    {"exits", "look", "walk", "join"}
   };
   property topic_privacy (owner: ARCH_WIZARD, flags: "rc") = {
     "privacy",
@@ -195,6 +203,14 @@ object HELP_TOPICS
     {"ungag", "unmute", "unblock"},
     "communicating",
     {"gagging", "@gag", "@listgag"}
+  };
+  property topic_walk (owner: ARCH_WIZARD, flags: "rc") = {
+    "walk",
+    "Walk automatically to a destination",
+    "Use `walk to <destination>` or `walk <destination>` to automatically walk to a room.\n\nExamples:\n- `walk to lobby` - walk to the lobby\n- `walk dormitory` - walk to the dormitory\n- `walk second floor` - walk to a floor\n\nThe destination uses fuzzy matching, so partial names work.\n\nTo stop walking: `walk stop` or `walk cancel`\n\nNote: Auto-walk only works via passages (stairs, doors). If a destination requires an elevator or other transport, you'll be told what transport to use.",
+    {"goto", "go_to", "autowalk"},
+    "basics",
+    {"movement", "join", "exits"}
   };
   property topic_who (owner: ARCH_WIZARD, flags: "rc") = {
     "who",

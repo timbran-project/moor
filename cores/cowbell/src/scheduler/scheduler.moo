@@ -5,8 +5,8 @@ object SCHEDULER
   readable: true
 
   property loop_task_id (owner: HACKER, flags: "r") = 0;
-  property next_schedule_id (owner: HACKER, flags: "r") = 1;
-  property running (owner: HACKER, flags: "r") = false;
+  property next_schedule_id (owner: HACKER, flags: "r") = 0;
+  property running (owner: HACKER, flags: "r") = 1;
   property sweep_task_id (owner: HACKER, flags: "r") = 0;
 
   override description = "Task scheduler for executing verbs on objects at specified times or intervals. Each scheduled task is stored in its own property (scheduled_task_N) to avoid transaction conflicts.";
