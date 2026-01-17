@@ -139,8 +139,7 @@ object ACTOR
   verb mk_say_event (this none this) owner: HACKER flags: "rxd"
     event = $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
     event = event:with_metadata('content, args[1]);
-    event = event:with_metadata('preferred_content_types, {'text_djot});
-    event = event:with_presentation_hint('speech_bubble);
+    event = event:as_djot():with_presentation_hint('speech_bubble);
     return event;
   endverb
 
@@ -197,12 +196,9 @@ object ACTOR
       endif
     endif
     parts = {@parts, "."};
-    event = $event:mk_move(this, @parts);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    event = $event:mk_move(this, @parts):as_djot();
     valid(from_room) && (event = event:with_this(from_room));
-    if (valid(to_room))
-      event = event:with_iobj(to_room);
-    endif
+    valid(to_room) && (event = event:with_iobj(to_room));
     return event;
   endverb
 
@@ -234,12 +230,9 @@ object ACTOR
       endif
     endif
     parts = {@parts, "."};
-    event = $event:mk_move(this, @parts);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    event = $event:mk_move(this, @parts):as_djot();
     valid(to_room) && (event = event:with_this(to_room));
-    if (valid(from_room))
-      event = event:with_iobj(from_room);
-    endif
+    valid(from_room) && (event = event:with_iobj(from_room));
     return event;
   endverb
 
