@@ -93,6 +93,9 @@ define ARCHITECTS_COMPASS = #47;
 define LLM_TASK = #61;
 define LLM_CHAT_OPTS = #68;
 define AGENT_BUILDING_TOOLS = #81;
+define LLM_RESPONSE = #00059B-9BBA0047BD;
+define RLM_AGENT = #00190C-9BC1929F9C;
+define AGENT_ROOM = #86;
 
 // messaging
 define MAILBOX = #73;

@@ -6,6 +6,7 @@ object SYSOBJ
 
   property actor (owner: HACKER, flags: "r") = ACTOR;
   property agent_building_tools (owner: HACKER, flags: "r") = AGENT_BUILDING_TOOLS;
+  property agent_room (owner: ARCH_WIZARD, flags: "rc") = AGENT_ROOM;
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property ansi (owner: HACKER, flags: "r") = ANSI;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
@@ -51,6 +52,7 @@ object SYSOBJ
   property llm_agent_tool (owner: HACKER, flags: "r") = LLM_AGENT_TOOL;
   property llm_chat_opts (owner: HACKER, flags: "r") = LLM_CHAT_OPTS;
   property llm_client (owner: HACKER, flags: "r") = LLM_CLIENT;
+  property llm_response (owner: ARCH_WIZARD, flags: "rc") = LLM_RESPONSE;
   property llm_room_observer (owner: HACKER, flags: "r") = LLM_ROOM_OBSERVER;
   property llm_task (owner: HACKER, flags: "r") = LLM_TASK;
   property llm_wearable (owner: HACKER, flags: "r") = LLM_WEARABLE;
@@ -76,6 +78,7 @@ object SYSOBJ
   property prototype_box (owner: HACKER, flags: "r") = PROTOTYPE_BOX;
   property reaction (owner: HACKER, flags: "r") = REACTION;
   property relation (owner: HACKER, flags: "r") = RELATION;
+  property rlm_agent (owner: ARCH_WIZARD, flags: "r") = RLM_AGENT;
   property room (owner: HACKER, flags: "r") = ROOM;
   property root (owner: HACKER, flags: "r") = ROOT;
   property rule (owner: HACKER, flags: "r") = RULE;
@@ -203,7 +206,7 @@ object SYSOBJ
     {command, match_env} = args;
     "Parse command using match environment (all visible objects for dobj/iobj matching)";
     try
-      pc = parse_command(command, match_env, true);
+      pc = parse_command(command, match_env, true, 0.3);
     except e (ANY)
       "parse_command failed - report to programmers, friendly message to others";
       if (player.programmer || player.wizard)
