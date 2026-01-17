@@ -546,92 +546,53 @@ object PROG_FEATURES
   endverb
 
   verb "@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "HINT: <object>.<property> -- Add a property to an object.";
+    "HINT: <object>.<property> [value [perms [owner]]] -- Add a property to an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
-    if (!argstr)
-      player:inform_current($event:mk_error(player, $format.code:mk("@property OBJECT.PROP-NAME [VALUE [PERMS [OWNER]]]")));
-      return;
-    endif
-    target_spec = args[1];
-    "Parse property reference";
-    parsed = $prog_utils:parse_target_spec(target_spec);
-    "Check for valid property reference";
-    if (!parsed || parsed['type] != 'compound)
-      player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
-      return;
-    endif
+    "Parse and validate arguments";
+    !argstr && return player:inform_current($event:mk_error(player, "Usage: @property OBJECT.PROP-NAME [VALUE [PERMS [OWNER]]]"));
+    parsed = $prog_utils:parse_target_spec(args[1]);
+    !parsed || parsed['type] != 'compound && return player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name>"));
     selector = parsed['selectors][1];
-    if (selector['kind] != 'property || !selector['item_name])
-      player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name> [<initial-value> [<perms> [<owner>]]]"));
-      return;
-    endif
-    object_str = parsed['object_str];
+    selector['kind] != 'property || !selector['item_name] && return player:inform_current($event:mk_error(player, "Usage: @property <object>.<prop-name>"));
     prop_name = selector['item_name];
-    "Match the target object";
-    try
-      target_obj = $match:match_object(object_str, player);
-    except e (ANY)
-      player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
-      return;
-    endtry
-    "Get initial value and remaining args";
+    target_obj = $match:match_object(parsed['object_str], player);
+    "Parse optional value, perms, owner";
     value = 0;
-    perms = "rw";
+    perms = "r";
     owner = player;
     if (length(args) > 1)
-      "Get remainder after target spec";
-      offset = index(argstr, target_spec) + length(target_spec);
-      remainder = argstr[offset..length(argstr)]:trim();
+      offset = index(argstr, args[1]) + length(args[1]);
+      remainder = argstr[offset..$]:trim();
       if (remainder)
-        "Try to evaluate a literal from the start of remainder";
+        "Try to evaluate initial value";
         eval_result = $prog_utils:eval_literal(remainder);
         if (eval_result[1])
           value = eval_result[2];
           remainder = eval_result[3]:trim();
         endif
-        "If there's still something left, try to parse perms and owner";
-        if (remainder)
-          remaining_words = remainder:words();
-          if (length(remaining_words) > 0)
-            "Check if first word looks like perms (short string of r, w, c)";
-            maybe_perms = remaining_words[1];
-            if (length(maybe_perms) <= 3 && match(maybe_perms, "^[rwc]+$"))
-              perms = maybe_perms;
-              if (length(remaining_words) > 1)
-                "Try to match owner";
-                try
-                  owner = $match:match_object(remaining_words[2], player);
-                  if (!valid(owner) || typeof(owner) != TYPE_OBJ)
-                    player:inform_current($event:mk_error(player, "Invalid owner object"));
-                    return;
-                  endif
-                except e (ANY)
-                  player:inform_current($event:mk_error(player, "Could not match owner: " + tostr(e[2])));
-                  return;
-                endtry
-              endif
-            else
-              "First remaining word doesn't look like valid perms";
-              player:inform_current($event:mk_error(player, "Invalid permissions string: " + maybe_perms + ". Must be combination of r, w, c."));
-              return;
-            endif
+        "Parse remaining words for perms and owner";
+        remaining_words = remainder:words();
+        if (length(remaining_words) > 0)
+          maybe_perms = remaining_words[1];
+          !match(maybe_perms, "^[rwc]+$") && return player:inform_current($event:mk_error(player, "Invalid permissions: " + maybe_perms + ". Use r, w, c."));
+          perms = maybe_perms;
+          if (length(remaining_words) > 1)
+            owner = $match:match_object(remaining_words[2], player);
           endif
         endif
       endif
     endif
-    "Try to add the property";
+    "Add the property";
     try
       add_property(target_obj, prop_name, value, {owner, perms});
-      player:inform_current($event:mk_info(player, "Property " + tostr(target_obj) + "." + prop_name + " added with initial value " + toliteral(value) + " and permissions " + perms + "."));
+      description = tostr(target_obj) + "." + prop_name + " = " + toliteral(value) + " [" + perms + "]";
+      player:inform_current($event:mk_info(player, "Added `" + description + "`"):as_djot():as_inset());
     except e (E_INVARG)
-      if (index(tostr(e[2]), "already exists"))
-        player:inform_current($event:mk_error(player, "Property " + prop_name + " already exists on " + tostr(target_obj) + "."));
-      else
-        player:inform_current($event:mk_error(player, "Error adding property: " + tostr(e[2])));
+      if (index(tostr(e[2]), "Duplicate"))
+        return player:inform_current($event:mk_error(player, "Property `" + prop_name + "` already exists on " + tostr(target_obj) + "."):as_djot():as_inset());
       endif
-    except e (ANY)
-      player:inform_current($event:mk_error(player, "Error adding property: " + tostr(e[2])));
+      raise(e[1], e[2]);
     endtry
   endverb
 
@@ -1375,7 +1336,7 @@ object PROG_FEATURES
         func_name = tosym(target_spec);
         doc_lines = function_help(func_name);
         "Success - it's a builtin function";
-        title = "Builtin Function: " + target_spec;
+        title = "Builtin Function: `" + target_spec + "`";
         doc_text = doc_lines:join("\n");
         "Also get function signature info";
         for fn_info in (function_info())
@@ -1389,7 +1350,7 @@ object PROG_FEATURES
           endif
         endfor
         content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
-        player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+        player:inform_current($event:mk_info(player, content):as_djot():as_inset());
         return;
       except e (E_INVARG)
         "Not a builtin function - continue to try as object";
@@ -1400,7 +1361,7 @@ object PROG_FEATURES
     if (!parsed)
       "Failed to parse - might be a typo for a builtin function";
       if (!this:suggest_doc_topic('builtin, target_spec))
-        player:inform_current($event:mk_error(player, "Invalid format. Use 'object', 'object:verb', 'object.property', or 'builtin_function'"));
+        player:inform_current($event:mk_error(player, "Invalid format. Use `object`, `object:verb`, `object.property`, or `builtin_function`"):as_djot());
       endif
       return;
     endif
@@ -1434,40 +1395,40 @@ object PROG_FEATURES
       "Get object documentation";
       obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
       doc_text = $help_utils:get_object_documentation(target_obj);
-      title = "Documentation for " + obj_display + " (" + toliteral(target_obj) + ")";
+      title = "Documentation for " + obj_display + " (`" + toliteral(target_obj) + "`)";
       content = $help_utils:format_documentation_display(title, doc_text);
-      player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, content):as_djot():as_inset());
     elseif (type == 'verb)
       "Find where the verb is actually defined";
       verb_location = target_obj:find_verb_definer(item_name);
       if (verb_location == #-1)
         "Verb not found - try LLM suggestions with verb list";
         if (!this:suggest_doc_topic('verb, target_spec, target_obj, item_name))
-          player:inform_current($event:mk_error(player, "Verb '" + tostr(item_name) + "' not found on " + tostr(target_obj) + " or its ancestors."));
+          player:inform_current($event:mk_error(player, "Verb `" + tostr(item_name) + "` not found on `" + tostr(target_obj) + "` or its ancestors."):as_djot());
         endif
         return;
       endif
       "Get verb documentation";
       verb_obj_display = `verb_location:display_name() ! E_VERBNF => verb_location.name';
       doc_text = $help_utils:extract_verb_documentation(verb_location, item_name);
-      title = "Documentation for " + verb_obj_display + " (" + toliteral(verb_location) + "):" + tostr(item_name);
+      title = "Documentation for " + verb_obj_display + " (`" + toliteral(verb_location) + ":" + tostr(item_name) + "`)";
       content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
-      player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, content):as_djot():as_inset());
     elseif (type == 'property)
       "Check if property exists";
       if (!(item_name in properties(target_obj)))
         "Property not found - try LLM suggestions with property list";
         if (!this:suggest_doc_topic('property, target_spec, target_obj, item_name))
-          player:inform_current($event:mk_error(player, "Property '" + item_name + "' not found on " + tostr(target_obj) + "."));
+          player:inform_current($event:mk_error(player, "Property `" + item_name + "` not found on `" + tostr(target_obj) + "`."):as_djot());
         endif
         return;
       endif
       "Get property documentation";
       obj_display = `target_obj:display_name() ! E_VERBNF => target_obj.name';
       doc_text = $help_utils:property_documentation(target_obj, item_name);
-      title = "Documentation for " + obj_display + " (" + toliteral(target_obj) + ")." + item_name;
+      title = "Documentation for " + obj_display + " (`" + toliteral(target_obj) + "." + item_name + "`)";
       content = $help_utils:format_documentation_display(title, $format.code:mk(doc_text));
-      player:inform_current($event:mk_info(player, content):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset));
+      player:inform_current($event:mk_info(player, content):as_djot():as_inset());
     else
       player:inform_current($event:mk_error(player, "Invalid reference type"));
     endif
@@ -1727,13 +1688,13 @@ object PROG_FEATURES
     endif
     "Build error message based on failure type";
     if (failure_type == 'object)
-      error_msg = "Could not find object: " + target_spec;
+      error_msg = "Could not find object: `" + target_spec + "`";
     elseif (failure_type == 'verb)
-      error_msg = "Verb '" + item_name + "' not found on " + obj_display + ".";
+      error_msg = "Verb `" + item_name + "` not found on `" + obj_display + "`.";
     elseif (failure_type == 'builtin)
-      error_msg = "'" + target_spec + "' is not a recognized builtin function or object.";
+      error_msg = "`" + target_spec + "` is not a recognized builtin function or object.";
     else
-      error_msg = "Property '" + item_name + "' not found on " + obj_display + ".";
+      error_msg = "Property `" + item_name + "` not found on `" + obj_display + "`.";
     endif
     "Send immediate placeholder with rewritable event";
     rewrite_id = uuid();
@@ -1831,7 +1792,7 @@ object PROG_FEATURES
       try
         response = llm_client:simple_query(prompt);
         if (typeof(response) == TYPE_STR && length(response) > 0)
-          result_event = $event:mk_info(player, $format.block:mk(error_msg + "\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          result_event = $event:mk_info(player, $format.block:mk(error_msg + "\n", response)):as_djot():as_inset();
           player:rewrite_event(rewrite_id, result_event, current_conn);
         else
           player:rewrite_event(rewrite_id, error_msg, current_conn);

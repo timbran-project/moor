@@ -316,7 +316,7 @@ object WIZ_FEATURES
     "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
-      target = $match:match_object(dobjstr, player);
+      target = $match:match_player(dobjstr, player);
     endif
     if (!valid(target))
       raise(E_INVARG, "Usage: @llm-budget <player>");
