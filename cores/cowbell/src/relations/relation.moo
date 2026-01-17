@@ -26,7 +26,7 @@ object RELATION
       index_prop = "index_" + value_hash(element);
       index_map = `this.(index_prop) ! E_PROPNF => 0';
       if (typeof(index_map) != TYPE_MAP)
-        index_map = mapdelete(['_dummy -> 0], '_dummy);
+        index_map = [];
         add_property(this, index_prop, index_map, {this.owner, "r"});
       endif
       uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
@@ -54,9 +54,20 @@ object RELATION
         continue;
       endif
       index_map = this.(index_prop);
-      uuid_list = setremove(maphaskey(index_map, element) ? index_map[element] | {}, tuple_id);
-      index_map = length(uuid_list) ? (index_map[element] = uuid_list) && index_map | mapdelete(index_map, element);
-      length(index_map) ? this.(index_prop) = index_map | delete_property(this, index_prop);
+      uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
+      uuid_list = setremove(uuid_list, tuple_id);
+      "Update or remove the index entry";
+      if (length(uuid_list))
+        index_map[element] = uuid_list;
+      else
+        index_map = mapdelete(index_map, element);
+      endif
+      "Update or remove the index property";
+      if (length(index_map))
+        this.(index_prop) = index_map;
+      else
+        delete_property(this, index_prop);
+      endif
     endfor
     delete_property(this, "tuple_" + tuple_id);
     return true;
@@ -129,13 +140,33 @@ object RELATION
     set_task_perms(caller_perms());
     {tuple} = args;
     !length(tuple) && return 0;
-    element = tuple[1];
-    index_map = `this.(("index_" + value_hash(element))) ! E_PROPNF => 0';
+    "Find first scalar element to use for index lookup";
+    scalar_element = 0;
+    for elem in (tuple)
+      if (typeof(elem) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
+        continue;
+      endif
+      scalar_element = elem;
+      break;
+    endfor
+    "If no scalar elements, fall back to scanning all tuples";
+    if (scalar_element == 0 && typeof(tuple[1]) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
+      for prop in (properties(this))
+        prop_str = tostr(prop);
+        if (length(prop_str) >= 6 && prop_str[1..6] == "tuple_")
+          stored_tuple = `this.(prop) ! E_PROPNF => 0';
+          stored_tuple == tuple && return prop_str[7..$];
+        endif
+      endfor
+      return 0;
+    endif
+    "Use index for efficient lookup";
+    index_map = `this.(("index_" + value_hash(scalar_element))) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return 0;
-    uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
+    uuid_list = maphaskey(index_map, scalar_element) ? index_map[scalar_element] | {};
     for tuple_id in (uuid_list)
       stored_tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
-      stored_tuple && stored_tuple == tuple && return tuple_id;
+      stored_tuple == tuple && return tuple_id;
     endfor
     return 0;
   endverb
@@ -390,5 +421,15 @@ object RELATION
     #4 in reachable || raise(E_ASSERT, "Should reach #4");
     #5 in reachable || raise(E_ASSERT, "Should reach #5 via #2");
     rel:destroy();
+  endverb
+
+  verb count (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return the number of tuples in the relation.";
+    count = 0;
+    for prop in (properties(this))
+      prop_str = tostr(prop);
+      length(prop_str) >= 6 && prop_str[1..6] == "tuple_" && (count = count + 1);
+    endfor
+    return count;
   endverb
 endobject
