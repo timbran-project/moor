@@ -49,7 +49,6 @@ object EVENT_RECEIVER
       {conn, content_type, output} = content;
       "Wrap each notify in error handling so one failure doesn't break the rest";
       try
-        suspend_if_needed();
         this:_notify(conn, output, false, false, content_type, event_slots);
       except e (ANY)
         "Notification failed for this connection - continue with others";

@@ -20,13 +20,13 @@ object EVENT
     {value} = args;
     wut = tosym(verb[6..length(verb)]);
     wut = wut == 'this ? 'this_obj | wut;
-    self = flyslotset(this, wut, value);
+    this.(wut) = value;
     "When adding attributes that have an object target, automatically add a _name for them";
     if (valid(value) && length(value.name))
       wut_name = tosym(verb[6..length(verb)] + "_name");
-      self = flyslotset(self, wut_name, value.name);
+      this.(wut_name) = value.name;
     endif
-    return self;
+    return this;
   endverb
 
   verb transform_for (this none this) owner: HACKER flags: "rxd"
@@ -123,11 +123,10 @@ object EVENT
   endverb
 
   verb with_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set arbitrary metadata on the event.";
     {key, value} = args;
-    metadata = flyslots(this);
-    content = flycontents(this);
-    metadata[key] = value;
-    return toflyweight(this.delegate, metadata, content);
+    this.(key) = value;
+    return this;
   endverb
 
   verb preferred_content_types (this none this) owner: HACKER flags: "rxd"
@@ -143,7 +142,8 @@ object EVENT
   verb with_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Attach an audience classification to the event.";
     {audience} = args;
-    return this:with_metadata('audience, audience);
+    this.audience = audience;
+    return this;
   endverb
 
   verb presentation_hint (this none this) owner: HACKER flags: "rxd"
@@ -154,7 +154,8 @@ object EVENT
   verb with_presentation_hint (this none this) owner: HACKER flags: "rxd"
     "Attach a presentation hint to the event.";
     {hint} = args;
-    return this:with_metadata('presentation_hint, hint);
+    this.presentation_hint = hint;
+    return this;
   endverb
 
   verb with_group (this none this) owner: HACKER flags: "rxd"
@@ -162,20 +163,19 @@ object EVENT
     "Call with (prefix) for unique per-event grouping, or (prefix, target) for stable grouping.";
     {prefix, ?target = $nothing} = args;
     if (target != $nothing && typeof(target) == TYPE_OBJ && valid(target))
-      "Stable ID based on valid object reference";
       group_id = tostr(prefix) + "_" + tostr(target);
     else
-      "Unique ID per event";
       group_id = tostr(prefix) + "_" + uuid();
     endif
-    return this:with_metadata('group_id, group_id);
+    this.group_id = group_id;
+    return this;
   endverb
 
   verb with_tts (this none this) owner: HACKER flags: "rxd"
     "Attach TTS-friendly text for screen readers.";
-    "Use this when the visual content has ANSI codes, brackets, or other markup.";
     {text} = args;
-    return this:with_metadata('tts_text, text);
+    this.tts_text = text;
+    return this;
   endverb
 
   verb get_binding (this none this) owner: HACKER flags: "rxd"
@@ -188,22 +188,38 @@ object EVENT
   verb ensure_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Ensure event has the specified audience, return event.";
     {audience} = args;
-    current = `this.audience ! E_PROPNF => 0';
-    if (current == audience)
-      return this;
-    endif
-    return this:with_audience(audience);
+    `this.audience ! E_PROPNF => 0' == audience && return this;
+    this.audience = audience;
+    return this;
   endverb
 
   verb with_rewritable (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Mark event as rewritable. Caller provides ID, optional TTL (default 60s), optional fallback.";
     {rewrite_id, ?ttl = 60, ?fallback = 0} = args;
-    self = this:with_metadata('rewritable_id, rewrite_id);
-    self = self:with_metadata('rewritable_owner, this.actor);
-    self = self:with_metadata('rewritable_ttl, ttl);
-    if (fallback)
-      self = self:with_metadata('rewritable_fallback, fallback);
-    endif
-    return self;
+    this.rewritable_id = rewrite_id;
+    this.rewritable_owner = this.actor;
+    this.rewritable_ttl = ttl;
+    fallback && (this.rewritable_fallback = fallback);
+    return this;
+  endverb
+
+  verb with_content_type (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Add a preferred content type for rendering. Additive - chain calls to add multiple.";
+    {content_type} = args;
+    existing = `this.preferred_content_types ! E_PROPNF => {}';
+    this.preferred_content_types = {@existing, content_type};
+    return this;
+  endverb
+
+  verb as_inset (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Mark event for inset presentation.";
+    this.presentation_hint = 'inset;
+    return this;
+  endverb
+
+  verb as_djot (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set preferred content type to text_djot.";
+    this.preferred_content_types = {'text_djot};
+    return this;
   endverb
 endobject
