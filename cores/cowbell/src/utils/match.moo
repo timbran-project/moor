@@ -52,12 +52,19 @@ object MATCH
   endverb
 
   verb match_player (this none this) owner: HACKER flags: "rxd"
-    "Match player by name using complex_match builtin.";
+    "Match player by name or object number using complex_match builtin.";
     {player_name, ?context = player} = args;
     "Handle 'me'/'myself' as special case";
     if (player_name in {"me", "myself"})
       valid(context) && is_player(context) && return context;
       raise(E_INVARG, "No player context for 'me'");
+    endif
+    "Handle object number references (e.g., '#2', '#000053-9A6FBE399A')";
+    if (player_name[1] == "#")
+      obj = `toobj(player_name) ! ANY => $nothing';
+      !valid(obj) && raise(E_INVARG, "Invalid object reference: " + player_name);
+      !is_player(obj) && raise(E_INVARG, tostr(obj) + " is not a player.");
+      return obj;
     endif
     all_players = players();
     result = complex_match(player_name, all_players);
@@ -75,29 +82,27 @@ object MATCH
       valid(context) && return context;
       raise(E_INVARG, "No context to match '" + name_string + "'");
     endif
+    "Build search objects: context.contents FIRST (for containers), then location.contents.";
     search_objects = {};
-    valid(context) && valid(context.location) && (search_objects = {@search_objects, @context.location.contents});
     valid(context) && (search_objects = {@search_objects, @context.contents});
-    "Let complex_match auto-detect object names";
-    result = complex_match(name_string, search_objects);
-    if (result == $failed_match && length(search_objects))
-      "Fallback to light fuzzy matching (handles punctuation/spacing differences)";
-      keys = {};
-      for o in (search_objects)
-        key = o.name;
-        try
-          aliases = o.aliases;
-          if (typeof(aliases) == TYPE_LIST)
-            for a in (aliases)
-              key = key + " " + a;
-            endfor
-          endif
-        except e (ANY)
-        endtry
-        keys = {@keys, key};
-      endfor
-      result = complex_match(name_string, search_objects, keys, 0.3);
-    endif
+    valid(context) && valid(context.location) && (search_objects = {@search_objects, @context.location.contents});
+    !length(search_objects) && raise(E_INVARG, "No objects to search");
+    "Build keys list with name and aliases for each object.";
+    "This ensures aliases are checked properly by complex_match.";
+    keys = {};
+    for o in (search_objects)
+      obj_keys = {o.name};
+      try
+        aliases = o.aliases;
+        if (typeof(aliases) == TYPE_LIST)
+          obj_keys = {@obj_keys, @aliases};
+        endif
+      except e (ANY)
+      endtry
+      keys = {@keys, obj_keys};
+    endfor
+    "Use 3-arg complex_match with explicit keys to get proper alias matching.";
+    result = complex_match(name_string, search_objects, keys);
     result == $failed_match && raise(E_INVARG, "No object found matching '" + name_string + "'");
     return result;
   endverb
