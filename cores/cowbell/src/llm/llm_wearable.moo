@@ -92,9 +92,7 @@ object LLM_WEARABLE
   verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Display token usage information to the user";
     {wearer} = args;
-    if (!valid(this.agent))
-      return;
-    endif
+    !valid(this.agent) && return;
     "Don't downgrade perms - need ARCH_WIZARD perms to read llm_token_budget and llm_tokens_used";
     budget = `wearer.llm_token_budget ! ANY => 20000000';
     used = `wearer.llm_tokens_used ! ANY => 0';
@@ -119,12 +117,13 @@ object LLM_WEARABLE
       tts_msg = "Token budget: " + tostr(used) + " of " + tostr(budget) + " used, " + tostr(percent_used) + " percent.";
     endif
     wearer:inform_current($event:mk_info(wearer, usage_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
-    "Show context size and compaction status if we have prompt token data";
+    "Show context status";
+    token_limit = this.agent.token_limit;
+    compaction_threshold = this.agent.compaction_threshold;
+    threshold_tokens = toint(token_limit * compaction_threshold);
     if (typeof(last_usage) == TYPE_MAP && maphaskey(last_usage, "prompt_tokens"))
+      "We have actual prompt token data from a previous call";
       prompt_tokens = last_usage["prompt_tokens"];
-      token_limit = this.agent.token_limit;
-      compaction_threshold = this.agent.compaction_threshold;
-      threshold_tokens = token_limit * compaction_threshold;
       context_percent = prompt_tokens * 100 / token_limit;
       threshold_percent = prompt_tokens * 100 / threshold_tokens;
       "Color code context usage";
@@ -138,10 +137,24 @@ object LLM_WEARABLE
         ctx_color = 'dim;
         status = "OK";
       endif
-      context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " Size: " + $ansi:colorize(tostr(prompt_tokens), 'white) + "/" + tostr(token_limit) + " (" + tostr(context_percent) + "%) | Compaction at " + tostr(threshold_tokens) + " (" + tostr(toint(threshold_percent)) + "% full) - " + $ansi:colorize(status, ctx_color);
+      context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " Size: " + $ansi:colorize(tostr(prompt_tokens), 'white) + "/" + tostr(token_limit) + " (" + tostr(context_percent) + "%) | Compaction at " + tostr(threshold_tokens) + " - " + $ansi:colorize(status, ctx_color);
       context_tts = "Context size: " + tostr(prompt_tokens) + " of " + tostr(token_limit) + " tokens, " + tostr(context_percent) + " percent. Status: " + status + ".";
-      wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(context_tts));
+    else
+      "No API call yet - show context is fresh, estimate from message count";
+      num_messages = length(this.agent.context);
+      if (num_messages == 0)
+        status = "FRESH";
+        ctx_color = 'bright_green;
+        context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " " + $ansi:colorize(status, ctx_color) + " | Limit: " + tostr(token_limit) + " | Compaction at " + tostr(threshold_tokens);
+        context_tts = "Context is fresh. Token limit is " + tostr(token_limit) + ", compaction at " + tostr(threshold_tokens) + ".";
+      else
+        status = tostr(num_messages) + " messages";
+        ctx_color = 'dim;
+        context_msg = $ansi:colorize("[CONTEXT]", ctx_color) + " " + status + " | Limit: " + tostr(token_limit) + " | Compaction at " + tostr(threshold_tokens);
+        context_tts = "Context has " + tostr(num_messages) + " messages. Token limit is " + tostr(token_limit) + ".";
+      endif
     endif
+    wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(context_tts));
   endverb
 
   verb _tool_explain (this none this) owner: HACKER flags: "rxd"
@@ -291,15 +304,28 @@ object LLM_WEARABLE
     endif
     "Check if error";
     is_error = typeof(result) == TYPE_STR && (result:starts_with("ERROR:") || result:starts_with("TOOL BLOCKED:"));
-    "For ask_user, include the question in the completion message";
-    if (tool_name == "ask_user" && typeof(tool_args) == TYPE_STR)
-      tool_args = parse_json(tool_args);
+    "Parse tool_args if JSON string";
+    if (typeof(tool_args) == TYPE_STR)
+      tool_args = `parse_json(tool_args) ! ANY => []';
     endif
+    "Special formatting for task-related tools";
+    task_tools = {"create_task", "record_finding", "get_findings", "task_status"};
+    is_task_tool = tool_name in task_tools;
+    "For ask_user, include the question in the completion message";
     question_text = "";
     if (tool_name == "ask_user" && typeof(tool_args) == TYPE_MAP && maphaskey(tool_args, "question"))
       question_text = tool_args["question"];
       if (length(question_text) > 60)
         question_text = question_text[1..60] + "...";
+      endif
+    endif
+    "For record_finding, show what was recorded";
+    finding_text = "";
+    if (tool_name == "record_finding" && typeof(tool_args) == TYPE_MAP)
+      subject = `tool_args["subject"] ! ANY => ""';
+      key = `tool_args["key"] ! ANY => ""';
+      if (subject != "" && key != "")
+        finding_text = subject + "/" + key;
       endif
     endif
     "Find rewrite target for this tool";
@@ -315,14 +341,18 @@ object LLM_WEARABLE
       if (is_error)
         message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
         tts_msg = "Error from " + tool_name + ": " + result_text;
+      elseif (tool_name == "ask_user" && question_text != "")
+        message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + " \"" + question_text + "\": " + result_text;
+        tts_msg = "Response to question: " + question_text + ". " + result_text;
+      elseif (tool_name == "record_finding" && finding_text != "")
+        message = $ansi:colorize("[\u2713]", 'bright_blue) + " " + $ansi:colorize(tool_name, 'bright_blue) + " [" + finding_text + "]: " + result_text;
+        tts_msg = "Recorded finding for " + finding_text + ": " + result_text;
+      elseif (is_task_tool)
+        message = $ansi:colorize("[\u2713]", 'bright_blue) + " " + $ansi:colorize(tool_name, 'bright_blue) + ": " + result_text;
+        tts_msg = tool_name + " completed: " + result_text;
       else
-        if (tool_name == "ask_user" && question_text != "")
-          message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + " \"" + question_text + "\": " + result_text;
-          tts_msg = "Response to question: " + question_text + ". " + result_text;
-        else
-          message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
-          tts_msg = tool_name + " completed: " + result_text;
-        endif
+        message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+        tts_msg = tool_name + " completed: " + result_text;
       endif
       event = $event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg):with_audience('utility);
       wearer:rewrite_event(rewrite_id, event);
@@ -332,14 +362,18 @@ object LLM_WEARABLE
     if (is_error)
       message = $ansi:colorize("[\u2717]", 'red) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
       tts_msg = "Error from " + tool_name + ": " + result_text;
+    elseif (tool_name == "ask_user" && question_text != "")
+      message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + " \"" + question_text + "\": " + result_text;
+      tts_msg = "Response to question: " + question_text + ". " + result_text;
+    elseif (tool_name == "record_finding" && finding_text != "")
+      message = $ansi:colorize("[\u2713]", 'bright_blue) + " " + $ansi:colorize(tool_name, 'bright_blue) + " [" + finding_text + "]: " + result_text;
+      tts_msg = "Recorded finding for " + finding_text + ": " + result_text;
+    elseif (is_task_tool)
+      message = $ansi:colorize("[\u2713]", 'bright_blue) + " " + $ansi:colorize(tool_name, 'bright_blue) + ": " + result_text;
+      tts_msg = tool_name + " completed: " + result_text;
     else
-      if (tool_name == "ask_user" && question_text != "")
-        message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + " \"" + question_text + "\": " + result_text;
-        tts_msg = "Response to question: " + question_text + ". " + result_text;
-      else
-        message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
-        tts_msg = tool_name + " completed: " + result_text;
-      endif
+      message = $ansi:colorize("[\u2713]", 'green) + " " + $ansi:colorize(tool_name, 'yellow) + ": " + result_text;
+      tts_msg = tool_name + " completed: " + result_text;
     endif
     wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
   endverb
@@ -405,9 +439,9 @@ object LLM_WEARABLE
       player:inform_current($event:mk_error(player, "No agent is currently configured."));
       return;
     endif
-    set_task_perms(this.owner);
     "Request cancellation of current operation";
     this.agent.cancel_requested = true;
+    set_task_perms(this.owner);
     "Show token usage before stopping";
     this:_show_token_usage(player);
     player:inform_current($event:mk_info(player, "Cancellation requested. Agent will stop at next safe point."));
@@ -796,7 +830,7 @@ object LLM_WEARABLE
       return;
     endif
     "Show query received";
-    player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):with_presentation_hint('inset):with_group('llm, this):with_tts("Query received: " + query));
+    player:inform_current($event:mk_info(player, $ansi:colorize(this.prompt_label, this.prompt_color) + " Query received: " + $ansi:colorize(query, 'white)):as_inset():with_group('llm, this):with_tts("Query received: " + query));
     "Start progress tracking (replaces the old [PROCESSING] message)";
     tracking_active = this:_start_progress_tracking(player);
     "Set token owner for budget tracking";
@@ -810,18 +844,18 @@ object LLM_WEARABLE
       if (tracking_active)
         this:_end_progress_tracking('complete);
       endif
-      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):with_presentation_hint('inset):with_group('llm, this):with_tts(this.tool_name + " hit iteration limit after " + tostr(this.agent.max_iterations) + " iterations."));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Agent hit iteration limit (" + tostr(this.agent.max_iterations) + " iterations)."):as_inset():with_group('llm, this):with_tts(this.tool_name + " hit iteration limit after " + tostr(this.agent.max_iterations) + " iterations."));
       metadata = {{"input_type", "yes_no"}, {"prompt", "Continue agent execution?"}};
       user_choice = player:read_with_prompt(metadata);
       if (user_choice != "yes")
         this.agent.current_iteration = 0;
         this:_show_token_usage(player);
-        player:inform_current($event:mk_info(player, "Agent stopped at user request after reaching iteration limit."):with_presentation_hint('inset):with_group('llm, this));
+        player:inform_current($event:mk_info(player, "Agent stopped at user request after reaching iteration limit."):as_inset():with_group('llm, this));
         return;
       endif
       "User chose to continue - restart progress tracking";
       continuations = continuations + 1;
-      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):with_presentation_hint('inset):with_group('llm, this):with_tts("Continuing, continuation " + tostr(continuations) + " of " + tostr(max_continuations) + "."));
+      player:inform_current($event:mk_info(player, $ansi:colorize("[" + this.tool_name + "]", 'bright_yellow) + " Continuing... (continuation " + tostr(continuations) + "/" + tostr(max_continuations) + ")"):as_inset():with_group('llm, this):with_tts("Continuing, continuation " + tostr(continuations) + " of " + tostr(max_continuations) + "."));
       tracking_active = this:_start_progress_tracking(player);
       response = this.agent:send_message("Continue where you left off. Complete any remaining work from the previous request.");
     endwhile
@@ -841,13 +875,11 @@ object LLM_WEARABLE
     endif
     "If response is still an ERR but not E_QUOTA, display it as an error";
     if (typeof(response) == TYPE_ERR)
-      player:inform_current($event:mk_error(player, "Error: " + toliteral(response)));
+      player:inform_current($event:mk_error(player, "Error: `" + toliteral(response) + "`"):as_djot());
       return;
     endif
     "Display final response with djot rendering";
-    event = $event:mk_info(player, response);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
-    event = event:with_presentation_hint('inset):with_group('llm, this);
+    event = $event:mk_info(player, response):as_djot():as_inset():with_group('llm, this);
     player:inform_current(event);
   endverb
 
@@ -906,6 +938,26 @@ object LLM_WEARABLE
     endif
     "Build list of paragraph elements";
     visible_lines = {$format.paragraph:mk(header)};
+    "Add task status line if there's an active investigation task";
+    task_id = `this.current_investigation_task ! ANY => 0';
+    if (task_id > 0 && valid(this.agent))
+      tasks = `this.agent.current_tasks ! ANY => []';
+      if (typeof(tasks) == TYPE_MAP && maphaskey(tasks, task_id))
+        task = tasks[task_id];
+        task_desc = `task.description ! ANY => "Unknown"';
+        if (length(task_desc) > 50)
+          task_desc = task_desc[1..50] + "...";
+        endif
+        findings_count = `length(task.findings) ! ANY => 0';
+        task_status = `task.status ! ANY => 'unknown';
+        "Format task line";
+        task_line = $ansi:colorize("    \u25B6 Task #" + tostr(task_id) + ": ", 'bright_blue) + task_desc;
+        if (findings_count > 0)
+          task_line = task_line + $ansi:colorize(" [" + tostr(findings_count) + " findings]", 'green);
+        endif
+        visible_lines = {@visible_lines, $format.paragraph:mk(task_line)};
+      endif
+    endif
     max_visible = this.progress_max_visible;
     start_idx = max(1, total - max_visible + 1);
     "Add ellipsis if we truncated";

@@ -16,6 +16,7 @@ object LLM_ROOM_OBSERVER
   property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
   property observation_mechanics_prompt (owner: HACKER, flags: "rc") = "You are observing events in a virtual room. Events are delivered to you as MOO flyweight structures in the form OBSERVATION: <delegate, .field1 = value, .field2 = value>. Extract the relevant information from these structured events and use them to understand what's happening.";
   property preferred_model (owner: HACKER, flags: "rc") = "";
+  property responding (owner: ARCH_WIZARD, flags: "rc") = 0;
   property response_opts (owner: HACKER, flags: "rc") = false;
   property response_prompt (owner: HACKER, flags: "rc") = "Respond to what you've observed. IMPORTANT: For physical actions, use the emote tool (don't write *actions* inline). For speech, use directed_say. You can make multiple tool calls in sequence - for example, emote first to show a reaction, then directed_say to speak. Keep speech brief (1-2 sentences).";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
@@ -47,14 +48,14 @@ object LLM_ROOM_OBSERVER
   };
   property speak_cooldown (owner: HACKER, flags: "rc") = 10;
   property speak_delay (owner: HACKER, flags: "rc") = 3;
-  property thinking_delay (owner: HACKER, flags: "rc") = 3;
-  property thinking_interval (owner: HACKER, flags: "rc") = 4;
+  property thinking_delay (owner: HACKER, flags: "rc") = 8;
+  property thinking_interval (owner: HACKER, flags: "rc") = 6;
   property thinking_messages (owner: HACKER, flags: "rc") = {"thinks...", "ponders...", "considers...", "mulls it over..."};
   property thinking_task (owner: HACKER, flags: "rc") = 0;
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
   property triage_model (owner: ARCH_WIZARD, flags: "rc") = "deepseek-chat";
-  property triage_prompt (owner: ARCH_WIZARD, flags: "rc") = "You are a triage filter for an NPC named {name}. Given the recent room activity below, decide if {name} should engage.\n\nIMPORTANT: Default to IGNORE. Be conservative. Only respond ENGAGE if:\n- {name} is DIRECTLY and UNAMBIGUOUSLY addressed by name\n- Someone explicitly asks {name} for help\n- A newcomer arrives who clearly needs orientation AND no one else is helping them\n\nRespond IGNORE if:\n- Someone else is being addressed (not {name})\n- It's casual conversation or chatter between others\n- People are greeting the room generally (not {name} specifically)\n- Activity doesn't specifically require {name}'s input\n- You're unsure - when in doubt, IGNORE\n\nRespond with ONLY one word: ENGAGE or IGNORE\n\nRecent activity:\n{events}";
+  property triage_prompt (owner: ARCH_WIZARD, flags: "rc") = "You are a triage filter for an NPC named {name}. Decide if {name} should engage with the recent activity.\n\nEXAMPLES:\n\nActivity: Alice says, \"Hey {name}, can you help me find the restaurant?\"\nAnswer: ENGAGE (directly addressed by name, asking for help)\n\nActivity: Bob arrives from the north.\nAnswer: IGNORE (just someone arriving, wait to see if they need help)\n\nActivity: Carol says, \"I have a commit that might help with that bug\"\nAnswer: IGNORE (technical discussion between others, \"help\" not directed at {name})\n\nActivity: Dan says, \"where am I? how do I check in?\"\nAnswer: ENGAGE (newcomer seems confused and needs orientation)\n\nActivity: Eve [to Frank]: \"did you see the game last night?\"\nAnswer: IGNORE (conversation between two other people)\n\nActivity: Grace says, \"this websocket code is tricky\"\nAnswer: IGNORE (technical discussion, not asking {name} for anything)\n\nActivity: Henry says, \"{name}?\"\nAnswer: ENGAGE (directly addressed by name)\n\nActivity: Iris nods\nActivity: Jack waves to everyone\nAnswer: IGNORE (social gestures not requiring response)\n\nActivity: Kate says, \"excuse me, is there someone who works here?\"\nAnswer: ENGAGE (looking for staff assistance)\n\nNOW DECIDE for this activity:\n{events}\n\nAnswer with ONLY one word: ENGAGE or IGNORE";
   property turn_on_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
@@ -119,7 +120,6 @@ object LLM_ROOM_OBSERVER
     if (!$llm_client:is_configured())
       return;
     endif
-    "Fork to not block event processing for players.";
     fork (0)
       set_task_perms(this.owner);
       {event} = args;
@@ -133,11 +133,10 @@ object LLM_ROOM_OBSERVER
         return;
       endif
       "Check if event is addressed to someone";
-      "directed_say uses .iobj for the target, not .target";
       event_target = `event.iobj ! ANY => #-1';
       addressed_to_us = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target == this;
       addressed_to_other = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target != this;
-      "Skip events addressed to other NPCs - not our business";
+      "Skip events addressed to others";
       if (addressed_to_other)
         return;
       endif
@@ -164,16 +163,13 @@ object LLM_ROOM_OBSERVER
         try
           this.agent:compact_context();
         except e (ANY)
-          "Compaction failed - log but continue";
         endtry
       endif
       "If addressed to us, respond immediately. Otherwise triage first.";
       if (addressed_to_us)
         this:respond();
-      else
-        if (this:triage())
-          this:respond();
-        endif
+      elseif (this:triage())
+        this:respond();
       endif
     endfork
   endverb
@@ -419,10 +415,12 @@ object LLM_ROOM_OBSERVER
 
   verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Lazily create knowledge base relation if not already created.";
+    "Uses anonymous object so it's garbage collected when observer is recycled.";
     perms = caller_perms();
     caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
     if (!valid(this.knowledge_base))
-      this.knowledge_base = create($relation, this.owner);
+      set_task_perms(this.owner);
+      this.knowledge_base = $relation:create(true);
     endif
     return this.knowledge_base;
   endverb
@@ -747,37 +745,44 @@ object LLM_ROOM_OBSERVER
     prompt = strsub(this.triage_prompt, "{name}", this:name());
     prompt = strsub(prompt, "{events}", events_text);
     "Quick API call - use triage_model if set, otherwise default";
-    opts = $llm_chat_opts:mk():with_max_tokens(100);
+    opts = $llm_chat_opts:mk():with_max_tokens(200);
     model = this.triage_model || false;
     try
       response = $llm_client:chat({["role" -> "user", "content" -> prompt]}, opts, model);
     except e (ANY)
       return false;
     endtry
-    "Extract content from response - check both content and reasoning_content";
-    "Some models put their answer in reasoning_content instead of content";
+    "Extract answer from response";
+    "Standard models put answer in content, reasoning models may put it in reasoning_content";
     content = "";
+    reasoning = "";
     if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
       message = response["choices"][1]["message"];
       if (typeof(message) == TYPE_MAP)
-        "Try content first";
         if (maphaskey(message, "content") && typeof(message["content"]) == TYPE_STR)
-          content = message["content"];
+          content = message["content"]:trim():uppercase();
         endif
-        "If content is empty/null, check reasoning_content";
-        if (content == "" || content == "null" && maphaskey(message, "reasoning_content"))
-          rc = message["reasoning_content"];
-          if (typeof(rc) == TYPE_STR && rc != "null")
-            content = rc;
-          endif
+        if (maphaskey(message, "reasoning_content") && typeof(message["reasoning_content"]) == TYPE_STR && message["reasoning_content"] != "null")
+          reasoning = message["reasoning_content"]:uppercase();
         endif
       endif
     endif
-    "Strict check: ENGAGE must be at start or be the only word";
-    "This prevents false positives from reasoning like 'I should ENGAGE'";
-    if (typeof(content) == TYPE_STR)
-      content = content:trim():uppercase();
-      return content == "ENGAGE" || content:starts_with("ENGAGE");
+    "Check content first - if it's a clean ENGAGE/IGNORE answer, use it";
+    if (content == "ENGAGE" || content:starts_with("ENGAGE"))
+      return true;
+    endif
+    if (content == "IGNORE" || content:starts_with("IGNORE"))
+      return false;
+    endif
+    "For reasoning models, find the LAST occurrence of ENGAGE or IGNORE in reasoning";
+    "The final answer typically comes at the end of the reasoning chain";
+    if (length(reasoning) > 0)
+      last_engage = rindex(reasoning, "ENGAGE");
+      last_ignore = rindex(reasoning, "IGNORE");
+      "Return true if ENGAGE appears after IGNORE (or IGNORE not found)";
+      if (last_engage > 0 && last_engage > last_ignore)
+        return true;
+      endif
     endif
     return false;
   endverb
@@ -816,6 +821,15 @@ object LLM_ROOM_OBSERVER
       return;
     endtry
     this:_stop_thinking();
+    "Clear observation messages from context so triage starts fresh";
+    ctx = this.agent.context;
+    new_ctx = {};
+    for msg in (ctx)
+      if (!(msg["role"] == "user" && msg["content"]:starts_with("OBSERVATION:")))
+        new_ctx = {@new_ctx, msg};
+      endif
+    endfor
+    this.agent.context = new_ctx;
     "Announce text response if meaningful";
     if (typeof(response) == TYPE_STR)
       response = response:trim();
@@ -827,8 +841,8 @@ object LLM_ROOM_OBSERVER
           should_skip = true;
         endif
       endfor
-      "Also skip meta-commentary about staying silent or waiting";
-      silence_patterns = {"remains silent", "stays silent", "stay silent", "remain silent", "waiting to be", "waits to be", "chooses not to", "decides not to", "doesn't interject", "does not interject", "quietly observes", "continues to observe", "listens quietly"};
+      "Skip meta-commentary about staying silent, observing, or not interrupting";
+      silence_patterns = {"remains silent", "stays silent", "stay silent", "remain silent", "waiting to be", "waits to be", "chooses not to", "decides not to", "doesn't interject", "does not interject", "quietly observes", "continues to observe", "listens quietly", "i notice", "i should remain", "should remain focused", "shouldn't interrupt", "should not interrupt", "won't interrupt", "will not interrupt", "not my place", "their conversation", "their discussion", "unless someone", "unless asked", "stay quiet", "staying quiet", "remain professional", "focused on hotel", "focused on my"};
       response_lower = response:lowercase();
       for pattern in (silence_patterns)
         if (index(response_lower, pattern) > 0)
@@ -843,32 +857,27 @@ object LLM_ROOM_OBSERVER
           if (star_pos == 0)
             break;
           endif
-          "Find closing star";
           end_pos = index(remaining[star_pos + 1..$], "*");
           if (end_pos == 0)
             break;
           endif
           end_pos = star_pos + end_pos;
-          "Extract the action";
           action = remaining[star_pos + 1..end_pos - 1];
           "Filter out silence-related emotes";
-          action_dominated_by_silence = false;
           action_lower = action:lowercase();
+          action_skip = false;
           for pattern in (silence_patterns)
             if (index(action_lower, pattern) > 0)
-              action_dominated_by_silence = true;
+              action_skip = true;
             endif
           endfor
-          if (length(action) > 0 && length(action) < 100 && !action_dominated_by_silence)
-            "Emit as emote";
+          if (length(action) > 0 && length(action) < 100 && !action_skip)
             this.location:announce(this:mk_emote_event(action));
           endif
-          "Remove the *action* from remaining text";
           before = star_pos > 1 ? remaining[1..star_pos - 1] | "";
           after = end_pos < length(remaining) ? remaining[end_pos + 1..$] | "";
           remaining = before + after;
         endwhile
-        "Clean up remaining text and say it if there's content";
         remaining = remaining:trim();
         if (length(remaining) > 3)
           say_event = $event:mk_say(this, this:name(), " says, \"", remaining, "\"");
