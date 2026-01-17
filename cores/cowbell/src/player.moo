@@ -17,6 +17,7 @@ object PLAYER
   property home (owner: ARCH_WIZARD, flags: "rc");
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
   property last_connected (owner: ARCH_WIZARD, flags: "r") = 0;
+  property last_disconnected (owner: ARCH_WIZARD, flags: "r") = 0;
   property last_dm_from (owner: ARCH_WIZARD, flags: "c") = #-1;
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
@@ -26,6 +27,7 @@ object PLAYER
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
+  property walk_task (owner: ARCH_WIZARD, flags: "c") = 0;
   property wearing (owner: HACKER, flags: "rwc") = {};
 
   override description = "You see a player who should get around to describing themself.";
@@ -330,12 +332,13 @@ object PLAYER
     valid(mailbox) && (env = {@env, mailbox});
     "Add location and its contents.";
     if (valid(location))
-      env = {@env, location};
       "Let the room/location contribute additional objects (e.g., its contents, and passages).";
+      "Add contents BEFORE the room so items match before room name.";
       if (respond_to(location, 'match_scope_for))
         ambient = `location:match_scope_for(this) ! ANY => {}';
         typeof(ambient) == TYPE_LIST && (env = {@env, @ambient});
       endif
+      env = {@env, location};
     endif
     return env;
   endverb
@@ -412,7 +415,7 @@ object PLAYER
     endfor
     if (new_dm_count > 0)
       msg = new_dm_count == 1 ? "*You have a new direct message.* Type `dms` to read it." | tostr("*You have ", new_dm_count, " new direct messages.* Type `dms` to read them.");
-      event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('dm_notify);
+      event = $event:mk_info(this, msg):as_djot():as_inset():with_group('dm_notify);
       this:inform_current(event);
     endif
     "Check for unread mail";
@@ -421,7 +424,7 @@ object PLAYER
       unread = mailbox:unread_count();
       if (unread > 0)
         msg = unread == 1 ? "*You have an unread letter.* Type `mail` to check your mailbox." | tostr("*You have ", unread, " unread letters.* Type `mail` to check your mailbox.");
-        event = $event:mk_info(this, msg):with_metadata('preferred_content_types, {'text_djot, 'text_plain}):with_presentation_hint('inset):with_group('mail_notify);
+        event = $event:mk_info(this, msg):as_djot():as_inset():with_group('mail_notify);
         this:inform_current(event);
       endif
     endif
@@ -656,7 +659,7 @@ object PLAYER
         endfor
         lines = {@lines, "", $format.title:mk("Help Topics", 4)};
         lines = {@lines, $format.code:mk(topic_names:join(", "))};
-        lines = {@lines, "Type 'help <topic>' for details."};
+        lines = {@lines, "Type `help <topic>` for details."};
       endif
       "Then commands";
       cmd_env = this:command_environment();
@@ -673,8 +676,7 @@ object PLAYER
         lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
       endif
       content = $format.block:mk($format.title:mk("Help"), @lines);
-      event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-      event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+      event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
       this:inform_current(event);
       return;
     endif
@@ -690,7 +692,7 @@ object PLAYER
       query = query[8..$]:trim();
     endif
     if (!query)
-      return this:inform_current($event:mk_error(this, "Usage: help [topic|object|source] <name>"):with_audience('utility));
+      return this:inform_current($event:mk_error(this, "Usage: `help [topic|object|source] <name>`"):with_audience('utility));
     endif
     "Support: help source (list)";
     if (query in {"source", "sources"})
@@ -738,8 +740,7 @@ object PLAYER
           names = {@names, s.name};
         endfor
         content = $format.block:mk($format.title:mk("Unknown Help Source"), $format.paragraph:mk("No help source matches '" + source_query + "'."), "", $format.list:mk(names), "", $format.paragraph:mk("Try: `help source <name>`"));
-        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-        event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+        event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
         this:inform_current(event);
         return;
       endif
@@ -760,10 +761,9 @@ object PLAYER
           endif
         endfor
       endif
-      lines = {@lines, "", "Tip: help <topic> from " + src.name};
+      lines = {@lines, "", "Tip: `help <topic> from " + src.name + "`"};
       content = $format.block:mk($format.title:mk("Help Source"), lines:join("\n"));
-      event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-      event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+      event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
       this:inform_current(event);
       return;
     endif
@@ -779,8 +779,7 @@ object PLAYER
           if (typeof(topic_result) != TYPE_INT)
             prose_lines = topic_result:render_prose();
             content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
-            event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-            event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+            event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
             this:inform_current(event);
             return;
           endif
@@ -789,11 +788,18 @@ object PLAYER
       endif
     endif
     "Heuristic disambiguation:";
-    "- '#...' or '$...' are almost certainly object references";
+    "- '$...' is almost certainly an object reference";
+    "- '#<digit/hex>...' is almost certainly an object reference, but '#' alone may be a topic";
     "- '@...' is almost certainly a command/help topic (not a player reference)";
     if (!force_topic && !force_object)
-      if (query[1] in {"#", "$"})
+      if (query[1] == "$")
         force_object = true;
+      elseif (query[1] == "#" && length(query) > 1)
+        "Only treat as object ref if second char is digit or hex (e.g. #123, #0000AB-123)";
+        second = query[2];
+        if (second >= "0" && second <= "9" || (second >= "a" && second <= "f") || (second >= "A" && second <= "F"))
+          force_object = true;
+        endif
       elseif (query[1] == "@")
         force_topic = true;
       endif
@@ -837,8 +843,7 @@ object PLAYER
             topic = filtered[1][2];
             prose_lines = topic:render_prose();
             content = $format.block:mk($format.title:mk(topic.name), @prose_lines);
-            event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-            event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+            event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
             this:inform_current(event);
             return;
           endif
@@ -868,14 +873,13 @@ object PLAYER
         endfor
         src = complex_match(source_scope, sources, keys, 0.3);
         if (src == $failed_match)
-          return this:inform_current($event:mk_error(this, "No help source matches '" + source_scope + "'. Try: help source <source>"):with_audience('utility));
+          return this:inform_current($event:mk_error(this, "No help source matches '" + source_scope + "'. Try: `help source <source>`"):with_audience('utility));
         endif
         topic_result = `src:help_topics(this, query) ! ANY => 0';
         if (typeof(topic_result) != TYPE_INT)
           prose_lines = topic_result:render_prose();
           content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
-          event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-          event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
           this:inform_current(event);
           return;
         endif
@@ -887,8 +891,7 @@ object PLAYER
       elseif (typeof(topic_result) != TYPE_INT)
         prose_lines = topic_result:render_prose();
         content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
-        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-        event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+        event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
         this:inform_current(event);
         return;
       endif
@@ -956,15 +959,14 @@ object PLAYER
           lines = {@lines, $format.code:mk("@doc " + query + "\n@doc " + query + ":verb")};
         endif
         content = $format.block:mk($format.title:mk("Help for " + target_obj:display_name() + "(" + toliteral(target_obj) + ")"), @lines);
-        event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-        event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+        event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
         this:inform_current(event);
         return;
       endif
     endif
     "Neither object nor topic found - try LLM suggestions";
     if (!this:suggest_help_topic(query))
-      this:inform_current($event:mk_error(this, "No help found for '" + query + "'. Try 'help' to see available topics."):with_audience('utility));
+      this:inform_current($event:mk_error(this, "No help found for '" + query + "'. Try `help` to see available topics."):with_audience('utility));
     endif
   endverb
 
@@ -1087,7 +1089,7 @@ object PLAYER
 
   verb help_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return list of objects to search for help topics.";
-    "Order: global, features (including authoring/admin), room, inventory, room contents";
+    "Order: global, features (including authoring/admin/builder), room, inventory, room contents";
     env = {};
     "Global help source (if it exists)";
     gh = `$sysobj.help_topics ! E_PROPNF => $nothing';
@@ -1107,6 +1109,10 @@ object PLAYER
     "Admin features (wizard commands)";
     if (valid(this.admin_features))
       env = {@env, this.admin_features};
+    endif
+    "Builder features (building commands)";
+    if (this.is_builder && valid($builder_features))
+      env = {@env, $builder_features};
     endif
     "Current room";
     if (valid(this.location))
@@ -1645,6 +1651,22 @@ object PLAYER
           location_desc = `tostr(location_desc) ! ANY => ""';
         endif
       endif
+      "=== BUILD LIST OF ALL INTERACTABLE OBJECTS ===";
+      all_objects = {};
+      for item in (this.contents)
+        if (valid(item))
+          all_objects = {@all_objects, item};
+        endif
+      endfor
+      if (valid(location))
+        for item in (location.contents)
+          if (valid(item) && item != this)
+            all_objects = {@all_objects, item};
+          endif
+        endfor
+      endif
+      "=== FIND VERBS MATCHING THE ATTEMPTED VERB ===";
+      {verb_exact, verb_near} = this:_find_verb_matches(cmd_verb, all_objects);
       "=== COLLECT AMBIENT/GLOBAL COMMANDS ===";
       ambient_verbs = [];
       cmd_env = this:command_environment();
@@ -1715,7 +1737,7 @@ object PLAYER
       if (pc["dobj"] == $failed_match)
         dobj_status = "NOT FOUND (no object matched '" + cmd_dobjstr + "')";
       elseif (pc["dobj"] == $ambiguous_match)
-        dobj_status = "AMBIGUOUS (multiple objects matched)";
+        dobj_status = "AMBIGUOUS (multiple objects could match)";
       elseif (valid(pc["dobj"]))
         dobj_status = "matched: " + pc["dobj"]:name();
       else
@@ -1725,24 +1747,36 @@ object PLAYER
       if (pc["iobj"] == $failed_match)
         iobj_status = "NOT FOUND (no object matched '" + cmd_iobjstr + "')";
       elseif (pc["iobj"] == $ambiguous_match)
-        iobj_status = "AMBIGUOUS (multiple objects matched)";
+        iobj_status = "AMBIGUOUS (multiple objects could match)";
       elseif (valid(pc["iobj"]))
         iobj_status = "matched: " + pc["iobj"]:name();
       else
         iobj_status = "(none specified)";
       endif
       "=== BUILD PROMPT ===";
-      prompt = "You help players in a text adventure. " + player_name + " is in " + location_name + ".\n\n";
-      if (length(location_desc) > 0)
-        prompt = prompt + "LOCATION DESCRIPTION:\n" + location_desc + "\n\n";
-      endif
-      prompt = prompt + "FAILED COMMAND:\n";
-      prompt = prompt + "- Verb: \"" + cmd_verb + "\"\n";
+      prompt = "You help players in a text adventure game. " + player_name + " is in \"" + location_name + "\".\n\n";
+      prompt = prompt + "FAILED COMMAND ANALYSIS:\n";
+      prompt = prompt + "- Verb attempted: \"" + cmd_verb + "\"\n";
       prompt = prompt + "- Direct object: " + (length(cmd_dobjstr) > 0 ? "\"" + cmd_dobjstr + "\" -> " + dobj_status | dobj_status) + "\n";
       if (length(cmd_prepstr) > 0)
         prompt = prompt + "- Preposition: \"" + cmd_prepstr + "\"\n";
       endif
       prompt = prompt + "- Indirect object: " + (length(cmd_iobjstr) > 0 ? "\"" + cmd_iobjstr + "\" -> " + iobj_status | iobj_status) + "\n\n";
+      "=== ADD VERB MATCH INFO ===";
+      if (length(verb_exact) > 0)
+        prompt = prompt + "OBJECTS THAT SUPPORT \"" + cmd_verb + "\" (correct syntax):\n";
+        for entry in (verb_exact[1..min(length(verb_exact), 5)])
+          prompt = prompt + "- " + entry["command"] + "\n";
+        endfor
+        prompt = prompt + "\n";
+      endif
+      if (length(verb_near) > 0)
+        prompt = prompt + "DID YOU MEAN (similar verbs):\n";
+        for entry in (verb_near[1..min(length(verb_near), 3)])
+          prompt = prompt + "- " + entry["command"] + " (verb: " + entry["did_you_mean"] + ")\n";
+        endfor
+        prompt = prompt + "\n";
+      endif
       prompt = prompt + "AVAILABLE COMMANDS (no object needed):\n";
       prompt = prompt + mapkeys(ambient_verbs):join(", ") + "\n\n";
       if (length(room_hints) > 0)
@@ -1753,34 +1787,21 @@ object PLAYER
         prompt = prompt + "\n";
       endif
       if (length(exits) > 0)
-        prompt = prompt + "EXITS FROM HERE: " + exits:join(", ") + "\n";
-        prompt = prompt + "(Use: go <direction>)\n\n";
+        prompt = prompt + "EXITS: " + exits:join(", ") + " (use: go <direction>)\n\n";
       endif
-      prompt = prompt + "COMMUNICATION:\n";
-      prompt = prompt + "- To speak: say <message> or just \"<message> (quote at start)\n";
-      prompt = prompt + "- To emote: emote <action> (e.g., emote waves) or just :<action> (colon at start). Plus they could try social actions like bow wave nod bonk etc\n\n";
-      prompt = prompt + "GETTING HELP:\n";
-      prompt = prompt + "- help <topic> - Get general help on a topic (e.g., help building, help communication, help commands)\n";
-      prompt = prompt + "- If the player seems confused about a general concept or feature, suggest they try help <relevant topic>\n\n";
+      prompt = prompt + "COMMUNICATION: say <msg>, \"<msg>, emote <action>, :<action>\n\n";
       if (length(inventory_objects) > 0)
-        prompt = prompt + "INVENTORY (player is carrying):\n";
-        prompt = prompt + toliteral(inventory_objects) + "\n\n";
+        prompt = prompt + "INVENTORY:\n" + toliteral(inventory_objects) + "\n\n";
       endif
       if (length(room_objects) > 0)
-        prompt = prompt + "OBJECTS IN ROOM:\n";
-        prompt = prompt + toliteral(room_objects) + "\n\n";
+        prompt = prompt + "OBJECTS HERE:\n" + toliteral(room_objects) + "\n\n";
       endif
-      prompt = prompt + "RULES:\n";
-      prompt = prompt + "1. Suggest 1-3 WORKING commands based on what's available\n";
-      prompt = prompt + "2. If they tried a simple command like 'exits', just tell them the correct command\n";
-      prompt = prompt + "3. If object not found, suggest correct object names from the lists above\n";
-      prompt = prompt + "4. Keep response under 80 words\n";
-      prompt = prompt + "5. Format for djot (like markdown)\n";
+      prompt = prompt + "TASK: Suggest 1-3 working commands. Be concise (<60 words). If the verb exists but object name was wrong, show correct object name. If verb doesn't exist, suggest what they probably meant. Format for djot.";
       "Call LLM and rewrite the placeholder";
       try
         response = llm_client:simple_query(prompt);
         if (typeof(response) == TYPE_STR && length(response) > 0)
-          result_event = $event:mk_info(this, $format.block:mk("I didn't understand that, but...\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          result_event = $event:mk_info(this, $format.block:mk("I didn't understand that, but...\n", response)):as_djot():as_inset();
           this:rewrite_event(rewrite_id, result_event, current_conn);
         else
           this:rewrite_event(rewrite_id, "I don't understand that command.", current_conn);
@@ -1794,16 +1815,43 @@ object PLAYER
 
   verb _collect_object_info (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Collect object info for LLM command suggestions.";
-    "Returns a map with name, aliases, state info, and usable verbs.";
+    "Returns a map with name, aliases, and verbs with full syntax.";
     {item} = args;
     obj_name = item:name();
     obj_aliases = `item:aliases() ! ANY => {}';
-    "Collect usable verbs";
+    "Collect usable verbs with full syntax info";
     usable = `item:usable_verbs() ! ANY => {}';
     verb_list = {};
+    seen = {};
     for v in (usable)
       {vname, definer, dobj_spec, prep_spec, iobj_spec} = v;
-      verb_list = {@verb_list, vname};
+      "Get full verb names with all aliases";
+      vinfo = `verb_info(definer, vname) ! ANY => {}';
+      if (typeof(vinfo) == TYPE_LIST && length(vinfo) >= 3)
+        full_names = strsub(vinfo[3], "*", "");
+      else
+        full_names = vname;
+      endif
+      "Build syntax hint";
+      syntax = full_names;
+      if (dobj_spec == "this")
+        syntax = syntax + " <this>";
+      elseif (dobj_spec == "any")
+        syntax = syntax + " <something>";
+      endif
+      if (prep_spec != "none")
+        syntax = syntax + " " + prep_spec;
+      endif
+      if (iobj_spec == "this")
+        syntax = syntax + " <this>";
+      elseif (iobj_spec == "any")
+        syntax = syntax + " <something>";
+      endif
+      "Dedupe";
+      if (!(syntax in seen))
+        seen = {@seen, syntax};
+        verb_list = {@verb_list, syntax};
+      endif
     endfor
     "Build base info";
     info = ["name" -> obj_name];
@@ -1811,10 +1859,10 @@ object PLAYER
       info["aliases"] = obj_aliases;
     endif
     if (length(verb_list) > 0)
-      info["verbs"] = verb_list;
+      info["commands"] = verb_list;
     endif
-    "Add state for containers (properties are .open and .locked)";
-    is_container = $container in {item, @ancestors(item)};
+    "Add state for containers";
+    is_container = `$container in {item, @ancestors(item)} ! ANY => false';
     if (is_container)
       is_open = `item.open ! ANY => #-1';
       is_locked = `item.locked ! ANY => #-1';
@@ -1829,19 +1877,32 @@ object PLAYER
       endif
     endif
     "Add state for sittables";
-    is_sittable = $sittable in {item, @ancestors(item)};
+    is_sittable = `$sittable in {item, @ancestors(item)} ! ANY => false';
     if (is_sittable)
       occupants = `item.sitting ! ANY => {}';
       if (length(occupants) > 0)
         names = {};
-        for o in (occupants)
-          if (valid(o))
-            names = {@names, o:name()};
+        for occ in (occupants)
+          if (valid(occ))
+            names = {@names, occ:name()};
           endif
         endfor
         if (length(names) > 0)
           info["occupied_by"] = names:join(", ");
         endif
+      endif
+    endif
+    "Add state for pools/swimming";
+    swimmers = `item.swimmers ! ANY => {}';
+    if (typeof(swimmers) == TYPE_LIST && length(swimmers) > 0)
+      names = {};
+      for sw in (swimmers)
+        if (valid(sw))
+          names = {@names, sw:name()};
+        endif
+      endfor
+      if (length(names) > 0)
+        info["swimmers"] = names:join(", ");
       endif
     endif
     return info;
@@ -1907,7 +1968,7 @@ object PLAYER
       try
         response = llm_client:simple_query(prompt);
         if (typeof(response) == TYPE_STR && length(response) > 0)
-          result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", response)):with_presentation_hint('inset):with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+          result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", response)):as_djot():as_inset();
           this:rewrite_event(rewrite_id, result_event, current_conn);
         else
           this:rewrite_event(rewrite_id, "No help found for '" + query + "'. Try 'help' to see available topics.", current_conn);
@@ -2191,8 +2252,7 @@ object PLAYER
       items = {@items, lines:join("\n")};
     endfor
     content = $format.block:mk($format.title:mk("Ambiguous Topic"), $format.paragraph:mk("Multiple help topics match '" + query + "':"), "", $format.list:mk(items), "", $format.paragraph:mk("Be more specific, or browse with: `help source`"));
-    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
     this:inform_current(event);
     return;
   endverb
@@ -2225,9 +2285,329 @@ object PLAYER
       return this:inform_current($event:mk_error(this, "No help sources are available here."):with_audience('utility));
     endif
     content = $format.block:mk($format.title:mk("Help Sources"), $format.paragraph:mk("These objects provide help topics in your current context:"), "", $format.list:mk(unique), "", $format.paragraph:mk("Try: `help source <name>`"));
-    event = $event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('utility, this);
-    event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
+    event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
     this:inform_current(event);
     return;
+  endverb
+
+  verb _find_verb_matches (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Find objects that have a verb matching (or similar to) the attempted verb.";
+    "Args: {attempted_verb, objects_to_check}";
+    "Returns: {exact_matches, near_matches} where each is list of maps";
+    {attempted_verb, objects} = args;
+    exact = {};
+    near = {};
+    seen_verbs = {};
+    for item in (objects)
+      if (!valid(item))
+        continue;
+      endif
+      "Check all verbs on this object and ancestors";
+      for definer in ({item, @`ancestors(item) ! ANY => {}'})
+        if (!valid(definer))
+          continue;
+        endif
+        for vname in (`verbs(definer) ! ANY => {}')
+          "Get verb signature";
+          vsig = `verb_args(definer, vname) ! ANY => {}';
+          if (typeof(vsig) != TYPE_LIST || length(vsig) < 3)
+            continue;
+          endif
+          {dobj_spec, prep_spec, iobj_spec} = vsig;
+          "Skip internal methods (this none this)";
+          if (dobj_spec == "this" && prep_spec == "none" && iobj_spec == "this")
+            continue;
+          endif
+          "Get full verb names string";
+          vinfo = `verb_info(definer, vname) ! ANY => {}';
+          if (typeof(vinfo) != TYPE_LIST || length(vinfo) < 3)
+            continue;
+          endif
+          full_names = vinfo[3];
+          "Strip * markers";
+          clean_names = strsub(full_names, "*", "");
+          all_aliases = clean_names:split(" ");
+          "Check if any alias matches the attempted verb";
+          is_match = 0;
+          is_near = 0;
+          matched_alias = "";
+          for alias in (all_aliases)
+            if (match(alias, "^" + attempted_verb))
+              is_match = 1;
+              matched_alias = alias;
+            elseif (length(attempted_verb) >= 3)
+              if (index(alias, attempted_verb) > 0 || index(attempted_verb, alias) > 0)
+                is_near = 1;
+                matched_alias = alias;
+              endif
+            endif
+          endfor
+          if (is_match || is_near)
+            "Build syntax hint showing ALL aliases";
+            syntax = clean_names;
+            if (dobj_spec == "this")
+              syntax = syntax + " " + item:name();
+            elseif (dobj_spec == "any")
+              syntax = syntax + " <object>";
+            endif
+            if (prep_spec != "none")
+              syntax = syntax + " " + prep_spec;
+            endif
+            if (iobj_spec == "this")
+              syntax = syntax + " " + item:name();
+            elseif (iobj_spec == "any")
+              syntax = syntax + " <object>";
+            endif
+            "Dedupe by object+syntax";
+            key = item:name() + ":" + syntax;
+            if (!(key in seen_verbs))
+              seen_verbs = {@seen_verbs, key};
+              entry = ["object" -> item:name(), "command" -> syntax, "aliases" -> clean_names];
+              if (is_match)
+                exact = {@exact, entry};
+              else
+                entry["did_you_mean"] = matched_alias;
+                near = {@near, entry};
+              endif
+            endif
+          endif
+        endfor
+      endfor
+    endfor
+    return {exact, near};
+  endverb
+
+  verb "walk go_to goto" (any any any) owner: ARCH_WIZARD flags: "rxd"
+    "Walk automatically to a destination room.";
+    "Usage: walk [to] <destination> | walk stop";
+    set_task_perms(player);
+    player != this && return;
+    "Parse destination from argstr - handle 'walk to xxx' and 'walk xxx'";
+    dest_str = argstr:trim();
+    if (dest_str == "")
+      player:inform_current($event:mk_error(player, "Walk where? Try: walk to <destination>"));
+      return;
+    endif
+    "Handle 'walk stop' to cancel";
+    if (dest_str == "stop" || dest_str == "cancel")
+      if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
+        `kill_task(this.walk_task) ! ANY';
+        this.walk_task = 0;
+        player:inform_current($event:mk_info(player, "You stop walking."));
+      else
+        player:inform_current($event:mk_info(player, "You aren't walking anywhere."));
+      endif
+      return;
+    endif
+    "Strip leading 'to ' if present";
+    if (index(dest_str, "to ") == 1)
+      dest_str = dest_str[4..$];
+    endif
+    dest_str = dest_str:trim();
+    "Get current room and area";
+    current_room = this.location;
+    if (!valid(current_room))
+      player:inform_current($event:mk_error(player, "You aren't in a room."));
+      return;
+    endif
+    area = current_room.location;
+    if (!valid(area) || !respond_to(area, 'find_path))
+      player:inform_current($event:mk_error(player, "You can't navigate from here."));
+      return;
+    endif
+    "Build list of rooms and their names for matching";
+    targets = {};
+    keys = {};
+    for room in (area.contents)
+      if (!valid(room) || !respond_to(room, 'name))
+        continue;
+      endif
+      room_name = `room:name() ! ANY => ""';
+      if (room_name == "")
+        continue;
+      endif
+      targets = {@targets, room};
+      room_aliases = `room:aliases() ! ANY => {}';
+      room_keys = {room_name, @room_aliases};
+      keys = {@keys, room_keys};
+    endfor
+    "Use complex_match with fuzzy matching";
+    match_result = complex_match(dest_str, targets, keys, 0.5);
+    if (match_result == $ambiguous_match)
+      player:inform_current($event:mk_error(player, "\"" + dest_str + "\" is ambiguous - please be more specific."));
+      return;
+    elseif (match_result == $failed_match || !valid(match_result))
+      player:inform_current($event:mk_error(player, "Can't find a place called \"" + dest_str + "\"."));
+      return;
+    endif
+    destination = match_result;
+    if (destination == current_room)
+      player:inform_current($event:mk_info(player, "You're already at " + destination:name() + "!"));
+      return;
+    endif
+    "First try to find a walkable route (passages only, no transports)";
+    path = area:find_path(current_room, destination, true, false);
+    if (!path || length(path) < 2)
+      "No passage-only route - check if there's a route with transports";
+      path_with_transport = area:find_path(current_room, destination, true, true);
+      if (path_with_transport && length(path_with_transport) >= 2)
+        "Route exists but requires transport - find the first transport step";
+        for i in [1..length(path_with_transport) - 1]
+          {room, connector} = path_with_transport[i];
+          if (typeof(connector) == TYPE_LIST && length(connector) >= 1 && connector[1] == 'transport)
+            label = connector[2];
+            player:inform_current($event:mk_info(player, "To reach " + destination:name() + ", you'll need to take the " + label + ". I can't walk you through transport systems yet."));
+            return;
+          endif
+        endfor
+      endif
+      player:inform_current($event:mk_error(player, "Can't find a walkable route to " + destination:name() + "."));
+      return;
+    endif
+    "Cancel any existing walk";
+    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
+      `kill_task(this.walk_task) ! ANY';
+    endif
+    "Start walking";
+    steps = length(path) - 1;
+    player:inform_current($event:mk_info(player, "Walking to " + destination:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
+    "Fork task to do the walking";
+    fork walk_task_id (0)
+      this:_do_walk(path);
+    endfork
+    this.walk_task = walk_task_id;
+  endverb
+
+  verb _do_walk (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Internal: Execute the walking through a path.";
+    "Called from forked task in :walk verb.";
+    {path} = args;
+    set_task_perms(this.owner);
+    walk_delay = 2;
+    for i in [1..length(path) - 1]
+      {from_room, connector} = path[i];
+      {to_room, _} = path[i + 1];
+      "Check player is still in expected room";
+      if (this.location != from_room)
+        "Player moved manually or was moved - stop walking";
+        this:inform_current($event:mk_info(this, "You've stopped walking (you moved)."));
+        this.walk_task = 0;
+        return;
+      endif
+      "Check this is a passage (not transport)";
+      if (typeof(connector) == TYPE_LIST && connector[1] == 'transport)
+        this:inform_current($event:mk_error(this, "Can't auto-walk through transport - stopping."));
+        this.walk_task = 0;
+        return;
+      endif
+      "Wait before moving";
+      suspend(walk_delay);
+      "Check still in expected room after delay";
+      if (this.location != from_room)
+        this:inform_current($event:mk_info(this, "You've stopped walking."));
+        this.walk_task = 0;
+        return;
+      endif
+      "Move via the passage";
+      success = `connector:travel_from(this, from_room, {}) ! ANY => false';
+      if (!success)
+        this:inform_current($event:mk_error(this, "Something blocked your path - stopping."));
+        this.walk_task = 0;
+        return;
+      endif
+    endfor
+    "Arrived at destination";
+    destination = path[$][1];
+    this:inform_current($event:mk_info(this, "You've arrived at " + destination:name() + "."));
+    this.walk_task = 0;
+  endverb
+
+  verb "join @join" (any none none) owner: ARCH_WIZARD flags: "rxd"
+    "Walk to join another player.";
+    "Usage: join <player>";
+    set_task_perms(player);
+    player != this && return;
+    "Parse player name from argstr";
+    target_name = argstr:trim();
+    if (target_name == "")
+      player:inform_current($event:mk_error(player, "Join whom? Try: join <player>"));
+      return;
+    endif
+    "Match the player";
+    target = `$match:match_player(target_name) ! ANY => $failed_match';
+    if (target == $ambiguous_match)
+      player:inform_current($event:mk_error(player, "\"" + target_name + "\" is ambiguous - please be more specific."));
+      return;
+    elseif (target == $failed_match || !valid(target))
+      player:inform_current($event:mk_error(player, "Can't find a player called \"" + target_name + "\"."));
+      return;
+    endif
+    if (target == this)
+      player:inform_current($event:mk_info(player, "You can't join yourself!"));
+      return;
+    endif
+    "Check target is in a room";
+    target_room = target.location;
+    if (!valid(target_room))
+      player:inform_current($event:mk_error(player, target:name() + " isn't anywhere you can go."));
+      return;
+    endif
+    "Get current room and area";
+    current_room = this.location;
+    if (!valid(current_room))
+      player:inform_current($event:mk_error(player, "You aren't in a room."));
+      return;
+    endif
+    if (target_room == current_room)
+      player:inform_current($event:mk_info(player, target:name() + " is already here!"));
+      return;
+    endif
+    area = current_room.location;
+    if (!valid(area) || !respond_to(area, 'find_path))
+      player:inform_current($event:mk_error(player, "You can't navigate from here."));
+      return;
+    endif
+    "Check target is in same area";
+    target_area = target_room.location;
+    if (target_area != area)
+      player:inform_current($event:mk_error(player, target:name() + " is in a different area - can't walk there."));
+      return;
+    endif
+    "First try to find a walkable route (passages only, no transports)";
+    path = area:find_path(current_room, target_room, true, false);
+    if (!path || length(path) < 2)
+      "No passage-only route - check if there's a route with transports";
+      path_with_transport = area:find_path(current_room, target_room, true, true);
+      if (path_with_transport && length(path_with_transport) >= 2)
+        "Route exists but requires transport - find the first transport step";
+        for i in [1..length(path_with_transport) - 1]
+          {room, connector} = path_with_transport[i];
+          if (typeof(connector) == TYPE_LIST && length(connector) >= 1 && connector[1] == 'transport)
+            label = connector[2];
+            player:inform_current($event:mk_info(player, "To reach " + target:name() + ", you'll need to take the " + label + ". I can't walk you through transport systems yet."));
+            return;
+          endif
+        endfor
+      endif
+      player:inform_current($event:mk_error(player, "Can't find a walkable route to " + target:name() + "."));
+      return;
+    endif
+    "Cancel any existing walk";
+    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
+      `kill_task(this.walk_task) ! ANY';
+    endif
+    "Start walking";
+    steps = length(path) - 1;
+    player:inform_current($event:mk_info(player, "Walking to join " + target:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
+    "Fork task to do the walking";
+    fork walk_task_id (0)
+      this:_do_walk(path);
+    endfork
+    this.walk_task = walk_task_id;
+  endverb
+
+  verb disfunc (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Called when player disconnects. Record the time for housekeeping.";
+    this.last_disconnected = time();
   endverb
 endobject
