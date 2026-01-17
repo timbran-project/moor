@@ -17,57 +17,30 @@ object LLM_CLIENT
     "Args: input (string or messages list), opts (optional $llm_chat_opts flyweight),";
     "      model_override, stream, tools";
     {input, ?opts = false, ?model_override = false, ?stream = false, ?tools = false} = args;
-    if (!this.api_key)
-      raise(E_INVARG("LLM API key not configured"));
-    endif
-    "Convert input to messages array if it's a string";
-    if (typeof(input) == TYPE_STR)
-      messages = {["role" -> "user", "content" -> input]};
-    elseif (typeof(input) == TYPE_LIST)
-      messages = input;
-    else
-      raise(E_TYPE);
-    endif
+    this.api_key || raise(E_PERM, "LLM API key not configured");
+    messages = typeof(input) == TYPE_STR ? {["role" -> "user", "content" -> input]} | (typeof(input) == TYPE_LIST ? input | raise(E_TYPE));
     model = model_override || this.model;
-    "Construct the request body";
     body = ["model" -> model, "messages" -> messages, "stream" -> stream];
-    if (tools)
-      body["tools"] = tools;
-    endif
-    "Merge in options from flyweight";
+    tools && (body["tools"] = tools);
     if (typeof(opts) == TYPE_FLYWEIGHT)
       for key in (mapkeys(opts_params = opts:to_body_params()))
         body[key] = opts_params[key];
       endfor
     endif
-    body_json = generate_json(body);
-    "Construct headers with API key";
     headers = {{"Content-Type", "application/json"}, {"Authorization", "Bearer " + this.api_key}};
-    "Make the worker request";
     req_start = ftime();
-    response = worker_request('curl, {"POST", this.api_endpoint, body_json, headers});
+    response = worker_request('curl, {"POST", this.api_endpoint, generate_json(body), headers});
     req_end = ftime();
-    "Parse and return the response";
-    "worker_request returns {status_code, headers, body_string}";
-    if (typeof(response) != TYPE_LIST || length(response) < 3)
-      server_log("fail " + toliteral(response));
-      raise(E_INVARG, "Invalid response from LLM: " + toliteral(response));
-    endif
+    typeof(response) == TYPE_LIST && length(response) >= 3 || raise(E_INVARG, "Invalid response from LLM: " + toliteral(response));
     {status, response_headers, body} = response;
-    server_log("LLM response " + tostr(status) + " time: " + tostr(req_end - req_start) + "s (" + this.model + " @ " + this.api_endpoint + ")");
-    "Check for HTTP errors";
+    server_log("LLM response " + tostr(status) + " time: " + tostr(req_end - req_start) + "s (" + model + " @ " + this.api_endpoint + ")");
     if (status < 200 || status >= 300)
-      raise(E_INVARG("LLM API error: HTTP " + tostr(status) + " - " + body));
+      err = status == 401 || status == 403 ? E_PERM | E_INVARG;
+      raise(err, "LLM API error: HTTP " + tostr(status) + " - " + body);
     endif
-    if (typeof(body) == TYPE_STR)
-      "Don't try to parse empty responses";
-      if (body == "")
-        raise(E_INVARG("LLM API returned empty response"));
-      endif
-      parsed = parse_json(body);
-      return parsed;
-    endif
-    return body;
+    typeof(body) == TYPE_STR || return body;
+    body != "" || raise(E_INVARG, "LLM API returned empty response");
+    return parse_json(body);
   endverb
 
   verb set_api_key (this none this) owner: ARCH_WIZARD flags: "rxd"
