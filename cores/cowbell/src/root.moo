@@ -13,23 +13,16 @@ object ROOT
   property thumbnail (owner: HACKER, flags: "rc") = false;
 
   verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Create a non-garbage collected (UUobjid) child of this object.";
+    "Create a child of this object.";
     "";
-    "Permission is granted if any of:";
-    "  - Object is fertile";
-    "  - Caller is wizard";
-    "  - Caller is object owner";
-    "  - this is a capability flyweight granting 'create_child";
+    "  parent:create()       -- UUID-based (default)";
+    "  parent:create(true)   -- anonymous (garbage collected)";
+    "  parent:create(0)      -- numbered (#123 style)";
+    "  parent:create(1)      -- anonymous";
+    "  parent:create(2)      -- UUID";
     "";
-    "Normal usage (fertile object):";
-    "  new_obj = parent:create();";
-    "";
-    "Capability usage (non-fertile object):";
-    "  cap = parent:issue_capability(parent, {'create_child}, ?exp, parent.owner);";
-    "  new_obj = cap:create();  # Flyweight delegates to parent, validates cap";
-    "";
-    "Returns: New child object with caller_perms() as owner (or run_as from capability)";
-    "Check fertility first - object-creation specific permission";
+    "Permission requires: fertile, wizard, owner, or 'create_child capability.";
+    "Returns: New child object owned by caller_perms().";
     if (typeof(this) == TYPE_FLYWEIGHT)
       target = this.delegate;
     else
@@ -39,12 +32,15 @@ object ROOT
     if (!is_fertile)
       {_, perms} = this:check_permissions('create_child);
     endif
-    {?anon = false} = args;
-    otype = 2;
-    if (anon)
-      otype = 1;
+    {?otype = 2} = args;
+    if (typeof(otype) == TYPE_INT)
+      "otype passed directly";
+    else
+      "boolean: true=anon, false=uuid";
+      otype = otype ? 1 | 2;
     endif
     new_obj = create(target, caller_perms(), otype);
+    new_obj.r = 1;
     return new_obj;
   endverb
 
@@ -195,8 +191,8 @@ object ROOT
   endverb
 
   verb all_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
-    set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all properties.";
+    set_task_perms(caller_perms());
     what = this;
     result = {};
     while (valid(what))
@@ -839,5 +835,12 @@ object ROOT
     "Called when something exits this object. Fire 'on_exit trigger.";
     {who} = args;
     this:fire_trigger('on_exit, ['Who -> who]);
+  endverb
+
+  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called after object creation. Clears inherited export properties.";
+    "Subclasses should call pass() to ensure this runs.";
+    this.import_export_id = 0;
+    this.import_export_hierarchy = 0;
   endverb
 endobject
