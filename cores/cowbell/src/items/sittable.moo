@@ -161,20 +161,24 @@ object SITTABLE
       player:inform_current(event);
       return;
     endif
-    "Check capacity";
+    "Check capacity.";
     if (this.squeeze < 0 && length(this.sitting) >= this.seats)
       event = $event:mk_error(player, @this.no_room_msg):with_this(this);
       player:inform_current(event);
       return;
     endif
-    "Add player to sitting list";
+    "Register engagement with room (auto-disengages from other furniture/pool).";
+    if (valid(this.location) && respond_to(this.location, 'engage_actor))
+      this.location:engage_actor(player, this);
+    endif
+    "Add player to sitting list.";
     this.sitting = {@this.sitting, player};
-    "Announce to room";
+    "Announce to room.";
     event = $event:mk_act(player, @this.sit_msg):with_this(this);
     this.location:announce(event);
-    "Fire trigger for reactions (after announcement)";
+    "Fire trigger for reactions (after announcement).";
     this:fire_trigger('on_sit, ['Actor -> player]);
-    "Squeeze check - if over capacity, dump the first person";
+    "Squeeze check - if over capacity, dump the first person.";
     if (length(this.sitting) > this.seats + max(0, this.squeeze))
       victim = this.sitting[1];
       this:dump_sitter(victim);
@@ -210,13 +214,17 @@ object SITTABLE
     if (this.squeeze < 0 && length(this.sitting) >= this.seats)
       return false;
     endif
+    "Register engagement with room (auto-disengages from other furniture/pool).";
+    if (valid(this.location) && respond_to(this.location, 'engage_actor))
+      this.location:engage_actor(who, this);
+    endif
     this.sitting = {@this.sitting, who};
     this:fire_trigger('on_sit, ['Actor -> who]);
     if (!silent && valid(this.location))
       event = $event:mk_act(who, @this.sit_msg):with_this(this);
       this.location:announce(event);
     endif
-    "Squeeze check";
+    "Squeeze check.";
     if (length(this.sitting) > this.seats + max(0, this.squeeze))
       victim = this.sitting[1];
       this:dump_sitter(victim);
@@ -232,6 +240,10 @@ object SITTABLE
       return false;
     endif
     this.sitting = listdelete(this.sitting, pos);
+    "Clear engagement record from room.";
+    if (valid(this.location) && respond_to(this.location, 'disengage_actor))
+      `this.location:disengage_actor(who) ! ANY';
+    endif
     this:fire_trigger('on_stand, ['Actor -> who]);
     if (!silent && valid(this.location))
       event = $event:mk_act(who, @this.stand_msg):with_this(this);

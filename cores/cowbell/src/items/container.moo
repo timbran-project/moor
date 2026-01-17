@@ -53,13 +53,17 @@ object CONTAINER
   property put_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "put", .for_others = "puts">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "put", .for_others = "puts">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
-    " in ",
+    " ",
+    <SUB, .capitalize = false, .type = 'binding, .binding_name = 'prep>,
+    " ",
     <SUB, .capitalize = false, .type = 'iobj>,
     "."
   };
+  property put_prep_display (owner: ARCH_WIZARD, flags: "rc") = "in";
+  property put_preps (owner: ARCH_WIZARD, flags: "rc") = {"in", "inside", "into"};
   property put_rule (owner: HACKER, flags: "rc") = 0;
   property take_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " is closed."};
   property take_msg (owner: HACKER, flags: "rc") = {
@@ -462,15 +466,21 @@ object CONTAINER
     endtry
   endverb
 
-  verb put (any in this) owner: ARCH_WIZARD flags: "rd"
-    "Put an object in this container";
+  verb put (any any this) owner: ARCH_WIZARD flags: "rd"
+    "Put an object in/on this container.";
     set_task_perms(caller_perms());
-    if (!dobjstr || dobjstr == "")
-      event = $event:mk_error(player, "Put what in ", $sub:i(), "?"):with_iobj(this);
+    "Check preposition is valid for this container.";
+    if (!(prepstr in this.put_preps))
+      event = $event:mk_error(player, "You can't put things ", prepstr, " ", $sub:i(), "."):with_iobj(this);
       player:inform_current(event);
       return;
     endif
-    "Match the object being put from player's perspective";
+    if (!dobjstr || dobjstr == "")
+      event = $event:mk_error(player, "Put what ", prepstr, " ", $sub:i(), "?"):with_iobj(this);
+      player:inform_current(event);
+      return;
+    endif
+    "Match the object being put from player's perspective.";
     try
       dobj = $match:match_object(dobjstr, player);
     except e (ANY)
@@ -493,23 +503,23 @@ object CONTAINER
       player:inform_current(event);
       return;
     endif
-    "Check access via rule";
+    "Check access via rule.";
     access_check = this:can_put_into(player, dobj);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(dobj):with_iobj(this);
       player:inform_current(event);
       return;
     endif
-    "Check if this container can accept the item";
+    "Check if this container can accept the item.";
     if (!this:acceptable(dobj))
       event = $event:mk_error(player, $sub:i(), " can't hold ", $sub:d(), "."):with_dobj(dobj):with_iobj(this);
       player:inform_current(event);
       return;
     endif
     try
-      this:do_put_into(player, dobj);
+      this:do_put_into(player, dobj, prepstr);
     except e (E_PERM)
-      msg = length(e) > 2 ? e[2] | "You can't put that in " + this:name() + ".";
+      msg = length(e) > 2 ? e[2] | "You can't put that " + prepstr + " " + this:name() + ".";
       event = $event:mk_error(player, msg):with_dobj(dobj);
       player:inform_current(event);
     endtry
@@ -688,13 +698,16 @@ object CONTAINER
 
   verb do_put_into (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Core: move item from actor into this container.";
-    "Only callable by this object itself";
+    "Only callable by this object itself.";
     caller != this && raise(E_PERM, "do_put_into must be called by this object");
-    {who, item, ?silent = false} = args;
+    {who, item, ?prep = "", ?silent = false} = args;
     item:moveto(this);
     this:fire_trigger('on_put, ['Actor -> who, 'Item -> item]);
     if (!silent && valid(who.location))
-      event = $event:mk_info(who, @this.put_msg):with_dobj(item):with_iobj(this):with_this(who.location);
+      "Use prep passed in, or fall back to put_prep_display property.";
+      display_prep = prep != "" ? prep | this.put_prep_display;
+      msg = $sub_utils:compile("{Nc} {put|puts} {d} " + display_prep + " {i}.");
+      event = $event:mk_info(who, @msg):with_dobj(item):with_iobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     return true;
