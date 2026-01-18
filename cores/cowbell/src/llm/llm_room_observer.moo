@@ -247,11 +247,54 @@ object LLM_ROOM_OBSERVER
     this:_stop_thinking();
     "Show token usage to player";
     this:_show_token_usage(player);
-    "Strip SPEAK: prefix if LLM included it (learned from maybe_speak context)";
+    "Process response - strip thinking tags, quotes, and meta-commentary";
     if (typeof(response) == TYPE_STR)
       response = response:trim();
+      "Strip SPEAK: prefix if LLM included it";
       if (response:starts_with("SPEAK: "))
         response = response[8..$];
+      endif
+      "Strip out <think>...</think> tags";
+      response_upper = response:uppercase();
+      while (index(response_upper, "<THINK>") > 0)
+        think_start = index(response_upper, "<THINK>");
+        think_end = index(response_upper, "</THINK>");
+        if (think_end > think_start)
+          before = think_start > 1 ? response[1..think_start - 1] | "";
+          after = think_end + 8 <= length(response) ? response[think_end + 8..$] | "";
+          response = (before + after):trim();
+          response_upper = response:uppercase();
+        else
+          "Unclosed <think> tag - strip from <think> onwards";
+          response = think_start > 1 ? response[1..think_start - 1]:trim() | "";
+          break;
+        endif
+      endwhile
+      "Strip leading/trailing quotes to prevent double-quoting";
+      if (length(response) >= 2 && response[1] == "\"" && response[$] == "\"")
+        response = response[2..$ - 1];
+      endif
+      "Skip system/meta messages and reasoning leaks";
+      skip_prefixes = {"Operation cancelled", "I've used", "I used", "Done", "SILENT", "Said to", "I've served", "I have served", "I've delivered", "I have delivered", "I've prepared", "I have prepared", "The scene is", "Scene is", "I've acknowledged", "I have acknowledged", "I have responded", "I've responded", "I've put", "I have put", "I've played", "I have played", "No tool calls", "No tools", "I have already", "I've already", "I should wait", "I will wait", "I'll wait", "I have now", "I've now", "I should now", "I will now", "I have completed", "I've completed", "Let me analyze", "I should respond", "I need to"};
+      should_skip = length(response) <= 3;
+      for prefix in (skip_prefixes)
+        if (response:starts_with(prefix))
+          should_skip = true;
+        endif
+      endfor
+      "Skip meta-commentary about actions taken, staying silent, observing, etc.";
+      skip_patterns = {"remains silent", "stays silent", "stay silent", "remain silent", "waiting to be", "waits to be", "chooses not to", "decides not to", "doesn't interject", "does not interject", "quietly observes", "continues to observe", "listens quietly", "i notice", "i should remain", "should remain focused", "shouldn't interrupt", "should not interrupt", "won't interrupt", "will not interrupt", "not my place", "their conversation", "their discussion", "unless someone", "unless asked", "stay quiet", "staying quiet", "remain professional", "in character", "maintains the", "maintaining the", "this fits", "now i wait", "wait for further", "wait for the user", "the user can now", "wait for interaction", "further interaction", "no tool calls", "tool calls necessary", "no tools needed", "no action needed", "no action required", "another tool call", "before making", "wait for reply", "waiting for reply", "await their", "awaiting their", "made my response", "already made my", "should wait for", "completed the interaction", "completed my", "now wait for", "inner thinking", "my analysis", "my reasoning", "as a ", "as an "};
+      response_lower = response:lowercase();
+      for pattern in (skip_patterns)
+        if (index(response_lower, pattern) > 0)
+          should_skip = true;
+        endif
+      endfor
+      if (should_skip)
+        player:inform_current($event:mk_info(player, this:name() + " has nothing to say."));
+        this.responding = false;
+        commit();
+        return;
       endif
     endif
     "Announce response to room";
@@ -314,6 +357,10 @@ object LLM_ROOM_OBSERVER
     should_announce = false;
     if (typeof(response) == TYPE_STR)
       response = response:trim();
+      "Strip leading/trailing quotes to prevent double-quoting";
+      if (length(response) >= 2 && response[1] == "\"" && response[$] == "\"")
+        response = response[2..$ - 1];
+      endif
       "Check if response should be announced";
       should_announce = true;
       "Skip empty responses";
@@ -330,6 +377,8 @@ object LLM_ROOM_OBSERVER
       elseif (index(response, "I've ") || index(response, "Done") || index(response, "I used"))
         should_announce = false;
       elseif (index(response, "IMPORTANT") || index(response, "1.") || index(response, "2."))
+        should_announce = false;
+      elseif (index(response:lowercase(), "as \u00E9mile") || index(response:lowercase(), "as emile") || index(response:lowercase(), "inner thinking"))
         should_announce = false;
       endif
       if (should_announce)
