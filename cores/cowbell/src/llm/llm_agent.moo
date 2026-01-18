@@ -37,6 +37,7 @@ object LLM_AGENT
 
   verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called automatically on creation. Creates anonymous client.";
+    pass();
     this.client = $llm_client:create(true);
     this.client.name = "Client for " + this.name;
   endverb
@@ -302,8 +303,23 @@ object LLM_AGENT
     "Check if caller has permission to access this agent's public methods.";
     "Allows: agent itself, objects with same owner, owner directly, or wizards.";
     {who} = args;
-    who == #-1 || who == this || who.owner == this.owner || who == this.owner || who.wizard || caller_perms().wizard || raise(E_PERM);
-    return who;
+    "Quick exits that don't require property access";
+    who == #-1 || who == this || who == this.owner && return who;
+    "For caller_perms(), wizard check is safe";
+    caller_perms().wizard && return who;
+    "Now check properties on the caller object, catching permission errors";
+    try
+      who.owner == this.owner && return who;
+    except (E_PERM)
+      "Can't read owner - continue to other checks";
+    endtry
+    try
+      who.wizard && return who;
+    except (E_PERM)
+      "Can't read wizard flag - continue";
+    endtry
+    "None of the allowed conditions matched";
+    raise(E_PERM);
   endverb
 
   verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"

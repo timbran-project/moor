@@ -13,6 +13,7 @@ object AREA
 
   verb initialize (this none this) owner: HACKER flags: "rxd"
     "Called after creation to set up the passages relation.";
+    pass();
     this:_ensure_passages_relation();
   endverb
 
