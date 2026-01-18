@@ -149,7 +149,7 @@ object SITTABLE
     "```"
   };
 
-  verb sit (any on this) owner: HACKER flags: "rxd"
+  verb "sit climb" (any on this) owner: HACKER flags: "rxd"
     "Handle 'sit on <furniture>' command.";
     if (player in this.sitting)
       event = $event:mk_error(player, @this.already_sitting_msg):with_this(this);
@@ -372,5 +372,10 @@ object SITTABLE
     "Stand up departing player when they leave the room.";
     {who} = args;
     who in this.sitting && this:remove_sitter(who);
+  endverb
+
+  verb remove_occupant (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Standard interface for removing an occupant. Delegates to remove_sitter.";
+    return this:remove_sitter(@args);
   endverb
 endobject
