@@ -26,6 +26,19 @@ object AGENT_BUILDING_TOOLS
     tools = {@tools, $llm_agent_tool:mk("move_object", "Move an object to a new location. Can move objects to rooms, players, or containers.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to move (name or object number)"], "destination" -> ["type" -> "string", "description" -> "Destination location (room, player, or container - name or object number)"]], "required" -> {"object", "destination"}], target_obj, "move_object")};
     tools = {@tools, $llm_agent_tool:mk("set_integrated_description", "Set an object's integrated description - a description that becomes part of the room's description when the object is present. Use this for atmospheric objects like furniture, decorations, or features that should feel like part of the room.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "The object to set integrated description on"], "integrated_description" -> ["type" -> "string", "description" -> "The integrated description text (or empty string to clear)"]], "required" -> {"object", "integrated_description"}], target_obj, "set_integrated_description")};
     tools = {@tools, $llm_agent_tool:mk("grant_capability", "Grant building capabilities to a player.", ["type" -> "object", "properties" -> ["target" -> ["type" -> "string", "description" -> "Target object (area or room)"], "category" -> ["type" -> "string", "description" -> "Capability category ('area' or 'room')"], "permissions" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Permission symbols (e.g. ['add_room', 'create_passage'] for areas, ['dig_from', 'dig_into'] for rooms)"], "grantee" -> ["type" -> "string", "description" -> "Player to grant to"]], "required" -> {"target", "category", "permissions", "grantee"}], target_obj, "grant_capability")};
+    "Verb manipulation tools";
+    tools = {@tools, $llm_agent_tool:mk("add_verb", "Add a new verb to an object. Defaults to 'rd' (read/debug) for commands or 'rxd' (read/execute/debug) for methods.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to add verb to"], "verb" -> ["type" -> "string", "description" -> "Verb name"], "permissions" -> ["type" -> "string", "description" -> "Permission flags (optional, e.g. 'rd' or 'rxd')"], "dobj" -> ["type" -> "string", "description" -> "Direct object: this/any/none (default: this)"], "prep" -> ["type" -> "string", "description" -> "Preposition (default: none)"], "iobj" -> ["type" -> "string", "description" -> "Indirect object: this/any/none (default: none)"]], "required" -> {"object", "verb"}], target_obj, "add_verb")};
+    tools = {@tools, $llm_agent_tool:mk("program_verb", "Set MOO code for a verb.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing verb"], "verb" -> ["type" -> "string", "description" -> "Verb name"], "code" -> ["type" -> "string", "description" -> "MOO code (use \\n for line breaks)"]], "required" -> {"object", "verb", "code"}], target_obj, "program_verb")};
+    tools = {@tools, $llm_agent_tool:mk("list_verbs", "List verbs on an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object to list verbs from"]], "required" -> {"object"}], target_obj, "list_verbs")};
+    tools = {@tools, $llm_agent_tool:mk("get_verb_code", "Get source code of a verb.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object containing verb"], "verb" -> ["type" -> "string", "description" -> "Verb name"]], "required" -> {"object", "verb"}], target_obj, "get_verb_code")};
+    tools = {@tools, $llm_agent_tool:mk("delete_verb", "Delete a verb from an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object"], "verb" -> ["type" -> "string", "description" -> "Verb name"]], "required" -> {"object", "verb"}], target_obj, "delete_verb")};
+    tools = {@tools, $llm_agent_tool:mk("set_verb_info", "Set verb metadata (permissions, names, owner).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "verb" -> ["type" -> "string", "description" -> "Current verb name"], "permissions" -> ["type" -> "string", "description" -> "New flags (e.g. 'rd', 'rxd')"], "names" -> ["type" -> "string", "description" -> "New name(s) / aliases"], "owner" -> ["type" -> "string", "description" -> "New owner object"]], "required" -> {"object", "verb"}], target_obj, "set_verb_info")};
+    tools = {@tools, $llm_agent_tool:mk("set_verb_args", "Set verb argument specification (dobj, prep, iobj).", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "verb" -> ["type" -> "string", "description" -> "Verb name"], "dobj" -> ["type" -> "string", "description" -> "Direct object spec (this/any/none)"], "prep" -> ["type" -> "string", "description" -> "Preposition spec"], "iobj" -> ["type" -> "string", "description" -> "Indirect object spec (this/any/none)"]], "required" -> {"object", "verb", "dobj", "prep", "iobj"}], target_obj, "set_verb_args")};
+    "Property tools";
+    tools = {@tools, $llm_agent_tool:mk("list_properties", "List properties on an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object"]], "required" -> {"object"}], target_obj, "list_properties")};
+    tools = {@tools, $llm_agent_tool:mk("get_property", "Get a property value.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object"], "property" -> ["type" -> "string", "description" -> "Property name"]], "required" -> {"object", "property"}], target_obj, "get_property")};
+    tools = {@tools, $llm_agent_tool:mk("set_property", "Set a property value.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object"], "property" -> ["type" -> "string", "description" -> "Property name"], "value" -> ["description" -> "Value to set"]], "required" -> {"object", "property", "value"}], target_obj, "set_property")};
+    tools = {@tools, $llm_agent_tool:mk("add_property", "Add a new property to an object.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object"], "property" -> ["type" -> "string", "description" -> "Property name"], "value" -> ["description" -> "Initial value (optional)"]], "required" -> {"object", "property"}], target_obj, "add_property")};
     "Analysis/inspection tools";
     tools = {@tools, $llm_agent_tool:mk("audit_owned", "List all objects owned by the actor.", ["type" -> "object", "properties" -> [], "required" -> {}], target_obj, "audit_owned")};
     tools = {@tools, $llm_agent_tool:mk("area_map", "Get a list of all rooms in the current area. Use this to see what locations already exist and understand the spatial layout.", ["type" -> "object", "properties" -> [], "required" -> {}], target_obj, "area_map")};
@@ -384,11 +397,20 @@ object AGENT_BUILDING_TOOLS
     !path && return "No route found from " + from_name + " to " + to_name + ".";
     result = {"Route from " + from_name + " (" + tostr(from_room) + ") to " + to_name + " (" + tostr(to_room) + "):"};
     for i in [1..length(path) - 1]
-      {room, passage} = path[i];
-      {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
-      direction = room == side_a_room ? `passage.side_a_label ! ANY => "passage"' | (room == side_b_room ? `passage.side_b_label ! ANY => "passage"' | "passage");
+      {room, connector} = path[i];
       next_room = path[i + 1][1];
-      result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + `next_room:name() ! ANY => tostr(next_room)' + " (" + tostr(next_room) + ")"};
+      next_name = `next_room:name() ! ANY => tostr(next_room)';
+      "Check if this is a transport connection or a passage";
+      if (typeof(connector) == TYPE_LIST && length(connector) >= 1 && connector[1] == 'transport)
+        "Transport connection: {'transport, label, transport_obj}";
+        label = connector[2];
+        result = {@result, "  " + tostr(i) + ". Take the " + label};
+      else
+        "Passage flyweight - extract direction label";
+        {side_a_room, side_b_room} = {`connector.side_a_room ! ANY => #-1', `connector.side_b_room ! ANY => #-1'};
+        direction = room == side_a_room ? `connector.side_a_label ! ANY => "passage"' | (room == side_b_room ? `connector.side_b_label ! ANY => "passage"' | "passage");
+        result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + next_name + " (" + tostr(next_room) + ")"};
+      endif
     endfor
     return result:join("\n");
   endverb
@@ -892,5 +914,215 @@ object AGENT_BUILDING_TOOLS
     endif
     "Return structured help";
     return "Topic: " + found.name + "\n\n" + found.summary + "\n\n" + found.content + (found.see_also ? "\n\nSee also: " + found.see_also:join(", ") | "");
+  endverb
+
+  verb get_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the code of a verb. If verb is omitted, lists verbs on the object.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    verb_name = maphaskey(args_map, "verb") ? args_map["verb"] | "";
+    if (!verb_name)
+      "No verb provided - fallback to listing verbs";
+      return $agent_building_tools:list_verbs(args_map, actor);
+    endif
+    typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
+    "Get verb info and code";
+    try
+      info = verb_info(target_obj, verb_name);
+    except (E_VERBNF)
+      raise(E_VERBNF, "Verb '" + verb_name + "' not found on " + tostr(target_obj));
+    endtry
+    try
+      code_lines = verb_code(target_obj, verb_name);
+    except (E_VERBNF)
+      code_lines = {};
+    endtry
+    argspec = info[3];
+    flags = info[2];
+    result = "Verb: " + tostr(target_obj) + ":" + verb_name + "\n";
+    result = result + "Flags: " + flags + "  Argspec: " + argspec + "\n";
+    result = result + "Code (" + tostr(length(code_lines)) + " lines):\n";
+    result = result + "---\n";
+    result = result + code_lines:join("\n");
+    result = result + "\n---";
+    return result;
+  endverb
+
+  verb add_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Add a new verb to an object.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
+    verb_name = args_map["verb"];
+    typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
+    dobj = maphaskey(args_map, "dobj") ? args_map["dobj"] | "this";
+    prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
+    iobj = maphaskey(args_map, "iobj") ? args_map["iobj"] | "none";
+    "Default to rxd for methods, rd for commands";
+    default_flags = dobj == "none" && prep == "none" && iobj == "none" ? "rxd" | "rd";
+    perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | default_flags;
+    add_verb(target_obj, {actor, perms, verb_name}, {dobj, prep, iobj});
+    return "Added verb '" + verb_name + "' to " + tostr(target_obj) + " [" + perms + "] " + dobj + " " + prep + " " + iobj;
+  endverb
+
+  verb program_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set the code for a verb.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
+    verb_name = args_map["verb"];
+    typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
+    code = args_map["code"];
+    typeof(code) != TYPE_STR && raise(E_INVARG, "code must be a string");
+    code_lines = code:split("\n");
+    errors = set_verb_code(target_obj, verb_name, code_lines);
+    "set_verb_code returns list of errors, or possibly 0/{} on success";
+    if (typeof(errors) == TYPE_LIST && length(errors) > 0)
+      raise(E_INVARG, "Compile error: " + errors:join("; "));
+    endif
+    return "Programmed " + tostr(target_obj) + ":" + verb_name + " (" + tostr(length(code_lines)) + " lines)";
+  endverb
+
+  verb list_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List verbs on an object.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    verb_list = verbs(target_obj);
+    if (length(verb_list) == 0)
+      return "No verbs on " + tostr(target_obj);
+    endif
+    result = "Verbs on " + tostr(target_obj) + ":\n";
+    for v in (verb_list)
+      info = verb_info(target_obj, v);
+      vargs = verb_args(target_obj, v);
+      result = result + "  " + v + " [" + info[2] + "] " + vargs[1] + " " + vargs[2] + " " + vargs[3] + "\n";
+    endfor
+    return result;
+  endverb
+
+  verb delete_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Delete a verb from an object.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
+    verb_name = args_map["verb"];
+    typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
+    delete_verb(target_obj, verb_name);
+    return "Deleted verb '" + verb_name + "' from " + tostr(target_obj);
+  endverb
+
+  verb list_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: List properties on an object.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    prop_list = properties(target_obj);
+    if (length(prop_list) == 0)
+      return "No properties defined on " + tostr(target_obj);
+    endif
+    result = "Properties on " + tostr(target_obj) + ":\n";
+    for p in (prop_list)
+      try
+        val = target_obj.(p);
+        val_str = toliteral(val);
+        if (length(val_str) > 50)
+          val_str = val_str[1..50] + "...";
+        endif
+      except (ANY)
+        val_str = "(unreadable)";
+      endtry
+      result = result + "  " + p + " = " + val_str + "\n";
+    endfor
+    return result;
+  endverb
+
+  verb get_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Get the value of a property.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    prop_name = args_map["property"];
+    typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
+    val = target_obj.(prop_name);
+    return tostr(target_obj) + "." + prop_name + " = " + toliteral(val);
+  endverb
+
+  verb set_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set the value of a property.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    prop_name = args_map["property"];
+    typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
+    value = args_map["value"];
+    target_obj.(prop_name) = value;
+    return "Set " + tostr(target_obj) + "." + prop_name + " = " + toliteral(value);
+  endverb
+
+  verb add_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Add a new property to an object.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    valid(target_obj) || raise(E_INVARG, "Object no longer exists");
+    !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
+    prop_name = args_map["property"];
+    typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
+    value = maphaskey(args_map, "value") ? args_map["value"] | 0;
+    add_property(target_obj, prop_name, value, {actor, "rc"});
+    return "Added property '" + prop_name + "' to " + tostr(target_obj) + " = " + toliteral(value);
+  endverb
+
+  verb set_verb_info (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set verb metadata (permissions, names).";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
+    verb_name = args_map["verb"];
+    info = verb_info(target_obj, verb_name);
+    new_owner = maphaskey(args_map, "owner") ? $match:match_object(args_map["owner"], actor) | info[1];
+    new_perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | info[2];
+    new_names = maphaskey(args_map, "names") ? args_map["names"] | info[3];
+    set_verb_info(target_obj, verb_name, {new_owner, new_perms, new_names});
+    return "Updated " + tostr(target_obj) + ":" + verb_name + " [" + new_perms + "]";
+  endverb
+
+  verb set_verb_args (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Tool: Set verb argument specification.";
+    {args_map, actor} = args;
+    set_task_perms(actor);
+    target_obj = $match:match_object(args_map["object"], actor);
+    typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
+    !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
+    verb_name = args_map["verb"];
+    dobj = args_map["dobj"];
+    prep = args_map["prep"];
+    iobj = args_map["iobj"];
+    set_verb_args(target_obj, verb_name, {dobj, prep, iobj});
+    return "Updated " + tostr(target_obj) + ":" + verb_name + " args to [" + dobj + " " + prep + " " + iobj + "]";
   endverb
 endobject
