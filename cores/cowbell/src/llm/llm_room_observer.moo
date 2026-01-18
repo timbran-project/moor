@@ -18,7 +18,7 @@ object LLM_ROOM_OBSERVER
   property preferred_model (owner: HACKER, flags: "rc") = "";
   property responding (owner: ARCH_WIZARD, flags: "rc") = 0;
   property response_opts (owner: HACKER, flags: "rc") = false;
-  property response_prompt (owner: HACKER, flags: "rc") = "Respond to what you've observed. IMPORTANT: For physical actions, use the emote tool (don't write *actions* inline). For speech, use directed_say. You can make multiple tool calls in sequence - for example, emote first to show a reaction, then directed_say to speak. Keep speech brief (1-2 sentences).";
+  property response_prompt (owner: HACKER, flags: "rc") = "Respond to what you've observed. CRITICAL: Do NOT output any text directly - only use tool calls. For physical actions, use the emote tool. For speech, use directed_say. You can make multiple tool calls in sequence. If you have nothing to say or do, output nothing at all. Never explain your reasoning or thought process in your response - just act.";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
   property shut_off_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
@@ -54,7 +54,7 @@ object LLM_ROOM_OBSERVER
   property thinking_task (owner: HACKER, flags: "rc") = 0;
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
-  property triage_model (owner: ARCH_WIZARD, flags: "rc") = "deepseek-chat";
+  property triage_model (owner: ARCH_WIZARD, flags: "rc") = "MiniMaxAI/MiniMax-M2.1";
   property triage_prompt (owner: ARCH_WIZARD, flags: "rc") = "You are a triage filter for an NPC named {name}. Decide if {name} should engage with the recent activity.\n\nEXAMPLES:\n\nActivity: Alice says, \"Hey {name}, can you help me find the restaurant?\"\nAnswer: ENGAGE (directly addressed by name, asking for help)\n\nActivity: Bob arrives from the north.\nAnswer: IGNORE (just someone arriving, wait to see if they need help)\n\nActivity: Carol says, \"I have a commit that might help with that bug\"\nAnswer: IGNORE (technical discussion between others, \"help\" not directed at {name})\n\nActivity: Dan says, \"where am I? how do I check in?\"\nAnswer: ENGAGE (newcomer seems confused and needs orientation)\n\nActivity: Eve [to Frank]: \"did you see the game last night?\"\nAnswer: IGNORE (conversation between two other people)\n\nActivity: Grace says, \"this websocket code is tricky\"\nAnswer: IGNORE (technical discussion, not asking {name} for anything)\n\nActivity: Henry says, \"{name}?\"\nAnswer: ENGAGE (directly addressed by name)\n\nActivity: Iris nods\nActivity: Jack waves to everyone\nAnswer: IGNORE (social gestures not requiring response)\n\nActivity: Kate says, \"excuse me, is there someone who works here?\"\nAnswer: ENGAGE (looking for staff assistance)\n\nNOW DECIDE for this activity:\n{events}\n\nAnswer with ONLY one word: ENGAGE or IGNORE";
   property turn_on_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
@@ -73,7 +73,7 @@ object LLM_ROOM_OBSERVER
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_room_observer";
 
-  verb configure (this none this) owner: HACKER flags: "rxd"
+  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     set_task_perms(this.owner);
@@ -81,6 +81,8 @@ object LLM_ROOM_OBSERVER
     this.agent = $llm_agent:create(true);
     "Set agent owner to observer owner so they can write to agent properties";
     this.agent.owner = this.owner;
+    "Set token_owner to the observer - tools execute on behalf of the NPC";
+    this.agent.token_owner = this;
     "Set model if preferred_model is configured";
     if (this.preferred_model)
       this.agent.client.model = this.preferred_model;
@@ -89,7 +91,7 @@ object LLM_ROOM_OBSERVER
     this:_setup_agent(this.agent);
   endverb
 
-  verb _setup_agent (this none this) owner: HACKER flags: "rxd"
+  verb _setup_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Configure agent with room observer prompts. Override in children to add tools.";
     {agent} = args;
     "Combine base observation mechanics with specific role";
@@ -120,18 +122,24 @@ object LLM_ROOM_OBSERVER
     if (!$llm_client:is_configured())
       return;
     endif
+    "Unpack event synchronously BEFORE fork";
+    {event} = args;
+    "Skip own events FIRST - synchronous check before any fork";
+    event_actor = `event.actor ! ANY => #-1';
+    if (event_actor == this)
+      return;
+    endif
+    "Skip events from other NPCs synchronously too";
+    if (typeof(event_actor) == TYPE_OBJ && valid(event_actor) && isa(event_actor, $llm_room_observer))
+      return;
+    endif
+    "Quick pre-check before forking - if already responding, skip immediately";
+    "(This is just an optimization - the real check happens in the fork)";
+    if (this.responding)
+      return;
+    endif
     fork (0)
       set_task_perms(this.owner);
-      {event} = args;
-      "Skip own events to avoid feedback loops";
-      event_actor = `event.actor ! ANY => #-1';
-      if (event_actor == this)
-        return;
-      endif
-      "Skip events from other NPCs to avoid cross-chatter";
-      if (typeof(event_actor) == TYPE_OBJ && valid(event_actor) && isa(event_actor, $llm_room_observer))
-        return;
-      endif
       "Check if event is addressed to someone";
       event_target = `event.iobj ! ANY => #-1';
       addressed_to_us = typeof(event_target) == TYPE_OBJ && valid(event_target) && event_target == this;
@@ -149,11 +157,22 @@ object LLM_ROOM_OBSERVER
       if (typeof(this.agent) != TYPE_OBJ || !valid(this.agent))
         this:configure();
       endif
+      "Acquire responding lock atomically with proper transaction boundaries";
+      "suspend(0) commits pending transaction and ensures we see latest state";
+      suspend(0);
+      if (this.responding)
+        return;
+      endif
+      this.responding = true;
+      "commit() makes our lock visible to other transactions before proceeding";
+      commit();
       "Add event to agent context";
       observation = toliteral(event);
       try
         this.agent:add_message("user", "OBSERVATION: " + observation);
       except e (ANY)
+        this.responding = false;
+        commit();
         this:_handle_agent_error("tell/add_message", e);
         return;
       endtry
@@ -166,11 +185,22 @@ object LLM_ROOM_OBSERVER
         endtry
       endif
       "If addressed to us, respond immediately. Otherwise triage first.";
-      if (addressed_to_us)
-        this:respond();
-      elseif (this:triage())
-        this:respond();
-      endif
+      try
+        if (addressed_to_us)
+          this:respond();
+        elseif (this:triage())
+          this:respond();
+        else
+          "Triage said no - release the lock";
+          this.responding = false;
+          commit();
+        endif
+      except e (ANY)
+        "Ensure lock is released on any error";
+        this.responding = false;
+        commit();
+        this:_handle_agent_error("tell/triage_respond", e);
+      endtry
     endfork
   endverb
 
@@ -187,6 +217,14 @@ object LLM_ROOM_OBSERVER
       player:inform_current($event:mk_error(player, "No observations to respond to yet."));
       return;
     endif
+    "Check if already responding - inform user if busy";
+    suspend(0);
+    if (this.responding)
+      player:inform_current($event:mk_info(player, this:name() + " is already thinking about something."));
+      return;
+    endif
+    this.responding = true;
+    commit();
     "Announce the poke action to the room";
     if (valid(this.location))
       poke_event = $event:mk_emote(player, $sub:nc(), " ", $sub:self_alt("poke", "pokes"), " ", this:name(), ".");
@@ -200,6 +238,8 @@ object LLM_ROOM_OBSERVER
       response = this.agent:send_message(this.response_prompt);
     except e (ANY)
       this:_stop_thinking();
+      this.responding = false;
+      commit();
       this:_handle_agent_error("poke", e);
       player:inform_current($event:mk_error(player, "Something went wrong - " + tostr(e[1]) + ": " + tostr(e[2])));
       return;
@@ -221,6 +261,8 @@ object LLM_ROOM_OBSERVER
     else
       player:inform_current($event:mk_info(player, response));
     endif
+    this.responding = false;
+    commit();
   endverb
 
   verb maybe_speak (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -243,7 +285,14 @@ object LLM_ROOM_OBSERVER
     if (length(this.agent.context) <= 1)
       return;
     endif
-    "Mark that we're about to speak (prevents concurrent calls)";
+    "Acquire responding lock atomically - skip if already responding";
+    suspend(0);
+    if (this.responding)
+      return;
+    endif
+    this.responding = true;
+    commit();
+    "Mark that we're about to speak";
     this.last_spoke_at = ftime();
     "Ask LLM to respond - tools available for directions, lookups, etc.";
     prompt = "Respond to the recent observations. You can use tools if helpful. Keep responses brief (1-2 sentences).";
@@ -253,25 +302,50 @@ object LLM_ROOM_OBSERVER
       response = this.agent:send_message(prompt);
     except e (ANY)
       this:_stop_thinking();
+      this.responding = false;
+      commit();
       this:_handle_agent_error("maybe_speak", e);
       return;
     endtry
     this:_stop_thinking();
-    "Only announce if we got a non-empty text response that isn't just tool acknowledgment";
+    "LLM should use tools for all output - don't announce raw text";
+    "Raw text output is likely reasoning/analysis that leaked through";
+    "Only announce if it looks like a very short, intentional message (under 100 chars, no analysis words)";
+    should_announce = false;
     if (typeof(response) == TYPE_STR)
-      "Strip SPEAK: prefix if present";
-      if (index(response, "SPEAK: ") == 1)
-        response = response[8..$];
-      endif
       response = response:trim();
-      "Skip if empty or just says tools were used";
-      if (length(response) > 2 && !index(response, "I've ") && !index(response, "Done") && !index(response, "I used"))
+      "Check if response should be announced";
+      should_announce = true;
+      "Skip empty responses";
+      if (length(response) < 3)
+        should_announce = false;
+        "Skip anything over 100 chars - likely reasoning leak";
+      elseif (length(response) > 100)
+        should_announce = false;
+        "Skip anything that looks like reasoning/analysis";
+      elseif (index(response, "Let me") || index(response, "I should") || index(response, "I need to") || index(response, "I'll"))
+        should_announce = false;
+      elseif (index(response, "analyze") || index(response, "observations") || index(response, "sequence") || index(response, "context"))
+        should_announce = false;
+      elseif (index(response, "I've ") || index(response, "Done") || index(response, "I used"))
+        should_announce = false;
+      elseif (index(response, "IMPORTANT") || index(response, "1.") || index(response, "2."))
+        should_announce = false;
+      endif
+      if (should_announce)
+        "Strip SPEAK: prefix if present";
+        if (index(response, "SPEAK: ") == 1)
+          response = response[8..$];
+        endif
+        "Announce short, clean responses";
         if (valid(this.location))
           say_event = $event:mk_say(this, this:name(), " says, \"", response, "\"");
           this.location:announce(say_event);
         endif
       endif
     endif
+    this.responding = false;
+    commit();
   endverb
 
   verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -373,7 +447,8 @@ object LLM_ROOM_OBSERVER
     if (!valid(this.location))
       return 0;
     endif
-    "Don't start if already thinking";
+    "Atomically check and set thinking_task with proper transaction boundaries";
+    suspend(0);
     if (this.thinking_task > 0)
       return this.thinking_task;
     endif
@@ -400,6 +475,7 @@ object LLM_ROOM_OBSERVER
       endwhile
     endfork
     this.thinking_task = task_id;
+    commit();
     return task_id;
   endverb
 
@@ -410,6 +486,7 @@ object LLM_ROOM_OBSERVER
     if (task_id > 0)
       `kill_task(task_id) ! ANY';
       this.thinking_task = 0;
+      commit();
     endif
   endverb
 
@@ -745,7 +822,8 @@ object LLM_ROOM_OBSERVER
     prompt = strsub(this.triage_prompt, "{name}", this:name());
     prompt = strsub(prompt, "{events}", events_text);
     "Quick API call - use triage_model if set, otherwise default";
-    opts = $llm_chat_opts:mk():with_max_tokens(200);
+    "High max_tokens to handle models that output lengthy thinking";
+    opts = $llm_chat_opts:mk():with_max_tokens(2000);
     model = this.triage_model || false;
     try
       response = $llm_client:chat({["role" -> "user", "content" -> prompt]}, opts, model);
@@ -767,11 +845,34 @@ object LLM_ROOM_OBSERVER
         endif
       endif
     endif
+    "Strip out <think>...</think> tags from content";
+    while (index(content, "<THINK>") > 0)
+      think_start = index(content, "<THINK>");
+      think_end = index(content, "</THINK>");
+      if (think_end > think_start)
+        before = think_start > 1 ? content[1..think_start - 1] | "";
+        after = think_end + 8 <= length(content) ? content[think_end + 8..$] | "";
+        content = (before + after):trim();
+      else
+        "Unclosed <think> tag - just strip everything from <think> onwards";
+        content = think_start > 1 ? content[1..think_start - 1]:trim() | "";
+        break;
+      endif
+    endwhile
     "Check content first - if it's a clean ENGAGE/IGNORE answer, use it";
     if (content == "ENGAGE" || content:starts_with("ENGAGE"))
       return true;
     endif
     if (content == "IGNORE" || content:starts_with("IGNORE"))
+      return false;
+    endif
+    "Search for ENGAGE/IGNORE anywhere in content";
+    last_engage = rindex(content, "ENGAGE");
+    last_ignore = rindex(content, "IGNORE");
+    if (last_engage > 0 && last_engage > last_ignore)
+      return true;
+    endif
+    if (last_ignore > 0 && last_ignore > last_engage)
       return false;
     endif
     "For reasoning models, find the LAST occurrence of ENGAGE or IGNORE in reasoning";
@@ -802,8 +903,11 @@ object LLM_ROOM_OBSERVER
 
   verb respond (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Generate a response using the agent. Tools available.";
+    "Caller must hold the responding lock (this.responding = true)";
     "Cooldown check";
     if (ftime() - this.last_spoke_at < this.speak_cooldown)
+      this.responding = false;
+      commit();
       return;
     endif
     this.last_spoke_at = ftime();
@@ -817,6 +921,8 @@ object LLM_ROOM_OBSERVER
       response = this.agent:send_message(prompt);
     except e (ANY)
       this:_stop_thinking();
+      this.responding = false;
+      commit();
       this:_handle_agent_error("respond", e);
       return;
     endtry
@@ -833,18 +939,34 @@ object LLM_ROOM_OBSERVER
     "Announce text response if meaningful";
     if (typeof(response) == TYPE_STR)
       response = response:trim();
+      "Strip out <think>...</think> tags";
+      response_upper = response:uppercase();
+      while (index(response_upper, "<THINK>") > 0)
+        think_start = index(response_upper, "<THINK>");
+        think_end = index(response_upper, "</THINK>");
+        if (think_end > think_start)
+          before = think_start > 1 ? response[1..think_start - 1] | "";
+          after = think_end + 8 <= length(response) ? response[think_end + 8..$] | "";
+          response = (before + after):trim();
+          response_upper = response:uppercase();
+        else
+          "Unclosed <think> tag - strip from <think> onwards";
+          response = think_start > 1 ? response[1..think_start - 1]:trim() | "";
+          break;
+        endif
+      endwhile
       "Skip empty, system messages, or tool acknowledgments";
-      skip_prefixes = {"Operation cancelled", "I've used", "I used", "Done", "SILENT", "Said to"};
+      skip_prefixes = {"Operation cancelled", "I've used", "I used", "Done", "SILENT", "Said to", "I've served", "I have served", "I've delivered", "I have delivered", "I've prepared", "I have prepared", "The scene is", "Scene is", "I've acknowledged", "I have acknowledged", "I have responded", "I've responded", "I've put", "I have put", "I've played", "I have played", "No tool calls", "No tools", "I have already", "I've already", "I should wait", "I will wait", "I'll wait", "I have now", "I've now", "I should now", "I will now", "I have completed", "I've completed"};
       should_skip = length(response) <= 3;
       for prefix in (skip_prefixes)
         if (response:starts_with(prefix))
           should_skip = true;
         endif
       endfor
-      "Skip meta-commentary about staying silent, observing, or not interrupting";
-      silence_patterns = {"remains silent", "stays silent", "stay silent", "remain silent", "waiting to be", "waits to be", "chooses not to", "decides not to", "doesn't interject", "does not interject", "quietly observes", "continues to observe", "listens quietly", "i notice", "i should remain", "should remain focused", "shouldn't interrupt", "should not interrupt", "won't interrupt", "will not interrupt", "not my place", "their conversation", "their discussion", "unless someone", "unless asked", "stay quiet", "staying quiet", "remain professional", "focused on hotel", "focused on my"};
+      "Skip meta-commentary about actions taken, staying silent, observing, etc.";
+      skip_patterns = {"remains silent", "stays silent", "stay silent", "remain silent", "waiting to be", "waits to be", "chooses not to", "decides not to", "doesn't interject", "does not interject", "quietly observes", "continues to observe", "listens quietly", "i notice", "i should remain", "should remain focused", "shouldn't interrupt", "should not interrupt", "won't interrupt", "will not interrupt", "not my place", "their conversation", "their discussion", "unless someone", "unless asked", "stay quiet", "staying quiet", "remain professional", "focused on hotel", "focused on my", "scene is complete", "fitting philosophical", "appropriately melancholic", "appropriate commentary", "fitting commentary", "treated this drink", "treated the drink", "existential choice", "properly served", "served the", "delivered appropriately", "delivered a fitting", "acknowledged the order", "acknowledged their", "in character", "maintains the", "maintaining the", "this fits", "now i wait", "wait for further", "wait for the user", "the user can now", "wait for interaction", "further interaction", "no tool calls", "tool calls necessary", "no tools needed", "no action needed", "no action required", "another tool call", "before making", "wait for reply", "waiting for reply", "await their", "awaiting their", "made my response", "already made my", "should wait for", "completed the interaction", "completed my", "now wait for", "mixing ryan", "ryan's response", "philosophizing about", "comparing the"};
       response_lower = response:lowercase();
-      for pattern in (silence_patterns)
+      for pattern in (skip_patterns)
         if (index(response_lower, pattern) > 0)
           should_skip = true;
         endif
@@ -866,7 +988,7 @@ object LLM_ROOM_OBSERVER
           "Filter out silence-related emotes";
           action_lower = action:lowercase();
           action_skip = false;
-          for pattern in (silence_patterns)
+          for pattern in (skip_patterns)
             if (index(action_lower, pattern) > 0)
               action_skip = true;
             endif
@@ -885,5 +1007,7 @@ object LLM_ROOM_OBSERVER
         endif
       endif
     endif
+    this.responding = false;
+    commit();
   endverb
 endobject
