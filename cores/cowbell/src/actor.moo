@@ -170,7 +170,7 @@ object ACTOR
   endverb
 
   verb mk_disconnected_event (this none this) owner: HACKER flags: "rxd"
-    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("have", "has"), " goes to sleep."):with_presentation_hint('inset):with_group('connection, this);
+    return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("go", "goes"), " to sleep."):with_presentation_hint('inset):with_group('connection, this);
   endverb
 
   verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
@@ -315,5 +315,15 @@ object ACTOR
     {target, perms} = this:check_permissions('pronouns_display);
     set_task_perms(perms);
     return $pronouns:display(target.pronouns);
+  endverb
+
+  verb mk_shout_event (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Create a shout event with loudness for acoustic propagation.";
+    {text} = args;
+    event = $event:mk_shout(this, $sub:nc(), " ", $sub:self_alt("shout", "shouts"), ", \"", text, "\""):with_this(this.location);
+    event = event:with_metadata('content, text);
+    event = event:with_metadata('loudness, 5);
+    event = event:as_djot():with_presentation_hint('speech_bubble);
+    return event;
   endverb
 endobject
