@@ -453,23 +453,35 @@ configured entirely through rules and reactions.
 
 ## Development
 
-To compile / validate your changes use the provided `Makefile`
+To compile and validate your changes, use the provided `Makefile`.
 
-- `make` will use the latest mooR release (via docker) to compiler / import "*.moo" into a local
-  generated old-style textdump file, for the purpose of validation
-- `make clean` will destroy said file
-- `make gen.objdir` will build a new objdef dir from the local changes.
-- `make rebuild` will build a new objdef dir with your local changes and then (WARNING) _overwrite_
-  your local changes. Think of this is as a formatting step (for prior to commit, etc)
-
-To run cowbell with moor, clone it into the moor repository (there's a `clone-cowbell.sh` script
-in `cores/` to help with this). Then from the moor repository root:
+To run Cowbell with mooR, it is recommended to clone this repository into the `cores/` directory of the mooR workspace. A helper script is provided in mooR to manage this:
 
 ```bash
-rm -rf moor-data && MOOR_CORE=cores/cowbell/src npm run full:dev
+# From the mooR repository root
+./cores/fetch-cowbell.sh
 ```
 
-This clears any existing database and starts fresh with the cowbell core.
+### Running with mooR
+
+The easiest way to start mooR with the Cowbell core is using the provided quick-start script in the mooR repository root:
+
+```bash
+# From the mooR repository root
+./scripts/start-moor-cowbell.sh
+```
+
+This script automatically handles:
+- Environment isolation (using its own `run-cowbell/` directory)
+- Enabling modern mooR features required by Cowbell (Booleans, Custom Errors, UUIDs, etc.)
+- User permissions and Docker setup
+
+Alternatively, for frontend development without Docker:
+
+```bash
+# From the mooR repository root
+MOOR_CORE=cores/cowbell/src npm run full:dev
+```
 
 ## Contribution
 
