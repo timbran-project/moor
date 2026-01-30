@@ -68,6 +68,8 @@ export default defineConfig({
                 target: process.env.MOOR_WS_URL || "ws://localhost:8080",
                 ws: true,
             },
+            "/health": process.env.MOOR_API_URL || "http://localhost:8080",
+            "/version": process.env.MOOR_API_URL || "http://localhost:8080",
             "/auth": process.env.MOOR_API_URL || "http://localhost:8080",
             "/eval": process.env.MOOR_API_URL || "http://localhost:8080",
             "/verbs": process.env.MOOR_API_URL || "http://localhost:8080",

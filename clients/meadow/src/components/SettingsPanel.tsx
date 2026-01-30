@@ -23,6 +23,11 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useToast } from "./Toast";
 import { VerbPaletteToggle } from "./VerbPaletteToggle";
 
+interface ServerVersion {
+    version: string;
+    commit: string;
+}
+
 interface SettingsPanelProps {
     isOpen: boolean;
     onClose: () => void;
@@ -42,7 +47,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     const panelRef = useRef<HTMLDivElement>(null);
     const previousActiveElementRef = useRef<HTMLElement | null>(null);
     const [copyAnnouncement, setCopyAnnouncement] = useState("");
+    const [serverVersion, setServerVersion] = useState<ServerVersion | null>(null);
     const { showToast } = useToast();
+
+    // Fetch server version on mount
+    useEffect(() => {
+        fetch("/version")
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => setServerVersion(data))
+            .catch(() => setServerVersion(null));
+    }, []);
 
     // Store the previously focused element and focus the close button when opened
     useEffect(() => {
@@ -106,15 +120,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }, [isOpen]);
 
     const handleCopyVersion = async () => {
+        const versionText = serverVersion
+            ? `Client: ${__GIT_HASH__}\nServer: ${serverVersion.commit}`
+            : `Client: ${__GIT_HASH__}`;
         try {
             if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(__GIT_HASH__);
-                setCopyAnnouncement("Version hash copied to clipboard");
+                await navigator.clipboard.writeText(versionText);
+                setCopyAnnouncement("Version info copied to clipboard");
                 showToast("Copied to clipboard");
             } else {
                 // Fallback for non-secure contexts or missing clipboard API
                 const textArea = document.createElement("textarea");
-                textArea.value = __GIT_HASH__;
+                textArea.value = versionText;
                 textArea.style.position = "fixed";
                 textArea.style.left = "-9999px";
                 textArea.style.top = "0";
@@ -124,15 +141,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 const successful = document.execCommand("copy");
                 document.body.removeChild(textArea);
                 if (successful) {
-                    setCopyAnnouncement("Version hash copied to clipboard");
+                    setCopyAnnouncement("Version info copied to clipboard");
                     showToast("Copied to clipboard");
                 } else {
-                    setCopyAnnouncement("Failed to copy version hash");
+                    setCopyAnnouncement("Failed to copy version info");
                 }
             }
         } catch (err) {
             console.error("Failed to copy:", err);
-            setCopyAnnouncement("Failed to copy version hash");
+            setCopyAnnouncement("Failed to copy version info");
         } finally {
             // Clear announcement after it's been read
             setTimeout(() => setCopyAnnouncement(""), 2000);
@@ -197,20 +214,27 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <div className="settings-section">
                         <h3>About</h3>
                         <div className="settings-item">
-                            <span>Version</span>
+                            <span>Client</span>
                             <button
                                 type="button"
                                 className="version-copy-button"
                                 onClick={handleCopyVersion}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        handleCopyVersion();
-                                    }
-                                }}
-                                aria-label={`Version ${__GIT_HASH__}. Click to copy to clipboard`}
+                                aria-label={`Client version ${__GIT_HASH__}. Click to copy version info`}
                             >
                                 {__GIT_HASH__}
+                            </button>
+                        </div>
+                        <div className="settings-item">
+                            <span>Server</span>
+                            <button
+                                type="button"
+                                className="version-copy-button"
+                                onClick={handleCopyVersion}
+                                aria-label={`Server version ${
+                                    serverVersion?.commit ?? "unknown"
+                                }. Click to copy version info`}
+                            >
+                                {serverVersion?.commit ?? "..."}
                             </button>
                         </div>
                     </div>

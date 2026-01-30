@@ -14,8 +14,8 @@
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist",
-    "daemon:dev": "cd ${MOOR_PATH:-../moor} && npm run daemon:dev",
-    "web-host:dev": "cd ${MOOR_PATH:-../moor} && npm run web-host:dev",
+    "daemon:dev": "cd ${MOOR_PATH:-../..} && npm run daemon:dev",
+    "web-host:dev": "cd ${MOOR_PATH:-../..} && npm run web-host:dev",
     "full:dev": "concurrently \"npm run dev\" \"npm run daemon:dev\" \"npm run web-host:dev\""
   },
   "keywords": [

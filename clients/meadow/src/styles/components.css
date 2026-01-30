@@ -2372,6 +2372,12 @@ input[type="text"]:focus {
   background: var(--color-bg-hover);
 }
 
+.version-hash {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--color-text-secondary);
+}
+
 .settings-placeholder {
   color: var(--color-text-secondary);
   font-style: italic;
