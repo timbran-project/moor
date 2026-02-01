@@ -64,12 +64,17 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, "Template compilation failed: " + compiled):with_audience('utility));
       return;
     endif
-    msg_bag = `target.(prop_name) ! E_PROPNF => #-1';
-    if (!valid(msg_bag))
-      msg_bag = $msg_bag:create(true);
-      target.(prop_name) = msg_bag;
+    existing = `target.(prop_name) ! E_PROPNF => 0';
+    if (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
+      "Flyweight bag - add returns new flyweight, must reassign";
+      target.(prop_name) = existing:add(compiled);
+    elseif (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
+      "Legacy object bag - mutates in place";
+      existing:add(compiled);
+    else
+      "No bag yet - create flyweight";
+      target.(prop_name) = $msg_bag:mk(compiled);
     endif
-    msg_bag:add(compiled);
     player:inform_current($event:mk_info(player, "Added message to " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
@@ -90,9 +95,16 @@ object BUILDER_FEATURES
     target = $match:match_object(target_name, player);
     valid(target) || raise(E_INVARG, "Object not found");
     prop_name:ends_with("_msg_bag") || prop_name:ends_with("_msgs") || raise(E_INVARG, "Property must end with _msg_bag or _msgs");
-    msg_bag = `target.(prop_name) ! E_PROPNF => #-1';
-    valid(msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target) + "." + prop_name);
-    msg_bag:remove(idx);
+    existing = `target.(prop_name) ! E_PROPNF => 0';
+    if (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
+      "Flyweight bag - remove returns new flyweight";
+      target.(prop_name) = existing:remove(idx);
+    elseif (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
+      "Legacy object bag - mutates in place";
+      existing:remove(idx);
+    else
+      raise(E_INVARG, "Message bag not found on " + tostr(target) + "." + prop_name);
+    endif
     player:inform_current($event:mk_info(player, "Removed message #" + tostr(idx) + " from " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
@@ -1051,34 +1063,36 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!argstr)
-      raise(E_INVARG, "Usage: @get-message OBJECT.PROPERTY");
-    endif
+    !argstr && raise(E_INVARG, "Usage: @get-message OBJECT.PROPERTY");
     try
       target_spec = args[1];
       parsed = $prog_utils:parse_target_spec(target_spec);
-      if (!parsed || parsed['type] != 'property)
-        player:inform_current($event:mk_error(player, "Usage: @get-message OBJECT.PROPERTY"));
-        return;
+      "Handle both 'property and 'compound parse results";
+      if (parsed && parsed['type] == 'property)
+        object_str = parsed['object_str];
+        prop_name = parsed['item_name];
+      elseif (parsed && parsed['type] == 'compound && length(parsed['selectors]) > 0)
+        sel = parsed['selectors][1];
+        sel['kind] == 'property || raise(E_INVARG, "Usage: @get-message OBJECT.PROPERTY");
+        object_str = parsed['object_str];
+        prop_name = sel['item_name];
+      else
+        raise(E_INVARG, "Usage: @get-message OBJECT.PROPERTY");
       endif
-      object_str = parsed['object_str];
-      prop_name = parsed['item_name];
       prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with '_msg', '_msgs', or '_msg_bag'.");
       target_obj = $match:match_object(object_str, player);
       typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
-      if (!(prop_name in target_obj:all_properties()))
-        raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
-      endif
+      prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
       value = target_obj.(prop_name);
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      if (typeof(value) == TYPE_OBJ && isa(value, $msg_bag))
+      if ($msg_bag:is_msg_bag(value))
         entries = value:entries();
         if (!entries)
           header = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " = (empty message bag)";
           player:inform_current($event:mk_info(player, header));
         else
-          header = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " (message bag, " + tostr(length(entries)) + " entries):";
+          header = obj_name + " (" + tostr(target_obj) + ")." + prop_name + " (" + tostr(length(entries)) + " entries):";
           rows = {};
           idx = 1;
           for entry in (entries)
@@ -1225,9 +1239,7 @@ object BUILDER_FEATURES
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
-    if (!dobjstr)
-      raise(E_INVARG, "Usage: @messages OBJECT");
-    endif
+    !dobjstr && raise(E_INVARG, "Usage: @messages OBJECT");
     try
       target_obj = $match:match_object(dobjstr, player);
       "Get message properties";
@@ -1244,8 +1256,10 @@ object BUILDER_FEATURES
       rows = {};
       for prop_info in (msg_props)
         {prop_name, prop_value} = prop_info;
-        "Summarize the value - decompile if it's a compiled template list";
+        "Summarize the value - check for both object and flyweight bags";
         if (typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag))
+          value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
+        elseif (typeof(prop_value) == TYPE_FLYWEIGHT && prop_value.delegate == $msg_bag)
           value_summary = "message bag (" + tostr(length(prop_value:entries())) + " entries)";
         elseif (typeof(prop_value) == TYPE_LIST)
           value_summary = `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)';
