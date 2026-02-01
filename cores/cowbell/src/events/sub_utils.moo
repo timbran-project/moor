@@ -195,24 +195,25 @@ object SUB_UTILS
     typeof(fw) != TYPE_FLYWEIGHT && raise(E_TYPE, "must be flyweight");
     token_type = fw.type;
     !token_type && return "{?}";
+    capitalize = `fw.capitalize ! E_PROPNF => false';
     token_type == 'self_alt && return "{" + tostr(fw.for_self) + "|" + tostr(fw.for_others) + "}";
     if (token_type == 'article_a)
-      prefix = fw.capitalize ? "A" | "a";
+      prefix = capitalize ? "A" | "a";
       return "{" + prefix + " " + tostr(fw.binding_name) + "}";
     endif
     if (token_type == 'article_the)
-      prefix = fw.capitalize ? "The" | "the";
+      prefix = capitalize ? "The" | "the";
       return "{" + prefix + " " + tostr(fw.binding_name) + "}";
     endif
     if (token_type == 'binding)
       name_str = tostr(fw.binding_name);
-      return "{" + (fw.capitalize ? name_str:capitalize() | name_str) + "}";
+      return "{" + (capitalize ? name_str:capitalize() | name_str) + "}";
     endif
     "Map type symbols back to token names";
     typemap = ['actor -> "n", 'dobj -> "d", 'iobj -> "i", 'location -> "l", 'this -> "t", 'subject -> "s", 'object -> "o", 'pos_adj -> "p", 'pos_noun -> "q", 'reflexive -> "r", 'verb_be -> "be", 'verb_have -> "have", 'verb_look -> "look"];
     if (maphaskey(typemap, token_type))
       base = typemap[token_type];
-      return "{" + base + (fw.capitalize ? "c" | "") + "}";
+      return "{" + base + (capitalize ? "c" | "") + "}";
     endif
     "Object-specific versions (dobj_*, iobj_*)";
     token_str = tostr(token_type);
@@ -221,13 +222,13 @@ object SUB_UTILS
     if (token_str:starts_with("dobj_"))
       base = token_str[6..$];
       maphaskey(verb_map, base) && return "{" + verb_map[base] + "_dobj}";
-      suffix = fw.capitalize ? "c_dobj" | "_dobj";
+      suffix = capitalize ? "c_dobj" | "_dobj";
       maphaskey(pronoun_map, base) && return "{" + pronoun_map[base] + suffix + "}";
     endif
     if (token_str:starts_with("iobj_"))
       base = token_str[6..$];
       maphaskey(verb_map, base) && return "{" + verb_map[base] + "_iobj}";
-      suffix = fw.capitalize ? "c_iobj" | "_iobj";
+      suffix = capitalize ? "c_iobj" | "_iobj";
       maphaskey(pronoun_map, base) && return "{" + pronoun_map[base] + suffix + "}";
     endif
     return "{?" + token_str + "?}";
