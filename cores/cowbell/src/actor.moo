@@ -139,6 +139,7 @@ object ACTOR
   verb mk_say_event (this none this) owner: HACKER flags: "rxd"
     event = $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
     event = event:with_metadata('content, args[1]);
+    event = event:with_metadata('preferred_content_types, {'text_html, 'text_djot});
     event = event:as_djot():with_presentation_hint('speech_bubble);
     return event;
   endverb
@@ -317,7 +318,7 @@ object ACTOR
     return $pronouns:display(target.pronouns);
   endverb
 
-  verb mk_shout_event (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb mk_shout_event (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a shout event with loudness for acoustic propagation.";
     {text} = args;
     event = $event:mk_shout(this, $sub:nc(), " ", $sub:self_alt("shout", "shouts"), ", \"", text, "\""):with_this(this.location);
