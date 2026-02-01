@@ -117,22 +117,20 @@ object RLM_AGENT
     else
       tool_args = raw_args;
     endif
-    "Coerce parameters - but preserve valid lists";
+    "Coerce parameters - apply aggressive cleaning to strings and maps";
     if (typeof(tool_args) == TYPE_MAP)
       for key in (mapkeys(tool_args))
         val = tool_args[key];
-        if (typeof(val) == TYPE_LIST)
-          "Keep lists as-is - tools like create_object need them for aliases";
-        elseif (typeof(val) == TYPE_MAP)
-          "Coerce nested maps to strings (usually LLM garbage)";
+        if (typeof(val) == TYPE_STR)
           tool_args[key] = this:_coerce_string(val);
-        elseif (typeof(val) != TYPE_STR && typeof(val) != TYPE_BOOL && typeof(val) != TYPE_INT && typeof(val) != TYPE_FLOAT)
-          "Coerce other weird types to strings";
+        elseif (typeof(val) == TYPE_MAP)
+          tool_args[key] = this:_coerce_string(val);
+        elseif (typeof(val) != TYPE_LIST && typeof(val) != TYPE_BOOL && typeof(val) != TYPE_INT && typeof(val) != TYPE_FLOAT)
           tool_args[key] = this:_coerce_string(val);
         endif
       endfor
     else
-      return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> "ERROR: Tool arguments must be a JSON object, not a " + typeof(tool_args)];
+      return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> "ERROR: Tool arguments must be a JSON object."];
     endif
     "Handle built-in RLM tools first";
     if (tool_name == "moo_eval")
@@ -492,7 +490,14 @@ object RLM_AGENT
           res_content = tool_result_map["content"];
           if (index(res_content, "ERROR") == 1)
             `cb[1]:_announce_status("  \u2192 " + res_content) ! ANY';
-          elseif (tool_name != "moo_eval" && tool_name != "think" && tool_name != "report_finding" && tool_name != "show_verb" && tool_name != "program_verb" && length(res_content) > 0 && length(res_content) < 200)
+          elseif (tool_name == "moo_eval")
+            "Special case for eval: show result preview";
+            brief = res_content;
+            if (length(brief) > 500)
+              brief = brief[1..500] + "...";
+            endif
+            `cb[1]:_announce_status("  \u2192 " + brief) ! ANY';
+          elseif (tool_name != "think" && tool_name != "report_finding" && tool_name != "show_verb" && tool_name != "program_verb" && length(res_content) > 0 && length(res_content) < 200)
             `cb[1]:_announce_status("  \u2192 " + res_content) ! ANY';
           endif
         endif
@@ -565,7 +570,7 @@ object RLM_AGENT
     endif
     "Build system prompt";
     guide = this:_get_guide();
-    prompt = "You are a MOO Building Agent. You create objects and write MOO code.\n\nTASK: " + query + "\n\n## \u26A0\uFE0F CRITICAL: NO JAVASCRIPT / NO JSON IN STRINGS\n- You are writing MOO code, NOT JavaScript.\n- DO NOT use `String(x)` or other JS builtins.\n- DO NOT use citation markers like [[\"1..2\"]] or nested JSON objects inside tool parameters.\n- All code and text parameters MUST be simple, clean strings.\n\n## \u26A0\uFE0F CRITICAL: moo_eval syntax\n- **moo_eval** executes a full program body.\n- You **MUST** use the `return` keyword to see any data. Example: `return ctime();` (Correct) vs `ctime();` (Incorrect).\n- Always end statements with semicolons.\n\n## 🛠\uFE0F Tool Usage\n- **create_object(parent, name)**: Creates a new object.\n- **program_verb(object, verb, code)**: Sets code. 'code' must be a SINGLE STRING with \\n for newlines.\n- **add_verb(object, verb, ...)**: Adds a new verb.\n\n## 💡 Strategy\n1. Share your plan via **think**.\n2. Research the world using **moo_eval** (with return!) and **doc_lookup**.\n3. ACTUALLY BUILD IT - don't just report what you would do.\n\n" + guide;
+    prompt = "You are a MOO Building Agent. You create objects and write MOO code.\n\nTASK: " + query + "\n\n## \u26A0\uFE0F CRITICAL: TOOL ARGUMENTS\n- Pass 'object' and 'verb' as separate parameters.\n- DO NOT prefix arguments with colons or protocol tokens. Example: object=\"$room\" (Correct) vs object=\":$room\" or object=\"functions.help_lookup\" (Incorrect).\n- DO NOT leak internal thought tokens like <|thought|> or <|tool_call_begin|> into tool parameters.\n- All code and text parameters MUST be simple, clean strings.\n\n## \u26A0\uFE0F CRITICAL: moo_eval syntax\n- **moo_eval** executes a full program body.\n- You **MUST** use the `return` keyword to see any data. Example: `return ctime();` (Correct) vs `ctime();` (Incorrect).\n- Always end statements with semicolons.\n\n## 🛠\uFE0F Tool Usage\n- **create_object(parent, name)**: Creates a new object.\n- **program_verb(object, verb, code)**: Sets code. 'code' must be a SINGLE STRING with \\n for newlines.\n- **add_verb(object, verb, ...)**: Adds a new verb.\n\n## 💡 Strategy\n1. Share your plan via **think**.\n2. Research the world using **moo_eval** (with return!) and **doc_lookup**.\n3. ACTUALLY BUILD IT - don't just report what you would do.\n\n" + guide;
     this.system_prompt = prompt;
     this.context = {["role" -> "system", "content" -> this.system_prompt]};
     return this;
@@ -637,25 +642,31 @@ object RLM_AGENT
     "Aggressively convert mangled model output into a single string.";
     {val} = args;
     if (typeof(val) == TYPE_STR)
-      "Check if string looks like JSON array and unwrap";
-      if (length(val) > 4 && val[1] == "[" && val[2] == "\"")
-        try
-          parsed = parse_json(val);
-          if (typeof(parsed) == TYPE_LIST && length(parsed) == 1 && typeof(parsed[1]) == TYPE_STR)
-            return parsed[1];
-          elseif (typeof(parsed) == TYPE_LIST)
-            return this:_coerce_string(parsed);
+      "Clean up hallucinated internal protocol tokens common in some model outputs (Kimi 2.5, DeepSeek)";
+      patterns = {"<|tool_call_begin|>", "<|tool_call_end|>", "<|tool_call_argument_begin|>", "<|tool_calls_section_begin|>", "<|tool_calls_section_end|>", "<|DSML|", "<\uFF5CDSML\uFF5C", "functions.", ">functions.", "</thought>", "<|thought|>", "_of_thought"};
+      for p in (patterns)
+        while (idx = index(val, p))
+          if (p[1] == "<" || p[1] == ">")
+            end_idx = index(val[idx..$], ">") || index(val[idx..$], " ");
+            if (end_idx)
+              val = val[1..idx - 1] + val[idx + end_idx..$];
+            else
+              val = val[1..idx - 1] + val[idx + length(p)..$];
+            endif
+          else
+            val = val[1..idx - 1] + val[idx + length(p)..$];
           endif
-        except (ANY)
-        endtry
-      endif
-      return val;
+        endwhile
+      endfor
+      "Strip remaining punctuation garbage at start";
+      while (length(val) > 0 && index(" {\"\":>])}", val[1]))
+        val = val[2..$];
+      endwhile
+      return val:trim();
     elseif (typeof(val) == TYPE_LIST)
-      "Single-element list - just return the element";
       if (length(val) == 1)
         return this:_coerce_string(val[1]);
       endif
-      "Multi-element list - coerce each and join";
       parts = {};
       for item in (val)
         coerced = this:_coerce_string(item);
@@ -665,16 +676,12 @@ object RLM_AGENT
       endfor
       return parts:join(" ");
     elseif (typeof(val) == TYPE_MAP)
-      "LLM fragmentation: keys and values both contain text fragments.";
-      "Interleave keys and values to reconstruct.";
       result = "";
       for key in (mapkeys(val))
-        "Add key (likely a text fragment)";
         key_str = typeof(key) == TYPE_STR ? key | tostr(key);
-        "Add value";
+        key_str = this:_coerce_string(key_str);
         v = val[key];
         val_str = typeof(v) == TYPE_STR ? v | (typeof(v) == TYPE_INT || typeof(v) == TYPE_FLOAT ? tostr(v) | this:_coerce_string(v));
-        "Combine - key fragment followed by value fragment";
         result = result + key_str + val_str;
       endfor
       return result;
