@@ -559,7 +559,7 @@ object PROG_FEATURES
     target_obj = $match:match_object(parsed['object_str], player);
     "Parse optional value, perms, owner";
     value = 0;
-    perms = "r";
+    perms = "rc";
     owner = player;
     if (length(args) > 1)
       offset = index(argstr, args[1]) + length(args[1]);
@@ -575,7 +575,7 @@ object PROG_FEATURES
         remaining_words = remainder:words();
         if (length(remaining_words) > 0)
           maybe_perms = remaining_words[1];
-          !match(maybe_perms, "^[rwc]+$") && return player:inform_current($event:mk_error(player, "Invalid permissions: " + maybe_perms + ". Use r, w, c."));
+          !match(maybe_perms, "^[rwc]*$") && return player:inform_current($event:mk_error(player, "Invalid permissions: " + maybe_perms + ". Use r, w, c (or empty for none)."));
           perms = maybe_perms;
           if (length(remaining_words) > 1)
             owner = $match:match_object(remaining_words[2], player);
@@ -586,8 +586,14 @@ object PROG_FEATURES
     "Add the property";
     try
       add_property(target_obj, prop_name, value, {owner, perms});
-      description = tostr(target_obj) + "." + prop_name + " = " + toliteral(value) + " [" + perms + "]";
-      player:inform_current($event:mk_info(player, "Added `" + description + "`"):as_djot():as_inset());
+      "Format flags description";
+      flag_parts = {};
+      index(perms, "r") && (flag_parts = {@flag_parts, "r=read"});
+      index(perms, "w") && (flag_parts = {@flag_parts, "w=write"});
+      index(perms, "c") && (flag_parts = {@flag_parts, "c=chown"});
+      flags_desc = flag_parts ? flag_parts:join(", ") | "(none)";
+      description = tostr(target_obj) + "." + prop_name + " = " + toliteral(value);
+      player:inform_current($event:mk_info(player, "Added `" + description + "` with flags: " + flags_desc):as_djot():as_inset());
     except e (E_INVARG)
       if (index(tostr(e[2]), "Duplicate"))
         return player:inform_current($event:mk_error(player, "Property `" + prop_name + "` already exists on " + tostr(target_obj) + "."):as_djot():as_inset());
@@ -1930,6 +1936,37 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "Permission denied: you don't own task " + tostr(task_id) + "."));
     except e (ANY)
       player:inform_current($event:mk_error(player, "Error killing task: " + e[2]));
+    endtry
+  endverb
+
+  verb "@chparent" (any at any) owner: ARCH_WIZARD flags: "rd"
+    "Change an object's parent.";
+    "Usage: @chparent <object> to <new-parent>";
+    caller != player && raise(E_PERM);
+    player.programmer || raise(E_PERM, "Programmer features required.");
+    set_task_perms(player);
+    if (!dobjstr || !iobjstr)
+      player:inform_current($event:mk_error(player, $format.code:mk("@chparent <object> to <new-parent>")));
+      return;
+    endif
+    try
+      target = $match:match_object(dobjstr, player);
+      typeof(target) != TYPE_OBJ && raise(E_INVARG, "Target is not an object.");
+      !valid(target) && raise(E_INVARG, "Target object no longer exists.");
+      new_parent = $match:match_object(iobjstr, player);
+      typeof(new_parent) != TYPE_OBJ && raise(E_INVARG, "New parent is not an object.");
+      !valid(new_parent) && raise(E_INVARG, "New parent object no longer exists.");
+      old_parent = parent(target);
+      chparent(target, new_parent);
+      old_name = valid(old_parent) ? tostr(old_parent.name, " (", old_parent, ")") | "(none)";
+      new_name = tostr(new_parent.name, " (", new_parent, ")");
+      message = tostr("Changed parent of ", target.name, " (", target, ") from ", old_name, " to ", new_name);
+      player:inform_current($event:mk_info(player, message));
+      return target;
+    except e (ANY)
+      message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+      player:inform_current($event:mk_error(player, message));
+      return false;
     endtry
   endverb
 endobject
