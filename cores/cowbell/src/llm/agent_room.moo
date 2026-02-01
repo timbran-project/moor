@@ -9,6 +9,7 @@ object AGENT_ROOM
   property current_task (owner: ARCH_WIZARD, flags: "rc") = "";
   property history (owner: ARCH_WIZARD, flags: "rc") = {};
   property llm_client (owner: ARCH_WIZARD, flags: "rc") = #-1;
+  property loop_task (owner: ARCH_WIZARD, flags: "rc") = 0;
   property task_id (owner: ARCH_WIZARD, flags: "rc") = 0;
   property task_queue (owner: ARCH_WIZARD, flags: "rc") = {};
   property task_requester (owner: ARCH_WIZARD, flags: "rc") = #-1;
@@ -25,93 +26,22 @@ object AGENT_ROOM
       player:inform_current($event:mk_info(player, "What would you like me to do?"));
       return;
     endif
-    "Queue the task";
-    task = ['query -> command_text, 'player -> player, 'queued_at -> time()];
-    this.task_queue = {@this.task_queue, task};
-    player:inform_current($event:mk_info(player, "Queued: \"" + command_text + "\""));
-    "Check if processor is running";
-    all_tasks = queued_tasks();
-    is_running = false;
-    for t in (all_tasks)
-      if (t[1] == this.task_id)
-        is_running = true;
-        break;
-      endif
-    endfor
-    if (!is_running)
-      this:_start_processing();
-    endif
-  endverb
-
-  verb _start_processing (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Fork a background task to process the queue in parallel.";
-    caller == this || raise(E_PERM);
-    "Prevent multiple processor loops - check if already starting";
-    if (this.task_id != 0)
-      "Check if the task is actually still running";
-      all_tasks = queued_tasks();
-      for t in (all_tasks)
-        if (t[1] == this.task_id)
-          return;
-        endif
-      endfor
-      "Task died, clear it";
-      this.task_id = 0;
-    endif
-    fork tid (0)
+    "Ensure event loop is running and send task";
+    this:_ensure_loop();
+    msg = ["type" -> "task", 'query -> command_text, 'player -> player, 'queued_at -> time()];
+    try
+      task_send(this.loop_task, msg);
+    except e (ANY)
+      "Loop may have died - restart and retry once";
+      this:_start_loop();
       try
-        while (true)
-          "Clean up active_tasks - check which ones are still running";
-          all_tasks = queued_tasks();
-          live_tids = {};
-          for t in (all_tasks)
-            live_tids = {@live_tids, t[1]};
-          endfor
-          new_active = {};
-          for atid in (this.active_tasks)
-            if (atid in live_tids)
-              new_active = {@new_active, atid};
-            endif
-          endfor
-          this.active_tasks = new_active;
-          "Check for tasks in queue";
-          if (length(this.task_queue) == 0)
-            if (length(this.active_tasks) == 0)
-              "Nothing left to do";
-              break;
-            endif
-            suspend(2);
-            continue;
-          endif
-          "Check concurrency limit (max 3 for safety)";
-          if (length(this.active_tasks) >= 3)
-            suspend(2);
-            continue;
-          endif
-          "Pop next task atomically - destructure and update in tight sequence";
-          queue = this.task_queue;
-          if (length(queue) == 0)
-            continue;
-          endif
-          {task, @rest} = queue;
-          this.task_queue = rest;
-          "Fork worker";
-          fork worker_tid (0)
-            try
-              this:_execute_task(task);
-            except e (ANY)
-              server_log("TASK WORKER FAILED on " + tostr(this) + ": " + toliteral(e));
-            endtry
-          endfork
-          this.active_tasks = {@this.active_tasks, worker_tid};
-          suspend(1);
-        endwhile
-      except e (ANY)
-        server_log("AGENT PROCESSOR FAILED on " + tostr(this) + ": " + toliteral(e));
+        task_send(this.loop_task, msg);
+      except e2 (ANY)
+        player:inform_current($event:mk_error(player, "Failed to queue task."));
+        return;
       endtry
-      this.task_id = 0;
-    endfork
-    this.task_id = tid;
+    endtry
+    player:inform_current($event:mk_info(player, "Queued: \"" + command_text + "\""));
   endverb
 
   verb _announce (none none none) owner: ARCH_WIZARD flags: "rxd"
@@ -119,43 +49,20 @@ object AGENT_ROOM
     {message} = args;
     "Create a proper room event";
     agent = valid(this.agent) ? this.agent | this;
-    "Handle formatted content vs plain strings";
-    content = message;
-    if (typeof(message) == TYPE_STR)
-      content = "[Agent] " + message;
-    endif
-    event = $event:mk_announce(agent, content);
+    "Set as djot so client renders markdown correctly";
+    event = $event:mk_announce(agent, message):as_djot();
     this:announce(event);
   endverb
 
   verb stop (none none none) owner: ARCH_WIZARD flags: "xd"
-    "Stop all current tasks and the processor loop.";
-    is_room = this == #002174-9BC1B9C5D1 || this == #0021A1-9BC1BC0560;
-    stopped_count = 0;
-    "Kill the main processor loop";
-    if (this.task_id)
-      try
-        kill_task(this.task_id);
-        this.task_id = 0;
-        stopped_count = stopped_count + 1;
-      except (ANY)
-      endtry
+    "Stop all current tasks and the event loop.";
+    this:_stop_loop();
+    queue_len = length(this.task_queue);
+    msg = "Stopped all background tasks.";
+    if (queue_len > 0)
+      msg = msg + " " + tostr(queue_len) + " queued tasks remain.";
     endif
-    "Kill all active worker tasks (Parallel Processing support)";
-    if (typeof(this.active_tasks) == TYPE_LIST)
-      for atid in (this.active_tasks)
-        try
-          kill_task(atid);
-          stopped_count = stopped_count + 1;
-        except (ANY)
-        endtry
-      endfor
-      this.active_tasks = {};
-    endif
-    "Clear state";
-    this.current_task = "";
-    this.agent = #-1;
-    player:inform_current($event:mk_info(player, "Stopped " + tostr(stopped_count) + " background tasks. Queue remains."));
+    player:inform_current($event:mk_info(player, msg));
   endverb
 
   verb status (none none none) owner: ARCH_WIZARD flags: "xd"
@@ -181,9 +88,19 @@ object AGENT_ROOM
     else
       lines = {@lines, "No task running."};
     endif
+    "Active workers";
+    active_count = length(this.active_tasks);
+    if (active_count > 1)
+      lines = {@lines, "Active workers: " + tostr(active_count)};
+    endif
+    "Queue info";
     queue_len = length(this.task_queue);
     if (queue_len > 0)
       lines = {@lines, "Queue: " + tostr(queue_len) + " pending"};
+    endif
+    "Loop status";
+    if (this.loop_task > 0)
+      lines = {@lines, "Event loop: running"};
     endif
     player:inform_current($event:mk_info(player, lines:join("\n")));
   endverb
@@ -238,22 +155,20 @@ object AGENT_ROOM
     code = args_map["code"];
     language = maphaskey(args_map, "language") ? args_map["language"] | 'moo;
     "Handle list of lines (from verb_code) - join into string";
-    if (typeof(code) == TYPE_LIST)
+    if (typeof(code) == typeof({}))
       code = code:join("\n");
-    elseif (typeof(code) != TYPE_STR)
+    elseif (typeof(code) != typeof(""))
       code = toliteral(code);
     endif
-    "Build formatted content";
-    parts = {};
-    if (title)
-      parts = {@parts, $format.title:mk(title, 3)};
+    "Build raw Markdown/Djot code block";
+    report = "";
+    if (title && length(title) > 0)
+      report = "### " + title + "\n\n";
     endif
-    parts = {@parts, $format.code:mk(code, language)};
-    content = $format.block:mk(@parts);
-    "Announce to room";
-    agent = valid(this.agent) ? this.agent | this;
-    event = $event:mk_announce(agent, content);
-    this:announce(event);
+    lang_str = tostr(language);
+    report = report + "```" + lang_str + "\n" + code + "\n```";
+    "Announce to room using _announce (which uses as_djot)";
+    this:_announce(report);
     return "Code presented: " + title;
   endverb
 
@@ -273,28 +188,14 @@ object AGENT_ROOM
       content = this:_flatten_content(content);
       title = typeof(title) != TYPE_STR ? tostr(title) | title;
     endif
-    "Ensure content is a string";
-    if (typeof(content) != TYPE_STR)
-      content = toliteral(content);
-    endif
-    "Build formatted content";
-    parts = {$format.paragraph:mk($ansi:wrap("[Sharing findings]", 'dim))};
+    "Build raw markdown string";
+    report = "";
     if (title && length(title) > 0)
-      parts = {@parts, $format.title:mk(title, 3)};
+      report = "### " + title + "\n\n";
     endif
-    "Split content into paragraphs and format";
-    paragraphs = content:split("\n\n");
-    for para in (paragraphs)
-      para = para:trim();
-      if (length(para) > 0)
-        parts = {@parts, $format.paragraph:mk(para)};
-      endif
-    endfor
-    formatted = $format.block:mk(@parts);
-    "Announce to room";
-    display_agent = valid(agent) ? agent | this;
-    event = $event:mk_announce(display_agent, formatted);
-    this:announce(event);
+    report = report + content;
+    "Announce to room using improved _announce (with as_djot)";
+    this:_announce(report);
     return "Report presented: " + (title ? title | "(untitled)");
   endverb
 
@@ -342,17 +243,25 @@ object AGENT_ROOM
     else
       raise(E_TYPE, "rows must be a list of lists");
     endif
-    "Build formatted content";
-    parts = {$format.paragraph:mk($ansi:wrap("[Presenting data]", 'dim))};
+    "Build raw Djot/Markdown table string";
+    table_str = "";
     if (title && length(title) > 0)
-      parts = {@parts, $format.title:mk(title, 3)};
+      table_str = "### " + title + "\n\n";
     endif
-    parts = {@parts, $format.table:mk(headers, rows)};
-    formatted = $format.block:mk(@parts);
-    "Announce to room";
-    display_agent = valid(agent) ? agent | this;
-    event = $event:mk_announce(display_agent, formatted);
-    this:announce(event);
+    "Header row";
+    table_str = table_str + "| " + headers:join(" | ") + " |\n";
+    "Separator row";
+    sep_parts = {};
+    for h in (headers)
+      sep_parts = {@sep_parts, "---"};
+    endfor
+    table_str = table_str + "| " + sep_parts:join(" | ") + " |\n";
+    "Data rows";
+    for row in (rows)
+      table_str = table_str + "| " + row:join(" | ") + " |\n";
+    endfor
+    "Announce to room using _announce (which uses as_djot)";
+    this:_announce(table_str);
     return "Table presented: " + tostr(length(rows)) + " rows";
   endverb
 
@@ -369,6 +278,16 @@ object AGENT_ROOM
     reason = maphaskey(args_map, "reason") ? args_map["reason"] | "";
     typeof(obj_ref) != TYPE_STR && raise(E_TYPE, "object must be a string like '$room' or '#123'");
     typeof(verb_name) != TYPE_STR && raise(E_TYPE, "verb must be a string");
+    "Robustness: strip hallucinated colon/separator prefixes from object ref";
+    obj_ref = obj_ref:trim();
+    while (length(obj_ref) > 0 && (obj_ref[1] == ":" || obj_ref[1] == " " || obj_ref[1] == "\t"))
+      obj_ref = obj_ref[2..$]:trim();
+    endwhile
+    "Robustness: strip hallucinated colon/separator prefixes from verb name";
+    verb_name = verb_name:trim();
+    while (length(verb_name) > 0 && (verb_name[1] == ":" || verb_name[1] == " " || verb_name[1] == "\t"))
+      verb_name = verb_name[2..$]:trim();
+    endwhile
     "Resolve object reference";
     obj = $match:match_object(obj_ref);
     !valid(obj) && raise(E_INVARG, "Could not find object: " + obj_ref);
@@ -380,9 +299,9 @@ object AGENT_ROOM
     flags = info[2];
     argspec = info[3];
     "Build content with context and reason";
-    context_line = $ansi:wrap("[Reading verb code]", 'dim);
+    context_line = "[Reading verb code]";
     if (reason && length(reason) > 0)
-      context_line = context_line + " " + $ansi:wrap(reason, 'cyan);
+      context_line = context_line + " " + reason;
     endif
     title = tostr(obj) + ":" + verb_name + " [" + flags + "] " + argspec;
     "Show first 12 lines as preview for the room";
@@ -394,14 +313,10 @@ object AGENT_ROOM
     else
       preview_str = code_lines:join("\n");
     endif
-    "Create formatted content";
-    title_fw = $format.title:mk(title, 4);
-    code_fw = $format.code:mk(preview_str, 'moo);
-    content = $format.block:mk($format.paragraph:mk(context_line), title_fw, code_fw);
-    "Announce to room";
-    agent = valid(this.agent) ? this.agent | this;
-    event = $event:mk_announce(agent, content);
-    this:announce(event);
+    "Create formatted content (Markdown)";
+    report = "### " + title + "\n\n" + context_line + "\n\n```moo\n" + preview_str + "\n```";
+    "Announce to room using improved _announce (with as_djot)";
+    this:_announce(report);
     "RETURN FULL CODE to the agent so it can actually see it";
     return ["code" -> code_lines:join("\n"), "flags" -> flags, "argspec" -> argspec, "total_lines" -> total_lines];
   endverb
@@ -485,39 +400,11 @@ object AGENT_ROOM
 
   verb reset (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Clear all agent state - kill tasks, clear queue, history, current task.";
-    stopped_count = 0;
-    "Kill the main processor loop";
-    if (this.task_id)
-      try
-        kill_task(this.task_id);
-        stopped_count = stopped_count + 1;
-      except (ANY)
-      endtry
-    endif
-    "Kill all active worker tasks";
-    if (typeof(this.active_tasks) == TYPE_LIST)
-      for atid in (this.active_tasks)
-        try
-          kill_task(atid);
-          stopped_count = stopped_count + 1;
-        except (ANY)
-        endtry
-      endfor
-    endif
+    this:_stop_loop();
     "Clear all state";
     this.task_queue = {};
-    this.active_tasks = {};
     this.history = {};
-    this.current_task = "";
-    this.agent = #-1;
-    this.task_id = 0;
-    this.task_requester = #-1;
-    msg = "Agent room fully reset.";
-    if (stopped_count > 0)
-      msg = msg + " Killed " + tostr(stopped_count) + " tasks.";
-    endif
-    msg = msg + " Queue, history, and context cleared.";
-    player:inform_current($event:mk_info(player, msg));
+    player:inform_current($event:mk_info(player, "Agent room fully reset. Queue, history, and context cleared."));
   endverb
 
   verb compact (none none none) owner: ARCH_WIZARD flags: "rxd"
@@ -747,22 +634,22 @@ object AGENT_ROOM
     endif
     "Build the revision query";
     revision_query = "REVISION REQUEST: Please fix/revise the previous work as follows: " + command_text;
-    "Queue the task WITH the previous context";
-    task = ['query -> revision_query, 'player -> player, 'queued_at -> time(), 'context -> prev_context];
-    this.task_queue = {@this.task_queue, task};
+    "Ensure event loop is running and send task with context";
+    this:_ensure_loop();
+    msg = ["type" -> "task", 'query -> revision_query, 'player -> player, 'queued_at -> time(), 'context -> prev_context];
+    try
+      task_send(this.loop_task, msg);
+    except e (ANY)
+      "Loop may have died - restart and retry once";
+      this:_start_loop();
+      try
+        task_send(this.loop_task, msg);
+      except e2 (ANY)
+        player:inform_current($event:mk_error(player, "Failed to queue revision."));
+        return;
+      endtry
+    endtry
     player:inform_current($event:mk_info(player, "Revision queued (continuing from previous context): \"" + command_text + "\""));
-    "Check if processor is running";
-    all_tasks = queued_tasks();
-    is_running = false;
-    for t in (all_tasks)
-      if (t[1] == this.task_id)
-        is_running = true;
-        break;
-      endif
-    endfor
-    if (!is_running)
-      this:_start_processing();
-    endif
   endverb
 
   verb _execute_task (none none none) owner: ARCH_WIZARD flags: "rxd"
@@ -789,7 +676,7 @@ object AGENT_ROOM
       agent:add_tool(tool["name"], tool);
     endfor
     "Check if this is a continuation (fix) with preserved context";
-    if (maphaskey(task, 'context) && typeof(task['context]) == TYPE_LIST)
+    if (maphaskey(task, 'context) && typeof(task['context]) == typeof({}))
       "Restore previous context and add the new query";
       agent.context = task['context];
       agent.context = {@agent.context, ["role" -> "user", "content" -> task['query]]};
@@ -825,11 +712,12 @@ object AGENT_ROOM
       if (valid(agent) && "_coerce_string" in verbs(agent))
         content = agent:_coerce_string(result);
       endif
-      content = typeof(content) == TYPE_STR ? content | toliteral(content);
-      block = $format.block:mk($format.title:mk(title, 3), $format.paragraph:mk(content));
-      this:_announce(block);
+      content = typeof(content) == typeof("") ? content | toliteral(content);
+      "Build raw markdown result";
+      report = "### " + title + "\n\n" + content;
+      this:_announce(report);
     else
-      brief = typeof(result) == TYPE_STR ? result | toliteral(result);
+      brief = typeof(result) == typeof("") ? result | toliteral(result);
       if (length(brief) > 100)
         brief = brief[1..100] + "...";
       endif
@@ -886,5 +774,149 @@ object AGENT_ROOM
       return result;
     endif
     return tostr(val);
+  endverb
+
+  verb _event_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Main event loop. Receives tasks via task_recv, dispatches workers.";
+    pending = {};
+    active = {};
+    loop_id = task_id();
+    should_exit = false;
+    while (!should_exit)
+      "Wait for messages - short timeout when workers active, longer when idle";
+      timeout = length(active) > 0 ? 5 | 60;
+      messages = task_recv(timeout);
+      "Process incoming messages";
+      for msg in (messages)
+        if (typeof(msg) != TYPE_MAP)
+          continue;
+        endif
+        msg_type = `msg["type"] ! ANY => ""';
+        if (msg_type == "task")
+          pending = {@pending, msg};
+        elseif (msg_type == "worker_done")
+          "Worker finished - remove from active list";
+          done_tid = `msg["tid"] ! ANY => 0';
+          new_active = {};
+          for atid in (active)
+            if (atid != done_tid)
+              new_active = {@new_active, atid};
+            endif
+          endfor
+          active = new_active;
+        elseif (msg_type == "stop")
+          "Graceful shutdown - kill all active workers";
+          for atid in (active)
+            `kill_task(atid) ! ANY';
+          endfor
+          active = {};
+          this.task_queue = pending;
+          this.active_tasks = {};
+          this.current_task = "";
+          this.agent = #-1;
+          this.task_requester = #-1;
+          should_exit = true;
+        endif
+      endfor
+      if (should_exit)
+        break;
+      endif
+      "Clean up dead workers (safety net)";
+      if (length(active) > 0)
+        all_tasks = queued_tasks();
+        live_tids = {};
+        for t in (all_tasks)
+          live_tids = {@live_tids, t[1]};
+        endfor
+        new_active = {};
+        for atid in (active)
+          if (atid in live_tids)
+            new_active = {@new_active, atid};
+          endif
+        endfor
+        active = new_active;
+      endif
+      "Dispatch pending tasks to workers (max 3 concurrent)";
+      while (length(pending) > 0 && length(active) < 3)
+        {task, @pending} = pending;
+        my_loop = loop_id;
+        fork worker_tid (0)
+          set_task_perms(this.owner);
+          try
+            this:_execute_task(task);
+          except e (ANY)
+            server_log("AGENT WORKER FAILED on " + tostr(this) + ": " + toliteral(e));
+          endtry
+          "Signal completion back to the loop";
+          `task_send(my_loop, ["type" -> "worker_done", "tid" -> task_id()]) ! ANY';
+        endfork
+        active = {@active, worker_tid};
+      endwhile
+      "Update visible state for status/queue commands";
+      this.task_queue = pending;
+      this.active_tasks = active;
+      "If idle (no pending, no active) and no new messages arrived, exit";
+      if (length(pending) == 0 && length(active) == 0 && length(messages) == 0)
+        break;
+      endif
+    endwhile
+    "Loop exiting - clean up";
+    this.loop_task = 0;
+    this.task_id = 0;
+    this.active_tasks = {};
+  endverb
+
+  verb _start_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Fork the event loop task and store its ID.";
+    "Stop any existing loop first to prevent duplicates.";
+    lt = this.loop_task;
+    this.loop_task = 0;
+    this.task_id = 0;
+    if (lt > 0)
+      `kill_task(lt) ! ANY';
+    endif
+    "Kill any orphaned active workers";
+    if (typeof(this.active_tasks) == TYPE_LIST)
+      for atid in (this.active_tasks)
+        `kill_task(atid) ! ANY';
+      endfor
+      this.active_tasks = {};
+    endif
+    fork tid (0)
+      set_task_perms(this.owner);
+      this:_event_loop();
+    endfork
+    this.loop_task = tid;
+    this.task_id = tid;
+    commit();
+  endverb
+
+  verb _stop_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Kill the event loop and all active workers.";
+    lt = this.loop_task;
+    this.loop_task = 0;
+    this.task_id = 0;
+    "Kill the loop task";
+    if (lt > 0)
+      `kill_task(lt) ! ANY';
+    endif
+    "Kill all active worker tasks";
+    if (typeof(this.active_tasks) == TYPE_LIST)
+      for atid in (this.active_tasks)
+        `kill_task(atid) ! ANY';
+      endfor
+      this.active_tasks = {};
+    endif
+    this.current_task = "";
+    this.agent = #-1;
+    this.task_requester = #-1;
+    commit();
+  endverb
+
+  verb _ensure_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Start the event loop if not already running.";
+    if (this.loop_task <= 0)
+      this:_start_loop();
+    endif
   endverb
 endobject
