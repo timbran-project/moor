@@ -146,8 +146,14 @@ object LETTER
   verb address (this any any) owner: ARCH_WIZARD flags: "rxd"
     "Address this letter to someone, sealing it for their eyes only.";
     "Usage: address <letter> to <player>";
-    if (!valid(iobj) || !is_player(iobj))
-      event = $event:mk_error(player, "Address the letter to whom?");
+    "Use match_player to find players anywhere, not just nearby";
+    recipient = iobjstr ? $match:match_player(iobjstr) | #-1;
+    if (!valid(recipient) || !is_player(recipient))
+      if (iobjstr)
+        event = $event:mk_error(player, "No player named '", iobjstr, "' found.");
+      else
+        event = $event:mk_error(player, "Address the letter to whom?");
+      endif
       player:inform_current(event);
       return;
     endif
@@ -157,14 +163,14 @@ object LETTER
       player:inform_current(event);
       return;
     endif
-    this.addressee = iobj;
+    this.addressee = recipient;
     this.sealed = true;
     this.sent_at = time();
     "Set author if not yet set";
     if (!valid(this.author))
       this.author = player;
     endif
-    event = $event:mk_info(player, "You address the letter to ", iobj.name, " and seal it.");
+    event = $event:mk_info(player, "You address the letter to ", recipient.name, " and seal it.");
     player:inform_current(event);
   endverb
 

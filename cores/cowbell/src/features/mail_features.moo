@@ -31,10 +31,16 @@ object MAIL_FEATURES
     else
       letter.name = "letter";
     endif
-    "Set addressee if 'to' preposition used with valid player";
-    if (prepstr == "to" && valid(iobj) && is_player(iobj))
-      letter.addressee = iobj;
-      letter.author = player;
+    "Set addressee if 'to' preposition used";
+    if (prepstr == "to" && iobjstr)
+      "Use match_player to find players anywhere, not just nearby";
+      recipient = $match:match_player(iobjstr);
+      if (valid(recipient) && is_player(recipient))
+        letter.addressee = recipient;
+        letter.author = player;
+      elseif (iobjstr)
+        player:inform_current($event:mk_error(player, "No player named '", iobjstr, "' found."));
+      endif
     endif
     move(letter, player);
     "Build confirmation message";
@@ -61,8 +67,13 @@ object MAIL_FEATURES
     endif
     "Determine recipient - explicit or from letter";
     recipient = #-1;
-    if (prepstr == "to" && valid(iobj) && is_player(iobj))
-      recipient = iobj;
+    if (prepstr == "to" && iobjstr)
+      "Use match_player to find players anywhere, not just nearby";
+      recipient = $match:match_player(iobjstr);
+      if (!valid(recipient) || !is_player(recipient))
+        player:inform_current($event:mk_error(player, "No player named '", iobjstr, "' found."));
+        return;
+      endif
     elseif (valid(dobj.addressee) && is_player(dobj.addressee))
       recipient = dobj.addressee;
     else
