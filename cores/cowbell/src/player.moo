@@ -300,14 +300,26 @@ object PLAYER
     "Add wearing information if they're wearing anything";
     if (this.wearing && length(this.wearing) > 0)
       wearing_names = {};
+      integrated_descs = {};
       for item in (this.wearing)
         if (valid(item))
           wearing_names = {@wearing_names, item:display_name()};
+          "Check for integrated description on worn items";
+          if (respond_to(item, 'integrate_description))
+            idesc = `item:integrate_description() ! ANY => ""';
+            if (typeof(idesc) == typeof("") && idesc != "")
+              integrated_descs = {@integrated_descs, idesc};
+            endif
+          endif
         endif
       endfor
       if (wearing_names)
         description = {@description, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " wearing ", wearing_names:english_list(), "."};
       endif
+      "Add integrated descriptions of worn items";
+      for idesc in (integrated_descs)
+        description = {@description, " ", idesc};
+      endfor
     endif
     "Don't show inventory contents when looking at a player - that's private";
     return <$look, .what = this, .title = this:name(), .description = description>;
@@ -1636,7 +1648,7 @@ object PLAYER
     current_conn = all_conns[1][1];
     "Send immediate placeholder with rewritable event";
     rewrite_id = uuid();
-    placeholder = $event:mk_do_not_understand(this, "I don't understand that. (Finding suggestions...)"):with_rewritable(rewrite_id, 30, "I don't understand that."):with_presentation_hint('processing):with_audience('utility);
+    placeholder = $event:mk_do_not_understand(this, "Hmm, I'm not sure what you mean. Let me think..."):with_rewritable(rewrite_id, 30, "I didn't understand that command."):with_presentation_hint('processing):with_audience('utility);
     this:inform_current(placeholder);
     "Fork the LLM query so we return immediately";
     fork (0)
@@ -1713,101 +1725,235 @@ object PLAYER
       if (valid(location) && respond_to(location, 'command_hints))
         room_hints = `location:command_hints() ! ANY => {}';
       endif
+      "=== DETECT DUPLICATE NAMES FOR DISAMBIGUATION ===";
+      "Build name counts for inventory and room separately";
+      inv_name_counts = [];
+      inv_name_order = {};
+      for item in (this.contents)
+        if (!valid(item))
+          continue;
+        endif
+        iname = item:name();
+        if (iname in mapkeys(inv_name_counts))
+          inv_name_counts[iname] = inv_name_counts[iname] + 1;
+        else
+          inv_name_counts[iname] = 1;
+          inv_name_order = {@inv_name_order, iname};
+        endif
+      endfor
+      room_name_counts = [];
+      room_name_order = {};
+      if (valid(location))
+        for item in (location.contents)
+          if (!valid(item) || item == this)
+            continue;
+          endif
+          iname = item:name();
+          if (iname in mapkeys(room_name_counts))
+            room_name_counts[iname] = room_name_counts[iname] + 1;
+          else
+            room_name_counts[iname] = 1;
+            room_name_order = {@room_name_order, iname};
+          endif
+        endfor
+      endif
+      "Find items that need disambiguation";
+      inv_duplicates = {};
+      for nm in (inv_name_order)
+        if (inv_name_counts[nm] > 1)
+          inv_duplicates = {@inv_duplicates, {nm, inv_name_counts[nm]}};
+        endif
+      endfor
+      room_duplicates = {};
+      for nm in (room_name_order)
+        if (room_name_counts[nm] > 1)
+          room_duplicates = {@room_duplicates, {nm, room_name_counts[nm]}};
+        endif
+      endfor
       "=== COLLECT OBJECTS WITH CONTEXT ===";
       inventory_objects = {};
+      inv_item_num = [];
       for item in (this.contents)
         if (!valid(item))
           continue;
         endif
         obj_info = this:_collect_object_info(item);
+        iname = item:name();
+        "Add ordinal if there are duplicates";
+        if (inv_name_counts[iname] > 1)
+          if (iname in mapkeys(inv_item_num))
+            inv_item_num[iname] = inv_item_num[iname] + 1;
+          else
+            inv_item_num[iname] = 1;
+          endif
+          obj_info["ordinal"] = inv_item_num[iname];
+        endif
         inventory_objects = {@inventory_objects, obj_info};
       endfor
       room_objects = {};
+      room_item_num = [];
       if (valid(location))
         for item in (location.contents)
           if (!valid(item) || item == this)
             continue;
           endif
           obj_info = this:_collect_object_info(item);
+          iname = item:name();
+          "Add ordinal if there are duplicates";
+          if (room_name_counts[iname] > 1)
+            if (iname in mapkeys(room_item_num))
+              room_item_num[iname] = room_item_num[iname] + 1;
+            else
+              room_item_num[iname] = 1;
+            endif
+            obj_info["ordinal"] = room_item_num[iname];
+          endif
           room_objects = {@room_objects, obj_info};
         endfor
       endif
       "=== ANALYZE MATCH FAILURES ===";
       dobj_status = "";
+      dobj_problem = "";
       if (pc["dobj"] == $failed_match)
-        dobj_status = "NOT FOUND (no object matched '" + cmd_dobjstr + "')";
+        dobj_status = "FAILED - no object matched";
+        dobj_problem = "object_not_found";
       elseif (pc["dobj"] == $ambiguous_match)
-        dobj_status = "AMBIGUOUS (multiple objects could match)";
+        dobj_status = "AMBIGUOUS - multiple objects could match";
+        dobj_problem = "ambiguous";
       elseif (valid(pc["dobj"]))
-        dobj_status = "matched: " + pc["dobj"]:name();
+        dobj_status = "OK - matched '" + pc["dobj"]:name() + "'";
       else
-        dobj_status = "(none specified)";
+        dobj_status = "none specified";
       endif
       iobj_status = "";
+      iobj_problem = "";
       if (pc["iobj"] == $failed_match)
-        iobj_status = "NOT FOUND (no object matched '" + cmd_iobjstr + "')";
+        iobj_status = "FAILED - no object matched";
+        iobj_problem = "object_not_found";
       elseif (pc["iobj"] == $ambiguous_match)
-        iobj_status = "AMBIGUOUS (multiple objects could match)";
+        iobj_status = "AMBIGUOUS - multiple objects could match";
+        iobj_problem = "ambiguous";
       elseif (valid(pc["iobj"]))
-        iobj_status = "matched: " + pc["iobj"]:name();
+        iobj_status = "OK - matched '" + pc["iobj"]:name() + "'";
       else
-        iobj_status = "(none specified)";
+        iobj_status = "none specified";
+      endif
+      "Determine what went wrong";
+      verb_found = length(verb_exact) > 0;
+      likely_problem = "";
+      if (!verb_found && length(verb_near) > 0)
+        likely_problem = "TYPO OR WRONG VERB - similar verbs exist on nearby objects";
+      elseif (!verb_found)
+        likely_problem = "UNKNOWN VERB - no object nearby supports this action";
+      elseif (dobj_problem == "object_not_found")
+        likely_problem = "OBJECT NOT FOUND - the verb exists but '" + cmd_dobjstr + "' doesn't match any object";
+      elseif (iobj_problem == "object_not_found")
+        likely_problem = "OBJECT NOT FOUND - '" + cmd_iobjstr + "' doesn't match any object";
+      elseif (dobj_problem == "ambiguous" || iobj_problem == "ambiguous")
+        likely_problem = "AMBIGUOUS - multiple objects match, player needs to use ordinals to disambiguate";
+      else
+        likely_problem = "SYNTAX MISMATCH - the verb exists but wasn't matched to these objects";
       endif
       "=== BUILD PROMPT ===";
-      prompt = "You help players in a text adventure game. " + player_name + " is in \"" + location_name + "\".\n\n";
-      prompt = prompt + "FAILED COMMAND ANALYSIS:\n";
-      prompt = prompt + "- Verb attempted: \"" + cmd_verb + "\"\n";
-      prompt = prompt + "- Direct object: " + (length(cmd_dobjstr) > 0 ? "\"" + cmd_dobjstr + "\" -> " + dobj_status | dobj_status) + "\n";
-      if (length(cmd_prepstr) > 0)
-        prompt = prompt + "- Preposition: \"" + cmd_prepstr + "\"\n";
+      prompt = "# Role\n";
+      prompt = prompt + "You help players in a text adventure game figure out what they might have meant to type. ";
+      prompt = prompt + "Be friendly and helpful - players are often new and learning.\n\n";
+      prompt = prompt + "# How Commands Work\n";
+      prompt = prompt + "Commands follow the pattern: VERB [OBJECT] [PREPOSITION OBJECT]\n";
+      prompt = prompt + "- Verbs match by PREFIX: 'l' matches 'look', 'lo' matches 'look', etc.\n";
+      prompt = prompt + "- Objects match by NAME or ALIAS: 'lamp' matches 'brass lamp', aliases like 'lantern' also work\n";
+      prompt = prompt + "- Each object defines which verbs work on it - not all verbs work on all objects\n";
+      prompt = prompt + "- Some verbs need a preposition: 'put X in Y', 'give X to Y', 'unlock X with Y'\n";
+      prompt = prompt + "- Movement: 'go north', 'north', 'n' all work for exits\n\n";
+      prompt = prompt + "# Disambiguation with Ordinals\n";
+      prompt = prompt + "When multiple objects have the same name, use ordinals to specify which one:\n";
+      prompt = prompt + "- 'first mug', 'second mug', '1st mug', '2nd mug'\n";
+      prompt = prompt + "- 'get first mug', 'look at second lamp', 'put 2nd coin in box'\n";
+      prompt = prompt + "- Ordinals: first/1st, second/2nd, third/3rd, fourth/4th, etc.\n";
+      "Highlight specific duplicates if they exist";
+      if (length(inv_duplicates) > 0 || length(room_duplicates) > 0)
+        prompt = prompt + "\nDUPLICATES DETECTED - player may need ordinals:\n";
+        for dup in (inv_duplicates)
+          prompt = prompt + "- Inventory has " + tostr(dup[2]) + "x \"" + dup[1] + "\" -> use 'first " + dup[1] + "', 'second " + dup[1] + "', etc.\n";
+        endfor
+        for dup in (room_duplicates)
+          prompt = prompt + "- Room has " + tostr(dup[2]) + "x \"" + dup[1] + "\" -> use 'first " + dup[1] + "', 'second " + dup[1] + "', etc.\n";
+        endfor
       endif
-      prompt = prompt + "- Indirect object: " + (length(cmd_iobjstr) > 0 ? "\"" + cmd_iobjstr + "\" -> " + iobj_status | iobj_status) + "\n\n";
+      prompt = prompt + "\n";
+      prompt = prompt + "# The Failed Command\n";
+      prompt = prompt + "Player: " + player_name + "\n";
+      prompt = prompt + "Location: " + location_name + "\n";
+      prompt = prompt + "Typed verb: \"" + cmd_verb + "\"\n";
+      if (length(cmd_dobjstr) > 0)
+        prompt = prompt + "Direct object text: \"" + cmd_dobjstr + "\" -> " + dobj_status + "\n";
+      endif
+      if (length(cmd_prepstr) > 0)
+        prompt = prompt + "Preposition: \"" + cmd_prepstr + "\"\n";
+      endif
+      if (length(cmd_iobjstr) > 0)
+        prompt = prompt + "Indirect object text: \"" + cmd_iobjstr + "\" -> " + iobj_status + "\n";
+      endif
+      prompt = prompt + "\nLikely problem: " + likely_problem + "\n\n";
       "=== ADD VERB MATCH INFO ===";
       if (length(verb_exact) > 0)
-        prompt = prompt + "OBJECTS THAT SUPPORT \"" + cmd_verb + "\" (correct syntax):\n";
+        prompt = prompt + "# Objects That Support \"" + cmd_verb + "\"\n";
+        prompt = prompt + "These objects have the verb - maybe the object name was wrong:\n";
         for entry in (verb_exact[1..min(length(verb_exact), 5)])
           prompt = prompt + "- " + entry["command"] + "\n";
         endfor
         prompt = prompt + "\n";
       endif
       if (length(verb_near) > 0)
-        prompt = prompt + "DID YOU MEAN (similar verbs):\n";
+        prompt = prompt + "# Similar Verbs (typo?)\n";
         for entry in (verb_near[1..min(length(verb_near), 3)])
-          prompt = prompt + "- " + entry["command"] + " (verb: " + entry["did_you_mean"] + ")\n";
+          prompt = prompt + "- \"" + entry["did_you_mean"] + "\" on " + entry["object"] + " -> " + entry["command"] + "\n";
         endfor
         prompt = prompt + "\n";
       endif
-      prompt = prompt + "AVAILABLE COMMANDS (no object needed):\n";
+      prompt = prompt + "# Available Global Commands\n";
       prompt = prompt + mapkeys(ambient_verbs):join(", ") + "\n\n";
       if (length(room_hints) > 0)
-        prompt = prompt + "SPECIAL COMMANDS IN THIS LOCATION:\n";
+        prompt = prompt + "# Special Commands Here\n";
         for hint in (room_hints)
           prompt = prompt + "- " + hint["command"] + ": " + hint["description"] + "\n";
         endfor
         prompt = prompt + "\n";
       endif
       if (length(exits) > 0)
-        prompt = prompt + "EXITS: " + exits:join(", ") + " (use: go <direction>)\n\n";
+        prompt = prompt + "# Exits: " + exits:join(", ") + "\n\n";
       endif
-      prompt = prompt + "COMMUNICATION: say <msg>, \"<msg>, emote <action>, :<action>\n\n";
       if (length(inventory_objects) > 0)
-        prompt = prompt + "INVENTORY:\n" + toliteral(inventory_objects) + "\n\n";
+        prompt = prompt + "# Player's Inventory\n";
+        prompt = prompt + "(Items with 'ordinal' field have duplicates - use 'first X', 'second X' to specify)\n";
+        prompt = prompt + toliteral(inventory_objects) + "\n\n";
       endif
       if (length(room_objects) > 0)
-        prompt = prompt + "OBJECTS HERE:\n" + toliteral(room_objects) + "\n\n";
+        prompt = prompt + "# Objects In Room\n";
+        prompt = prompt + "(Items with 'ordinal' field have duplicates - use 'first X', 'second X' to specify)\n";
+        prompt = prompt + toliteral(room_objects) + "\n\n";
       endif
-      prompt = prompt + "TASK: Suggest 1-3 working commands. Be concise (<60 words). If the verb exists but object name was wrong, show correct object name. If verb doesn't exist, suggest what they probably meant. Format for djot.";
+      prompt = prompt + "# Your Task\n";
+      prompt = prompt + "Suggest 1-3 commands that MIGHT work based on the context above. Important:\n";
+      prompt = prompt + "- Only suggest commands using verbs and objects that appear in the data above\n";
+      prompt = prompt + "- If the problem is AMBIGUOUS, explain how to use ordinals (first/second/etc)\n";
+      prompt = prompt + "- Be honest that these are suggestions - you can't guarantee they'll work\n";
+      prompt = prompt + "- If you're not sure what they wanted, it's OK to say so and ask\n";
+      prompt = prompt + "- Keep it short and friendly (under 60 words)\n";
+      prompt = prompt + "- Use djot/markdown formatting for code: `command here`\n";
+      prompt = prompt + "- If the player just mistyped an object name, point that out specifically\n";
+      prompt = prompt + "- For communication: say <msg>, \"<msg>, emote <action>, :<action>\n";
       "Call LLM and rewrite the placeholder";
       try
         response = llm_client:simple_query(prompt);
         if (typeof(response) == TYPE_STR && length(response) > 0)
-          result_event = $event:mk_info(this, $format.block:mk("I didn't understand that, but...\n", response)):as_djot():as_inset();
+          result_event = $event:mk_info(this, $format.block:mk("I didn't quite understand that. Here are some thoughts:\n", response)):as_djot():as_inset();
           this:rewrite_event(rewrite_id, result_event, current_conn);
         else
-          this:rewrite_event(rewrite_id, "I don't understand that command.", current_conn);
+          this:rewrite_event(rewrite_id, "I didn't understand that command.", current_conn);
         endif
       except e (ANY)
-        this:rewrite_event(rewrite_id, "I don't understand that command.", current_conn);
+        this:rewrite_event(rewrite_id, "I didn't understand that command.", current_conn);
       endtry
     endfork
     return true;
@@ -2606,8 +2752,119 @@ object PLAYER
     this.walk_task = walk_task_id;
   endverb
 
-  verb disfunc (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb disfunc (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called when player disconnects. Record the time for housekeeping.";
     this.last_disconnected = time();
+  endverb
+
+  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set defaults for newly created players.";
+    pass();
+    this.import_export_hierarchy = {"players"};
+  endverb
+
+  verb home (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Walk automatically to your home room.";
+    set_task_perms(player);
+    player != this && return;
+    "Check if home is set";
+    home = this.home;
+    if (!valid(home))
+      player:inform_current($event:mk_error(player, "You don't have a home set. Use: @sethome"));
+      return;
+    endif
+    "Check if already at home";
+    current_room = this.location;
+    if (current_room == home)
+      player:inform_current($event:mk_info(player, "You're already home!"));
+      return;
+    endif
+    "Get current area and home's area";
+    if (!valid(current_room))
+      player:inform_current($event:mk_error(player, "You aren't in a room."));
+      return;
+    endif
+    current_area = current_room.location;
+    home_area = home.location;
+    "Check if we can navigate";
+    if (!valid(current_area) || !respond_to(current_area, 'find_path))
+      player:inform_current($event:mk_error(player, "You can't navigate from here."));
+      return;
+    endif
+    "Check if home is in the same area";
+    if (current_area != home_area)
+      player:inform_current($event:mk_error(player, "Your home is in a different area (" + `home_area:name() ! ANY => "unknown"' + "). You'll need to travel there manually."));
+      return;
+    endif
+    "Find a walkable route to home";
+    path = current_area:find_path(current_room, home, true, false);
+    if (!path || length(path) < 2)
+      "Check if there's a route with transports";
+      path_with_transport = current_area:find_path(current_room, home, true, true);
+      if (path_with_transport && length(path_with_transport) >= 2)
+        "Find the first transport step";
+        for i in [1..length(path_with_transport) - 1]
+          {room, connector} = path_with_transport[i];
+          if (typeof(connector) == TYPE_LIST && length(connector) >= 1 && connector[1] == 'transport)
+            label = connector[2];
+            player:inform_current($event:mk_info(player, "To reach home, you'll need to take the " + label + ". Can't auto-walk through transport systems yet."));
+            return;
+          endif
+        endfor
+      endif
+      player:inform_current($event:mk_error(player, "Can't find a walkable route home."));
+      return;
+    endif
+    "Cancel any existing walk";
+    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
+      `kill_task(this.walk_task) ! ANY';
+    endif
+    "Start walking";
+    steps = length(path) - 1;
+    player:inform_current($event:mk_info(player, "Walking home to " + home:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
+    "Fork task to do the walking";
+    fork walk_task_id (0)
+      this:_do_walk(path);
+    endfork
+    this.walk_task = walk_task_id;
+  endverb
+
+  verb "@sethome" (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Set your current location as your home room.";
+    set_task_perms(player);
+    player != this && return;
+    current_room = this.location;
+    if (!valid(current_room))
+      player:inform_current($event:mk_error(player, "You aren't in a valid room."));
+      return;
+    endif
+    "Check it's actually a room";
+    if (!isa(current_room, $room))
+      player:inform_current($event:mk_error(player, "You can only set a room as your home."));
+      return;
+    endif
+    old_home = this.home;
+    this.home = current_room;
+    if (valid(old_home) && old_home != current_room)
+      player:inform_current($event:mk_info(player, "Home set to " + current_room:name() + " (was " + old_home:name() + ")."));
+    else
+      player:inform_current($event:mk_info(player, "Home set to " + current_room:name() + "."));
+    endif
+  endverb
+
+  verb input_placeholder (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return placeholder text for the input field.";
+    "Can be overridden to provide context-sensitive hints.";
+    "Checks room's input_placeholders verb first.";
+    loc = this.location;
+    if (valid(loc))
+      room_placeholders = `loc:input_placeholders() ! ANY => false';
+      if (typeof(room_placeholders) == TYPE_LIST && length(room_placeholders) > 0)
+        return room_placeholders[random(length(room_placeholders))];
+      endif
+    endif
+    "Default placeholders";
+    placeholders = {"What would you like to explore?", "Ready for your next adventure?", "What's on your mind?", "How can we help you today?", "What would you like to try?", "Share your thoughts...", "What's your next move?", "Ready to discover something new?"};
+    return placeholders[random(length(placeholders))];
   endverb
 endobject
