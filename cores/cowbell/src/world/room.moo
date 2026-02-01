@@ -1,7 +1,6 @@
 object ROOM
   name: "Generic Room"
   parent: ROOT
-  location: #-1
   owner: HACKER
   fertile: true
   readable: true
@@ -121,7 +120,11 @@ object ROOM
   endverb
 
   verb exitfunc (this none this) owner: HACKER flags: "rxd"
-    "Fire parent triggers for exit";
+    "Notify room contents of departure, then fire parent triggers.";
+    {who} = args;
+    for item in (this.contents)
+      respond_to(item, 'on_location_exit) && `item:on_location_exit(who) ! ANY';
+    endfor
     pass(@args);
   endverb
 
@@ -258,7 +261,7 @@ object ROOM
 
   verb "exits ways" (none none none) owner: ARCH_WIZARD flags: "rd"
     "List the ways out of this room.";
-    set_task_perms(caller_perms());
+    "Note: removed set_task_perms(caller_perms()) - it breaks respond_to when caller_perms is #-1";
     "Get exits from our area";
     area = this.location;
     if (!valid(area) || !respond_to(area, 'get_exit_info))
@@ -768,7 +771,7 @@ object ROOM
     return `this.engagements[actor] ! E_RANGE => #-1';
   endverb
 
-  verb transport_destinations (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb transport_destinations (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return destinations reachable via transport objects in this room.";
     "Scans contents for objects implementing :transport_connections().";
     "Returns list of {destination_room, label, transport_object} tuples.";
@@ -834,5 +837,37 @@ object ROOM
     "Shout something loudly - propagates to acoustic neighbors.";
     !argstr && return player:inform_current($event:mk_error(player, "Shout what?"));
     this:announce(player:mk_shout_event(argstr));
+  endverb
+
+  verb rewrite_announced (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Rewrite a previously announced rewritable event for all players in this room.";
+    "Args: rewrite_id, new_event";
+    "Usage: room:rewrite_announced(rewrite_id, $event:mk_info(actor, new_content))";
+    {rewrite_id, new_event} = args;
+    for who in (this:contents())
+      if (!valid(who) || !is_player(who))
+        continue;
+      endif
+      "Get this player's connections - we have permission since we're the room";
+      try
+        conns = who:_connections();
+        if (!conns || length(conns) == 0)
+          continue;
+        endif
+        "Rewrite for each connection this player has";
+        for conn_info in (conns)
+          conn = conn_info[1];
+          who:rewrite_event(rewrite_id, new_event, conn);
+        endfor
+      except e (ANY)
+        "Skip players we can't reach";
+      endtry
+    endfor
+  endverb
+
+  verb input_placeholders (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return a list of placeholder strings for the input field, or false for default.";
+    "Override on specific rooms to provide context-sensitive hints.";
+    return false;
   endverb
 endobject
