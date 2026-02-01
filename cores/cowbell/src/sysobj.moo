@@ -19,7 +19,7 @@ object SYSOBJ
   property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property consumable (owner: ARCH_WIZARD, flags: "r") = CONSUMABLE;
   property container (owner: HACKER, flags: "r") = CONTAINER;
-  property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.0.2";
+  property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.2.0";
   property couch (owner: HACKER, flags: "r") = COUCH;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dm (owner: HACKER, flags: "r") = DM;
