@@ -2352,8 +2352,19 @@ function AppWrapper() {
 
 const rootElement = document.getElementById("root")!;
 
-// Prevent duplicate rendering
-if (!rootElement.hasChildNodes()) {
-    const root = ReactDOM.createRoot(rootElement);
-    root.render(<App />);
+// Initialize server config (Tauri --server arg) before rendering
+import { initServerConfig, installFetchInterceptor } from "./lib/serverConfig";
+
+async function bootstrap() {
+    try {
+        await initServerConfig();
+        await installFetchInterceptor();
+    } catch (e) {
+        console.error("[bootstrap] Server config init failed, continuing anyway:", e);
+    }
+    if (!rootElement.hasChildNodes()) {
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    }
 }
+bootstrap();

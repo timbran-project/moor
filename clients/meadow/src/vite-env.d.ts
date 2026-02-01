@@ -15,3 +15,8 @@
 
 // Git hash injected at build time
 declare const __GIT_HASH__: string;
+
+// Tauri internals (present when running in Tauri webview)
+interface Window {
+    __TAURI_INTERNALS__?: unknown;
+}

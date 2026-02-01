@@ -162,8 +162,7 @@ export const useWebSocket = (
             onSystemMessage("Establishing connection...", 2);
 
             // Build WebSocket URL
-            const baseUrl = window.location.host;
-            const isSecure = window.location.protocol === "https:";
+            const { host: baseUrl, secure: isSecure } = (await import("../lib/serverConfig")).getWebSocketBaseUrl();
 
             // Get connection credentials from sessionStorage (per-tab)
             const clientToken = sessionStorage.getItem("client_token");
