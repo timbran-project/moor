@@ -6,37 +6,93 @@ object HENRI
   readable: true
 
   property behaviours_disabled (owner: HACKER, flags: "rc") = true;
-  property complaints_msg_bag (owner: HACKER, flags: "rc") = HENRI_COMPLAINTS;
+  property complaints_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {{
+      <SUB, .capitalize = true, .type = 'actor>,
+      " notes, \"The dust gets everywhere. Absolutely everywhere.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " complains, \"They moved my favorite sunbeam spot. The audacity.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " grumbles, \"The hammering is giving me a headache. And I have very sensitive ears, you know.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " sighs, \"This used to be a perfectly good nap spot before they started all this construction.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " fusses, \"Do you know how hard it is to maintain this level of fur quality with all this sawdust floating around?\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " reminisces, \"My previous accommodations had much better acoustics for my midnight operas.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " mutters, \"They keep moving the furniture. It's very disorienting for a creature of routine.\""
+    }}>;
   property couch_intruder_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'dobj>,
     " shifts pointedly away from ",
     <SUB, .capitalize = false, .type = 'actor>,
     ", radiating offended dignity. \"This is MY couch.\""
   };
-  property couch_intruder_reaction (owner: HACKER, flags: "r") = <REACTION, .when = 0, .trigger = 'on_couch_intruder, .effects = {{'announce, 'couch_intruder_msg}}, .fired_at = 0, .enabled = true>;
+  property couch_intruder_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_couch_intruder, .when = 0, .effects = {{'announce, 'couch_intruder_msg}}, .enabled = true, .fired_at = 0>;
   property cupboard_open_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'dobj>,
     "'s ears swivel like radar dishes toward the cupboard."
   };
-  property cupboard_open_reaction (owner: HACKER, flags: "r") = <REACTION, .when = 0, .trigger = 'on_cupboard_open, .effects = {{'announce, 'cupboard_open_msg}}, .fired_at = 0, .enabled = true>;
+  property cupboard_open_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_cupboard_open, .when = 0, .effects = {{'announce, 'cupboard_open_msg}}, .enabled = true, .fired_at = 0>;
   property feed_denied_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " turns ",
     <SUB, .capitalize = false, .type = 'pos_adj>,
     " nose up at the offering with disdain."
   };
-  property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .variables = {'This, 'Food, 'Accessor}, .body = {
+  property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .body = {
       {'is_grouchy, 'This},
       {'isa, 'Food, CAT_KIBBLE},
       {'location_is, 'Food, 'Accessor}
-    }, .head = 'henri_feed_rule>;
-  property kibble_taken_msg_bag (owner: HACKER, flags: "r") = HENRI_KIBBLE_TAKEN_MSGS;
-  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .when = 0, .trigger = 'on_kibble_taken, .effects = {{'action, 'stand, COUCH}, {'announce, 'kibble_taken_msg_bag}}, .fired_at = 0, .enabled = true>;
-  property look_self_msg_bag (owner: HACKER, flags: "rc") = HENRI_LOOK_SELF_MSGS;
+    }, .variables = {'This, 'Food, 'Accessor}, .head = 'henri_feed_rule>;
+  property kibble_taken_msg_bag (owner: HACKER, flags: "r") = <MSG_BAG, {{
+      <SUB, .capitalize = true, .type = 'dobj>,
+      " starts weaving around ",
+      <SUB, .capitalize = false, .type = 'pos_adj>,
+      " legs, purring loudly."
+    }, {
+      <SUB, .capitalize = true, .type = 'dobj>,
+      " perks up immediately, tail suddenly upright and alert. The sulking can wait."
+    }, {
+      <SUB, .capitalize = true, .type = 'dobj>,
+      " trots over with uncharacteristic enthusiasm. \"Well, finally some proper service.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'dobj>,
+      " abandons ",
+      <SUB, .capitalize = false, .type = 'dobj_pos_adj>,
+      " aloof demeanor entirely, eyes locked on the kibble."
+    }, {
+      <SUB, .capitalize = true, .type = 'dobj>,
+      " forgets to be grouchy for a moment, whiskers twitching with anticipation."
+    }}>;
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_kibble_taken, .when = 0, .effects = {{'action, 'stand, COUCH}, {'announce, 'kibble_taken_msg_bag}}, .enabled = true, .fired_at = 0>;
+  property look_self_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {{
+      <SUB, .capitalize = true, .type = 'actor>,
+      " glares at you with an expression that clearly says 'This is all ",
+      <SUB, .capitalize = false, .type = 'self_alt, .for_self = "your", .for_others = "their">,
+      " fault, isn't it?' ",
+      <SUB, .capitalize = false, .type = 'self_alt, .for_self = "p", .for_others = "Their">,
+      " tail twitches irritably."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " is trying to nap despite the construction noise, but keeps getting interrupted. You can see the sleep-deprived annoyance in their half-closed eyes."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " seems mildly interested in something despite the general annoyance. Probably wondering if you brought treats or if you're just another source of disappointment."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " gives you a look that manages to convey both disdain and resignation about their current living conditions."
+    }}>;
   property mood (owner: HACKER, flags: "rc") = "sleepy";
-  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .when = <RULE, .name = 'grouchy_rule, .variables = {'This}, .body = {{'is_grouchy, 'This}}, .head = 'grouchy_rule>, .trigger = 'on_pet, .effects = {{'announce, 'pet_grouchy_msg}}, .fired_at = 0, .enabled = true>;
-  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .when = <RULE, .name = 'playful_rule, .variables = {'This}, .body = {{'is_playful, 'This}}, .head = 'playful_rule>, .trigger = 'on_pet, .effects = {{'announce, 'pet_playful_msg}}, .fired_at = 0, .enabled = true>;
-  property pet_denied_msg_bag (owner: HACKER, flags: "rc") = HENRI_PET_DENIED_MSGS;
+  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}, .head = 'grouchy_rule>, .effects = {{'announce, 'pet_grouchy_msg}}, .enabled = true, .fired_at = 0>;
+  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .body = {{'is_playful, 'This}}, .variables = {'This}, .head = 'playful_rule>, .effects = {{'announce, 'pet_playful_msg}}, .enabled = true, .fired_at = 0>;
+  property pet_denied_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {"{nc} hisses and swats at {p_dobj} hand before {dobj} can touch him.", "{nc} lets out a low growl and bares {p} teeth at {dobj}.", "{nc} backs away with a suspicious glare, clearly warning {dobj} to keep {p} distance.", "{nc} flexes {p} claws menacingly as {dobj} approaches, a silent but clear threat."}>;
   property pet_grouchy_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'dobj>,
     " flattens ",
@@ -51,11 +107,88 @@ object HENRI
     <SUB, .capitalize = false, .type = 'pos_adj>,
     " hand."
   };
-  property pet_reactions_default_msg_bag (owner: HACKER, flags: "rc") = HENRI_PET_DEFAULT_MSGS;
-  property pet_reactions_grouchy_msg_bag (owner: HACKER, flags: "rc") = HENRI_PET_GROUCHY_MSGS;
-  property pet_reactions_sleepy_msg_bag (owner: HACKER, flags: "rc") = HENRI_PET_SLEEPY_MSGS;
-  property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .variables = {'This}, .body = {{'not, {'is_grouchy, 'This}}}, .head = 'henri_pet_rule>;
-  property pets_received (owner: HACKER, flags: "rc") = 14;
+  property pet_reactions_default_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {{
+      <SUB, .capitalize = true, .type = 'actor>,
+      " sighs but doesn't pull away immediately. \"I suppose I'm getting used to this indignity.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " tolerates the petting with weary resignation. \"At least ",
+      <SUB, .capitalize = false, .type = 'pos_adj>,
+      " technique has improved slightly.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " leans into the petting for a moment before remembering ",
+      <SUB, .type = 'subject>,
+      " is supposed to be annoyed."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " gives you a look that says \"I'm only allowing this because the alternative is listening to more hammering.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " tolerates ",
+      <SUB, .capitalize = false, .type = 'pos_adj>,
+      " attention with the weary resignation of a cat who has seen better days and better accommodations."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " flicks an ear in ",
+      <SUB, .capitalize = false, .type = 'pos_adj>,
+      " direction. \"If ",
+      <SUB, .capitalize = false, .type = 'self_alt, .for_self = "you're", .for_others = "they're">,
+      " quite done disrupting my brooding session...\""
+    }}>;
+  property pet_reactions_grouchy_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {{
+      <SUB, .capitalize = true, .type = 'actor>,
+      " flattens ",
+      <SUB, .type = 'pos_adj>,
+      " ears and gives you a look of pure betrayal. \"I was in the middle of a very important sulk,\" ",
+      <SUB, .type = 'subject>,
+      " seems to say."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " allows exactly two pets before pulling away with an offended sniff. \"That's quite enough of that,\" ",
+      <SUB, .type = 'pos_adj>,
+      " posture suggests."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " tolerates the petting for precisely three seconds before ",
+      <SUB, .type = 'pos_adj>,
+      " tail starts twitching violently. \"Are you quite finished?\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " turns ",
+      <SUB, .capitalize = false, .type = 'pos_adj>,
+      " head away dramatically. \"I'm not some common housecat to be petted at ",
+      <SUB, .capitalize = false, .type = 'self_alt, .for_self = "your", .for_others = "their">,
+      " whim. I have standards, you know.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " lets out a long-suffering sigh. \"Fine, if you must. But don't expect me to enjoy it.\""
+    }}>;
+  property pet_reactions_sleepy_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {{
+      <SUB, .capitalize = true, .type = 'actor>,
+      " purrs reluctantly, as if doing you a great favor. \"I suppose this is acceptable. For now.\""
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " leans into the petting for a moment before remembering ",
+      <SUB, .type = 'subject>,
+      " is supposed to be annoyed. ",
+      <SUB, .type = 'subject>,
+      " pulls away with a huff."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " closes ",
+      <SUB, .type = 'pos_adj>,
+      " eyes and pretends to enjoy it, though you can tell ",
+      <SUB, .type = 'subject>,
+      " ",
+      <SUB, .type = 'verb_be>,
+      " just too tired to protest properly."
+    }, {
+      <SUB, .capitalize = true, .type = 'actor>,
+      " murmurs something that sounds like \"The vibrations are almost as good as the old heating vent... almost.\""
+    }}>;
+  property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}, .head = 'henri_pet_rule>;
+  property pets_received (owner: HACKER, flags: "rc") = 30;
   property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
   property sleepy_threshold_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'dobj>,
@@ -63,11 +196,11 @@ object HENRI
     <SUB, .capitalize = false, .type = 'dobj_pos_adj>,
     " capacity for outrage and slumps into a resigned loaf."
   };
-  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .when = 0, .trigger = {'when, 'pets_received, 'ge, 4}, .effects = {
+  property sleepy_threshold_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = {'when, 'pets_received, 'ge, 4}, .when = 0, .effects = {
       {'set, 'mood, "sleepy"},
       {'announce, 'sleepy_threshold_msg},
       {'action, 'sit, COUCH}
-    }, .fired_at = 0, .enabled = true>;
+    }, .enabled = true, .fired_at = 0>;
 
   override aliases = {"cat", "grouchy cat"};
   override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
@@ -146,7 +279,7 @@ object HENRI
   verb _pick_message (this none this) owner: HACKER flags: "rxd"
     "Pick a message from a bag/string or use a compiled list directly, returning empty string on failure.";
     {source} = args;
-    if (valid(source) && isa(source, $msg_bag))
+    if ($msg_bag:is_msg_bag(source))
       msg = source:pick();
       return typeof(msg) == TYPE_ERR ? "" | msg;
     elseif (typeof(source) == TYPE_LIST)

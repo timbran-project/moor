@@ -5,12 +5,12 @@ object COUCH
   owner: HACKER
   readable: true
 
-  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .when = <RULE, .name = 'henri_sitting, .variables = {'This, 'Actor}, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .head = 'henri_sitting>, .trigger = 'on_sit, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .fired_at = 0, .enabled = true>;
+  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .variables = {'This, 'Actor}, .head = 'henri_sitting>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
 
   override aliases = {"couch", "sofa", "ratty couch"};
   override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";
   override get_denied_msg = {"The couch is far too heavy to pick up."};
-  override get_rule = <RULE, .name = 'is_portable, .variables = {'This}, .body = {{'is_portable, 'This}}, .head = 'is_portable>;
+  override get_rule = <RULE, .name = 'is_portable, .body = {{'is_portable, 'This}}, .variables = {'This}, .head = 'is_portable>;
   override import_export_hierarchy = {"initial"};
   override import_export_id = "couch";
   override integrated_description = "A ratty brown couch, thoroughly colonized by cat hair, sits against one wall.";
