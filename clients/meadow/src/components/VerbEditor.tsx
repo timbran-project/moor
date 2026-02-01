@@ -442,6 +442,11 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
             mooCompletionManager.register(modelUri, { authToken, objectCurie, uploadAction }, monacoInstance);
         }
 
+        // Add keybinding for Ctrl+Enter / Cmd+Enter to compile
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+            compileVerb();
+        });
+
         // Focus the editor only if not in embedded/split mode where it would steal focus
         if (!preventAutoFocus) {
             editor.focus();
