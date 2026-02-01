@@ -280,4 +280,12 @@ object WEARABLE
     endfor
     return 0;
   endverb
+
+  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called by runtime before destruction. Remove from wearer's wearing list.";
+    wearer = this:wearer();
+    if (valid(wearer))
+      wearer.wearing = setremove(wearer.wearing, this);
+    endif
+  endverb
 endobject
