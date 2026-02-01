@@ -507,18 +507,18 @@ object REACTION
   verb _resolve_msg (this none this) owner: HACKER flags: "rxd"
     "Resolve a message reference to a compiled template list.";
     "If msg is a symbol, looks up that property on target.";
-    "If the property is a $msg_bag, picks randomly.";
+    "If the property is a $msg_bag (object or flyweight), picks randomly.";
     "Returns a list suitable for @-splat into $event:mk_info.";
     {msg, target} = args;
     "If it's a symbol, look up the property on target";
     if (typeof(msg) == TYPE_SYM)
       prop_name = tostr(msg);
       prop_value = `target.(prop_name) ! E_PROPNF => 0';
-      if (prop_value == 0)
-        return {"(missing message: " + prop_name + ")"};
-      endif
-      "If it's a msg_bag, pick randomly";
+      prop_value == 0 && return {"(missing message: " + prop_name + ")"};
+      "If it's a msg_bag (object or flyweight), pick randomly";
       if (typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag))
+        return prop_value:pick();
+      elseif (typeof(prop_value) == TYPE_FLYWEIGHT && prop_value.delegate == $msg_bag)
         return prop_value:pick();
       endif
       "Otherwise use the property value directly (should be compiled list)";
