@@ -23,10 +23,10 @@ object HELP_TOPICS
   property topic_communicating (owner: ARCH_WIZARD, flags: "rc") = {
     "communicating",
     "Talking and expressing yourself",
-    "There are several ways to interact with others:\n\n`say` - Speak aloud for everyone in the room to hear.\n\n`emote` - Describe an action with your name at the start.\n\n`think` - Show a thought bubble.\n\nSocial gestures like `wave`, `nod`, `smile` let you interact without typing descriptions. See `help socializing` for the full list.",
+    "There are several ways to interact with others:\n\n`say` - Speak aloud for everyone in the room to hear.\n\n`to` - Direct your speech at someone specific. Others still hear you, but the message is addressed to that person. Usage: `to alice Hello there!`\n\nThe backtick (`` ` ``) is a shortcut for directed speech - put the target name right after it: `` `alice Hello there! ``\n\n`emote` - Describe an action with your name at the start.\n\n`think` - Show a thought bubble.\n\nSocial gestures like `wave`, `nod`, `smile` let you interact without typing descriptions. See `help socializing` for the full list.",
     {"communication", "talking", "speaking"},
     "social",
-    {"say", "emote", "socializing"}
+    {"say", "emote", "socializing", "to"}
   };
   property topic_describe (owner: ARCH_WIZARD, flags: "rc") = {
     "@describe",
