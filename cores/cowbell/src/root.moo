@@ -538,10 +538,15 @@ object ROOT
     result = {};
     "Walk inheritance chain starting from this object";
     for definer in ({this, @ancestors(this)})
-      "Get all verbs defined on this level";
-      for verb_name in (verbs(definer))
+      "Get all verbs defined on this level - skip if not readable";
+      verb_list = `verbs(definer) ! E_PERM => {}';
+      for verb_name in (verb_list)
         "Get verb info to check flags and signature";
-        {verb_owner, verb_flags, verb_names} = verb_info(definer, verb_name);
+        info = `verb_info(definer, verb_name) ! E_PERM => 0';
+        if (!info)
+          continue;
+        endif
+        {verb_owner, verb_flags, verb_names} = info;
         "Skip non-readable verbs";
         if (!index(verb_flags, "r"))
           continue;
