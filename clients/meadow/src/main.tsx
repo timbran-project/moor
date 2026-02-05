@@ -1169,49 +1169,86 @@ function AppContent({
         disconnect();
     }, [disconnect, disconnectWS, narrativeRef, setUserSkippedEncryption, authState.player]);
 
-    // Handle OAuth2 callback from URL parameters
+    // Handle OAuth2 callback from URL parameters.
+    // Prefer fragment values (`#...`) so transient auth handoff codes are not sent in Referer headers.
     useEffect(() => {
+        const hashParams = new URLSearchParams(
+            window.location.hash.startsWith("#")
+                ? window.location.hash.slice(1)
+                : window.location.hash,
+        );
         const urlParams = new URLSearchParams(window.location.search);
 
-        // Check for OAuth2 user info (new user flow)
-        const oauth2UserInfoParam = urlParams.get("oauth2_user_info");
-        if (oauth2UserInfoParam) {
+        const clearOAuthHandoffParams = () => {
+            const url = new URL(window.location.href);
+            url.hash = "";
+            url.searchParams.delete("oauth2_code");
+            url.searchParams.delete("oauth2_display");
+            url.searchParams.delete("auth_code");
+            window.history.replaceState({}, document.title, `${url.pathname}${url.search}`);
+        };
+
+        // Check for OAuth2 one-time code (new user flow — identity stored server-side)
+        const oauth2CodeParam = hashParams.get("oauth2_code") ?? urlParams.get("oauth2_code");
+        const oauth2DisplayParam = hashParams.get("oauth2_display") ?? urlParams.get("oauth2_display");
+        if (oauth2CodeParam) {
+            clearOAuthHandoffParams();
             try {
-                const userInfo: OAuth2UserInfo = JSON.parse(decodeURIComponent(oauth2UserInfoParam));
+                let display: { provider?: string; email?: string; name?: string; username?: string } = {};
+                if (oauth2DisplayParam) {
+                    try {
+                        display = JSON.parse(oauth2DisplayParam);
+                    } catch {
+                        display = JSON.parse(decodeURIComponent(oauth2DisplayParam));
+                    }
+                }
+                const userInfo: OAuth2UserInfo = {
+                    provider: display.provider || "",
+                    email: display.email || undefined,
+                    name: display.name || undefined,
+                    username: display.username || undefined,
+                    oauth2_code: oauth2CodeParam,
+                };
                 setOAuth2UserInfo(userInfo);
                 showMessage(`OAuth2 login successful! Please choose how to proceed.`, 5);
-                window.history.replaceState({}, document.title, window.location.pathname);
             } catch (error) {
-                console.error("Failed to parse OAuth2 user info:", error);
+                console.error("Failed to parse OAuth2 display info:", error);
                 showMessage("OAuth2 callback error. Please try again.", 5);
             }
         }
 
-        // Check for auth token (existing user flow)
-        const authTokenParam = urlParams.get("auth_token");
-        const playerOidParam = urlParams.get("player");
-        const flagsParam = urlParams.get("flags");
-        const clientTokenParam = urlParams.get("client_token");
-        const clientIdParam = urlParams.get("client_id");
-        if (authTokenParam && playerOidParam) {
-            // Clear URL parameters immediately
-            window.history.replaceState({}, document.title, window.location.pathname);
+        // Check for auth code (existing user flow — exchange for tokens via POST)
+        const authCodeParam = hashParams.get("auth_code") ?? urlParams.get("auth_code");
+        if (authCodeParam) {
+            clearOAuthHandoffParams();
 
-            // Store in localStorage so useAuth can pick it up (persists across reloads)
-            localStorage.setItem("oauth2_auth_token", authTokenParam);
-            localStorage.setItem("oauth2_player_oid", playerOidParam);
-            if (flagsParam) {
-                localStorage.setItem("oauth2_player_flags", flagsParam);
-            }
-            // Store connection credentials for this tab (sessionStorage = per-tab)
-            if (clientTokenParam) {
-                sessionStorage.setItem("client_token", clientTokenParam);
-            }
-            if (clientIdParam) {
-                sessionStorage.setItem("client_id", clientIdParam);
-            }
+            (async () => {
+                try {
+                    const { exchangeAuthCode } = await import("./lib/oauth2");
+                    const result = await exchangeAuthCode(authCodeParam);
 
-            showMessage("Logged in successfully via OAuth2!", 2);
+                    localStorage.setItem("oauth2_auth_token", result.auth_token);
+                    localStorage.setItem("oauth2_player_oid", result.player);
+                    if (result.player_flags !== undefined) {
+                        localStorage.setItem("oauth2_player_flags", result.player_flags.toString());
+                    }
+                    if (result.client_token) {
+                        sessionStorage.setItem("client_token", result.client_token);
+                    }
+                    if (result.client_id) {
+                        sessionStorage.setItem("client_id", result.client_id);
+                    }
+
+                    showMessage("Logged in successfully via OAuth2!", 2);
+                    window.location.reload();
+                } catch (error) {
+                    console.error("Auth code exchange failed:", error);
+                    showMessage(
+                        `OAuth2 login failed: ${error instanceof Error ? error.message : String(error)}`,
+                        5,
+                    );
+                }
+            })();
         }
 
         // Check for OAuth2 errors
@@ -1232,11 +1269,7 @@ function AppContent({
     // Handle OAuth2 account choice
     const handleOAuth2AccountChoice = async (choice: {
         mode: "oauth2_create" | "oauth2_connect";
-        provider: string;
-        external_id: string;
-        email?: string;
-        name?: string;
-        username?: string;
+        oauth2_code: string;
         player_name?: string;
         existing_email?: string;
         existing_password?: string;
@@ -1250,11 +1283,7 @@ function AppContent({
                 },
                 body: JSON.stringify({
                     mode: choice.mode,
-                    provider: choice.provider,
-                    external_id: choice.external_id,
-                    email: choice.email,
-                    name: choice.name,
-                    username: choice.username,
+                    oauth2_code: choice.oauth2_code,
                     player_name: choice.player_name,
                     existing_email: choice.existing_email,
                     existing_password: choice.existing_password,

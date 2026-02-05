@@ -20,23 +20,41 @@ export interface OAuth2AuthUrlResponse {
     state: string;
 }
 
+/**
+ * Display-only user info from the OAuth2 provider, shown in the account choice UI.
+ * The actual verified identity is carried in the opaque server-side `oauth2_code`.
+ */
 export interface OAuth2UserInfo {
     provider: string;
-    external_id: string;
     email?: string;
     name?: string;
     username?: string;
+    /** One-time server-side code that resolves to the verified provider identity. */
+    oauth2_code: string;
 }
 
 export interface OAuth2LoginResponse {
     success: boolean;
     auth_token?: string;
     player?: string;
+    player_flags?: number;
+    client_token?: string;
+    client_id?: string;
+    error?: string;
 }
 
 export interface OAuth2ConfigResponse {
     enabled: boolean;
     providers: string[];
+}
+
+/** Response from the auth code exchange endpoint (existing user flow) */
+export interface AuthCodeExchangeResponse {
+    auth_token: string;
+    player: string;
+    player_flags: number;
+    client_token: string;
+    client_id: string;
 }
 
 /**
@@ -66,15 +84,12 @@ export async function getOAuth2AuthUrl(provider: string): Promise<OAuth2AuthUrlR
 }
 
 /**
- * Complete OAuth2 account creation or linking
+ * Complete OAuth2 account creation or linking.
+ * Sends the one-time server-side code (from the callback redirect) rather than raw identity fields.
  */
 export async function completeOAuth2Login(
     mode: "oauth2_create" | "oauth2_connect",
-    provider: string,
-    externalId: string,
-    email?: string,
-    name?: string,
-    username?: string,
+    oauth2Code: string,
     playerName?: string,
     existingEmail?: string,
     existingPassword?: string,
@@ -86,11 +101,7 @@ export async function completeOAuth2Login(
         },
         body: JSON.stringify({
             mode,
-            provider,
-            external_id: externalId,
-            email,
-            name,
-            username,
+            oauth2_code: oauth2Code,
             player_name: playerName,
             existing_email: existingEmail,
             existing_password: existingPassword,
@@ -99,6 +110,27 @@ export async function completeOAuth2Login(
 
     if (!response.ok) {
         throw new Error(`OAuth2 login failed: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Exchange a short-lived auth code for auth tokens (existing user OAuth2 flow).
+ * The auth code was received via redirect URL and is single-use with ~60s TTL.
+ */
+export async function exchangeAuthCode(code: string): Promise<AuthCodeExchangeResponse> {
+    const response = await fetch("/auth/oauth2/exchange", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || `Auth code exchange failed: ${response.statusText}`);
     }
 
     return await response.json();
@@ -120,26 +152,19 @@ export async function startOAuth2Login(provider: string, intent: "connect" | "cr
 }
 
 /**
- * Complete OAuth2 account choice (create or link)
+ * Complete OAuth2 account choice (create or link).
+ * The oauth2_code carries the server-verified identity.
  */
 export async function oauth2AccountChoice(choice: {
     mode: "oauth2_create" | "oauth2_connect";
-    provider: string;
-    external_id: string;
-    email?: string;
-    name?: string;
-    username?: string;
+    oauth2_code: string;
     player_name?: string;
     existing_email?: string;
     existing_password?: string;
 }): Promise<OAuth2LoginResponse> {
     return await completeOAuth2Login(
         choice.mode,
-        choice.provider,
-        choice.external_id,
-        choice.email,
-        choice.name,
-        choice.username,
+        choice.oauth2_code,
         choice.player_name,
         choice.existing_email,
         choice.existing_password,

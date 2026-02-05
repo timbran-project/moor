@@ -44,11 +44,7 @@ interface LoginProps {
     oauth2UserInfo?: OAuth2UserInfo | null;
     onOAuth2AccountChoice?: (choice: {
         mode: "oauth2_create" | "oauth2_connect";
-        provider: string;
-        external_id: string;
-        email?: string;
-        name?: string;
-        username?: string;
+        oauth2_code: string;
         player_name?: string;
         existing_email?: string;
         existing_password?: string;
@@ -375,11 +371,7 @@ export const Login: React.FC<LoginProps> = (
 
                 await onOAuth2AccountChoice({
                     mode: "oauth2_create",
-                    provider: oauth2UserInfo.provider,
-                    external_id: oauth2UserInfo.external_id,
-                    email: oauth2UserInfo.email,
-                    name: oauth2UserInfo.name,
-                    username: oauth2UserInfo.username,
+                    oauth2_code: oauth2UserInfo.oauth2_code,
                     player_name: oauth2PlayerName.trim(),
                     encrypt_password: hasEncryption ? oauth2EncryptPassword : undefined,
                 });
@@ -389,11 +381,7 @@ export const Login: React.FC<LoginProps> = (
                 }
                 await onOAuth2AccountChoice({
                     mode: "oauth2_connect",
-                    provider: oauth2UserInfo.provider,
-                    external_id: oauth2UserInfo.external_id,
-                    email: oauth2UserInfo.email,
-                    name: oauth2UserInfo.name,
-                    username: oauth2UserInfo.username,
+                    oauth2_code: oauth2UserInfo.oauth2_code,
                     existing_email: oauth2ExistingUsername.trim(),
                     existing_password: oauth2ExistingPassword,
                 });
