@@ -42,7 +42,7 @@ export const usePropertyEditor = () => {
         try {
             // Fetch property content from server
             const response = await fetch(
-                `/properties/${encodeURIComponent(objectCurie)}/${encodeURIComponent(propertyName)}`,
+                `/api/properties/${encodeURIComponent(objectCurie)}/${encodeURIComponent(propertyName)}`,
                 {
                     method: "GET",
                     headers: buildAuthHeaders(authToken),
