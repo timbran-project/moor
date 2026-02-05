@@ -61,7 +61,7 @@ export interface AuthCodeExchangeResponse {
  * Get OAuth2 configuration from the server
  */
 export async function getOAuth2Config(): Promise<OAuth2ConfigResponse> {
-    const response = await fetch("/api/oauth2/config");
+    const response = await fetch("/v1/oauth2/config");
 
     if (!response.ok) {
         throw new Error(`Failed to get OAuth2 config: ${response.statusText}`);

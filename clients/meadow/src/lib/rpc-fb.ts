@@ -263,7 +263,7 @@ function extractFailureError(replyResult: ReplyResult, context: string): never {
 export async function performEvalFlatBuffer(authToken: string, expr: string): Promise<any> {
     try {
         const headers = buildAuthHeaders(authToken);
-        const response = await moorFetch("/api/eval", {
+        const response = await moorFetch("/v1/eval", {
             method: "POST",
             body: expr,
             headers,
@@ -350,7 +350,7 @@ export async function performEvalFlatBuffer(authToken: string, expr: string): Pr
 export async function performEvalMoorVar(authToken: string, expr: string): Promise<MoorVar> {
     try {
         const headers = buildAuthHeaders(authToken);
-        const response = await moorFetch("/api/eval", {
+        const response = await moorFetch("/v1/eval", {
             method: "POST",
             body: expr,
             headers,
@@ -429,7 +429,7 @@ export async function performEvalMoorVar(authToken: string, expr: string): Promi
  * Retrieves server feature flags from the daemon.
  */
 export async function fetchServerFeatures(): Promise<ServerFeatureSet> {
-    const response = await moorFetch("/api/features");
+    const response = await moorFetch("/v1/features");
     if (!response.ok) {
         throw new Error(`Feature query failed: ${response.status} ${response.statusText}`);
     }
@@ -509,7 +509,7 @@ export async function getSystemPropertyFlatBuffer(
     try {
         // Build the path
         const path = [...objectPath, propertyName].join("/");
-        const response = await moorFetch(`/api/system_property/${path}`, {
+        const response = await moorFetch(`/v1/system_property/${path}`, {
             method: "GET",
         });
 
@@ -619,7 +619,7 @@ export async function fetchHistoryFlatBuffer(
             params.set("until_event", untilEvent);
         }
 
-        const url = `/api/history?${params}`;
+        const url = `/v1/history?${params}`;
 
         const headers = buildAuthHeaders(authToken);
         const response = await moorFetch(url, {
@@ -1394,7 +1394,7 @@ export async function getVerbsFlatBuffer(
     }
 
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/verbs/${objectCurie}?${params}`, {
+    const response = await moorFetch(`/v1/verbs/${objectCurie}?${params}`, {
         method: "GET",
         headers,
     });
@@ -1467,7 +1467,7 @@ export async function getVerbCodeFlatBuffer(
     verbName: string,
 ): Promise<VerbValue> {
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/verbs/${objectCurie}/${encodeURIComponent(verbName)}`, {
+    const response = await moorFetch(`/v1/verbs/${objectCurie}/${encodeURIComponent(verbName)}`, {
         method: "GET",
         headers,
     });
@@ -1566,7 +1566,7 @@ export async function invokeVerbFlatBuffer(
 
     const headers = buildAuthHeaders(authToken);
     headers["Content-Type"] = "application/x-flatbuffers";
-    const response = await moorFetch(`/api/verbs/${objectCurie}/${encodeURIComponent(verbName)}/invoke`, {
+    const response = await moorFetch(`/v1/verbs/${objectCurie}/${encodeURIComponent(verbName)}/invoke`, {
         method: "POST",
         headers,
         body: bodyBuffer,
@@ -1651,7 +1651,7 @@ export async function getPropertiesFlatBuffer(
     }
 
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/properties/${objectCurie}?${params}`, {
+    const response = await moorFetch(`/v1/properties/${objectCurie}?${params}`, {
         method: "GET",
         headers,
     });
@@ -1724,7 +1724,7 @@ export async function getPropertyFlatBuffer(
     propertyName: string,
 ): Promise<PropertyValue> {
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/properties/${objectCurie}/${encodeURIComponent(propertyName)}`, {
+    const response = await moorFetch(`/v1/properties/${objectCurie}/${encodeURIComponent(propertyName)}`, {
         method: "GET",
         headers,
     });
@@ -1793,7 +1793,7 @@ export async function getCurrentPresentationsFlatBuffer(
     authToken: string,
 ): Promise<CurrentPresentations> {
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/presentations`, {
+    const response = await moorFetch(`/v1/presentations`, {
         method: "GET",
         headers,
     });
@@ -1868,7 +1868,7 @@ export async function compileVerbFlatBuffer(
     code: string,
 ): Promise<{ success: true } | { success: false; error: CompileError | string }> {
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/verbs/${objectCurie}/${verbName}`, {
+    const response = await moorFetch(`/v1/verbs/${objectCurie}/${verbName}`, {
         method: "POST",
         headers,
         body: code,
@@ -2104,7 +2104,7 @@ export async function invokeWelcomeMessageFlatBuffer(): Promise<{
     contentType: "text/plain" | "text/djot" | "text/html" | "text/traceback" | "text/x-uri";
 }> {
     try {
-        const response = await moorFetch(`/api/invoke_welcome_message`, {
+        const response = await moorFetch(`/v1/invoke_welcome_message`, {
             method: "GET",
         });
 
@@ -2240,7 +2240,7 @@ export async function listObjectsFlatBuffer(
     authToken: string,
 ): Promise<ListObjectsReply> {
     const headers = buildAuthHeaders(authToken);
-    const response = await moorFetch(`/api/objects`, {
+    const response = await moorFetch(`/v1/objects`, {
         method: "GET",
         headers,
     });
@@ -2318,7 +2318,7 @@ export async function updatePropertyFlatBuffer(
     // Backend will parse it into a Var
     const headers = buildAuthHeaders(authToken);
     headers["Content-Type"] = "text/plain";
-    const response = await moorFetch(`/api/properties/${objectCurie}/${encodeURIComponent(propertyName)}`, {
+    const response = await moorFetch(`/v1/properties/${objectCurie}/${encodeURIComponent(propertyName)}`, {
         method: "POST",
         headers,
         body: value,

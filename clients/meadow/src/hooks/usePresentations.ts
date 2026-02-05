@@ -195,7 +195,7 @@ export const usePresentations = () => {
 
         try {
             const headers = buildAuthHeaders(authToken);
-            const response = await fetch(`/api/presentations/${encodeURIComponent(id)}`, {
+            const response = await fetch(`/v1/presentations/${encodeURIComponent(id)}`, {
                 method: "DELETE",
                 headers,
             });

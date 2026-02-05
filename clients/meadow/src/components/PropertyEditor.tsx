@@ -209,7 +209,7 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({
             } else {
                 // REST API saving for present-triggered editors
                 const response = await fetch(
-                    `/properties/${encodeURIComponent(objectCurie)}/${encodeURIComponent(propertyName)}`,
+                    `/v1/properties/${encodeURIComponent(objectCurie)}/${encodeURIComponent(propertyName)}`,
                     {
                         method: "POST",
                         headers: (() => {

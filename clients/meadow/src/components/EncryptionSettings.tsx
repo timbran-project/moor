@@ -60,7 +60,7 @@ export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvaila
                 throw new Error("No auth token found");
             }
             const headers = buildAuthHeaders(authToken);
-            const response = await fetch("/api/event-log/history", {
+            const response = await fetch("/v1/event-log/history", {
                 method: "DELETE",
                 headers,
             });

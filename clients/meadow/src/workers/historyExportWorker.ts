@@ -184,7 +184,7 @@ async function fetchAllHistoryEncrypted(authToken: string, ageIdentity: string):
             params.set("until_event", oldestEventId);
         }
 
-        const url = `/api/history?${params}`;
+        const url = `/v1/history?${params}`;
 
         console.log(`[Worker] Fetching batch: ${url}`);
         const response = await fetch(url, {

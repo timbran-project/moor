@@ -63,7 +63,7 @@ export default defineConfig({
     server: {
         port: 3000,
         proxy: {
-            "/api": process.env.MOOR_API_URL || "http://localhost:8080",
+            "/v1": process.env.MOOR_API_URL || "http://localhost:8080",
             "/ws": {
                 target: process.env.MOOR_WS_URL || "ws://localhost:8080",
                 ws: true,
@@ -71,12 +71,6 @@ export default defineConfig({
             "/health": process.env.MOOR_API_URL || "http://localhost:8080",
             "/version": process.env.MOOR_API_URL || "http://localhost:8080",
             "/auth": process.env.MOOR_API_URL || "http://localhost:8080",
-            "/eval": process.env.MOOR_API_URL || "http://localhost:8080",
-            "/verbs": process.env.MOOR_API_URL || "http://localhost:8080",
-            "/properties": process.env.MOOR_API_URL || "http://localhost:8080",
-            "/objects": process.env.MOOR_API_URL || "http://localhost:8080",
-            "/system_property": process.env.MOOR_API_URL || "http://localhost:8080",
-            "/fb": process.env.MOOR_API_URL || "http://localhost:8080",
             "/webhooks": process.env.MOOR_API_URL || "http://localhost:8080",
         },
     },

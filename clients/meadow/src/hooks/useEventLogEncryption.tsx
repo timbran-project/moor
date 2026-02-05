@@ -57,7 +57,7 @@ export const useEventLogEncryption = (
 
         try {
             const headers = buildAuthHeaders(authToken);
-            const response = await fetch("/api/event-log/pubkey", {
+            const response = await fetch("/v1/event-log/pubkey", {
                 headers,
             });
 
@@ -106,7 +106,7 @@ export const useEventLogEncryption = (
             console.log("Sending public key to server...");
             const headers = buildAuthHeaders(authToken);
             headers["Content-Type"] = "application/json";
-            const response = await fetch("/api/event-log/pubkey", {
+            const response = await fetch("/v1/event-log/pubkey", {
                 method: "PUT",
                 headers,
                 body: JSON.stringify({ public_key: publicKey }),
