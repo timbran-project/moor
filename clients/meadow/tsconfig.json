@@ -23,7 +23,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@/components/*": ["./src/components/*"]
+      "@/components/*": ["./src/components/*"],
+      "monaco-editor": ["./node_modules/monaco-editor"],
+      "monaco-editor/*": ["./node_modules/monaco-editor/*"],
+      "@monaco-editor/react": ["./node_modules/@monaco-editor/react"]
     }
   },
   "include": ["src/**/*"],
