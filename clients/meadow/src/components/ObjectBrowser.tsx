@@ -188,6 +188,29 @@ const listToMooLiteral = (items: string[]): string => {
     return `{${parts.join(", ")}}`;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === "object" && value !== null;
+};
+
+const hasEvalError = (value: unknown): value is { error?: { msg?: string } } => {
+    return isRecord(value) && "error" in value;
+};
+
+const formatEvalObjectRef = (value: unknown): string | null => {
+    if (!isRecord(value)) {
+        return null;
+    }
+    const oid = value["oid"];
+    if (typeof oid === "number") {
+        return `#${oid}`;
+    }
+    const uuid = value["uuid"];
+    if (typeof uuid === "string") {
+        return `#${uuObjIdToString(BigInt(uuid))}`;
+    }
+    return null;
+};
+
 export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     visible,
     onClose,
@@ -487,11 +510,11 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                     for (const entry of result) {
                         if (Array.isArray(entry) && entry.length === 2) {
                             const [propName, objRef] = entry;
-                            if (typeof propName === "string" && objRef && typeof objRef === "object") {
+                            if (typeof propName === "string" && isRecord(objRef)) {
                                 let objId: string | null = null;
-                                if ("oid" in objRef && typeof objRef.oid === "number") {
+                                if (typeof objRef.oid === "number") {
                                     objId = String(objRef.oid);
-                                } else if ("uuid" in objRef && typeof objRef.uuid === "string") {
+                                } else if (typeof objRef.uuid === "string") {
                                     // UUID comes as packed bigint string, need to convert to formatted string
                                     objId = uuObjIdToString(BigInt(objRef.uuid));
                                 }
@@ -501,14 +524,14 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                             }
                         }
                     }
-                } else if (result && typeof result === "object") {
+                } else if (isRecord(result)) {
                     // If it's an object/map with property names as keys
                     for (const [propName, objRef] of Object.entries(result)) {
                         let objId: string | null = null;
-                        if (objRef && typeof objRef === "object") {
-                            if ("oid" in objRef && typeof objRef.oid === "number") {
+                        if (isRecord(objRef)) {
+                            if (typeof objRef.oid === "number") {
                                 objId = String(objRef.oid);
-                            } else if ("uuid" in objRef && typeof objRef.uuid === "string") {
+                            } else if (typeof objRef.uuid === "string") {
                                 // UUID comes as packed bigint string, need to convert to formatted string
                                 objId = uuObjIdToString(BigInt(objRef.uuid));
                             }
@@ -904,30 +927,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         try {
             const previousIds = new Set(objects.map(o => o.obj));
             const result = await performEvalFlatBuffer(authToken, expr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "create() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "create() failed";
                 throw new Error(msg);
             }
 
             // Extract the created object reference from the result
-            let createdObjExpr: string | null = null;
-            if (result && typeof result === "object") {
-                if ("oid" in result) {
-                    const oidResult = result as { oid?: number };
-                    if (typeof oidResult.oid === "number") {
-                        createdObjExpr = `#${oidResult.oid}`;
-                    }
-                } else if ("uuid" in result) {
-                    const uuidResult = result as { uuid?: string };
-                    if (typeof uuidResult.uuid === "string") {
-                        // Format UUID properly: FFFFFF-FFFFFFFFFF
-                        const packedValue = BigInt(uuidResult.uuid);
-                        const formattedUuid = uuObjIdToString(packedValue);
-                        createdObjExpr = `#${formattedUuid}`;
-                    }
-                }
-            }
+            const createdObjExpr = formatEvalObjectRef(result);
             if (!createdObjExpr) {
                 console.error("Could not extract object reference from create() result");
             }
@@ -1010,9 +1016,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         try {
             const recycleExpr = `return recycle(${objectExpr});`;
             const result = await performEvalFlatBuffer(authToken, recycleExpr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "recycle() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "recycle() failed";
                 throw new Error(msg);
             }
             if (typeof result === "string") {
@@ -1063,9 +1068,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             const result = await performEvalFlatBuffer(authToken, expr);
 
             // Check for error
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "dump_object() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "dump_object() failed";
                 throw new Error(msg);
             }
 
@@ -1134,9 +1138,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             }
 
             const result = await performEvalFlatBuffer(authToken, expr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "reload_object() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "reload_object() failed";
                 throw new Error(msg);
             }
 
@@ -1191,9 +1194,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 `return add_property(${objectExpr}, '${escapedName}, ${form.value}, {${ownerExpr}, "${perms}"});`;
 
             const result = await performEvalFlatBuffer(authToken, expr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "add_property() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "add_property() failed";
                 throw new Error(msg);
             }
 
@@ -1247,9 +1249,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 `return add_verb(${objectExpr}, {${ownerExpr}, "${perms}", "${verbNames}"}, {"${dobj}", "${prep}", "${iobj}"});`;
 
             const result = await performEvalFlatBuffer(authToken, expr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "add_verb() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "add_verb() failed";
                 throw new Error(msg);
             }
 
@@ -1283,9 +1284,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             const expr = `return delete_verb(${objectExpr}, "${verbName}");`;
 
             const result = await performEvalFlatBuffer(authToken, expr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "delete_verb() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "delete_verb() failed";
                 throw new Error(msg);
             }
 
@@ -1322,9 +1322,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             const expr = `return delete_property(${objectExpr}, '${propertyToDelete.name});`;
 
             const result = await performEvalFlatBuffer(authToken, expr);
-            if (result && typeof result === "object" && "error" in result) {
-                const errorResult = result as { error?: { msg?: string } };
-                const msg = errorResult.error?.msg ?? "delete_property() failed";
+            if (hasEvalError(result)) {
+                const msg = result.error?.msg ?? "delete_property() failed";
                 throw new Error(msg);
             }
 
@@ -1385,20 +1384,16 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             let resultStr = "";
             let errorStr = undefined;
 
-            if (result && typeof result === "object" && "error" in result) {
+            if (hasEvalError(result)) {
                 success = false;
-                const errorResult = result as { error?: { msg?: string } };
-                errorStr = errorResult.error?.msg ?? "Test failed";
+                errorStr = result.error?.msg ?? "Test failed";
             } else if (result !== undefined) {
                 // Try to format result nicely
-                if (typeof result === "object") {
-                    if ("oid" in result) {
-                        resultStr = `#${result.oid}`;
-                    } else if ("uuid" in result) {
-                        resultStr = `#${uuObjIdToString(BigInt(result.uuid as string))}`;
-                    } else {
-                        resultStr = JSON.stringify(result);
-                    }
+                const objectRef = formatEvalObjectRef(result);
+                if (objectRef) {
+                    resultStr = objectRef;
+                } else if (isRecord(result)) {
+                    resultStr = JSON.stringify(result);
                 } else {
                     resultStr = String(result);
                 }
@@ -1453,19 +1448,15 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 let resultStr = "";
                 let errorStr = undefined;
 
-                if (result && typeof result === "object" && "error" in result) {
+                if (hasEvalError(result)) {
                     success = false;
-                    const errorResult = result as { error?: { msg?: string } };
-                    errorStr = errorResult.error?.msg ?? "Test failed";
+                    errorStr = result.error?.msg ?? "Test failed";
                 } else {
-                    if (typeof result === "object") {
-                        if ("oid" in result) {
-                            resultStr = `#${result.oid}`;
-                        } else if ("uuid" in result) {
-                            resultStr = `#${uuObjIdToString(BigInt(result.uuid as string))}`;
-                        } else {
-                            resultStr = JSON.stringify(result);
-                        }
+                    const objectRef = formatEvalObjectRef(result);
+                    if (objectRef) {
+                        resultStr = objectRef;
+                    } else if (isRecord(result)) {
+                        resultStr = JSON.stringify(result);
                     } else {
                         resultStr = String(result);
                     }

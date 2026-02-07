@@ -6,7 +6,7 @@ export default defineConfig({
     test: {
         environment: "jsdom",
         globals: true,
-        include: ["web-client/**/*.test.{ts,tsx}"],
+        include: ["src/**/*.test.{ts,tsx}", "web-client/**/*.test.{ts,tsx}"],
         setupFiles: ["./vitest.setup.ts"],
     },
 });

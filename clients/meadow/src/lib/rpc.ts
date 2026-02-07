@@ -244,7 +244,7 @@ export function curieORef(curie: string): ObjectRef {
  * @returns Promise resolving to the evaluated result
  * @throws Error if the evaluation fails
  */
-export async function performEval(authToken: string, expr: string): Promise<any> {
+export async function performEval(authToken: string, expr: string): Promise<unknown> {
     return performEvalFlatBuffer(authToken, expr);
 }
 

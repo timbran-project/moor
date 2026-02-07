@@ -11,23 +11,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-export const buildAuthHeaders = (authToken: string): Record<string, string> => {
-    const headers: Record<string, string> = {
-        "X-Moor-Auth-Token": authToken,
-    };
-    // Connection credentials are per-tab (sessionStorage), not shared across tabs
-    const clientToken = sessionStorage.getItem("client_token");
-    const clientId = sessionStorage.getItem("client_id");
+import { buildAuthHeaders as buildHeaders } from "@moor/web-sdk";
 
-    if (clientToken) {
-        headers["X-Moor-Client-Token"] = clientToken;
-    }
-    if (clientId) {
-        headers["X-Moor-Client-Id"] = clientId;
-    }
-
-    return headers;
-};
+export const buildAuthHeaders = (authToken: string): Record<string, string> => buildHeaders(authToken);
 
 /**
  * Handle 401 Unauthorized responses by clearing local session state

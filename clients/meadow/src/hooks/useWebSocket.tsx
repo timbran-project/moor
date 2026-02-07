@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { buildWsAttach } from "@moor/web-sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
@@ -170,21 +171,25 @@ export const useWebSocket = (
             // Session active flag is cross-tab (localStorage) for coordination
             const sessionActive = localStorage.getItem("client_session_active") === "true";
 
-            const wsUrl = `${isSecure ? "wss://" : "ws://"}${baseUrl}/ws/attach/${mode}`;
-            const wsProtocols = ["moor", `paseto.${player.authToken}`];
-
             if (player.isInitialAttach) {
-                wsProtocols.push("initial_attach.true");
                 console.log("[WebSocket] Initial attach - will trigger user_connected");
             }
-
             if (sessionActive && clientToken && clientId) {
-                wsProtocols.push(`client_id.${clientId}`);
-                wsProtocols.push(`client_token.${clientToken}`);
                 console.log("[WebSocket] Reconnecting with existing client_id:", clientId);
             } else {
                 console.log("[WebSocket] New connection (no stored tokens)");
             }
+
+            const wsBaseUrl = `${isSecure ? "wss://" : "ws://"}${baseUrl}`;
+            const { wsUrl, protocols: wsProtocols } = buildWsAttach(wsBaseUrl, {
+                mode,
+                credentials: {
+                    authToken: player.authToken,
+                    isInitialAttach: player.isInitialAttach,
+                    clientId: sessionActive ? clientId : null,
+                    clientToken: sessionActive ? clientToken : null,
+                },
+            });
 
             console.log("[WebSocket] Creating new WebSocket to:", wsUrl);
             const ws = new WebSocket(wsUrl, wsProtocols);

@@ -57,6 +57,7 @@ interface LoginProps {
  * Hook to fetch welcome message and content type from the server
  */
 export const useWelcomeMessage = () => {
+    const { authState } = useAuthContext();
     const [welcomeMessage, setWelcomeMessage] = useState<string>("");
     const [contentType, setContentType] = useState<
         "text/plain" | "text/djot" | "text/html" | "text/traceback" | "text/x-uri"
@@ -67,6 +68,7 @@ export const useWelcomeMessage = () => {
     useEffect(() => {
         let timeoutId: number;
         let isComponentMounted = true;
+        let shouldPoll = true;
 
         const fetchWelcome = async (): Promise<boolean> => {
             try {
@@ -91,24 +93,29 @@ export const useWelcomeMessage = () => {
         };
 
         const pollForWelcome = async () => {
+            if (!shouldPoll || authState.player) {
+                return;
+            }
             const success = await fetchWelcome();
 
-            if (!success && isComponentMounted) {
+            if (!success && isComponentMounted && shouldPoll && !authState.player) {
                 // Retry after 2 seconds
                 timeoutId = window.setTimeout(pollForWelcome, 2000);
             }
         };
 
-        // Start polling
-        pollForWelcome();
+        if (!authState.player) {
+            pollForWelcome();
+        }
 
         return () => {
             isComponentMounted = false;
+            shouldPoll = false;
             if (timeoutId) {
                 window.clearTimeout(timeoutId);
             }
         };
-    }, []);
+    }, [authState.player]);
 
     return { welcomeMessage, contentType, isLoading, isServerReady };
 };
