@@ -5,7 +5,7 @@ object COUCH
   owner: HACKER
   readable: true
 
-  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .variables = {'This, 'Actor}, .head = 'henri_sitting>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .enabled = true, .fired_at = 0>;
+  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {{'is_sitting, 'This, HENRI}, {'not_is, 'This, 'Actor, HENRI}}, .variables = {'This, 'Actor}, .head = 'henri_sitting>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .fired_at = 0>;
 
   override aliases = {"couch", "sofa", "ratty couch"};
   override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";

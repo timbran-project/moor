@@ -4,6 +4,89 @@ object SUB_UTILS
   owner: HACKER
   readable: true
 
+  property article_patterns (owner: ARCH_WIZARD, flags: "rc") = {
+    {"a ", 3, "a"},
+    {"an ", 4, "a"},
+    {"the ", 5, "the"},
+    {"A ", 3, "ac"},
+    {"An ", 4, "ac"},
+    {"The ", 5, "thec"}
+  };
+  property pronoun_map (owner: ARCH_WIZARD, flags: "rc") = [
+    "object" -> "o",
+    "pos_adj" -> "p",
+    "pos_noun" -> "q",
+    "reflexive" -> "r",
+    "subject" -> "s"
+  ];
+  property token_map (owner: ARCH_WIZARD, flags: "rc") = [
+    "be" -> {"verb_be", {}},
+    "be_dobj" -> {"verb_be_dobj", {}},
+    "be_iobj" -> {"verb_be_iobj", {}},
+    "d" -> {"d", {}},
+    "dc" -> {"dc", {}},
+    "have" -> {"verb_have", {}},
+    "have_dobj" -> {"verb_have_dobj", {}},
+    "have_iobj" -> {"verb_have_iobj", {}},
+    "i" -> {"i", {}},
+    "ic" -> {"ic", {}},
+    "l" -> {"l", {}},
+    "lc" -> {"lc", {}},
+    "look" -> {"verb_look", {}},
+    "look_dobj" -> {"verb_look_dobj", {}},
+    "look_iobj" -> {"verb_look_iobj", {}},
+    "n" -> {"n", {}},
+    "nc" -> {"nc", {}},
+    "o" -> {"o", {}},
+    "o_dobj" -> {"o_dobj", {}},
+    "o_iobj" -> {"o_iobj", {}},
+    "oc" -> {"oc", {}},
+    "oc_dobj" -> {"oc_dobj", {}},
+    "oc_iobj" -> {"oc_iobj", {}},
+    "p" -> {"p", {}},
+    "p_dobj" -> {"p_dobj", {}},
+    "p_iobj" -> {"p_iobj", {}},
+    "pc" -> {"pc", {}},
+    "pc_dobj" -> {"pc_dobj", {}},
+    "pc_iobj" -> {"pc_iobj", {}},
+    "q" -> {"q", {}},
+    "q_dobj" -> {"q_dobj", {}},
+    "q_iobj" -> {"q_iobj", {}},
+    "qc" -> {"qc", {}},
+    "qc_dobj" -> {"qc_dobj", {}},
+    "qc_iobj" -> {"qc_iobj", {}},
+    "r" -> {"r", {}},
+    "r_dobj" -> {"r_dobj", {}},
+    "r_iobj" -> {"r_iobj", {}},
+    "rc" -> {"rc", {}},
+    "rc_dobj" -> {"rc_dobj", {}},
+    "rc_iobj" -> {"rc_iobj", {}},
+    "s" -> {"s", {}},
+    "s_dobj" -> {"s_dobj", {}},
+    "s_iobj" -> {"s_iobj", {}},
+    "sc" -> {"sc", {}},
+    "sc_dobj" -> {"sc_dobj", {}},
+    "sc_iobj" -> {"sc_iobj", {}},
+    "t" -> {"t", {}},
+    "tc" -> {"tc", {}}
+  ];
+  property typemap (owner: ARCH_WIZARD, flags: "rc") = [
+    'verb_be -> "be",
+    'verb_have -> "have",
+    'verb_look -> "look",
+    'this -> "t",
+    'location -> "l",
+    'dobj -> "d",
+    'iobj -> "i",
+    'subject -> "s",
+    'actor -> "n",
+    'pos_adj -> "p",
+    'object -> "o",
+    'reflexive -> "r",
+    'pos_noun -> "q"
+  ];
+  property verb_map (owner: ARCH_WIZARD, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
+
   override description = "Compiler and utilities for $sub template language.";
   override import_export_hierarchy = {"events"};
   override import_export_id = "sub_utils";
@@ -131,16 +214,35 @@ object SUB_UTILS
     pos = 1;
     len = length(template);
     while (pos <= len)
-      token_start_offset = index(template[pos..$], "{");
-      if (!token_start_offset)
-        pos <= len && (content = {@content, template[pos..$]});
+      token_start = index(template, "{", 0, pos - 1);
+      if (!token_start)
+        content = {@content, template[pos..$]};
         break;
       endif
-      token_start = pos + token_start_offset - 1;
-      token_start > pos && (content = {@content, template[pos..token_start - 1]});
-      token_end_offset = index(template[token_start + 1..$], "}");
-      !token_end_offset && raise(E_INVARG, "Unclosed brace in template at position " + token_start);
-      token_end = token_start + token_end_offset;
+      if (token_start > pos)
+        content = {@content, template[pos..token_start - 1]};
+      endif
+      depth = 1;
+      scan_pos = token_start + 1;
+      token_end = 0;
+      while (scan_pos <= len)
+        next_open = index(template, "{", 0, scan_pos - 1);
+        next_close = index(template, "}", 0, scan_pos - 1);
+        if (!next_close)
+          raise(E_INVARG, "Unclosed brace in template at position " + tostr(token_start));
+        endif
+        if (next_open && next_open < next_close)
+          depth = depth + 1;
+          scan_pos = next_open + 1;
+        else
+          depth = depth - 1;
+          if (depth == 0)
+            token_end = next_close;
+            break;
+          endif
+          scan_pos = next_close + 1;
+        endif
+      endwhile
       fw = this:_parse_token(template[token_start + 1..token_end - 1]);
       typeof(fw) == TYPE_FLYWEIGHT && (content = {@content, fw});
       pos = token_end + 1;
@@ -159,19 +261,17 @@ object SUB_UTILS
       length(parts) != 2 && raise(E_INVARG, "Self-alternation must have exactly 2 parts: " + token_content);
       return $sub:self_alt(parts[1]:trim(), parts[2]:trim());
     endif
-    "Articles";
-    article_patterns = {{"a ", 3, "a"}, {"an ", 4, "a"}, {"the ", 5, "the"}, {"A ", 3, "ac"}, {"An ", 4, "ac"}, {"The ", 5, "thec"}};
-    for pattern in (article_patterns)
+    "Articles from property";
+    for pattern in (this.article_patterns)
       {prefix, skip, method} = pattern;
       if (token_content:starts_with(prefix))
         binding_name = tosym(token_content[skip..$]:trim());
         return $sub:(method)(binding_name);
       endif
     endfor
-    "Direct dispatch for known tokens";
-    token_map = ["n" -> {"n", {}}, "nc" -> {"nc", {}}, "d" -> {"d", {}}, "dc" -> {"dc", {}}, "i" -> {"i", {}}, "ic" -> {"ic", {}}, "l" -> {"l", {}}, "lc" -> {"lc", {}}, "t" -> {"t", {}}, "tc" -> {"tc", {}}, "s" -> {"s", {}}, "sc" -> {"sc", {}}, "o" -> {"o", {}}, "oc" -> {"oc", {}}, "p" -> {"p", {}}, "pc" -> {"pc", {}}, "q" -> {"q", {}}, "qc" -> {"qc", {}}, "r" -> {"r", {}}, "rc" -> {"rc", {}}, "s_dobj" -> {"s_dobj", {}}, "sc_dobj" -> {"sc_dobj", {}}, "o_dobj" -> {"o_dobj", {}}, "oc_dobj" -> {"oc_dobj", {}}, "p_dobj" -> {"p_dobj", {}}, "pc_dobj" -> {"pc_dobj", {}}, "q_dobj" -> {"q_dobj", {}}, "qc_dobj" -> {"qc_dobj", {}}, "r_dobj" -> {"r_dobj", {}}, "rc_dobj" -> {"rc_dobj", {}}, "s_iobj" -> {"s_iobj", {}}, "sc_iobj" -> {"sc_iobj", {}}, "o_iobj" -> {"o_iobj", {}}, "oc_iobj" -> {"oc_iobj", {}}, "p_iobj" -> {"p_iobj", {}}, "pc_iobj" -> {"pc_iobj", {}}, "q_iobj" -> {"q_iobj", {}}, "qc_iobj" -> {"qc_iobj", {}}, "r_iobj" -> {"r_iobj", {}}, "rc_iobj" -> {"rc_iobj", {}}, "be" -> {"verb_be", {}}, "be_dobj" -> {"verb_be_dobj", {}}, "be_iobj" -> {"verb_be_iobj", {}}, "have" -> {"verb_have", {}}, "have_dobj" -> {"verb_have_dobj", {}}, "have_iobj" -> {"verb_have_iobj", {}}, "look" -> {"verb_look", {}}, "look_dobj" -> {"verb_look_dobj", {}}, "look_iobj" -> {"verb_look_iobj", {}}];
-    if (maphaskey(token_map, token_content))
-      {method, method_args} = token_map[token_content];
+    "Direct dispatch from property";
+    if (maphaskey(this.token_map, token_content))
+      {method, method_args} = this.token_map[token_content];
       return $sub:(method)(@method_args);
     endif
     "Fallback: treat as binding";
@@ -210,26 +310,23 @@ object SUB_UTILS
       return "{" + (capitalize ? name_str:capitalize() | name_str) + "}";
     endif
     "Map type symbols back to token names";
-    typemap = ['actor -> "n", 'dobj -> "d", 'iobj -> "i", 'location -> "l", 'this -> "t", 'subject -> "s", 'object -> "o", 'pos_adj -> "p", 'pos_noun -> "q", 'reflexive -> "r", 'verb_be -> "be", 'verb_have -> "have", 'verb_look -> "look"];
-    if (maphaskey(typemap, token_type))
-      base = typemap[token_type];
+    if (maphaskey(this.typemap, token_type))
+      base = this.typemap[token_type];
       return "{" + base + (capitalize ? "c" | "") + "}";
     endif
     "Object-specific versions (dobj_*, iobj_*)";
     token_str = tostr(token_type);
-    pronoun_map = ["subject" -> "s", "object" -> "o", "pos_adj" -> "p", "pos_noun" -> "q", "reflexive" -> "r"];
-    verb_map = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
     if (token_str:starts_with("dobj_"))
       base = token_str[6..$];
-      maphaskey(verb_map, base) && return "{" + verb_map[base] + "_dobj}";
+      maphaskey(this.verb_map, base) && return "{" + this.verb_map[base] + "_dobj}";
       suffix = capitalize ? "c_dobj" | "_dobj";
-      maphaskey(pronoun_map, base) && return "{" + pronoun_map[base] + suffix + "}";
+      maphaskey(this.pronoun_map, base) && return "{" + this.pronoun_map[base] + suffix + "}";
     endif
     if (token_str:starts_with("iobj_"))
       base = token_str[6..$];
-      maphaskey(verb_map, base) && return "{" + verb_map[base] + "_iobj}";
+      maphaskey(this.verb_map, base) && return "{" + this.verb_map[base] + "_iobj}";
       suffix = capitalize ? "c_iobj" | "_iobj";
-      maphaskey(pronoun_map, base) && return "{" + pronoun_map[base] + suffix + "}";
+      maphaskey(this.pronoun_map, base) && return "{" + this.pronoun_map[base] + suffix + "}";
     endif
     return "{?" + token_str + "?}";
   endverb
@@ -292,6 +389,38 @@ object SUB_UTILS
     compiled = this:compile(original);
     decompiled = this:decompile(compiled);
     decompiled != original && raise(E_ASSERT, "Decompilation failed: " + decompiled);
+    return true;
+  endverb
+
+  verb test_compile_nested (this none none) owner: ARCH_WIZARD flags: "rxd"
+    "Test compilation of nested braces.";
+    template = "Look at {the {adj} key}.";
+    result = this:compile(template);
+    "Expected: 'Look at ', FW(article_the, binding='{adj} key'), '.'";
+    "Note: The current parser treats the inner content as a raw string binding name because _parse_token doesnt recursively compile.";
+    "However, the key improvement is that it DOESNT choke on the inner braces.";
+    length(result) != 3 && raise(E_ASSERT, "Result length mismatch: " + tostr(length(result)));
+    result[1] != "Look at " && raise(E_ASSERT, "Prefix mismatch");
+    typeof(result[2]) != TYPE_FLYWEIGHT && raise(E_ASSERT, "Middle token not flyweight");
+    "The binding name should capture the full inner content including braces";
+    "If the parser stopped at the first }, it would be '{adj'";
+    binding = tostr(result[2].binding_name);
+    binding != "{adj} key" && raise(E_ASSERT, "Binding content mismatch. Got: " + binding);
+    return true;
+  endverb
+
+  verb test_compile_properties (this none none) owner: ARCH_WIZARD flags: "rxd"
+    "Test property-based map lookups.";
+    "Test direct token map";
+    res1 = this:compile("You are {n}.");
+    res1[2].type != 'actor && raise(E_ASSERT, "Failed to map {n} to actor");
+    "Test verb map lookup via _parse_token logic";
+    res2 = this:compile("Use {be}.");
+    res2[2].type != 'verb_be && raise(E_ASSERT, "Failed to map {be} to verb_be");
+    "Test specific object suffix logic (dobj_*)";
+    res3 = this:compile("It is {be_dobj}.");
+    "Note: $sub:verb_be returns 'dobj_verb_be' when called as verb_be_dobj";
+    res3[2].type != 'dobj_verb_be && raise(E_ASSERT, "Failed to map {be_dobj}. Got: " + tostr(res3[2].type));
     return true;
   endverb
 endobject

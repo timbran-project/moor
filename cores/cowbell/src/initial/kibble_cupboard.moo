@@ -5,11 +5,11 @@ object KIBBLE_CUPBOARD
   owner: ARCH_WIZARD
   readable: true
 
-  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_take, .when = <RULE, .name = 'kibble_check, .body = {{'isa, 'Item, CAT_KIBBLE}}, .variables = {'Item}, .head = 'kibble_check>, .effects = {{'trigger, HENRI, 'on_kibble_taken}}, .enabled = true, .fired_at = 0>;
-  property waft_reaction (owner: HACKER, flags: "r") = <REACTION, .trigger = 'on_open, .when = 0, .effects = {
+  property kibble_taken_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_take, .when = <RULE, .name = 'kibble_check, .body = {{'isa, 'Item, CAT_KIBBLE}}, .variables = {'Item}, .head = 'kibble_check>, .effects = {{'trigger, HENRI, 'on_kibble_taken}}, .fired_at = 0>;
+  property waft_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_open, .when = 0, .effects = {
       {'announce, "A waft of kibble-scented air escapes from the cupboard."},
       {'trigger, HENRI, 'on_cupboard_open}
-    }, .enabled = true, .fired_at = 0>;
+    }, .fired_at = 0>;
 
   override aliases = {"cupboard", "cabinet", "wooden cupboard"};
   override close_msg = {
