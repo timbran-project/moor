@@ -276,6 +276,7 @@ object AREA
     {this, perms} = this:check_permissions('add_room);
     {room} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
+    set_task_perms(perms);
     room:moveto(this);
     return room;
   endverb
@@ -332,19 +333,21 @@ object AREA
   endverb
 
   verb update_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Update an existing passage between two rooms. Requires 'dig_from permission on source room.";
+    "Update an existing passage between two rooms.";
+    "Requires 'dig_from on source room; does not create new links.";
     set_task_perms(caller_perms());
     {source_room, dest_room, new_passage} = args;
-    typeof(source_room) == TYPE_OBJ && typeof(dest_room) == TYPE_OBJ || raise(E_TYPE);
+    typeof(source_room) == TYPE_OBJ || typeof(source_room) == TYPE_FLYWEIGHT || raise(E_TYPE);
+    typeof(dest_room) == TYPE_OBJ || typeof(dest_room) == TYPE_FLYWEIGHT || raise(E_TYPE);
     typeof(new_passage) == TYPE_OBJ || typeof(new_passage) == TYPE_FLYWEIGHT || raise(E_TYPE);
-    "Extract actual room objects from capabilities if needed";
     actual_source = typeof(source_room) == TYPE_FLYWEIGHT ? source_room.delegate | source_room;
     actual_dest = typeof(dest_room) == TYPE_FLYWEIGHT ? dest_room.delegate | dest_room;
-    "Check that source room allows digging from it";
+    valid(actual_source) && valid(actual_dest) || raise(E_INVARG);
+    existing = this:passage_for(actual_source, actual_dest);
+    typeof(existing) != TYPE_FLYWEIGHT && (typeof(existing) != TYPE_OBJ || !valid(existing)) && raise(E_INVARG, "No existing passage between those rooms.");
     cap = caller_perms():find_capability_for(actual_source, 'room);
     room_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | actual_source;
     room_target:check_can_dig_from();
-    "Update the passage";
     this:set_passage(actual_source, actual_dest, new_passage);
     return new_passage;
   endverb

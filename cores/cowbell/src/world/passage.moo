@@ -274,23 +274,26 @@ object PASSAGE
     "Also handles direction abbreviations (n/north, e/east, etc).";
     {room, command} = args;
     typeof(command) == TYPE_STR || return false;
+    command = command:trim():lowercase();
+    !command && return false;
     "Build list of commands to check (original + any expanded direction)";
     commands_to_check = {command};
     if (maphaskey(this.direction_abbrevs, command))
       expanded = this.direction_abbrevs[command];
-      if (expanded && !(expanded in commands_to_check))
-        commands_to_check = {@commands_to_check, expanded};
+      if (typeof(expanded) == TYPE_STR)
+        expanded = expanded:trim():lowercase();
+        expanded && !(expanded in commands_to_check) && (commands_to_check = {@commands_to_check, expanded});
       endif
     endif
     "Check each command variant against aliases and label";
     for cmd in (commands_to_check)
       for alias in (this:aliases_for(room))
-        if (typeof(alias) == TYPE_STR && alias == cmd)
+        if (typeof(alias) == TYPE_STR && alias:trim():lowercase() == cmd)
           return true;
         endif
       endfor
       label = this:label_for(room);
-      if (typeof(label) == TYPE_STR && label == cmd)
+      if (typeof(label) == TYPE_STR && label:trim():lowercase() == cmd)
         return true;
       endif
     endfor
@@ -336,6 +339,12 @@ object PASSAGE
       "Fall back to default message generation";
       from_description = this:description_for(from_room);
       departure_phrase = this:departure_phrase_for(from_room);
+      if (!departure_phrase || departure_phrase == "" && typeof(from_description) == TYPE_STR)
+        desc_lower = from_description:lowercase();
+        if (desc_lower:starts_with("through "))
+          from_description = from_description[9..length(from_description)];
+        endif
+      endif
       departure = `player:mk_departure_event(from_room, from_label, from_description, to_room, departure_phrase) ! E_VERBNF => 0';
     endif
     if (departure)
@@ -367,6 +376,14 @@ object PASSAGE
       "Fall back to default message generation";
       to_description = this:description_for(to_room);
       arrival_phrase = this:arrival_phrase_for(to_room);
+      if (!arrival_phrase || arrival_phrase == "" && typeof(to_description) == TYPE_STR)
+        desc_lower = to_description:lowercase();
+        if (desc_lower:starts_with("from "))
+          to_description = to_description[6..length(to_description)];
+        elseif (desc_lower:starts_with("through "))
+          to_description = to_description[9..length(to_description)];
+        endif
+      endif
       arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room, arrival_phrase) ! E_VERBNF => 0';
     endif
     if (arrival)
@@ -379,8 +396,13 @@ object PASSAGE
   verb _notify_blocked (this none this) owner: HACKER flags: "rxd"
     "Notify player that passage is blocked/closed.";
     {player, from_room} = args;
-    door_name = this:door_name_for(from_room);
-    message = "The " + door_name + " is closed.";
+    close_msg = this:_value("close_msg", "");
+    if (typeof(close_msg) == TYPE_STR && close_msg != "")
+      message = close_msg;
+    else
+      door_name = this:door_name_for(from_room);
+      message = "The " + door_name + " is closed.";
+    endif
     player:inform_current($event:mk_error(player, message));
     return true;
   endverb
@@ -419,7 +441,7 @@ object PASSAGE
 
   verb _extract_all (this none this) owner: HACKER flags: "rxd"
     "Extract all passage properties into a map. Internal helper for transformer verbs.";
-    return ['room_a -> this:_side_lookup('a, 'room), 'room_b -> this:_side_lookup('b, 'room), 'label_a -> this:_side_lookup('a, 'label), 'label_b -> this:_side_lookup('b, 'label), 'aliases_a -> this:_side_lookup('a, 'aliases), 'aliases_b -> this:_side_lookup('b, 'aliases), 'desc_a -> this:_side_lookup('a, 'description), 'desc_b -> this:_side_lookup('b, 'description), 'ambient_a -> this:_side_lookup('a, 'ambient), 'ambient_b -> this:_side_lookup('b, 'ambient), 'leave_msg_a -> this:_side_lookup('a, 'leave_msg), 'leave_msg_b -> this:_side_lookup('b, 'leave_msg), 'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg), 'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg), 'prose_style_a -> this:_side_lookup('a, 'prose_style), 'prose_style_b -> this:_side_lookup('b, 'prose_style), 'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase), 'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase), 'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase), 'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase), 'is_open -> this:_value("is_open", true), 'is_locked -> this:_value("is_locked", false), 'unlock_rule -> this:_value("unlock_rule", 0), 'locked_msg -> this:_value("locked_msg", "")];
+    return ['room_a -> this:_side_lookup('a, 'room), 'room_b -> this:_side_lookup('b, 'room), 'label_a -> this:_side_lookup('a, 'label), 'label_b -> this:_side_lookup('b, 'label), 'aliases_a -> this:_side_lookup('a, 'aliases), 'aliases_b -> this:_side_lookup('b, 'aliases), 'desc_a -> this:_side_lookup('a, 'description), 'desc_b -> this:_side_lookup('b, 'description), 'ambient_a -> this:_side_lookup('a, 'ambient), 'ambient_b -> this:_side_lookup('b, 'ambient), 'leave_msg_a -> this:_side_lookup('a, 'leave_msg), 'leave_msg_b -> this:_side_lookup('b, 'leave_msg), 'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg), 'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg), 'prose_style_a -> this:_side_lookup('a, 'prose_style), 'prose_style_b -> this:_side_lookup('b, 'prose_style), 'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase), 'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase), 'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase), 'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase), 'is_open -> this:_value("is_open", true), 'is_locked -> this:_value("is_locked", false), 'is_door -> this:_value("is_door", false), 'unlock_rule -> this:_value("unlock_rule", 0), 'locked_msg -> this:_value("locked_msg", "")];
   endverb
 
   verb with_label_from (this none this) owner: HACKER flags: "rxd"
@@ -584,7 +606,7 @@ object PASSAGE
   verb _mk_from_props (this none this) owner: HACKER flags: "rxd"
     "Construct a passage flyweight from a props map. Internal helper for transformer verbs.";
     {props} = args;
-    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open], .is_locked = props['is_locked], .unlock_rule = props['unlock_rule], .locked_msg = props['locked_msg]>;
+    return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open], .is_locked = props['is_locked], .is_door = props['is_door], .unlock_rule = props['unlock_rule], .locked_msg = props['locked_msg]>;
   endverb
 
   verb with_prose_style_from (this none this) owner: HACKER flags: "rxd"
@@ -663,43 +685,33 @@ object PASSAGE
   endverb
 
   verb check_unlock (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Check if player can unlock this passage. Returns true if unlocked or can unlock.";
+    "Check if player can traverse this passage while locked.";
+    "Returns true if unlocked or if unlock_rule grants access with a carried key.";
     {player, from_room} = args;
-    "If not locked, always passes";
     if (!this:_value("is_locked", false))
       return true;
     endif
-    "Check unlock rule if one exists";
     unlock_rule = this:_value("unlock_rule", 0);
     if (typeof(unlock_rule) != TYPE_FLYWEIGHT)
-      "Locked with no unlock rule - cannot pass";
+      "Locked with no unlock rule: deny traversal.";
       return false;
     endif
-    "Evaluate rule to see which room(s) the lock protects";
-    "If player is INSIDE the locked room, they can always exit (egress is free)";
     to_room = this:other_room(from_room);
+    !valid(to_room) && return false;
     for item in (player.contents)
-      "Check if key unlocks FROM_ROOM - means player is inside locked room, can exit";
+      "Allow rules that key off the side being exited.";
       bindings = ['Accessor -> player, 'This -> from_room, 'Key -> item, 'Passage -> this];
       result = $rule_engine:evaluate(unlock_rule, bindings);
       if (typeof(result) == TYPE_MAP && result['success])
-        "Player has key to room they're leaving - always allowed";
         return true;
       endif
-      "Check if key unlocks TO_ROOM - means player can enter";
+      "Allow rules that key off the side being entered.";
       bindings = ['Accessor -> player, 'This -> to_room, 'Key -> item, 'Passage -> this];
       result = $rule_engine:evaluate(unlock_rule, bindings);
       if (typeof(result) == TYPE_MAP && result['success])
         return true;
       endif
     endfor
-    "No key found - but check if lock protects TO_ROOM (not from_room)";
-    "If lock is on the destination side, we're blocked. If on our side, we can exit.";
-    "Test if the lock targets to_room by trying with a hypothetical match";
-    "For now, use simpler logic: if player is exiting a $guest_room, allow it";
-    if (isa(from_room, $guest_room))
-      return true;
-    endif
     return false;
   endverb
 

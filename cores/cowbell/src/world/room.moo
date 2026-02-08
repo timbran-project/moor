@@ -1,10 +1,14 @@
 object ROOM
   name: "Generic Room"
   parent: ROOT
+  location: PROTOTYPE_BOX
   owner: HACKER
   fertile: true
   readable: true
 
+  property acoustic_debug_counts (owner: ARCH_WIZARD, flags: "rc") = ["suppressed_not_loud" -> 1];
+  property acoustic_debug_enabled (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property acoustic_debug_log (owner: ARCH_WIZARD, flags: "rc") = {};
   property acoustic_neighbors (owner: ARCH_WIZARD, flags: "rc") = [];
   property engagements (owner: ARCH_WIZARD, flags: "rc") = [];
 
@@ -98,6 +102,11 @@ object ROOM
   endverb
 
   verb disfunc (this none this) owner: HACKER flags: "rxd"
+    cooldown = `$login.sleep_announce_cooldown ! E_PROPNF => 10';
+    last = `player.last_disconnected ! ANY => 0';
+    if (typeof(last) == TYPE_INT && last > 0 && time() - last < cooldown)
+      return;
+    endif
     discon_event = player:mk_disconnected_event():with_audience('utility);
     this:announce(discon_event);
   endverb
@@ -179,42 +188,92 @@ object ROOM
       return;
     endif
     slots = flyslots(event);
-    loudness = maphaskey(slots, 'loudness) ? slots['loudness] | 0;
-    propagates = maphaskey(slots, 'propagates) ? slots['propagates] | false;
+    raw_loudness = maphaskey(slots, 'loudness) ? slots['loudness] | 0;
+    if (typeof(raw_loudness) == TYPE_INT || typeof(raw_loudness) == TYPE_FLOAT)
+      loudness = raw_loudness;
+    else
+      loudness = 0;
+      `this:_acoustic_debug_bump("bad_loudness_type") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
+    endif
+    raw_propagates = maphaskey(slots, 'propagates) ? slots['propagates] | false;
+    if (typeof(raw_propagates) == TYPE_INT || typeof(raw_propagates) == TYPE_FLOAT)
+      propagates = raw_propagates != 0;
+    else
+      propagates = raw_propagates ? true | false;
+    endif
+    origin_room = maphaskey(slots, 'origin_room) ? slots['origin_room] | this;
+    if (!valid(origin_room))
+      origin_room = this;
+    endif
+    source_room = maphaskey(slots, 'source_room) ? slots['source_room] | $nothing;
+    depth_raw = maphaskey(slots, 'acoustic_depth) ? slots['acoustic_depth] | 0;
+    max_depth_raw = maphaskey(slots, 'acoustic_max_depth) ? slots['acoustic_max_depth] | 3;
+    depth = typeof(depth_raw) == TYPE_INT || typeof(depth_raw) == TYPE_FLOAT ? depth_raw | 0;
+    max_depth = typeof(max_depth_raw) == TYPE_INT || typeof(max_depth_raw) == TYPE_FLOAT ? max_depth_raw | 3;
+    if (max_depth < 0)
+      max_depth = 0;
+    endif
+    if (depth >= max_depth)
+      entry = ["reason" -> "depth_limit", "depth" -> depth, "max_depth" -> max_depth, "when" -> time()];
+      `this:_acoustic_debug_bump("suppressed_depth_limit", entry) ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
+      return;
+    endif
     if (loudness == 0 && !propagates)
+      `this:_acoustic_debug_bump("suppressed_not_loud") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
       return;
     endif
     "Propagate to acoustic neighbors";
     neighbors = this.acoustic_neighbors;
     if (typeof(neighbors) != TYPE_LIST || length(neighbors) == 0)
+      `this:_acoustic_debug_bump("no_neighbors") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
       return;
     endif
     for neighbor_spec in (neighbors)
       if (typeof(neighbor_spec) != TYPE_MAP)
+        `this:_acoustic_debug_bump("bad_neighbor_spec") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
         continue;
       endif
-      room = `neighbor_spec['room] ! ANY => $nothing';
+      room = `neighbor_spec['room] ! E_RANGE => $nothing';
       if (!valid(room))
+        `this:_acoustic_debug_bump("invalid_neighbor_room") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
+        continue;
+      endif
+      if (room == source_room || room == origin_room)
+        `this:_acoustic_debug_bump("suppressed_loop_guard") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
         continue;
       endif
       "Check loudness threshold if specified";
-      threshold = `neighbor_spec['threshold] ! ANY => 1';
+      raw_threshold = `neighbor_spec['threshold] ! E_RANGE => 1';
+      if (typeof(raw_threshold) == TYPE_INT || typeof(raw_threshold) == TYPE_FLOAT)
+        threshold = raw_threshold;
+      else
+        threshold = 1;
+        `this:_acoustic_debug_bump("bad_threshold_type") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
+      endif
       if (loudness < threshold && !propagates)
+        `this:_acoustic_debug_bump("suppressed_threshold") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
         continue;
       endif
       "Transform the event";
-      transformer = `neighbor_spec['transformer] ! ANY => ""';
+      transformer = `neighbor_spec['transformer] ! E_RANGE => ""';
       if (typeof(transformer) == TYPE_STR && length(transformer) > 0)
         "Custom transformer verb on this room";
-        transformed = `this:(transformer)(event, room) ! ANY => 0';
+        transformed = `this:(transformer)(event, room) ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND => 0';
+        if (typeof(transformed) != TYPE_FLYWEIGHT)
+          entry = ["reason" -> "transform_failed", "transformer" -> transformer, "target_room" -> room, "when" -> time()];
+          `this:_acoustic_debug_bump("transform_failed", entry) ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
+        endif
       else
         "Default transformation: use prefix";
-        prefix = `neighbor_spec['prefix] ! ANY => "From nearby"';
+        prefix = `neighbor_spec['prefix] ! E_RANGE => "From nearby"';
         transformed = this:_default_distant_transform(event, prefix);
       endif
-      if (transformed != 0 && typeof(transformed) == TYPE_FLYWEIGHT)
-        `room:announce_distant(transformed, this) ! ANY';
+      if (typeof(transformed) != TYPE_FLYWEIGHT)
+        continue;
       endif
+      transformed = transformed:with_metadata('source_room, this):with_metadata('origin_room, origin_room):with_metadata('acoustic_depth, depth + 1):with_metadata('acoustic_max_depth, max_depth);
+      `room:announce_distant(transformed, this) ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
+      `this:_acoustic_debug_bump("propagated") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
     endfor
   endverb
 
@@ -280,12 +339,26 @@ object ROOM
         endif
       endif
     endfor
+    "Normalize, dedupe, and sort for readability.";
+    normalized = {};
+    for candidate_dir in (all_exits)
+      if (typeof(candidate_dir) != TYPE_STR)
+        continue;
+      endif
+      if (length(candidate_dir) == 0)
+        continue;
+      endif
+      if (!(candidate_dir in normalized))
+        normalized = {@normalized, candidate_dir};
+      endif
+    endfor
+    all_exits = `sort(normalized) ! ANY => normalized';
     if (length(all_exits) == 0)
       player:inform_current($event:mk_error(player, "You don't see any obvious ways out."):with_audience('utility));
       return;
     endif
     "Format and display exits with command links using 'go' prefix";
-    exit_links = { $format.link:cmd("go " + exit_dir, exit_dir) for exit_dir in (all_exits) };
+    exit_links = { $format.link:cmd("go " + listed_dir, listed_dir) for listed_dir in (all_exits) };
     exit_list = $format.list:mk(exit_links);
     exit_title = $format.title:mk("Ways out");
     content = $format.block:mk(exit_title, exit_list);
@@ -295,7 +368,6 @@ object ROOM
 
   verb action_go (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Action handler: make actor go in a direction from this room.";
-    set_task_perms(this.owner);
     {who, context, direction} = args;
     who.location != this && return false;
     "Get the area and find passage for this direction";
@@ -309,9 +381,22 @@ object ROOM
   endverb
 
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Rooms don't add extra help topics - exits command handles that.";
+    "Room-local help topics for passage/door interaction.";
     {for_player, ?topic = ""} = args;
-    return topic == "" ? {} | 0;
+    doors_help = $help:mk("doors", "Door commands", "Door commands operate only on door-like passages.\n\nA passage is treated as a door when either:\n- `is_door` is true, or\n- it has an `unlock_rule`\n\nBuilders can toggle door behavior with:\n- `@set-passage <dir> is_door true|false`", {"door", "doors", "open", "close", "lock", "unlock"}, 'basics, {"movement", "exits"});
+    open_help = $help:mk("open", "Open a door", "Open a door-like passage from this room.\n\nUsage:\n- `open <direction>`\n- `open door`\n\nIf the door is locked, open may auto-unlock when you have a matching key.", {"open door"}, 'basics, {"close", "lock", "unlock", "doors"});
+    close_help = $help:mk("close", "Close a door", "Close a door-like passage from this room.\n\nUsage:\n- `close <direction>`\n- `close door`", {"close door"}, 'basics, {"open", "lock", "unlock", "doors"});
+    lock_help = $help:mk("lock", "Lock a door", "Lock a lockable door-like passage.\n\nUsage:\n- `lock <direction>`\n- `lock <direction> with <key>`\n- `lock door`\n\nRequires a matching key and an `unlock_rule` on the passage.", {"lock door"}, 'basics, {"unlock", "open", "doors"});
+    unlock_help = $help:mk("unlock", "Unlock a door", "Unlock a lockable door-like passage.\n\nUsage:\n- `unlock <direction>`\n- `unlock <direction> with <key>`\n- `unlock door`\n\nRequires a matching key and an `unlock_rule` on the passage.", {"unlock door"}, 'basics, {"lock", "open", "doors"});
+    if (topic == "")
+      return {doors_help, open_help, close_help, lock_help, unlock_help};
+    endif
+    doors_help:matches(topic) && return doors_help;
+    open_help:matches(topic) && return open_help;
+    close_help:matches(topic) && return close_help;
+    lock_help:matches(topic) && return lock_help;
+    unlock_help:matches(topic) && return unlock_help;
+    return 0;
   endverb
 
   verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -348,6 +433,10 @@ object ROOM
     "First check if this matches an object in scope with an unlock verb";
     scope = {@player.contents, @this.contents};
     target = $match:resolve_in_scope(direction, scope);
+    if (target == $ambiguous_match)
+      player:inform_current($event:mk_error(player, "I see more than one \"" + direction + "\" here."));
+      return;
+    endif
     if (valid(target) && respond_to(target, 'unlock))
       return target:unlock();
     endif
@@ -362,20 +451,29 @@ object ROOM
     if (direction == "door")
       passages = area:passages_from(this);
       for p in (passages)
-        if (p:door_name_for(this) == "door")
+        unlock_rule = p:_value("unlock_rule", 0);
+        door_like = p:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+        if (door_like)
           passage = p;
           break;
         endif
       endfor
-      if (typeof(passage) != TYPE_FLYWEIGHT)
-        player:inform_current($event:mk_error(player, "There's no door here."));
-        return;
-      endif
     else
       passage = area:find_passage_by_direction(this, direction);
     endif
-    if (typeof(passage) != TYPE_FLYWEIGHT)
-      player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+    is_passage = typeof(passage) == TYPE_FLYWEIGHT || (typeof(passage) == TYPE_OBJ && valid(passage));
+    if (!is_passage)
+      if (direction == "door")
+        player:inform_current($event:mk_error(player, "There's no door here."));
+      else
+        player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+      endif
+      return;
+    endif
+    unlock_rule = passage:_value("unlock_rule", 0);
+    door_like = passage:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+    if (!door_like)
+      player:inform_current($event:mk_error(player, "That exit can't be unlocked."));
       return;
     endif
     "Check if it's locked";
@@ -396,7 +494,6 @@ object ROOM
       endif
     else
       "Auto-detect key";
-      unlock_rule = passage:_value("unlock_rule", 0);
       if (typeof(unlock_rule) == TYPE_FLYWEIGHT)
         for item in (player.contents)
           bindings = ['Accessor -> player, 'This -> to_room, 'Key -> item, 'Passage -> passage];
@@ -419,7 +516,6 @@ object ROOM
       return;
     endif
     "Verify the key works";
-    unlock_rule = passage:_value("unlock_rule", 0);
     if (typeof(unlock_rule) == TYPE_FLYWEIGHT)
       bindings = ['Accessor -> player, 'This -> to_room, 'Key -> key, 'Passage -> passage];
       result = $rule_engine:evaluate(unlock_rule, bindings);
@@ -434,7 +530,12 @@ object ROOM
     endif
     "Unlock the passage";
     new_passage = passage:with_locked(false);
-    area:update_passage(this, to_room, new_passage);
+    try
+      area:update_passage(this, to_room, new_passage);
+    except (E_PERM)
+      player:inform_current($event:mk_error(player, "You don't have permission to change this passage."));
+      return;
+    endtry
     door_name = passage:door_name_for(this);
     unlock_msg = new_passage:_value("unlock_msg", 0);
     if (unlock_msg)
@@ -460,6 +561,10 @@ object ROOM
     "First check if this matches an object in scope with a lock verb";
     scope = {@player.contents, @this.contents};
     target = $match:resolve_in_scope(direction, scope);
+    if (target == $ambiguous_match)
+      player:inform_current($event:mk_error(player, "I see more than one \"" + direction + "\" here."));
+      return;
+    endif
     if (valid(target) && respond_to(target, 'lock))
       return target:lock();
     endif
@@ -474,20 +579,29 @@ object ROOM
     if (direction == "door")
       passages = area:passages_from(this);
       for p in (passages)
-        if (p:door_name_for(this) == "door")
+        unlock_rule = p:_value("unlock_rule", 0);
+        door_like = p:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+        if (door_like)
           passage = p;
           break;
         endif
       endfor
-      if (typeof(passage) != TYPE_FLYWEIGHT)
-        player:inform_current($event:mk_error(player, "There's no door here."));
-        return;
-      endif
     else
       passage = area:find_passage_by_direction(this, direction);
     endif
-    if (typeof(passage) != TYPE_FLYWEIGHT)
-      player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+    is_passage = typeof(passage) == TYPE_FLYWEIGHT || (typeof(passage) == TYPE_OBJ && valid(passage));
+    if (!is_passage)
+      if (direction == "door")
+        player:inform_current($event:mk_error(player, "There's no door here."));
+      else
+        player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+      endif
+      return;
+    endif
+    unlock_rule = passage:_value("unlock_rule", 0);
+    door_like = passage:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+    if (!door_like)
+      player:inform_current($event:mk_error(player, "That exit can't be locked."));
       return;
     endif
     "Check if it's already locked";
@@ -498,7 +612,6 @@ object ROOM
       return;
     endif
     "Check if passage has a lock (unlock_rule)";
-    unlock_rule = passage:_value("unlock_rule", 0);
     if (typeof(unlock_rule) != TYPE_FLYWEIGHT)
       player:inform_current($event:mk_error(player, "That doesn't have a lock."));
       return;
@@ -550,7 +663,12 @@ object ROOM
       new_passage = new_passage:with_open(false);
     endif
     new_passage = new_passage:with_locked(true);
-    area:update_passage(this, to_room, new_passage);
+    try
+      area:update_passage(this, to_room, new_passage);
+    except (E_PERM)
+      player:inform_current($event:mk_error(player, "You don't have permission to change this passage."));
+      return;
+    endtry
     door_name = passage:door_name_for(this);
     lock_msg = new_passage:_value("lock_msg", 0);
     if (lock_msg)
@@ -576,6 +694,10 @@ object ROOM
     "First check if this matches an object in scope with an open verb";
     scope = {@player.contents, @this.contents};
     target = $match:resolve_in_scope(direction, scope);
+    if (target == $ambiguous_match)
+      player:inform_current($event:mk_error(player, "I see more than one \"" + direction + "\" here."));
+      return;
+    endif
     if (valid(target) && respond_to(target, 'open))
       return target:open();
     endif
@@ -590,20 +712,29 @@ object ROOM
     if (direction == "door")
       passages = area:passages_from(this);
       for p in (passages)
-        if (p:door_name_for(this) == "door")
+        unlock_rule = p:_value("unlock_rule", 0);
+        door_like = p:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+        if (door_like)
           passage = p;
           break;
         endif
       endfor
-      if (typeof(passage) != TYPE_FLYWEIGHT)
-        player:inform_current($event:mk_error(player, "There's no door here."));
-        return;
-      endif
     else
       passage = area:find_passage_by_direction(this, direction);
     endif
-    if (typeof(passage) != TYPE_FLYWEIGHT)
-      player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+    is_passage = typeof(passage) == TYPE_FLYWEIGHT || (typeof(passage) == TYPE_OBJ && valid(passage));
+    if (!is_passage)
+      if (direction == "door")
+        player:inform_current($event:mk_error(player, "There's no door here."));
+      else
+        player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+      endif
+      return;
+    endif
+    unlock_rule = passage:_value("unlock_rule", 0);
+    door_like = passage:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+    if (!door_like)
+      player:inform_current($event:mk_error(player, "That exit can't be opened."));
       return;
     endif
     "Check if it's already open";
@@ -618,7 +749,6 @@ object ROOM
     if (passage:_value("is_locked", false))
       "Try to unlock it first - find a key";
       key = #-1;
-      unlock_rule = passage:_value("unlock_rule", 0);
       if (typeof(unlock_rule) == TYPE_FLYWEIGHT)
         for item in (player.contents)
           bindings = ['Accessor -> player, 'This -> to_room, 'Key -> item, 'Passage -> passage];
@@ -654,7 +784,12 @@ object ROOM
     endif
     "Open the passage";
     new_passage = passage:with_open(true);
-    area:update_passage(this, to_room, new_passage);
+    try
+      area:update_passage(this, to_room, new_passage);
+    except (E_PERM)
+      player:inform_current($event:mk_error(player, "You don't have permission to change this passage."));
+      return;
+    endtry
     door_name = passage:door_name_for(this);
     open_msg = new_passage:_value("open_msg", 0);
     if (open_msg)
@@ -680,6 +815,10 @@ object ROOM
     "First check if this matches an object in scope with a close verb";
     scope = {@player.contents, @this.contents};
     target = $match:resolve_in_scope(direction, scope);
+    if (target == $ambiguous_match)
+      player:inform_current($event:mk_error(player, "I see more than one \"" + direction + "\" here."));
+      return;
+    endif
     if (valid(target) && respond_to(target, 'close))
       return target:close();
     endif
@@ -694,20 +833,29 @@ object ROOM
     if (direction == "door")
       passages = area:passages_from(this);
       for p in (passages)
-        if (p:door_name_for(this) == "door")
+        unlock_rule = p:_value("unlock_rule", 0);
+        door_like = p:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+        if (door_like)
           passage = p;
           break;
         endif
       endfor
-      if (typeof(passage) != TYPE_FLYWEIGHT)
-        player:inform_current($event:mk_error(player, "There's no door here."));
-        return;
-      endif
     else
       passage = area:find_passage_by_direction(this, direction);
     endif
-    if (typeof(passage) != TYPE_FLYWEIGHT)
-      player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+    is_passage = typeof(passage) == TYPE_FLYWEIGHT || (typeof(passage) == TYPE_OBJ && valid(passage));
+    if (!is_passage)
+      if (direction == "door")
+        player:inform_current($event:mk_error(player, "There's no door here."));
+      else
+        player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+      endif
+      return;
+    endif
+    unlock_rule = passage:_value("unlock_rule", 0);
+    door_like = passage:_value("is_door", false) || typeof(unlock_rule) == TYPE_FLYWEIGHT;
+    if (!door_like)
+      player:inform_current($event:mk_error(player, "That exit can't be closed."));
       return;
     endif
     "Check if it's already closed";
@@ -720,7 +868,12 @@ object ROOM
     "Close the passage";
     new_passage = passage:with_open(false);
     to_room = passage:other_room(this);
-    area:update_passage(this, to_room, new_passage);
+    try
+      area:update_passage(this, to_room, new_passage);
+    except (E_PERM)
+      player:inform_current($event:mk_error(player, "You don't have permission to change this passage."));
+      return;
+    endtry
     door_name = passage:door_name_for(this);
     close_msg = new_passage:_value("close_msg", 0);
     if (close_msg)
@@ -746,8 +899,18 @@ object ROOM
     "Register an actor as engaged with an object (sitting, swimming, etc.).";
     "If actor is already engaged with something else, disengage them first.";
     {actor, object} = args;
+    if (!valid(actor) || !valid(object))
+      return false;
+    endif
+    if (actor.location != this || object.location != this)
+      return false;
+    endif
     "Check if actor is already engaged with something in this room.";
     current = `this.engagements[actor] ! E_RANGE => #-1';
+    if (valid(current) && (current.location != this || current == actor))
+      this:disengage_actor(actor);
+      current = #-1;
+    endif
     if (valid(current) && current != object)
       "Disengage from current object first.";
       if (respond_to(current, 'remove_occupant))
@@ -756,6 +919,7 @@ object ROOM
     endif
     "Record new engagement.";
     this.engagements[actor] = object;
+    return true;
   endverb
 
   verb disengage_actor (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -768,7 +932,15 @@ object ROOM
   verb get_engagement (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return what object an actor is engaged with in this room, or #-1 if none.";
     {actor} = args;
-    return `this.engagements[actor] ! E_RANGE => #-1';
+    engaged = `this.engagements[actor] ! E_RANGE => #-1';
+    if (!valid(engaged))
+      return #-1;
+    endif
+    if (!valid(actor) || actor.location != this || engaged.location != this)
+      this:disengage_actor(actor);
+      return #-1;
+    endif
+    return engaged;
   endverb
 
   verb transport_destinations (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -826,6 +998,9 @@ object ROOM
   verb announce_distant (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Receive a distant event from another room and announce it locally.";
     {event, source_room} = args;
+    if (typeof(event) == TYPE_FLYWEIGHT && valid(source_room))
+      event = event:with_metadata('source_room, source_room);
+    endif
     "Tell everyone in this room about the distant event";
     for who in (this:contents())
       suspend_if_needed();
@@ -859,8 +1034,8 @@ object ROOM
           conn = conn_info[1];
           who:rewrite_event(rewrite_id, new_event, conn);
         endfor
-      except e (ANY)
-        "Skip players we can't reach";
+      except e (E_PERM, E_INVARG, E_INVIND, E_VERBNF)
+        "Skip players we can't rewrite for; let unexpected errors bubble.";
       endtry
     endfor
   endverb
@@ -869,5 +1044,38 @@ object ROOM
     "Return a list of placeholder strings for the input field, or false for default.";
     "Override on specific rooms to provide context-sensitive hints.";
     return false;
+  endverb
+
+  verb _acoustic_debug_bump (this none none) owner: ARCH_WIZARD flags: "rxd"
+    {reason, ?entry = 0} = args;
+    enabled = `#7.acoustic_debug_enabled ! E_PROPNF => 0';
+    if (typeof(enabled) != TYPE_INT && typeof(enabled) != TYPE_FLOAT)
+      enabled = enabled ? 1 | 0;
+    endif
+    !enabled && return;
+    owner_info = `property_info(#7, "acoustic_debug_counts") ! E_INVARG => {#2, "rc"}';
+    prop_owner = typeof(owner_info) == TYPE_LIST && length(owner_info) >= 1 ? owner_info[1] | #2;
+    set_task_perms(prop_owner);
+    counts = `#7.acoustic_debug_counts ! E_PROPNF, E_TYPE => []';
+    if (typeof(counts) != TYPE_MAP)
+      counts = [];
+    endif
+    prev = `counts[reason] ! E_RANGE, E_TYPE => 0';
+    counts[reason] = prev + 1;
+    `#7.acoustic_debug_counts = counts ! E_PERM';
+    if (entry != 0)
+      log = `#7.acoustic_debug_log ! E_PROPNF, E_TYPE => {}';
+      if (typeof(log) != TYPE_LIST)
+        log = {};
+      endif
+      if (typeof(entry) == TYPE_MAP)
+        entry["room"] = this;
+      endif
+      log = {entry, @log};
+      if (length(log) > 20)
+        log = log[1..20];
+      endif
+      `#7.acoustic_debug_log = log ! E_PERM';
+    endif
   endverb
 endobject
