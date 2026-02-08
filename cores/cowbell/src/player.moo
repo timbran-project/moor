@@ -5,7 +5,7 @@ object PLAYER
   owner: ARCH_WIZARD
   readable: true
 
-  property admin_features (owner: ARCH_WIZARD, flags: "") = #-1;
+  property admin_features (owner: ARCH_WIZARD, flags: "") = {};
   property authoring_features (owner: ARCH_WIZARD, flags: "") = #-1;
   property direct_messages (owner: ARCH_WIZARD, flags: "c") = {};
   property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
@@ -41,20 +41,55 @@ object PLAYER
       target = player.location;
     else
       "Try matching as object first";
-      target = E_NONE;
-      try
-        target = $match:match_object(dobjstr, player);
-      except e (ANY)
+      match_result = `$match:match_object(dobjstr, player) ! ANY => E_NONE';
+      if (match_result == $ambiguous_match)
+        candidates = {};
+        search_space = {player};
+        if (valid(player.location))
+          search_space = {@search_space, player.location, @player.location.contents};
+        endif
+        search_space = {@search_space, @player.contents};
+        for obj in (search_space)
+          if (!valid(obj))
+            continue;
+          endif
+          n = `obj:name() ! ANY => ""';
+          if (!n)
+            continue;
+          endif
+          if (index(n, dobjstr) || index(dobjstr, n))
+            label = n + " (" + tostr(obj) + ")";
+            if (!(label in candidates))
+              candidates = {@candidates, label};
+            endif
+            continue;
+          endif
+          al = `obj:aliases() ! ANY => {}';
+          for a in (al)
+            if (typeof(a) == TYPE_STR && a && (index(a, dobjstr) || index(dobjstr, a)))
+              label = n + " (" + tostr(obj) + ")";
+              if (!(label in candidates))
+                candidates = {@candidates, label};
+              endif
+              break;
+            endif
+          endfor
+        endfor
+        if (length(candidates) > 0)
+          max = length(candidates) < 5 ? length(candidates) | 5;
+          return this:inform_current($event:mk_error(player, "\"" + dobjstr + "\" is ambiguous. Try: " + candidates[1..max]:join(", ") + "."):with_audience('utility));
+        endif
+        return this:inform_current($event:mk_error(player, "\"" + dobjstr + "\" is ambiguous. Try being more specific."):with_audience('utility));
+      elseif (typeof(match_result) == TYPE_ERR || match_result == $failed_match || !valid(match_result))
         "Object match failed - try as passage direction";
-      endtry
-      "If object match failed, try passage direction";
-      if (typeof(target) == TYPE_ERR)
         passage_desc = this:_look_passage(dobjstr);
         if (passage_desc)
           return this:inform_current($event:mk_info(player, passage_desc):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
         else
           return this:inform_current($event:mk_not_found(player, "No object or passage found matching '" + dobjstr + "'."):with_audience('utility));
         endif
+      else
+        target = match_result;
       endif
     endif
     !valid(target) && return this:inform_current(this:msg_no_dobj_match());
@@ -135,7 +170,7 @@ object PLAYER
     show_ids = player.is_builder;
     for p in (players)
       if (typeof(idle_time = idle_seconds(p)) != TYPE_ERR)
-        name = show_ids ? p:name() + " (" + tostr(p) + ")" | p:name();
+        display_name = show_ids ? p:name() + " (" + tostr(p) + ")" | p:name();
         idle_str = idle_time:format_time_seconds();
         conn_str = connected_seconds(p):format_time_seconds();
         if (valid(p.location))
@@ -143,12 +178,29 @@ object PLAYER
         else
           location_name = "(nowhere)";
         endif
-        rows = {@rows, {name, location_name, idle_str, conn_str}};
+        rows = {@rows, {p:name(), {display_name, location_name, idle_str, conn_str}}};
       endif
     endfor
+    "Sort by player name for stable output";
+    sorted = {};
+    for entry in (rows)
+      inserted = false;
+      for i in [1..length(sorted)]
+        if (entry[1] < sorted[i][1])
+          sorted = {@sorted[1..i - 1], entry, @sorted[i..$]};
+          inserted = true;
+          break;
+        endif
+      endfor
+      !inserted && (sorted = {@sorted, entry});
+    endfor
+    table_rows = {};
+    for entry in (sorted)
+      table_rows = {@table_rows, entry[2]};
+    endfor
     "Create and display the table";
-    if (rows)
-      table_obj = $format.table:mk(headers, rows);
+    if (table_rows)
+      table_obj = $format.table:mk(headers, table_rows);
       title_obj = $format.title:mk("Who's Online");
       content = $format.block:mk(title_obj, table_obj);
       event = $event:mk_who(player, content);
@@ -170,29 +222,30 @@ object PLAYER
     "Examples: @pronouns they/them, @pronouns she/her, @pronouns";
     caller != this && raise(E_PERM);
     set_task_perms(this);
-    if (!argstr)
+    query = argstr:trim();
+    if (!query)
       "Show current pronouns and available options";
       current = $pronouns:display(this:pronouns());
       available = $pronouns:list_presets();
-      title = $format.title:mk("Your Pronouns");
-      lines = {"Current: " + current, "", "Available presets: " + available:join(", ")};
-      content = $format.block:mk(title, @lines);
-      event = $event:mk_info(this, content);
-      this:inform_current(event:with_audience('utility));
+      content = $format.block:mk($format.title:mk("Your Pronouns"), "Current: " + current, "", "Available presets:", $format.code:mk(available:join(", ")), "", "Usage: @pronouns [pronoun-set]");
+      event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+      this:inform_current(event);
       return;
     endif
     "Try to look up the pronoun set";
-    pronoun_set = $pronouns:lookup(argstr:trim());
+    pronoun_set = $pronouns:lookup(query);
     if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
-      event = $event:mk_error(this, "Unknown pronoun set: " + argstr, "", "Available: " + $pronouns:list_presets():join(", "));
-      this:inform_current(event:with_audience('utility));
+      content = $format.block:mk($format.title:mk("Unknown Pronoun Set"), "No preset matches: " + query, "", "Available presets:", $format.code:mk($pronouns:list_presets():join(", ")), "", "Usage: @pronouns [pronoun-set]");
+      event = $event:mk_error(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+      this:inform_current(event);
       return;
     endif
     "Set the pronouns";
     this.pronouns = pronoun_set;
     display = $pronouns:display(pronoun_set);
-    event = $event:mk_info(this, "Pronouns set to: " + display);
-    this:inform_current(event:with_audience('utility));
+    content = $format.block:mk($format.title:mk("Pronouns Updated"), "Pronouns set to: " + display, "", "Usage: @pronouns [pronoun-set]");
+    event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+    this:inform_current(event);
   endverb
 
   verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -237,11 +290,11 @@ object PLAYER
     "If password not set, only need new password";
     if (typeof(this.password) != TYPE_FLYWEIGHT)
       if (length(args) != 1)
-        return this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <new-password>")):with_audience('utility));
+        return this:inform_current($event:mk_error(this, "Usage: @password <new-password>"):with_audience('utility));
       endif
       new_password = args[1];
     elseif (length(args) != 2)
-      this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <old-password> <new-password>")):with_audience('utility));
+      this:inform_current($event:mk_error(this, "Usage: @password <old-password> <new-password>"):with_audience('utility));
       return;
     elseif (!this.password:challenge(tostr(args[1])))
       this:inform_current($event:mk_error(this, "That's not your old password."):with_audience('utility));
@@ -367,7 +420,13 @@ object PLAYER
     endif
     env = {@env, @features};
     valid(this.authoring_features) && (env = {@env, this.authoring_features});
-    valid(this.admin_features) && (env = {@env, this.admin_features});
+    admin_features = `this.admin_features ! ANY => {}';
+    typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
+    for feat in (admin_features)
+      if (valid(feat))
+        env = {@env, feat};
+      endif
+    endfor
     valid(location) && (env = {@env, location});
     return env;
   endverb
@@ -1101,40 +1160,39 @@ object PLAYER
 
   verb help_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return list of objects to search for help topics.";
-    "Order: global, features (including authoring/admin/builder), room, inventory, room contents";
+    "Order: global, features (including authoring/admin/builder/wizard), room, inventory, room contents";
     env = {};
-    "Global help source (if it exists)";
     gh = `$sysobj.help_topics ! E_PROPNF => $nothing';
     if (valid(gh))
       env = {@env, gh};
     endif
-    "Player's features (provide commands, should provide help)";
     for feat in (this.features)
       if (valid(feat))
         env = {@env, feat};
       endif
     endfor
-    "Authoring features (programmer commands)";
     if (valid(this.authoring_features))
       env = {@env, this.authoring_features};
     endif
-    "Admin features (wizard commands)";
-    if (valid(this.admin_features))
-      env = {@env, this.admin_features};
+    admin_features = `this.admin_features ! ANY => {}';
+    typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
+    for feat in (admin_features)
+      if (valid(feat))
+        env = {@env, feat};
+      endif
+    endfor
+    if (this.wizard || this:has_admin_elevation() && valid($wiz_features))
+      env = {@env, $wiz_features};
     endif
-    "Builder features (building commands)";
     if (this.is_builder && valid($builder_features))
       env = {@env, $builder_features};
     endif
-    "Current room";
     if (valid(this.location))
       env = {@env, this.location};
     endif
-    "Player's inventory";
     for item in (this.contents)
       env = {@env, item};
     endfor
-    "Room contents (excluding self)";
     if (valid(this.location))
       for item in (this.location.contents)
         if (item != this)
@@ -1150,7 +1208,15 @@ object PLAYER
     {topic} = args;
     env = this:help_environment();
     matches = {};
+    seen_sources = [];
     for o in (env)
+      if (typeof(o) != TYPE_OBJ || !valid(o))
+        continue;
+      endif
+      if (maphaskey(seen_sources, o))
+        continue;
+      endif
+      seen_sources[o] = true;
       if (!o.r)
         continue;
       endif
@@ -1162,20 +1228,26 @@ object PLAYER
         matches = {@matches, {o, result}};
       endif
     endfor
-    "No matches";
     length(matches) == 0 && return 0;
-    "Single match - return just the topic";
     length(matches) == 1 && return matches[1][2];
-    "Multiple matches - return the list for disambiguation";
     return matches;
   endverb
 
   verb _collect_help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Gather all help topics from the environment.";
-    "Returns a list of help topic flyweights.";
+    "Returns a deduplicated list of help topic flyweights by topic name.";
     env = this:help_environment();
     all_topics = {};
+    seen_sources = [];
+    seen_topic_names = [];
     for o in (env)
+      if (typeof(o) != TYPE_OBJ || !valid(o))
+        continue;
+      endif
+      if (maphaskey(seen_sources, o))
+        continue;
+      endif
+      seen_sources[o] = true;
       if (!o.r)
         continue;
       endif
@@ -1183,9 +1255,24 @@ object PLAYER
         continue;
       endif
       topics = `o:help_topics(this, "") ! ANY => {}';
-      if (typeof(topics) == TYPE_LIST)
-        all_topics = {@all_topics, @topics};
+      if (typeof(topics) != TYPE_LIST)
+        continue;
       endif
+      for t in (topics)
+        if (typeof(t) != TYPE_FLYWEIGHT)
+          continue;
+        endif
+        name = `t.name ! ANY => ""';
+        if (typeof(name) != TYPE_STR || name == "")
+          continue;
+        endif
+        key = name:lowercase();
+        if (maphaskey(seen_topic_names, key))
+          continue;
+        endif
+        seen_topic_names[key] = true;
+        all_topics = {@all_topics, t};
+      endfor
     endfor
     return all_topics;
   endverb
@@ -1337,6 +1424,10 @@ object PLAYER
         result = {@result, all_verbs[verb_name]};
       endif
     endfor
+    "Add placeholder text to first entry for input field hint";
+    if (length(result) > 0)
+      result[1]['placeholder_text] = this:input_placeholder();
+    endif
     return result;
   endverb
 
@@ -1384,28 +1475,30 @@ object PLAYER
     "Usage: dm <player> <message>";
     caller != this && raise(E_PERM);
     set_task_perms(this);
-    if (!args || length(args) < 1)
+    if (!args || length(args) < 2)
       return this:inform_current($event:mk_error(this, "Usage: " + verb + " <player> <message>"):with_audience('utility));
     endif
     "First arg is player name, rest is message";
     target_name = args[1];
-    if (length(args) < 2)
-      return this:inform_current($event:mk_error(this, "What do you want to say?"):with_audience('utility));
-    endif
     message = args[2..$]:join(" ");
+    if (!target_name || !message)
+      return this:inform_current($event:mk_error(this, "Usage: " + verb + " <player> <message>"):with_audience('utility));
+    endif
     "Match target player";
-    try
-      target = $match:match_player(target_name);
-    except e (E_INVARG)
+    target = `$match:match_player(target_name) ! E_INVARG => $failed_match';
+    if (target == $failed_match || !valid(target) || !is_player(target))
       return this:inform_current($event:mk_error(this, "I don't know who '" + target_name + "' is."):with_audience('utility));
-    endtry
+    endif
     if (target == this)
       return this:inform_current($event:mk_error(this, "Talking to yourself?"):with_audience('utility));
     endif
     "Create and deliver the DM";
     dm_obj = $dm:mk(this, target, message);
-    result = target:receive_dm(dm_obj);
-    "Echo to sender";
+    delivered = `target:receive_dm(dm_obj) ! ANY => E_NONE';
+    if (typeof(delivered) == TYPE_ERR || !delivered)
+      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
+    endif
+    "Echo to sender only on successful delivery";
     this:inform_current(dm_obj:sender_echo_event());
   endverb
 
@@ -1433,18 +1526,22 @@ object PLAYER
     "Usage: reply <message>";
     caller != this && raise(E_PERM);
     set_task_perms(this);
-    if (!valid(this.last_dm_from))
+    target = this.last_dm_from;
+    if (!valid(target) || !is_player(target))
+      this.last_dm_from = #-1;
       return this:inform_current($event:mk_error(this, "No one to reply to."):with_audience('utility));
     endif
     if (!args || length(args) < 1)
-      return this:inform_current($event:mk_error(this, "Reply with what?"):with_audience('utility));
+      return this:inform_current($event:mk_error(this, "Usage: reply <message>"):with_audience('utility));
     endif
     message = args:join(" ");
-    target = this.last_dm_from;
     "Create and deliver the DM";
     dm_obj = $dm:mk(this, target, message);
-    result = target:receive_dm(dm_obj);
-    "Echo to sender";
+    delivered = `target:receive_dm(dm_obj) ! ANY => E_NONE';
+    if (typeof(delivered) == TYPE_ERR || !delivered)
+      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
+    endif
+    "Echo to sender only on successful delivery";
     this:inform_current(dm_obj:sender_echo_event());
   endverb
 
@@ -2160,7 +2257,9 @@ object PLAYER
     caller != this && raise(E_PERM);
     set_task_perms(this);
     if (!args || length(args) < 1)
-      return this:inform_current($event:mk_error(this, "Usage: @gag <player|object>"):with_audience('utility));
+      usage = $format.block:mk($format.title:mk("Usage"), $format.code:mk("@gag <player|object>"));
+      event = $event:mk_error(this, usage):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+      return this:inform_current(event);
     endif
     ref = args:join(" ");
     target = 0;
@@ -2212,7 +2311,9 @@ object PLAYER
     caller != this && raise(E_PERM);
     set_task_perms(this);
     if (!args || length(args) < 1)
-      return this:inform_current($event:mk_error(this, "Usage: @ungag <player|object> | @ungag everyone"):with_audience('utility));
+      usage = $format.block:mk($format.title:mk("Usage"), $format.code:mk("@ungag <player|object>\n@ungag everyone"));
+      event = $event:mk_error(this, usage):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+      return this:inform_current(event);
     endif
     ref = args:join(" ");
     if (ref == "everyone")
@@ -2315,52 +2416,58 @@ object PLAYER
     caller != this && raise(E_PERM);
     set_task_perms(this);
     from_command = !callers();
-    lines = {};
+    parts = {$format.title:mk("Gag Lists")};
     "Player gag list";
+    player_names = {};
     if (this.gaglist && length(this.gaglist) > 0)
-      lines = {@lines, "Gagged players:"};
       for p in (this.gaglist)
         if (valid(p))
-          lines = {@lines, "  " + p:name()};
+          player_names = {@player_names, p:name()};
         endif
       endfor
+    endif
+    parts = {@parts, "Gagged players:"};
+    if (length(player_names) > 0)
+      parts = {@parts, $format.list:mk(player_names)};
     else
-      lines = {@lines, "Gagged players: (none)"};
+      parts = {@parts, "(none)"};
     endif
     "Object gag list";
+    object_names = {};
     if (this.object_gaglist && length(this.object_gaglist) > 0)
-      lines = {@lines, "Gagged objects:"};
       for o in (this.object_gaglist)
         if (valid(o))
-          lines = {@lines, "  " + o:name()};
+          object_names = {@object_names, o:name()};
         endif
       endfor
+    endif
+    parts = {@parts, "", "Gagged objects:"};
+    if (length(object_names) > 0)
+      parts = {@parts, $format.list:mk(object_names)};
     else
-      lines = {@lines, "Gagged objects: (none)"};
+      parts = {@parts, "(none)"};
     endif
     "Only do the database scan when invoked as a player command.";
     if (from_command)
-      gaggers = {};
+      gagger_names = {};
       for p in (players())
         if (p != this)
           try
             if (this in p.gaglist)
-              gaggers = {@gaggers, p};
+              gagger_names = {@gagger_names, p:name()};
             endif
           except e (E_PROPNF)
           endtry
         endif
       endfor
-      if (gaggers && length(gaggers) > 0)
-        lines = {@lines, "", "You are gagged by:"};
-        for p in (gaggers)
-          if (valid(p))
-            lines = {@lines, "  " + p:name()};
-          endif
-        endfor
+      if (length(gagger_names) > 0)
+        parts = {@parts, "", "You are gagged by:", $format.list:mk(gagger_names)};
       endif
     endif
-    return this:inform_current($event:mk_say(this, lines:join("\n")):with_audience('utility));
+    parts = {@parts, "", "Usage:", $format.code:mk("@gag <player|object>\n@ungag <player|object>\n@ungag everyone")};
+    content = $format.block:mk(@parts);
+    event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+    return this:inform_current(event);
   endverb
 
   verb _display_ambiguous_topic_matches (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2531,7 +2638,7 @@ object PLAYER
     "Parse destination from argstr - handle 'walk to xxx' and 'walk xxx'";
     dest_str = argstr:trim();
     if (dest_str == "")
-      player:inform_current($event:mk_error(player, "Walk where? Try: walk to <destination>"));
+      player:inform_current($event:mk_error(player, "Usage: walk [to] <destination> | walk stop"));
       return;
     endif
     "Handle 'walk stop' to cancel";
@@ -2580,7 +2687,33 @@ object PLAYER
     "Use complex_match with fuzzy matching";
     match_result = complex_match(dest_str, targets, keys, 0.5);
     if (match_result == $ambiguous_match)
-      player:inform_current($event:mk_error(player, "\"" + dest_str + "\" is ambiguous - please be more specific."));
+      candidates = {};
+      for i in [1..length(targets)]
+        room = targets[i];
+        room_name = `room:name() ! ANY => ""';
+        if (room_name && (index(room_name, dest_str) || index(dest_str, room_name)))
+          if (!(room_name in candidates))
+            candidates = {@candidates, room_name};
+          endif
+          continue;
+        endif
+        room_keys = keys[i];
+        for k in (room_keys)
+          if (typeof(k) == TYPE_STR && k && (index(k, dest_str) || index(dest_str, k)))
+            if (!(room_name in candidates))
+              candidates = {@candidates, room_name};
+            endif
+            break;
+          endif
+        endfor
+      endfor
+      if (length(candidates) > 0)
+        max = length(candidates) < 5 ? length(candidates) | 5;
+        hint = " Try one of: " + candidates[1..max]:join(", ") + ".";
+      else
+        hint = " Try a more specific room name.";
+      endif
+      player:inform_current($event:mk_error(player, "\"" + dest_str + "\" is ambiguous." + hint));
       return;
     elseif (match_result == $failed_match || !valid(match_result))
       player:inform_current($event:mk_error(player, "Can't find a place called \"" + dest_str + "\"."));
@@ -2676,13 +2809,31 @@ object PLAYER
     "Parse player name from argstr";
     target_name = argstr:trim();
     if (target_name == "")
-      player:inform_current($event:mk_error(player, "Join whom? Try: join <player>"));
+      player:inform_current($event:mk_error(player, "Usage: join <player>"));
       return;
     endif
     "Match the player";
     target = `$match:match_player(target_name) ! ANY => $failed_match';
     if (target == $ambiguous_match)
-      player:inform_current($event:mk_error(player, "\"" + target_name + "\" is ambiguous - please be more specific."));
+      candidates = {};
+      for p in (players())
+        if (!valid(p))
+          continue;
+        endif
+        n = `p:name() ! ANY => ""';
+        if (n && (index(n, target_name) || index(target_name, n)))
+          if (!(n in candidates))
+            candidates = {@candidates, n};
+          endif
+        endif
+      endfor
+      if (length(candidates) > 0)
+        max = length(candidates) < 5 ? length(candidates) | 5;
+        hint = " Try one of: " + candidates[1..max]:join(", ") + ".";
+      else
+        hint = " Try a more specific player name.";
+      endif
+      player:inform_current($event:mk_error(player, "\"" + target_name + "\" is ambiguous." + hint));
       return;
     elseif (target == $failed_match || !valid(target))
       player:inform_current($event:mk_error(player, "Can't find a player called \"" + target_name + "\"."));
@@ -2765,12 +2916,13 @@ object PLAYER
 
   verb home (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Walk automatically to your home room.";
+    "Usage: home";
     set_task_perms(player);
     player != this && return;
     "Check if home is set";
     home = this.home;
     if (!valid(home))
-      player:inform_current($event:mk_error(player, "You don't have a home set. Use: @sethome"));
+      player:inform_current($event:mk_error(player, "You don't have a home set. Usage: @sethome"));
       return;
     endif
     "Check if already at home";
@@ -2866,5 +3018,20 @@ object PLAYER
     "Default placeholders";
     placeholders = {"What would you like to explore?", "Ready for your next adventure?", "What's on your mind?", "How can we help you today?", "What would you like to try?", "Share your thoughts...", "What's your next move?", "Ready to discover something new?"};
     return placeholders[random(length(placeholders))];
+  endverb
+
+  verb has_admin_elevation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "True when this player is running inside delegated admin elevation.";
+    admin_features = `this.admin_features ! ANY => {}';
+    typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
+    for feat in (admin_features)
+      if (!valid(feat))
+        continue;
+      endif
+      if (`feat:is_elevated(this) ! ANY => false')
+        return true;
+      endif
+    endfor
+    return false;
   endverb
 endobject

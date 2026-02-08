@@ -16,19 +16,13 @@ object SOCIAL_FEATURES
       return;
     endif
     if (iobjstr && iobjstr != "" && (prepstr == "at" || prepstr == "to"))
-      "Try to match the target";
       try
-        target = $match:match_object(iobjstr, player);
-      except e (ANY)
-        event = $event:mk_error(player, "Nod at/to whom?");
-        player:inform_current(event);
+        target = this:_match_social_target(iobjstr);
+      except e (E_INVARG)
+        msg = e[2] == "missing_target" ? "Nod at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        player:inform_current($event:mk_error(player, msg));
         return;
       endtry
-      if (!valid(target) || typeof(target) != TYPE_OBJ)
-        event = $event:mk_error(player, "Nod at/to whom?");
-        player:inform_current(event);
-        return;
-      endif
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("nod", "nods"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("nod", "nods"), "."):with_this(player.location);
@@ -43,19 +37,13 @@ object SOCIAL_FEATURES
       return;
     endif
     if (iobjstr && iobjstr != "" && (prepstr == "at" || prepstr == "to"))
-      "Try to match the target";
       try
-        target = $match:match_object(iobjstr, player);
-      except e (ANY)
-        event = $event:mk_error(player, "Wave at/to whom?");
-        player:inform_current(event);
+        target = this:_match_social_target(iobjstr);
+      except e (E_INVARG)
+        msg = e[2] == "missing_target" ? "Wave at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        player:inform_current($event:mk_error(player, msg));
         return;
       endtry
-      if (!valid(target) || typeof(target) != TYPE_OBJ)
-        event = $event:mk_error(player, "Wave at/to whom?");
-        player:inform_current(event);
-        return;
-      endif
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("wave", "waves"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("wave", "waves"), "."):with_this(player.location);
@@ -70,19 +58,13 @@ object SOCIAL_FEATURES
       return;
     endif
     if (iobjstr && iobjstr != "" && (prepstr == "to" || prepstr == "at"))
-      "Try to match the target";
       try
-        target = $match:match_object(iobjstr, player);
-      except e (ANY)
-        event = $event:mk_error(player, "Bow to/at whom?");
-        player:inform_current(event);
+        target = this:_match_social_target(iobjstr);
+      except e (E_INVARG)
+        msg = e[2] == "missing_target" ? "Bow to/at whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        player:inform_current($event:mk_error(player, msg));
         return;
       endtry
-      if (!valid(target) || typeof(target) != TYPE_OBJ)
-        event = $event:mk_error(player, "Bow to/at whom?");
-        player:inform_current(event);
-        return;
-      endif
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("bow", "bows"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("bow", "bows"), "."):with_this(player.location);
@@ -97,22 +79,16 @@ object SOCIAL_FEATURES
       return;
     endif
     if (!dobjstr || dobjstr == "")
-      event = $event:mk_error(player, "Bonk whom?");
-      player:inform_current(event);
+      player:inform_current($event:mk_error(player, "Bonk whom?"));
       return;
     endif
     try
-      target = $match:match_object(dobjstr, player);
-    except e (ANY)
-      event = $event:mk_error(player, "Bonk whom?");
-      player:inform_current(event);
+      target = this:_match_social_target(dobjstr);
+    except e (E_INVARG)
+      msg = e[2] == "missing_target" ? "Bonk whom?" | (e[2] == "not_found" ? "I don't see \"" + dobjstr + "\" here." | tostr(e[2]));
+      player:inform_current($event:mk_error(player, msg));
       return;
     endtry
-    if (!valid(target) || typeof(target) != TYPE_OBJ)
-      event = $event:mk_error(player, "Bonk whom?");
-      player:inform_current(event);
-      return;
-    endif
     if (target == player)
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("bonk", "bonks"), " ", $sub:self_alt("yourself", "themselves"), "."):with_this(player.location);
     else
@@ -138,19 +114,13 @@ object SOCIAL_FEATURES
       return;
     endif
     if (iobjstr && iobjstr != "" && (prepstr == "at" || prepstr == "to"))
-      "Try to match the target";
       try
-        target = $match:match_object(iobjstr, player);
-      except e (ANY)
-        event = $event:mk_error(player, "Smile at/to whom?");
-        player:inform_current(event);
+        target = this:_match_social_target(iobjstr);
+      except e (E_INVARG)
+        msg = e[2] == "missing_target" ? "Smile at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        player:inform_current($event:mk_error(player, msg));
         return;
       endtry
-      if (!valid(target) || typeof(target) != TYPE_OBJ)
-        event = $event:mk_error(player, "Smile at/to whom?");
-        player:inform_current(event);
-        return;
-      endif
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("smile", "smiles"), " ", prepstr, " ", $sub:i(), "."):with_iobj(target):with_this(player.location);
     else
       event = $event:mk_social(player, $sub:nc(), " ", $sub:self_alt("smile", "smiles"), "."):with_this(player.location);
@@ -275,7 +245,7 @@ object SOCIAL_FEATURES
 
   verb "|*" (any any any) owner: HACKER flags: "rxd"
     "Paste a single line of content.";
-    caller != player && return E_PERM;
+    caller != player && caller != #0 && return E_PERM;
     if (!valid(player.location))
       return;
     endif
@@ -286,6 +256,7 @@ object SOCIAL_FEATURES
 
   verb "http://* https://*" (any any any) owner: HACKER flags: "rxd"
     "Paste a URL to share with optional link preview.";
+    caller != player && caller != #0 && return E_PERM;
     if (!valid(player.location))
       return;
     endif
@@ -302,6 +273,7 @@ object SOCIAL_FEATURES
 
   verb "@paste paste" (any any any) owner: HACKER flags: "rxd"
     "Paste multiline content to the room";
+    caller != player && caller != #0 && return E_PERM;
     if (!valid(player.location))
       return;
     endif
@@ -333,5 +305,60 @@ object SOCIAL_FEATURES
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'social) ! ANY => 0';
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
+  endverb
+
+  verb _match_social_target (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Resolve a social target with clearer ambiguity feedback.";
+    "Args: query string. Returns object or raises E_INVARG with message.";
+    {query} = args;
+    query = query:trim();
+    if (!query)
+      raise(E_INVARG, "missing_target");
+    endif
+    target = `$match:match_object(query, player) ! ANY => $failed_match';
+    if (target == $ambiguous_match)
+      cands = {};
+      space = {};
+      if (valid(player.location))
+        space = {@space, player.location, @player.location.contents};
+      endif
+      space = {@space, @player.contents};
+      for o in (space)
+        if (!valid(o))
+          continue;
+        endif
+        n = `o:name() ! ANY => ""';
+        if (!n)
+          continue;
+        endif
+        if (index(n, query) || index(query, n))
+          item = n + " (" + tostr(o) + ")";
+          if (!(item in cands))
+            cands = {@cands, item};
+          endif
+          continue;
+        endif
+        al = `o:aliases() ! ANY => {}';
+        for a in (al)
+          if (typeof(a) == TYPE_STR && a && (index(a, query) || index(query, a)))
+            item = n + " (" + tostr(o) + ")";
+            if (!(item in cands))
+              cands = {@cands, item};
+            endif
+            break;
+          endif
+        endfor
+      endfor
+      msg = "\"" + query + "\" is ambiguous.";
+      if (length(cands) > 0)
+        max = length(cands) < 5 ? length(cands) | 5;
+        msg = msg + " Try: " + cands[1..max]:join(", ") + ".";
+      endif
+      raise(E_INVARG, msg);
+    endif
+    if (target == $failed_match || !valid(target) || typeof(target) != TYPE_OBJ)
+      raise(E_INVARG, "not_found");
+    endif
+    return target;
   endverb
 endobject
