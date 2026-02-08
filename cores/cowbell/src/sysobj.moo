@@ -5,6 +5,7 @@ object SYSOBJ
   readable: true
 
   property actor (owner: HACKER, flags: "r") = ACTOR;
+  property admin_features (owner: ARCH_WIZARD, flags: "rc") = ADMIN_FEATURES;
   property agent_building_tools (owner: HACKER, flags: "r") = AGENT_BUILDING_TOOLS;
   property agent_room (owner: ARCH_WIZARD, flags: "rc") = AGENT_ROOM;
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
@@ -15,11 +16,23 @@ object SYSOBJ
   property bg_ticks (owner: HACKER, flags: "r") = 300000;
   property brass_key (owner: HACKER, flags: "r") = BRASS_KEY;
   property builder_features (owner: HACKER, flags: "r") = BUILDER_FEATURES;
-  property builder_prototypes (owner: HACKER, flags: "r") = {ROOM, THING, WEARABLE, CONTAINER, SITTABLE, ACTOR, NOTE, AREA, FOOD, DRINK};
+  property builder_prototypes (owner: HACKER, flags: "r") = {
+    ROOM,
+    THING,
+    WEARABLE,
+    CONTAINER,
+    SITTABLE,
+    ACTOR,
+    NOTE,
+    AREA,
+    CONSUMABLE,
+    FOOD,
+    DRINK
+  };
   property cat_kibble (owner: HACKER, flags: "r") = CAT_KIBBLE;
   property consumable (owner: ARCH_WIZARD, flags: "r") = CONSUMABLE;
   property container (owner: HACKER, flags: "r") = CONTAINER;
-  property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.2.0";
+  property core_version (owner: ARCH_WIZARD, flags: "rc") = "0.3.0";
   property couch (owner: HACKER, flags: "r") = COUCH;
   property data_visor (owner: HACKER, flags: "r") = DATA_VISOR;
   property dm (owner: HACKER, flags: "r") = DM;
@@ -41,8 +54,6 @@ object SYSOBJ
   property help_topics (owner: ARCH_WIZARD, flags: "r") = HELP_TOPICS;
   property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
   property henri (owner: HACKER, flags: "r") = HENRI;
-  property henri_kibble_taken_msgs (owner: HACKER, flags: "r") = HENRI_KIBBLE_TAKEN_MSGS;
-  property henri_look_self_msgs (owner: HACKER, flags: "r") = HENRI_LOOK_SELF_MSGS;
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
@@ -148,10 +159,12 @@ object SYSOBJ
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
-    set_task_perms(user);
     if (user < #0)
       return;
     endif
+    "Never run disfunc while the user still has any active connection.";
+    `length(connections(user)) > 0 ! ANY => 0' && return;
+    set_task_perms(user);
     fork (0)
       `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
     endfork
@@ -321,21 +334,24 @@ object SYSOBJ
   endverb
 
   verb list_builder_prototypes (this none this) owner: HACKER flags: "rxd"
-    "Return list of builder prototypes with descriptions";
+    "Return list of builder prototypes with descriptions.";
     result = {};
+    seen = [];
     for proto in (this.builder_prototypes)
-      if (valid(proto))
-        proto_name = tostr(proto);
-        "Try to get sysobj name";
-        for prop in (properties(this))
-          if (this.(prop) == proto)
-            proto_name = "$" + prop;
-            break;
-          endif
-        endfor
-        desc = `proto.description ! ANY => "(no description)"';
-        result = {@result, ["object" -> tostr(proto), "name" -> proto_name, "description" -> desc]};
+      if (typeof(proto) != TYPE_OBJ || !valid(proto) || maphaskey(seen, proto))
+        continue;
       endif
+      seen[proto] = 1;
+      proto_name = `proto.name ! ANY => tostr(proto)';
+      for prop in (properties(this))
+        value = `this.(prop) ! ANY => 0';
+        if (typeof(value) == TYPE_OBJ && value == proto)
+          proto_name = "$" + prop;
+          break;
+        endif
+      endfor
+      desc = `proto.description ! ANY => "(no description)"';
+      result = {@result, ["object" -> toliteral(proto), "name" -> proto_name, "description" -> desc]};
     endfor
     return result;
   endverb

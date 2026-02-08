@@ -5,6 +5,8 @@ object WIZ_FEATURES
   owner: ARCH_WIZARD
   readable: true
 
+  property help_source (owner: ARCH_WIZARD, flags: "rc") = WIZARD_HELP_TOPICS;
+
   override description = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) for wizards.";
   override import_export_hierarchy = {"features"};
   override import_export_id = "wiz_features";
@@ -56,10 +58,11 @@ object WIZ_FEATURES
         pronouns = `target:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
         possessive = `pronouns.possessive ! ANY => "their"';
         question = "Grant " + target:name() + " programmer bit despite " + possessive + " lack of description?";
-        "Use yes_no for confirmation";
         metadata = {{"input_type", "yes_no"}, {"prompt", question}};
         response = player:read_with_prompt(metadata);
-        if (response != "yes")
+        typeof(response) == TYPE_STR || (response = tostr(response));
+        response = response:trim():lowercase();
+        if (!(response == "yes" || response == "y"))
           player:inform_current($event:mk_error(player, "Programmer bit not granted."));
           return;
         endif
@@ -132,7 +135,9 @@ object WIZ_FEATURES
       question = "Downgrade " + dobj:name() + " from programmer to builder? This will remove their Data Visor and programmer flag.";
       metadata = {{"input_type", "yes_no"}, {"prompt", question}};
       response = player:read_with_prompt(metadata);
-      if (response != "yes")
+      typeof(response) == TYPE_STR || (response = tostr(response));
+      response = response:trim():lowercase();
+      if (!(response == "yes" || response == "y"))
         player:inform_current($event:mk_error(player, "Downgrade cancelled."));
         return;
       endif
@@ -141,14 +146,14 @@ object WIZ_FEATURES
     if (!is_downgrade)
       desc = `dobj:description() ! ANY => ""';
       if (!desc || desc == "")
-        "Get pronouns for proper grammar";
         pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
         possessive = `pronouns.possessive ! ANY => "their"';
         question = "Grant " + dobj:name() + " builder status despite " + possessive + " lack of description?";
-        "Use yes_no for confirmation";
         metadata = {{"input_type", "yes_no"}, {"prompt", question}};
         response = player:read_with_prompt(metadata);
-        if (response != "yes")
+        typeof(response) == TYPE_STR || (response = tostr(response));
+        response = response:trim():lowercase();
+        if (!(response == "yes" || response == "y"))
           player:inform_current($event:mk_error(player, "Builder status not granted."));
           return;
         endif
@@ -160,16 +165,13 @@ object WIZ_FEATURES
     "Handle tools and flags";
     owner_name = dobj:name();
     if (is_downgrade)
-      "Remove programmer flag and visor";
       dobj.programmer = false;
-      "Find and destroy visor";
       for item in (dobj.contents)
         if (valid(item) && isa(item, $data_visor))
           item:destroy();
           break;
         endif
       endfor
-      "Announce downgrade";
       if (valid(dobj.location))
         event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been downgraded to builder privileges."):with_this(dobj.location);
         dobj.location:announce(event);
@@ -177,13 +179,11 @@ object WIZ_FEATURES
       dobj:tell($event:mk_info(dobj, "You have been downgraded to builder. Your Data Visor has been removed, but you retain your Architect's Compass."));
       player:inform_current($event:mk_info(player, "You downgraded ", dobj:name(), " to builder privileges."));
     else
-      "Fresh grant - create compass";
       compass = create($architects_compass, dobj);
       compass.owner = dobj;
       compass.name = owner_name + "'s " + $architects_compass.name;
       compass.aliases = $architects_compass.aliases;
       compass:moveto(dobj);
-      "Announce fresh grant";
       if (valid(dobj.location))
         event = $event:mk_info(dobj, $sub:nc(), " ", $sub:verb_have(), " been granted builder privileges."):with_this(dobj.location);
         dobj.location:announce(event);
@@ -199,7 +199,6 @@ object WIZ_FEATURES
     "Reconfigure all Architect's Compasses and Data Visors in the database";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Find all compasses and visors";
     compasses = {};
     visors = {};
     for o in (descendants($architects_compass))
@@ -217,15 +216,15 @@ object WIZ_FEATURES
       player:inform_current($event:mk_info(player, "No tool instances found to reconfigure."));
       return;
     endif
-    "Confirm before proceeding";
     question = "Reconfigure " + tostr(length(compasses)) + " compass(es) and " + tostr(length(visors)) + " visor(s)?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
-    if (response != "yes")
+    typeof(response) == TYPE_STR || (response = tostr(response));
+    response = response:trim():lowercase();
+    if (!(response == "yes" || response == "y"))
       player:inform_current($event:mk_error(player, "Reconfiguration cancelled."));
       return;
     endif
-    "Reconfigure all compasses";
     compass_count = 0;
     for compass in (compasses)
       try
@@ -235,7 +234,6 @@ object WIZ_FEATURES
         player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(compass) + ": " + toliteral(e)));
       endtry
     endfor
-    "Reconfigure all visors";
     visor_count = 0;
     for visor in (visors)
       try
@@ -245,7 +243,6 @@ object WIZ_FEATURES
         player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(visor) + ": " + toliteral(e)));
       endtry
     endfor
-    "Report results";
     player:inform_current($event:mk_info(player, "Reconfigured " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
   endverb
 
@@ -254,8 +251,9 @@ object WIZ_FEATURES
     this:_challenge_command_perms();
     set_task_perms(player);
     msg = argstr;
-    !msg && (msg = "Server is shutting down.");
-    "Parse optional delay: \"in N <message>\" minutes; default 2 minutes";
+    if (!msg)
+      msg = "Server is shutting down.";
+    endif
     delay_minutes = 2;
     parts = msg:split(" ");
     if (length(parts) >= 2 && parts[1] == "in")
@@ -266,15 +264,15 @@ object WIZ_FEATURES
         msg = remaining ? remaining:join(" ") | "Server is shutting down.";
       endif
     endif
-    "Confirm shutdown";
     question = "Shut down the server in " + tostr(delay_minutes) + " minute(s)?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
-    if (response != "yes")
+    typeof(response) == TYPE_STR || (response = tostr(response));
+    response = response:trim():lowercase();
+    if (!(response == "yes" || response == "y"))
       player:inform_current($event:mk_error(player, "Shutdown cancelled."):with_audience('utility));
       return;
     endif
-    "Build countdown schedule (seconds)";
     announce_times = {};
     delay = delay_minutes;
     if (delay > 0)
@@ -286,7 +284,6 @@ object WIZ_FEATURES
     else
       announce_times = {0};
     endif
-    "Send announcements and countdown";
     for i in [1..length(announce_times)]
       seconds = announce_times[i];
       base_msg = $format.code:mk("** Server will shut down in " + tostr(seconds) + " second(s): " + msg + " **");
@@ -295,9 +292,10 @@ object WIZ_FEATURES
         `p:tell(event) ! E_VERBNF => p:tell(event)';
       endfor
       next_delay = i < length(announce_times) ? announce_times[i] - announce_times[i + 1] | 0;
-      next_delay > 0 && suspend(next_delay);
+      if (next_delay > 0)
+        suspend(next_delay);
+      endif
     endfor
-    "Final message and boot everyone";
     final_msg = $format.code:mk("## Server shutdown: " + msg + " ##");
     final_event = $event:mk_info(player, final_msg):with_audience('utility):with_presentation_hint('inset);
     for p in (connected_players())
@@ -359,7 +357,6 @@ object WIZ_FEATURES
     "Set a player's LLM token budget";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
       target = $match:match_object(dobjstr, player);
@@ -373,22 +370,20 @@ object WIZ_FEATURES
     if (!iobjstr)
       raise(E_INVARG, "Usage: @llm-set-budget <player> to <budget>");
     endif
-    "Parse budget value";
     new_budget = tonum(iobjstr);
     typeof(new_budget) == TYPE_INT || raise(E_INVARG, "Budget must be a number.");
     new_budget > 0 || raise(E_INVARG, "Budget must be positive.");
-    "Get current values for confirmation";
     old_budget = `target.llm_token_budget ! ANY => 20000000';
     used = `target.llm_tokens_used ! ANY => 0';
-    "Confirm the change";
     question = "Set " + target:name() + "'s LLM token budget to " + tostr(new_budget) + " (currently " + tostr(old_budget) + ", " + tostr(used) + " used)?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
-    if (response != "yes")
+    typeof(response) == TYPE_STR || (response = tostr(response));
+    response = response:trim():lowercase();
+    if (!(response == "yes" || response == "y"))
       player:inform_current($event:mk_error(player, "Budget change cancelled."));
       return;
     endif
-    "Set the new budget";
     target.llm_token_budget = new_budget;
     player:inform_current($event:mk_info(player, "Set " + target:name() + "'s LLM token budget to " + tostr(new_budget) + " tokens."));
   endverb
@@ -397,7 +392,6 @@ object WIZ_FEATURES
     "Reset a player's LLM token usage counter";
     this:_challenge_command_perms();
     set_task_perms(player);
-    "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
       target = $match:match_object(dobjstr, player);
@@ -408,18 +402,17 @@ object WIZ_FEATURES
     if (!is_player(target))
       raise(E_INVARG, tostr(target) + " is not a player.");
     endif
-    "Get current usage for confirmation";
     used = `target.llm_tokens_used ! ANY => 0';
     budget = `target.llm_token_budget ! ANY => 20000000';
-    "Confirm the reset";
     question = "Reset " + target:name() + "'s LLM token usage from " + tostr(used) + " to 0 (budget: " + tostr(budget) + ")?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
-    if (response != "yes")
+    typeof(response) == TYPE_STR || (response = tostr(response));
+    response = response:trim():lowercase();
+    if (!(response == "yes" || response == "y"))
       player:inform_current($event:mk_error(player, "Usage reset cancelled."));
       return;
     endif
-    "Reset usage and clear log";
     target.llm_tokens_used = 0;
     target.llm_usage_log = {};
     player:inform_current($event:mk_info(player, "Reset " + target:name() + "'s LLM token usage to 0 and cleared usage log."));
@@ -430,7 +423,6 @@ object WIZ_FEATURES
     player.wizard || raise(E_PERM, "Only wizards can reissue tools.");
     "Destroy all existing visors and compasses, then reissue them to all programmers and builders";
     set_task_perms(player);
-    "Find all existing compasses and visors";
     compasses = {};
     visors = {};
     for o in (descendants($architects_compass))
@@ -443,32 +435,27 @@ object WIZ_FEATURES
         visors = {@visors, o};
       endif
     endfor
-    "Find all players who need tools";
-    "All players with is_builder flag get compass";
     compass_recipients = {};
     for p in (players())
       if (valid(p) && `p.is_builder ! ANY => false' && p != $hacker)
         compass_recipients = {@compass_recipients, p};
       endif
     endfor
-    "All players with programmer flag get visor";
     visor_recipients = {};
     for p in (players())
       if (valid(p) && `p.programmer ! ANY => false' && p != $hacker)
         visor_recipients = {@visor_recipients, p};
       endif
     endfor
-    total_destroy = length(compasses) + length(visors);
-    total_issue = length(compass_recipients) + length(visor_recipients);
-    "Confirm before proceeding";
     question = "Destroy " + tostr(length(compasses)) + " compass(es) and " + tostr(length(visors)) + " visor(s), then reissue " + tostr(length(compass_recipients)) + " compass(es) and " + tostr(length(visor_recipients)) + " visor(s)?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
-    if (response != "yes")
+    typeof(response) == TYPE_STR || (response = tostr(response));
+    response = response:trim():lowercase();
+    if (!(response == "yes" || response == "y"))
       player:inform_current($event:mk_error(player, "Tool reissue cancelled."));
       return;
     endif
-    "Destroy all existing tools";
     compass_count = 0;
     for compass in (compasses)
       try
@@ -488,7 +475,6 @@ object WIZ_FEATURES
       endtry
     endfor
     player:inform_current($event:mk_info(player, "Destroyed " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
-    "Issue compasses to all builders/programmers/wizards";
     compass_count = 0;
     for recipient in (compass_recipients)
       try
@@ -503,7 +489,6 @@ object WIZ_FEATURES
         player:inform_current($event:mk_error(player, "Failed to issue compass to " + tostr(recipient) + ": " + toliteral(e)));
       endtry
     endfor
-    "Issue visors to all programmers/wizards";
     visor_count = 0;
     for recipient in (visor_recipients)
       try
@@ -518,7 +503,6 @@ object WIZ_FEATURES
         player:inform_current($event:mk_error(player, "Failed to issue visor to " + tostr(recipient) + ": " + toliteral(e)));
       endtry
     endfor
-    "Report results";
     player:inform_current($event:mk_info(player, "Issued " + tostr(compass_count) + " compass(es) and " + tostr(visor_count) + " visor(s)."));
   endverb
 
@@ -642,33 +626,34 @@ object WIZ_FEATURES
   verb "@llm-reset-agents" (none none none) owner: ARCH_WIZARD flags: "rd"
     "Reconfigure all LLM agents to pick up new client configuration";
     this:_challenge_command_perms();
-    "Find all objects with agents that need reconfiguring";
-    "1. Wearable instances (descendants of data_visor, architects_compass)";
     wearables = {};
     for proto in ({$data_visor, $architects_compass})
       for o in (descendants(proto))
-        valid(o) && (wearables = {@wearables, o});
+        if (valid(o))
+          wearables = {@wearables, o};
+        endif
       endfor
     endfor
-    "2. Room observer instances (descendants of llm_room_observer, including mr_welcome)";
     observers = {};
     for o in (descendants($llm_room_observer))
-      valid(o) && (observers = {@observers, o});
+      if (valid(o))
+        observers = {@observers, o};
+      endif
     endfor
     total = length(wearables) + length(observers);
     if (total == 0)
       player:inform_current($event:mk_info(player, "No LLM agent instances found to reconfigure."));
       return;
     endif
-    "Confirm before proceeding";
     question = "Reconfigure " + tostr(length(wearables)) + " wearable(s) and " + tostr(length(observers)) + " observer(s)?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
-    if (response != "yes")
+    typeof(response) == TYPE_STR || (response = tostr(response));
+    response = response:trim():lowercase();
+    if (!(response == "yes" || response == "y"))
       player:inform_current($event:mk_error(player, "Reconfiguration cancelled."));
       return;
     endif
-    "Reconfigure all wearables";
     wearable_count = 0;
     for wearable in (wearables)
       try
@@ -678,7 +663,6 @@ object WIZ_FEATURES
         player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(wearable) + ": " + toliteral(e)));
       endtry
     endfor
-    "Reconfigure all observers";
     observer_count = 0;
     for observer in (observers)
       try
@@ -688,11 +672,57 @@ object WIZ_FEATURES
         player:inform_current($event:mk_error(player, "Failed to reconfigure " + tostr(observer) + ": " + toliteral(e)));
       endtry
     endfor
-    "Report results";
     player:inform_current($event:mk_info(player, "Reconfigured " + tostr(wearable_count) + " wearable(s) and " + tostr(observer_count) + " observer(s)."));
   endverb
 
   verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
-    player.programmer && player.wizard || raise(E_PERM);
+    player.wizard || player:has_admin_elevation() || raise(E_PERM);
+  endverb
+
+  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return help topics for wizard commands via configured help source.";
+    {for_player, ?topic = ""} = args;
+    sources = {};
+    primary = `this.help_source ! ANY => 0';
+    if (valid(primary))
+      sources = {@sources, primary};
+    endif
+    include_admin = true;
+    admin_features = `$sysobj.admin_features ! E_PROPNF => $nothing';
+    if (typeof(for_player) == TYPE_OBJ && valid(for_player) && valid(admin_features))
+      player_admin_features = `for_player.admin_features ! ANY => {}';
+      typeof(player_admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
+      if (is_member(admin_features, player_admin_features))
+        include_admin = false;
+      endif
+    endif
+    if (include_admin && valid(admin_features))
+      admin_source = `admin_features.help_source ! ANY => $nothing';
+      if (valid(admin_source) && !is_member(admin_source, sources))
+        sources = {@sources, admin_source};
+      endif
+    endif
+    aggregated = {};
+    for source in (sources)
+      result = `source:help_topics(for_player, topic) ! ANY => 0';
+      if (typeof(result) == TYPE_INT)
+        continue;
+      endif
+      if (topic == "")
+        if (typeof(result) == TYPE_LIST)
+          aggregated = {@aggregated, @result};
+        else
+          aggregated = {@aggregated, result};
+        endif
+      else
+        return result;
+      endif
+    endfor
+    if (topic == "" && length(aggregated) > 0)
+      return aggregated;
+    endif
+    verb_help = `$help_utils:verb_help_from_hint(this, topic, 'administration) ! ANY => 0';
+    typeof(verb_help) != TYPE_INT && return verb_help;
+    return 0;
   endverb
 endobject

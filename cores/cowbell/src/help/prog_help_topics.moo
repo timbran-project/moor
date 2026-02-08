@@ -1,0 +1,76 @@
+object PROG_HELP_TOPICS
+  name: "Programmer Help Topics"
+  parent: HELP_SOURCE
+  location: PROTOTYPE_BOX
+  owner: ARCH_WIZARD
+  readable: true
+
+  property topic_programming_chmod (owner: ARCH_WIZARD, flags: "rc") = {
+    "@chmod",
+    "@chmod - Show/change permissions",
+    "@chmod TARGET [PERMS]\n\nPERMS accepts absolute (`rw`, `rxd`) and symbolic add/remove (`+w`, `-d`) forms.\nTargets: object, object.property, object:verb.",
+    {"chmod"},
+    "programming",
+    {}
+  };
+  property topic_programming_grep (owner: ARCH_WIZARD, flags: "rc") = {
+    "@grep",
+    "@grep - Search verb code",
+    "@grep [options] PATTERN [OBJECT]\n\nOptions: `-r/--regex`, `-s/--case-sensitive`, `-i`, `--owner OBJECT`, `--limit N`.",
+    {"grep"},
+    "programming",
+    {}
+  };
+  property topic_programming_move (owner: ARCH_WIZARD, flags: "rc") = {
+    "@cpverb",
+    "@cpverb/@mvverb - Copy or move verbs",
+    "`@cpverb SRC:VERB to DEST[:NEW]` copies a verb.\n`@mvverb SRC:VERB to DEST[:NEW] --confirm` moves a verb.\nUse `--dry-run` with @mvverb to preview.",
+    {"@mvverb", "cpverb", "mvverb"},
+    "programming",
+    {}
+  };
+  property topic_programming_overview (owner: ARCH_WIZARD, flags: "rc") = {
+    "programming",
+    "Programmer commands",
+    "Commands for examining and modifying code:\n\n`@list`, `@program`, `@verb`, `@rmverb`, `@cpverb`, `@mvverb`, `@which`, `@where-defined`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@clear-property`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nUse `help <command>` for details on each command.",
+    {"prog", "code", "verbs"},
+    "programming",
+    {"building"}
+  };
+  property topic_programming_program (owner: ARCH_WIZARD, flags: "rc") = {
+    "@program",
+    "@program - Program a verb",
+    "@program <object>:<verb> -- Program a verb via input.\n\n**Forms:**\n  `@program OBJ:VERB`                   Interactive mode\n  `@program OBJ:VERB DOBJ PREP IOBJ`    Match by argspec\n  `@program# OBJ:NUMBER`                Program verb by index\n  `@program OBJ:VERB = CODE_LINE`       Inline one-line mode\n\nInteractive special lines: `.` finish, `@abort` cancel, `.<text>` literal leading dot.",
+    {"@program#", "program"},
+    "programming",
+    {}
+  };
+  property topic_programming_show (owner: ARCH_WIZARD, flags: "rc") = {
+    "@show",
+    "@show - Display object info",
+    "@show <object>[selectors] -- Display object information.\n\n**Selectors:**\n  `.`   Local properties only\n  `..`  All properties (including inherited)\n  `:`   Local verbs only\n  `::`  All verbs (including inherited)\n\n**Examples:**\n  `@show #1`       Show summary with counts and hints\n  `@show #1.`      Show local properties\n  `@show #1..`     Show all properties (+ inherited)\n  `@show #1:`      Show local verbs\n  `@show #1::`     Show all verbs (+ inherited)\n  `@show #1.name`  Show specific property\n  `@show #1:tell`  Show specific verb\n  `@show #1.:`     Show local props + local verbs\n  `@show #1..:`    Show all props + local verbs\n  `@show #1.::`    Show local props + all verbs\n  `@show #1..::`   Show all props + all verbs\n\nAlias: `@display`",
+    {"@display", "show", "display"},
+    "programming",
+    {}
+  };
+  property topic_programming_which (owner: ARCH_WIZARD, flags: "rc") = {
+    "@which",
+    "@which - Show verb definition source",
+    "`@which OBJ:VERB` (alias `@where-defined`) shows definer, owner, flags, argspec, and code line count.",
+    {"@where-defined", "which", "where-defined"},
+    "programming",
+    {}
+  };
+
+  override import_export_hierarchy = {"help"};
+  override import_export_id = "prog_help_topics";
+  override topic_order = {
+    "topic_programming_overview",
+    "topic_programming_show",
+    "topic_programming_program",
+    "topic_programming_grep",
+    "topic_programming_chmod",
+    "topic_programming_move",
+    "topic_programming_which"
+  };
+endobject

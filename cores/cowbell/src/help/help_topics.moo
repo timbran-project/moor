@@ -20,6 +20,14 @@ object HELP_TOPICS
     "basics",
     {"eat", "nibble"}
   };
+  property topic_close (owner: ARCH_WIZARD, flags: "rc") = {
+    "close",
+    "Close a door",
+    "Close a door-like passage from this room.\n\nUsage:\n- `close <direction>`\n- `close door`",
+    {"close door"},
+    "basics",
+    {"open", "lock", "unlock", "doors"}
+  };
   property topic_communicating (owner: ARCH_WIZARD, flags: "rc") = {
     "communicating",
     "Talking and expressing yourself",
@@ -35,6 +43,14 @@ object HELP_TOPICS
     {"@desc"},
     "basics",
     {"look"}
+  };
+  property topic_doors (owner: ARCH_WIZARD, flags: "rc") = {
+    "doors",
+    "Door commands",
+    "Door commands operate only on door-like passages.\n\nA passage is treated as a door when either:\n- `is_door` is true, or\n- it has an `unlock_rule`\n\nBuilders can toggle door behavior with:\n- `@set-passage <dir> is_door true|false`",
+    {"door", "doors"},
+    "basics",
+    {"movement", "exits", "@set-passage"}
   };
   property topic_drink (owner: ARCH_WIZARD, flags: "rc") = {
     "drink",
@@ -140,6 +156,14 @@ object HELP_TOPICS
     "communicating",
     {"gagging", "@gag", "@ungag"}
   };
+  property topic_lock (owner: ARCH_WIZARD, flags: "rc") = {
+    "lock",
+    "Lock a door",
+    "Lock a lockable door-like passage.\n\nUsage:\n- `lock <direction>`\n- `lock <direction> with <key>`\n- `lock door`\n\nRequires a matching key and an `unlock_rule` on the passage.",
+    {"lock door"},
+    "basics",
+    {"unlock", "open", "doors"}
+  };
   property topic_look (owner: ARCH_WIZARD, flags: "rc") = {
     "look",
     "Look at your surroundings",
@@ -155,6 +179,14 @@ object HELP_TOPICS
     {"go", "move", "travel"},
     "basics",
     {"exits", "look", "walk", "join"}
+  };
+  property topic_open (owner: ARCH_WIZARD, flags: "rc") = {
+    "open",
+    "Open a door",
+    "Open a door-like passage from this room.\n\nUsage:\n- `open <direction>`\n- `open door`\n\nIf the door is locked, open may auto-unlock when you have a matching key.",
+    {"open door"},
+    "basics",
+    {"close", "lock", "unlock", "doors"}
   };
   property topic_privacy (owner: ARCH_WIZARD, flags: "rc") = {
     "privacy",
@@ -203,6 +235,14 @@ object HELP_TOPICS
     {"ungag", "unmute", "unblock"},
     "communicating",
     {"gagging", "@gag", "@listgag"}
+  };
+  property topic_unlock (owner: ARCH_WIZARD, flags: "rc") = {
+    "unlock",
+    "Unlock a door",
+    "Unlock a lockable door-like passage.\n\nUsage:\n- `unlock <direction>`\n- `unlock <direction> with <key>`\n- `unlock door`\n\nRequires a matching key and an `unlock_rule` on the passage.",
+    {"unlock door"},
+    "basics",
+    {"lock", "open", "doors"}
   };
   property topic_walk (owner: ARCH_WIZARD, flags: "rc") = {
     "walk",

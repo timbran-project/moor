@@ -7,8 +7,9 @@ object ARCH_WIZARD
   wizard: true
   programmer: true
 
-  override admin_features = WIZ_FEATURES;
+  override admin_features = {ADMIN_FEATURES};
   override authoring_features = PROG_FEATURES;
+  override features = {SOCIAL_FEATURES, MAIL_FEATURES, WIZ_FEATURES};
   override description = "The arch-wizard account with full system privileges.";
   override import_export_id = "arch_wizard";
   override is_builder = true;
