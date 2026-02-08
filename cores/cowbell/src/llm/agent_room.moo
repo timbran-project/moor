@@ -10,6 +10,10 @@ object AGENT_ROOM
   property history (owner: ARCH_WIZARD, flags: "rc") = {};
   property llm_client (owner: ARCH_WIZARD, flags: "rc") = #-1;
   property loop_task (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property max_history_context_items (owner: ARCH_WIZARD, flags: "rc") = 4;
+  property max_pending_per_player (owner: ARCH_WIZARD, flags: "rc") = 3;
+  property max_query_length (owner: ARCH_WIZARD, flags: "rc") = 2000;
+  property max_workers (owner: ARCH_WIZARD, flags: "rc") = 3;
   property task_id (owner: ARCH_WIZARD, flags: "rc") = 0;
   property task_queue (owner: ARCH_WIZARD, flags: "rc") = {};
   property task_requester (owner: ARCH_WIZARD, flags: "rc") = #-1;
@@ -24,6 +28,31 @@ object AGENT_ROOM
     command_text = argstr;
     if (!command_text)
       player:inform_current($event:mk_info(player, "What would you like me to do?"));
+      return;
+    endif
+    max_len = `this.max_query_length ! E_PROPNF => 2000';
+    if (max_len < 1)
+      max_len = 1;
+    endif
+    if (length(command_text) > max_len)
+      player:inform_current($event:mk_error(player, "Task is too long (" + tostr(length(command_text)) + " chars). Max is " + tostr(max_len) + "."));
+      return;
+    endif
+    max_pending = `this.max_pending_per_player ! E_PROPNF => 3';
+    if (max_pending < 1)
+      max_pending = 1;
+    endif
+    pending_for_player = 0;
+    if (this.current_task && this.task_requester == player)
+      pending_for_player = pending_for_player + 1;
+    endif
+    for task in (this.task_queue)
+      if (`task['player] ! ANY => #-1' == player)
+        pending_for_player = pending_for_player + 1;
+      endif
+    endfor
+    if (pending_for_player >= max_pending)
+      player:inform_current($event:mk_error(player, "You already have " + tostr(pending_for_player) + " task(s) queued/running here. Please wait for one to finish."));
       return;
     endif
     "Ensure event loop is running and send task";
@@ -68,22 +97,30 @@ object AGENT_ROOM
   verb status (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show current agent status.";
     lines = {};
+    show_details = `player.wizard ! ANY => false';
+    if (!show_details && this.current_task && this.task_requester == player)
+      show_details = true;
+    endif
     if (this.current_task)
-      "Truncate long task descriptions";
-      task_desc = this.current_task;
-      if (length(task_desc) > 60)
-        task_desc = task_desc[1..60] + "...";
-      endif
-      lines = {@lines, "Task: \"" + task_desc + "\""};
-      if (valid(this.agent))
-        agent = this.agent;
-        iter = agent.iteration;
-        max_iter = agent.max_iterations;
-        pct = toint(iter * 100 / max_iter);
-        lines = {@lines, "Status: " + tostr(agent.status) + "  |  Iteration: " + tostr(iter) + "/" + tostr(max_iter) + " (" + tostr(pct) + "%)"};
-        if (agent.last_tool && length(agent.last_tool) > 0)
-          lines = {@lines, "Last tool: " + agent.last_tool};
+      if (show_details)
+        "Truncate long task descriptions";
+        task_desc = this.current_task;
+        if (length(task_desc) > 60)
+          task_desc = task_desc[1..60] + "...";
         endif
+        lines = {@lines, "Task: \"" + task_desc + "\""};
+        if (valid(this.agent))
+          agent = this.agent;
+          iter = agent.iteration;
+          max_iter = agent.max_iterations;
+          pct = toint(iter * 100 / max_iter);
+          lines = {@lines, "Status: " + tostr(agent.status) + "  |  Iteration: " + tostr(iter) + "/" + tostr(max_iter) + " (" + tostr(pct) + "%)"};
+          if (agent.last_tool && length(agent.last_tool) > 0)
+            lines = {@lines, "Last tool: " + agent.last_tool};
+          endif
+        endif
+      else
+        lines = {@lines, "A task is currently running for another requester."};
       endif
     else
       lines = {@lines, "No task running."};
@@ -96,7 +133,17 @@ object AGENT_ROOM
     "Queue info";
     queue_len = length(this.task_queue);
     if (queue_len > 0)
-      lines = {@lines, "Queue: " + tostr(queue_len) + " pending"};
+      if (`player.wizard ! ANY => false')
+        lines = {@lines, "Queue: " + tostr(queue_len) + " pending"};
+      else
+        mine = 0;
+        for task in (this.task_queue)
+          if (`task['player] ! ANY => #-1' == player)
+            mine = mine + 1;
+          endif
+        endfor
+        lines = {@lines, "Queue: " + tostr(mine) + " yours pending"};
+      endif
     endif
     "Loop status";
     if (this.loop_task > 0)
@@ -110,11 +157,26 @@ object AGENT_ROOM
     if (length(this.task_queue) == 0)
       return player:inform_current($event:mk_info(player, "Queue is empty."));
     endif
+    show_all = `player.wizard ! ANY => false';
     lines = {"Pending tasks:"};
+    shown = 0;
+    hidden = 0;
     for i in [1..length(this.task_queue)]
       task = this.task_queue[i];
-      lines = {@lines, "  " + tostr(i) + ". \"" + task['query] + "\""};
+      task_player = `task['player] ! ANY => #-1';
+      if (show_all || task_player == player)
+        lines = {@lines, "  " + tostr(i) + ". \"" + task['query] + "\""};
+        shown = shown + 1;
+      else
+        hidden = hidden + 1;
+      endif
     endfor
+    if (shown == 0)
+      lines = {@lines, "  (No pending tasks for you.)"};
+    endif
+    if (hidden > 0 && !show_all)
+      lines = {@lines, "  (" + tostr(hidden) + " task(s) for other requesters hidden)"};
+    endif
     player:inform_current($event:mk_info(player, lines));
   endverb
 
@@ -123,20 +185,31 @@ object AGENT_ROOM
     if (length(this.history) == 0)
       return player:inform_current($event:mk_info(player, "No task history yet."));
     endif
+    show_all = `player.wizard ! ANY => false';
     lines = {"Task history (most recent first):"};
-    "Show last 10, newest first";
+    "Show up to 10 relevant entries, newest first";
     hist_len = length(this.history);
-    count = min(10, hist_len);
-    for offset in [0..count - 1]
+    shown = 0;
+    for offset in [0..hist_len - 1]
+      if (shown >= 10)
+        break;
+      endif
       i = hist_len - offset;
       entry = this.history[i];
+      if (!show_all && `entry['requester] ! ANY => #-1' != player)
+        continue;
+      endif
       status_str = tostr(entry['status]);
       query_preview = (entry['query])[1..min(50, length(entry['query]))];
       if (length(entry['query]) > 50)
         query_preview = query_preview + "...";
       endif
       lines = {@lines, "  [" + status_str + "] \"" + query_preview + "\""};
+      shown = shown + 1;
     endfor
+    if (shown == 0)
+      lines = {@lines, "  (No history entries for you.)"};
+    endif
     player:inform_current($event:mk_info(player, lines));
   endverb
 
@@ -684,14 +757,29 @@ object AGENT_ROOM
     else
       "Fresh setup";
       agent:setup(task['query], task_player);
-      "Inject history summary if available";
-      if (length(this.history) > 0)
-        history_summary = "PREVIOUS TASKS IN THIS ROOM (use for context):\n";
-        start_idx = max(1, length(this.history) - 4);
-        for h in ((this.history)[start_idx..length(this.history)])
-          history_summary = history_summary + "- " + h['query] + " -> " + tostr(h['status]) + "\n";
+      "Inject requester-local history summary if available";
+      max_hist = `this.max_history_context_items ! E_PROPNF => 4';
+      if (max_hist < 0)
+        max_hist = 0;
+      endif
+      if (max_hist > 0 && length(this.history) > 0)
+        selected = {};
+        for i in [length(this.history)..1]
+          h = this.history[i];
+          if (`h['requester] ! ANY => #-1' == task_player)
+            selected = {@selected, h};
+            if (length(selected) >= max_hist)
+              break;
+            endif
+          endif
         endfor
-        agent.context = {@agent.context, ["role" -> "system", "content" -> history_summary]};
+        if (length(selected) > 0)
+          history_summary = "YOUR RECENT TASKS IN THIS ROOM (for continuity):\n";
+          for h in (selected)
+            history_summary = history_summary + "- " + h['query] + " -> " + tostr(h['status]) + "\n";
+          endfor
+          agent.context = {@agent.context, ["role" -> "system", "content" -> history_summary]};
+        endif
       endif
     endif
     "Run agent";
@@ -836,8 +924,14 @@ object AGENT_ROOM
         endfor
         active = new_active;
       endif
-      "Dispatch pending tasks to workers (max 3 concurrent)";
-      while (length(pending) > 0 && length(active) < 3)
+      "Dispatch pending tasks to workers (configurable concurrent limit)";
+      max_workers = `this.max_workers ! E_PROPNF => 3';
+      if (max_workers < 1)
+        max_workers = 1;
+      elseif (max_workers > 10)
+        max_workers = 10;
+      endif
+      while (length(pending) > 0 && length(active) < max_workers)
         {task, @pending} = pending;
         my_loop = loop_id;
         fork worker_tid (0)

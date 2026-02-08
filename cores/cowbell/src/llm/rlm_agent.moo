@@ -1,6 +1,7 @@
 object RLM_AGENT
   name: "RLM Agent"
   parent: ROOT
+  location: PROTOTYPE_BOX
   owner: ARCH_WIZARD
   fertile: true
   readable: true
@@ -568,9 +569,36 @@ object RLM_AGENT
       set_task_perms(actor);
       this.findings = $relation:create(true);
     endif
-    "Build system prompt";
+    "Build mode-aware system prompt";
+    q = query:lowercase();
+    mode = "mixed";
+    inspect_hints = {"inspect", "explain", "review", "understand", "show", "list", "find", "what is", "why"};
+    change_hints = {"create", "build", "add", "modify", "change", "fix", "update", "program", "set", "remove", "delete"};
+    inspect_score = 0;
+    change_score = 0;
+    for h in (inspect_hints)
+      if (index(q, h) > 0)
+        inspect_score = inspect_score + 1;
+      endif
+    endfor
+    for h in (change_hints)
+      if (index(q, h) > 0)
+        change_score = change_score + 1;
+      endif
+    endfor
+    if (inspect_score > 0 && change_score == 0)
+      mode = "inspect";
+    elseif (change_score > 0 && inspect_score == 0)
+      mode = "change";
+    endif
     guide = this:_get_guide();
-    prompt = "You are a MOO Building Agent. You create objects and write MOO code.\n\nTASK: " + query + "\n\n## \u26A0\uFE0F CRITICAL: TOOL ARGUMENTS\n- Pass 'object' and 'verb' as separate parameters.\n- DO NOT prefix arguments with colons or protocol tokens. Example: object=\"$room\" (Correct) vs object=\":$room\" or object=\"functions.help_lookup\" (Incorrect).\n- DO NOT leak internal thought tokens like <|thought|> or <|tool_call_begin|> into tool parameters.\n- All code and text parameters MUST be simple, clean strings.\n\n## \u26A0\uFE0F CRITICAL: moo_eval syntax\n- **moo_eval** executes a full program body.\n- You **MUST** use the `return` keyword to see any data. Example: `return ctime();` (Correct) vs `ctime();` (Incorrect).\n- Always end statements with semicolons.\n\n## 🛠\uFE0F Tool Usage\n- **create_object(parent, name)**: Creates a new object.\n- **program_verb(object, verb, code)**: Sets code. 'code' must be a SINGLE STRING with \\n for newlines.\n- **add_verb(object, verb, ...)**: Adds a new verb.\n\n## 💡 Strategy\n1. Share your plan via **think**.\n2. Research the world using **moo_eval** (with return!) and **doc_lookup**.\n3. ACTUALLY BUILD IT - don't just report what you would do.\n\n" + guide;
+    mode_policy = "MODE: MIXED - Inspect first, then change only where needed.";
+    if (mode == "inspect")
+      mode_policy = "MODE: INSPECT - Do not modify world state unless explicitly requested. Focus on reading and reporting.";
+    elseif (mode == "change")
+      mode_policy = "MODE: CHANGE - Make requested changes, but inspect target code/objects before writing.";
+    endif
+    prompt = "You are a MOO building and maintenance agent. Use tools carefully and deliver concrete results.\n\nTASK: " + query + "\n\n" + mode_policy + "\n\nCOMPLETION CONTRACT:\n- You must finish by calling report_finding with final=true exactly once.\n- Do not end with plain assistant text alone.\n\nTOOL ARGUMENT CONTRACT:\n- Pass clean JSON object arguments only.\n- Keep object and verb separate (object=\"$room\", verb=\"description\").\n- Never include protocol or prefix noise in arguments.\n- For moo_eval, include return when you need output and terminate statements with semicolons.\n\nWORKFLOW CONTRACT:\n1. Think briefly about plan.\n2. Read before write: inspect existing verbs/properties/objects first.\n3. Apply minimal changes needed.\n4. Verify with follow-up reads/eval.\n5. Report findings and finish with report_finding(final=true).\n\nERROR RECOVERY CONTRACT:\n- On tool error: retry once with corrected arguments.\n- If second attempt fails, choose an alternate tool/path.\n- If blocked, report a concise blocker with exact error text.\n\nITERATION BUDGETING:\n- By iteration 20: have completed discovery and selected approach.\n- By iteration 35: have executed core change or proven blocker.\n- By iteration 45: run verification and prepare final report.\n\nPRIVACY SCOPE:\n- In shared rooms, do not reveal other users' private task details unless actor is a wizard.\n\n" + guide;
     this.system_prompt = prompt;
     this.context = {["role" -> "system", "content" -> this.system_prompt]};
     return this;
@@ -634,8 +662,8 @@ object RLM_AGENT
   endverb
 
   verb _get_guide (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Return MOO programming guide for agents.";
-    return "## MOO Programming Guide\n\n### Syntax Basics\n- **1-indexed**: Lists and strings start at index 1, not 0\n- **Lists**: `{ 1, 2, 3 }` (curly braces, NOT square brackets)\n- **Maps**: `[ \"key\" -> value, \"other\" -> 123 ]` (square brackets with ->)\n- **Comments**: Use string literals: `\"This is a comment\";`\n\n### Verb Types and Argspecs (CRITICAL)\n\n**Command verbs** - typed by players (e.g., 'tap wristwatch')\n- Flags: `rd` (NO x flag - x is for methods only)\n- Argspec determines how command parses: `dobj prep iobj`\n\n**Method verbs** - called programmatically (e.g., `obj:method()`)\n- Flags: `rxd` (x = executable from code)\n- Argspec: `this none this`\n\n**Common command argspecs:**\n- `this none none` = 'verb <this object>' (tap wristwatch, wear hat)\n- `any none none` = 'verb <anything>' (look thing)\n- `none none none` = 'verb' with no object (look, inventory)\n- `this with/using any` = 'verb <this> with <something>' (unlock door with key)\n- `any in/inside this` = 'put <thing> in <this>' (put coin in box)\n\nExample: 'tap wristwatch' needs argspec `this none none`:\n- dobj=this (the wristwatch is the direct object)\n- prep=none (no preposition)\n- iobj=none (no indirect object)\n\n### Event System (CRITICAL)\n**Never call notify() directly.**\n\n1. **:inform_current(event)** - Command responses (ephemeral)\n   ```\n   player:inform_current($event:mk_info(player, \"The watch shows: \" + ctime()));\n   ```\n\n2. **:tell(event)** - World events (persistent, all connections)\n\n3. **Room announcements** - Use $event:mk_emote for third-person actions:\n   ```\n   event = $event:mk_emote(player, @this.tap_msg):with_dobj(this);\n   player.location:announce(event);\n   ```\n\n### Message Properties (IMPORTANT PATTERN)\nStore messages on `*_msg` properties, NOT inline in code.\n\n**Add the property with template:**\n```\nthis.tap_msg = $sub_utils:compile(\"{nc} {tap|taps} the watch face.\");\n```\n\n**In the verb - use the property:**\n```\nevent = $event:mk_emote(player, @this.tap_msg):with_dobj(this);\nplayer.location:announce(event);\n```\n\n### $sub_utils Tokens\n- `{n}/{nc}` - Actor name (cap)\n- `{d}/{dc}` - Direct object\n- `{the d}` - Article + dobj\n- `{tap|taps}` - Self-alternation (first for actor, second for others)\n- `{p}` - Possessive pronoun (his/her/their)\n\n### Complete Command Verb Example\nVerb 'tap' on a wristwatch - argspec: `this none none`, flags: `rd`\n```\n\"Tap the watch to check time.\";\nevent = $event:mk_emote(player, @this.tap_msg):with_dobj(this);\nplayer.location:announce(event);\nplayer:inform_current($event:mk_info(player, \"The display shows: \" + ctime()));\n```\n";
+    "Return concise MOO programming guide for agents.";
+    return "MOO QUICK GUIDE\n\nSYNTAX:\n- Lists use {a, b, c}.\n- Maps use [\"key\" -> value].\n- Indices are 1-based.\n\nVERB SHAPES:\n- Command verbs (player commands): flags rd, argspec matches parser usage.\n- Method verbs (code calls): flags rxd, commonly argspec this none this.\n\nEVENT OUTPUT:\n- Use player:inform_current($event:mk_info(...)) for direct responses.\n- Use room announce events for world-visible actions.\n- Do not use notify() directly.\n\nREAD BEFORE WRITE:\n- Before editing a verb, inspect/read current code first.\n- For object behavior questions, inspect object then read relevant verbs.\n\nWRITING CODE:\n- program_verb code must be one clean string with \\n for newlines.\n- Keep changes small and targeted; prefer early returns.\n\nmoo_eval REMINDER:\n- Use return to surface values you need to inspect.\n- End statements with semicolons.\n\nREPORTING:\n- If you changed behavior, verify and summarize what changed and why.\n- If blocked, report exact failing step and error text.";
   endverb
 
   verb _coerce_string (none none none) owner: ARCH_WIZARD flags: "rxd"

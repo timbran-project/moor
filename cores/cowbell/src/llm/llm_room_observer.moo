@@ -12,6 +12,9 @@ object LLM_ROOM_OBSERVER
   property event_buffer (owner: ARCH_WIZARD, flags: "rc") = {};
   property event_buffer_size (owner: ARCH_WIZARD, flags: "rc") = 5;
   property knowledge_base (owner: HACKER, flags: "rc") = #-1;
+  property last_loop_probe_at (owner: ARCH_WIZARD, flags: "rc") = "0";
+  property last_loop_probe_error (owner: ARCH_WIZARD, flags: "rc") = "\"\"";
+  property last_loop_restart_at (owner: ARCH_WIZARD, flags: "rc") = "0";
   property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
   property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
   property loop_task (owner: ARCH_WIZARD, flags: "rc") = 0;
@@ -210,7 +213,6 @@ object LLM_ROOM_OBSERVER
     this:_ensure_loop();
     "Fork to wait for the loop's reply asynchronously";
     fork (0)
-      set_task_perms(this.owner);
       my_task = task_id();
       try
         task_send(this.loop_task, ["type" -> "poke", "player" -> player, "reply_to" -> my_task]);
@@ -841,6 +843,13 @@ object LLM_ROOM_OBSERVER
     if (response:starts_with("SPEAK: "))
       response = response[8..$];
     endif
+    "Handle DSML/tool-call markup leakage before normal processing.";
+    if (`this:_process_dsml_response(response) ! ANY => false')
+      return true;
+    endif
+    if (index(response:uppercase(), "DSML") > 0)
+      return false;
+    endif
     "Strip <think>...</think> tags";
     response_upper = response:uppercase();
     while (index(response_upper, "<THINK>") > 0)
@@ -1072,7 +1081,6 @@ object LLM_ROOM_OBSERVER
       `kill_task(lt) ! ANY';
     endif
     fork task_id (0)
-      set_task_perms(this.owner);
       this:_event_loop();
     endfork
     this.loop_task = task_id;
@@ -1092,7 +1100,121 @@ object LLM_ROOM_OBSERVER
   verb _ensure_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Start the event loop if not already running.";
     if (this.loop_task <= 0)
+      this.last_loop_restart_at = ftime();
       this:_start_loop();
+      return;
     endif
+    "Probe the existing loop task; restart only if send fails.";
+    probe = `task_send(this.loop_task, ["type" -> "__probe__"]) ! ANY => E_NONE';
+    this.last_loop_probe_at = ftime();
+    if (probe == E_NONE)
+      this.last_loop_probe_error = "dead_task:" + toliteral(this.loop_task);
+      this.last_loop_restart_at = ftime();
+      this:_start_loop();
+    else
+      this.last_loop_probe_error = "";
+    endif
+  endverb
+
+  verb _process_dsml_response (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Handle DSML-style tool call text that leaked through as plain response text.";
+    "Returns true if handled/announced, false otherwise.";
+    {response} = args;
+    if (typeof(response) != TYPE_STR)
+      return false;
+    endif
+    upper = response:uppercase();
+    if (!(index(upper, "DSML") > 0))
+      return false;
+    endif
+    if (!valid(this.location))
+      return false;
+    endif
+    "Extract target_name parameter (if present)";
+    target_name = "";
+    pos = index(response, "parameter name=\"target_name\"");
+    if (pos > 0)
+      rest = response[pos..$];
+      gt = index(rest, ">");
+      if (gt > 0)
+        val = rest[gt + 1..$];
+        stop = index(val, "\n<");
+        if (stop > 0)
+          val = val[1..stop - 1];
+        endif
+        target_name = val:trim();
+      endif
+    endif
+    "Extract message parameter";
+    message = "";
+    pos = index(response, "parameter name=\"message\"");
+    if (pos > 0)
+      rest = response[pos..$];
+      gt = index(rest, ">");
+      if (gt > 0)
+        val = rest[gt + 1..$];
+        stop = index(val, "\n<");
+        if (stop > 0)
+          val = val[1..stop - 1];
+        endif
+        message = val:trim();
+      endif
+    endif
+    if (!message)
+      return false;
+    endif
+    if (target_name)
+      target = `$match:match_object(target_name, this) ! ANY => $failed_match';
+      if (valid(target))
+        this.location:announce(this:mk_directed_say_event(target, message));
+        return true;
+      endif
+    endif
+    say_event = $event:mk_say(this, this:name(), " says, \"", message, "\"");
+    this.location:announce(say_event);
+    return true;
+  endverb
+
+  verb observer_debug_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return observer loop/agent diagnostics as a map.";
+    caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
+    status = [];
+    status["object"] = toliteral(this);
+    status["name"] = this:name();
+    status["enabled"] = this.enabled;
+    status["responding"] = `this.responding ! E_PROPNF => false';
+    status["loop_task"] = `this.loop_task ! E_PROPNF => 0';
+    status["thinking_task"] = `this.thinking_task ! E_PROPNF => 0';
+    if (status["loop_task"] > 0)
+      probe = `task_send(status["loop_task"], ["type" -> "__probe__"]) ! ANY => E_NONE';
+      status["loop_alive"] = probe != E_NONE;
+      status["loop_probe_error"] = probe == E_NONE ? "dead_task" | "";
+    else
+      status["loop_alive"] = false;
+      status["loop_probe_error"] = "no_loop_task";
+    endif
+    agent_ok = typeof(this.agent) == TYPE_OBJ && valid(this.agent);
+    status["agent_valid"] = agent_ok;
+    if (agent_ok)
+      status["agent_context_len"] = `length(this.agent.context) ! ANY => 0';
+    else
+      status["agent_context_len"] = 0;
+    endif
+    status["event_buffer_len"] = `length(this.event_buffer) ! E_PROPNF => 0';
+    status["last_spoke_at"] = `this.last_spoke_at ! E_PROPNF => 0';
+    status["last_loop_probe_at"] = `this.last_loop_probe_at ! E_PROPNF => 0';
+    status["last_loop_probe_error"] = `this.last_loop_probe_error ! E_PROPNF => ""';
+    status["last_loop_restart_at"] = `this.last_loop_restart_at ! E_PROPNF => 0';
+    return status;
+  endverb
+
+  verb "@observer-status @obs-status" (this none none) owner: ARCH_WIZARD flags: "rxd"
+    "Show diagnostics for this observer.";
+    caller == this.owner || caller.wizard || raise(E_PERM);
+    s = this:observer_debug_status();
+    lines = {"Observer: " + s["name"] + " (" + s["object"] + ")", "Enabled: " + toliteral(s["enabled"]), "Responding: " + toliteral(s["responding"]), "Loop task: " + tostr(s["loop_task"]), "Loop alive: " + toliteral(s["loop_alive"]), "Loop probe error: " + s["loop_probe_error"], "Thinking task: " + tostr(s["thinking_task"]), "Agent valid: " + toliteral(s["agent_valid"]), "Agent context len: " + tostr(s["agent_context_len"]), "Event buffer len: " + tostr(s["event_buffer_len"]), "Last spoke at: " + tostr(s["last_spoke_at"]), "Last loop probe at: " + tostr(s["last_loop_probe_at"]), "Last loop probe error: " + s["last_loop_probe_error"], "Last loop restart at: " + tostr(s["last_loop_restart_at"])};
+    content = $format.block:mk($format.title:mk("Observer Status"), @lines);
+    event = $event:mk_info(player, content):with_audience('utility):as_djot():as_inset():with_group('utility, player);
+    player:inform_current(event);
   endverb
 endobject
