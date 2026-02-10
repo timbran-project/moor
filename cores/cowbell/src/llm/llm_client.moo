@@ -59,7 +59,22 @@ object LLM_CLIENT
     if (typeof(response) == TYPE_MAP && maphaskey(response, "choices") && length(response["choices"]) > 0)
       choice = response["choices"][1];
       if (maphaskey(choice, "message") && maphaskey(choice["message"], "content"))
-        return choice["message"]["content"];
+        content = choice["message"]["content"];
+        if (typeof(content) == TYPE_STR)
+          cleaned = content:trim();
+          lbrace = index(cleaned, "{");
+          rbrace = rindex(cleaned, "}");
+          if (lbrace && rbrace && rbrace >= lbrace)
+            candidate = cleaned[lbrace..rbrace];
+            if (`parse_json(candidate) ! ANY => false')
+              return candidate;
+            endif
+          endif
+          if (`parse_json(cleaned) ! ANY => false')
+            return cleaned;
+          endif
+        endif
+        return content;
       endif
     endif
     return response;

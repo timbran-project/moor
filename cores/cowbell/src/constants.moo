@@ -8,6 +8,7 @@ define LOOK = #20;
 define PRONOUNS = #22;
 define SERVER_OPTIONS = #52;
 define EXAMINATION = #56;
+define PLAYER_ACTIVITY = #000052-9C4939BC41;
 
 // auth
 define PASSWORD = #16;

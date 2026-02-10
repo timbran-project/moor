@@ -6,7 +6,9 @@ object ACTOR
   fertile: true
   readable: true
 
+  property performing (owner: ARCH_WIZARD, flags: "rc") = "{}";
   property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .is_plural = true, .verb_be = "are", .verb_have = "have", .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
+  property wearing (owner: ARCH_WIZARD, flags: "rc") = {};
 
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";
@@ -326,5 +328,120 @@ object ACTOR
     event = event:with_metadata('loudness, 5);
     event = event:as_djot():with_presentation_hint('speech_bubble);
     return event;
+  endverb
+
+  verb action_start_activity (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: record an active task for an actor.";
+    set_task_perms(this.owner);
+    {who, kind, task_id, ?label = ""} = args;
+    who != this && return this.performing;
+    if (!(typeof(task_id) == TYPE_INT && task_id > 0))
+      return this.performing;
+    endif
+    if (!(typeof(this.performing) == TYPE_LIST))
+      this.performing = {};
+    endif
+    this:action_clear_activity_task(this, task_id);
+    entry = $player_activity:make_entry(kind, task_id, label);
+    this.performing = {@this.performing, entry};
+    return this.performing;
+  endverb
+
+  verb action_clear_activity_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: remove activity entries for a task id.";
+    set_task_perms(this.owner);
+    {who, task_id} = args;
+    who != this && return {};
+    if (!(typeof(this.performing) == TYPE_LIST))
+      this.performing = {};
+      return this.performing;
+    endif
+    kept = {};
+    for entry in (this.performing)
+      entry_task = `$player_activity:task_id_of(entry) ! ANY => 0';
+      if (entry_task != task_id)
+        kept = {@kept, entry};
+      endif
+    endfor
+    this.performing = kept;
+    return kept;
+  endverb
+
+  verb action_stop_activities (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: cancel activities, optionally by kind.";
+    set_task_perms(this.owner);
+    {who, ?kind = $nothing} = args;
+    who != this && return {};
+    if (!(typeof(this.performing) == TYPE_LIST))
+      this.performing = {};
+      return {};
+    endif
+    kept = {};
+    canceled = {};
+    for entry in (this.performing)
+      entry_kind = `$player_activity:kind_of(entry) ! ANY => $nothing';
+      if (kind != $nothing && entry_kind != kind)
+        kept = {@kept, entry};
+        continue;
+      endif
+      if (`$player_activity:cancel_entry(entry) ! ANY => 0')
+        canceled = {@canceled, entry};
+      endif
+    endfor
+    this.performing = kept;
+    if (kind == $nothing || kind == 'walk || kind == 'join)
+      this.walk_task = 0;
+    endif
+    return canceled;
+  endverb
+
+  verb action_activity_descriptions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Action handler: describe current activities for display.";
+    set_task_perms(this.owner);
+    {who} = args;
+    who != this && return {};
+    if (!(typeof(this.performing) == TYPE_LIST) || length(this.performing) == 0)
+      return {};
+    endif
+    descriptions = {};
+    for entry in (this.performing)
+      description = `$player_activity:description_of(entry) ! ANY => ""';
+      if (typeof(description) == TYPE_STR && description != "" && !(description in descriptions))
+        descriptions = {@descriptions, description};
+      endif
+    endfor
+    return descriptions;
+  endverb
+
+  verb _look_self_details (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Shared actor self-description details (wearing + current activities).";
+    set_task_perms(caller_perms());
+    details = {};
+    if (typeof(this.wearing) == TYPE_LIST && length(this.wearing) > 0)
+      wearing_names = {};
+      integrated_descs = {};
+      for item in (this.wearing)
+        if (valid(item))
+          wearing_names = {@wearing_names, item:display_name()};
+          if (respond_to(item, 'integrate_description))
+            idesc = `item:integrate_description() ! ANY => ""';
+            if (typeof(idesc) == TYPE_STR && idesc != "")
+              integrated_descs = {@integrated_descs, idesc};
+            endif
+          endif
+        endif
+      endfor
+      if (wearing_names)
+        details = {@details, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " wearing ", wearing_names:english_list(), "."};
+      endif
+      for idesc in (integrated_descs)
+        details = {@details, " ", idesc};
+      endfor
+    endif
+    activity_descriptions = `this:action_activity_descriptions(this) ! ANY => {}';
+    if (activity_descriptions && length(activity_descriptions) > 0)
+      details = {@details, "\n\n", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " currently ", activity_descriptions:english_list(), "."};
+    endif
+    return details;
   endverb
 endobject

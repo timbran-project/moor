@@ -82,6 +82,7 @@ object SYSOBJ
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;
   property player (owner: HACKER, flags: "r") = PLAYER;
+  property player_activity (owner: ARCH_WIZARD, flags: "rc") = PLAYER_ACTIVITY;
   property prog_features (owner: HACKER, flags: "r") = PROG_FEATURES;
   property prog_utils (owner: HACKER, flags: "r") = PROG_UTILS;
   property pronouns (owner: HACKER, flags: "r") = PRONOUNS;

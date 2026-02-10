@@ -6,6 +6,9 @@ object PLAYER
   readable: true
 
   property admin_features (owner: ARCH_WIZARD, flags: "") = {};
+  property assist_last_token (owner: ARCH_WIZARD, flags: "rc") = "";
+  property assist_pending (owner: ARCH_WIZARD, flags: "rc") = [];
+  property assist_ttl (owner: ARCH_WIZARD, flags: "rc") = 120;
   property authoring_features (owner: ARCH_WIZARD, flags: "") = #-1;
   property direct_messages (owner: ARCH_WIZARD, flags: "c") = {};
   property editing_sessions (owner: ARCH_WIZARD, flags: "c") = [];
@@ -14,7 +17,7 @@ object PLAYER
   property gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
-  property home (owner: ARCH_WIZARD, flags: "rc");
+  property home (owner: ARCH_WIZARD, flags: "rc") = "#000A54-9B1A1A9B2E";
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
   property last_connected (owner: ARCH_WIZARD, flags: "r") = 0;
   property last_disconnected (owner: ARCH_WIZARD, flags: "r") = 0;
@@ -28,7 +31,6 @@ object PLAYER
   property profile_picture (owner: HACKER, flags: "rc") = false;
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
   property walk_task (owner: ARCH_WIZARD, flags: "c") = 0;
-  property wearing (owner: HACKER, flags: "rwc") = {};
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -160,15 +162,59 @@ object PLAYER
   endverb
 
   verb "who @who" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Display list of connected players using table format";
+    "Display connected players, or details for a specific player.";
     caller != player && return E_PERM;
-    players = connected_players();
-    !players && return this:inform_current($event:mk_not_found(this, "No players are currently connected."):with_audience('utility):with_group('who));
-    "Build table data";
+    query = length(args) > 0 ? args:join(" "):trim() | "";
+    connected = connected_players();
+    if (!connected)
+      connected = {};
+    endif
+    show_ids = player.is_builder || player.programmer;
+    if (length(query) > 0)
+      try
+        matched = $match:match_player(query, this);
+      except e (E_INVARG)
+        return this:inform_current($event:mk_not_found(this, "I can't find a player named '" + query + "'."):with_audience('utility):with_group('who));
+      except e (E_AMBIG)
+        return this:inform_current($event:mk_error(this, "That name matches more than one player. Be more specific."):with_audience('utility):with_group('who));
+      endtry
+      display_name = show_ids ? matched:name() + " (" + tostr(matched) + ")" | matched:name();
+      if (matched in connected)
+        headers = {"Name", "Location", "Idle", "Connected"};
+        idle_str = idle_seconds(matched):format_time_seconds();
+        conn_str = connected_seconds(matched):format_time_seconds();
+        if (valid(matched.location))
+          location_name = show_ids ? matched.location:name() + " (" + tostr(matched.location) + ")" | matched.location:name();
+        else
+          location_name = "(nowhere)";
+        endif
+        table_obj = $format.table:mk(headers, {{display_name, location_name, idle_str, conn_str}});
+        title_obj = $format.title:mk("Who's Online");
+        content = $format.block:mk(title_obj, table_obj);
+        return this:inform_current($event:mk_who(player, content):with_audience('utility):with_group('who));
+      endif
+      last_activity = `matched.last_disconnected ! E_PROPNF => 0';
+      if (typeof(last_activity) != TYPE_INT || last_activity <= 0)
+        last_activity = `matched.last_connected ! E_PROPNF => 0';
+      endif
+      if (typeof(last_activity) == TYPE_INT && last_activity > 0)
+        elapsed = time() - last_activity;
+        elapsed < 0 && (elapsed = 0);
+        activity_str = elapsed:format_time_seconds() + " ago";
+      else
+        activity_str = "unknown";
+      endif
+      headers = {"Name", "Status", "Last activity"};
+      table_obj = $format.table:mk(headers, {{display_name, "offline", activity_str}});
+      title_obj = $format.title:mk("Player Status");
+      content = $format.block:mk(title_obj, table_obj);
+      return this:inform_current($event:mk_who(player, content):with_audience('utility):with_group('who));
+    endif
+    !connected && return this:inform_current($event:mk_not_found(this, "No players are currently connected."):with_audience('utility):with_group('who));
+    "Build table data.";
     headers = {"Name", "Location", "Idle", "Connected"};
     rows = {};
-    show_ids = player.is_builder;
-    for p in (players)
+    for p in (connected)
       if (typeof(idle_time = idle_seconds(p)) != TYPE_ERR)
         display_name = show_ids ? p:name() + " (" + tostr(p) + ")" | p:name();
         idle_str = idle_time:format_time_seconds();
@@ -181,7 +227,7 @@ object PLAYER
         rows = {@rows, {p:name(), {display_name, location_name, idle_str, conn_str}}};
       endif
     endfor
-    "Sort by player name for stable output";
+    "Sort by player name for stable output.";
     sorted = {};
     for entry in (rows)
       inserted = false;
@@ -198,7 +244,7 @@ object PLAYER
     for entry in (sorted)
       table_rows = {@table_rows, entry[2]};
     endfor
-    "Create and display the table";
+    "Create and display the table.";
     if (table_rows)
       table_obj = $format.table:mk(headers, table_rows);
       title_obj = $format.title:mk("Who's Online");
@@ -350,29 +396,10 @@ object PLAYER
       time = $str_proto:from_seconds(idle);
       description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
     endif
-    "Add wearing information if they're wearing anything";
-    if (this.wearing && length(this.wearing) > 0)
-      wearing_names = {};
-      integrated_descs = {};
-      for item in (this.wearing)
-        if (valid(item))
-          wearing_names = {@wearing_names, item:display_name()};
-          "Check for integrated description on worn items";
-          if (respond_to(item, 'integrate_description))
-            idesc = `item:integrate_description() ! ANY => ""';
-            if (typeof(idesc) == typeof("") && idesc != "")
-              integrated_descs = {@integrated_descs, idesc};
-            endif
-          endif
-        endif
-      endfor
-      if (wearing_names)
-        description = {@description, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " wearing ", wearing_names:english_list(), "."};
-      endif
-      "Add integrated descriptions of worn items";
-      for idesc in (integrated_descs)
-        description = {@description, " ", idesc};
-      endfor
+    "Append shared actor details from $actor.";
+    details = `this:_look_self_details() ! ANY => {}';
+    if (details && length(details) > 0)
+      description = {@description, @details};
     endif
     "Don't show inventory contents when looking at a player - that's private";
     return <$look, .what = this, .title = this:name(), .description = description>;
@@ -1723,336 +1750,30 @@ object PLAYER
   endverb
 
   verb suggest_command_alternatives (this none none) owner: ARCH_WIZARD flags: "rxd"
-    "Suggest alternative commands when a command fails using LLM.";
-    "Args: pc (parsed command from parse_command)";
-    "Returns true if handled (placeholder sent), false if LLM not available.";
+    "Queue command context and offer explicit assist link instead of auto-running LLM.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
     {pc} = args;
-    "Check if LLM is available";
     llm_client = $player.suggestions_llm_client;
     if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
       return false;
     endif
-    cmd_verb = pc["verb"];
-    cmd_dobjstr = pc["dobjstr"];
-    cmd_prepstr = pc["prepstr"];
-    cmd_iobjstr = pc["iobjstr"];
-    "Capture current connection BEFORE forking";
+    this:_prune_assist_contexts();
+    pending = `this.assist_pending ! ANY => []';
+    if (typeof(pending) != TYPE_MAP)
+      pending = [];
+    endif
     all_conns = connections();
     if (!all_conns || length(all_conns) == 0)
       return false;
     endif
     current_conn = all_conns[1][1];
-    "Send immediate placeholder with rewritable event";
-    rewrite_id = uuid();
-    placeholder = $event:mk_do_not_understand(this, "Hmm, I'm not sure what you mean. Let me think..."):with_rewritable(rewrite_id, 30, "I didn't understand that command."):with_presentation_hint('processing):with_audience('utility);
-    this:inform_current(placeholder);
-    "Fork the LLM query so we return immediately";
-    fork (0)
-      "Gather context about player and environment";
-      player_name = this:name();
-      location = this.location;
-      location_name = valid(location) ? location:name() | "nowhere";
-      location_desc = "";
-      if (valid(location))
-        location_desc = `location:description() ! ANY => ""';
-        if (typeof(location_desc) != TYPE_STR)
-          location_desc = `tostr(location_desc) ! ANY => ""';
-        endif
-      endif
-      "=== BUILD LIST OF ALL INTERACTABLE OBJECTS ===";
-      all_objects = {};
-      for item in (this.contents)
-        if (valid(item))
-          all_objects = {@all_objects, item};
-        endif
-      endfor
-      if (valid(location))
-        for item in (location.contents)
-          if (valid(item) && item != this)
-            all_objects = {@all_objects, item};
-          endif
-        endfor
-      endif
-      "=== FIND VERBS MATCHING THE ATTEMPTED VERB ===";
-      {verb_exact, verb_near} = this:_find_verb_matches(cmd_verb, all_objects);
-      "=== COLLECT AMBIENT/GLOBAL COMMANDS ===";
-      ambient_verbs = [];
-      cmd_env = this:command_environment();
-      for o in (cmd_env)
-        if (!valid(o))
-          continue;
-        endif
-        for definer in ({o, @`ancestors(o) ! ANY => {}'})
-          if (!valid(definer))
-            continue;
-          endif
-          for verb_name in (`verbs(definer) ! ANY => {}')
-            verb_sig = `verb_args(definer, verb_name) ! ANY => false';
-            if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
-              continue;
-            endif
-            {dobj, prep, iobj} = verb_sig;
-            if (dobj == "this" || iobj == "this")
-              continue;
-            endif
-            if (dobj == "none" && prep == "none" && iobj == "none")
-              ambient_verbs[verb_name] = 1;
-            elseif (dobj == "any" && prep == "none" && iobj == "none")
-              ambient_verbs[verb_name] = 1;
-            elseif (dobj == "any" && iobj != "this")
-              ambient_verbs[verb_name] = 1;
-            endif
-          endfor
-        endfor
-      endfor
-      "=== COLLECT AVAILABLE EXITS ===";
-      exits = {};
-      if (valid(location) && valid(location.location) && respond_to(location.location, 'get_exit_info))
-        {exit_labels, ambient_passages} = `location.location:get_exit_info(location) ! ANY => {{}, {}}';
-        exits = exit_labels;
-        for ap in (ambient_passages)
-          if (typeof(ap) == TYPE_LIST && length(ap) >= 3 && ap[3])
-            exits = {@exits, ap[3]};
-          endif
-        endfor
-      endif
-      "=== COLLECT ROOM-SPECIFIC COMMAND HINTS ===";
-      room_hints = {};
-      if (valid(location) && respond_to(location, 'command_hints))
-        room_hints = `location:command_hints() ! ANY => {}';
-      endif
-      "=== DETECT DUPLICATE NAMES FOR DISAMBIGUATION ===";
-      "Build name counts for inventory and room separately";
-      inv_name_counts = [];
-      inv_name_order = {};
-      for item in (this.contents)
-        if (!valid(item))
-          continue;
-        endif
-        iname = item:name();
-        if (iname in mapkeys(inv_name_counts))
-          inv_name_counts[iname] = inv_name_counts[iname] + 1;
-        else
-          inv_name_counts[iname] = 1;
-          inv_name_order = {@inv_name_order, iname};
-        endif
-      endfor
-      room_name_counts = [];
-      room_name_order = {};
-      if (valid(location))
-        for item in (location.contents)
-          if (!valid(item) || item == this)
-            continue;
-          endif
-          iname = item:name();
-          if (iname in mapkeys(room_name_counts))
-            room_name_counts[iname] = room_name_counts[iname] + 1;
-          else
-            room_name_counts[iname] = 1;
-            room_name_order = {@room_name_order, iname};
-          endif
-        endfor
-      endif
-      "Find items that need disambiguation";
-      inv_duplicates = {};
-      for nm in (inv_name_order)
-        if (inv_name_counts[nm] > 1)
-          inv_duplicates = {@inv_duplicates, {nm, inv_name_counts[nm]}};
-        endif
-      endfor
-      room_duplicates = {};
-      for nm in (room_name_order)
-        if (room_name_counts[nm] > 1)
-          room_duplicates = {@room_duplicates, {nm, room_name_counts[nm]}};
-        endif
-      endfor
-      "=== COLLECT OBJECTS WITH CONTEXT ===";
-      inventory_objects = {};
-      inv_item_num = [];
-      for item in (this.contents)
-        if (!valid(item))
-          continue;
-        endif
-        obj_info = this:_collect_object_info(item);
-        iname = item:name();
-        "Add ordinal if there are duplicates";
-        if (inv_name_counts[iname] > 1)
-          if (iname in mapkeys(inv_item_num))
-            inv_item_num[iname] = inv_item_num[iname] + 1;
-          else
-            inv_item_num[iname] = 1;
-          endif
-          obj_info["ordinal"] = inv_item_num[iname];
-        endif
-        inventory_objects = {@inventory_objects, obj_info};
-      endfor
-      room_objects = {};
-      room_item_num = [];
-      if (valid(location))
-        for item in (location.contents)
-          if (!valid(item) || item == this)
-            continue;
-          endif
-          obj_info = this:_collect_object_info(item);
-          iname = item:name();
-          "Add ordinal if there are duplicates";
-          if (room_name_counts[iname] > 1)
-            if (iname in mapkeys(room_item_num))
-              room_item_num[iname] = room_item_num[iname] + 1;
-            else
-              room_item_num[iname] = 1;
-            endif
-            obj_info["ordinal"] = room_item_num[iname];
-          endif
-          room_objects = {@room_objects, obj_info};
-        endfor
-      endif
-      "=== ANALYZE MATCH FAILURES ===";
-      dobj_status = "";
-      dobj_problem = "";
-      if (pc["dobj"] == $failed_match)
-        dobj_status = "FAILED - no object matched";
-        dobj_problem = "object_not_found";
-      elseif (pc["dobj"] == $ambiguous_match)
-        dobj_status = "AMBIGUOUS - multiple objects could match";
-        dobj_problem = "ambiguous";
-      elseif (valid(pc["dobj"]))
-        dobj_status = "OK - matched '" + pc["dobj"]:name() + "'";
-      else
-        dobj_status = "none specified";
-      endif
-      iobj_status = "";
-      iobj_problem = "";
-      if (pc["iobj"] == $failed_match)
-        iobj_status = "FAILED - no object matched";
-        iobj_problem = "object_not_found";
-      elseif (pc["iobj"] == $ambiguous_match)
-        iobj_status = "AMBIGUOUS - multiple objects could match";
-        iobj_problem = "ambiguous";
-      elseif (valid(pc["iobj"]))
-        iobj_status = "OK - matched '" + pc["iobj"]:name() + "'";
-      else
-        iobj_status = "none specified";
-      endif
-      "Determine what went wrong";
-      verb_found = length(verb_exact) > 0;
-      likely_problem = "";
-      if (!verb_found && length(verb_near) > 0)
-        likely_problem = "TYPO OR WRONG VERB - similar verbs exist on nearby objects";
-      elseif (!verb_found)
-        likely_problem = "UNKNOWN VERB - no object nearby supports this action";
-      elseif (dobj_problem == "object_not_found")
-        likely_problem = "OBJECT NOT FOUND - the verb exists but '" + cmd_dobjstr + "' doesn't match any object";
-      elseif (iobj_problem == "object_not_found")
-        likely_problem = "OBJECT NOT FOUND - '" + cmd_iobjstr + "' doesn't match any object";
-      elseif (dobj_problem == "ambiguous" || iobj_problem == "ambiguous")
-        likely_problem = "AMBIGUOUS - multiple objects match, player needs to use ordinals to disambiguate";
-      else
-        likely_problem = "SYNTAX MISMATCH - the verb exists but wasn't matched to these objects";
-      endif
-      "=== BUILD PROMPT ===";
-      prompt = "# Role\n";
-      prompt = prompt + "You help players in a text adventure game figure out what they might have meant to type. ";
-      prompt = prompt + "Be friendly and helpful - players are often new and learning.\n\n";
-      prompt = prompt + "# How Commands Work\n";
-      prompt = prompt + "Commands follow the pattern: VERB [OBJECT] [PREPOSITION OBJECT]\n";
-      prompt = prompt + "- Verbs match by PREFIX: 'l' matches 'look', 'lo' matches 'look', etc.\n";
-      prompt = prompt + "- Objects match by NAME or ALIAS: 'lamp' matches 'brass lamp', aliases like 'lantern' also work\n";
-      prompt = prompt + "- Each object defines which verbs work on it - not all verbs work on all objects\n";
-      prompt = prompt + "- Some verbs need a preposition: 'put X in Y', 'give X to Y', 'unlock X with Y'\n";
-      prompt = prompt + "- Movement: 'go north', 'north', 'n' all work for exits\n\n";
-      prompt = prompt + "# Disambiguation with Ordinals\n";
-      prompt = prompt + "When multiple objects have the same name, use ordinals to specify which one:\n";
-      prompt = prompt + "- 'first mug', 'second mug', '1st mug', '2nd mug'\n";
-      prompt = prompt + "- 'get first mug', 'look at second lamp', 'put 2nd coin in box'\n";
-      prompt = prompt + "- Ordinals: first/1st, second/2nd, third/3rd, fourth/4th, etc.\n";
-      "Highlight specific duplicates if they exist";
-      if (length(inv_duplicates) > 0 || length(room_duplicates) > 0)
-        prompt = prompt + "\nDUPLICATES DETECTED - player may need ordinals:\n";
-        for dup in (inv_duplicates)
-          prompt = prompt + "- Inventory has " + tostr(dup[2]) + "x \"" + dup[1] + "\" -> use 'first " + dup[1] + "', 'second " + dup[1] + "', etc.\n";
-        endfor
-        for dup in (room_duplicates)
-          prompt = prompt + "- Room has " + tostr(dup[2]) + "x \"" + dup[1] + "\" -> use 'first " + dup[1] + "', 'second " + dup[1] + "', etc.\n";
-        endfor
-      endif
-      prompt = prompt + "\n";
-      prompt = prompt + "# The Failed Command\n";
-      prompt = prompt + "Player: " + player_name + "\n";
-      prompt = prompt + "Location: " + location_name + "\n";
-      prompt = prompt + "Typed verb: \"" + cmd_verb + "\"\n";
-      if (length(cmd_dobjstr) > 0)
-        prompt = prompt + "Direct object text: \"" + cmd_dobjstr + "\" -> " + dobj_status + "\n";
-      endif
-      if (length(cmd_prepstr) > 0)
-        prompt = prompt + "Preposition: \"" + cmd_prepstr + "\"\n";
-      endif
-      if (length(cmd_iobjstr) > 0)
-        prompt = prompt + "Indirect object text: \"" + cmd_iobjstr + "\" -> " + iobj_status + "\n";
-      endif
-      prompt = prompt + "\nLikely problem: " + likely_problem + "\n\n";
-      "=== ADD VERB MATCH INFO ===";
-      if (length(verb_exact) > 0)
-        prompt = prompt + "# Objects That Support \"" + cmd_verb + "\"\n";
-        prompt = prompt + "These objects have the verb - maybe the object name was wrong:\n";
-        for entry in (verb_exact[1..min(length(verb_exact), 5)])
-          prompt = prompt + "- " + entry["command"] + "\n";
-        endfor
-        prompt = prompt + "\n";
-      endif
-      if (length(verb_near) > 0)
-        prompt = prompt + "# Similar Verbs (typo?)\n";
-        for entry in (verb_near[1..min(length(verb_near), 3)])
-          prompt = prompt + "- \"" + entry["did_you_mean"] + "\" on " + entry["object"] + " -> " + entry["command"] + "\n";
-        endfor
-        prompt = prompt + "\n";
-      endif
-      prompt = prompt + "# Available Global Commands\n";
-      prompt = prompt + mapkeys(ambient_verbs):join(", ") + "\n\n";
-      if (length(room_hints) > 0)
-        prompt = prompt + "# Special Commands Here\n";
-        for hint in (room_hints)
-          prompt = prompt + "- " + hint["command"] + ": " + hint["description"] + "\n";
-        endfor
-        prompt = prompt + "\n";
-      endif
-      if (length(exits) > 0)
-        prompt = prompt + "# Exits: " + exits:join(", ") + "\n\n";
-      endif
-      if (length(inventory_objects) > 0)
-        prompt = prompt + "# Player's Inventory\n";
-        prompt = prompt + "(Items with 'ordinal' field have duplicates - use 'first X', 'second X' to specify)\n";
-        prompt = prompt + toliteral(inventory_objects) + "\n\n";
-      endif
-      if (length(room_objects) > 0)
-        prompt = prompt + "# Objects In Room\n";
-        prompt = prompt + "(Items with 'ordinal' field have duplicates - use 'first X', 'second X' to specify)\n";
-        prompt = prompt + toliteral(room_objects) + "\n\n";
-      endif
-      prompt = prompt + "# Your Task\n";
-      prompt = prompt + "Suggest 1-3 commands that MIGHT work based on the context above. Important:\n";
-      prompt = prompt + "- Only suggest commands using verbs and objects that appear in the data above\n";
-      prompt = prompt + "- If the problem is AMBIGUOUS, explain how to use ordinals (first/second/etc)\n";
-      prompt = prompt + "- Be honest that these are suggestions - you can't guarantee they'll work\n";
-      prompt = prompt + "- If you're not sure what they wanted, it's OK to say so and ask\n";
-      prompt = prompt + "- Keep it short and friendly (under 60 words)\n";
-      prompt = prompt + "- Use djot/markdown formatting for code: `command here`\n";
-      prompt = prompt + "- If the player just mistyped an object name, point that out specifically\n";
-      prompt = prompt + "- For communication: say <msg>, \"<msg>, emote <action>, :<action>\n";
-      "Call LLM and rewrite the placeholder";
-      try
-        response = llm_client:simple_query(prompt);
-        if (typeof(response) == TYPE_STR && length(response) > 0)
-          result_event = $event:mk_info(this, $format.block:mk("I didn't quite understand that. Here are some thoughts:\n", response)):as_djot():as_inset();
-          this:rewrite_event(rewrite_id, result_event, current_conn);
-        else
-          this:rewrite_event(rewrite_id, "I didn't understand that command.", current_conn);
-        endif
-      except e (ANY)
-        this:rewrite_event(rewrite_id, "I didn't understand that command.", current_conn);
-      endtry
-    endfork
+    token = uuid();
+    pending[token] = ["created_at" -> time(), "pc" -> pc, "conn" -> current_conn];
+    this.assist_pending = pending;
+    this.assist_last_token = token;
+    encoded = strsub(token, " ", "%20");
+    message = "I didn't understand that command. Want help checking alternatives? <a href=\"moo://cmd/assist%20" + encoded + "\" class=\"cmd\">Yes</a>";
+    this:inform_current($event:mk_do_not_understand(this, message):with_audience('utility));
     return true;
   endverb
 
@@ -2152,74 +1873,30 @@ object PLAYER
   endverb
 
   verb suggest_help_topic (this none none) owner: ARCH_WIZARD flags: "rxd"
-    "Suggest help topics when a topic isn't found, using LLM.";
-    "Args: query (the topic the user searched for)";
-    "Returns true if handled (placeholder sent), false if LLM not available.";
+    "Queue help query context and offer explicit assist link instead of auto-running LLM.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
     {query} = args;
-    "Check if LLM is available";
     llm_client = $player.suggestions_llm_client;
     if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
       return false;
     endif
-    "Capture current connection BEFORE forking";
+    this:_prune_assist_contexts();
+    pending = `this.assist_pending ! ANY => []';
+    if (typeof(pending) != TYPE_MAP)
+      pending = [];
+    endif
     all_conns = connections();
     if (!all_conns || length(all_conns) == 0)
       return false;
     endif
     current_conn = all_conns[1][1];
-    "Send immediate placeholder with rewritable event";
-    rewrite_id = uuid();
-    placeholder = $event:mk_error(this, "No help found for '" + query + "'. (Finding suggestions...)"):with_rewritable(rewrite_id, 30, "No help found for '" + query + "'."):with_presentation_hint('processing):with_audience('utility);
-    this:inform_current(placeholder);
-    "Capture programmer status before forking";
-    is_programmer = this.programmer;
-    "Fork the LLM query so we return immediately";
-    fork (0)
-      "Collect all available help topics with summaries";
-      all_topics = this:_collect_help_topics();
-      topic_list = {};
-      for t in (all_topics)
-        topic_list = {@topic_list, ["name" -> t.name, "summary" -> t.summary, "aliases" -> t.aliases]};
-      endfor
-      "Build prompt";
-      prompt = "You are a help assistant for a text-based virtual world (MOO). ";
-      prompt = prompt + "A player searched for help on '" + query + "' but no exact match was found.\n\n";
-      prompt = prompt + "AVAILABLE HELP TOPICS (for everyone, use `help <topic>`):\n";
-      for t in (topic_list)
-        prompt = prompt + "- " + t["name"];
-        if (length(t["aliases"]) > 0)
-          prompt = prompt + " (also: " + t["aliases"]:join(", ") + ")";
-        endif
-        prompt = prompt + ": " + t["summary"] + "\n";
-      endfor
-      prompt = prompt + "\n";
-      if (is_programmer)
-        prompt = prompt + "TECHNICAL DOCUMENTATION (separate from help topics):\n";
-        prompt = prompt + "This user has programmer privileges, so they also have access to `@doc` for technical/programming documentation.\n";
-        prompt = prompt + "- `@doc <object>` or `@doc <object>:verb` - for MOO programming: verbs, properties, objects, code\n";
-        prompt = prompt + "- ONLY suggest @doc if the query is clearly about programming (e.g., 'verbs', 'properties', 'eval', 'coding')\n";
-        prompt = prompt + "- Do NOT mention @doc or programming for general gameplay queries like movement, communication, building, etc.\n\n";
-      endif
-      prompt = prompt + "INSTRUCTIONS:\n";
-      prompt = prompt + "1. Suggest 1-3 help topics from the list above that might match what they're looking for\n";
-      prompt = prompt + "2. If nothing seems close, say so and suggest 'help' to see all topics\n";
-      prompt = prompt + "3. Keep response under 60 words\n";
-      prompt = prompt + "4. Format for djot (like markdown)\n";
-      prompt = prompt + "5. Format suggestions like: `help <topic>`\n";
-      "Call LLM and rewrite the placeholder";
-      try
-        response = llm_client:simple_query(prompt);
-        if (typeof(response) == TYPE_STR && length(response) > 0)
-          result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", response)):as_djot():as_inset();
-          this:rewrite_event(rewrite_id, result_event, current_conn);
-        else
-          this:rewrite_event(rewrite_id, "No help found for '" + query + "'. Try 'help' to see available topics.", current_conn);
-        endif
-      except e (ANY)
-        this:rewrite_event(rewrite_id, "No help found for '" + query + "'. Try 'help' to see available topics.", current_conn);
-      endtry
-    endfork
+    token = uuid();
+    pending[token] = ["kind" -> "help", "created_at" -> time(), "query" -> query, "conn" -> current_conn];
+    this.assist_pending = pending;
+    this.assist_last_token = token;
+    encoded = strsub(token, " ", "%20");
+    message = "No help found for '" + query + "'. Want help finding similar topics? <a href=\"moo://cmd/assist%20" + encoded + "\" class=\"cmd\">Yes</a>";
+    this:inform_current($event:mk_error(this, message):with_audience('utility));
     return true;
   endverb
 
@@ -2635,6 +2312,7 @@ object PLAYER
     "Usage: walk [to] <destination> | walk stop";
     set_task_perms(player);
     player != this && return;
+    set_task_perms(this.owner);
     "Parse destination from argstr - handle 'walk to xxx' and 'walk xxx'";
     dest_str = argstr:trim();
     if (dest_str == "")
@@ -2643,9 +2321,14 @@ object PLAYER
     endif
     "Handle 'walk stop' to cancel";
     if (dest_str == "stop" || dest_str == "cancel")
+      canceled = this:action_stop_activities(this, 'walk);
+      canceled = {@canceled, @this:action_stop_activities(this, 'join)};
       if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
         `kill_task(this.walk_task) ! ANY';
         this.walk_task = 0;
+        canceled = {@canceled, ['kind -> 'walk, 'task_id -> 0]};
+      endif
+      if (length(canceled) > 0)
         player:inform_current($event:mk_info(player, "You stop walking."));
       else
         player:inform_current($event:mk_info(player, "You aren't walking anywhere."));
@@ -2743,7 +2426,9 @@ object PLAYER
       player:inform_current($event:mk_error(player, "Can't find a walkable route to " + destination:name() + "."));
       return;
     endif
-    "Cancel any existing walk";
+    "Cancel any existing movement task";
+    this:action_stop_activities(this, 'walk);
+    this:action_stop_activities(this, 'join);
     if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
       `kill_task(this.walk_task) ! ANY';
     endif
@@ -2755,6 +2440,7 @@ object PLAYER
       this:_do_walk(path);
     endfork
     this.walk_task = walk_task_id;
+    this:action_start_activity(this, 'walk, walk_task_id, "walking to " + destination:name());
   endverb
 
   verb _do_walk (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2762,6 +2448,7 @@ object PLAYER
     "Called from forked task in :walk verb.";
     {path} = args;
     set_task_perms(this.owner);
+    current_task = task_id();
     walk_delay = 2;
     for i in [1..length(path) - 1]
       {from_room, connector} = path[i];
@@ -2771,12 +2458,14 @@ object PLAYER
         "Player moved manually or was moved - stop walking";
         this:inform_current($event:mk_info(this, "You've stopped walking (you moved)."));
         this.walk_task = 0;
+        this:action_clear_activity_task(this, current_task);
         return;
       endif
       "Check this is a passage (not transport)";
       if (typeof(connector) == TYPE_LIST && connector[1] == 'transport)
         this:inform_current($event:mk_error(this, "Can't auto-walk through transport - stopping."));
         this.walk_task = 0;
+        this:action_clear_activity_task(this, current_task);
         return;
       endif
       "Wait before moving";
@@ -2785,6 +2474,7 @@ object PLAYER
       if (this.location != from_room)
         this:inform_current($event:mk_info(this, "You've stopped walking."));
         this.walk_task = 0;
+        this:action_clear_activity_task(this, current_task);
         return;
       endif
       "Move via the passage";
@@ -2792,6 +2482,7 @@ object PLAYER
       if (!success)
         this:inform_current($event:mk_error(this, "Something blocked your path - stopping."));
         this.walk_task = 0;
+        this:action_clear_activity_task(this, current_task);
         return;
       endif
     endfor
@@ -2799,6 +2490,7 @@ object PLAYER
     destination = path[$][1];
     this:inform_current($event:mk_info(this, "You've arrived at " + destination:name() + "."));
     this.walk_task = 0;
+    this:action_clear_activity_task(this, current_task);
   endverb
 
   verb "join @join" (any none none) owner: ARCH_WIZARD flags: "rxd"
@@ -2806,6 +2498,7 @@ object PLAYER
     "Usage: join <player>";
     set_task_perms(player);
     player != this && return;
+    set_task_perms(this.owner);
     "Parse player name from argstr";
     target_name = argstr:trim();
     if (target_name == "")
@@ -2889,7 +2582,9 @@ object PLAYER
       player:inform_current($event:mk_error(player, "Can't find a walkable route to " + target:name() + "."));
       return;
     endif
-    "Cancel any existing walk";
+    "Cancel any existing movement task";
+    this:action_stop_activities(this, 'walk);
+    this:action_stop_activities(this, 'join);
     if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
       `kill_task(this.walk_task) ! ANY';
     endif
@@ -2901,6 +2596,7 @@ object PLAYER
       this:_do_walk(path);
     endfork
     this.walk_task = walk_task_id;
+    this:action_start_activity(this, 'join, walk_task_id, "walking to join " + target:name());
   endverb
 
   verb disfunc (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -3033,5 +2729,596 @@ object PLAYER
       endif
     endfor
     return false;
+  endverb
+
+  verb assist (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Run LLM assist for the most recent, specified token, or free-text command/help intent.";
+    this:_prune_assist_contexts();
+    pending = `this.assist_pending ! ANY => []';
+    if (typeof(pending) != TYPE_MAP)
+      pending = [];
+    endif
+    input = argstr ? argstr:trim() | "";
+    if (input && input != "")
+      if (maphaskey(pending, input))
+        token = input;
+        ctx = pending[token];
+        pending = mapdelete(pending, token);
+        this.assist_pending = pending;
+        if (`this.assist_last_token ! ANY => ""' == token)
+          this.assist_last_token = "";
+        endif
+        kind = `ctx["kind"] ! ANY => "command"';
+        conn = `ctx["conn"] ! ANY => 0';
+        if (kind == "help")
+          query = `ctx["query"] ! ANY => ""';
+          if (typeof(query) != TYPE_STR || query == "")
+            this:inform_current($event:mk_info(this, "That assist request expired. Try again."):with_audience('utility));
+            return true;
+          endif
+          this:_assist_with_help_query(query, conn);
+          return true;
+        endif
+        pc = `ctx["pc"] ! ANY => false';
+        if (typeof(pc) != TYPE_MAP)
+          this:inform_current($event:mk_info(this, "That assist request expired. Try your command again."):with_audience('utility));
+          return true;
+        endif
+        this:_assist_with_pc(pc, conn);
+        return true;
+      endif
+      all_conns = connections();
+      conn = all_conns && length(all_conns) > 0 ? all_conns[1][1] | 0;
+      pc = ["verb" -> input, "dobjstr" -> "", "prepstr" -> "", "iobjstr" -> "", "dobj" -> $failed_match, "iobj" -> $failed_match];
+      this:_assist_with_pc(pc, conn);
+      return true;
+    endif
+    token = `this.assist_last_token ! ANY => ""';
+    if (typeof(token) != TYPE_STR || token == "" || !maphaskey(pending, token))
+      this:inform_current($event:mk_info(this, "Nothing recent to assist with. Try your command or help query again, then type `assist`."):with_audience('utility));
+      return true;
+    endif
+    ctx = pending[token];
+    pending = mapdelete(pending, token);
+    this.assist_pending = pending;
+    this.assist_last_token = "";
+    kind = `ctx["kind"] ! ANY => "command"';
+    conn = `ctx["conn"] ! ANY => 0';
+    if (kind == "help")
+      query = `ctx["query"] ! ANY => ""';
+      if (typeof(query) != TYPE_STR || query == "")
+        this:inform_current($event:mk_info(this, "That assist request expired. Try again."):with_audience('utility));
+        return true;
+      endif
+      this:_assist_with_help_query(query, conn);
+      return true;
+    endif
+    pc = `ctx["pc"] ! ANY => false';
+    if (typeof(pc) != TYPE_MAP)
+      this:inform_current($event:mk_info(this, "That assist request expired. Try your command again."):with_audience('utility));
+      return true;
+    endif
+    this:_assist_with_pc(pc, conn);
+    return true;
+  endverb
+
+  verb _assist_with_pc (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Run LLM command suggestions for a parsed command context.";
+    caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
+    {pc, ?current_conn = 0} = args;
+    llm_client = $player.suggestions_llm_client;
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
+      this:inform_current($event:mk_info(this, "Assist is not configured right now."):with_audience('utility));
+      return false;
+    endif
+    if (!current_conn)
+      all_conns = connections();
+      if (!all_conns || length(all_conns) == 0)
+        return false;
+      endif
+      current_conn = all_conns[1][1];
+    endif
+    location = this.location;
+    area = valid(location) && valid(location.location) ? location.location | #-1;
+    exits = {};
+    if (valid(location) && valid(area) && respond_to(area, 'get_exit_info))
+      {exit_labels, ambient_passages} = `area:get_exit_info(location) ! ANY => {{}, {}}';
+      exits = exit_labels;
+      for ap in (ambient_passages)
+        if (typeof(ap) == TYPE_LIST && length(ap) >= 3 && ap[3])
+          exits = {@exits, ap[3]};
+        endif
+      endfor
+    endif
+    room_hints = {};
+    if (valid(location) && respond_to(location, 'command_hints))
+      room_hints = `location:command_hints() ! ANY => {}';
+    endif
+    inventory_names = {};
+    for item in (this.contents)
+      if (valid(item))
+        nm = `item:name() ! ANY => ""';
+        if (typeof(nm) == TYPE_STR && length(nm) > 0)
+          inventory_names = {@inventory_names, nm};
+        endif
+      endif
+      if (length(inventory_names) >= 8)
+        break;
+      endif
+    endfor
+    known_players = {};
+    connected_map = [];
+    for cp in (`connected_players() ! ANY => {}')
+      connected_map[cp] = 1;
+    endfor
+    for p in (`players() ! ANY => {}')
+      if (!valid(p))
+        continue;
+      endif
+      pname = `p:name() ! ANY => ""';
+      if (typeof(pname) != TYPE_STR || pname == "")
+        continue;
+      endif
+      pstatus = maphaskey(connected_map, p) ? "connected" | "offline";
+      known_players = {@known_players, pname + " (" + pstatus + ")"};
+    endfor
+    verb_pattern_hints = {};
+    attempted_verb = `pc["verb"] ! ANY => ""';
+    if (typeof(attempted_verb) == TYPE_STR && length(attempted_verb) > 0)
+      scope_objects = this:match_environment("", ['complex -> true]);
+      {exact_verb_matches, near_verb_matches} = `this:_find_verb_matches(attempted_verb, scope_objects) ! ANY => {{}, {}}';
+      for entry in (exact_verb_matches)
+        if (typeof(entry) == TYPE_MAP && maphaskey(entry, "command"))
+          hint = entry["command"];
+          if (typeof(hint) == TYPE_STR && length(hint) > 0 && !(hint in verb_pattern_hints))
+            verb_pattern_hints = {@verb_pattern_hints, hint};
+          endif
+        endif
+        if (length(verb_pattern_hints) >= 8)
+          break;
+        endif
+      endfor
+    endif
+    fallback_links = {"<a href=\"moo://cmd/look\" class=\"cmd\">`look`</a>", "<a href=\"moo://cmd/inventory\" class=\"cmd\">`inventory`</a>", "<a href=\"moo://cmd/help\" class=\"cmd\">`help`</a>"};
+    fallback_html = "I couldn't find a close match for that. Here are a few general commands: " + fallback_links:join(", ");
+    rewrite_id = uuid();
+    placeholder = $event:mk_info(this, "Checking a few possibilities..."):with_rewritable(rewrite_id, 30, fallback_html):with_presentation_hint('processing):with_audience('utility);
+    this:inform_current(placeholder);
+    fork (0)
+      cmd_verb = `pc["verb"] ! ANY => ""';
+      cmd_dobjstr = `pc["dobjstr"] ! ANY => ""';
+      cmd_prepstr = `pc["prepstr"] ! ANY => ""';
+      cmd_iobjstr = `pc["iobjstr"] ! ANY => ""';
+      location_name = valid(location) ? location:name() | "nowhere";
+      "Build full object/verb context (restoring prior behavior).";
+      all_objects = {};
+      inventory_objects = {};
+      room_objects = {};
+      for item in (this.contents)
+        if (!valid(item))
+          continue;
+        endif
+        all_objects = {@all_objects, item};
+        inventory_objects = {@inventory_objects, this:_collect_object_info(item)};
+        if (length(inventory_objects) >= 30)
+          break;
+        endif
+      endfor
+      if (valid(location))
+        for item in (location.contents)
+          if (!valid(item) || item == this)
+            continue;
+          endif
+          all_objects = {@all_objects, item};
+          room_objects = {@room_objects, this:_collect_object_info(item)};
+          if (length(room_objects) >= 30)
+            break;
+          endif
+        endfor
+      endif
+      {verb_exact, verb_near} = this:_find_verb_matches(cmd_verb, all_objects);
+      cmd_env = this:command_environment();
+      ambient_verbs = [];
+      for o in (cmd_env)
+        if (!valid(o))
+          continue;
+        endif
+        for definer in ({o, @`ancestors(o) ! ANY => {}'})
+          if (!valid(definer))
+            continue;
+          endif
+          for verb_name in (`verbs(definer) ! ANY => {}')
+            verb_sig = `verb_args(definer, verb_name) ! ANY => false';
+            if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
+              continue;
+            endif
+            {dobj, prep, iobj} = verb_sig;
+            if (dobj == "this" || iobj == "this")
+              continue;
+            endif
+            if (dobj == "none" && prep == "none" && iobj == "none")
+              ambient_verbs[verb_name] = 1;
+            elseif (dobj == "any" && prep == "none" && iobj == "none")
+              ambient_verbs[verb_name] = 1;
+            elseif (dobj == "any" && iobj != "this")
+              ambient_verbs[verb_name] = 1;
+            endif
+          endfor
+        endfor
+      endfor
+      prompt = "You are a command-recovery assistant for a text MOO.\n";
+      prompt = prompt + "Goal: infer the 1-5 most likely commands the player intended.\n";
+      prompt = prompt + "Use ONLY commands and object signatures present in the context below.\n";
+      prompt = prompt + "Prefer specific, high-confidence commands over generic ones.\n";
+      prompt = prompt + "If object text is fuzzy, map it to the closest visible item/alias.\n";
+      prompt = prompt + "Return strict JSON only: {\"candidates\": [\"cmd\", ...], \"note\": \"optional short note\"}.\n";
+      prompt = prompt + "Find likely valid MOO commands for this failed input.\n";
+      prompt = prompt + "Typed verb: " + cmd_verb + "\n";
+      prompt = prompt + "Direct object text: " + cmd_dobjstr + "\n";
+      prompt = prompt + "Preposition text: " + cmd_prepstr + "\n";
+      prompt = prompt + "Indirect object text: " + cmd_iobjstr + "\n";
+      prompt = prompt + "Location: " + location_name + "\n";
+      if (length(exits) > 0)
+        prompt = prompt + "Exits: " + exits:join(", ") + "\n";
+      endif
+      if (length(inventory_names) > 0)
+        prompt = prompt + "Inventory items: " + inventory_names:join(", ") + "\n";
+      endif
+      if (length(known_players) > 0)
+        prompt = prompt + "Known players (global): " + known_players:join(", ") + "\n";
+      endif
+      if (length(room_hints) > 0)
+        prompt = prompt + "Room command hints:\n";
+        for hint in (room_hints)
+          if (typeof(hint) == TYPE_MAP && maphaskey(hint, "command"))
+            cmd = hint["command"];
+            desc = maphaskey(hint, "description") ? hint["description"] | "";
+            prompt = prompt + "- " + cmd + (desc != "" ? " : " + desc | "") + "\n";
+          endif
+        endfor
+      endif
+      if (length(verb_pattern_hints) > 0)
+        prompt = prompt + "Known command patterns related to that verb:\n";
+        for pattern in (verb_pattern_hints)
+          prompt = prompt + "- " + pattern + "\n";
+        endfor
+      endif
+      if (length(verb_exact) > 0)
+        prompt = prompt + "Objects that support this verb:\n";
+        for entry in (verb_exact[1..min(length(verb_exact), 8)])
+          prompt = prompt + "- " + entry["command"] + "\n";
+        endfor
+      endif
+      if (length(verb_near) > 0)
+        prompt = prompt + "Similar verbs:\n";
+        for entry in (verb_near[1..min(length(verb_near), 5)])
+          prompt = prompt + "- " + entry["did_you_mean"] + " on " + entry["object"] + " -> " + entry["command"] + "\n";
+        endfor
+      endif
+      prompt = prompt + "Available global/ambient verbs: " + mapkeys(ambient_verbs):join(", ") + "\n";
+      if (length(inventory_objects) > 0)
+        prompt = prompt + "Inventory objects with command signatures:\n" + toliteral(inventory_objects) + "\n";
+      endif
+      if (length(room_objects) > 0)
+        prompt = prompt + "Room objects with command signatures:\n" + toliteral(room_objects) + "\n";
+      endif
+      prompt = prompt + "Important movement/player abilities:\n";
+      prompt = prompt + "- walk to <room> : routes across rooms to a destination room.\n";
+      prompt = prompt + "- join <player> : move toward another player when reachable.\n";
+      prompt = prompt + "- home : walks to your assigned home room. If intent sounds like 'go home', prefer `home`.\n";
+      prompt = prompt + "- known player names can be valid even when offline.\n";
+      prompt = prompt + "Only suggest movement commands when the intent is clearly navigation/travel.\n";
+      prompt = prompt + "If the text appears to reference something the player is carrying, prefer inventory/object interaction commands first.\n";
+      prompt = prompt + "Use 1-5 short commands in candidates. Keep note to one short sentence. No markdown.";
+      checked = {};
+      ai_valid_count = 0;
+      note = "";
+      match_env = this:match_environment("", ['complex -> true]);
+      cmd_env = this:command_environment();
+      area_passages = {};
+      if (valid(area) && valid(location) && respond_to(area, 'passages_from))
+        area_passages = `area:passages_from(location) ! ANY => {}';
+      endif
+      try
+        response = llm_client:simple_query(prompt);
+        parsed = typeof(response) == TYPE_STR ? `parse_json(response) ! ANY => false' | false;
+        if (typeof(parsed) == TYPE_MAP)
+          raw_note = `parsed["note"] ! E_RANGE => ""';
+          if (typeof(raw_note) == TYPE_STR)
+            note = raw_note:trim();
+          endif
+          if (maphaskey(parsed, "candidates") && typeof(parsed["candidates"]) == TYPE_LIST)
+            for c in (parsed["candidates"])
+              if (typeof(c) != TYPE_STR || length(c:trim()) == 0)
+                continue;
+              endif
+              candidate = c:trim();
+              candidate = strsub(candidate, "`", "");
+              candidate = strsub(candidate, "\"", "");
+              candidate = strsub(candidate, "'", "");
+              while (length(candidate) > 0 && (candidate[length(candidate)] == "." || candidate[length(candidate)] == "," || candidate[length(candidate)] == ";" || candidate[length(candidate)] == ":"))
+                candidate = candidate[1..length(candidate) - 1];
+              endwhile
+              candidate = candidate:trim();
+              if (length(candidate) == 0)
+                continue;
+              endif
+              if (candidate:lowercase() == "go home")
+                candidate = "home";
+              endif
+              candidate_ok = false;
+              try
+                cpc = parse_command(candidate, match_env, true, 0.3);
+                vm = find_command_verb(cpc, cmd_env);
+                vm_scope = find_command_verb(cpc, match_env);
+                passage_ok = false;
+                verb_name = `tostr(cpc["verb"]) ! ANY => ""';
+                dobj_name = `cpc["dobjstr"] ! ANY => ""';
+                for passage in (area_passages)
+                  if (`passage:matches_command(location, verb_name) ! ANY => false')
+                    passage_ok = true;
+                    break;
+                  endif
+                  if (!passage_ok && verb_name == "go" && dobj_name && `passage:matches_command(location, dobj_name) ! ANY => false')
+                    passage_ok = true;
+                    break;
+                  endif
+                endfor
+                if (vm && length(vm) > 0 || vm_scope && length(vm_scope) > 0 || passage_ok)
+                  candidate_ok = true;
+                endif
+              except e (ANY)
+              endtry
+              if (!candidate_ok)
+                first_space = index(candidate, " ");
+                candidate_verb = first_space ? candidate[1..first_space - 1] | candidate;
+                candidate_verb = candidate_verb:trim();
+                if (length(candidate_verb) > 0 && maphaskey(ambient_verbs, candidate_verb))
+                  candidate_ok = true;
+                endif
+              endif
+              if (candidate_ok && !(candidate in checked))
+                checked = {@checked, candidate};
+                ai_valid_count = ai_valid_count + 1;
+              endif
+              if (length(checked) >= 3)
+                break;
+              endif
+            endfor
+          endif
+        endif
+      except e (ANY)
+      endtry
+      if (length(note) > 220)
+        note = note[1..220];
+      endif
+      if (length(note) > 0)
+        note = strsub(note, "<", "(");
+        note = strsub(note, ">", ")");
+        note = strsub(note, "\n", " ");
+      endif
+      if (length(checked) == 0)
+        fallback = fallback_html;
+        if (length(note) > 0)
+          fallback = note + "<br>" + fallback_html;
+        endif
+        this:rewrite_event(rewrite_id, $event:mk_info(this, fallback):with_presentation_hint('inset):with_audience('utility), current_conn);
+        return;
+      endif
+      lines = {};
+      for candidate in (checked)
+        encoded = strsub(candidate, " ", "%20");
+        lines = {@lines, "- <a href=\"moo://cmd/" + encoded + "\" class=\"cmd\">`" + candidate + "`</a>"};
+      endfor
+      header = ai_valid_count > 0 ? "Here are a few commands worth trying:" | "I couldn't find a close match for that, but here are some general suggestions:";
+      html = (length(note) > 0 ? note + "<br><br>" | "") + header + "<br>" + lines:join("<br>");
+      this:rewrite_event(rewrite_id, $event:mk_info(this, html):with_presentation_hint('inset):with_audience('utility), current_conn);
+    endfork
+    return true;
+  endverb
+
+  verb _prune_assist_contexts (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Prune expired pending assist contexts and keep last token valid.";
+    ttl = `this.assist_ttl ! ANY => 120';
+    if (typeof(ttl) != TYPE_INT || ttl <= 0)
+      ttl = 120;
+    endif
+    pending = `this.assist_pending ! ANY => []';
+    if (typeof(pending) != TYPE_MAP)
+      pending = [];
+    endif
+    now = time();
+    kept = [];
+    latest_token = "";
+    latest_ts = 0;
+    for token in (mapkeys(pending))
+      entry = pending[token];
+      if (typeof(entry) != TYPE_MAP)
+        continue;
+      endif
+      created_at = `entry["created_at"] ! ANY => 0';
+      if (typeof(created_at) != TYPE_INT)
+        continue;
+      endif
+      if (now - created_at > ttl)
+        continue;
+      endif
+      kept[token] = entry;
+      if (created_at > latest_ts)
+        latest_ts = created_at;
+        latest_token = token;
+      endif
+    endfor
+    this.assist_pending = kept;
+    last = `this.assist_last_token ! ANY => ""';
+    if (typeof(last) != TYPE_STR || !maphaskey(kept, last))
+      this.assist_last_token = latest_token;
+    endif
+    return this.assist_pending;
+  endverb
+
+  verb _assist_with_help_query (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Run LLM help-topic suggestions after explicit assist opt-in.";
+    caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
+    {query, ?current_conn = 0} = args;
+    llm_client = $player.suggestions_llm_client;
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
+      this:inform_current($event:mk_error(this, "Help assist is not configured right now."):with_audience('utility));
+      return false;
+    endif
+    if (!current_conn)
+      all_conns = connections();
+      if (!all_conns || length(all_conns) == 0)
+        return false;
+      endif
+      current_conn = all_conns[1][1];
+    endif
+    rewrite_id = uuid();
+    fallback = "No help found for '" + query + "'. Try `help` to see available topics.";
+    placeholder = $event:mk_error(this, "No help found for '" + query + "'. Checking suggestions..."):with_rewritable(rewrite_id, 30, fallback):with_presentation_hint('processing):with_audience('utility);
+    this:inform_current(placeholder);
+    is_programmer = this.programmer;
+    fork (0)
+      all_topics = this:_collect_help_topics();
+      topic_list = {};
+      topic_lookup = [];
+      for t in (all_topics)
+        topic_list = {@topic_list, ["name" -> t.name, "summary" -> t.summary, "aliases" -> t.aliases]};
+        topic_lookup[t.name:lowercase()] = t.name;
+        for alias in (t.aliases)
+          if (typeof(alias) == TYPE_STR && length(alias) > 0)
+            topic_lookup[alias:lowercase()] = t.name;
+          endif
+        endfor
+      endfor
+      prompt = "You are a help assistant for a text-based virtual world (MOO). ";
+      prompt = prompt + "A player searched for help on '" + query + "' but no exact match was found.\n\n";
+      prompt = prompt + "AVAILABLE HELP TOPICS (for everyone, use `help <topic>`):\n";
+      for t in (topic_list)
+        prompt = prompt + "- " + t["name"];
+        if (length(t["aliases"]) > 0)
+          prompt = prompt + " (also: " + t["aliases"]:join(", ") + ")";
+        endif
+        prompt = prompt + ": " + t["summary"] + "\n";
+      endfor
+      prompt = prompt + "\n";
+      if (is_programmer)
+        prompt = prompt + "TECHNICAL DOCUMENTATION (separate from help topics):\n";
+        prompt = prompt + "This user has programmer privileges, so they also have access to `@doc` for technical/programming documentation.\n";
+        prompt = prompt + "- `@doc <object>` or `@doc <object>:verb` - for MOO programming: verbs, properties, objects, code\n";
+        prompt = prompt + "- ONLY suggest @doc if the query is clearly about programming (e.g., 'verbs', 'properties', 'eval', 'coding')\n";
+        prompt = prompt + "- Do NOT mention @doc or programming for general gameplay queries like movement, communication, building, etc.\n\n";
+      endif
+      prompt = prompt + "INSTRUCTIONS:\n";
+      prompt = prompt + "1. Return strict JSON only, with shape: {\"topics\": [\"topic1\", \"topic2\"], \"note\": \"optional short note\"}\n";
+      prompt = prompt + "2. topics must contain 1-3 topic names from the available list above (exact topic names or aliases only)\n";
+      prompt = prompt + "3. If nothing seems close, return {\"topics\": [], \"note\": \"short guidance\"}\n";
+      prompt = prompt + "4. No markdown, no code fences, no extra keys\n";
+      try
+        response = llm_client:simple_query(prompt);
+        parsed = `parse_json(response) ! ANY => []';
+        raw_topics = {};
+        note = "";
+        if (typeof(parsed) == TYPE_MAP)
+          raw_topics = `parsed["topics"] ! E_RANGE => {}';
+          note = `parsed["note"] ! E_RANGE => ""';
+          if (typeof(raw_topics) != TYPE_LIST)
+            raw_topics = {};
+          endif
+          if (typeof(note) != TYPE_STR)
+            note = "";
+          endif
+        endif
+        valid_topics = {};
+        for raw_topic in (raw_topics)
+          if (typeof(raw_topic) == TYPE_STR)
+            candidate = raw_topic:trim();
+            candidate = strsub(candidate, "`", "");
+            candidate = strsub(candidate, "\"", "");
+            candidate = strsub(candidate, "'", "");
+            if (length(candidate) >= 5 && candidate[1..5]:lowercase() == "help ")
+              candidate = candidate[6..length(candidate)];
+            endif
+            candidate = candidate:trim():lowercase();
+            canonical = `topic_lookup[candidate] ! E_RANGE => ""';
+            if (typeof(canonical) == TYPE_STR && length(canonical) > 0 && !(canonical in valid_topics))
+              valid_topics = {@valid_topics, canonical};
+              if (length(valid_topics) >= 3)
+                break;
+              endif
+            endif
+          endif
+        endfor
+        if (length(valid_topics) > 0)
+          topic_lines = {};
+          for topic_name in (valid_topics)
+            cmd_text = "help " + topic_name;
+            link = $format.link:cmd(cmd_text, cmd_text):to_djot();
+            topic_lines = {@topic_lines, "- " + link};
+          endfor
+          body = "Try one of these:\n" + topic_lines:join("\n");
+          if (length(note) > 0)
+            body = note + "\n\n" + body;
+          endif
+          result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", body)):as_djot():as_inset();
+          this:rewrite_event(rewrite_id, result_event, current_conn);
+        else
+          guidance = length(note) > 0 ? note | "I couldn't find a close help topic for that.";
+          generic = guidance + " Try `help` to see available topics.";
+          this:rewrite_event(rewrite_id, generic, current_conn);
+        endif
+      except e (ANY)
+        this:rewrite_event(rewrite_id, fallback, current_conn);
+      endtry
+    endfork
+    return true;
+  endverb
+
+  verb stop (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Stop active background activities.";
+    set_task_perms(player);
+    if (player != this)
+      return;
+    endif
+    set_task_perms(this.owner);
+    canceled = this:action_stop_activities(this);
+    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
+      `kill_task(this.walk_task) ! ANY';
+      this.walk_task = 0;
+      canceled = {@canceled, ['kind -> 'walk, 'task_id -> 0]};
+    endif
+    count = length(canceled);
+    if (count == 0)
+      player:inform_current($event:mk_info(player, "You're not doing anything."));
+      return;
+    endif
+    if (count == 1)
+      description = `$player_activity:description_of(canceled[1]) ! ANY => "that"';
+      if (index(description, "walking") == 1)
+        player:inform_current($event:mk_info(player, "You stop walking."));
+      else
+        player:inform_current($event:mk_info(player, "You stop " + description + "."));
+      endif
+      return;
+    endif
+    descriptions = {};
+    for entry in (canceled)
+      description = `$player_activity:description_of(entry) ! ANY => "that"';
+      if (!(description in descriptions))
+        descriptions = {@descriptions, description};
+      endif
+    endfor
+    if (length(descriptions) == 1)
+      desc = descriptions[1];
+      if (index(desc, "walking") == 1)
+        player:inform_current($event:mk_info(player, "You stop walking."));
+      else
+        player:inform_current($event:mk_info(player, "You stop " + desc + "."));
+      endif
+    else
+      max = length(descriptions) < 3 ? length(descriptions) | 3;
+      sample = descriptions[1..max]:join(", ");
+      player:inform_current($event:mk_info(player, "You stop " + tostr(count) + " activities (" + sample + ")."));
+    endif
   endverb
 endobject
