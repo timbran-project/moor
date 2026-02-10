@@ -32,7 +32,7 @@ object PROG_HELP_TOPICS
   property topic_programming_overview (owner: ARCH_WIZARD, flags: "rc") = {
     "programming",
     "Programmer commands",
-    "Commands for examining and modifying code:\n\n`@list`, `@program`, `@verb`, `@rmverb`, `@cpverb`, `@mvverb`, `@which`, `@where-defined`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@clear-property`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nUse `help <command>` for details on each command.",
+    "You need the programmer bit to use these commands. If you don't have one, ask a wizard to grant you the programmer bit.\n\nCommands for examining and modifying code:\n\n`@list`, `@program`, `@verb`, `@rmverb`, `@cpverb`, `@mvverb`, `@which`, `@where-defined`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@clear-property`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nUse `help <command>` for details on each command.",
     {"prog", "code", "verbs"},
     "programming",
     {"building"}
