@@ -11,13 +11,66 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
+import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
+import { CredentialsUpdatedEvent } from "@moor/schema/generated/moor-rpc/credentials-updated-event";
 import { SchedulerError } from "@moor/schema/generated/moor-rpc/scheduler-error";
 import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
 import { dispatchClientEvent, parseWsNarrativeEventMessage, schedulerErrorToNarrative } from "@moor/web-sdk";
+import * as flatbuffers from "flatbuffers";
 
 import { parseInputMetadata } from "./input-metadata.js";
 import { MoorVar } from "./MoorVar.js";
 import { EventMetadata, LinkPreview, NarrativeMessageHandler } from "./rpc-fb-shared";
+
+function uuidBytesToString(bytes: Uint8Array): string | null {
+    if (bytes.length !== 16) {
+        return null;
+    }
+
+    const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function maybeHandleCredentialsUpdatedEvent(bytes: Uint8Array): boolean {
+    try {
+        const event = ClientEvent.getRootAsClientEvent(new flatbuffers.ByteBuffer(bytes));
+        if (event.eventType() !== ClientEventUnion.CredentialsUpdatedEvent) {
+            return false;
+        }
+
+        const creds = event.event(new CredentialsUpdatedEvent());
+        if (!creds) {
+            console.warn("[WS] CredentialsUpdatedEvent missing payload");
+            return true;
+        }
+
+        const clientToken = creds.clientToken()?.token();
+        const clientIdBytes = creds.clientId()?.dataArray();
+        const clientId = clientIdBytes ? uuidBytesToString(clientIdBytes) : null;
+
+        if (!clientToken || !clientId) {
+            console.warn("[WS] CredentialsUpdatedEvent missing fields");
+            return true;
+        }
+
+        sessionStorage.setItem("client_token", clientToken);
+        sessionStorage.setItem("client_id", clientId);
+        console.log("[WS] Updated session credentials from server event", { clientId });
+        return true;
+    } catch (error) {
+        console.error("[WS] Failed to decode CredentialsUpdatedEvent:", error);
+        return false;
+    }
+}
+
+function narrativeEventIdHex(narrative: any): string | undefined {
+    const eventIdBytes: Uint8Array | null | undefined = narrative?.event?.()?.eventId?.()?.dataArray?.();
+    if (!eventIdBytes || eventIdBytes.length === 0) {
+        return undefined;
+    }
+    return Array.from(eventIdBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 function handleTaskError(
     schedulerError: SchedulerError,
@@ -64,6 +117,7 @@ export function handleClientEventFlatBuffer(
                     console.error("[WS] Missing narrative event");
                     return;
                 }
+                const eventId = narrativeEventIdHex(narrative);
 
                 const timestampNanos = event.timestamp();
                 const timestamp = new Date(Number(timestampNanos) / 1000000).toISOString();
@@ -92,6 +146,9 @@ export function handleClientEventFlatBuffer(
                 switch (parsedNarrativeEvent.kind) {
                     case "notify":
                         if (onNarrativeMessage) {
+                            const mergedEventMetadata = eventId
+                                ? { ...(parsedNarrativeEvent.eventMeta ?? {}), eventId } as EventMetadata
+                                : parsedNarrativeEvent.eventMeta as EventMetadata | undefined;
                             onNarrativeMessage(
                                 parsedNarrativeEvent.content as string | string[],
                                 timestamp,
@@ -103,7 +160,7 @@ export function handleClientEventFlatBuffer(
                                 parsedNarrativeEvent.ttsText,
                                 parsedNarrativeEvent.thumbnail,
                                 parsedNarrativeEvent.linkPreview as LinkPreview | undefined,
-                                parsedNarrativeEvent.eventMeta as EventMetadata | undefined,
+                                mergedEventMetadata,
                                 parsedNarrativeEvent.rewritable,
                                 parsedNarrativeEvent.rewriteTarget,
                             );
@@ -171,6 +228,11 @@ export function handleClientEventFlatBuffer(
                 // Task completed successfully - these now come via HTTP response for verb invocations
             },
             onUnknownEvent: (eventType) => {
+                if (eventType === ClientEventUnion.CredentialsUpdatedEvent) {
+                    if (maybeHandleCredentialsUpdatedEvent(bytes)) {
+                        return;
+                    }
+                }
                 console.warn(`[WS] Unknown event type: ${eventType}`);
             },
             onMalformedEvent: (eventType, expected) => {

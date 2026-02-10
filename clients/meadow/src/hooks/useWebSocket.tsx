@@ -66,7 +66,10 @@ export const useWebSocket = (
     const connectionStatusRef = useRef<WebSocketState["connectionStatus"]>("disconnected");
     const hasEverConnectedRef = useRef(false);
     // Ref to current connect function - used by reconnect timeout to avoid stale closures
-    const connectRef = useRef<((mode: "connect" | "create") => Promise<void>) | null>(null);
+    const connectRef = useRef<((mode: "connect" | "create", force?: boolean) => Promise<void>) | null>(null);
+    const lastConnectModeRef = useRef<"connect" | "create">("connect");
+    const lastSocketActivityAtRef = useRef<number>(Date.now());
+    const lastResumeReconnectAtRef = useRef<number>(0);
 
     // Application-level keepalive interval (45s) to prevent proxy idle timeouts
     // WebSocket-level pings don't count as traffic for proxies like Cloudflare
@@ -79,6 +82,8 @@ export const useWebSocket = (
     // This proves JavaScript is actually processing messages (unlike WS ping/pong)
     const HEARTBEAT_REQUEST = 0x02;
     const HEARTBEAT_RESPONSE = new Uint8Array([0x01]);
+    const RESUME_STALE_THRESHOLD_MS = 120000;
+    const RESUME_RECONNECT_COOLDOWN_MS = 10000;
 
     useEffect(() => {
         connectionStatusRef.current = wsState.connectionStatus;
@@ -102,11 +107,14 @@ export const useWebSocket = (
                     // Check for heartbeat request (single byte 0x02)
                     // Server sends this to verify JS is processing; we must respond with 0x01
                     if (data.byteLength === 1 && data[0] === HEARTBEAT_REQUEST) {
+                        lastSocketActivityAtRef.current = Date.now();
                         if (socketRef.current?.readyState === WebSocket.OPEN) {
                             socketRef.current.send(HEARTBEAT_RESPONSE);
                         }
                         return;
                     }
+
+                    lastSocketActivityAtRef.current = Date.now();
 
                     handleClientEventFlatBuffer(
                         data,
@@ -128,7 +136,7 @@ export const useWebSocket = (
     }, [onSystemMessage, onNarrativeMessage, onPresentMessage, onUnpresentMessage, onPlayerFlagsChange]);
 
     // Connect to WebSocket
-    const connect = useCallback(async (mode: "connect" | "create") => {
+    const connect = useCallback(async (mode: "connect" | "create", force: boolean = false) => {
         if (!player || !player.authToken) {
             console.error("[WebSocket] Cannot connect: No player or auth token");
             return;
@@ -139,12 +147,13 @@ export const useWebSocket = (
             return;
         }
 
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
+        if (!force && socketRef.current?.readyState === WebSocket.OPEN) {
             console.log("[WebSocket] Already connected, skipping");
             return;
         }
 
         console.log("[WebSocket] Starting connection for player:", player.oid);
+        lastConnectModeRef.current = mode;
 
         // If there's an existing socket that's not closed, close it first
         if (socketRef.current && socketRef.current.readyState !== WebSocket.CLOSED) {
@@ -168,17 +177,28 @@ export const useWebSocket = (
             // Get connection credentials from sessionStorage (per-tab)
             const clientToken = sessionStorage.getItem("client_token");
             const clientId = sessionStorage.getItem("client_id");
-            // Session active flag is cross-tab (localStorage) for coordination
+            // Session active flag is retained for telemetry/coordination only.
+            // Reattach hints are per-tab and should be sent whenever credentials exist.
             const sessionActive = localStorage.getItem("client_session_active") === "true";
+            const includeClientHint = !!clientToken && !!clientId;
 
             if (player.isInitialAttach) {
                 console.log("[WebSocket] Initial attach - will trigger user_connected");
             }
-            if (sessionActive && clientToken && clientId) {
+            if (includeClientHint) {
                 console.log("[WebSocket] Reconnecting with existing client_id:", clientId);
             } else {
                 console.log("[WebSocket] New connection (no stored tokens)");
             }
+            console.log("[WebSocket] Attach decision:", {
+                mode,
+                force,
+                isInitialAttach: player.isInitialAttach,
+                sessionActive,
+                hasClientId: !!clientId,
+                hasClientToken: !!clientToken,
+                includeClientHint,
+            });
 
             const wsBaseUrl = `${isSecure ? "wss://" : "ws://"}${baseUrl}`;
             const { wsUrl, protocols: wsProtocols } = buildWsAttach(wsBaseUrl, {
@@ -186,8 +206,8 @@ export const useWebSocket = (
                 credentials: {
                     authToken: player.authToken,
                     isInitialAttach: player.isInitialAttach,
-                    clientId: sessionActive ? clientId : null,
-                    clientToken: sessionActive ? clientToken : null,
+                    clientId: includeClientHint ? clientId : null,
+                    clientToken: includeClientHint ? clientToken : null,
                 },
             });
 
@@ -198,6 +218,7 @@ export const useWebSocket = (
 
             // Set up event handlers
             ws.onopen = () => {
+                lastSocketActivityAtRef.current = Date.now();
                 setWsState(prev => ({
                     ...prev,
                     socket: ws,
@@ -309,6 +330,72 @@ export const useWebSocket = (
     useEffect(() => {
         connectRef.current = connect;
     }, [connect]);
+
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof document === "undefined") {
+            return;
+        }
+
+        const maybeReconnectOnResume = () => {
+            if (document.hidden) {
+                return;
+            }
+            if (!hasEverConnectedRef.current) {
+                return;
+            }
+            if (isDisconnectingRef.current) {
+                return;
+            }
+            if (socketRef.current?.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            const now = Date.now();
+            const idleMs = now - lastSocketActivityAtRef.current;
+            if (idleMs < RESUME_STALE_THRESHOLD_MS) {
+                console.log("[WebSocket] Resume check skipped (fresh activity)", {
+                    idleMs,
+                    thresholdMs: RESUME_STALE_THRESHOLD_MS,
+                });
+                return;
+            }
+
+            const sinceLastResumeReconnect = now - lastResumeReconnectAtRef.current;
+            if (sinceLastResumeReconnect < RESUME_RECONNECT_COOLDOWN_MS) {
+                console.log("[WebSocket] Resume check skipped (cooldown)", {
+                    sinceLastResumeReconnect,
+                    cooldownMs: RESUME_RECONNECT_COOLDOWN_MS,
+                });
+                return;
+            }
+
+            console.log("[WebSocket] Resume-triggered reconnect", {
+                idleMs,
+                sinceLastResumeReconnect,
+                mode: lastConnectModeRef.current,
+                socketState: socketRef.current?.readyState,
+            });
+            lastResumeReconnectAtRef.current = now;
+            onSystemMessage("Resuming connection...", 2);
+            connectRef.current?.(lastConnectModeRef.current, true);
+        };
+
+        const handleVisibility = () => {
+            if (!document.hidden) {
+                maybeReconnectOnResume();
+            }
+        };
+
+        window.addEventListener("focus", maybeReconnectOnResume);
+        window.addEventListener("online", maybeReconnectOnResume);
+        document.addEventListener("visibilitychange", handleVisibility);
+
+        return () => {
+            window.removeEventListener("focus", maybeReconnectOnResume);
+            window.removeEventListener("online", maybeReconnectOnResume);
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [onSystemMessage]);
 
     // Disconnect from WebSocket
     const disconnect = useCallback((reason?: string) => {

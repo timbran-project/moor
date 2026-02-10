@@ -20,6 +20,7 @@ import { LinkPreview } from "./LinkPreviewCard";
 import { OutputWindow } from "./OutputWindow";
 
 export interface EventMetadata {
+    eventId?: string;
     verb?: string;
     actor?: any;
     actorName?: string;
@@ -42,6 +43,7 @@ export interface RewritableInfo {
 
 export interface NarrativeMessage {
     id: string;
+    eventId?: string;
     content: string | string[];
     type: "narrative" | "input_echo" | "system" | "error";
     timestamp?: number;
@@ -88,6 +90,7 @@ export interface NarrativeRef {
         eventMetadata?: EventMetadata,
         rewritable?: { id: string; owner: string; ttl: number; fallback?: string },
         rewriteTarget?: string,
+        eventTimestampMs?: number,
     ) => void;
     addSystemMessage: (content: string | string[]) => void;
     addErrorMessage: (content: string | string[]) => void;
@@ -110,6 +113,20 @@ const getCommandHistoryStorageKey = (playerOid?: string | null) => {
         return null;
     }
     return `${COMMAND_HISTORY_STORAGE_PREFIX}:${playerOid}`;
+};
+
+const sortMessagesChronologically = (messages: NarrativeMessage[]): NarrativeMessage[] => {
+    return messages
+        .map((message, index) => ({ message, index }))
+        .sort((left, right) => {
+            const leftTs = left.message.timestamp ?? Number.MAX_SAFE_INTEGER;
+            const rightTs = right.message.timestamp ?? Number.MAX_SAFE_INTEGER;
+            if (leftTs !== rightTs) {
+                return leftTs - rightTs;
+            }
+            return left.index - right.index;
+        })
+        .map((entry) => entry.message);
 };
 
 export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
@@ -139,6 +156,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     const lastDisconnectMessageTimestampRef = useRef<number>(0);
     const currentStorageKey = getCommandHistoryStorageKey(playerOid);
     const rewritableIndexRef = useRef<Map<string, string>>(new Map());
+    const seenEventIdsRef = useRef<Set<string>>(new Set());
 
     // Screen reader compatibility: stagger rapid DOM additions
     // to prevent Orca's event coalescing from dropping announcements
@@ -169,6 +187,9 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         }
 
         setMessages(prev => [...prev, message]);
+        if (message.eventId) {
+            seenEventIdsRef.current.add(message.eventId);
+        }
         lastDomAdditionRef.current = performance.now();
 
         if (!isInputEcho) {
@@ -251,8 +272,20 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         eventMetadata?: EventMetadata,
         rewritable?: { id: string; owner: string; ttl: number; fallback?: string },
         rewriteTarget?: string,
+        eventTimestampMs?: number,
     ) => {
         const now = Date.now();
+        const messageTimestamp = eventTimestampMs ?? now;
+        const eventId = eventMetadata?.eventId;
+
+        if (eventId) {
+            if (seenEventIdsRef.current.has(eventId)) {
+                return;
+            }
+            if (pendingMessagesRef.current.some(item => item.message.eventId === eventId)) {
+                return;
+            }
+        }
 
         // Handle rewrite: replace an existing message
         if (rewriteTarget) {
@@ -304,9 +337,10 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 
         const newMessage: NarrativeMessage = {
             id: `msg_${now}_${Math.random()}`,
+            eventId,
             content,
             type,
-            timestamp: now,
+            timestamp: messageTimestamp,
             contentType,
             noNewline,
             presentationHint,
@@ -329,7 +363,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         }
 
         // Track the latest message timestamp (update even for input echo)
-        lastMessageTimestampRef.current = now;
+        lastMessageTimestampRef.current = messageTimestamp;
 
         // Compute staleness IDs upfront (need current messages state)
         let idsToStale: string[] | undefined;
@@ -419,6 +453,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             eventMetadata?: EventMetadata,
             rewritable?: { id: string; owner: string; ttl: number; fallback?: string },
             rewriteTarget?: string,
+            eventTimestampMs?: number,
         ) => {
             addMessage(
                 content,
@@ -433,6 +468,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                 eventMetadata,
                 rewritable,
                 rewriteTarget,
+                eventTimestampMs,
             );
         },
         [addMessage],
@@ -453,7 +489,34 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         setMessages(prev => {
             // Preserve any live messages that arrived after history boundary
             const liveMessages = prev.filter(msg => !msg.isHistorical);
-            const newMessages = [...historicalMessages, ...liveMessages];
+            const seenLiveEventIds = new Set<string>();
+            for (const msg of liveMessages) {
+                if (msg.eventId) {
+                    seenLiveEventIds.add(msg.eventId);
+                }
+            }
+
+            const seenHistoryEventIds = new Set<string>();
+            const dedupedHistorical = historicalMessages.filter(msg => {
+                const eid = msg.eventId;
+                if (!eid) {
+                    return true;
+                }
+                if (seenLiveEventIds.has(eid) || seenHistoryEventIds.has(eid)) {
+                    return false;
+                }
+                seenHistoryEventIds.add(eid);
+                return true;
+            });
+
+            const newMessages = sortMessagesChronologically([...dedupedHistorical, ...liveMessages]);
+            const nextSeenEventIds = new Set<string>();
+            for (const msg of newMessages) {
+                if (msg.eventId) {
+                    nextSeenEventIds.add(msg.eventId);
+                }
+            }
+            seenEventIdsRef.current = nextSeenEventIds;
             return newMessages;
         });
     }, []);
@@ -461,8 +524,26 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     // Prepend more historical messages (for infinite scroll)
     const prependHistoricalMessages = useCallback((moreHistoricalMessages: NarrativeMessage[]) => {
         setMessages(prev => {
+            const seenEventIds = new Set<string>();
+            for (const msg of prev) {
+                if (msg.eventId) {
+                    seenEventIds.add(msg.eventId);
+                }
+            }
+            const dedupedHistorical = moreHistoricalMessages.filter(msg => {
+                const eid = msg.eventId;
+                if (!eid) {
+                    return true;
+                }
+                if (seenEventIds.has(eid)) {
+                    return false;
+                }
+                seenEventIds.add(eid);
+                return true;
+            });
             // Prepend to the beginning of existing messages
-            const newMessages = [...moreHistoricalMessages, ...prev];
+            const newMessages = [...dedupedHistorical, ...prev];
+            seenEventIdsRef.current = seenEventIds;
             return newMessages;
         });
     }, []);
@@ -484,6 +565,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         setCommandHistory([]);
         setStaleMessageIds(new Set());
         rewritableIndexRef.current.clear();
+        seenEventIdsRef.current.clear();
     }, [clearStoredHistory]);
 
     // TTL expiry effect: check for expired rewritable messages periodically

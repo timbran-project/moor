@@ -167,6 +167,9 @@ function AppContent({
 
     const splitRatioRef = useRef(splitRatio);
     splitRatioRef.current = splitRatio;
+    const historyResyncInFlightRef = useRef(false);
+    const lastHistoryResyncAtRef = useRef<number>(0);
+    const lastLiveNarrativeAtRef = useRef<number>(Date.now());
 
     const isTouchDevice = useTouchDevice();
     const [forceSplitMode, setForceSplitMode] = useState(false);
@@ -227,6 +230,7 @@ function AppContent({
         if (message.isHistorical) {
             return;
         }
+        lastLiveNarrativeAtRef.current = Date.now();
 
         const documentHasFocus = typeof document.hasFocus === "function" ? document.hasFocus() : true;
 
@@ -1437,6 +1441,7 @@ function AppContent({
                 console.error(
                     "[HistoryError] No encryption key available. Cannot load history. User must set up encryption.",
                 );
+                historyResyncInFlightRef.current = false;
                 setHistoryLoaded(true);
                 if (!wsState.isConnected) {
                     setTimeout(() => connectWS(loginMode), 100);
@@ -1485,6 +1490,9 @@ function AppContent({
                         if (!wsState.isConnected) {
                             connectWS(loginMode);
                         }
+                    })
+                    .finally(() => {
+                        historyResyncInFlightRef.current = false;
                     });
             }, 100);
         }
@@ -1541,6 +1549,8 @@ function AppContent({
         }
 
         const MIN_HIDDEN_DURATION_MS = 30000;
+        const RESYNC_COOLDOWN_MS = 2 * 60 * 1000;
+        const RECENT_ACTIVITY_WINDOW_MS = 60 * 1000;
         let hiddenTimestamp: number | null = null;
 
         const handleVisibilityChange = () => {
@@ -1552,7 +1562,19 @@ function AppContent({
                 hiddenTimestamp = null;
 
                 if (wasHiddenLongEnough && wsConnectedRef.current && historyLoadedRef.current) {
+                    const now = Date.now();
+                    if (historyResyncInFlightRef.current) {
+                        return;
+                    }
+                    if ((now - lastHistoryResyncAtRef.current) < RESYNC_COOLDOWN_MS) {
+                        return;
+                    }
+                    if ((now - lastLiveNarrativeAtRef.current) < RECENT_ACTIVITY_WINDOW_MS) {
+                        return;
+                    }
                     console.log("[History] Tab became visible after being backgrounded - refetching history");
+                    historyResyncInFlightRef.current = true;
+                    lastHistoryResyncAtRef.current = now;
                     isHistoryResyncRef.current = true;
                     setHistoryLoaded(false);
                 }
@@ -2204,12 +2226,13 @@ function AppWrapper() {
             eventMetadata?: import("./lib/rpc-fb").EventMetadata;
             rewritable?: { id: string; owner: string; ttl: number; fallback?: string };
             rewriteTarget?: string;
+            eventTimestampMs?: number;
         }>
     >([]);
 
     const handleNarrativeMessage = useCallback((
         content: string | string[],
-        _timestamp?: string,
+        timestamp?: string,
         contentType?: string,
         isHistorical?: boolean,
         noNewline?: boolean,
@@ -2222,6 +2245,9 @@ function AppWrapper() {
         rewritable?: { id: string; owner: string; ttl: number; fallback?: string },
         rewriteTarget?: string,
     ) => {
+        const parsedTimestamp = timestamp ? new Date(timestamp).getTime() : NaN;
+        const eventTimestampMs = Number.isFinite(parsedTimestamp) ? parsedTimestamp : undefined;
+
         // Handle array content by processing each line
         if (Array.isArray(content)) {
             const filteredContent: string[] = [];
@@ -2248,6 +2274,7 @@ function AppWrapper() {
                         eventMetadata,
                         rewritable,
                         rewriteTarget,
+                        eventTimestampMs,
                     );
                 } else {
                     setPendingMessages(
@@ -2263,6 +2290,7 @@ function AppWrapper() {
                             eventMetadata,
                             rewritable,
                             rewriteTarget,
+                            eventTimestampMs,
                         }],
                     );
                 }
@@ -2284,6 +2312,7 @@ function AppWrapper() {
                         eventMetadata,
                         rewritable,
                         rewriteTarget,
+                        eventTimestampMs,
                     );
                 } else {
                     setPendingMessages(
@@ -2299,6 +2328,7 @@ function AppWrapper() {
                             eventMetadata,
                             rewritable,
                             rewriteTarget,
+                            eventTimestampMs,
                         }],
                     );
                 }
@@ -2331,6 +2361,7 @@ function AppWrapper() {
                         eventMetadata,
                         rewritable,
                         rewriteTarget,
+                        eventTimestampMs,
                     },
                 ) => {
                     node.addNarrativeContent(
@@ -2345,6 +2376,7 @@ function AppWrapper() {
                         eventMetadata,
                         rewritable,
                         rewriteTarget,
+                        eventTimestampMs,
                     );
                 },
             );

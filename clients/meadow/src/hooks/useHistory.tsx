@@ -233,6 +233,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
 
             return {
                 id: `history_${eventId}_${timestamp}`,
+                eventId,
                 content: messageContent,
                 type: "narrative",
                 timestamp,
@@ -322,6 +323,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
 
             return {
                 id: `history_${event.event_id}_${timestamp}`,
+                eventId: event.event_id,
                 content: messageContent,
                 type: "narrative",
                 timestamp,
