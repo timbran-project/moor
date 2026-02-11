@@ -389,9 +389,6 @@ object ACTOR
       endif
     endfor
     this.performing = kept;
-    if (kind == $nothing || kind == 'walk || kind == 'join)
-      this.walk_task = 0;
-    endif
     return canceled;
   endverb
 

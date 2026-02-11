@@ -314,4 +314,33 @@ object EVENT_RECEIVER
     endfor
     return false;
   endverb
+
+  verb emit_room_look (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Emit room look to both narrative notify and top presentation.";
+    this:_can_inform() || raise(E_PERM);
+    {room, ?target = "top"} = args;
+    if (!valid(room) || !isa(room, $room))
+      room = this.location;
+    endif
+    if (!valid(room) || !isa(room, $room))
+      return;
+    endif
+    look_d = room:look_self();
+    look_event = look_d:into_event();
+    look_event = look_event:with_metadata('look_kind, "room");
+    look_event = look_event:with_metadata('look_room, room);
+    look_event = look_event:with_audience('utility);
+    "First attempt a rich present panel for room looks.";
+    try
+      payload = look_d:into_presentation('text_html);
+      title = payload["title"] || `room:name() ! ANY => "Room"';
+      content = payload["content"] || "";
+      attrs = {{"title", title}, {"kind", "room_look"}, {"room", tostr(room)}};
+      this:_present(this, "room-look", "text/html", target, content, attrs);
+    except e (ANY)
+      "Presentation is best-effort.";
+    endtry
+    "Always emit the existing narrative event path.";
+    this:inform_current(look_event);
+  endverb
 endobject

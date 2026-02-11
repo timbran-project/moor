@@ -295,4 +295,29 @@ object LOOK
     endfor
     return $format.paragraph:mk(parts);
   endverb
+
+  verb into_presentation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return panel-ready look payload with title separated from content.";
+    "Args: ?content_type (default 'text_html).";
+    {?content_type = 'text_html} = args;
+    title = `this.what:name() ! ANY => "Room"';
+    event = this:into_event();
+    transformed = event:transform_for(player, content_type);
+    output = {};
+    for entry in (transformed)
+      output = player:_extend_output(output, entry, content_type);
+    endfor
+    content = output:join("");
+    if (content_type == 'text_html)
+      open_h3 = index(content, "<h3>");
+      close_h3 = index(content, "</h3>");
+      if (open_h3 && close_h3 && close_h3 >= open_h3)
+        prefix = open_h3 > 1 ? content[1..open_h3 - 1] | "";
+        suffix_start = close_h3 + 5;
+        suffix = suffix_start <= length(content) ? content[suffix_start..$] | "";
+        content = prefix + suffix;
+      endif
+    endif
+    return ["title" -> title, "content" -> content, "content_type" -> tostr(content_type)];
+  endverb
 endobject

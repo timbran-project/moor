@@ -97,8 +97,7 @@ object ROOM
       this:announce(arrival_event);
     endif
     "Always show the room to the connecting player";
-    look_d = this:look_self();
-    who:inform_current(look_d:into_event():with_audience('utility));
+    `who:emit_room_look(this) ! ANY';
   endverb
 
   verb disfunc (this none this) owner: HACKER flags: "rxd"
@@ -116,8 +115,7 @@ object ROOM
     {who} = args;
     valid(who) || return;
     if (is_player(who))
-      look_d = this:look_self();
-      `who:tell(look_d:into_event():with_audience('utility)) ! ANY';
+      `who:emit_room_look(this) ! ANY';
       "Notify objects in the room that a player arrived";
       for thing in (this.contents)
         if (thing != who)
@@ -297,9 +295,14 @@ object ROOM
       endif
     endfor
     "Build updated flyweight if we have exits, passages, or actions";
-    if (length(exits) > 0 || length(ambient_passages) > 0 || length(actions) > 0)
-      contents_list = flycontents(look_data);
-      return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = look_data.description, .exits = exits, .ambient_passages = ambient_passages, .actions = actions, {@contents_list}>;
+    if (length(exits) > 0)
+      look_data.exits = exits;
+    endif
+    if (length(ambient_passages) > 0)
+      look_data.ambient_passages = ambient_passages;
+    endif
+    if (length(actions) > 0)
+      look_data.actions = actions;
     endif
     return look_data;
   endverb

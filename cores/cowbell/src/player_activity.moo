@@ -47,8 +47,6 @@ object PLAYER_ACTIVITY
     kind = this:kind_of(entry);
     if (kind == 'walk)
       return "walking";
-    elseif (kind == 'join)
-      return "joining";
     elseif (kind != "" && kind != $nothing)
       return tostr(kind);
     endif

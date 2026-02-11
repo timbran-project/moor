@@ -95,6 +95,9 @@ object PLAYER
       endif
     endif
     !valid(target) && return this:inform_current(this:msg_no_dobj_match());
+    if (target == player.location && isa(target, $room))
+      return player:emit_room_look(target);
+    endif
     look_d = target:look_self();
     player:inform_current(look_d:into_event():with_audience('utility));
   endverb
@@ -2322,12 +2325,6 @@ object PLAYER
     "Handle 'walk stop' to cancel";
     if (dest_str == "stop" || dest_str == "cancel")
       canceled = this:action_stop_activities(this, 'walk);
-      canceled = {@canceled, @this:action_stop_activities(this, 'join)};
-      if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
-        `kill_task(this.walk_task) ! ANY';
-        this.walk_task = 0;
-        canceled = {@canceled, ['kind -> 'walk, 'task_id -> 0]};
-      endif
       if (length(canceled) > 0)
         player:inform_current($event:mk_info(player, "You stop walking."));
       else
@@ -2426,21 +2423,16 @@ object PLAYER
       player:inform_current($event:mk_error(player, "Can't find a walkable route to " + destination:name() + "."));
       return;
     endif
-    "Cancel any existing movement task";
+    "Cancel any existing movement activity";
     this:action_stop_activities(this, 'walk);
-    this:action_stop_activities(this, 'join);
-    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
-      `kill_task(this.walk_task) ! ANY';
-    endif
     "Start walking";
     steps = length(path) - 1;
     player:inform_current($event:mk_info(player, "Walking to " + destination:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
     "Fork task to do the walking";
-    fork walk_task_id (0)
+    fork activity_task_id (0)
       this:_do_walk(path);
     endfork
-    this.walk_task = walk_task_id;
-    this:action_start_activity(this, 'walk, walk_task_id, "walking to " + destination:name());
+    this:action_start_activity(this, 'walk, activity_task_id, "walking to " + destination:name());
   endverb
 
   verb _do_walk (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2457,14 +2449,12 @@ object PLAYER
       if (this.location != from_room)
         "Player moved manually or was moved - stop walking";
         this:inform_current($event:mk_info(this, "You've stopped walking (you moved)."));
-        this.walk_task = 0;
         this:action_clear_activity_task(this, current_task);
         return;
       endif
       "Check this is a passage (not transport)";
       if (typeof(connector) == TYPE_LIST && connector[1] == 'transport)
         this:inform_current($event:mk_error(this, "Can't auto-walk through transport - stopping."));
-        this.walk_task = 0;
         this:action_clear_activity_task(this, current_task);
         return;
       endif
@@ -2473,7 +2463,6 @@ object PLAYER
       "Check still in expected room after delay";
       if (this.location != from_room)
         this:inform_current($event:mk_info(this, "You've stopped walking."));
-        this.walk_task = 0;
         this:action_clear_activity_task(this, current_task);
         return;
       endif
@@ -2481,7 +2470,6 @@ object PLAYER
       success = `connector:travel_from(this, from_room, {}) ! ANY => false';
       if (!success)
         this:inform_current($event:mk_error(this, "Something blocked your path - stopping."));
-        this.walk_task = 0;
         this:action_clear_activity_task(this, current_task);
         return;
       endif
@@ -2489,12 +2477,11 @@ object PLAYER
     "Arrived at destination";
     destination = path[$][1];
     this:inform_current($event:mk_info(this, "You've arrived at " + destination:name() + "."));
-    this.walk_task = 0;
     this:action_clear_activity_task(this, current_task);
   endverb
 
   verb "join @join" (any none none) owner: ARCH_WIZARD flags: "rxd"
-    "Walk to join another player.";
+    "Walk to another player's location.";
     "Usage: join <player>";
     set_task_perms(player);
     player != this && return;
@@ -2582,21 +2569,16 @@ object PLAYER
       player:inform_current($event:mk_error(player, "Can't find a walkable route to " + target:name() + "."));
       return;
     endif
-    "Cancel any existing movement task";
+    "Cancel any existing movement activity";
     this:action_stop_activities(this, 'walk);
-    this:action_stop_activities(this, 'join);
-    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
-      `kill_task(this.walk_task) ! ANY';
-    endif
     "Start walking";
     steps = length(path) - 1;
-    player:inform_current($event:mk_info(player, "Walking to join " + target:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
+    player:inform_current($event:mk_info(player, "Walking to " + target:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
     "Fork task to do the walking";
-    fork walk_task_id (0)
+    fork activity_task_id (0)
       this:_do_walk(path);
     endfork
-    this.walk_task = walk_task_id;
-    this:action_start_activity(this, 'join, walk_task_id, "walking to join " + target:name());
+    this:action_start_activity(this, 'walk, activity_task_id, "walking to " + target:name());
   endverb
 
   verb disfunc (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2663,18 +2645,16 @@ object PLAYER
       player:inform_current($event:mk_error(player, "Can't find a walkable route home."));
       return;
     endif
-    "Cancel any existing walk";
-    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
-      `kill_task(this.walk_task) ! ANY';
-    endif
+    "Cancel any existing movement activity";
+    this:action_stop_activities(this, 'walk);
     "Start walking";
     steps = length(path) - 1;
     player:inform_current($event:mk_info(player, "Walking home to " + home:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
     "Fork task to do the walking";
-    fork walk_task_id (0)
+    fork activity_task_id (0)
       this:_do_walk(path);
     endfork
-    this.walk_task = walk_task_id;
+    this:action_start_activity(this, 'walk, activity_task_id, "walking home to " + home:name());
   endverb
 
   verb "@sethome" (none none none) owner: ARCH_WIZARD flags: "rxd"
@@ -3282,11 +3262,6 @@ object PLAYER
     endif
     set_task_perms(this.owner);
     canceled = this:action_stop_activities(this);
-    if (this.walk_task && typeof(this.walk_task) == TYPE_INT && this.walk_task > 0)
-      `kill_task(this.walk_task) ! ANY';
-      this.walk_task = 0;
-      canceled = {@canceled, ['kind -> 'walk, 'task_id -> 0]};
-    endif
     count = length(canceled);
     if (count == 0)
       player:inform_current($event:mk_info(player, "You're not doing anything."));
