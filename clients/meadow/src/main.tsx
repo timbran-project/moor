@@ -170,6 +170,14 @@ function AppContent({
     const historyResyncInFlightRef = useRef(false);
     const lastHistoryResyncAtRef = useRef<number>(0);
     const lastLiveNarrativeAtRef = useRef<number>(Date.now());
+    const lastHistoryBatchSignatureRef = useRef<string | null>(null);
+    const lastHistoryBatchAppliedAtRef = useRef<number>(0);
+    const recentLiveEventIdsRef = useRef<Map<string, { count: number; firstSeenAt: number; lastSeenAt: number }>>(
+        new Map(),
+    );
+
+    const HISTORY_BATCH_DEDUP_WINDOW_MS = 2 * 60 * 1000;
+    const LIVE_EVENT_DIAG_RETENTION_MS = 5 * 60 * 1000;
 
     const isTouchDevice = useTouchDevice();
     const [forceSplitMode, setForceSplitMode] = useState(false);
@@ -528,7 +536,6 @@ function AppContent({
         fetchInitialHistory,
         fetchMoreHistory,
         isLoadingHistory,
-        shouldShowDisconnectDivider,
     } = useHistory(authToken, encryptionKeyForHistory);
 
     // Custom close handler for verb editor that also dismisses presentation
@@ -1457,7 +1464,34 @@ function AppContent({
             setTimeout(() => {
                 fetchInitialHistory()
                     .then(async (historicalMessages) => {
-                        setPendingHistoricalMessages(historicalMessages);
+                        const signature = (() => {
+                            if (historicalMessages.length === 0) {
+                                return "empty";
+                            }
+                            const first = historicalMessages[0];
+                            const last = historicalMessages[historicalMessages.length - 1];
+                            const firstKey = first.eventId || first.id;
+                            const lastKey = last.eventId || last.id;
+                            return `${historicalMessages.length}:${firstKey}:${lastKey}:${first.timestamp || 0}:${
+                                last.timestamp || 0
+                            }`;
+                        })();
+                        const now = Date.now();
+                        const isRedundantBatch = historicalMessages.length > 0
+                            && lastHistoryBatchSignatureRef.current === signature
+                            && (now - lastHistoryBatchAppliedAtRef.current) < HISTORY_BATCH_DEDUP_WINDOW_MS;
+
+                        if (isRedundantBatch) {
+                            console.log("[History] Skipping redundant history batch", {
+                                count: historicalMessages.length,
+                                signature,
+                                sinceLastMs: now - lastHistoryBatchAppliedAtRef.current,
+                            });
+                        } else {
+                            setPendingHistoricalMessages(historicalMessages);
+                            lastHistoryBatchSignatureRef.current = signature;
+                            lastHistoryBatchAppliedAtRef.current = now;
+                        }
 
                         // Show toast for initial load, but not for background resyncs
                         if (historicalMessages.length > 0 && !isHistoryResyncRef.current) {
@@ -1506,6 +1540,7 @@ function AppContent({
         fetchInitialHistory,
         historyLoaded,
         loginMode,
+        HISTORY_BATCH_DEDUP_WINDOW_MS,
         narrativeRef,
         setHistoryBoundaryNow,
         showMessage,
@@ -1805,7 +1840,6 @@ function AppContent({
                                     fontSize={narrativeFontSize}
                                     inputMetadata={inputMetadata}
                                     onClearInputMetadata={clearInputMetadata}
-                                    shouldShowDisconnectDivider={shouldShowDisconnectDivider}
                                 />
                             </section>
 
@@ -2187,6 +2221,10 @@ function AppWrapper() {
     const { addPresentation, removePresentation, presentations } = usePresentationContext();
     const { showMessage } = useSystemMessage();
     const narrativeRef = useRef<NarrativeRef | null>(null);
+    const recentLiveEventIdsRef = useRef<Map<string, { count: number; firstSeenAt: number; lastSeenAt: number }>>(
+        new Map(),
+    );
+    const LIVE_EVENT_DIAG_RETENTION_MS = 5 * 60 * 1000;
 
     // Store verb editor function from AppContent
     const showVerbEditorRef = useRef<
@@ -2328,6 +2366,7 @@ function AppWrapper() {
         const parsedTimestamp = timestamp ? new Date(timestamp).getTime() : NaN;
         const eventTimestampMs = Number.isFinite(parsedTimestamp) ? parsedTimestamp : undefined;
         const metadata = eventMetadata as {
+            eventId?: string;
             verb?: string;
             dobj?: unknown;
             thisObj?: unknown;
@@ -2336,6 +2375,36 @@ function AppWrapper() {
             lookRoom?: unknown;
             look_room?: unknown;
         } | undefined;
+        const liveEventId = metadata?.eventId;
+        if (!isHistorical && liveEventId) {
+            const now = Date.now();
+            const recentIds = recentLiveEventIdsRef.current;
+            if (recentIds.size > 2048) {
+                for (const [id, entry] of recentIds.entries()) {
+                    if ((now - entry.lastSeenAt) > LIVE_EVENT_DIAG_RETENTION_MS) {
+                        recentIds.delete(id);
+                    }
+                }
+            }
+
+            const existing = recentIds.get(liveEventId);
+            if (existing) {
+                existing.count += 1;
+                existing.lastSeenAt = now;
+                console.warn("[WS] Duplicate live eventId observed", {
+                    eventId: liveEventId,
+                    seenCount: existing.count,
+                    sinceFirstMs: now - existing.firstSeenAt,
+                    clientId: sessionStorage.getItem("client_id"),
+                });
+            } else {
+                recentIds.set(liveEventId, {
+                    count: 1,
+                    firstSeenAt: now,
+                    lastSeenAt: now,
+                });
+            }
+        }
         const isLook = metadata?.verb === "look";
         if (isLook && presentationHint === "inset") {
             const lookKind = metadata?.lookKind || metadata?.look_kind;

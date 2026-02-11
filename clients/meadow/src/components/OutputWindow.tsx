@@ -64,7 +64,6 @@ interface OutputWindowProps {
     onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
     onLinkHoldEnd?: () => void;
     fontSize?: number;
-    shouldShowDisconnectDivider?: boolean;
     playerOid?: string | null;
     staleMessageIds?: Set<string>;
     onMessageLinkClicked?: (messageId: string) => void;
@@ -78,7 +77,6 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     onLinkHoldStart,
     onLinkHoldEnd,
     fontSize,
-    shouldShowDisconnectDivider = false,
     playerOid: _playerOid,
     staleMessageIds,
     onMessageLinkClicked,
@@ -449,27 +447,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
 
                 return groupedMessages.map((group, groupIndex) => {
                     const firstMessage = group[0];
-                    const isDividerGroup = shouldShowDisconnectDivider && !firstMessage.isHistorical
-                        && groupIndex > 0;
-                    const previousGroup = groupIndex > 0 ? groupedMessages[groupIndex - 1] : null;
-                    const shouldShowDivider = isDividerGroup && previousGroup
-                        && previousGroup[previousGroup.length - 1].isHistorical;
-
                     const result = [];
-
-                    // Add divider if this is the first non-historical message and we should show it
-                    if (shouldShowDivider) {
-                        result.push(
-                            <div
-                                key={`divider_${groupIndex}`}
-                                className="history_separator"
-                                role="separator"
-                                aria-label="Reconnection point: messages before this occurred during a disconnection lasting more than 10 minutes"
-                            >
-                                <span aria-hidden="true">●●●</span>
-                            </div>,
-                        );
-                    }
 
                     if (group.length === 1) {
                         // Single message

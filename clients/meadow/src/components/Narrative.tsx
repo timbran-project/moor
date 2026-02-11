@@ -74,7 +74,6 @@ interface NarrativeProps {
     fontSize?: number;
     inputMetadata?: InputMetadata | null;
     onClearInputMetadata?: () => void;
-    shouldShowDisconnectDivider?: boolean;
 }
 
 export interface NarrativeRef {
@@ -143,7 +142,6 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     fontSize,
     inputMetadata,
     onClearInputMetadata,
-    shouldShowDisconnectDivider = false,
 }, ref) => {
     const connected = connectionStatus === "connected";
     const [messages, setMessages] = useState<NarrativeMessage[]>([]);
@@ -178,6 +176,10 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         idsToStale?: string[],
         isInputEcho?: boolean,
     ) => {
+        if (message.eventId && seenEventIdsRef.current.has(message.eventId)) {
+            return;
+        }
+
         if (idsToStale && idsToStale.length > 0) {
             setStaleMessageIds(prevStale => {
                 const next = new Set(prevStale);
@@ -707,7 +709,6 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                     onLinkHoldStart={onLinkHoldStart}
                     onLinkHoldEnd={onLinkHoldEnd}
                     fontSize={fontSize}
-                    shouldShowDisconnectDivider={shouldShowDisconnectDivider}
                     playerOid={playerOid}
                     staleMessageIds={staleMessageIds}
                     onMessageLinkClicked={markMessageStale}

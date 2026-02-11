@@ -144,4 +144,82 @@ describe("Narrative history merge regressions", () => {
             mockHttp.restore();
         }
     });
+
+    it("does not append queued live duplicate after history merge of same event id", async () => {
+        installMatchMediaMock();
+        vi.useFakeTimers();
+        const narrativeRef = createRef<NarrativeRef>();
+        const { container } = render(
+            <Narrative
+                ref={narrativeRef}
+                visible={true}
+                connectionStatus="connected"
+                onSendMessage={() => {}}
+            />,
+        );
+
+        try {
+            // First message commits immediately.
+            act(() => {
+                narrativeRef.current?.addNarrativeContent(
+                    "LIVE e1",
+                    "text/plain",
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    {
+                        eventId: "e1",
+                    },
+                );
+            });
+
+            // Second message with unique event id should be queued (rapid arrival).
+            act(() => {
+                narrativeRef.current?.addNarrativeContent(
+                    "LIVE e2",
+                    "text/plain",
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    {
+                        eventId: "e2",
+                    },
+                );
+            });
+
+            // History load inserts same e2 before queued live message flushes.
+            act(() => {
+                narrativeRef.current?.addHistoricalMessages([
+                    {
+                        id: "hist_e2",
+                        eventId: "e2",
+                        content: "HIST e2",
+                        type: "narrative",
+                        timestamp: 10,
+                        isHistorical: true,
+                        contentType: "text/plain",
+                    },
+                ]);
+            });
+
+            // Flush queued DOM commits.
+            act(() => {
+                vi.advanceTimersByTime(250);
+            });
+
+            const rendered = container.querySelector("[data-testid=\"output-window\"]")?.textContent || "";
+            const lines = rendered.split("|").map(line => line.trim()).filter(Boolean);
+
+            // e2 should appear only once (from history), not duplicated by delayed live queue flush.
+            expect(lines).toEqual(["HIST e2", "LIVE e1"]);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
