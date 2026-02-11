@@ -53,7 +53,7 @@ import { MoorVar } from "./lib/MoorVar";
 import { OAuth2UserInfo } from "./lib/oauth2";
 import { fetchServerFeatures, invokeVerbFlatBuffer } from "./lib/rpc-fb";
 import { addTrustedDomain, getHostname, isDomainTrusted } from "./lib/trusted-domains";
-import { stringToCurie } from "./lib/var";
+import { stringToCurie, uuObjIdToString } from "./lib/var";
 import { Presentation, PresentationData } from "./types/presentation";
 import "./styles/main.css";
 
@@ -2184,7 +2184,7 @@ function EncryptionWrapper() {
 
 function AppWrapper() {
     const { authState, setPlayerConnected, setPlayerFlags } = useAuthContext();
-    const { addPresentation, removePresentation } = usePresentationContext();
+    const { addPresentation, removePresentation, presentations } = usePresentationContext();
     const { showMessage } = useSystemMessage();
     const narrativeRef = useRef<NarrativeRef | null>(null);
 
@@ -2230,6 +2230,86 @@ function AppWrapper() {
         }>
     >([]);
 
+    const normalizeObjectKey = useCallback((value: unknown): string | null => {
+        if (typeof value === "number" && Number.isInteger(value)) {
+            return `oid:${value}`;
+        }
+        if (typeof value === "string") {
+            const raw = value.trim();
+            if (!raw) {
+                return null;
+            }
+            if (/^#\d+$/.test(raw)) {
+                return `oid:${raw.slice(1)}`;
+            }
+            if (/^#[0-9a-f]{8}-[0-9a-f]{8}$/i.test(raw)) {
+                return `uuid:${raw.slice(1).toLowerCase()}`;
+            }
+            if (/^\d+$/.test(raw)) {
+                return `oid:${raw}`;
+            }
+            if (/^oid:\d+$/i.test(raw)) {
+                return `oid:${raw.slice(4)}`;
+            }
+            if (/^uuid:/i.test(raw)) {
+                return raw.toLowerCase();
+            }
+            return raw.toLowerCase();
+        }
+        if (value && typeof value === "object") {
+            const objectValue = value as { oid?: unknown; uuid?: unknown };
+            if (typeof objectValue.oid === "number" && Number.isInteger(objectValue.oid)) {
+                return `oid:${objectValue.oid}`;
+            }
+            if (typeof objectValue.oid === "string") {
+                return normalizeObjectKey(objectValue.oid);
+            }
+            if (typeof objectValue.uuid === "string" && objectValue.uuid.trim()) {
+                const packed = objectValue.uuid.trim();
+                if (/^\d+$/.test(packed)) {
+                    try {
+                        return `uuid:${uuObjIdToString(BigInt(packed)).toLowerCase()}`;
+                    } catch {
+                        return `uuid:${packed.toLowerCase()}`;
+                    }
+                }
+                return `uuid:${packed.toLowerCase()}`;
+            }
+        }
+        return null;
+    }, []);
+
+    const findActiveTopRoomLookKey = useCallback((): string | null => {
+        for (let i = presentations.length - 1; i >= 0; i -= 1) {
+            const presentation = presentations[i];
+            if (presentation.target !== "top") {
+                continue;
+            }
+            const kind = (presentation.attrs.kind || "").toLowerCase();
+            if (kind !== "room_look" && kind !== "room-look") {
+                continue;
+            }
+            const roomCandidates = [
+                presentation.attrs.room,
+                presentation.attrs.object,
+                presentation.attrs.target,
+                presentation.attrs.dobj,
+                presentation.attrs.this_obj,
+                presentation.attrs.this,
+            ];
+            for (const room of roomCandidates) {
+                if (!room) {
+                    continue;
+                }
+                const normalizedRoom = normalizeObjectKey(room);
+                if (normalizedRoom) {
+                    return normalizedRoom;
+                }
+            }
+        }
+        return null;
+    }, [normalizeObjectKey, presentations]);
+
     const handleNarrativeMessage = useCallback((
         content: string | string[],
         timestamp?: string,
@@ -2247,6 +2327,29 @@ function AppWrapper() {
     ) => {
         const parsedTimestamp = timestamp ? new Date(timestamp).getTime() : NaN;
         const eventTimestampMs = Number.isFinite(parsedTimestamp) ? parsedTimestamp : undefined;
+        const metadata = eventMetadata as {
+            verb?: string;
+            dobj?: unknown;
+            thisObj?: unknown;
+            lookKind?: string;
+            look_kind?: string;
+            lookRoom?: unknown;
+            look_room?: unknown;
+        } | undefined;
+        const isLook = metadata?.verb === "look";
+        if (isLook && presentationHint === "inset") {
+            const lookKind = metadata?.lookKind || metadata?.look_kind;
+            if (lookKind === "room") {
+                return;
+            }
+            const activeTopRoomLook = findActiveTopRoomLookKey();
+            if (activeTopRoomLook) {
+                const lookedAt = normalizeObjectKey(metadata?.dobj) || normalizeObjectKey(metadata?.thisObj);
+                if (lookedAt && lookedAt === activeTopRoomLook) {
+                    return;
+                }
+            }
+        }
 
         // Handle array content by processing each line
         if (Array.isArray(content)) {
@@ -2334,7 +2437,7 @@ function AppWrapper() {
                 }
             }
         }
-    }, [mcpHandler]);
+    }, [findActiveTopRoomLookKey, mcpHandler, normalizeObjectKey]);
 
     const handlePresentMessage = (presentData: PresentationData) => {
         addPresentation(presentData);

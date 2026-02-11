@@ -40,6 +40,7 @@ interface EventMetadata {
 interface OutputWindowProps {
     messages: Array<{
         id: string;
+        eventId?: string;
         content: string | string[];
         type: "narrative" | "input_echo" | "system" | "error";
         timestamp?: number;
@@ -303,6 +304,67 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
             && typeof eventMetadata?.dobjName === "string";
     };
 
+    const encodeEventValue = useCallback((value: unknown): string | null => {
+        if (value === null || value === undefined) {
+            return null;
+        }
+        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+            return String(value);
+        }
+        if (typeof value === "object") {
+            const objectValue = value as { oid?: unknown; uuid?: unknown };
+            if (objectValue.oid !== undefined && objectValue.oid !== null) {
+                return `oid:${String(objectValue.oid)}`;
+            }
+            if (objectValue.uuid !== undefined && objectValue.uuid !== null) {
+                return `uuid:${String(objectValue.uuid)}`;
+            }
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return String(value);
+            }
+        }
+        return String(value);
+    }, []);
+
+    const getMessageDebugAttrs = useCallback((
+        message: OutputWindowProps["messages"][number],
+    ): Record<string, string> => {
+        const attrs: Record<string, string> = {
+            "data-message-id": message.id,
+            "data-message-type": message.type,
+        };
+        if (message.eventId) {
+            attrs["data-event-id"] = message.eventId;
+        }
+        if (message.presentationHint) {
+            attrs["data-presentation-hint"] = message.presentationHint;
+        }
+        if (message.groupId) {
+            attrs["data-group-id"] = message.groupId;
+        }
+        if (message.eventMetadata?.verb) {
+            attrs["data-event-verb"] = message.eventMetadata.verb;
+        }
+        const dobj = encodeEventValue(message.eventMetadata?.dobj);
+        if (dobj) {
+            attrs["data-event-dobj"] = dobj;
+        }
+        const thisObj = encodeEventValue(message.eventMetadata?.thisObj);
+        if (thisObj) {
+            attrs["data-event-this-obj"] = thisObj;
+        }
+        if (message.eventMetadata) {
+            try {
+                attrs["data-event-metadata"] = JSON.stringify(message.eventMetadata);
+            } catch {
+                // Best effort only for debugging.
+            }
+        }
+        return attrs;
+    }, [encodeEventValue]);
+
     const resolvedFontSize = fontSize ?? 14;
 
     return (
@@ -436,7 +498,11 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                             })();
 
                             result.push(
-                                <div key={message.id} className={wrapperClassName}>
+                                <div
+                                    key={message.id}
+                                    className={wrapperClassName}
+                                    {...getMessageDebugAttrs(message)}
+                                >
                                     {isCollapsible && isThisCollapsed && (
                                         <>
                                             {/* Visual collapsed state - hidden from screen readers */}
@@ -525,6 +591,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                             message.isHistorical,
                                         )
                                     } message-block`}
+                                    {...getMessageDebugAttrs(message)}
                                 >
                                     {renderContentWithTts(
                                         message.content,
@@ -587,6 +654,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                 <div
                                     key={`hint_${firstMessage.id}`}
                                     className={wrapperClassName}
+                                    {...getMessageDebugAttrs(firstMessage)}
                                 >
                                     {isCollapsible && isThisCollapsed && (
                                         <>
@@ -716,6 +784,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                         firstMessage.type,
                                         firstMessage.isHistorical,
                                     )}
+                                    {...getMessageDebugAttrs(firstMessage)}
                                 >
                                     {renderContentWithTts(
                                         combinedHtml,

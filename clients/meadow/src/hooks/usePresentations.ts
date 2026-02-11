@@ -16,7 +16,7 @@ import { useCallback, useState } from "react";
 import { decryptEventBlob } from "../lib/age-decrypt";
 import { buildAuthHeaders } from "../lib/authHeaders";
 import { getCurrentPresentationsFlatBuffer } from "../lib/rpc-fb";
-import { Presentation, PresentationData, SemanticTarget, TARGET_TYPES } from "../types/presentation";
+import { DockTarget, Presentation, PresentationData, SemanticTarget, TARGET_TYPES } from "../types/presentation";
 import { useMediaQuery } from "./useMediaQuery";
 
 // Responsive mapping of semantic targets to visual placement
@@ -114,37 +114,48 @@ export const usePresentations = () => {
         || target === TARGET_TYPES.TEXT_EDITOR
         || target === TARGET_TYPES.PROFILE_SETUP;
 
+    const explicitDockTarget = (target: string): DockTarget | null => {
+        if (target === "left" || target === "right" || target === "top" || target === "bottom") {
+            return target;
+        }
+        return null;
+    };
+
+    const dockPlacementForTarget = useCallback((target: string): DockTarget => {
+        const explicit = explicitDockTarget(target);
+        if (explicit) {
+            return explicit;
+        }
+        return getPlacementForTarget(target as SemanticTarget);
+    }, [getPlacementForTarget]);
+
     const getLeftDockPresentations = useCallback((): Presentation[] => {
         return Array.from(presentations.values()).filter(p => {
             if (isSpecialTarget(p.target)) return false;
-            const semanticTarget = p.target as SemanticTarget;
-            return getPlacementForTarget(semanticTarget) === "left";
+            return dockPlacementForTarget(p.target) === "left";
         });
-    }, [presentations, getPlacementForTarget]);
+    }, [dockPlacementForTarget, presentations]);
 
     const getRightDockPresentations = useCallback((): Presentation[] => {
         return Array.from(presentations.values()).filter(p => {
             if (isSpecialTarget(p.target)) return false;
-            const semanticTarget = p.target as SemanticTarget;
-            return getPlacementForTarget(semanticTarget) === "right";
+            return dockPlacementForTarget(p.target) === "right";
         });
-    }, [presentations, getPlacementForTarget]);
+    }, [dockPlacementForTarget, presentations]);
 
     const getTopDockPresentations = useCallback((): Presentation[] => {
         return Array.from(presentations.values()).filter(p => {
             if (isSpecialTarget(p.target)) return false;
-            const semanticTarget = p.target as SemanticTarget;
-            return getPlacementForTarget(semanticTarget) === "top";
+            return dockPlacementForTarget(p.target) === "top";
         });
-    }, [presentations, getPlacementForTarget]);
+    }, [dockPlacementForTarget, presentations]);
 
     const getBottomDockPresentations = useCallback((): Presentation[] => {
         return Array.from(presentations.values()).filter(p => {
             if (isSpecialTarget(p.target)) return false;
-            const semanticTarget = p.target as SemanticTarget;
-            return getPlacementForTarget(semanticTarget) === "bottom";
+            return dockPlacementForTarget(p.target) === "bottom";
         });
-    }, [presentations, getPlacementForTarget]);
+    }, [dockPlacementForTarget, presentations]);
 
     const getWindowPresentations = useCallback(() => getPresentationsByTarget(TARGET_TYPES.WINDOW), [
         getPresentationsByTarget,

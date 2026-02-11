@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { NotifyEvent } from "@moor/schema/generated/moor-common/notify-event";
 import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
 import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
 import { CredentialsUpdatedEvent } from "@moor/schema/generated/moor-rpc/credentials-updated-event";
@@ -70,6 +71,49 @@ function narrativeEventIdHex(narrative: any): string | undefined {
         return undefined;
     }
     return Array.from(eventIdBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function extractNotifyMetadataAugments(narrative: any): { lookKind?: string; lookRoom?: unknown } {
+    try {
+        const event = narrative?.event?.();
+        if (!event) {
+            return {};
+        }
+        const eventData = event.event();
+        if (!eventData) {
+            return {};
+        }
+        const notify = eventData.event(new NotifyEvent()) as NotifyEvent | null;
+        if (!notify) {
+            return {};
+        }
+
+        let lookKind: string | undefined;
+        let lookRoom: unknown = undefined;
+        const metadataLength = notify.metadataLength();
+        for (let i = 0; i < metadataLength; i++) {
+            const metadata = notify.metadata(i);
+            if (!metadata) {
+                continue;
+            }
+            const key = metadata.key()?.value();
+            if (!key) {
+                continue;
+            }
+            const rawValue = metadata.value();
+            const decodedValue = rawValue ? new MoorVar(rawValue as any).toJS() : null;
+            if (key === "look_kind" && typeof decodedValue === "string") {
+                lookKind = decodedValue;
+                continue;
+            }
+            if (key === "look_room") {
+                lookRoom = decodedValue;
+            }
+        }
+        return { lookKind, lookRoom };
+    } catch {
+        return {};
+    }
 }
 
 function handleTaskError(
@@ -146,9 +190,10 @@ export function handleClientEventFlatBuffer(
                 switch (parsedNarrativeEvent.kind) {
                     case "notify":
                         if (onNarrativeMessage) {
+                            const metadataAugments = extractNotifyMetadataAugments(narrative);
                             const mergedEventMetadata = eventId
-                                ? { ...(parsedNarrativeEvent.eventMeta ?? {}), eventId } as EventMetadata
-                                : parsedNarrativeEvent.eventMeta as EventMetadata | undefined;
+                                ? { ...(parsedNarrativeEvent.eventMeta ?? {}), ...metadataAugments, eventId }
+                                : { ...(parsedNarrativeEvent.eventMeta ?? {}), ...metadataAugments };
                             onNarrativeMessage(
                                 parsedNarrativeEvent.content as string | string[],
                                 timestamp,
@@ -160,7 +205,7 @@ export function handleClientEventFlatBuffer(
                                 parsedNarrativeEvent.ttsText,
                                 parsedNarrativeEvent.thumbnail,
                                 parsedNarrativeEvent.linkPreview as LinkPreview | undefined,
-                                mergedEventMetadata,
+                                mergedEventMetadata as EventMetadata,
                                 parsedNarrativeEvent.rewritable,
                                 parsedNarrativeEvent.rewriteTarget,
                             );

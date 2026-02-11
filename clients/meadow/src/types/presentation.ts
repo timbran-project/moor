@@ -29,8 +29,10 @@ export interface Presentation {
 }
 
 export type SemanticTarget = "navigation" | "inventory" | "status" | "tools" | "communication" | "help";
+export type DockTarget = "left" | "right" | "top" | "bottom";
 export type PresentationTarget =
     | SemanticTarget
+    | DockTarget
     | "window"
     | "verb-editor"
     | "property-editor"
