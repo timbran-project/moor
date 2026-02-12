@@ -222,4 +222,58 @@ describe("Narrative history merge regressions", () => {
             vi.useRealTimers();
         }
     });
+
+    it("dedupes history/live copies by shared delivery id even when event ids differ", async () => {
+        installMatchMediaMock();
+        const narrativeRef = createRef<NarrativeRef>();
+        const { container } = render(
+            <Narrative
+                ref={narrativeRef}
+                visible={true}
+                connectionStatus="connected"
+                onSendMessage={() => {}}
+            />,
+        );
+
+        act(() => {
+            narrativeRef.current?.addNarrativeContent(
+                "SAME LINE",
+                "text/plain",
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                {
+                    eventId: "live_eid",
+                    deliveryId: "delivery_1",
+                },
+                undefined,
+                undefined,
+                100,
+            );
+        });
+
+        act(() => {
+            narrativeRef.current?.addHistoricalMessages([
+                {
+                    id: "hist_delivery_1",
+                    eventId: "hist_eid",
+                    content: "SAME LINE",
+                    type: "narrative",
+                    timestamp: 90,
+                    isHistorical: true,
+                    contentType: "text/plain",
+                    eventMetadata: {
+                        delivery_id: "delivery_1",
+                    },
+                },
+            ]);
+        });
+
+        const rendered = container.querySelector("[data-testid=\"output-window\"]")?.textContent || "";
+        const lines = rendered.split("|").map(line => line.trim()).filter(Boolean);
+        expect(lines).toEqual(["SAME LINE"]);
+    });
 });

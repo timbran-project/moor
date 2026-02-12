@@ -73,7 +73,9 @@ function narrativeEventIdHex(narrative: any): string | undefined {
     return Array.from(eventIdBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function extractNotifyMetadataAugments(narrative: any): { lookKind?: string; lookRoom?: unknown } {
+function extractNotifyMetadataAugments(
+    narrative: any,
+): { lookKind?: string; lookRoom?: unknown; deliveryId?: string; delivery_id?: string } {
     try {
         const event = narrative?.event?.();
         if (!event) {
@@ -90,6 +92,7 @@ function extractNotifyMetadataAugments(narrative: any): { lookKind?: string; loo
 
         let lookKind: string | undefined;
         let lookRoom: unknown = undefined;
+        let deliveryId: string | undefined;
         const metadataLength = notify.metadataLength();
         for (let i = 0; i < metadataLength; i++) {
             const metadata = notify.metadata(i);
@@ -108,9 +111,13 @@ function extractNotifyMetadataAugments(narrative: any): { lookKind?: string; loo
             }
             if (key === "look_room") {
                 lookRoom = decodedValue;
+                continue;
+            }
+            if (key === "delivery_id" && typeof decodedValue === "string") {
+                deliveryId = decodedValue;
             }
         }
-        return { lookKind, lookRoom };
+        return { lookKind, lookRoom, deliveryId, delivery_id: deliveryId };
     } catch {
         return {};
     }

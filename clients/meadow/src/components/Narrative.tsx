@@ -21,6 +21,8 @@ import { OutputWindow } from "./OutputWindow";
 
 export interface EventMetadata {
     eventId?: string;
+    deliveryId?: string;
+    delivery_id?: string;
     verb?: string;
     actor?: any;
     actorName?: string;
@@ -128,6 +130,17 @@ const sortMessagesChronologically = (messages: NarrativeMessage[]): NarrativeMes
         .map((entry) => entry.message);
 };
 
+const messageDedupKey = (message: Pick<NarrativeMessage, "eventId" | "eventMetadata">): string | null => {
+    const deliveryId = message.eventMetadata?.deliveryId || message.eventMetadata?.delivery_id;
+    if (typeof deliveryId === "string" && deliveryId.length > 0) {
+        return `delivery:${deliveryId}`;
+    }
+    if (message.eventId && message.eventId.length > 0) {
+        return `event:${message.eventId}`;
+    }
+    return null;
+};
+
 export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     visible,
     connectionStatus,
@@ -155,6 +168,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     const currentStorageKey = getCommandHistoryStorageKey(playerOid);
     const rewritableIndexRef = useRef<Map<string, string>>(new Map());
     const seenEventIdsRef = useRef<Set<string>>(new Set());
+    const seenMessageKeysRef = useRef<Set<string>>(new Set());
 
     // Screen reader compatibility: stagger rapid DOM additions
     // to prevent Orca's event coalescing from dropping announcements
@@ -176,7 +190,8 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         idsToStale?: string[],
         isInputEcho?: boolean,
     ) => {
-        if (message.eventId && seenEventIdsRef.current.has(message.eventId)) {
+        const dedupKey = messageDedupKey(message);
+        if (dedupKey && seenMessageKeysRef.current.has(dedupKey)) {
             return;
         }
 
@@ -191,6 +206,9 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         setMessages(prev => [...prev, message]);
         if (message.eventId) {
             seenEventIdsRef.current.add(message.eventId);
+        }
+        if (dedupKey) {
+            seenMessageKeysRef.current.add(dedupKey);
         }
         lastDomAdditionRef.current = performance.now();
 
@@ -279,12 +297,13 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         const now = Date.now();
         const messageTimestamp = eventTimestampMs ?? now;
         const eventId = eventMetadata?.eventId;
+        const dedupKey = messageDedupKey({ eventId, eventMetadata });
 
-        if (eventId) {
-            if (seenEventIdsRef.current.has(eventId)) {
+        if (dedupKey) {
+            if (seenMessageKeysRef.current.has(dedupKey)) {
                 return;
             }
-            if (pendingMessagesRef.current.some(item => item.message.eventId === eventId)) {
+            if (pendingMessagesRef.current.some(item => messageDedupKey(item.message) === dedupKey)) {
                 return;
             }
         }
@@ -492,33 +511,52 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             // Preserve any live messages that arrived after history boundary
             const liveMessages = prev.filter(msg => !msg.isHistorical);
             const seenLiveEventIds = new Set<string>();
+            const seenLiveMessageKeys = new Set<string>();
             for (const msg of liveMessages) {
                 if (msg.eventId) {
                     seenLiveEventIds.add(msg.eventId);
                 }
+                const dedupKey = messageDedupKey(msg);
+                if (dedupKey) {
+                    seenLiveMessageKeys.add(dedupKey);
+                }
             }
 
             const seenHistoryEventIds = new Set<string>();
+            const seenHistoryMessageKeys = new Set<string>();
             const dedupedHistorical = historicalMessages.filter(msg => {
-                const eid = msg.eventId;
-                if (!eid) {
-                    return true;
-                }
-                if (seenLiveEventIds.has(eid) || seenHistoryEventIds.has(eid)) {
+                const dedupKey = messageDedupKey(msg);
+                if (dedupKey && (seenLiveMessageKeys.has(dedupKey) || seenHistoryMessageKeys.has(dedupKey))) {
                     return false;
                 }
-                seenHistoryEventIds.add(eid);
+                if (dedupKey) {
+                    seenHistoryMessageKeys.add(dedupKey);
+                }
+
+                const eid = msg.eventId;
+                if (eid && (seenLiveEventIds.has(eid) || seenHistoryEventIds.has(eid))) {
+                    return false;
+                }
+                if (eid) {
+                    seenHistoryEventIds.add(eid);
+                }
                 return true;
             });
 
             const newMessages = sortMessagesChronologically([...dedupedHistorical, ...liveMessages]);
             const nextSeenEventIds = new Set<string>();
+            const nextSeenMessageKeys = new Set<string>();
             for (const msg of newMessages) {
                 if (msg.eventId) {
                     nextSeenEventIds.add(msg.eventId);
                 }
+                const dedupKey = messageDedupKey(msg);
+                if (dedupKey) {
+                    nextSeenMessageKeys.add(dedupKey);
+                }
             }
             seenEventIdsRef.current = nextSeenEventIds;
+            seenMessageKeysRef.current = nextSeenMessageKeys;
             return newMessages;
         });
     }, []);
@@ -527,12 +565,25 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     const prependHistoricalMessages = useCallback((moreHistoricalMessages: NarrativeMessage[]) => {
         setMessages(prev => {
             const seenEventIds = new Set<string>();
+            const seenMessageKeys = new Set<string>();
             for (const msg of prev) {
                 if (msg.eventId) {
                     seenEventIds.add(msg.eventId);
                 }
+                const dedupKey = messageDedupKey(msg);
+                if (dedupKey) {
+                    seenMessageKeys.add(dedupKey);
+                }
             }
             const dedupedHistorical = moreHistoricalMessages.filter(msg => {
+                const dedupKey = messageDedupKey(msg);
+                if (dedupKey && seenMessageKeys.has(dedupKey)) {
+                    return false;
+                }
+                if (dedupKey) {
+                    seenMessageKeys.add(dedupKey);
+                }
+
                 const eid = msg.eventId;
                 if (!eid) {
                     return true;
@@ -546,6 +597,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             // Prepend to the beginning of existing messages
             const newMessages = [...dedupedHistorical, ...prev];
             seenEventIdsRef.current = seenEventIds;
+            seenMessageKeysRef.current = seenMessageKeys;
             return newMessages;
         });
     }, []);
@@ -568,6 +620,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         setStaleMessageIds(new Set());
         rewritableIndexRef.current.clear();
         seenEventIdsRef.current.clear();
+        seenMessageKeysRef.current.clear();
     }, [clearStoredHistory]);
 
     // TTL expiry effect: check for expired rewritable messages periodically

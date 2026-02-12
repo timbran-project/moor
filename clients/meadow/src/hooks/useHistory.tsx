@@ -122,6 +122,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
             let presentationHint: string | undefined;
             let groupId: string | undefined;
             let thumbnail: { contentType: string; data: string } | undefined;
+            let deliveryId: string | undefined;
 
             switch (eventType) {
                 case EventUnion.NotifyEvent: {
@@ -162,6 +163,8 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                                 presentationHint = value;
                             } else if (keyValue === "group_id" && typeof value === "string") {
                                 groupId = value;
+                            } else if (keyValue === "delivery_id" && typeof value === "string") {
+                                deliveryId = value;
                             } else if (keyValue === "thumbnail" && Array.isArray(value) && value.length === 2) {
                                 // thumbnail is [content_type, binary_data]
                                 const [contentType, binaryData] = value;
@@ -232,6 +235,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                 presentationHint,
                 groupId,
                 thumbnail: thumbnail,
+                eventMetadata: deliveryId ? { deliveryId, delivery_id: deliveryId } : undefined,
             };
         } catch (error) {
             console.error("Failed to convert FlatBuffer event:", error);
