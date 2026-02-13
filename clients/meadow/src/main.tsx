@@ -2390,6 +2390,8 @@ function AppWrapper() {
             look_kind?: string;
             lookRoom?: unknown;
             look_room?: unknown;
+            summary?: string;
+            marker_text?: string;
         } | undefined;
         const liveEventId = metadata?.eventId;
         if (!isHistorical && liveEventId) {
@@ -2424,13 +2426,31 @@ function AppWrapper() {
         const isLook = metadata?.verb === "look";
         if (isLook && presentationHint === "inset") {
             const lookKind = metadata?.lookKind || metadata?.look_kind;
-            if (lookKind === "room") {
-                return;
-            }
+            const isRoomLook = lookKind === "room";
+            let isCurrentRoomLook = false;
+
             const activeTopRoomLook = findActiveTopRoomLookKey();
             if (activeTopRoomLook) {
                 const lookedAt = normalizeObjectKey(metadata?.dobj) || normalizeObjectKey(metadata?.thisObj);
                 if (lookedAt && lookedAt === activeTopRoomLook) {
+                    isCurrentRoomLook = true;
+                }
+            }
+
+            if (isRoomLook || isCurrentRoomLook) {
+                if (narrativeRef.current) {
+                    // Use 'summary' as the primary source for the narrative marker text.
+                    // This allows the MOO to provide a concise 'anchor' for the chat log.
+                    const summary = metadata?.summary || metadata?.marker_text;
+                    const markerText = summary ? summary : "You look around.";
+
+                    narrativeRef.current.addNarrativeContent(
+                        markerText,
+                        "text/plain",
+                        false,
+                        "marker",
+                        undefined,
+                    );
                     return;
                 }
             }

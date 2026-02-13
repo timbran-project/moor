@@ -60,6 +60,26 @@
   background-color: var(--color-bg-secondary);
 }
 
+.presentation_marker {
+  display: flex;
+  align-items: center;
+  margin: 0.5rem 0.5rem;
+  padding: 0.2rem 0.75rem;
+  font-style: italic;
+  color: var(--color-text-muted, #888);
+  border-left: 3px solid var(--color-border-light, #444);
+  opacity: 0.85;
+  font-size: 0.9em;
+  gap: 0.5rem;
+}
+
+.presentation_marker::before {
+  content: "›";
+  font-weight: bold;
+  font-style: normal;
+  color: var(--color-text-accent, var(--color-border-primary, #666));
+}
+
 /* Processing presentation styling - for rewritable events awaiting update */
 .presentation_processing {
   position: relative;

@@ -434,6 +434,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                     };
                     const sameHintGroup = message.presentationHint
                         && nextMessage?.presentationHint === message.presentationHint
+                        && !!message.groupId
                         && message.groupId === nextMessage?.groupId
                         && sameActor();
                     const shouldContinueGroup = message.noNewline || sameHintGroup;
@@ -468,6 +469,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                             const wrapperClassName = (() => {
                                 const classes: string[] = [];
                                 if (message.presentationHint === "inset") classes.push("presentation_inset");
+                                if (message.presentationHint === "marker") classes.push("presentation_marker");
                                 if (message.presentationHint === "processing") {
                                     classes.push("presentation_processing");
                                 }
@@ -592,6 +594,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
 
                         // Check if this group is for presentationHint or noNewline
                         const isHintGroup = firstMessage.presentationHint
+                            && !!firstMessage.groupId
                             && group.every(msg =>
                                 msg.presentationHint === firstMessage.presentationHint
                                 && msg.groupId === firstMessage.groupId
@@ -619,6 +622,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                             const wrapperClassName = (() => {
                                 const classes: string[] = [];
                                 if (firstMessage.presentationHint === "inset") classes.push("presentation_inset");
+                                if (firstMessage.presentationHint === "marker") classes.push("presentation_marker");
                                 if (firstMessage.presentationHint === "processing") {
                                     classes.push("presentation_processing");
                                 }
