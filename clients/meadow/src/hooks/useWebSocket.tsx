@@ -13,7 +13,7 @@
 
 import { buildWsAttach } from "@moor/web-sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
+import { DataMessageHandlerEvent, EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 import { Player } from "./useAuth";
@@ -46,6 +46,7 @@ export const useWebSocket = (
     ) => void,
     onPresentMessage?: (presentData: PresentationData) => void,
     onUnpresentMessage?: (id: string) => void,
+    onDataMessage?: (event: DataMessageHandlerEvent) => void,
     onAuthFailure?: () => void,
     onInitialAttachComplete?: () => void,
 ) => {
@@ -122,6 +123,7 @@ export const useWebSocket = (
                         onNarrativeMessage,
                         onPresentMessage,
                         onUnpresentMessage,
+                        onDataMessage,
                         onPlayerFlagsChange,
                         lastEventTimestampRef,
                         setInputMetadata,
@@ -133,7 +135,7 @@ export const useWebSocket = (
                 console.error("Failed to parse WebSocket message:", error);
             }
         });
-    }, [onSystemMessage, onNarrativeMessage, onPresentMessage, onUnpresentMessage, onPlayerFlagsChange]);
+    }, [onSystemMessage, onNarrativeMessage, onPresentMessage, onUnpresentMessage, onDataMessage, onPlayerFlagsChange]);
 
     // Connect to WebSocket
     const connect = useCallback(async (mode: "connect" | "create", force: boolean = false) => {

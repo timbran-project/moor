@@ -11,6 +11,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { DataEvent } from "@moor/schema/generated/moor-common/data-event";
+import { EventUnion } from "@moor/schema/generated/moor-common/event-union";
 import { NotifyEvent } from "@moor/schema/generated/moor-common/notify-event";
 import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
 import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
@@ -23,6 +25,46 @@ import * as flatbuffers from "flatbuffers";
 import { parseInputMetadata } from "./input-metadata.js";
 import { MoorVar } from "./MoorVar.js";
 import { EventMetadata, LinkPreview, NarrativeMessageHandler } from "./rpc-fb-shared";
+
+export interface DataMessageHandlerEvent {
+    namespace: string;
+    eventKind: string;
+    payload: unknown;
+    timestamp: string;
+    eventId?: string;
+}
+
+function tryDecodeDataMessageFromNarrative(
+    narrative: any,
+): { namespace: string; eventKind: string; payload: unknown } | null {
+    try {
+        const narrativeEvent = narrative?.event?.();
+        const eventUnion = narrativeEvent?.event?.();
+        if (!eventUnion || eventUnion.eventType() !== EventUnion.DataEvent) {
+            return null;
+        }
+
+        const data = eventUnion.event(new DataEvent()) as DataEvent | null;
+        if (!data) {
+            return null;
+        }
+
+        const namespace = data.domain()?.value();
+        const eventKind = data.kind()?.value();
+        const payloadRef = data.payload();
+        if (!namespace || !eventKind || !payloadRef) {
+            return null;
+        }
+
+        return {
+            namespace,
+            eventKind,
+            payload: new MoorVar(payloadRef as any).toJS(),
+        };
+    } catch {
+        return null;
+    }
+}
 
 function uuidBytesToString(bytes: Uint8Array): string | null {
     if (bytes.length !== 16) {
@@ -156,6 +198,7 @@ export function handleClientEventFlatBuffer(
     onNarrativeMessage?: NarrativeMessageHandler,
     onPresentMessage?: (presentData: any) => void,
     onUnpresentMessage?: (id: string) => void,
+    onDataMessage?: (event: DataMessageHandlerEvent) => void,
     onPlayerFlagsChange?: (flags: number) => void,
     lastEventTimestampRef?: React.MutableRefObject<bigint | null>,
     onInputMetadata?: (metadata: import("../types/input").InputMetadata | null) => void,
@@ -190,6 +233,19 @@ export function handleClientEventFlatBuffer(
                     (value) => new MoorVar(value as any).asString(),
                 );
                 if (!parsedNarrativeEvent) {
+                    if (onDataMessage) {
+                        const decodedData = tryDecodeDataMessageFromNarrative(narrative);
+                        if (decodedData) {
+                            onDataMessage({
+                                namespace: decodedData.namespace,
+                                eventKind: decodedData.eventKind,
+                                payload: decodedData.payload,
+                                timestamp,
+                                eventId,
+                            });
+                            return;
+                        }
+                    }
                     console.warn("[WS] Unknown or invalid inner narrative event");
                     return;
                 }
@@ -244,6 +300,33 @@ export function handleClientEventFlatBuffer(
                                 undefined,
                             );
                         }
+                        break;
+                    default:
+                        // Meadow may typecheck against a web-sdk release that does not yet
+                        // include kind: "data" in the ParsedWsNarrativeEvent union.
+                        // Probe dynamically so runtime data events still flow through.
+                        if (onDataMessage) {
+                            const maybeData = parsedNarrativeEvent as {
+                                kind?: string;
+                                namespace?: string;
+                                eventKind?: string;
+                                payload?: unknown;
+                            };
+                            if (
+                                maybeData.kind === "data"
+                                && typeof maybeData.namespace === "string"
+                                && typeof maybeData.eventKind === "string"
+                            ) {
+                                onDataMessage({
+                                    namespace: maybeData.namespace,
+                                    eventKind: maybeData.eventKind,
+                                    payload: maybeData.payload,
+                                    timestamp,
+                                    eventId,
+                                });
+                            }
+                        }
+                        // Future narrative event kinds may be non-visual state channels.
                         break;
                 }
             },

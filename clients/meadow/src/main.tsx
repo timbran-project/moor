@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { AccountMenu } from "./components/AccountMenu";
 import { BottomDock } from "./components/docks/BottomDock";
@@ -51,9 +51,10 @@ import { useTouchDevice } from "./hooks/useTouchDevice";
 import { useVerbEditor } from "./hooks/useVerbEditor";
 import { MoorVar } from "./lib/MoorVar";
 import { OAuth2UserInfo } from "./lib/oauth2";
-import { fetchServerFeatures, invokeVerbFlatBuffer } from "./lib/rpc-fb";
+import { roomSnapshotToPresentation } from "./lib/room-snapshot-presentation";
+import { DataMessageHandlerEvent, fetchServerFeatures, invokeVerbFlatBuffer } from "./lib/rpc-fb";
 import { addTrustedDomain, getHostname, isDomainTrusted } from "./lib/trusted-domains";
-import { stringToCurie, uuObjIdToString } from "./lib/var";
+import { extractRoomLookKey, stringToCurie } from "./lib/var";
 import { Presentation, PresentationData } from "./types/presentation";
 import "./styles/main.css";
 
@@ -387,6 +388,76 @@ function AppContent({
     const isSplitMode = isConnected
         && (verbEditorDocked || propertyEditorDocked || propertyValueEditorDocked || textEditorDocked
             || objectBrowserDocked || evalPanelDocked);
+    const [isCurrentRoomLookDockLatched, setIsCurrentRoomLookDockLatched] = useState(false);
+    const [currentRoomLookMessageId, setCurrentRoomLookMessageId] = useState<string | null>(null);
+
+    const getRoomLookKeyFromPresentation = useCallback((presentation: Presentation): string | null => {
+        const kind = (presentation.attrs.kind || "").toLowerCase();
+        if (kind !== "room_look" && kind !== "room-look") {
+            return null;
+        }
+        return extractRoomLookKey([
+            presentation.attrs.room,
+            presentation.attrs.object,
+            presentation.attrs.target,
+            presentation.attrs.dobj,
+            presentation.attrs.this_obj,
+            presentation.attrs.this,
+        ]);
+    }, []);
+
+    const currentRoomLookKey = useMemo(() => {
+        const current = getTopDockPresentations();
+        for (const presentation of current) {
+            if (presentation.id === "room-look") {
+                return getRoomLookKeyFromPresentation(presentation);
+            }
+        }
+        return null;
+    }, [getRoomLookKeyFromPresentation, getTopDockPresentations]);
+
+    const handleActiveRoomLookVisibilityChange = useCallback((
+        roomKey: string | null,
+        isVisible: boolean,
+        lookMessageId?: string | null,
+    ) => {
+        if (!currentRoomLookKey || !roomKey || roomKey !== currentRoomLookKey) {
+            return;
+        }
+
+        if (lookMessageId && lookMessageId !== currentRoomLookMessageId) {
+            setCurrentRoomLookMessageId(lookMessageId);
+            setIsCurrentRoomLookDockLatched(false);
+            return;
+        }
+
+        if (!isVisible) {
+            setIsCurrentRoomLookDockLatched(true);
+        }
+    }, [currentRoomLookKey, currentRoomLookMessageId]);
+
+    useEffect(() => {
+        setCurrentRoomLookMessageId(null);
+        setIsCurrentRoomLookDockLatched(false);
+    }, [currentRoomLookKey]);
+
+    const topDockPresentations = useMemo(() => {
+        const current = getTopDockPresentations();
+        const suppressRoomKey = !isCurrentRoomLookDockLatched ? currentRoomLookKey : null;
+        if (!suppressRoomKey) {
+            return current;
+        }
+        return current.filter((presentation) => {
+            if (presentation.target !== "top") {
+                return true;
+            }
+            const roomKey = getRoomLookKeyFromPresentation(presentation);
+            if (!roomKey) {
+                return true;
+            }
+            return roomKey !== suppressRoomKey;
+        });
+    }, [currentRoomLookKey, getRoomLookKeyFromPresentation, getTopDockPresentations, isCurrentRoomLookDockLatched]);
 
     const handleOpenObjectBrowser = useCallback(() => {
         if (isTouchDevice) {
@@ -1143,6 +1214,8 @@ function AppContent({
             setShowPasswordPrompt(false);
             setUserSkippedEncryption(false);
             setOAuth2UserInfo(null);
+            setCurrentRoomLookMessageId(null);
+            setIsCurrentRoomLookDockLatched(false);
         }
 
         previousPlayerOidRef.current = currentPlayerOid;
@@ -1819,7 +1892,7 @@ function AppContent({
                         {/* Top dock */}
                         <aside role="complementary" aria-label="Top dock panels">
                             <TopDock
-                                presentations={getTopDockPresentations()}
+                                presentations={topDockPresentations}
                                 onClosePresentation={handleClosePresentation}
                                 onLinkClick={handleLinkClick}
                                 onLinkHoldStart={handleLinkHoldStart}
@@ -1853,6 +1926,8 @@ function AppContent({
                                     onLinkHoldEnd={handleLinkHoldEnd}
                                     playerOid={playerOid}
                                     onMessageAppended={handleMessageAppended}
+                                    currentRoomLookKey={currentRoomLookKey}
+                                    onActiveRoomLookVisibilityChange={handleActiveRoomLookVisibilityChange}
                                     fontSize={narrativeFontSize}
                                     inputMetadata={inputMetadata}
                                     onClearInputMetadata={clearInputMetadata}
@@ -2234,7 +2309,7 @@ function EncryptionWrapper() {
 
 function AppWrapper() {
     const { authState, setPlayerConnected, setPlayerFlags } = useAuthContext();
-    const { addPresentation, removePresentation, presentations } = usePresentationContext();
+    const { addPresentation, removePresentation } = usePresentationContext();
     const { showMessage } = useSystemMessage();
     const narrativeRef = useRef<NarrativeRef | null>(null);
     const recentLiveEventIdsRef = useRef<Map<string, { count: number; firstSeenAt: number; lastSeenAt: number }>>(
@@ -2284,86 +2359,6 @@ function AppWrapper() {
         }>
     >([]);
 
-    const normalizeObjectKey = useCallback((value: unknown): string | null => {
-        if (typeof value === "number" && Number.isInteger(value)) {
-            return `oid:${value}`;
-        }
-        if (typeof value === "string") {
-            const raw = value.trim();
-            if (!raw) {
-                return null;
-            }
-            if (/^#\d+$/.test(raw)) {
-                return `oid:${raw.slice(1)}`;
-            }
-            if (/^#[0-9a-f]{8}-[0-9a-f]{8}$/i.test(raw)) {
-                return `uuid:${raw.slice(1).toLowerCase()}`;
-            }
-            if (/^\d+$/.test(raw)) {
-                return `oid:${raw}`;
-            }
-            if (/^oid:\d+$/i.test(raw)) {
-                return `oid:${raw.slice(4)}`;
-            }
-            if (/^uuid:/i.test(raw)) {
-                return raw.toLowerCase();
-            }
-            return raw.toLowerCase();
-        }
-        if (value && typeof value === "object") {
-            const objectValue = value as { oid?: unknown; uuid?: unknown };
-            if (typeof objectValue.oid === "number" && Number.isInteger(objectValue.oid)) {
-                return `oid:${objectValue.oid}`;
-            }
-            if (typeof objectValue.oid === "string") {
-                return normalizeObjectKey(objectValue.oid);
-            }
-            if (typeof objectValue.uuid === "string" && objectValue.uuid.trim()) {
-                const packed = objectValue.uuid.trim();
-                if (/^\d+$/.test(packed)) {
-                    try {
-                        return `uuid:${uuObjIdToString(BigInt(packed)).toLowerCase()}`;
-                    } catch {
-                        return `uuid:${packed.toLowerCase()}`;
-                    }
-                }
-                return `uuid:${packed.toLowerCase()}`;
-            }
-        }
-        return null;
-    }, []);
-
-    const findActiveTopRoomLookKey = useCallback((): string | null => {
-        for (let i = presentations.length - 1; i >= 0; i -= 1) {
-            const presentation = presentations[i];
-            if (presentation.target !== "top") {
-                continue;
-            }
-            const kind = (presentation.attrs.kind || "").toLowerCase();
-            if (kind !== "room_look" && kind !== "room-look") {
-                continue;
-            }
-            const roomCandidates = [
-                presentation.attrs.room,
-                presentation.attrs.object,
-                presentation.attrs.target,
-                presentation.attrs.dobj,
-                presentation.attrs.this_obj,
-                presentation.attrs.this,
-            ];
-            for (const room of roomCandidates) {
-                if (!room) {
-                    continue;
-                }
-                const normalizedRoom = normalizeObjectKey(room);
-                if (normalizedRoom) {
-                    return normalizedRoom;
-                }
-            }
-        }
-        return null;
-    }, [normalizeObjectKey, presentations]);
-
     const handleNarrativeMessage = useCallback((
         content: string | string[],
         timestamp?: string,
@@ -2384,14 +2379,6 @@ function AppWrapper() {
         const metadata = eventMetadata as {
             eventId?: string;
             verb?: string;
-            dobj?: unknown;
-            thisObj?: unknown;
-            lookKind?: string;
-            look_kind?: string;
-            lookRoom?: unknown;
-            look_room?: unknown;
-            summary?: string;
-            marker_text?: string;
         } | undefined;
         const liveEventId = metadata?.eventId;
         if (!isHistorical && liveEventId) {
@@ -2423,39 +2410,6 @@ function AppWrapper() {
                 });
             }
         }
-        const isLook = metadata?.verb === "look";
-        if (isLook && presentationHint === "inset") {
-            const lookKind = metadata?.lookKind || metadata?.look_kind;
-            const isRoomLook = lookKind === "room";
-            let isCurrentRoomLook = false;
-
-            const activeTopRoomLook = findActiveTopRoomLookKey();
-            if (activeTopRoomLook) {
-                const lookedAt = normalizeObjectKey(metadata?.dobj) || normalizeObjectKey(metadata?.thisObj);
-                if (lookedAt && lookedAt === activeTopRoomLook) {
-                    isCurrentRoomLook = true;
-                }
-            }
-
-            if (isRoomLook || isCurrentRoomLook) {
-                if (narrativeRef.current) {
-                    // Use 'summary' as the primary source for the narrative marker text.
-                    // This allows the MOO to provide a concise 'anchor' for the chat log.
-                    const summary = metadata?.summary || metadata?.marker_text;
-                    const markerText = summary ? summary : "You look around.";
-
-                    narrativeRef.current.addNarrativeContent(
-                        markerText,
-                        "text/plain",
-                        false,
-                        "marker",
-                        undefined,
-                    );
-                    return;
-                }
-            }
-        }
-
         // Handle array content by processing each line
         if (Array.isArray(content)) {
             const filteredContent: string[] = [];
@@ -2542,7 +2496,7 @@ function AppWrapper() {
                 }
             }
         }
-    }, [findActiveTopRoomLookKey, mcpHandler, normalizeObjectKey]);
+    }, [mcpHandler]);
 
     const handlePresentMessage = (presentData: PresentationData) => {
         addPresentation(presentData);
@@ -2551,6 +2505,18 @@ function AppWrapper() {
     const handleUnpresentMessage = (id: string) => {
         removePresentation(id);
     };
+
+    const handleDataMessage = useCallback((event: DataMessageHandlerEvent) => {
+        if (event.namespace !== "state" || event.eventKind !== "room_snapshot") {
+            return;
+        }
+
+        const presentation = roomSnapshotToPresentation(event.payload);
+        if (!presentation) {
+            return;
+        }
+        addPresentation(presentation);
+    }, [addPresentation]);
 
     // Process pending messages when narrative ref becomes available
     const narrativeCallbackRef = useCallback((node: NarrativeRef | null) => {
@@ -2604,6 +2570,7 @@ function AppWrapper() {
             handleNarrativeMessage={handleNarrativeMessage}
             handlePresentMessage={handlePresentMessage}
             handleUnpresentMessage={handleUnpresentMessage}
+            handleDataMessage={handleDataMessage}
         >
             <AppContent
                 narrativeRef={narrativeRef}

@@ -41,6 +41,8 @@ interface ContentRendererProps {
 }
 
 const HOLD_THRESHOLD_MS = 300;
+const isExternalLink = (url: string) => url.startsWith("http://") || url.startsWith("https://");
+const isAllowedLinkUrl = (url: string) => isExternalLink(url) || url.startsWith("moo://");
 
 export const ContentRenderer: React.FC<ContentRendererProps> = ({
     content,
@@ -83,9 +85,6 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         return typeof content === "string" ? content : String(content);
     }, [content]);
 
-    // Check if a URL is an external link (http/https)
-    const isExternalLink = (url: string) => url.startsWith("http://") || url.startsWith("https://");
-
     // Unified click handler for moo-link spans (all moo-link-* variants) and objids
     const handleClick = useCallback((e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
@@ -123,6 +122,9 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         // Check for data-url attribute which all our link spans have
         const url = target.getAttribute("data-url");
         if (!url || !onLinkClick) return;
+        if (!isAllowedLinkUrl(url)) {
+            return;
+        }
 
         // For stale/historical content, only allow external links (http/https)
         // MOO command links should remain disabled to prevent re-executing old commands
@@ -170,6 +172,9 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
 
         const url = target.getAttribute("data-url");
         if (!url || !onLinkClick) return;
+        if (!isAllowedLinkUrl(url)) {
+            return;
+        }
 
         // For stale/historical content, only allow external links
         if (isStale && !isExternalLink(url)) return;

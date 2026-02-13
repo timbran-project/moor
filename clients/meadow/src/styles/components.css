@@ -832,6 +832,65 @@
   color: var(--color-link-hover);
 }
 
+.top_dock_panel_content .room_snapshot_chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.26rem;
+  margin-top: 0.38rem;
+}
+
+.top_dock_panel_content .room_snapshot_row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.top_dock_panel_content .room_snapshot_row_label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--color-text-secondary) 85%, var(--color-text-primary));
+  white-space: nowrap;
+}
+
+.top_dock_panel_content .room_snapshot_chip_row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.26rem;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  padding-bottom: 0.05rem;
+}
+
+.top_dock_panel_content .room_snapshot_chip_row .moo-link-cmd,
+.top_dock_panel_content .room_snapshot_chip_row .moo-link-inspect {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.16em 0.58em;
+  margin: 0;
+  font-size: 0.8em;
+  line-height: 1.2;
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--color-border-medium) 78%, transparent);
+  background: color-mix(in srgb, var(--color-bg-primary) 72%, var(--color-bg-header));
+  color: var(--color-text-primary);
+}
+
+.top_dock_panel_content .room_snapshot_chip_row .moo-link-cmd:hover,
+.top_dock_panel_content .room_snapshot_chip_row .moo-link-inspect:hover {
+  background: color-mix(in srgb, var(--color-bg-hover) 86%, var(--color-bg-header));
+  border-color: color-mix(in srgb, var(--color-border-light) 70%, var(--color-border-medium));
+  color: var(--color-text-primary);
+}
+
 /* ====== OUTPUT & INPUT AREAS ====== */
 
 .output_window {

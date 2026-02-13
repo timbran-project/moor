@@ -12,6 +12,7 @@
 //
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { extractRoomLookKey } from "../lib/var";
 import { ContentRenderer } from "./ContentRenderer";
 import { getEmojiEnabled } from "./EmojiToggle";
 import { LinkPreview, LinkPreviewCard } from "./LinkPreviewCard";
@@ -25,6 +26,10 @@ interface ObjRef {
 
 interface EventMetadata {
     verb?: string;
+    lookKind?: string;
+    look_kind?: string;
+    lookRoom?: ObjRef | string | number | null;
+    look_room?: ObjRef | string | number | null;
     actor?: ObjRef | null;
     actorName?: string;
     content?: string;
@@ -67,7 +72,25 @@ interface OutputWindowProps {
     playerOid?: string | null;
     staleMessageIds?: Set<string>;
     onMessageLinkClicked?: (messageId: string) => void;
+    currentRoomLookKey?: string | null;
+    onActiveRoomLookVisibilityChange?: (
+        roomKey: string | null,
+        isVisible: boolean,
+        lookMessageId?: string | null,
+    ) => void;
 }
+
+const getRoomLookKeyFromMessage = (message: OutputWindowProps["messages"][number]): string | null => {
+    if (message.presentationHint !== "inset" || message.eventMetadata?.verb !== "look") {
+        return null;
+    }
+    return extractRoomLookKey([
+        message.eventMetadata?.lookRoom,
+        message.eventMetadata?.look_room,
+        message.eventMetadata?.dobj,
+        message.eventMetadata?.thisObj,
+    ]);
+};
 
 export const OutputWindow: React.FC<OutputWindowProps> = ({
     messages,
@@ -80,10 +103,16 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     playerOid: _playerOid,
     staleMessageIds,
     onMessageLinkClicked,
+    currentRoomLookKey,
+    onActiveRoomLookVisibilityChange,
 }) => {
     const outputRef = useRef<HTMLDivElement>(null);
     const shouldAutoScroll = useRef(true);
     const previousScrollHeight = useRef<number>(0);
+    const latestLookMessageIdByRoomRef = useRef<Map<string, string>>(new Map());
+    const indexedMessageCountRef = useRef(0);
+    const indexedLastMessageIdRef = useRef<string | null>(null);
+    const [latestCurrentRoomLookMessageId, setLatestCurrentRoomLookMessageId] = useState<string | null>(null);
     const [isViewingHistory, setIsViewingHistory] = useState(false);
 
     // Track collapsed look descriptions by groupId
@@ -353,6 +382,10 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         if (thisObj) {
             attrs["data-event-this-obj"] = thisObj;
         }
+        const roomLookKey = getRoomLookKeyFromMessage(message);
+        if (roomLookKey) {
+            attrs["data-room-look-key"] = roomLookKey;
+        }
         if (message.eventMetadata) {
             try {
                 attrs["data-event-metadata"] = JSON.stringify(message.eventMetadata);
@@ -362,6 +395,132 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         }
         return attrs;
     }, [encodeEventValue]);
+
+    useEffect(() => {
+        const fullReindexNeeded = (() => {
+            if (messages.length < indexedMessageCountRef.current) {
+                return true;
+            }
+            if (messages.length === 0) {
+                return indexedMessageCountRef.current !== 0;
+            }
+            if (indexedMessageCountRef.current === 0) {
+                return false;
+            }
+            const expectedLastId = indexedLastMessageIdRef.current;
+            const actualLastIndexedId = messages[indexedMessageCountRef.current - 1]?.id || null;
+            return expectedLastId !== actualLastIndexedId;
+        })();
+
+        if (fullReindexNeeded) {
+            latestLookMessageIdByRoomRef.current.clear();
+            indexedMessageCountRef.current = 0;
+            indexedLastMessageIdRef.current = null;
+        }
+
+        for (let i = indexedMessageCountRef.current; i < messages.length; i += 1) {
+            const message = messages[i];
+            const roomLookKey = getRoomLookKeyFromMessage(message);
+            if (roomLookKey) {
+                latestLookMessageIdByRoomRef.current.set(roomLookKey, message.id);
+            }
+        }
+
+        indexedMessageCountRef.current = messages.length;
+        indexedLastMessageIdRef.current = messages.length > 0 ? messages[messages.length - 1].id : null;
+        const nextLatestCurrentRoomLookMessageId = currentRoomLookKey
+            ? (latestLookMessageIdByRoomRef.current.get(currentRoomLookKey) ?? null)
+            : null;
+        setLatestCurrentRoomLookMessageId((previous) =>
+            previous === nextLatestCurrentRoomLookMessageId ? previous : nextLatestCurrentRoomLookMessageId
+        );
+    }, [currentRoomLookKey, messages]);
+
+    useEffect(() => {
+        if (!onActiveRoomLookVisibilityChange) {
+            return;
+        }
+        const container = outputRef.current;
+        if (!container) {
+            onActiveRoomLookVisibilityChange(null, false, null);
+            return;
+        }
+        if (!currentRoomLookKey) {
+            onActiveRoomLookVisibilityChange(null, false, null);
+            return;
+        }
+        if (!latestCurrentRoomLookMessageId) {
+            onActiveRoomLookVisibilityChange(currentRoomLookKey, false, null);
+            return;
+        }
+
+        const candidates = container.querySelectorAll<HTMLElement>("[data-room-look-key]");
+        const matching = Array.from(candidates).filter(
+            (candidate) =>
+                candidate.dataset.roomLookKey === currentRoomLookKey
+                && candidate.dataset.messageId === latestCurrentRoomLookMessageId,
+        );
+        if (matching.length === 0) {
+            onActiveRoomLookVisibilityChange(currentRoomLookKey, false, null);
+            return;
+        }
+        const target = matching.reduce((latest, candidate) => {
+            if (!latest) {
+                return candidate;
+            }
+            if (candidate.offsetTop > latest.offsetTop) {
+                return candidate;
+            }
+            if (candidate.offsetTop === latest.offsetTop && candidate.offsetHeight >= latest.offsetHeight) {
+                return candidate;
+            }
+            return latest;
+        }, matching[0]);
+        const roomLookKey = target.dataset.roomLookKey || currentRoomLookKey;
+        if (!roomLookKey) {
+            onActiveRoomLookVisibilityChange(null, false, null);
+            return;
+        }
+        const lookMessageId = target.dataset.messageId || null;
+
+        // Track all visibility checks against the narrative scroll container, not viewport geometry.
+        const getInContainerView = () => {
+            const rootRect = container.getBoundingClientRect();
+            const targetRect = target.getBoundingClientRect();
+            const epsilon = 1;
+            return targetRect.top >= (rootRect.top - epsilon) && targetRect.top < (rootRect.bottom + epsilon);
+        };
+
+        const reportVisibility = (isVisible: boolean) => {
+            onActiveRoomLookVisibilityChange(roomLookKey, isVisible, lookMessageId);
+        };
+
+        reportVisibility(getInContainerView());
+
+        if (typeof IntersectionObserver === "undefined") {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const entry = entries[0];
+                if (!entry || !entry.isIntersecting) {
+                    reportVisibility(false);
+                    return;
+                }
+                reportVisibility(getInContainerView());
+            },
+            {
+                root: container,
+                threshold: [0, 0.01],
+            },
+        );
+        observer.observe(target);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [currentRoomLookKey, latestCurrentRoomLookMessageId, onActiveRoomLookVisibilityChange]);
 
     const resolvedFontSize = fontSize ?? 14;
 

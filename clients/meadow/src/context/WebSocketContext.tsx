@@ -14,7 +14,7 @@
 import React, { createContext, useContext } from "react";
 import { Player } from "../hooks/useAuth";
 import { useWebSocket, WebSocketState } from "../hooks/useWebSocket";
-import { EventMetadata, LinkPreview } from "../lib/rpc-fb";
+import { DataMessageHandlerEvent, EventMetadata, LinkPreview } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 
@@ -50,6 +50,7 @@ interface WebSocketProviderProps {
     ) => void;
     handlePresentMessage: (presentData: PresentationData) => void;
     handleUnpresentMessage: (id: string) => void;
+    handleDataMessage: (event: DataMessageHandlerEvent) => void;
 }
 
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
@@ -61,6 +62,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     handleNarrativeMessage,
     handlePresentMessage,
     handleUnpresentMessage,
+    handleDataMessage,
 }) => {
     const webSocketHook = useWebSocket(
         player,
@@ -70,6 +72,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         handleNarrativeMessage,
         handlePresentMessage,
         handleUnpresentMessage,
+        handleDataMessage,
     );
 
     return (

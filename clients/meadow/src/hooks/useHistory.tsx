@@ -146,6 +146,8 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                                 : undefined,
                         },
                     };
+                default:
+                    return { message: null };
             }
         } catch (error) {
             console.error("Failed to convert FlatBuffer event:", error);

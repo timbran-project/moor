@@ -73,6 +73,12 @@ interface NarrativeProps {
     onLinkHoldEnd?: () => void;
     playerOid?: string | null;
     onMessageAppended?: (message: NarrativeMessage) => void;
+    currentRoomLookKey?: string | null;
+    onActiveRoomLookVisibilityChange?: (
+        roomKey: string | null,
+        isVisible: boolean,
+        lookMessageId?: string | null,
+    ) => void;
     fontSize?: number;
     inputMetadata?: InputMetadata | null;
     onClearInputMetadata?: () => void;
@@ -152,6 +158,8 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     onLinkHoldEnd,
     playerOid,
     onMessageAppended,
+    currentRoomLookKey,
+    onActiveRoomLookVisibilityChange,
     fontSize,
     inputMetadata,
     onClearInputMetadata,
@@ -765,6 +773,8 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                     playerOid={playerOid}
                     staleMessageIds={staleMessageIds}
                     onMessageLinkClicked={markMessageStale}
+                    currentRoomLookKey={currentRoomLookKey}
+                    onActiveRoomLookVisibilityChange={onActiveRoomLookVisibilityChange}
                 />
                 {promptActive && (
                     <>
