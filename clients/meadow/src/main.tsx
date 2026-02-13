@@ -357,6 +357,8 @@ function AppContent({
 
     // Presentation management (needs to be declared before handlers that reference it)
     const {
+        addPresentation,
+        removePresentation,
         getLeftDockPresentations,
         getRightDockPresentations,
         getTopDockPresentations,
@@ -535,6 +537,7 @@ function AppContent({
         setHistoryBoundaryNow,
         fetchInitialHistory,
         fetchMoreHistory,
+        consumePresentationActions,
         isLoadingHistory,
     } = useHistory(authToken, encryptionKeyForHistory);
 
@@ -1464,6 +1467,7 @@ function AppContent({
             setTimeout(() => {
                 fetchInitialHistory()
                     .then(async (historicalMessages) => {
+                        const historyPresentationActions = consumePresentationActions();
                         const signature = (() => {
                             if (historicalMessages.length === 0) {
                                 return "empty";
@@ -1488,6 +1492,15 @@ function AppContent({
                                 sinceLastMs: now - lastHistoryBatchAppliedAtRef.current,
                             });
                         } else {
+                            if (historyPresentationActions.length > 0) {
+                                historyPresentationActions.forEach((action) => {
+                                    if (action.kind === "present") {
+                                        addPresentation(action.data);
+                                        return;
+                                    }
+                                    removePresentation(action.id);
+                                });
+                            }
                             setPendingHistoricalMessages(historicalMessages);
                             lastHistoryBatchSignatureRef.current = signature;
                             lastHistoryBatchAppliedAtRef.current = now;
@@ -1538,10 +1551,13 @@ function AppContent({
         eventLogEnabled,
         fetchCurrentPresentations,
         fetchInitialHistory,
+        consumePresentationActions,
         historyLoaded,
         loginMode,
         HISTORY_BATCH_DEDUP_WINDOW_MS,
         narrativeRef,
+        addPresentation,
+        removePresentation,
         setHistoryBoundaryNow,
         showMessage,
         wsState.isConnected,

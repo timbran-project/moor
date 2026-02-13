@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
 import { parseEncryptedHistoryEvents, parseNarrativeEventEnvelope } from "@moor/web-sdk";
 
 import { decryptEventBlob } from "./age-decrypt.js";
@@ -21,7 +22,7 @@ export interface HistoryEvent {
     timestamp: number;
     is_historical: boolean;
     event: unknown;
-    narrative_event: unknown;
+    narrative_event: NarrativeEvent;
 }
 
 export async function fetchHistoryFlatBuffer(

@@ -14,17 +14,13 @@
 // Web Worker for exporting event history
 // Handles decryption and JSON conversion off the main thread
 
-import { EventUnion } from "@moor/schema/generated/moor-common/event-union";
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import { NotifyEvent } from "@moor/schema/generated/moor-common/notify-event";
-import { PresentEvent } from "@moor/schema/generated/moor-common/present-event";
-import { TracebackEvent } from "@moor/schema/generated/moor-common/traceback-event";
-import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-event";
-import { ClientSuccess } from "@moor/schema/generated/moor-rpc/client-success";
-import { unionToDaemonToClientReplyUnion } from "@moor/schema/generated/moor-rpc/daemon-to-client-reply-union";
-import { HistoryResponseReply } from "@moor/schema/generated/moor-rpc/history-response-reply";
-import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
-import { ReplyResultUnion, unionToReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
+import {
+    parseEncryptedHistoryEvents,
+    parseHistoricalNarrativeEvent,
+    parseNarrativeEventEnvelope,
+    toPresentationData,
+} from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 import { decryptEventBlob } from "../lib/age-decrypt.js";
 import { buildAuthHeaders } from "../lib/authHeaders";
@@ -59,9 +55,6 @@ export type WorkerResponse = ProgressMessage | ErrorMessage | CompleteMessage;
 
 // Convert a decrypted NarrativeEvent to a JSON-serializable object
 function narrativeEventToJSON(narrativeEvent: NarrativeEvent): any {
-    const eventData = narrativeEvent.event();
-    if (!eventData) return null;
-
     const eventId = narrativeEvent.eventId()?.dataArray();
     const eventIdStr = eventId
         ? Array.from(eventId).map((b: number) => b.toString(16).padStart(2, "0")).join("")
@@ -70,8 +63,6 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): any {
     const timestamp = Number(narrativeEvent.timestamp());
     const timestampMs = timestamp / 1000000; // Convert from nanoseconds to milliseconds
     const timestampISO = new Date(timestampMs).toISOString();
-
-    const eventType = eventData.eventType();
 
     const result: any = {
         event_id: eventIdStr,
@@ -88,77 +79,34 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): any {
         }
     }
 
-    switch (eventType) {
-        case EventUnion.NotifyEvent: {
-            const notify = eventData.event(new NotifyEvent());
-            if (!notify) break;
+    const parsed = parseHistoricalNarrativeEvent(
+        narrativeEvent,
+        (value) => new MoorVar(value as any).toJS(),
+        (value) => new MoorVar(value as any).asString(),
+    );
+    if (!parsed) {
+        result.type = "unknown";
+        return result;
+    }
 
-            const value = notify.value();
-            if (!value) break;
-
+    switch (parsed.kind) {
+        case "notify":
             result.type = "notify";
-            result.content = new MoorVar(value).toJS();
-
-            const contentTypeSym = notify.contentType();
-            if (contentTypeSym && contentTypeSym.value()) {
-                result.content_type = contentTypeSym.value();
-            }
-
-            result.no_newline = notify.noNewline();
+            result.content = parsed.content;
+            result.content_type = parsed.contentType;
             break;
-        }
-
-        case EventUnion.TracebackEvent: {
-            const traceback = eventData.event(new TracebackEvent());
-            if (!traceback) break;
-
-            const exception = traceback.exception();
-            if (!exception) break;
-
+        case "traceback":
             result.type = "traceback";
-            result.backtrace = [];
-
-            for (let i = 0; i < exception.backtraceLength(); i++) {
-                const backtraceVar = exception.backtrace(i);
-                if (backtraceVar) {
-                    const line = new MoorVar(backtraceVar).asString();
-                    if (line) {
-                        result.backtrace.push(line);
-                    }
-                }
-            }
+            result.backtrace = parsed.tracebackText ? parsed.tracebackText.split("\n") : [];
             break;
-        }
-
-        case EventUnion.PresentEvent: {
-            const present = eventData.event(new PresentEvent());
-            if (!present) break;
-
-            const presentation = present.presentation();
-            if (!presentation) break;
-
+        case "present":
             result.type = "present";
-            result.presentation = {
-                id: presentation.id(),
-                content: presentation.content(),
-                content_type: presentation.contentType() || "text/plain",
-                target: presentation.target(),
-            };
+            result.presentation = toPresentationData(parsed.presentation);
             break;
-        }
-
-        case EventUnion.UnpresentEvent: {
-            const unpresent = eventData.event(new UnpresentEvent());
-            if (!unpresent) break;
-
+        case "unpresent":
             result.type = "unpresent";
-            result.presentation_id = unpresent.presentationId();
+            result.presentation_id = parsed.presentationId;
             break;
-        }
-
-        default:
-            result.type = "unknown";
-            result.event_type_code = eventType;
     }
 
     return result;
@@ -199,49 +147,8 @@ async function fetchAllHistoryEncrypted(authToken: string, ageIdentity: string):
         const arrayBuffer = await response.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
 
-        // Parse the FlatBuffer response to extract encrypted blobs
-        // This follows the same structure as fetchHistoryFlatBuffer in rpc-fb.ts
-        // Import these at the top level instead of dynamically
-        // (imports are at top of file now)
-        const replyResult = ReplyResult.getRootAsReplyResult(
-            new flatbuffers.ByteBuffer(bytes),
-        );
-
-        const resultType = replyResult.resultType();
-        if (resultType !== ReplyResultUnion.ClientSuccess) {
-            throw new Error(`Unexpected result type: ${ReplyResultUnion[resultType]}`);
-        }
-
-        const clientSuccess = unionToReplyResultUnion(
-            resultType,
-            (obj) => replyResult.result(obj),
-        ) as ClientSuccess | null;
-
-        if (!clientSuccess) {
-            throw new Error("Failed to parse ClientSuccess");
-        }
-
-        const daemonReply = clientSuccess.reply();
-        if (!daemonReply) {
-            throw new Error("Missing daemon reply");
-        }
-
-        const replyType = daemonReply.replyType();
-        const replyUnion = unionToDaemonToClientReplyUnion(
-            replyType,
-            (obj: any) => daemonReply.reply(obj),
-        );
-
-        if (!(replyUnion instanceof HistoryResponseReply)) {
-            throw new Error(`Unexpected reply type: ${replyUnion?.constructor.name}`);
-        }
-
-        const historyResponse = replyUnion.response();
-        if (!historyResponse) {
-            throw new Error("Missing history response");
-        }
-
-        const eventsLength = historyResponse.eventsLength();
+        const historicalEvents = parseEncryptedHistoryEvents(bytes);
+        const eventsLength = historicalEvents.length;
 
         console.log(`[Worker] Received ${eventsLength} events in this batch`);
 
@@ -252,28 +159,19 @@ async function fetchAllHistoryEncrypted(authToken: string, ageIdentity: string):
 
         // Extract encrypted blobs and track oldest event ID for pagination
         for (let i = 0; i < eventsLength; i++) {
-            const historicalEvent = historyResponse.events(i);
-            if (!historicalEvent) continue;
-
-            const encryptedBlob = historicalEvent.encryptedBlobArray();
-            if (encryptedBlob) {
-                allEncryptedBlobs.push(encryptedBlob);
-            }
+            const encryptedBlob = historicalEvents[i]?.encryptedBlob;
+            if (!encryptedBlob) continue;
+            allEncryptedBlobs.push(encryptedBlob);
 
             // Track the event ID for the first event (oldest in this batch)
-            if (i === 0 && encryptedBlob) {
+            if (i === 0) {
                 try {
                     // We need to decrypt briefly just to get the event ID for pagination
                     // This is unavoidable since event IDs are inside the encrypted blob
                     const decryptedBytes = await decryptEventBlob(encryptedBlob, ageIdentity);
-                    const narrativeEvent = NarrativeEvent.getRootAsNarrativeEvent(
-                        new flatbuffers.ByteBuffer(decryptedBytes),
-                    );
-                    const eventId = narrativeEvent.eventId()?.dataArray();
-                    if (eventId) {
-                        oldestEventId = Array.from(eventId).map((b: number) => b.toString(16).padStart(2, "0")).join(
-                            "",
-                        );
+                    const envelope = parseNarrativeEventEnvelope(decryptedBytes);
+                    if (envelope?.eventId) {
+                        oldestEventId = envelope.eventId;
                     }
                 } catch (err) {
                     console.error("Failed to extract event ID for pagination:", err);

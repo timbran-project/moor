@@ -11,13 +11,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-export interface PresentationData {
-    readonly id: string;
-    readonly content_type: string;
-    readonly content: string;
-    readonly target: string;
-    readonly attributes: ReadonlyArray<readonly [string, string]>;
-}
+import type { PresentationData as SdkPresentationData } from "@moor/web-sdk";
+
+export type PresentationData = SdkPresentationData;
 
 export interface Presentation {
     readonly id: string;

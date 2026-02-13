@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import * as flatbuffers from "flatbuffers";
+import { parsePresentationBytes, parsePresentationSnapshot, toPresentationData } from "@moor/web-sdk";
 import { useCallback, useState } from "react";
 import { decryptEventBlob } from "../lib/age-decrypt";
 import { buildAuthHeaders } from "../lib/authHeaders";
@@ -229,48 +229,28 @@ export const usePresentations = () => {
 
             // Process each presentation
             for (let i = 0; i < presentationsLength; i++) {
-                const presentationFB = currentPresentations.presentations(i);
-                if (!presentationFB) continue;
+                const storedPresentation = currentPresentations.presentations(i);
+                const snapshot = parsePresentationSnapshot(storedPresentation);
+                if (!snapshot) continue;
 
                 try {
-                    // Decrypt the presentation content if we have an encryption key
-                    let content = "";
-
+                    let presentationBytes = snapshot.encryptedBlob;
                     if (ageIdentity) {
-                        // Content is encrypted - get as bytes and decrypt
-                        const contentBytes = presentationFB.content(flatbuffers.Encoding.UTF8_BYTES);
-                        if (contentBytes && contentBytes instanceof Uint8Array && contentBytes.length > 0) {
-                            try {
-                                const decryptedBytes = await decryptEventBlob(contentBytes, ageIdentity);
-                                // Convert decrypted bytes to string
-                                content = new TextDecoder().decode(decryptedBytes);
-                            } catch (decryptError) {
-                                console.error("Failed to decrypt presentation content:", decryptError);
-                                // Leave content empty if decryption fails
-                            }
-                        }
-                    } else {
-                        // No encryption - get as string
-                        content = presentationFB.content() || "";
+                        presentationBytes = await decryptEventBlob(snapshot.encryptedBlob, ageIdentity);
                     }
 
-                    // Convert FlatBuffer Presentation to PresentationData format
-                    const attributes: Array<[string, string]> = [];
-                    const attrsLength = presentationFB.attributesLength();
-                    for (let j = 0; j < attrsLength; j++) {
-                        const attr = presentationFB.attributes(j);
-                        if (attr && attr.key() && attr.value()) {
-                            attributes.push([attr.key()!, attr.value()!]);
-                        }
+                    const parsedPresentation = parsePresentationBytes(presentationBytes, {
+                        expectedId: snapshot.id,
+                        fallback: {
+                            target: TARGET_TYPES.WINDOW,
+                        },
+                    });
+                    if (!parsedPresentation) {
+                        console.warn(`Skipping malformed presentation snapshot: id=${snapshot.id}`);
+                        continue;
                     }
 
-                    const presentationData: PresentationData = {
-                        id: presentationFB.id() || `unknown-${i}`,
-                        target: presentationFB.target() || TARGET_TYPES.WINDOW,
-                        content,
-                        content_type: presentationFB.contentType() || "text/plain",
-                        attributes,
-                    };
+                    const presentationData: PresentationData = toPresentationData(parsedPresentation);
 
                     addPresentation(presentationData);
                 } catch (presentationError) {
