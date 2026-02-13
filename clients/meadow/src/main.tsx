@@ -73,6 +73,12 @@ const deserializeNarrativeFontSize = (raw: string): number | null => {
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? clampNarrativeFontSize(parsed) : null;
 };
+const serializeBool = (value: boolean) => value ? "true" : "false";
+const deserializeBool = (raw: string): boolean | null => {
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    return null;
+};
 
 // Simple React App component to test the setup
 function AppContent({
@@ -190,6 +196,14 @@ function AppContent({
         {
             serialize: serializeNarrativeFontSize,
             deserialize: deserializeNarrativeFontSize,
+        },
+    );
+    const [roomHudEnabled, setRoomHudEnabled] = usePersistentState<boolean>(
+        "moor-room-hud-enabled",
+        () => true,
+        {
+            serialize: serializeBool,
+            deserialize: deserializeBool,
         },
     );
 
@@ -407,6 +421,9 @@ function AppContent({
     }, []);
 
     const currentRoomLookKey = useMemo(() => {
+        if (!roomHudEnabled) {
+            return null;
+        }
         const current = getTopDockPresentations();
         for (const presentation of current) {
             if (presentation.id === "room-look") {
@@ -414,7 +431,7 @@ function AppContent({
             }
         }
         return null;
-    }, [getRoomLookKeyFromPresentation, getTopDockPresentations]);
+    }, [getRoomLookKeyFromPresentation, getTopDockPresentations, roomHudEnabled]);
 
     const handleActiveRoomLookVisibilityChange = useCallback((
         roomKey: string | null,
@@ -443,6 +460,9 @@ function AppContent({
 
     const topDockPresentations = useMemo(() => {
         const current = getTopDockPresentations();
+        if (!roomHudEnabled) {
+            return current.filter((presentation) => getRoomLookKeyFromPresentation(presentation) === null);
+        }
         const suppressRoomKey = !isCurrentRoomLookDockLatched ? currentRoomLookKey : null;
         if (!suppressRoomKey) {
             return current;
@@ -457,7 +477,13 @@ function AppContent({
             }
             return roomKey !== suppressRoomKey;
         });
-    }, [currentRoomLookKey, getRoomLookKeyFromPresentation, getTopDockPresentations, isCurrentRoomLookDockLatched]);
+    }, [
+        currentRoomLookKey,
+        getRoomLookKeyFromPresentation,
+        getTopDockPresentations,
+        isCurrentRoomLookDockLatched,
+        roomHudEnabled,
+    ]);
 
     const handleOpenObjectBrowser = useCallback(() => {
         if (isTouchDevice) {
@@ -1854,6 +1880,8 @@ function AppContent({
                 narrativeFontSize={narrativeFontSize}
                 onDecreaseNarrativeFontSize={decreaseNarrativeFontSize}
                 onIncreaseNarrativeFontSize={increaseNarrativeFontSize}
+                roomHudEnabled={roomHudEnabled}
+                onToggleRoomHud={() => setRoomHudEnabled((prev) => !prev)}
             />
 
             {/* Account menu */}

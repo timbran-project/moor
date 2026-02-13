@@ -34,6 +34,8 @@ interface SettingsPanelProps {
     narrativeFontSize: number;
     onDecreaseNarrativeFontSize: () => void;
     onIncreaseNarrativeFontSize: () => void;
+    roomHudEnabled: boolean;
+    onToggleRoomHud: () => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -42,6 +44,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     narrativeFontSize,
     onDecreaseNarrativeFontSize,
     onIncreaseNarrativeFontSize,
+    roomHudEnabled,
+    onToggleRoomHud,
 }) => {
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -209,6 +213,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <CommandEchoToggle />
                         <SayModeToggle />
                         <VerbPaletteToggle />
+                        <div className="settings-item">
+                            <span>Room HUD</span>
+                            <button
+                                type="button"
+                                className="settings-value-button"
+                                onClick={onToggleRoomHud}
+                                role="switch"
+                                aria-checked={roomHudEnabled}
+                                aria-label={`Room HUD ${roomHudEnabled ? "enabled" : "disabled"}`}
+                                aria-describedby="room-hud-description"
+                                title="Show a docked room summary panel at the top when room look is out of view"
+                            >
+                                {roomHudEnabled ? "✓ On" : "Off"}
+                            </button>
+                            <span id="room-hud-description" className="sr-only">
+                                Shows a room summary panel at the top when your latest room look scrolls out of view.
+                            </span>
+                        </div>
                     </div>
 
                     <div className="settings-section">
