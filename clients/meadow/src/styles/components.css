@@ -32,6 +32,7 @@
 .text_narrative {
   font-family: var(--font-sans);
   font-size: 1em;
+  line-height: var(--lh-relaxed);
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow: auto;
@@ -50,34 +51,42 @@
   display: block;
 }
 
+.message-block {
+  margin-bottom: var(--space-md);
+}
+
+.message-block:last-child {
+  margin-bottom: 0;
+}
+
 /* Inset presentation styling */
 .presentation_inset {
   position: relative;
-  margin: 0.5rem 1.5rem;
-  padding: 0.75rem 1rem;
+  margin: var(--space-md) var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
   border: 2px solid var(--color-border-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background-color: var(--color-bg-secondary);
+  margin-bottom: var(--space-md);
 }
 
 .presentation_marker {
   display: flex;
-  align-items: center;
-  margin: 0.5rem 0.5rem;
-  padding: 0.2rem 0.75rem;
+  align-items: flex-start;
+  margin-bottom: var(--space-sm);
+  padding: 0 var(--space-md);
   font-style: italic;
-  color: var(--color-text-muted, #888);
-  border-left: 3px solid var(--color-border-light, #444);
+  color: var(--color-text-secondary);
+  border-left: 3px solid var(--color-text-accent);
   opacity: 0.85;
   font-size: 0.9em;
   gap: 0.5rem;
 }
 
-.presentation_marker::before {
-  content: "›";
-  font-weight: bold;
-  font-style: normal;
-  color: var(--color-text-accent, var(--color-border-primary, #666));
+/* Ensure content inside presentation wrappers doesn't have double margin */
+.presentation_inset > *,
+.presentation_marker > * {
+  margin-bottom: 0 !important;
 }
 
 /* Processing presentation styling - for rewritable events awaiting update */
@@ -193,7 +202,9 @@
 
 .look_toggle_row > .look_toggle_button {
   flex-shrink: 0;
-  margin-top: 0.15em;
+  height: calc(1em * var(--lh-relaxed)); /* Match narrative line box height */
+  display: flex;
+  align-items: center;
 }
 
 .look_toggle_row > .text_narrative,
@@ -2525,10 +2536,10 @@ input[type="text"]:focus {
 /* ====== TOP NAVIGATION BAR ====== */
 .top-nav-bar {
   display: flex; /* Show on all screen sizes */
-  height: 56px;
+  height: 64px;
   background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border-medium);
-  padding: 0 var(--space-md);
+  padding: 0 var(--space-lg);
   align-items: center;
   justify-content: space-between;
   position: relative;
@@ -3408,7 +3419,7 @@ button:disabled {
 .input_area_box {
   display: flex;
   align-items: baseline;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   background-color: var(--color-bg-input);
   border: 1px solid var(--color-border-medium);
   border-radius: var(--radius-lg);

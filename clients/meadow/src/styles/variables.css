@@ -108,6 +108,51 @@
   --light-color-attribute: #001080;
   --light-color-regex: #811f3f;
 
+  /* Fresh Theme Colors - Modern, vibrant, youthful */
+  --fresh-color-bg-base: #0f172a; /* Slate 900 */
+  --fresh-color-bg-primary: #1e293b; /* Slate 800 */
+  --fresh-color-bg-secondary: #334155; /* Slate 700 */
+  --fresh-color-bg-tertiary: #475569; /* Slate 600 */
+  --fresh-color-bg-header: #1e293b;
+  --fresh-color-bg-input: #1e293b;
+
+  --fresh-color-text-primary: #f8fafc; /* Slate 50 */
+  --fresh-color-text-secondary: #cbd5e1; /* Slate 300 */
+  --fresh-color-text-header: #f1f5f9; /* Slate 100 */
+  --fresh-color-text-accent: #2dd4bf; /* Teal 400 */
+  --fresh-color-text-error: #fb7185; /* Rose 400 */
+  --fresh-color-text-success: #4ade80; /* Green 400 */
+  --fresh-color-text-historical: #94a3b8; /* Slate 400 */
+  --fresh-color-text-placeholder: rgba(203, 213, 225, 0.5);
+
+  --fresh-color-border-light: #334155;
+  --fresh-color-border-medium: #475569;
+  --fresh-color-border-dark: #64748b;
+
+  --fresh-color-danger: #f43f5e; /* Rose 500 */
+  --fresh-color-button-primary: #8b5cf6; /* Violet 500 */
+  --fresh-color-accent-hover: #7c3aed; /* Violet 600 */
+  --fresh-color-shadow: rgba(15, 23, 42, 0.5);
+  --fresh-color-bg-hover: rgba(255, 255, 255, 0.08);
+  --fresh-color-bg-accent: var(--fresh-color-text-primary);
+  --fresh-color-surface-raised: #334155;
+
+  --fresh-color-link: #38bdf8; /* Sky 400 */
+  --fresh-color-link-hover: #0ea5e9; /* Sky 500 */
+
+  /* Syntax Highlighting - Fresh Theme (Pastel/Neon) */
+  --fresh-color-keyword: #c084fc; /* Purple 400 */
+  --fresh-color-constant: #60a5fa; /* Blue 400 */
+  --fresh-color-type: #2dd4bf; /* Teal 400 */
+  --fresh-color-number: #f472b6; /* Pink 400 */
+  --fresh-color-string: #fbbf24; /* Amber 400 */
+  --fresh-color-operator: #e2e8f0; /* Slate 200 */
+  --fresh-color-variable: #a78bfa; /* Violet 400 */
+  --fresh-color-function: #818cf8; /* Indigo 400 */
+  --fresh-color-property: #94a3b8; /* Slate 400 */
+  --fresh-color-attribute: #38bdf8; /* Sky 400 */
+  --fresh-color-regex: #fb7185; /* Rose 400 */
+
   /* CRT Theme Colors - Classic phosphor green terminal */
   --crt-color-bg-base: #000000;
   --crt-color-bg-primary: #001100;
@@ -189,10 +234,16 @@
   --crt-amber-color-regex: #FFA128;
 
   /* Spacing & Sizing - Shared between themes */
-  --space-xs: 0.15em;
-  --space-sm: 0.25em;
-  --space-md: 0.5em;
-  --space-lg: 1em;
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 3rem;
+
+  /* Line Heights */
+  --lh-tight: 1.25;
+  --lh-base: 1.5;
+  --lh-relaxed: 1.625;
 
   /* Border Radius - Shared between themes */
   --radius-sm: 6px;
@@ -269,10 +320,81 @@
   --color-regex: var(--light-color-regex);
 }
 
+/* Fresh Theme Class - Modern, vibrant aesthetics */
+.fresh-theme {
+  /* Color Palette - Fresh Theme */
+  --color-bg-base: var(--fresh-color-bg-base);
+  --color-bg-primary: var(--fresh-color-bg-primary);
+  --color-bg-secondary: var(--fresh-color-bg-secondary);
+  --color-bg-tertiary: var(--fresh-color-bg-tertiary);
+  --color-bg-header: var(--fresh-color-bg-header);
+  --color-bg-input: var(--fresh-color-bg-input);
+
+  /* Text Colors */
+  --color-text-primary: var(--fresh-color-text-primary);
+  --color-text-secondary: var(--fresh-color-text-secondary);
+  --color-text-header: var(--fresh-color-text-header);
+  --color-text-accent: var(--fresh-color-text-accent);
+  --color-text-error: var(--fresh-color-text-error);
+  --color-text-success: var(--fresh-color-text-success);
+  --color-text-historical: var(--fresh-color-text-historical);
+  --color-text-placeholder: var(--fresh-color-text-placeholder);
+
+  /* Borders */
+  --color-border-light: var(--fresh-color-border-light);
+  --color-border-medium: var(--fresh-color-border-medium);
+  --color-border-dark: var(--fresh-color-border-dark);
+
+  /* Interactive */
+  --color-danger: var(--fresh-color-danger);
+  --color-button-primary: var(--fresh-color-button-primary);
+  --color-accent-hover: var(--fresh-color-accent-hover);
+  --color-shadow: var(--fresh-color-shadow);
+  --color-bg-hover: var(--fresh-color-bg-hover);
+  --color-bg-accent: var(--fresh-color-bg-accent);
+  --color-surface-raised: var(--fresh-color-surface-raised);
+  --color-link: var(--fresh-color-link);
+  --color-link-hover: var(--fresh-color-link-hover);
+
+  /* Syntax Highlighting */
+  --color-keyword: var(--fresh-color-keyword);
+  --color-constant: var(--fresh-color-constant);
+  --color-type: var(--fresh-color-type);
+  --color-number: var(--fresh-color-number);
+  --color-string: var(--fresh-color-string);
+  --color-operator: var(--fresh-color-operator);
+  --color-variable: var(--fresh-color-variable);
+  --color-function: var(--fresh-color-function);
+  --color-property: var(--fresh-color-property);
+  --color-attribute: var(--fresh-color-attribute);
+  --color-regex: var(--fresh-color-regex);
+
+  /* Sizing Overrides - Rounder, softer feel */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Typography Overrides */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Spacing Overrides for Fresh Theme */
+  --space-xs: 0.375rem;
+  --space-sm: 0.75rem;
+  --space-md: 1.25rem;
+  --space-lg: 2rem;
+  --space-xl: 4rem;
+}
+
 /* CRT Theme Class - Applied to body for retro phosphor terminal look */
 .crt-theme {
   --font-sans: var(--font-crt);
   --font-ui: var(--font-crt);
+  --space-xs: 0.15em;
+  --space-sm: 0.25em;
+  --space-md: 0.5em;
+  --space-lg: 1em;
+  --space-xl: 2em;
   /* Color Palette - CRT Theme */
   --color-bg-base: var(--crt-color-bg-base);
   --color-bg-primary: var(--crt-color-bg-primary);
@@ -521,6 +643,11 @@
 .crt-amber-theme {
   --font-sans: var(--font-crt);
   --font-ui: var(--font-crt);
+  --space-xs: 0.15em;
+  --space-sm: 0.25em;
+  --space-md: 0.5em;
+  --space-lg: 1em;
+  --space-xl: 2em;
   /* Color Palette - CRT Amber Theme */
   --color-bg-base: var(--crt-amber-color-bg-base);
   --color-bg-primary: var(--crt-amber-color-bg-primary);

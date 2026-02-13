@@ -13,6 +13,7 @@ html, body {
   overflow: hidden;
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
+  line-height: var(--lh-base);
   transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 

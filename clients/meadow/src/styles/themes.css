@@ -29,3 +29,37 @@
     animation: none !important;
   }
 }
+
+/* Fresh theme specific adjustments */
+.fresh-theme .history_indicator {
+  background: color-mix(in srgb, var(--color-bg-primary) 70%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.fresh-theme .top_dock,
+.fresh-theme .bottom_dock,
+.fresh-theme .right_dock,
+.fresh-theme .left_dock {
+    background: color-mix(in srgb, var(--color-bg-secondary) 85%, transparent);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.fresh-theme .narrative {
+    background: color-mix(in srgb, var(--color-bg-primary) 95%, transparent);
+    backdrop-filter: blur(4px);
+}
+
+.fresh-theme .input_area {
+    background: color-mix(in srgb, var(--color-bg-input) 80%, transparent);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.fresh-theme .input_area:focus {
+    border-color: var(--color-text-accent);
+    box-shadow: 0 0 0 1px var(--color-text-accent), 0 4px 16px rgba(45, 212, 191, 0.2);
+}

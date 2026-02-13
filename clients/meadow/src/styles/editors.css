@@ -652,7 +652,7 @@
 
 .browser-tab {
   flex: 1;
-  padding: var(--space-sm);
+  padding: var(--space-md);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -713,7 +713,7 @@
 
 /* Pane headers */
 .browser-pane-header {
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   background-color: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border-light);
   display: flex;
@@ -744,7 +744,7 @@
 }
 
 .browser-item {
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   cursor: pointer;
   display: flex;
   justify-content: space-between;
@@ -783,7 +783,7 @@
 
 /* Inherited content sections */
 .browser-inherited-label {
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   background-color: var(--color-bg-secondary);
   border-top: 1px solid var(--color-border-medium);
   border-bottom: 1px solid var(--color-border-light);
