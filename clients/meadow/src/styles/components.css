@@ -435,6 +435,8 @@
   gap: var(--space-sm);
   background: color-mix(in srgb, var(--color-bg-secondary) 92%, var(--color-bg-primary));
   border-color: color-mix(in srgb, var(--color-border-medium) 75%, var(--color-border-light));
+  transition: max-height 150ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: max-height;
 }
 
 .top_dock.single-panel {
@@ -446,24 +448,70 @@
 }
 
 .top_dock_mobile_handle {
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: -1rem auto -1rem auto;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 76%, transparent);
+  color: color-mix(in srgb, var(--color-text-secondary) 78%, transparent);
+  cursor: pointer;
+  position: relative;
+  z-index: 3;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--color-shadow) 28%, transparent);
 }
 
-/* Height-constrained top dock behavior (applies regardless of viewport width) */
-.top_dock.top_dock_compact {
-  max-height: 34vh;
+.top_dock_mobile_handle:hover {
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-bg-header) 55%, var(--color-bg-secondary));
+  transform: translateY(-1px);
 }
 
-.top_dock.top_dock_compact .top_dock_panel_content {
-  max-height: min(28vh, 22rem);
+.top_dock_mobile_handle_chevron {
+  font-size: 0.56rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: transform 150ms ease;
 }
 
-.top_dock.top_dock_compact.top_dock_collapsed {
+.top_dock_mobile_handle_chevron.collapsed {
+  transform: rotate(0deg);
+}
+
+.top_dock_mobile_handle_chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.top_dock.top_dock_collapsed {
   max-height: 8.75rem !important;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.top_dock.top_dock_compact.top_dock_collapsed .top_dock_panel_content {
+.top_dock.top_dock_collapsed .top_dock_panel_content {
   max-height: 6.9rem;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(to bottom, black 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 78%, transparent 100%);
+  transition: max-height 150ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 120ms ease;
+  opacity: 0.96;
+}
+
+.top_dock .top_dock_panel_content {
+  transition: max-height 150ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top_dock,
+  .top_dock .top_dock_panel_content,
+  .top_dock.top_dock_collapsed .top_dock_panel_content {
+    transition: none;
+  }
 }
 
 .bottom_dock {
@@ -549,6 +597,10 @@
 
 .top_dock_panel_content {
   padding: var(--space-md) var(--space-lg);
+}
+
+.top_dock_panel_content_collapsed {
+  display: none;
 }
 
 /* Room look refresh cue: brief slide/fade when panel content updates */
@@ -662,7 +714,7 @@
   min-width: 30px;
   min-height: 30px;
   padding: 0;
-  margin-left: var(--space-xs);
+  margin-right: var(--space-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -689,11 +741,11 @@
 }
 
 .top_dock_panel_toggle_chevron.collapsed {
-  transform: rotate(0deg);
+  transform: rotate(180deg);
 }
 
 .top_dock_panel_toggle_chevron.expanded {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 
 .right_dock_panel_close:hover,
@@ -1682,13 +1734,13 @@
     transition: transform 150ms ease;
   }
 
-  .top_dock_mobile_handle_chevron.collapsed {
-    transform: rotate(0deg);
-  }
+.top_dock_mobile_handle_chevron.collapsed {
+  transform: rotate(0deg);
+}
 
-  .top_dock_mobile_handle_chevron.expanded {
-    transform: rotate(180deg);
-  }
+.top_dock_mobile_handle_chevron.expanded {
+  transform: rotate(180deg);
+}
 }
 
 @media (max-width: 768px) {

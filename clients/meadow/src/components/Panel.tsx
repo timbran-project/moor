@@ -106,12 +106,14 @@ export const Panel: React.FC<PanelProps> = ({
         isRoomLook && "room_look_panel",
         isRoomLookRefreshing && "room_look_panel_refresh",
     ].filter(Boolean).join(" ");
+    const normalizedId = presentation.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+    const titleId = `panel-title-${normalizedId}`;
 
     return (
-        <div className={panelClassName}>
+        <div className={panelClassName} role="region" aria-labelledby={titleId}>
             <div className={titleClassName}>
-                <span>{presentation.title}</span>
                 {headerActions}
+                <span id={titleId}>{presentation.title}</span>
                 <button
                     type="button"
                     className={closeButtonClassName}
