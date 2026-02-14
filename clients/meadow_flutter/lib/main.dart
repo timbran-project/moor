@@ -25,7 +25,9 @@ import 'package:meadow_flutter/moor/event_log_keystore.dart';
 import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
+import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main(List<String> args) {
@@ -356,6 +358,19 @@ class _SessionScreenState extends State<SessionScreen> {
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
 
   final _items = <NarrativeItem>[];
+  final _presentations = PresentationStore();
+  final GlobalKey _listKey = GlobalKey();
+  final _messageKeys = <String, GlobalKey>{};
+
+  String? _currentRoomLookKey;
+  String? _currentRoomLookMessageId;
+  bool _isCurrentRoomLookDockLatched = false;
+  final _latestLookMessageIdByRoom = <String, String>{};
+
+  bool _roomHudEnabled = true;
+  bool _showNarrativeMeta = true;
+
+  int _idSeq = 0;
   MoorWsClient? _ws;
   String _status = 'disconnected';
 
@@ -374,6 +389,8 @@ class _SessionScreenState extends State<SessionScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
+    _presentations.addListener(_onPresentationsChanged);
     _connectWs();
     _initEncryption();
   }
@@ -383,8 +400,88 @@ class _SessionScreenState extends State<SessionScreen> {
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
+    _presentations
+      ..removeListener(_onPresentationsChanged)
+      ..dispose();
     _ws?.close();
     super.dispose();
+  }
+
+  String _newId(String prefix) {
+    _idSeq += 1;
+    return '$prefix$_idSeq';
+  }
+
+  void _onPresentationsChanged() {
+    final nextKey = _computeCurrentRoomLookKey();
+    if (nextKey != _currentRoomLookKey) {
+      setState(() {
+        _currentRoomLookKey = nextKey;
+        _currentRoomLookMessageId = null;
+        _isCurrentRoomLookDockLatched = false;
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
+
+  void _onScroll() {
+    _updateRoomLookLatch();
+  }
+
+  String? _computeCurrentRoomLookKey() {
+    if (!_roomHudEnabled) {
+      return null;
+    }
+    final tops = _presentations.byTarget('top');
+    for (final p in tops) {
+      if (p.id == 'room-look') {
+        return getRoomLookKeyFromDockItem(p);
+      }
+    }
+    return null;
+  }
+
+  void _updateRoomLookLatch() {
+    if (!mounted) return;
+    if (!_roomHudEnabled) return;
+    final roomKey = _currentRoomLookKey;
+    if (roomKey == null) return;
+
+    final msgId = _latestLookMessageIdByRoom[roomKey];
+    if (msgId == null) return;
+
+    if (msgId != _currentRoomLookMessageId) {
+      setState(() {
+        _currentRoomLookMessageId = msgId;
+        _isCurrentRoomLookDockLatched = false;
+      });
+      return;
+    }
+
+    if (_isCurrentRoomLookDockLatched) {
+      return;
+    }
+
+    final targetKey = _messageKeys[msgId];
+    final targetCtx = targetKey?.currentContext;
+    final listCtx = _listKey.currentContext;
+    if (targetCtx == null || listCtx == null) return;
+
+    final targetBox = targetCtx.findRenderObject();
+    final listBox = listCtx.findRenderObject();
+    if (targetBox is! RenderBox || listBox is! RenderBox) return;
+
+    final targetTop = targetBox.localToGlobal(Offset.zero).dy;
+    final listTop = listBox.localToGlobal(Offset.zero).dy;
+    final listBottom = listTop + listBox.size.height;
+    const epsilon = 1.0;
+    final isVisible =
+        targetTop >= (listTop - epsilon) && targetTop < (listBottom + epsilon);
+    if (!isVisible) {
+      setState(() {
+        _isCurrentRoomLookDockLatched = true;
+      });
+    }
   }
 
   Future<void> _connectWs() async {
@@ -396,6 +493,8 @@ class _SessionScreenState extends State<SessionScreen> {
       session: widget.session,
       onSystemMessage: _appendSystem,
       onNarrativeItem: _appendItem,
+      onPresentationUpsert: _presentations.upsert,
+      onPresentationRemove: _presentations.remove,
     );
     _ws = ws;
 
@@ -606,10 +705,13 @@ class _SessionScreenState extends State<SessionScreen> {
       if (lines.isEmpty) return null;
       final ct = normalizeContentType(notify.contentType?.value);
       return NarrativeItem(
+        id: _newId('h'),
         timestamp: ts,
         content: lines,
         contentType: ct,
         noNewline: notify.noNewline,
+        presentationHint: null,
+        eventMetadata: null,
       );
     }
 
@@ -622,10 +724,13 @@ class _SessionScreenState extends State<SessionScreen> {
       if (content.isEmpty) return null;
       final ct = normalizeContentType(p.contentType);
       return NarrativeItem(
+        id: _newId('h'),
         timestamp: ts,
         content: content,
         contentType: ct,
         noNewline: false,
+        presentationHint: null,
+        eventMetadata: null,
       );
     }
 
@@ -643,10 +748,13 @@ class _SessionScreenState extends State<SessionScreen> {
       }
       if (lines.isEmpty) return null;
       return NarrativeItem(
+        id: _newId('h'),
         timestamp: ts,
         content: [lines.join('\n')],
         contentType: 'text/traceback',
         noNewline: false,
+        presentationHint: null,
+        eventMetadata: null,
       );
     }
 
@@ -772,15 +880,26 @@ class _SessionScreenState extends State<SessionScreen> {
   void _appendSystem(String m) {
     _appendItem(
       NarrativeItem(
+        id: _newId('s'),
         timestamp: DateTime.now(),
         content: ['[system] $m'],
         contentType: 'text/plain',
         noNewline: false,
+        presentationHint: null,
+        eventMetadata: null,
       ),
     );
   }
 
   void _appendItem(NarrativeItem it) {
+    final roomKey = getRoomLookKeyFromNarrative(
+      presentationHint: it.presentationHint,
+      eventMetadata: it.eventMetadata,
+    );
+    if (roomKey != null) {
+      _latestLookMessageIdByRoom[roomKey] = it.id;
+    }
+
     setState(() {
       _items.add(it);
     });
@@ -788,6 +907,8 @@ class _SessionScreenState extends State<SessionScreen> {
       if (!_scrollCtrl.hasClients) return;
       _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
   }
 
   void _send() {
@@ -945,68 +1066,278 @@ class _SessionScreenState extends State<SessionScreen> {
     _appendSystem('Unhandled link: $url');
   }
 
+  Future<void> _showSettingsSheet() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        // Modal bottom sheets are separate routes; parent setState does not
+        // automatically rebuild this subtree, so keep local state here.
+        var roomHudEnabled = _roomHudEnabled;
+        var showNarrativeMeta = _showNarrativeMeta;
+
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Settings',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      value: roomHudEnabled,
+                      title: const Text('Room HUD'),
+                      subtitle: const Text(
+                        'Show room description when scrolled out',
+                      ),
+                      onChanged: (v) {
+                        modalSetState(() {
+                          roomHudEnabled = v;
+                        });
+                        setState(() {
+                          _roomHudEnabled = v;
+                        });
+                        _onPresentationsChanged();
+                      },
+                    ),
+                    SwitchListTile(
+                      value: showNarrativeMeta,
+                      title: const Text('Timestamps'),
+                      subtitle: const Text(
+                        'Show timestamp and content type per line',
+                      ),
+                      onChanged: (v) {
+                        modalSetState(() {
+                          showNarrativeMeta = v;
+                        });
+                        setState(() {
+                          _showNarrativeMeta = v;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _logout() async {
+    _ws?.close();
+    _ws = null;
+    _presentations.clear();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('${widget.session.playerCurie} ($_status)'),
         actions: [
           IconButton(
-            onPressed: _showEncryptionMenu,
-            tooltip: 'History encryption',
-            icon: const Icon(Icons.lock_outline),
+            onPressed: _showSettingsSheet,
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          PopupMenuButton<_AccountAction>(
+            tooltip: 'Account',
+            icon: const Icon(Icons.account_circle_outlined),
+            onSelected: (a) async {
+              switch (a) {
+                case _AccountAction.historyEncryption:
+                  await _showEncryptionMenu();
+                case _AccountAction.logout:
+                  await _logout();
+              }
+            },
+            itemBuilder: (context) {
+              return [
+                PopupMenuItem<_AccountAction>(
+                  enabled: false,
+                  child: Text(
+                    widget.session.playerCurie,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<_AccountAction>(
+                  value: _AccountAction.historyEncryption,
+                  child: Text('History encryption'),
+                ),
+                const PopupMenuItem<_AccountAction>(
+                  value: _AccountAction.logout,
+                  child: Text('Logout'),
+                ),
+              ];
+            },
           ),
         ],
       ),
       body: Column(
         children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollCtrl,
-              itemCount: _items.length,
-              itemBuilder: (context, idx) {
-                final it = _items[idx];
-                final ts = it.timestamp.toIso8601String().split('T').last;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
+          AnimatedBuilder(
+            animation: _presentations,
+            builder: (context, _) {
+              final currentRoomKey = _roomHudEnabled
+                  ? _currentRoomLookKey
+                  : null;
+              final suppressRoomKey = (!_isCurrentRoomLookDockLatched)
+                  ? currentRoomKey
+                  : null;
+
+              final top = _presentations.byTarget('top');
+              final filtered = <DockItem>[];
+              for (final p in top) {
+                if (p.target != 'top') {
+                  filtered.add(p);
+                  continue;
+                }
+                final roomKey = getRoomLookKeyFromDockItem(p);
+                if (roomKey == null) {
+                  filtered.add(p);
+                  continue;
+                }
+                if (!_roomHudEnabled) {
+                  // When disabled, remove room-look presentations entirely.
+                  continue;
+                }
+                if (suppressRoomKey != null && roomKey == suppressRoomKey) {
+                  continue;
+                }
+                filtered.add(p);
+              }
+
+              if (filtered.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final p in filtered)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: switch (p) {
+                            RoomSnapshotDockItem(:final snapshot) =>
+                              RoomSnapshotWidget(
+                                snapshot: snapshot,
+                                onCommand: (cmd) {
+                                  _ws?.sendText(cmd);
+                                },
+                                onInspect: (obj) {
+                                  _appendSystem('inspect: ${obj.curie}');
+                                },
+                              ),
+                            PresentationModel() => ContentRenderer(
+                              content: [p.content],
+                              contentType: normalizeContentType(p.contentType),
+                              isStale: false,
+                              onLinkTap: _handleLinkTap,
+                            ),
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Card(
+                margin: EdgeInsets.zero,
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ListView.builder(
+                  key: _listKey,
+                  controller: _scrollCtrl,
+                  itemCount: _items.length,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemBuilder: (context, idx) {
+                    final it = _items[idx];
+                    final key = _messageKeys.putIfAbsent(it.id, GlobalKey.new);
+                    final ts = it.timestamp.toIso8601String().split('T').last;
+                    return Container(
+                      key: key,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            ts,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: Theme.of(context).colorScheme.outline,
-                              fontSize: 12,
+                          if (_showNarrativeMeta) ...[
+                            Row(
+                              children: [
+                                Text(
+                                  ts,
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  it.contentType,
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            it.contentType,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: Theme.of(context).colorScheme.outline,
-                              fontSize: 12,
-                            ),
+                            const SizedBox(height: 2),
+                          ],
+                          ContentRenderer(
+                            content: it.content,
+                            contentType: it.contentType,
+                            isStale: false,
+                            onLinkTap: _handleLinkTap,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      ContentRenderer(
-                        content: it.content,
-                        contentType: it.contentType,
-                        isStale: false,
-                        onLinkTap: _handleLinkTap,
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ),
             ),
           ),
           Padding(
@@ -1038,4 +1369,9 @@ class _SessionScreenState extends State<SessionScreen> {
       ),
     );
   }
+}
+
+enum _AccountAction {
+  historyEncryption,
+  logout,
 }

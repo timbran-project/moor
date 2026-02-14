@@ -22,12 +22,17 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
 import 'package:meadow_flutter/moor/content_type.dart';
 import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/presentations.dart';
+import 'package:meadow_flutter/moor/room_snapshot.dart';
+import 'package:meadow_flutter/moor/var_decode.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class MoorWsClient {
   final LoginSession session;
   final void Function(String message) onSystemMessage;
   final void Function(NarrativeItem item) onNarrativeItem;
+  final void Function(DockItem p) onPresentationUpsert;
+  final void Function(String id) onPresentationRemove;
   final void Function({required String clientId, required String clientToken})?
   onCredentialsUpdated;
 
@@ -46,6 +51,8 @@ class MoorWsClient {
     required this.session,
     required this.onSystemMessage,
     required this.onNarrativeItem,
+    required this.onPresentationUpsert,
+    required this.onPresentationRemove,
     this.onCredentialsUpdated,
   });
 
@@ -219,12 +226,33 @@ class MoorWsClient {
         if (content.isEmpty) return;
 
         final ct = normalizeContentType(notify.contentType?.value);
+
+        String? presentationHint;
+        final eventMetadata = <String, Object?>{};
+        final md = notify.metadata;
+        if (md != null) {
+          for (final m in md) {
+            final k = m.key?.value;
+            if (k == null || k.isEmpty) continue;
+            final v = decodeVarLoose(m.value);
+            eventMetadata[k] = v;
+            if (presentationHint == null &&
+                (k == 'presentation_hint' || k == 'presentationHint') &&
+                v is String) {
+              presentationHint = v;
+            }
+          }
+        }
+
         onNarrativeItem(
           NarrativeItem(
+            id: _newId(),
             timestamp: ts,
             content: content,
             contentType: ct,
             noNewline: notify.noNewline,
+            presentationHint: presentationHint,
+            eventMetadata: eventMetadata.isEmpty ? null : eventMetadata,
           ),
         );
       }
@@ -237,12 +265,20 @@ class MoorWsClient {
           return;
         }
 
+        final model = presentationFromFb(pres);
+        if (model != null) {
+          onPresentationUpsert(model);
+        }
+
         onNarrativeItem(
           NarrativeItem(
+            id: _newId(),
             timestamp: ts,
             content: [pres.content ?? ''],
             contentType: normalizeContentType(pres.contentType),
             noNewline: false,
+            presentationHint: null,
+            eventMetadata: null,
           ),
         );
       }
@@ -252,6 +288,7 @@ class MoorWsClient {
         final unpresent = e.event as moor_common.UnpresentEvent?;
         final id = unpresent?.presentationId;
         if (id != null && id.isNotEmpty) {
+          onPresentationRemove(id);
           onSystemMessage('Presentation dismissed: $id');
         }
       }
@@ -260,17 +297,53 @@ class MoorWsClient {
           moor_common.EventUnionTypeId.TracebackEvent.value) {
         onNarrativeItem(
           NarrativeItem(
+            id: _newId(),
             timestamp: ts,
             content: const ['[traceback]'],
             contentType: 'text/traceback',
             noNewline: false,
+            presentationHint: null,
+            eventMetadata: null,
           ),
         );
+      }
+
+      if (e.eventType?.value == moor_common.EventUnionTypeId.DataEvent.value) {
+        final data = e.event as moor_common.DataEvent?;
+        final domain = data?.domain?.value;
+        final kind = data?.kind?.value;
+        if (domain == 'state' && kind == 'room_snapshot') {
+          final decoded = decodeVarLoose(data?.payload);
+          final snap = roomSnapshotFromPayload(decoded);
+          if (snap != null) {
+            final attrs = <String, String>{
+              'kind': 'room_look',
+              'title': snap.title,
+            };
+            if (snap.room != null) {
+              attrs['room'] = snap.room!.curie;
+            }
+            onPresentationUpsert(
+              RoomSnapshotDockItem(
+                id: 'room-look',
+                target: 'top',
+                attrs: attrs,
+                snapshot: snap,
+              ),
+            );
+          }
+        }
       }
 
       return;
     }
 
     // Other event types are expected but not implemented in the spike.
+  }
+
+  int _idSeq = 0;
+  String _newId() {
+    _idSeq += 1;
+    return 'n$_idSeq';
   }
 }

@@ -45,16 +45,22 @@ class LoginSession {
 }
 
 class NarrativeItem {
+  final String id;
   final DateTime timestamp;
   final List<String> content;
   final String contentType;
   final bool noNewline;
+  final String? presentationHint;
+  final Map<String, Object?>? eventMetadata;
 
   const NarrativeItem({
+    required this.id,
     required this.timestamp,
     required this.content,
     required this.contentType,
     required this.noNewline,
+    required this.presentationHint,
+    required this.eventMetadata,
   });
 }
 
