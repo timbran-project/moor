@@ -14,8 +14,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
+    as moor_common;
+import 'package:meadow_flutter/moor/age_decrypt.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
+import 'package:meadow_flutter/moor/content_type.dart';
+import 'package:meadow_flutter/moor/event_log_encryption.dart';
+import 'package:meadow_flutter/moor/event_log_keystore.dart';
+import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
@@ -38,6 +45,7 @@ class MeadowApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Meadow (Flutter Spike)',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0B3B2E)),
         useMaterial3: true,
@@ -188,7 +196,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!context.mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => SessionScreen(session: session, mode: _mode),
+          builder: (_) => SessionScreen(
+            session: session,
+            mode: _mode,
+          ),
         ),
       );
     } on Object catch (e) {
@@ -350,6 +361,11 @@ class _SessionScreenState extends State<SessionScreen> {
 
   static const int _maxCommandHistory = 500;
 
+  bool _eventLogBackendHasPubkey = false;
+  bool _eventLogHasLocalKey = false;
+  bool _historyLoading = false;
+  bool _historyLoaded = false;
+
   // Command history: 0 = current input, 1 = most recent command, etc.
   final List<String> _commandHistory = [];
   final Map<int, String> _historyBuffer = {};
@@ -359,6 +375,7 @@ class _SessionScreenState extends State<SessionScreen> {
   void initState() {
     super.initState();
     _connectWs();
+    _initEncryption();
   }
 
   @override
@@ -394,6 +411,361 @@ class _SessionScreenState extends State<SessionScreen> {
       setState(() {
         _status = 'error';
       });
+    }
+  }
+
+  Future<void> _initEncryption() async {
+    // Match Meadow web flow:
+    // - check if backend has a pubkey
+    // - check if we have a local age identity
+    final playerOid = widget.session.playerCurie;
+    final authToken = widget.session.authToken;
+    final api = MoorHttpApi(widget.session.baseUri);
+
+    final localIdentity = await EventLogKeyStore.getIdentity(playerOid);
+    final hasLocal = localIdentity != null && localIdentity.trim().isNotEmpty;
+
+    String? backendPubkey;
+    try {
+      backendPubkey = await api.getEventLogPubkey(authToken: authToken);
+    } on Object catch (e) {
+      _appendSystem('History encryption check failed: $e');
+      return;
+    }
+
+    final backendHasPubkey =
+        backendPubkey != null && backendPubkey.trim().isNotEmpty;
+    if (!mounted) return;
+    setState(() {
+      _eventLogBackendHasPubkey = backendHasPubkey;
+      _eventLogHasLocalKey = hasLocal;
+    });
+
+    if (hasLocal && !backendHasPubkey) {
+      // Backend was reset; clear stale local identity.
+      await EventLogKeyStore.removeIdentity(playerOid);
+      _appendSystem(
+        'History encryption: backend missing pubkey, clearing local key',
+      );
+      if (!mounted) return;
+      setState(() {
+        _eventLogHasLocalKey = false;
+      });
+    }
+
+    if (!backendHasPubkey && !hasLocal) {
+      // No key anywhere; user can set it up later from the session menu.
+      return;
+    }
+
+    if (backendHasPubkey && !hasLocal) {
+      final password = await _promptHistoryPassword();
+      if (!mounted) return;
+      if (password == null || password.isEmpty) {
+        _appendSystem('History encryption locked (no password provided)');
+        return;
+      }
+      await _unlockEncryption(password);
+      if (!mounted) return;
+      setState(() {
+        _eventLogHasLocalKey = true;
+      });
+      return;
+    }
+
+    if (backendHasPubkey && hasLocal) {
+      _appendSystem('History encryption unlocked');
+      await _loadInitialHistory();
+      return;
+    }
+  }
+
+  Future<void> _setupEncryption(String password) async {
+    final playerOid = widget.session.playerCurie;
+    final authToken = widget.session.authToken;
+    final api = MoorHttpApi(widget.session.baseUri);
+
+    try {
+      _appendSystem('Setting up history encryption...');
+      final derived = await EventLogEncryption.deriveKeyBytes(
+        password: password,
+        identifier: playerOid,
+      );
+      final identity = EventLogEncryption.identityFromDerivedBytes(derived);
+      final pubkey = await EventLogEncryption.publicKeyFromDerivedBytes(
+        derived,
+      );
+      await api.setEventLogPubkey(authToken: authToken, publicKey: pubkey);
+      await EventLogKeyStore.setIdentity(
+        playerOid: playerOid,
+        ageIdentity: identity,
+      );
+      _appendSystem('History encryption set');
+      if (!mounted) return;
+      setState(() {
+        _eventLogBackendHasPubkey = true;
+        _eventLogHasLocalKey = true;
+      });
+      await _loadInitialHistory();
+    } on Object catch (e) {
+      _appendSystem('History encryption setup failed: $e');
+    }
+  }
+
+  Future<void> _unlockEncryption(String password) async {
+    final playerOid = widget.session.playerCurie;
+    try {
+      _appendSystem('Unlocking history encryption...');
+      final derived = await EventLogEncryption.deriveKeyBytes(
+        password: password,
+        identifier: playerOid,
+      );
+      final identity = EventLogEncryption.identityFromDerivedBytes(derived);
+      await EventLogKeyStore.setIdentity(
+        playerOid: playerOid,
+        ageIdentity: identity,
+      );
+      _appendSystem('History encryption unlocked');
+      await _loadInitialHistory();
+    } on Object catch (e) {
+      _appendSystem('History encryption unlock failed: $e');
+    }
+  }
+
+  Future<void> _loadInitialHistory() async {
+    if (_historyLoading || _historyLoaded) {
+      return;
+    }
+
+    final playerOid = widget.session.playerCurie;
+    final identity = await EventLogKeyStore.getIdentity(playerOid);
+    if (identity == null || identity.trim().isEmpty) {
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _historyLoading = true;
+    });
+
+    try {
+      _appendSystem('Loading history...');
+      final api = MoorHttpApi(widget.session.baseUri);
+      final events = await api.fetchHistory(
+        authToken: widget.session.authToken,
+        sinceSeconds: 86400,
+        limit: 100,
+      );
+
+      final items = <NarrativeItem>[];
+      for (final ev in events) {
+        final decrypted = await decryptEventBlobAge(ev.encryptedBlob, identity);
+        final parsed = _parseNarrativeEnvelope(decrypted);
+        if (parsed == null) {
+          continue;
+        }
+        items.add(parsed);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _items.insertAll(0, items);
+        _historyLoaded = true;
+      });
+      _appendSystem('History loaded (${items.length} events)');
+    } on Object catch (e) {
+      _appendSystem('History load failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _historyLoading = false;
+        });
+      }
+    }
+  }
+
+  NarrativeItem? _parseNarrativeEnvelope(Uint8List bytes) {
+    final evt = moor_common.NarrativeEvent(bytes);
+    final e = evt.event;
+    if (e == null) {
+      return null;
+    }
+
+    final ts = DateTime.fromMillisecondsSinceEpoch(
+      (evt.timestamp / 1000000).toInt(),
+      isUtc: true,
+    ).toLocal();
+
+    final eventType = e.eventType?.value ?? 0;
+    if (eventType == moor_common.EventUnionTypeId.NotifyEvent.value) {
+      final notify = e.event as moor_common.NotifyEvent?;
+      if (notify == null) {
+        return null;
+      }
+      final lines = decodeVarAsLines(notify.value);
+      if (lines.isEmpty) return null;
+      final ct = normalizeContentType(notify.contentType?.value);
+      return NarrativeItem(
+        timestamp: ts,
+        content: lines,
+        contentType: ct,
+        noNewline: notify.noNewline,
+      );
+    }
+
+    if (eventType == moor_common.EventUnionTypeId.PresentEvent.value) {
+      final present = e.event as moor_common.PresentEvent?;
+      final p = present?.presentation;
+      if (p == null) return null;
+      final c = p.content ?? '';
+      final content = c.isEmpty ? const <String>[] : <String>[c];
+      if (content.isEmpty) return null;
+      final ct = normalizeContentType(p.contentType);
+      return NarrativeItem(
+        timestamp: ts,
+        content: content,
+        contentType: ct,
+        noNewline: false,
+      );
+    }
+
+    if (eventType == moor_common.EventUnionTypeId.TracebackEvent.value) {
+      final tb = e.event as moor_common.TracebackEvent?;
+      final ex = tb?.exception;
+      final bt = ex?.backtrace;
+      if (bt == null) return null;
+      final lines = <String>[];
+      for (final v in bt) {
+        final s = decodeVarAsLines(v);
+        if (s.isNotEmpty) {
+          lines.addAll(s);
+        }
+      }
+      if (lines.isEmpty) return null;
+      return NarrativeItem(
+        timestamp: ts,
+        content: [lines.join('\n')],
+        contentType: 'text/traceback',
+        noNewline: false,
+      );
+    }
+
+    // Ignore unpresent/data for now.
+    return null;
+  }
+
+  Future<void> _forgetLocalEncryptionKey() async {
+    final playerOid = widget.session.playerCurie;
+    await EventLogKeyStore.removeIdentity(playerOid);
+    if (!mounted) return;
+    setState(() {
+      _eventLogHasLocalKey = false;
+    });
+    _appendSystem('History encryption: forgot local key');
+  }
+
+  Future<void> _showEncryptionMenu() async {
+    final playerOid = widget.session.playerCurie;
+    final backendHas = _eventLogBackendHasPubkey;
+    final localHas = _eventLogHasLocalKey;
+
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('History Encryption'),
+          content: SelectableText(
+            'player: $playerOid\nbackend pubkey: ${backendHas ? "yes" : "no"}\nlocal key: ${localHas ? "yes" : "no"}',
+            style: const TextStyle(fontFamily: 'monospace'),
+          ),
+          actions: [
+            if (!backendHas)
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop('setup'),
+                child: const Text('Setup'),
+              ),
+            if (backendHas && !localHas)
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop('unlock'),
+                child: const Text('Unlock'),
+              ),
+            if (localHas)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('forget'),
+                child: const Text('Forget Local Key'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    switch (choice) {
+      case 'setup':
+        {
+          final password = await _promptHistoryPassword();
+          if (!mounted) return;
+          if (password == null || password.isEmpty) return;
+          await _setupEncryption(password);
+        }
+      case 'unlock':
+        {
+          final password = await _promptHistoryPassword();
+          if (!mounted) return;
+          if (password == null || password.isEmpty) return;
+          await _unlockEncryption(password);
+          if (!mounted) return;
+          setState(() {
+            _eventLogHasLocalKey = true;
+          });
+        }
+      case 'forget':
+        await _forgetLocalEncryptionKey();
+      default:
+        break;
+    }
+  }
+
+  Future<String?> _promptHistoryPassword() async {
+    final ctrl = TextEditingController();
+    final focus = FocusNode();
+    try {
+      final res = await showDialog<String>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Enter History Password'),
+            content: TextField(
+              controller: ctrl,
+              focusNode: focus,
+              autofocus: true,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+              ),
+              onSubmitted: (_) => Navigator.of(context).pop(ctrl.text),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(ctrl.text),
+                child: const Text('Unlock'),
+              ),
+            ],
+          );
+        },
+      );
+      return res;
+    } finally {
+      ctrl.dispose();
+      focus.dispose();
     }
   }
 
@@ -578,6 +950,13 @@ class _SessionScreenState extends State<SessionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.session.playerCurie} ($_status)'),
+        actions: [
+          IconButton(
+            onPressed: _showEncryptionMenu,
+            tooltip: 'History encryption',
+            icon: const Icon(Icons.lock_outline),
+          ),
+        ],
       ),
       body: Column(
         children: [

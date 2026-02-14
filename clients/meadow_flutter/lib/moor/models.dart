@@ -12,6 +12,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:typed_data';
+
 class WelcomeMessage {
   final List<String> lines;
   final String contentType;
@@ -53,5 +55,15 @@ class NarrativeItem {
     required this.content,
     required this.contentType,
     required this.noNewline,
+  });
+}
+
+class EncryptedHistoricalEvent {
+  final Uint8List encryptedBlob;
+  final bool isHistorical;
+
+  const EncryptedHistoricalEvent({
+    required this.encryptedBlob,
+    required this.isHistorical,
   });
 }

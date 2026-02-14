@@ -12,6 +12,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -162,6 +163,120 @@ class MoorHttpApi {
       // For the spike: treat missing client creds as a fresh attach.
       isInitialAttach: clientToken == null || clientId == null,
     );
+  }
+
+  Future<String?> getEventLogPubkey({required String authToken}) async {
+    final uri = _resolve('/v1/event-log/pubkey');
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/json',
+      },
+    );
+
+    if (resp.statusCode == 401) {
+      throw Exception('event log pubkey: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'event log pubkey http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! Map) {
+      throw Exception('event log pubkey: invalid json');
+    }
+    final pk = decoded['public_key'];
+    return pk is String ? pk : null;
+  }
+
+  Future<void> setEventLogPubkey({
+    required String authToken,
+    required String publicKey,
+  }) async {
+    final uri = _resolve('/v1/event-log/pubkey');
+    final resp = await http.put(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'public_key': publicKey}),
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('event log pubkey: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'event log pubkey http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+  }
+
+  Future<List<EncryptedHistoricalEvent>> fetchHistory({
+    required String authToken,
+    int? sinceSeconds,
+    String? sinceEvent,
+    String? untilEvent,
+    int? limit,
+  }) async {
+    final params = <String, String>{};
+    if (sinceSeconds != null) {
+      params['since_seconds'] = sinceSeconds.toString();
+    }
+    if (sinceEvent != null) {
+      params['since_event'] = sinceEvent;
+    }
+    if (untilEvent != null) {
+      params['until_event'] = untilEvent;
+    }
+    if (limit != null) {
+      params['limit'] = limit.toString();
+    }
+
+    final uri = _resolve('/v1/history').replace(queryParameters: params);
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+
+    if (resp.statusCode == 401) {
+      throw Exception('history: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('history http ${resp.statusCode}: ${resp.reasonPhrase}');
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'history');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc.DaemonToClientReplyUnionTypeId.HistoryResponseReply.value) {
+      throw Exception('history: unexpected reply type $replyType');
+    }
+
+    final historyReply = reply.reply as moor_rpc.HistoryResponseReply?;
+    final history = historyReply?.response;
+    final events =
+        history?.events ?? const <moor_rpc.HistoricalNarrativeEvent>[];
+
+    final out = <EncryptedHistoricalEvent>[];
+    for (final e in events) {
+      final blob = e.encryptedBlob;
+      if (blob == null || blob.isEmpty) continue;
+      out.add(
+        EncryptedHistoricalEvent(
+          encryptedBlob: Uint8List.fromList(blob),
+          isHistorical: e.isHistorical,
+        ),
+      );
+    }
+    return out;
   }
 
   moor_rpc.DaemonToClientReply _parseClientSuccess(
