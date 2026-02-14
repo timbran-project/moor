@@ -101,21 +101,9 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
 
             switch (parsedEvent.kind) {
                 case "present":
-                    return {
-                        message: null,
-                        presentationAction: {
-                            kind: "present",
-                            data: toPresentationData(parsedEvent.presentation),
-                        },
-                    };
+                    return { message: null };
                 case "unpresent":
-                    return {
-                        message: null,
-                        presentationAction: {
-                            kind: "unpresent",
-                            id: parsedEvent.presentationId,
-                        },
-                    };
+                    return { message: null };
                 case "traceback":
                     return {
                         message: {

@@ -12,12 +12,31 @@
 //
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ContentRenderer } from "./ContentRenderer";
 
 export interface InspectAction {
     label: string;
-    verb: string;
-    target: string; // CURIE like "oid:123"
-    args?: string[]; // Optional CURIE args (object refs)
+    verb?: string;
+    target?: string; // CURIE like "oid:123"
+    args?: string[]; // Optional args (object refs and/or plain strings)
+    kind?: "invoke" | "command";
+    command?: string;
+    inputType?: "text";
+    inputPrompt?: string;
+    inputPlaceholder?: string;
+    resultMode?: "popover" | "narrative" | "panel";
+    panelTarget?:
+        | "left"
+        | "right"
+        | "top"
+        | "bottom"
+        | "tools"
+        | "status"
+        | "inventory"
+        | "navigation"
+        | "communication";
+    panelId?: string;
+    panelTitle?: string;
 }
 
 export interface InspectData {
@@ -36,7 +55,7 @@ interface InspectPopoverProps {
     data: InspectData;
     position: { x: number; y: number };
     onClose: () => void;
-    onAction: (verb: string, target: string, args?: string[]) => Promise<ActionOutputEvent[]>;
+    onAction: (action: InspectAction, inputValue?: string) => Promise<ActionOutputEvent[]>;
     autoCloseMs?: number;
     isPreview?: boolean;
 }
@@ -67,13 +86,12 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     // Auto-close after inactivity (only for non-preview mode)
     useEffect(() => {
         if (isPreview) return;
-        resetAutoClose();
         return () => {
             if (autoCloseTimerRef.current) {
                 clearTimeout(autoCloseTimerRef.current);
             }
         };
-    }, [resetAutoClose, isPreview]);
+    }, [isPreview]);
 
     // Close on click outside (only for non-preview mode)
     useEffect(() => {
@@ -136,7 +154,6 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
 
     // State for feedback messages
     const [feedback, setFeedback] = useState<string[]>([]);
-    const [feedbackFading, setFeedbackFading] = useState(false);
     const [actionsDisabled, setActionsDisabled] = useState(false);
 
     const handleActionClick = useCallback(async (action: InspectAction) => {
@@ -144,10 +161,24 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
         if (actionsDisabled) return;
         setActionsDisabled(true);
         setFeedback([]);
-        setFeedbackFading(false);
 
         try {
-            const output = await onAction(action.verb, action.target, action.args);
+            let inputValue: string | undefined;
+            if (action.inputType === "text") {
+                const response = window.prompt(action.inputPrompt ?? action.label, "");
+                if (response === null) {
+                    setActionsDisabled(false);
+                    return;
+                }
+                inputValue = response.trim();
+                if (!inputValue) {
+                    setFeedback(["No input provided."]);
+                    setActionsDisabled(false);
+                    return;
+                }
+            }
+
+            const output = await onAction(action, inputValue);
 
             // Extract text content from NotifyEvents
             const messages: string[] = [];
@@ -166,19 +197,14 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
 
             if (messages.length > 0) {
                 setFeedback(messages);
-                // Start fade after delay
-                setTimeout(() => setFeedbackFading(true), 2000);
-                // Close after fade completes
-                setTimeout(() => onClose(), 3000);
+                setActionsDisabled(false);
             } else {
                 onClose();
             }
         } catch (error) {
             setFeedback([`Error: ${error instanceof Error ? error.message : String(error)}`]);
-            setTimeout(() => setFeedbackFading(true), 2000);
-            setTimeout(() => onClose(), 3000);
+            setActionsDisabled(false);
         }
-        // Note: we don't re-enable actions - the popover will close
     }, [actionsDisabled, onAction, onClose]);
 
     return (
@@ -191,8 +217,6 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                 top: position.y,
                 zIndex: 10000,
             }}
-            onMouseMove={isPreview ? undefined : resetAutoClose}
-            onMouseEnter={isPreview ? undefined : resetAutoClose}
         >
             <div className="inspect-popover-header">
                 <span className="inspect-popover-title">{data.title}</span>
@@ -224,10 +248,10 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                 </div>
             )}
             {feedback.length > 0 && (
-                <div className={`inspect-popover-feedback${feedbackFading ? " fading" : ""}`}>
+                <div className="inspect-popover-feedback">
                     {feedback.map((msg, index) => (
                         <div key={index} className="inspect-popover-feedback-message">
-                            {msg}
+                            <ContentRenderer content={msg} contentType="text/plain" />
                         </div>
                     ))}
                 </div>

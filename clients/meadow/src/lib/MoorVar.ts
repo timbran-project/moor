@@ -18,7 +18,7 @@ import { VarList } from "@moor/schema/generated/moor-var/var-list";
 import { VarStr } from "@moor/schema/generated/moor-var/var-str";
 import { VarSym } from "@moor/schema/generated/moor-var/var-sym";
 import { VarUnion } from "@moor/schema/generated/moor-var/var-union";
-import { MoorVar as SharedMoorVar } from "@moor/web-sdk";
+import { buildObjRefOffset, MoorVar as SharedMoorVar } from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 
 // Meadow-specific extension of the shared protocol-level MoorVar.
@@ -120,6 +120,44 @@ export class MoorVar extends SharedMoorVar {
         const outerListVarOffset = FbVar.createVar(builder, VarUnion.VarList, outerListOffset);
 
         builder.finish(outerListVarOffset);
+        return builder.asUint8Array();
+    }
+
+    /**
+     * Build invoke args for inspect actions, supporting both object refs and plain strings.
+     */
+    static buildInvokeArgs(values: string[]): Uint8Array {
+        const builder = new flatbuffers.Builder(256 + values.length * 64);
+        const offsets: number[] = [];
+
+        for (const raw of values) {
+            const value = (raw ?? "").trim();
+            if (!value) {
+                continue;
+            }
+
+            let offset: number | null = null;
+            if (value.startsWith("oid:") || value.startsWith("uuid:")) {
+                try {
+                    offset = buildObjRefOffset(builder, value);
+                } catch {
+                    offset = null;
+                }
+            }
+
+            if (offset === null) {
+                const strOffset = builder.createString(value);
+                const varStrOffset = VarStr.createVarStr(builder, strOffset);
+                offset = FbVar.createVar(builder, VarUnion.VarStr, varStrOffset);
+            }
+
+            offsets.push(offset);
+        }
+
+        const elementsVectorOffset = VarList.createElementsVector(builder, offsets);
+        const varListOffset = VarList.createVarList(builder, elementsVectorOffset);
+        const listVarOffset = FbVar.createVar(builder, VarUnion.VarList, varListOffset);
+        builder.finish(listVarOffset);
         return builder.asUint8Array();
     }
 }

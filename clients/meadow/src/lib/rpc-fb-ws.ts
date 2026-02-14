@@ -317,6 +317,13 @@ export function handleClientEventFlatBuffer(
                                 && typeof maybeData.namespace === "string"
                                 && typeof maybeData.eventKind === "string"
                             ) {
+                                console.debug("[WS] DataEvent (dynamic path)", {
+                                    namespace: maybeData.namespace,
+                                    eventKind: maybeData.eventKind,
+                                    payloadType: typeof maybeData.payload,
+                                    eventId,
+                                    timestamp,
+                                });
                                 onDataMessage({
                                     namespace: maybeData.namespace,
                                     eventKind: maybeData.eventKind,

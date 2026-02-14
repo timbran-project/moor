@@ -22,7 +22,7 @@ import { EncryptionPasswordPrompt } from "./components/EncryptionPasswordPrompt"
 import { EncryptionSetupPrompt } from "./components/EncryptionSetupPrompt";
 import { EvalPanel } from "./components/EvalPanel";
 import { ExternalLinkModal } from "./components/ExternalLinkModal";
-import { InspectData, InspectPopover } from "./components/InspectPopover";
+import { InspectAction, InspectData, InspectPopover } from "./components/InspectPopover";
 import { Login, useWelcomeMessage } from "./components/Login";
 import { MessageBoard, useSystemMessage } from "./components/MessageBoard";
 import { Narrative, NarrativeMessage, NarrativeRef } from "./components/Narrative";
@@ -2280,12 +2280,82 @@ function AppContent({
                     data={inspectPopover.data}
                     position={inspectPopover.position}
                     onClose={() => setInspectPopover(null)}
-                    onAction={async (verb, target, args) => {
+                    onAction={async (action: InspectAction, inputValue?: string) => {
+                        const extractOutputMessages = (output: Array<{ eventType: string; event: any }>): string[] => {
+                            const messages: string[] = [];
+                            for (const evt of output) {
+                                if (evt.eventType === "NotifyEvent" && evt.event?.value) {
+                                    const value = evt.event.value;
+                                    if (typeof value === "string") {
+                                        messages.push(value);
+                                    } else if (Array.isArray(value)) {
+                                        const text = value
+                                            .map((item) => (typeof item === "string" ? item : String(item)))
+                                            .join("\n");
+                                        messages.push(text);
+                                    } else {
+                                        messages.push(String(value));
+                                    }
+                                    continue;
+                                }
+                                if (evt.eventType === "TracebackEvent" && Array.isArray(evt.event?.backtrace)) {
+                                    messages.push(evt.event.backtrace.join("\n"));
+                                }
+                            }
+                            return messages;
+                        };
+
                         if (!authToken) return [];
-                        const argsBytes = args && args.length > 0
-                            ? MoorVar.buildObjRefList(args)
+                        if (action.kind === "command" || action.command) {
+                            let command = action.command ?? "";
+                            if (inputValue) {
+                                command = command.includes("{input}")
+                                    ? command.split("{input}").join(inputValue)
+                                    : `${command} ${inputValue}`.trim();
+                            }
+                            if (!command) {
+                                return [];
+                            }
+                            sendMessage(command);
+                            return [];
+                        }
+
+                        if (!action.verb || !action.target) {
+                            return [];
+                        }
+
+                        const invokeArgs = action.args ? [...action.args] : [];
+                        if (inputValue) {
+                            invokeArgs.push(inputValue);
+                        }
+
+                        const argsBytes = invokeArgs.length > 0
+                            ? MoorVar.buildInvokeArgs(invokeArgs)
                             : undefined;
-                        const { output } = await invokeVerbFlatBuffer(authToken, target, verb, argsBytes);
+                        const { output } = await invokeVerbFlatBuffer(authToken, action.target, action.verb, argsBytes);
+
+                        if (action.resultMode === "panel") {
+                            const messages = extractOutputMessages(output);
+                            if (messages.length > 0) {
+                                const presentationId = action.panelId
+                                    || `inspect-action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+                                const panelTarget = action.panelTarget ?? "tools";
+                                const panelTitle = action.panelTitle ?? action.label;
+                                addPresentation({
+                                    id: presentationId,
+                                    target: panelTarget,
+                                    content_type: "text/plain",
+                                    content: messages.join("\n"),
+                                    attributes: [
+                                        ["title", panelTitle],
+                                        ["kind", "action_output"],
+                                        ["source", "inspect_action"],
+                                    ],
+                                });
+                            }
+                            return [];
+                        }
+
                         return output;
                     }}
                     isPreview={inspectPopover.isPreview}
@@ -2535,14 +2605,38 @@ function AppWrapper() {
     };
 
     const handleDataMessage = useCallback((event: DataMessageHandlerEvent) => {
+        console.debug("[Meadow] handleDataMessage received", {
+            namespace: event.namespace,
+            eventKind: event.eventKind,
+            payloadType: typeof event.payload,
+            payloadIsArray: Array.isArray(event.payload),
+            payloadKeys: event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+                ? Object.keys(event.payload as Record<string, unknown>)
+                : [],
+            timestamp: event.timestamp,
+            eventId: event.eventId,
+        });
+
         if (event.namespace !== "state" || event.eventKind !== "room_snapshot") {
+            console.debug("[Meadow] handleDataMessage ignored (namespace/kind mismatch)", {
+                namespace: event.namespace,
+                eventKind: event.eventKind,
+            });
             return;
         }
 
         const presentation = roomSnapshotToPresentation(event.payload);
         if (!presentation) {
+            console.debug("[Meadow] room_snapshot payload rejected by roomSnapshotToPresentation", {
+                payload: event.payload,
+            });
             return;
         }
+        console.debug("[Meadow] room_snapshot converted to presentation", {
+            id: presentation.id,
+            target: presentation.target,
+            attributes: presentation.attributes,
+        });
         addPresentation(presentation);
     }, [addPresentation]);
 
