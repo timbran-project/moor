@@ -31,6 +31,7 @@ import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/var_decode.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
+import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/command_controller.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
 import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
@@ -43,7 +44,7 @@ void main(List<String> args) {
   runApp(MeadowApp(launchArgs: launchArgs));
 }
 
-class MeadowApp extends StatelessWidget {
+class MeadowApp extends StatefulWidget {
   final LaunchArgs launchArgs;
 
   const MeadowApp({
@@ -52,15 +53,57 @@ class MeadowApp extends StatelessWidget {
   });
 
   @override
+  State<MeadowApp> createState() => _MeadowAppState();
+}
+
+class _ThemeController extends ChangeNotifier {
+  ThemeMode _mode = ThemeMode.dark;
+
+  ThemeMode get mode => _mode;
+
+  set mode(ThemeMode v) {
+    if (v == _mode) return;
+    _mode = v;
+    notifyListeners();
+  }
+}
+
+class _ThemeScope extends InheritedNotifier<_ThemeController> {
+  const _ThemeScope({
+    required super.notifier,
+    required super.child,
+  });
+
+  static _ThemeController of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_ThemeScope>();
+    final ctrl = scope?.notifier;
+    if (ctrl == null) {
+      throw StateError('Theme scope not found');
+    }
+    return ctrl;
+  }
+}
+
+class _MeadowAppState extends State<MeadowApp> {
+  final _theme = _ThemeController();
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Meadow (Flutter Spike)',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0B3B2E)),
-        useMaterial3: true,
+    return _ThemeScope(
+      notifier: _theme,
+      child: AnimatedBuilder(
+        animation: _theme,
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'Meadow (Flutter Spike)',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: _theme.mode,
+            home: LoginScreen(launchArgs: widget.launchArgs),
+          );
+        },
       ),
-      home: LoginScreen(launchArgs: launchArgs),
     );
   }
 }
@@ -1599,6 +1642,7 @@ class _SessionScreenState extends State<SessionScreen> {
         var roomHudEnabled = _roomHudEnabled;
         var showNarrativeMeta = _showNarrativeMeta;
         var verbPaletteEnabled = _verbPaletteEnabled;
+        var themeMode = _ThemeScope.of(context).mode;
 
         return StatefulBuilder(
           builder: (context, modalSetState) {
@@ -1660,6 +1704,32 @@ class _SessionScreenState extends State<SessionScreen> {
                         setState(() {
                           _verbPaletteEnabled = v;
                         });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Theme',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 6),
+                    SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment<ThemeMode>(
+                          value: ThemeMode.light,
+                          label: Text('Light'),
+                        ),
+                        ButtonSegment<ThemeMode>(
+                          value: ThemeMode.dark,
+                          label: Text('Dark'),
+                        ),
+                      ],
+                      selected: {themeMode},
+                      onSelectionChanged: (s) {
+                        final next = s.first;
+                        modalSetState(() {
+                          themeMode = next;
+                        });
+                        _ThemeScope.of(context).mode = next;
                       },
                     ),
                   ],
