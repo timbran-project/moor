@@ -974,14 +974,36 @@ class _SessionScreenState extends State<SessionScreen> {
       final lines = decodeVarAsLines(notify.value);
       if (lines.isEmpty) return null;
       final ct = normalizeContentType(notify.contentType?.value);
+
+      String? presentationHint;
+      String? groupId;
+      final eventMetadata = <String, Object?>{};
+      final md = notify.metadata;
+      if (md != null) {
+        for (final m in md) {
+          final k = m.key?.value;
+          if (k == null || k.isEmpty) continue;
+          final v = decodeVarLoose(m.value);
+          eventMetadata[k] = v;
+          if (presentationHint == null &&
+              (k == 'presentation_hint' || k == 'presentationHint') &&
+              v is String) {
+            presentationHint = v;
+          }
+          if (groupId == null && k == 'group_id' && v is String) {
+            groupId = v;
+          }
+        }
+      }
       return NarrativeItem(
         id: _newId('h'),
         timestamp: ts,
         content: lines,
         contentType: ct,
         noNewline: notify.noNewline,
-        presentationHint: null,
-        eventMetadata: null,
+        presentationHint: presentationHint,
+        groupId: groupId,
+        eventMetadata: eventMetadata.isEmpty ? null : eventMetadata,
       );
     }
 
@@ -1000,6 +1022,7 @@ class _SessionScreenState extends State<SessionScreen> {
         contentType: ct,
         noNewline: false,
         presentationHint: null,
+        groupId: null,
         eventMetadata: null,
       );
     }
@@ -1024,6 +1047,7 @@ class _SessionScreenState extends State<SessionScreen> {
         contentType: 'text/traceback',
         noNewline: false,
         presentationHint: null,
+        groupId: null,
         eventMetadata: null,
       );
     }
@@ -1156,6 +1180,7 @@ class _SessionScreenState extends State<SessionScreen> {
         contentType: 'text/plain',
         noNewline: false,
         presentationHint: null,
+        groupId: null,
         eventMetadata: null,
       ),
     );
@@ -1179,6 +1204,55 @@ class _SessionScreenState extends State<SessionScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
+
+  static Object? _actorKey(Map<String, Object?>? md) {
+    final actor = md?['actor'];
+    if (actor is Map) {
+      final oid = actor['oid'];
+      if (oid != null) return 'oid:$oid';
+      final uuid = actor['uuid'];
+      if (uuid != null) return 'uuid:$uuid';
+    }
+    return null;
+  }
+
+  static bool _sameActor(NarrativeItem a, NarrativeItem b) {
+    final ak = _actorKey(a.eventMetadata);
+    final bk = _actorKey(b.eventMetadata);
+    if (ak == null || bk == null) return true;
+    return ak == bk;
+  }
+
+  static List<List<NarrativeItem>> _groupNarrativeItems(
+    List<NarrativeItem> items,
+  ) {
+    if (items.isEmpty) return const <List<NarrativeItem>>[];
+
+    final grouped = <List<NarrativeItem>>[];
+    var current = <NarrativeItem>[];
+
+    for (var i = 0; i < items.length; i++) {
+      final it = items[i];
+      current.add(it);
+
+      final next = (i + 1) < items.length ? items[i + 1] : null;
+      final sameHintGroup =
+          it.presentationHint != null &&
+          next?.presentationHint == it.presentationHint &&
+          it.groupId != null &&
+          it.groupId == next?.groupId &&
+          next != null &&
+          _sameActor(it, next);
+      final shouldContinueGroup = it.noNewline || sameHintGroup;
+
+      if (!shouldContinueGroup || i == items.length - 1) {
+        grouped.add(current);
+        current = <NarrativeItem>[];
+      }
+    }
+
+    return grouped;
   }
 
   void _send() {
@@ -1721,66 +1795,127 @@ class _SessionScreenState extends State<SessionScreen> {
                           ),
                         ),
                         clipBehavior: Clip.antiAlias,
-                        child: ListView.builder(
-                          key: _listKey,
-                          controller: _scrollCtrl,
-                          itemCount: _items.length,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, idx) {
-                            final it = _items[idx];
-                            final key = _messageKeys.putIfAbsent(
-                              it.id,
-                              GlobalKey.new,
-                            );
-                            final ts = it.timestamp
-                                .toIso8601String()
-                                .split('T')
-                                .last;
-                            return Container(
-                              key: key,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (_showNarrativeMeta) ...[
-                                    Row(
+                        child: Builder(
+                          builder: (context) {
+                            final groups = _groupNarrativeItems(_items);
+                            return ListView.builder(
+                              key: _listKey,
+                              controller: _scrollCtrl,
+                              itemCount: groups.length,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemBuilder: (context, idx) {
+                                final group = groups[idx];
+                                final first = group.first;
+                                final cs = Theme.of(context).colorScheme;
+
+                                Widget buildMessage(NarrativeItem it) {
+                                  final key = _messageKeys.putIfAbsent(
+                                    it.id,
+                                    GlobalKey.new,
+                                  );
+                                  final ts = it.timestamp
+                                      .toIso8601String()
+                                      .split('T')
+                                      .last;
+                                  return Container(
+                                    key: key,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          ts,
-                                          style: TextStyle(
-                                            fontFamily: 'monospace',
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.outline,
-                                            fontSize: 12,
+                                        if (_showNarrativeMeta) ...[
+                                          Row(
+                                            children: [
+                                              Text(
+                                                ts,
+                                                style: TextStyle(
+                                                  fontFamily: 'monospace',
+                                                  color: cs.outline,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                it.contentType,
+                                                style: TextStyle(
+                                                  fontFamily: 'monospace',
+                                                  color: cs.outline,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          it.contentType,
-                                          style: TextStyle(
-                                            fontFamily: 'monospace',
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.outline,
-                                            fontSize: 12,
-                                          ),
+                                          const SizedBox(height: 2),
+                                        ],
+                                        ContentRenderer(
+                                          content: it.content,
+                                          contentType: it.contentType,
+                                          isStale: false,
+                                          onLinkTap: _handleLinkTap,
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 2),
+                                  );
+                                }
+
+                                final hint = first.presentationHint;
+                                final isInset = hint == 'inset';
+                                final isHintGroup =
+                                    hint != null &&
+                                    first.groupId != null &&
+                                    group.every(
+                                      (m) =>
+                                          m.presentationHint == hint &&
+                                          m.groupId == first.groupId,
+                                    );
+
+                                final inner = Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (final it in group) buildMessage(it),
                                   ],
-                                  ContentRenderer(
-                                    content: it.content,
-                                    contentType: it.contentType,
-                                    isStale: false,
-                                    onLinkTap: _handleLinkTap,
+                                );
+
+                                if (!isInset) {
+                                  if (group.length == 1 && !isHintGroup) {
+                                    return inner;
+                                  }
+                                  return inner;
+                                }
+
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
                                   ),
-                                ],
-                              ),
+                                  child: Semantics(
+                                    container: true,
+                                    label: 'Inset',
+                                    child: Card(
+                                      elevation: 0,
+                                      color: cs.surfaceContainerLow,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: BorderSide(
+                                          color: cs.primary,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        child: inner,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),

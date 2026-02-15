@@ -228,6 +228,7 @@ class MoorWsClient {
         final ct = normalizeContentType(notify.contentType?.value);
 
         String? presentationHint;
+        String? groupId;
         final eventMetadata = <String, Object?>{};
         final md = notify.metadata;
         if (md != null) {
@@ -241,6 +242,9 @@ class MoorWsClient {
                 v is String) {
               presentationHint = v;
             }
+            if (groupId == null && k == 'group_id' && v is String) {
+              groupId = v;
+            }
           }
         }
 
@@ -252,6 +256,7 @@ class MoorWsClient {
             contentType: ct,
             noNewline: notify.noNewline,
             presentationHint: presentationHint,
+            groupId: groupId,
             eventMetadata: eventMetadata.isEmpty ? null : eventMetadata,
           ),
         );
@@ -287,6 +292,7 @@ class MoorWsClient {
             contentType: normalizeContentType(pres.contentType),
             noNewline: false,
             presentationHint: null,
+            groupId: null,
             eventMetadata: null,
           ),
         );
@@ -312,6 +318,7 @@ class MoorWsClient {
             contentType: 'text/traceback',
             noNewline: false,
             presentationHint: null,
+            groupId: null,
             eventMetadata: null,
           ),
         );

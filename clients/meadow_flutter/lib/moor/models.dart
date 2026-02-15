@@ -51,6 +51,7 @@ class NarrativeItem {
   final String contentType;
   final bool noNewline;
   final String? presentationHint;
+  final String? groupId;
   final Map<String, Object?>? eventMetadata;
 
   const NarrativeItem({
@@ -60,6 +61,7 @@ class NarrativeItem {
     required this.contentType,
     required this.noNewline,
     required this.presentationHint,
+    required this.groupId,
     required this.eventMetadata,
   });
 }
