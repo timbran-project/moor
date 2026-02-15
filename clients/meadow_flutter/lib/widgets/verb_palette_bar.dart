@@ -47,12 +47,17 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
   void initState() {
     super.initState();
     _ctrl.addListener(_recomputeEdges);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _recomputeEdges());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _recomputeEdges();
+    });
   }
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    _focusNode
+      ..unfocus()
+      ..dispose();
     _ctrl
       ..removeListener(_recomputeEdges)
       ..dispose();
@@ -73,6 +78,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
   }
 
   void _ensureSelectedVisible() {
+    if (!mounted) return;
     final sel = _selectedIndex;
     if (sel == null) return;
     if (sel < 0 || sel >= _itemKeys.length) return;
@@ -88,6 +94,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
   }
 
   void _recomputeEdges() {
+    if (!mounted) return;
     if (!_ctrl.hasClients) return;
     final pos = _ctrl.position;
     final canScroll = pos.maxScrollExtent > 0;
@@ -165,6 +172,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
         focusNode: _focusNode,
         onKeyEvent: _handleKey,
         onFocusChange: (v) {
+          if (!mounted) return;
           setState(() {
             _hasFocus = v;
             if (!v) {
@@ -190,6 +198,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () {
+              if (!mounted) return;
               if (!_focusNode.hasFocus) {
                 FocusScope.of(context).requestFocus(_focusNode);
               }
@@ -208,6 +217,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
                     behavior: scrollBehavior,
                     child: Listener(
                       onPointerSignal: (event) {
+                        if (!mounted) return;
                         if (event is! PointerScrollEvent) return;
                         if (!_ctrl.hasClients) return;
                         final next = (_ctrl.offset + event.scrollDelta.dy)
@@ -236,6 +246,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
                                 label: v.label,
                                 selected: selected,
                                 onPressed: () {
+                                  if (!mounted) return;
                                   FocusScope.of(
                                     context,
                                   ).requestFocus(_focusNode);

@@ -132,12 +132,12 @@ class MoorHttpApi {
       throw Exception('auth http ${resp.statusCode}: ${resp.reasonPhrase}');
     }
 
-    final authToken = resp.headers['x-moor-auth-token'];
+    final authToken = resp.headers['x-moor-auth-token']?.trim();
     if (authToken == null || authToken.isEmpty) {
       throw Exception('auth: missing X-Moor-Auth-Token');
     }
-    final clientToken = resp.headers['x-moor-client-token'];
-    final clientId = resp.headers['x-moor-client-id'];
+    final clientToken = resp.headers['x-moor-client-token']?.trim();
+    final clientId = resp.headers['x-moor-client-id']?.trim();
 
     final reply = _parseClientSuccess(resp.bodyBytes, context: 'auth');
     final replyType = reply.replyType?.value ?? 0;

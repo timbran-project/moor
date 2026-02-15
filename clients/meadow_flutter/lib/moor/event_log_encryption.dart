@@ -12,39 +12,23 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:convert';
-import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:argon2/argon2.dart';
 import 'package:bech32/bech32.dart';
 import 'package:cryptography/cryptography.dart';
+
+import 'package:meadow_flutter/moor/event_log_kdf.dart';
 
 /// Event-log crypto helpers matching Meadow web:
 /// - Argon2id derives 32 bytes using salt "moor-event-log-v1-$identifier"
 /// - Derived bytes are encoded as AGE-SECRET-KEY-1... (bech32 hrp "age-secret-key-")
 /// - Public key is X25519 basepoint multiplication encoded as age1... (bech32 hrp "age")
 class EventLogEncryption {
-  static const _kdfSaltPrefix = 'moor-event-log-v1-';
-
   static Future<Uint8List> deriveKeyBytes({
     required String password,
     required String identifier,
   }) async {
-    return Isolate.run(() {
-      final salt = utf8.encode('$_kdfSaltPrefix$identifier');
-      final params = Argon2Parameters(
-        Argon2Parameters.ARGON2_id,
-        Uint8List.fromList(salt),
-        memory: 65536, // 64 MiB (memory blocks are 1KiB each)
-        lanes: 4,
-      );
-
-      final gen = Argon2BytesGenerator()..init(params);
-      final out = Uint8List(32);
-      gen.generateBytesFromString(password, out);
-      return out;
-    });
+    return deriveEventLogKeyBytes(password: password, identifier: identifier);
   }
 
   static String identityFromDerivedBytes(Uint8List bytes) {

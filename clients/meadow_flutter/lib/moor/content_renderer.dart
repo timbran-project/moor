@@ -16,16 +16,38 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:meadow_flutter/moor/ansi_to_restricted_html.dart';
 import 'package:meadow_flutter/moor/djot/djot.dart';
 import 'package:meadow_flutter/moor/html_sanitize.dart';
 
 typedef LinkTapHandler = void Function(String url);
+
+const _emojiFontFallback = <String>[
+  'Noto Color Emoji', // Linux
+  'Segoe UI Emoji', // Windows
+  'Apple Color Emoji', // macOS
+  'Noto Emoji',
+  'Symbola',
+];
+
+// When rendering monospace, keep monospace fallbacks first to avoid breaking
+// spacing, and only then fall back to emoji fonts.
+const _monospaceFontFallback = <String>[
+  'Noto Sans Mono',
+  'DejaVu Sans Mono',
+  'Liberation Mono',
+  'Consolas',
+  'Menlo',
+  'Courier New',
+  ..._emojiFontFallback,
+];
 
 class ContentRenderer extends StatelessWidget {
   final List<String> content;
   final String contentType;
   final bool isStale;
   final LinkTapHandler? onLinkTap;
+  final bool monospace;
 
   const ContentRenderer({
     super.key,
@@ -33,6 +55,7 @@ class ContentRenderer extends StatelessWidget {
     required this.contentType,
     required this.isStale,
     required this.onLinkTap,
+    required this.monospace,
   });
 
   @override
@@ -40,10 +63,37 @@ class ContentRenderer extends StatelessWidget {
     final joined = content.join('\n');
     final child = _buildInner(context, joined);
     // Make output selectable for copy/paste. HtmlWidget supports SelectionArea.
-    return SelectionArea(child: child);
+    if (!monospace) {
+      return SelectionArea(child: child);
+    }
+    return DefaultTextStyle.merge(
+      style: const TextStyle(
+        fontFamily: 'monospace',
+        fontFamilyFallback: _monospaceFontFallback,
+      ),
+      child: SelectionArea(child: child),
+    );
   }
 
   Widget _buildInner(BuildContext context, String joined) {
+    // Some backend output can be mislabeled as HTML but still contain ANSI SGR
+    // sequences; detect ESC and force it through the ANSI->HTML path first.
+    if (contentType != 'text/x-uri' && containsAnsiEscapeCodes(joined)) {
+      final html = sanitizeRestrictedHtml(ansiToRestrictedHtml(joined));
+      if (contentType == 'text/traceback') {
+        return _PreformattedHtml(
+          html: html,
+          isStale: isStale,
+          onLinkTap: onLinkTap,
+        );
+      }
+      return _HtmlBlock(
+        html: html,
+        isStale: isStale,
+        onLinkTap: onLinkTap,
+      );
+    }
+
     switch (contentType) {
       case 'text/html':
         {
@@ -104,7 +154,36 @@ class _Preformatted extends StatelessWidget {
       ),
       child: SelectableText(
         text,
-        style: const TextStyle(fontFamily: 'monospace'),
+        style: DefaultTextStyle.of(context).style,
+      ),
+    );
+  }
+}
+
+class _PreformattedHtml extends StatelessWidget {
+  final String html;
+  final bool isStale;
+  final LinkTapHandler? onLinkTap;
+
+  const _PreformattedHtml({
+    required this.html,
+    required this.isStale,
+    required this.onLinkTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: _HtmlBlock(
+        html: html,
+        isStale: isStale,
+        onLinkTap: onLinkTap,
       ),
     );
   }
@@ -125,7 +204,7 @@ class _HtmlBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return HtmlWidget(
       html,
-      textStyle: const TextStyle(fontFamily: 'monospace'),
+      textStyle: DefaultTextStyle.of(context).style,
       customStylesBuilder: (element) {
         final tag = element.localName;
         if (tag == null) return null;
@@ -211,7 +290,7 @@ class _PlainTextBlock extends StatelessWidget {
     final spans = _buildSpans(context, text);
     return SelectableText.rich(
       TextSpan(children: spans),
-      style: const TextStyle(fontFamily: 'monospace'),
+      style: DefaultTextStyle.of(context).style,
     );
   }
 

@@ -12,6 +12,10 @@ include: package:very_good_analysis/analysis_options.yaml
 analyzer:
   exclude:
     - lib/fbs/**.dart
+    - third_party/**
+    # Web-only JS interop. `package:js/js_util.dart` re-exports `dart:js_util`,
+    # which the VM analyzer cannot resolve.
+    - lib/moor/event_log_kdf_web.dart
 
 linter:
   # The lint rules applied to this project can be customized in the

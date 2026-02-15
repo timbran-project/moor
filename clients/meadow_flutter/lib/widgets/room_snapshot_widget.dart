@@ -175,7 +175,10 @@ class _ChipRailState extends State<_ChipRail> {
   void initState() {
     super.initState();
     _ctrl.addListener(_recomputeEdges);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _recomputeEdges());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _recomputeEdges();
+    });
   }
 
   @override
@@ -187,6 +190,7 @@ class _ChipRailState extends State<_ChipRail> {
   }
 
   void _recomputeEdges() {
+    if (!mounted) return;
     if (!_ctrl.hasClients) return;
     final pos = _ctrl.position;
     final canScroll = pos.maxScrollExtent > 0;
@@ -226,6 +230,7 @@ class _ChipRailState extends State<_ChipRail> {
             behavior: scrollBehavior,
             child: Listener(
               onPointerSignal: (event) {
+                if (!mounted) return;
                 if (event is! PointerScrollEvent) return;
                 if (!_ctrl.hasClients) return;
                 // Map vertical wheel to horizontal motion for desktop mice.

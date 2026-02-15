@@ -12,6 +12,9 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
@@ -137,6 +140,11 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
 
     final a = widget.launchArgs;
+    // For web we strongly prefer same-origin (avoid CORS). If you serve this app
+    // behind a reverse proxy (e.g. Vite), default to the current origin.
+    if (kIsWeb && (a.server == null || a.server!.trim().isEmpty)) {
+      _baseUrlCtrl.text = Uri.base.origin;
+    }
     if (a.server != null && a.server!.trim().isNotEmpty) {
       _baseUrlCtrl.text = a.server!.trim();
     }
@@ -154,6 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (a.login) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
         // Only auto-login if we have the core fields.
         if (_userCtrl.text.trim().isEmpty || _passCtrl.text.isEmpty) {
           return;
@@ -180,8 +189,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (u == null || !u.hasScheme || u.host.isEmpty) {
       return null;
     }
-    // Normalize: strip path/query/fragment.
-    return u.replace(path: '', query: '', fragment: '');
+    // Normalize: only keep origin (no path/query/fragment). Using `Uri(...)`
+    // avoids producing `?`/`#` suffixes for empty query/fragment, which can
+    // later break browser WebSocket URL validation.
+    return Uri(
+      scheme: u.scheme,
+      userInfo: u.userInfo,
+      host: u.host,
+      port: u.hasPort ? u.port : null,
+    );
   }
 
   Future<void> _loadWelcome() async {
@@ -342,6 +358,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           contentType: welcome.contentType,
                           isStale: false,
                           onLinkTap: _handleWelcomeLinkTap,
+                          monospace: false,
                         ),
                 ),
               ),
@@ -422,6 +439,7 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _roomHudEnabled = true;
   bool _showNarrativeMeta = true;
   bool _verbPaletteEnabled = true;
+  bool _monospaceNarrative = false;
 
   double _splitRatio = 0.64;
 
@@ -439,6 +457,9 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _eventLogHasLocalKey = false;
   bool _historyLoading = false;
   bool _historyLoaded = false;
+  bool _wasWsConnected = false;
+  final Set<String> _seenNarrativeEventIds = <String>{};
+  final Set<String> _seenNarrativeDedupKeys = <String>{};
 
   // Command history: 0 = current input, 1 = most recent command, etc.
   final List<String> _commandHistory = [];
@@ -784,9 +805,19 @@ class _SessionScreenState extends State<SessionScreen> {
     final targetBox = targetCtx.findRenderObject();
     final listBox = listCtx.findRenderObject();
     if (targetBox is! RenderBox || listBox is! RenderBox) return;
+    if (!targetBox.attached || !listBox.attached) return;
+    if (!targetBox.hasSize || !listBox.hasSize) return;
 
-    final targetTop = targetBox.localToGlobal(Offset.zero).dy;
-    final listTop = listBox.localToGlobal(Offset.zero).dy;
+    double targetTop;
+    double listTop;
+    try {
+      targetTop = targetBox.localToGlobal(Offset.zero).dy;
+      listTop = listBox.localToGlobal(Offset.zero).dy;
+    } on Object {
+      // During rapid rebuilds/route transitions the render objects can be in a
+      // transient state; skip latching until the next frame.
+      return;
+    }
     final listBottom = listTop + listBox.size.height;
     const epsilon = 1.0;
     final isVisible =
@@ -809,15 +840,38 @@ class _SessionScreenState extends State<SessionScreen> {
       onNarrativeItem: _appendItem,
       onPresentationUpsert: _presentations.upsert,
       onPresentationRemove: _presentations.remove,
+      onConnectionStatusChanged: (status) {
+        if (!mounted) return;
+        if (status == 'connected') {
+          _wasWsConnected = true;
+          if (_eventLogHasLocalKey && !_historyLoaded && !_historyLoading) {
+            unawaited(_loadInitialHistory());
+          }
+        } else if (status == 'disconnected') {
+          final shouldResyncHistory =
+              _wasWsConnected && _eventLogHasLocalKey && _historyLoaded;
+          _wasWsConnected = false;
+          if (shouldResyncHistory) {
+            setState(() {
+              _historyLoaded = false;
+            });
+          }
+        }
+        setState(() {
+          _status = status;
+        });
+      },
     );
     _ws = ws;
 
     try {
-      await ws.connect(mode: widget.mode);
+      final connected = await ws.connect(mode: widget.mode);
       if (!mounted) return;
-      setState(() {
-        _status = 'connected';
-      });
+      if (!connected) {
+        setState(() {
+          _status = 'error';
+        });
+      }
     } on Object catch (e) {
       if (!mounted) return;
       _appendSystem('WS connect failed: $e');
@@ -971,11 +1025,31 @@ class _SessionScreenState extends State<SessionScreen> {
       );
 
       final items = <NarrativeItem>[];
+      final batchEventIds = <String>{};
+      final batchDedupKeys = <String>{};
       for (final ev in events) {
         final decrypted = await decryptEventBlobAge(ev.encryptedBlob, identity);
         final parsed = _parseNarrativeEnvelope(decrypted);
         if (parsed == null) {
           continue;
+        }
+        final eventId = _narrativeEventId(parsed);
+        final dedupKey = _narrativeDedupKey(parsed);
+        final alreadySeen =
+            (eventId != null &&
+                (_seenNarrativeEventIds.contains(eventId) ||
+                    batchEventIds.contains(eventId))) ||
+            (dedupKey != null &&
+                (_seenNarrativeDedupKeys.contains(dedupKey) ||
+                    batchDedupKeys.contains(dedupKey)));
+        if (alreadySeen) {
+          continue;
+        }
+        if (eventId != null) {
+          batchEventIds.add(eventId);
+        }
+        if (dedupKey != null) {
+          batchDedupKeys.add(dedupKey);
         }
         items.add(parsed);
       }
@@ -983,6 +1057,9 @@ class _SessionScreenState extends State<SessionScreen> {
       if (!mounted) return;
       setState(() {
         _items.insertAll(0, items);
+        for (final item in items) {
+          _rememberNarrativeIdentity(item);
+        }
         _historyLoaded = true;
       });
       _appendSystem('History loaded (${items.length} events)');
@@ -1003,6 +1080,7 @@ class _SessionScreenState extends State<SessionScreen> {
     if (e == null) {
       return null;
     }
+    final eventId = _uuidBytesToHex(evt.eventId?.data);
 
     final ts = DateTime.fromMillisecondsSinceEpoch(
       (evt.timestamp / 1000000).toInt(),
@@ -1039,6 +1117,10 @@ class _SessionScreenState extends State<SessionScreen> {
             groupId = v.toKey();
           }
         }
+      }
+      if (eventId != null) {
+        eventMetadata['eventId'] = eventId;
+        eventMetadata['event_id'] = eventId;
       }
       return NarrativeItem(
         id: _newId('h'),
@@ -1232,6 +1314,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _appendItem(NarrativeItem it) {
+    final eventId = _narrativeEventId(it);
+    final dedupKey = _narrativeDedupKey(it);
+    if ((eventId != null && _seenNarrativeEventIds.contains(eventId)) ||
+        (dedupKey != null && _seenNarrativeDedupKeys.contains(dedupKey))) {
+      return;
+    }
+
     final roomKey = getRoomLookKeyFromNarrative(
       presentationHint: it.presentationHint,
       eventMetadata: it.eventMetadata,
@@ -1242,6 +1331,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
     setState(() {
       _items.add(it);
+      _rememberNarrativeIdentity(it);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollCtrl.hasClients) return;
@@ -1249,6 +1339,55 @@ class _SessionScreenState extends State<SessionScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
+
+  String? _uuidBytesToHex(List<int>? bytes) {
+    if (bytes == null || bytes.isEmpty) return null;
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  String? _metadataString(
+    Map<String, Object?>? metadata,
+    List<String> keys,
+  ) {
+    if (metadata == null) return null;
+    for (final key in keys) {
+      final value = metadata[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  String? _narrativeEventId(NarrativeItem item) {
+    return _metadataString(item.eventMetadata, const ['eventId', 'event_id']);
+  }
+
+  String? _narrativeDedupKey(NarrativeItem item) {
+    final correlation = _metadataString(
+      item.eventMetadata,
+      const ['correlationId', 'correlation_id', 'deliveryId', 'delivery_id'],
+    );
+    if (correlation != null) {
+      return 'corr:$correlation';
+    }
+    final eventId = _narrativeEventId(item);
+    if (eventId != null) {
+      return 'event:$eventId';
+    }
+    return null;
+  }
+
+  void _rememberNarrativeIdentity(NarrativeItem item) {
+    final eventId = _narrativeEventId(item);
+    if (eventId != null) {
+      _seenNarrativeEventIds.add(eventId);
+    }
+    final dedupKey = _narrativeDedupKey(item);
+    if (dedupKey != null) {
+      _seenNarrativeDedupKeys.add(dedupKey);
+    }
   }
 
   static Object? _actorKey(Map<String, Object?>? md) {
@@ -1654,6 +1793,7 @@ class _SessionScreenState extends State<SessionScreen> {
         var roomHudEnabled = _roomHudEnabled;
         var showNarrativeMeta = _showNarrativeMeta;
         var verbPaletteEnabled = _verbPaletteEnabled;
+        var monospaceNarrative = _monospaceNarrative;
         var themeMode = _ThemeScope.of(context).mode;
 
         return StatefulBuilder(
@@ -1698,6 +1838,21 @@ class _SessionScreenState extends State<SessionScreen> {
                         });
                         setState(() {
                           _showNarrativeMeta = v;
+                        });
+                      },
+                    ),
+                    SwitchListTile(
+                      value: monospaceNarrative,
+                      title: const Text('Monospace output'),
+                      subtitle: const Text(
+                        'Render narrative/panels in monospace (better alignment)',
+                      ),
+                      onChanged: (v) {
+                        modalSetState(() {
+                          monospaceNarrative = v;
+                        });
+                        setState(() {
+                          _monospaceNarrative = v;
                         });
                       },
                     ),
@@ -1845,6 +2000,7 @@ class _SessionScreenState extends State<SessionScreen> {
                             contentType: normalizeContentType(p.contentType),
                             isStale: false,
                             onLinkTap: _handleLinkTap,
+                            monospace: _monospaceNarrative,
                           ),
                         },
                       ),
@@ -1938,6 +2094,7 @@ class _SessionScreenState extends State<SessionScreen> {
                                           contentType: it.contentType,
                                           isStale: false,
                                           onLinkTap: _handleLinkTap,
+                                          monospace: _monospaceNarrative,
                                         ),
                                       ],
                                     ),

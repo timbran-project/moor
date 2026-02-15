@@ -35,10 +35,20 @@ class MoorWsClient {
   final void Function(String id) onPresentationRemove;
   final void Function({required String clientId, required String clientToken})?
   onCredentialsUpdated;
+  final void Function(String status)? onConnectionStatusChanged;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _keepalive;
+  Timer? _reconnectTimer;
+  bool _closing = false;
+  bool _connecting = false;
+  String? _connectMode;
+  String? _clientId;
+  String? _clientToken;
+
+  static const Duration _keepaliveInterval = Duration(seconds: 45);
+  static const Duration _reconnectDelay = Duration(seconds: 3);
 
   // Server heartbeat request marker (single byte 0x02); client replies with 0x01.
   static const int _heartbeatRequest = 0x02;
@@ -54,17 +64,35 @@ class MoorWsClient {
     required this.onPresentationUpsert,
     required this.onPresentationRemove,
     this.onCredentialsUpdated,
-  });
+    this.onConnectionStatusChanged,
+  }) {
+    _clientId = session.clientId;
+    _clientToken = session.clientToken;
+  }
 
   bool get isConnected => _channel != null;
 
-  Future<void> connect({required String mode}) async {
-    if (_channel != null) {
-      return;
+  Future<bool> connect({required String mode, bool force = false}) async {
+    _connectMode = mode;
+
+    if (_connecting) {
+      return false;
     }
 
-    final wsBase = _wsBaseUri(session.baseUri);
-    final wsUrl = wsBase.replace(path: '/ws/attach/$mode');
+    if (_channel != null && !force) {
+      return true;
+    }
+
+    if (_channel != null) {
+      _teardownChannel(closeSink: true);
+    }
+
+    _closing = false;
+    _setConnectionStatus('connecting');
+    _cancelReconnect();
+    _connecting = true;
+
+    final wsUrl = _wsAttachUri(session.baseUri, mode: mode);
     final protocols = <String>[
       'moor',
       'paseto.${session.authToken}',
@@ -73,18 +101,56 @@ class MoorWsClient {
     if (session.isInitialAttach) {
       protocols.add('initial_attach.true');
     }
-    if (session.clientId != null && session.clientToken != null) {
+    if (_clientId != null && _clientToken != null) {
       protocols
-        ..add('client_id.${session.clientId}')
-        ..add('client_token.${session.clientToken}');
+        ..add('client_id.$_clientId')
+        ..add('client_token.$_clientToken');
+    }
+
+    final validatedProtocols = _validatedWebSocketProtocols(protocols);
+    if (validatedProtocols == null) {
+      onSystemMessage(
+        'WebSocket protocol contains invalid characters; cannot connect from web. '
+        'See earlier system message for details.',
+      );
+      _setConnectionStatus('error');
+      _connecting = false;
+      return false;
     }
 
     onSystemMessage('Connecting WebSocket: $wsUrl');
-    final channel = WebSocketChannel.connect(wsUrl, protocols: protocols);
+    onSystemMessage(
+      'WebSocket protocols: ${validatedProtocols.map(_redactProtocol).join(', ')}',
+    );
+
+    final channel = WebSocketChannel.connect(
+      wsUrl,
+      protocols: validatedProtocols,
+    );
+
+    try {
+      await channel.ready;
+    } on Object catch (e) {
+      onSystemMessage(
+        'WebSocket connect failed: $e (url=$wsUrl protocols=${validatedProtocols.map(_redactProtocol).join(', ')})',
+      );
+      try {
+        await channel.sink.close();
+      } on Object catch (_) {
+        // ignore
+      }
+      _setConnectionStatus('error');
+      _connecting = false;
+      _scheduleReconnect();
+      return false;
+    }
+
     _channel = channel;
+    _setConnectionStatus('connected');
+    _connecting = false;
 
     // Keepalive to prevent proxy idle timeouts (Meadow uses 45s).
-    _keepalive = Timer.periodic(const Duration(seconds: 45), (_) {
+    _keepalive = Timer.periodic(_keepaliveInterval, (_) {
       try {
         _channel?.sink.add(_keepaliveMarker);
       } on Object catch (_) {
@@ -96,13 +162,16 @@ class MoorWsClient {
       _handleMessage,
       onError: (Object err) {
         onSystemMessage('WebSocket error: $err');
+        _handleDisconnect();
       },
       onDone: () {
         onSystemMessage('WebSocket closed');
-        close();
+        _handleDisconnect();
       },
       cancelOnError: false,
     );
+
+    return true;
   }
 
   void sendText(String message) {
@@ -115,23 +184,142 @@ class MoorWsClient {
   }
 
   void close() {
+    _closing = true;
+    _connecting = false;
+    _cancelReconnect();
+    _setConnectionStatus('disconnected');
+    _teardownChannel(closeSink: true);
+  }
+
+  void _setConnectionStatus(String status) {
+    onConnectionStatusChanged?.call(status);
+  }
+
+  void _cancelReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+  }
+
+  void _scheduleReconnect() {
+    if (_closing) return;
+    final mode = _connectMode;
+    if (mode == null) return;
+    if (_reconnectTimer != null) return;
+    _setConnectionStatus('connecting');
+    _reconnectTimer = Timer(_reconnectDelay, () async {
+      _reconnectTimer = null;
+      if (_closing) return;
+      await connect(mode: mode, force: true);
+    });
+  }
+
+  void _handleDisconnect() {
+    if (_channel == null && _sub == null) return;
+    _teardownChannel(closeSink: false);
+    if (_closing) {
+      _setConnectionStatus('disconnected');
+      return;
+    }
+    _setConnectionStatus('disconnected');
+    _scheduleReconnect();
+  }
+
+  void _teardownChannel({required bool closeSink}) {
     _keepalive?.cancel();
     _keepalive = null;
     _sub?.cancel();
     _sub = null;
     try {
-      _channel?.sink.close();
+      if (closeSink) {
+        _channel?.sink.close();
+      }
     } on Object catch (_) {
       // ignore
     }
     _channel = null;
   }
 
-  Uri _wsBaseUri(Uri httpBase) {
+  Uri _wsAttachUri(Uri httpBase, {required String mode}) {
     final isSecure = httpBase.scheme == 'https';
-    return httpBase.replace(
+    // Build from components so we never inherit query/fragment (e.g. `?#`),
+    // which browsers reject for WebSocket URLs.
+    return Uri(
       scheme: isSecure ? 'wss' : 'ws',
+      userInfo: httpBase.userInfo,
+      host: httpBase.host,
+      port: httpBase.hasPort ? httpBase.port : null,
+      path: '/ws/attach/$mode',
     );
+  }
+
+  /// Browsers strictly validate `Sec-WebSocket-Protocol` values (must be an
+  /// HTTP token per RFC 7230). Native clients are looser, so validate here to
+  /// produce a useful error message instead of a generic JS `SyntaxError`.
+  ///
+  /// Returns `null` when validation fails.
+  List<String>? _validatedWebSocketProtocols(List<String> raw) {
+    final out = <String>[];
+    for (final p0 in raw) {
+      final p = p0.trim();
+      if (p.isEmpty) {
+        onSystemMessage('WebSocket protocol invalid: empty/whitespace entry');
+        return null;
+      }
+      // RFC 7230 tchar: ! # $ % & ' * + - . ^ _ ` | ~ digits alpha
+      final ok = RegExp(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$").hasMatch(p);
+      if (!ok) {
+        final bad = p.runes
+            .where(
+              (r) => !RegExp(
+                r"[!#$%&'*+\-.^_`|~0-9A-Za-z]",
+              ).hasMatch(String.fromCharCode(r)),
+            )
+            .map((r) => '0x${r.toRadixString(16)}')
+            .take(8)
+            .join(', ');
+        onSystemMessage(
+          'WebSocket protocol invalid: "$p" (first bad chars: $bad)',
+        );
+        return null;
+      }
+      out.add(p);
+    }
+
+    // Browser requires unique protocols.
+    final seen = <String>{};
+    for (final p in out) {
+      if (!seen.add(p)) {
+        onSystemMessage('WebSocket protocol invalid: duplicate "$p"');
+        return null;
+      }
+    }
+    return out;
+  }
+
+  String _redactProtocol(String p) {
+    String redactTail(String s) {
+      if (s.length <= 20) return s;
+      return '${s.substring(0, 12)}...${s.substring(s.length - 4)}';
+    }
+
+    if (p.startsWith('paseto.')) {
+      final t = p.substring('paseto.'.length);
+      return 'paseto.(len=${t.length} ${redactTail(t)})';
+    }
+    if (p.startsWith('client_token.')) {
+      final t = p.substring('client_token.'.length);
+      return 'client_token.(len=${t.length} ${redactTail(t)})';
+    }
+    if (p.startsWith('client_id.')) {
+      final t = p.substring('client_id.'.length);
+      return 'client_id.($t)';
+    }
+    return p;
+  }
+
+  String? _uuidBytesToHex(List<int>? bytes) {
+    if (bytes == null || bytes.isEmpty) return null;
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   void _handleMessage(dynamic msg) {
@@ -195,6 +383,8 @@ class MoorWsClient {
           .join();
       final clientId =
           '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+      _clientId = clientId;
+      _clientToken = clientToken;
       onSystemMessage('WS: updated session credentials (client_id=$clientId)');
       onCredentialsUpdated?.call(clientId: clientId, clientToken: clientToken);
       return;
@@ -211,6 +401,7 @@ class MoorWsClient {
         (evt.timestamp / 1000000).toInt(),
         isUtc: true,
       ).toLocal();
+      final eventId = _uuidBytesToHex(evt.eventId?.data);
       final e = evt.event;
       if (e == null) {
         return;
@@ -246,6 +437,10 @@ class MoorWsClient {
               groupId = v.toKey();
             }
           }
+        }
+        if (eventId != null) {
+          eventMetadata['eventId'] = eventId;
+          eventMetadata['event_id'] = eventId;
         }
 
         onNarrativeItem(
