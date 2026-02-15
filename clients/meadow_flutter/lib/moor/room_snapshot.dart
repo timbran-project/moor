@@ -13,30 +13,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:meadow_flutter/moor/object_ref.dart';
-
-String _coerceText(Object? value) {
-  if (value == null) return '';
-  if (value is String) return value.trim();
-  if (value is num || value is bool) return value.toString();
-  if (value is List) {
-    return value.map(_coerceText).where((s) => s.isNotEmpty).join(' ').trim();
-  }
-  return '';
-}
-
-Map<String, Object?>? _coerceMap(Object? value) {
-  if (value is Map<String, Object?>) return value;
-  if (value is Map) {
-    final out = <String, Object?>{};
-    for (final e in value.entries) {
-      final k = e.key;
-      if (k is! String) continue;
-      out[k] = e.value;
-    }
-    return out;
-  }
-  return null;
-}
+import 'package:meadow_flutter/moor/types/moor_str.dart';
+import 'package:meadow_flutter/moor/types/moor_var.dart';
+import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 
 class RoomSnapshotActor {
   final String name;
@@ -90,46 +69,55 @@ class RoomSnapshot {
   });
 }
 
-RoomSnapshot? roomSnapshotFromPayload(Object? payload) {
-  final snapshot = _coerceMap(payload);
+RoomSnapshot? roomSnapshotFromPayload(MoorVar payload) {
+  final snapshot = payload.asMap();
   if (snapshot == null) return null;
 
-  final rawTitle = _coerceText(snapshot['title']);
-  final title = rawTitle.isNotEmpty ? rawTitle : 'Room';
-  final description = _coerceText(snapshot['description']);
-  final room = objectRefFromDynamic(snapshot['room']);
+  MoorVar? get(String key) =>
+      snapshot.pairs[MoorVar(MoorSym(key))] ?? snapshot.pairs[MoorVar(key)];
+
+  final title = get('title')?.coerceText() ?? 'Room';
+  final description = get('description')?.coerceText() ?? '';
+  final room = objectRefFromDynamic(get('room'));
 
   final exits = <String>{};
-  final exitsRaw = snapshot['exits'];
-  if (exitsRaw is List) {
-    for (final e in exitsRaw) {
-      final label = _coerceText(e);
+  final exitsRaw = get('exits')?.asList();
+  if (exitsRaw != null) {
+    for (final e in exitsRaw.elements) {
+      final label = e.coerceText();
       if (label.isNotEmpty) exits.add(label);
     }
   }
 
-  final ambientPassages = snapshot['ambient_passages'];
-  if (ambientPassages is List) {
-    for (final entry in ambientPassages) {
-      if (entry is List && entry.length >= 3) {
-        final label = _coerceText(entry[2]);
+  final ambientPassages = get('ambient_passages')?.asList();
+  if (ambientPassages != null) {
+    for (final entry in ambientPassages.elements) {
+      final list = entry.asList();
+      if (list != null && list.elements.length >= 3) {
+        final label = list.elements[2].coerceText();
         if (label.isNotEmpty) exits.add(label);
       }
     }
   }
 
   final actions = <RoomSnapshotAction>[];
-  final actionsRaw = snapshot['actions'];
-  if (actionsRaw is List) {
-    for (final entry in actionsRaw) {
-      if (entry is! List || entry.isEmpty) continue;
-      final command = _coerceText(entry.length > 1 ? entry[1] : null);
-      final label = _coerceText(entry.length > 2 ? entry[2] : null);
+  final actionsRaw = get('actions')?.asList();
+  if (actionsRaw != null) {
+    for (final entry in actionsRaw.elements) {
+      final list = entry.asList();
+      if (list == null || list.elements.isEmpty) continue;
+      final command =
+          (list.elements.length > 1 ? list.elements[1] : moorNoneVar)
+              .coerceText();
+      final label = (list.elements.length > 2 ? list.elements[2] : moorNoneVar)
+          .coerceText();
       var resolvedCommand = command;
       var resolvedLabel = label;
       if (resolvedCommand.isEmpty || resolvedLabel.isEmpty) {
-        resolvedCommand = _coerceText(entry[0]);
-        resolvedLabel = _coerceText(entry.length > 1 ? entry[1] : null);
+        resolvedCommand = list.elements[0].coerceText();
+        resolvedLabel =
+            (list.elements.length > 1 ? list.elements[1] : moorNoneVar)
+                .coerceText();
       }
       if (resolvedCommand.isEmpty || resolvedLabel.isEmpty) continue;
       actions.add(
@@ -139,29 +127,35 @@ RoomSnapshot? roomSnapshotFromPayload(Object? payload) {
   }
 
   final things = <RoomSnapshotThing>[];
-  final thingsRaw = snapshot['things'];
-  if (thingsRaw is List) {
-    for (final entry in thingsRaw) {
-      final thing = _coerceMap(entry);
-      if (thing == null) continue;
-      final name = _coerceText(thing['name']);
+  final thingsRaw = get('things')?.asList();
+  if (thingsRaw != null) {
+    for (final entry in thingsRaw.elements) {
+      final thingMap = entry.asMap();
+      if (thingMap == null) continue;
+      MoorVar? getT(String k) =>
+          thingMap.pairs[MoorVar(MoorSym(k))] ?? thingMap.pairs[MoorVar(k)];
+
+      final name = (getT('name') ?? moorNoneVar).coerceText();
       if (name.isEmpty) continue;
-      final obj = objectRefFromDynamic(thing['object']);
+      final obj = objectRefFromDynamic(getT('object'));
       if (obj == null) continue;
       things.add(RoomSnapshotThing(name: name, object: obj));
     }
   }
 
   final actors = <RoomSnapshotActor>[];
-  final actorsRaw = snapshot['actors'];
-  if (actorsRaw is List) {
-    for (final entry in actorsRaw) {
-      final actor = _coerceMap(entry);
-      if (actor == null) continue;
-      final name = _coerceText(actor['name']);
+  final actorsRaw = get('actors')?.asList();
+  if (actorsRaw != null) {
+    for (final entry in actorsRaw.elements) {
+      final actorMap = entry.asMap();
+      if (actorMap == null) continue;
+      MoorVar? getA(String k) =>
+          actorMap.pairs[MoorVar(MoorSym(k))] ?? actorMap.pairs[MoorVar(k)];
+
+      final name = (getA('name') ?? moorNoneVar).coerceText();
       if (name.isEmpty) continue;
-      final status = _coerceText(actor['status']);
-      final obj = objectRefFromDynamic(actor['object']);
+      final status = (getA('status') ?? moorNoneVar).coerceText();
+      final obj = objectRefFromDynamic(getA('object'));
       if (obj == null) continue;
       actors.add(RoomSnapshotActor(name: name, status: status, object: obj));
     }

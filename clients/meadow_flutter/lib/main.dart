@@ -23,12 +23,13 @@ import 'package:meadow_flutter/moor/content_type.dart';
 import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
-import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
-import 'package:meadow_flutter/moor/var_decode.dart';
+import 'package:meadow_flutter/moor/types/moor_str.dart';
+import 'package:meadow_flutter/moor/types/moor_var.dart';
+import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
@@ -1011,10 +1012,11 @@ class _SessionScreenState extends State<SessionScreen> {
     final eventType = e.eventType?.value ?? 0;
     if (eventType == moor_common.EventUnionTypeId.NotifyEvent.value) {
       final notify = e.event as moor_common.NotifyEvent?;
-      if (notify == null) {
+      if (notify == null || notify.value == null) {
         return null;
       }
-      final lines = decodeVarAsLines(notify.value);
+      final moorValue = MoorVar.fromFlatBuffer(notify.value!);
+      final lines = moorValue.asLines();
       if (lines.isEmpty) return null;
       final ct = normalizeContentType(notify.contentType?.value);
 
@@ -1024,17 +1026,17 @@ class _SessionScreenState extends State<SessionScreen> {
       final md = notify.metadata;
       if (md != null) {
         for (final m in md) {
+          if (m.key == null || m.value == null) continue;
           final k = m.key?.value;
           if (k == null || k.isEmpty) continue;
-          final v = decodeVarLoose(m.value);
-          eventMetadata[k] = v;
+          final v = MoorVar.fromFlatBuffer(m.value!);
+          eventMetadata[k] = v.value;
           if (presentationHint == null &&
-              (k == 'presentation_hint' || k == 'presentationHint') &&
-              v is String) {
-            presentationHint = v;
+              (k == 'presentation_hint' || k == 'presentationHint')) {
+            presentationHint = v.toKey();
           }
-          if (groupId == null && k == 'group_id' && v is String) {
-            groupId = v;
+          if (groupId == null && k == 'group_id') {
+            groupId = v.toKey();
           }
         }
       }
@@ -1077,7 +1079,7 @@ class _SessionScreenState extends State<SessionScreen> {
       if (bt == null) return null;
       final lines = <String>[];
       for (final v in bt) {
-        final s = decodeVarAsLines(v);
+        final s = MoorVar.fromFlatBuffer(v).asLines();
         if (s.isNotEmpty) {
           lines.addAll(s);
         }
@@ -1250,11 +1252,18 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   static Object? _actorKey(Map<String, Object?>? md) {
-    final actor = md?['actor'];
-    if (actor is Map) {
-      final oid = actor['oid'];
-      if (oid != null) return 'oid:$oid';
-      final uuid = actor['uuid'];
+    final actorVal = md?['actor'];
+    if (actorVal == null) return null;
+
+    final actor = MoorVar(actorVal).asMap();
+    if (actor != null) {
+      MoorVar? get(String k) =>
+          actor.pairs[MoorVar(MoorSym(k))] ?? actor.pairs[MoorVar(k)];
+
+      final oid = get('oid')?.asObj();
+      if (oid != null) return oid.toCurie();
+
+      final uuid = get('uuid')?.asString();
       if (uuid != null) return 'uuid:$uuid';
     }
     return null;
@@ -1581,8 +1590,11 @@ class _SessionScreenState extends State<SessionScreen> {
         objectCurie: player,
         verbName: 'verb_suggestions',
       );
-      final decoded = decodeVarLoose(success.result);
-      final suggestions = parseVerbSuggestionsLoose(decoded);
+      final result = success.result;
+      final decoded = result != null
+          ? MoorVar.fromFlatBuffer(result)
+          : moorNoneVar;
+      final suggestions = parseVerbSuggestions(decoded);
       final placeholder = suggestions
           .where((s) => s.placeholderText != null)
           .firstOrNull;
@@ -1602,14 +1614,14 @@ class _SessionScreenState extends State<SessionScreen> {
       setState(() {
         // "available" in Meadow web means the verb exists and returned a list,
         // even if it's empty.
-        _verbSuggestionsAvailable = decoded is List;
+        _verbSuggestionsAvailable = decoded.asList() != null;
         _serverPlaceholderText = placeholder?.placeholderText;
         _paletteVerbs = verbs.isNotEmpty ? verbs : paletteVerbsFallback;
       });
 
-      if (decoded != null && suggestions.isEmpty) {
+      if (!decoded.isNone() && suggestions.isEmpty) {
         _appendSystem(
-          'verb_suggestions returned no suggestions (decoded=$decoded)',
+          'verb_suggestions returned no suggestions (decoded=${decoded.toLiteral()})',
         );
       }
     } on Object catch (e) {

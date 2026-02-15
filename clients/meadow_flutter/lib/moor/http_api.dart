@@ -23,8 +23,10 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
 import 'package:meadow_flutter/fbs/moor_rpc_moor_var_generated.dart'
     as moor_var;
 import 'package:meadow_flutter/moor/content_type.dart';
-import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/types/moor_obj.dart';
+import 'package:meadow_flutter/moor/types/moor_var.dart';
+import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 
 class MoorHttpApi {
   final Uri baseUri;
@@ -100,7 +102,7 @@ class MoorHttpApi {
           continue;
         }
 
-        outLines = decodeVarAsLines(notify.value);
+        outLines = MoorVar.fromFlatBuffer(notify.value!).asLines();
         contentType = normalizeContentType(notify.contentType?.value);
         break;
       }
@@ -148,10 +150,15 @@ class MoorHttpApi {
     if (login == null || !login.success) {
       throw Exception('auth: login failed');
     }
-    final playerCurie = objToCurie(login.player);
-    if (playerCurie == null) {
-      throw Exception('auth: missing/unsupported player object');
+    final playerObj = login.player;
+    if (playerObj == null) {
+      throw Exception('auth: missing player object');
     }
+    final moorObj = MoorObj.tryFromObjFlatBuffer(playerObj);
+    if (moorObj == null) {
+      throw Exception('auth: unsupported player object type');
+    }
+    final playerCurie = moorObj.toCurie();
 
     final flags = login.playerFlags;
 

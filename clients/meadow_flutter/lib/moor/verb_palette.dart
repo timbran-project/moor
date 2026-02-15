@@ -12,6 +12,10 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:collection/collection.dart';
+import 'package:meadow_flutter/moor/types/moor_str.dart';
+import 'package:meadow_flutter/moor/types/moor_var.dart';
+
 class VerbSuggestion {
   final String verb;
   final String? hint;
@@ -115,31 +119,29 @@ PaletteVerb suggestionToPaletteVerb(VerbSuggestion suggestion) {
   );
 }
 
-List<VerbSuggestion> parseVerbSuggestionsLoose(Object? decoded) {
-  if (decoded is! List) return const <VerbSuggestion>[];
+List<VerbSuggestion> parseVerbSuggestions(MoorVar decoded) {
+  final list = decoded.asList();
+  if (list == null) return const <VerbSuggestion>[];
   final out = <VerbSuggestion>[];
-  for (final it in decoded) {
-    if (it is! Map) continue;
-    final verb = it['verb'];
-    if (verb is! String || verb.trim().isEmpty) continue;
-    final hint = it['hint'];
-    final placeholderText = it['placeholder_text'];
+  for (final it in list.elements) {
+    final map = it.asMap();
+    if (map == null) continue;
+
+    MoorVar? getV(String k) =>
+        map.pairs[MoorVar(MoorSym(k))] ?? map.pairs[MoorVar(k)];
+
+    final verb = getV('verb')?.asString();
+    if (verb == null || verb.trim().isEmpty) continue;
+
+    final hint = getV('hint')?.asString();
+    final placeholderText = getV('placeholder_text')?.asString();
     out.add(
       VerbSuggestion(
         verb: verb,
-        hint: hint is String ? hint : null,
-        placeholderText: placeholderText is String ? placeholderText : null,
+        hint: hint,
+        placeholderText: placeholderText,
       ),
     );
   }
   return out;
-}
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull {
-    for (final v in this) {
-      return v;
-    }
-    return null;
-  }
 }

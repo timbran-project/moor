@@ -12,68 +12,67 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-class ObjectRef {
-  final String curie;
+import 'package:meadow_flutter/moor/types/moor_obj.dart';
+import 'package:meadow_flutter/moor/types/moor_var.dart';
+import 'package:meta/meta.dart';
 
-  const ObjectRef(this.curie);
+@immutable
+class ObjectRef {
+  final MoorObj obj;
+
+  const ObjectRef(this.obj);
+
+  static ObjectRef? fromCurie(String curie) {
+    final parsed = MoorObj.parse(curie);
+    if (parsed == null) {
+      return null;
+    }
+    return ObjectRef(parsed);
+  }
+
+  String get curie => obj.toCurie();
 
   @override
   String toString() => curie;
-}
 
-String? _stringToCurie(String raw) {
-  final s = raw.trim();
-  if (s.isEmpty) return null;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ObjectRef &&
+          runtimeType == other.runtimeType &&
+          obj == other.obj;
 
-  if (s.startsWith('#')) {
-    final n = int.tryParse(s.substring(1));
-    return n == null ? null : 'oid:$n';
-  }
-
-  if (RegExp(r'^\d+$').hasMatch(s)) {
-    final n = int.tryParse(s);
-    return n == null ? null : 'oid:$n';
-  }
-
-  // Already a CURIE from the server (or from our own tooling).
-  if (s.contains(':')) {
-    return s.toLowerCase();
-  }
-
-  return null;
+  @override
+  int get hashCode => obj.hashCode;
 }
 
 ObjectRef? objectRefFromDynamic(Object? value) {
   if (value == null) return null;
 
   if (value is ObjectRef) return value;
+  if (value is MoorObj) return ObjectRef(value);
+  if (value is MoorVar) {
+    final obj = (value as MoorVar).asObj();
+    if (obj != null) return ObjectRef(obj);
+    return null;
+  }
 
   if (value is int) {
-    return ObjectRef('oid:$value');
+    return ObjectRef(MoorObjId(value));
   }
 
   if (value is String) {
-    final curie = _stringToCurie(value);
-    return curie == null ? null : ObjectRef(curie);
+    return ObjectRef.fromCurie(value);
   }
 
   if (value is Map) {
-    // Meadow/web established shape: { oid: N } / { uuid: "..."} and sometimes nested.
+    // Meadow/web established shape: { oid: N } / { uuid: "..."}
     final oid = value['oid'];
-    final nestedOid = objectRefFromDynamic(oid);
-    if (nestedOid != null) return nestedOid;
+    if (oid is int) return ObjectRef(MoorObjId(oid));
 
     final uuid = value['uuid'];
     if (uuid is String) {
-      final raw = uuid.trim();
-      if (raw.isEmpty) return null;
-      final curie = raw.contains(':')
-          ? raw.toLowerCase()
-          : 'uuid:${raw.toLowerCase()}';
-      return ObjectRef(curie);
-    }
-    if (uuid is int) {
-      return ObjectRef('uuid:$uuid');
+      return ObjectRef.fromCurie('uuid:$uuid');
     }
   }
 

@@ -20,11 +20,11 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
 import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
     as moor_rpc;
 import 'package:meadow_flutter/moor/content_type.dart';
-import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_snapshot.dart';
-import 'package:meadow_flutter/moor/var_decode.dart';
+import 'package:meadow_flutter/moor/types/moor_var.dart';
+import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class MoorWsClient {
@@ -219,10 +219,10 @@ class MoorWsClient {
       if (e.eventType?.value ==
           moor_common.EventUnionTypeId.NotifyEvent.value) {
         final notify = e.event as moor_common.NotifyEvent?;
-        if (notify == null) {
+        if (notify == null || notify.value == null) {
           return;
         }
-        final content = decodeVarAsLines(notify.value);
+        final content = MoorVar.fromFlatBuffer(notify.value!).asLines();
         if (content.isEmpty) return;
 
         final ct = normalizeContentType(notify.contentType?.value);
@@ -233,17 +233,17 @@ class MoorWsClient {
         final md = notify.metadata;
         if (md != null) {
           for (final m in md) {
+            if (m.key == null || m.value == null) continue;
             final k = m.key?.value;
             if (k == null || k.isEmpty) continue;
-            final v = decodeVarLoose(m.value);
-            eventMetadata[k] = v;
+            final v = MoorVar.fromFlatBuffer(m.value!);
+            eventMetadata[k] = v.value;
             if (presentationHint == null &&
-                (k == 'presentation_hint' || k == 'presentationHint') &&
-                v is String) {
-              presentationHint = v;
+                (k == 'presentation_hint' || k == 'presentationHint')) {
+              presentationHint = v.toKey();
             }
-            if (groupId == null && k == 'group_id' && v is String) {
-              groupId = v;
+            if (groupId == null && k == 'group_id') {
+              groupId = v.toKey();
             }
           }
         }
@@ -329,24 +329,27 @@ class MoorWsClient {
         final domain = data?.domain?.value;
         final kind = data?.kind?.value;
         if (domain == 'state' && kind == 'room_snapshot') {
-          final decoded = decodeVarLoose(data?.payload);
-          final snap = roomSnapshotFromPayload(decoded);
-          if (snap != null) {
-            final attrs = <String, String>{
-              'kind': 'room_look',
-              'title': snap.title,
-            };
-            if (snap.room != null) {
-              attrs['room'] = snap.room!.curie;
+          final payload = data?.payload;
+          if (payload != null) {
+            final decoded = MoorVar.fromFlatBuffer(payload);
+            final snap = roomSnapshotFromPayload(decoded);
+            if (snap != null) {
+              final attrs = <String, String>{
+                'kind': 'room_look',
+                'title': snap.title,
+              };
+              if (snap.room != null) {
+                attrs['room'] = snap.room!.curie;
+              }
+              onPresentationUpsert(
+                RoomSnapshotDockItem(
+                  id: 'room-look',
+                  target: 'top',
+                  attrs: attrs,
+                  snapshot: snap,
+                ),
+              );
             }
-            onPresentationUpsert(
-              RoomSnapshotDockItem(
-                id: 'room-look',
-                target: 'top',
-                attrs: attrs,
-                snapshot: snap,
-              ),
-            );
           }
         }
       }
