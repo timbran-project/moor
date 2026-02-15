@@ -216,6 +216,219 @@ class MoorHttpApi {
     }
   }
 
+  Future<void> dismissPresentation({
+    required String authToken,
+    required String presentationId,
+  }) async {
+    final uri = _resolve('/v1/presentations/$presentationId');
+    final resp = await http.delete(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/json',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('dismiss presentation: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'dismiss presentation http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+  }
+
+  Future<moor_rpc.CurrentPresentations> listPresentations({
+    required String authToken,
+  }) async {
+    final uri = _resolve('/v1/presentations');
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('presentations: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'presentations http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'presentations');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc.DaemonToClientReplyUnionTypeId.CurrentPresentations.value) {
+      throw Exception('presentations: unexpected reply type $replyType');
+    }
+    final current = reply.reply as moor_rpc.CurrentPresentations?;
+    if (current == null) {
+      throw Exception('presentations: missing CurrentPresentations');
+    }
+    return current;
+  }
+
+  Future<moor_rpc.VerbValue> getVerbCode({
+    required String authToken,
+    required String objectCurie,
+    required String verbName,
+  }) async {
+    final uri = _resolve(
+      '/v1/verbs/$objectCurie/${Uri.encodeComponent(verbName)}',
+    );
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('verb code: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'verb code http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'verb code');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType != moor_rpc.DaemonToClientReplyUnionTypeId.VerbValue.value) {
+      throw Exception('verb code: unexpected reply type $replyType');
+    }
+    final value = reply.reply as moor_rpc.VerbValue?;
+    if (value == null) {
+      throw Exception('verb code: missing VerbValue');
+    }
+    return value;
+  }
+
+  Future<moor_rpc.VerbProgramResponse> compileVerb({
+    required String authToken,
+    required String objectCurie,
+    required String verbName,
+    required String code,
+  }) async {
+    final uri = _resolve(
+      '/v1/verbs/$objectCurie/${Uri.encodeComponent(verbName)}',
+    );
+    final resp = await http.post(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+        'Content-Type': 'text/plain',
+      },
+      body: code,
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('compile verb: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'compile verb http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'compile verb');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc
+            .DaemonToClientReplyUnionTypeId
+            .VerbProgramResponseReply
+            .value) {
+      throw Exception('compile verb: unexpected reply type $replyType');
+    }
+    final programReply = reply.reply as moor_rpc.VerbProgramResponseReply?;
+    final response = programReply?.response;
+    if (response == null) {
+      throw Exception('compile verb: missing VerbProgramResponse');
+    }
+    return response;
+  }
+
+  Future<moor_rpc.PropertyValue> getProperty({
+    required String authToken,
+    required String objectCurie,
+    required String propertyName,
+  }) async {
+    final uri = _resolve(
+      '/v1/properties/$objectCurie/${Uri.encodeComponent(propertyName)}',
+    );
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('property: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('property http ${resp.statusCode}: ${resp.reasonPhrase}');
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'property');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc.DaemonToClientReplyUnionTypeId.PropertyValue.value) {
+      throw Exception('property: unexpected reply type $replyType');
+    }
+    final value = reply.reply as moor_rpc.PropertyValue?;
+    if (value == null) {
+      throw Exception('property: missing PropertyValue');
+    }
+    return value;
+  }
+
+  Future<moor_rpc.PropertyUpdated> updateProperty({
+    required String authToken,
+    required String objectCurie,
+    required String propertyName,
+    required String valueLiteral,
+  }) async {
+    final uri = _resolve(
+      '/v1/properties/$objectCurie/${Uri.encodeComponent(propertyName)}',
+    );
+    final resp = await http.post(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+        'Content-Type': 'text/plain',
+      },
+      body: valueLiteral,
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('update property: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'update property http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final reply = _parseClientSuccess(
+      resp.bodyBytes,
+      context: 'update property',
+    );
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc.DaemonToClientReplyUnionTypeId.PropertyUpdated.value) {
+      throw Exception('update property: unexpected reply type $replyType');
+    }
+    final updated = reply.reply as moor_rpc.PropertyUpdated?;
+    if (updated == null) {
+      throw Exception('update property: missing PropertyUpdated');
+    }
+    return updated;
+  }
+
   Future<List<EncryptedHistoricalEvent>> fetchHistory({
     required String authToken,
     int? sinceSeconds,

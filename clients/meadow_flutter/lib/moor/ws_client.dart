@@ -267,6 +267,15 @@ class MoorWsClient {
 
         final model = presentationFromFb(pres);
         if (model != null) {
+          final target = model.target;
+          if (target == 'verb-editor' ||
+              target == 'property-editor' ||
+              target == 'property-value-editor' ||
+              target == 'text-editor') {
+            onSystemMessage(
+              'Presentation: id=${model.id} target=$target attrs=${model.attrs}',
+            );
+          }
           onPresentationUpsert(model);
         }
 

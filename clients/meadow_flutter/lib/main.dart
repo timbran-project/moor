@@ -20,14 +20,18 @@ import 'package:meadow_flutter/moor/age_decrypt.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
 import 'package:meadow_flutter/moor/content_type.dart';
+import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
 import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
+import 'package:meadow_flutter/widgets/property_editor.dart';
 import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
+import 'package:meadow_flutter/widgets/verb_editor.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main(List<String> args) {
@@ -370,6 +374,12 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _roomHudEnabled = true;
   bool _showNarrativeMeta = true;
 
+  double _splitRatio = 0.64;
+
+  final _editorSessions = <EditorSession>[];
+  int _activeEditorIndex = 0;
+  final Map<String, Widget> _editorPaneCache = <String, Widget>{};
+
   int _idSeq = 0;
   MoorWsClient? _ws;
   String _status = 'disconnected';
@@ -421,7 +431,235 @@ class _SessionScreenState extends State<SessionScreen> {
         _isCurrentRoomLookDockLatched = false;
       });
     }
+    _syncEditorSessionsFromPresentations();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
+
+  void _syncEditorSessionsFromPresentations() {
+    if (!mounted) return;
+    final wasEmpty = _editorSessions.isEmpty;
+    final oldPids = _editorSessions.map((e) => e.presentationId).toSet();
+    final wanted = <String, EditorSession>{};
+
+    void addWanted(EditorSession s) {
+      wanted[s.presentationId] = s;
+    }
+
+    for (final it in _presentations.byTarget('verb-editor')) {
+      if (it is! PresentationModel) continue;
+      final pid = it.id;
+      final rawObject = it.attrs['object'] ?? it.attrs['objectCurie'];
+      final rawVerb = it.attrs['verb'] ?? it.attrs['verbName'];
+      if (rawObject == null || rawVerb == null) continue;
+      final objectCurie = objectRefToCurie(rawObject);
+      if (objectCurie == null) {
+        _appendSystem('verb-editor: invalid object=$rawObject');
+        continue;
+      }
+      final title = (it.attrs['title']?.toString().trim().isNotEmpty ?? false)
+          ? it.attrs['title'].toString()
+          : 'Edit $objectCurie:$rawVerb';
+      addWanted(
+        VerbEditorSession(
+          id: pid,
+          title: title,
+          presentationId: pid,
+          objectCurie: objectCurie,
+          verbName: rawVerb,
+        ),
+      );
+    }
+
+    for (final it in _presentations.byTarget('property-editor')) {
+      if (it is! PresentationModel) continue;
+      final pid = it.id;
+      final rawObject = it.attrs['object'] ?? it.attrs['objectCurie'];
+      final rawProp = it.attrs['property'] ?? it.attrs['propertyName'];
+      if (rawObject == null || rawProp == null) continue;
+      final objectCurie = objectRefToCurie(rawObject);
+      if (objectCurie == null) {
+        _appendSystem('property-editor: invalid object=$rawObject');
+        continue;
+      }
+      final title = (it.attrs['title']?.toString().trim().isNotEmpty ?? false)
+          ? it.attrs['title'].toString()
+          : 'Edit $objectCurie.$rawProp';
+      addWanted(
+        PropertyEditorSession(
+          id: pid,
+          title: title,
+          presentationId: pid,
+          objectCurie: objectCurie,
+          propertyName: rawProp,
+          isValueEditor: false,
+        ),
+      );
+    }
+
+    for (final it in _presentations.byTarget('property-value-editor')) {
+      if (it is! PresentationModel) continue;
+      final pid = it.id;
+      final rawObject = it.attrs['object'] ?? it.attrs['objectCurie'];
+      final rawProp = it.attrs['property'] ?? it.attrs['propertyName'];
+      if (rawObject == null || rawProp == null) continue;
+      final objectCurie = objectRefToCurie(rawObject);
+      if (objectCurie == null) {
+        _appendSystem('property-value-editor: invalid object=$rawObject');
+        continue;
+      }
+      final title = (it.attrs['title']?.toString().trim().isNotEmpty ?? false)
+          ? it.attrs['title'].toString()
+          : 'Edit $objectCurie.$rawProp';
+      addWanted(
+        PropertyEditorSession(
+          id: pid,
+          title: title,
+          presentationId: pid,
+          objectCurie: objectCurie,
+          propertyName: rawProp,
+          isValueEditor: true,
+        ),
+      );
+    }
+
+    final existingByPid = <String, EditorSession>{
+      for (final s in _editorSessions) s.presentationId: s,
+    };
+    final nextSessions = <EditorSession>[];
+
+    for (final s in _editorSessions) {
+      final keep = wanted[s.presentationId];
+      if (keep == null) continue;
+      // Keep existing instance to preserve widget state; title changes are rare
+      // and not worth a hard refresh for the spike.
+      nextSessions.add(existingByPid[s.presentationId]!);
+      wanted.remove(s.presentationId);
+    }
+    if (wanted.isNotEmpty) {
+      nextSessions.addAll(wanted.values);
+    }
+
+    final didChange =
+        nextSessions.length != _editorSessions.length ||
+        !_sameStringList(
+          nextSessions.map((e) => e.presentationId).toList(),
+          _editorSessions.map((e) => e.presentationId).toList(),
+        );
+    if (!didChange) return;
+
+    final nextPids = nextSessions.map((e) => e.presentationId).toSet();
+    final newPids = nextPids.difference(oldPids);
+    final toRemove = _editorPaneCache.keys
+        .where((pid) => !nextPids.contains(pid))
+        .toList();
+    for (final pid in toRemove) {
+      _editorPaneCache.remove(pid);
+    }
+
+    setState(() {
+      _editorSessions
+        ..clear()
+        ..addAll(nextSessions);
+      if (_activeEditorIndex >= _editorSessions.length) {
+        _activeEditorIndex = _editorSessions.isEmpty
+            ? 0
+            : _editorSessions.length - 1;
+      }
+      if (_activeEditorIndex < 0) _activeEditorIndex = 0;
+      if (wasEmpty && _editorSessions.isNotEmpty) {
+        // First editor opened: make the newest one active.
+        _activeEditorIndex = _editorSessions.length - 1;
+      }
+      if (newPids.isNotEmpty) {
+        final lastNewIdx = _editorSessions.lastIndexWhere(
+          (s) => newPids.contains(s.presentationId),
+        );
+        if (lastNewIdx >= 0) {
+          _activeEditorIndex = lastNewIdx;
+        }
+      }
+    });
+  }
+
+  bool _sameStringList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  Future<void> _closeEditorSession(EditorSession s) async {
+    final authToken = widget.session.authToken;
+    final baseUri = widget.session.baseUri;
+    final api = MoorHttpApi(baseUri);
+
+    try {
+      await api.dismissPresentation(
+        authToken: authToken,
+        presentationId: s.presentationId,
+      );
+    } on Object catch (e) {
+      _appendSystem('dismiss presentation failed: $e');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _editorPaneCache.remove(s.presentationId);
+      final idx = _editorSessions.indexWhere(
+        (it) => it.presentationId == s.presentationId,
+      );
+      if (idx >= 0) {
+        _editorSessions.removeAt(idx);
+        if (_activeEditorIndex >= _editorSessions.length) {
+          _activeEditorIndex = _editorSessions.isEmpty
+              ? 0
+              : _editorSessions.length - 1;
+        }
+      }
+    });
+
+    // Also remove from local presentation store so we don't reopen it if the
+    // backend is slow to send Unpresent.
+    _presentations.remove(s.presentationId);
+  }
+
+  Future<void> _openEditorFullscreen(EditorSession s) async {
+    final authToken = widget.session.authToken;
+    final baseUri = widget.session.baseUri;
+    final title = s.title;
+
+    final child = switch (s) {
+      VerbEditorSession(:final objectCurie, :final verbName) => VerbEditorPane(
+        key: ValueKey('fullscreen:${s.presentationId}'),
+        baseUri: baseUri,
+        authToken: authToken,
+        objectCurie: objectCurie,
+        verbName: verbName,
+      ),
+      PropertyEditorSession(:final objectCurie, :final propertyName) =>
+        PropertyEditorPane(
+          key: ValueKey('fullscreen:${s.presentationId}'),
+          baseUri: baseUri,
+          authToken: authToken,
+          objectCurie: objectCurie,
+          propertyName: propertyName,
+        ),
+    };
+
+    final screen = switch (s) {
+      VerbEditorSession() => VerbEditorScreen(title: title, child: child),
+      PropertyEditorSession() => PropertyEditorScreen(
+        title: title,
+        child: child,
+      ),
+    };
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => screen,
+      ),
+    );
   }
 
   void _onScroll() {
@@ -1136,8 +1374,310 @@ class _SessionScreenState extends State<SessionScreen> {
     _ws?.close();
     _ws = null;
     _presentations.clear();
+    setState(() {
+      _editorSessions.clear();
+      _editorPaneCache.clear();
+      _activeEditorIndex = 0;
+    });
     if (!mounted) return;
     Navigator.of(context).pop();
+  }
+
+  Widget _buildLeftPane(BuildContext context) {
+    return Column(
+      children: [
+        AnimatedBuilder(
+          animation: _presentations,
+          builder: (context, _) {
+            final currentRoomKey = _roomHudEnabled ? _currentRoomLookKey : null;
+            final suppressRoomKey = (!_isCurrentRoomLookDockLatched)
+                ? currentRoomKey
+                : null;
+
+            final top = _presentations.byTarget('top');
+            final filtered = <DockItem>[];
+            for (final p in top) {
+              if (p.target != 'top') {
+                filtered.add(p);
+                continue;
+              }
+              final roomKey = getRoomLookKeyFromDockItem(p);
+              if (roomKey == null) {
+                filtered.add(p);
+                continue;
+              }
+              if (!_roomHudEnabled) {
+                // When disabled, remove room-look presentations entirely.
+                continue;
+              }
+              if (suppressRoomKey != null && roomKey == suppressRoomKey) {
+                continue;
+              }
+              filtered.add(p);
+            }
+
+            if (filtered.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final p in filtered)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: switch (p) {
+                          RoomSnapshotDockItem(:final snapshot) =>
+                            RoomSnapshotWidget(
+                              snapshot: snapshot,
+                              onCommand: (cmd) {
+                                _ws?.sendText(cmd);
+                              },
+                              onInspect: (obj) {
+                                _appendSystem('inspect: ${obj.curie}');
+                              },
+                            ),
+                          PresentationModel() => ContentRenderer(
+                            content: [p.content],
+                            contentType: normalizeContentType(p.contentType),
+                            isStale: false,
+                            onLinkTap: _handleLinkTap,
+                          ),
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Card(
+              margin: EdgeInsets.zero,
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListView.builder(
+                key: _listKey,
+                controller: _scrollCtrl,
+                itemCount: _items.length,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemBuilder: (context, idx) {
+                  final it = _items[idx];
+                  final key = _messageKeys.putIfAbsent(it.id, GlobalKey.new);
+                  final ts = it.timestamp.toIso8601String().split('T').last;
+                  return Container(
+                    key: key,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_showNarrativeMeta) ...[
+                          Row(
+                            children: [
+                              Text(
+                                ts,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: Theme.of(context).colorScheme.outline,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                it.contentType,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: Theme.of(context).colorScheme.outline,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                        ],
+                        ContentRenderer(
+                          content: it.content,
+                          contentType: it.contentType,
+                          isStale: false,
+                          onLinkTap: _handleLinkTap,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _inputCtrl,
+                  autofocus: true,
+                  focusNode: _inputFocus,
+                  keyboardType: TextInputType.multiline,
+                  minLines: 1,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Command',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _send,
+                child: const Text('Send'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _editorPaneForSession(EditorSession s) {
+    return _editorPaneCache.putIfAbsent(s.presentationId, () {
+      final authToken = widget.session.authToken;
+      final baseUri = widget.session.baseUri;
+      return switch (s) {
+        VerbEditorSession(:final objectCurie, :final verbName) =>
+          VerbEditorPane(
+            key: ValueKey(s.presentationId),
+            baseUri: baseUri,
+            authToken: authToken,
+            objectCurie: objectCurie,
+            verbName: verbName,
+          ),
+        PropertyEditorSession(:final objectCurie, :final propertyName) =>
+          PropertyEditorPane(
+            key: ValueKey(s.presentationId),
+            baseUri: baseUri,
+            authToken: authToken,
+            objectCurie: objectCurie,
+            propertyName: propertyName,
+          ),
+      };
+    });
+  }
+
+  Widget _buildEditorDock(BuildContext context) {
+    if (_editorSessions.isEmpty) return const SizedBox.shrink();
+
+    final activeIdx =
+        (_activeEditorIndex >= 0 && _activeEditorIndex < _editorSessions.length)
+        ? _activeEditorIndex
+        : 0;
+    final active = _editorSessions[activeIdx];
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < _editorSessions.length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: InputChip(
+                              label: Text(
+                                _editorSessions[i].title,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              selected: i == activeIdx,
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                setState(() {
+                                  _activeEditorIndex = i;
+                                });
+                              },
+                              onDeleted: () async {
+                                await _closeEditorSession(_editorSessions[i]);
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Fullscreen',
+                  onPressed: () async {
+                    await _openEditorFullscreen(active);
+                  },
+                  icon: const Icon(Icons.open_in_full),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () async {
+                    await _closeEditorSession(active);
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+            height: 1,
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: activeIdx,
+              children: [
+                for (final s in _editorSessions)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _editorPaneForSession(s),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1186,186 +1726,66 @@ class _SessionScreenState extends State<SessionScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          AnimatedBuilder(
-            animation: _presentations,
-            builder: (context, _) {
-              final currentRoomKey = _roomHudEnabled
-                  ? _currentRoomLookKey
-                  : null;
-              final suppressRoomKey = (!_isCurrentRoomLookDockLatched)
-                  ? currentRoomKey
-                  : null;
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (_editorSessions.isEmpty) {
+            return _buildLeftPane(context);
+          }
 
-              final top = _presentations.byTarget('top');
-              final filtered = <DockItem>[];
-              for (final p in top) {
-                if (p.target != 'top') {
-                  filtered.add(p);
-                  continue;
-                }
-                final roomKey = getRoomLookKeyFromDockItem(p);
-                if (roomKey == null) {
-                  filtered.add(p);
-                  continue;
-                }
-                if (!_roomHudEnabled) {
-                  // When disabled, remove room-look presentations entirely.
-                  continue;
-                }
-                if (suppressRoomKey != null && roomKey == suppressRoomKey) {
-                  continue;
-                }
-                filtered.add(p);
-              }
+          final w = constraints.maxWidth;
+          const minDock = 360.0;
+          const minLeft = 520.0;
+          const dividerW = 10.0;
 
-              if (filtered.isEmpty) {
-                return const SizedBox.shrink();
-              }
+          var leftW = w * _splitRatio;
+          if (leftW < minLeft) leftW = minLeft;
+          if (w - leftW - dividerW < minDock) {
+            leftW = w - minDock - dividerW;
+          }
+          if (leftW < minLeft) leftW = minLeft;
+          if (leftW > w - dividerW) leftW = w - dividerW;
 
-              return Container(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final p in filtered)
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: switch (p) {
-                            RoomSnapshotDockItem(:final snapshot) =>
-                              RoomSnapshotWidget(
-                                snapshot: snapshot,
-                                onCommand: (cmd) {
-                                  _ws?.sendText(cmd);
-                                },
-                                onInspect: (obj) {
-                                  _appendSystem('inspect: ${obj.curie}');
-                                },
-                              ),
-                            PresentationModel() => ContentRenderer(
-                              content: [p.content],
-                              contentType: normalizeContentType(p.contentType),
-                              isStale: false,
-                              onLinkTap: _handleLinkTap,
-                            ),
-                          },
+          return Row(
+            children: [
+              SizedBox(
+                width: leftW,
+                child: _buildLeftPane(context),
+              ),
+              MouseRegion(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (d) {
+                    final currentLeft = w * _splitRatio;
+                    final nextLeft = (currentLeft + d.delta.dx).clamp(
+                      minLeft,
+                      w - minDock - dividerW,
+                    );
+                    setState(() {
+                      _splitRatio = nextLeft / w;
+                    });
+                  },
+                  child: SizedBox(
+                    width: dividerW,
+                    child: Center(
+                      child: Container(
+                        width: 3,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(99),
                         ),
                       ),
-                  ],
-                ),
-              );
-            },
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              child: Card(
-                margin: EdgeInsets.zero,
-                elevation: 0,
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: ListView.builder(
-                  key: _listKey,
-                  controller: _scrollCtrl,
-                  itemCount: _items.length,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemBuilder: (context, idx) {
-                    final it = _items[idx];
-                    final key = _messageKeys.putIfAbsent(it.id, GlobalKey.new);
-                    final ts = it.timestamp.toIso8601String().split('T').last;
-                    return Container(
-                      key: key,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_showNarrativeMeta) ...[
-                            Row(
-                              children: [
-                                Text(
-                                  ts,
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outline,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  it.contentType,
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outline,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                          ],
-                          ContentRenderer(
-                            content: it.content,
-                            contentType: it.contentType,
-                            isStale: false,
-                            onLinkTap: _handleLinkTap,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _inputCtrl,
-                    autofocus: true,
-                    focusNode: _inputFocus,
-                    keyboardType: TextInputType.multiline,
-                    minLines: 1,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'Command',
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                FilledButton(
-                  onPressed: _send,
-                  child: const Text('Send'),
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+              Expanded(
+                child: _buildEditorDock(context),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
