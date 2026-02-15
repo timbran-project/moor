@@ -21,7 +21,7 @@ cd clients/meadow_flutter
 flutter run -d linux \
   -a --server=http://localhost:8080 \
   -a --username=archwizard \
-  -a --password=potrzebie \
+  -a --password=test \
   -a --login
 ```
 

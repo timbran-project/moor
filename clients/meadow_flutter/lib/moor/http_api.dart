@@ -20,6 +20,8 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
 import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
     as moor_rpc;
+import 'package:meadow_flutter/fbs/moor_rpc_moor_var_generated.dart'
+    as moor_var;
 import 'package:meadow_flutter/moor/content_type.dart';
 import 'package:meadow_flutter/moor/flatbuffers_util.dart';
 import 'package:meadow_flutter/moor/models.dart';
@@ -305,6 +307,62 @@ class MoorHttpApi {
       throw Exception('verb code: missing VerbValue');
     }
     return value;
+  }
+
+  Uint8List _emptyArgsVarBytes() {
+    // Equivalent to Meadow web's MoorVar.buildEmptyList().
+    return moor_var.VarObjectBuilder(
+      variantType: moor_var.VarUnionTypeId.VarList,
+      variant: moor_var.VarListObjectBuilder(elements: const []),
+    ).toBytes();
+  }
+
+  Future<moor_rpc.VerbCallSuccess> invokeVerb({
+    required String authToken,
+    required String objectCurie,
+    required String verbName,
+    Uint8List? argsVarBytes,
+  }) async {
+    final uri = _resolve(
+      '/v1/verbs/$objectCurie/${Uri.encodeComponent(verbName)}/invoke',
+    );
+
+    final resp = await http.post(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+        'Content-Type': 'application/x-flatbuffers',
+      },
+      body: argsVarBytes ?? _emptyArgsVarBytes(),
+    );
+
+    if (resp.statusCode == 401) {
+      throw Exception('invoke verb: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'invoke verb http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    // Unlike most /v1 endpoints, /invoke returns a raw VerbCallResponse buffer
+    // (see clients/web-sdk/src/verb.ts:parseVerbCallSuccessFromBytes).
+    final verbCall = moor_rpc.VerbCallResponse(resp.bodyBytes);
+    final response = verbCall.response;
+    if (response == null) {
+      throw Exception('invoke verb: missing VerbCallResponse');
+    }
+    if (verbCall.responseType?.value !=
+        moor_rpc.VerbCallResponseUnionTypeId.VerbCallSuccess.value) {
+      throw Exception('invoke verb: failed ($response)');
+    }
+
+    final success = response as moor_rpc.VerbCallSuccess?;
+    if (success == null) {
+      throw Exception('invoke verb: missing VerbCallSuccess');
+    }
+    return success;
   }
 
   Future<moor_rpc.VerbProgramResponse> compileVerb({

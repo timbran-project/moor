@@ -28,10 +28,14 @@ import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
+import 'package:meadow_flutter/moor/var_decode.dart';
+import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
+import 'package:meadow_flutter/widgets/command_controller.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
 import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
 import 'package:meadow_flutter/widgets/verb_editor.dart';
+import 'package:meadow_flutter/widgets/verb_palette_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main(List<String> args) {
@@ -357,7 +361,7 @@ class SessionScreen extends StatefulWidget {
 }
 
 class _SessionScreenState extends State<SessionScreen> {
-  final _inputCtrl = TextEditingController();
+  final _inputCtrl = CommandEditingController();
   final _scrollCtrl = ScrollController();
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
 
@@ -373,6 +377,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
   bool _roomHudEnabled = true;
   bool _showNarrativeMeta = true;
+  bool _verbPaletteEnabled = true;
 
   double _splitRatio = 0.64;
 
@@ -396,18 +401,45 @@ class _SessionScreenState extends State<SessionScreen> {
   final Map<int, String> _historyBuffer = {};
   int _historyOffset = 0;
 
+  String? _verbPill;
+  String? _verbPillPlaceholder;
+  String? _serverPlaceholderText;
+  bool _verbSuggestionsAvailable = false;
+  List<PaletteVerb> _paletteVerbs = paletteVerbsFallback;
+
   @override
   void initState() {
     super.initState();
     _scrollCtrl.addListener(_onScroll);
     _presentations.addListener(_onPresentationsChanged);
+    _inputCtrl.onPillCleared = () {
+      if (!mounted) return;
+      setState(() {
+        _verbPill = null;
+        _verbPillPlaceholder = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _inputFocus.requestFocus();
+      });
+    };
+    _inputCtrl.onPillSelected = () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _inputFocus.requestFocus();
+      });
+    };
+    _inputCtrl.addListener(_updateVerbCompletionGhost);
     _connectWs();
     _initEncryption();
+    _refreshVerbSuggestions();
   }
 
   @override
   void dispose() {
-    _inputCtrl.dispose();
+    _inputCtrl
+      ..removeListener(_updateVerbCompletionGhost)
+      ..dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
     _presentations
@@ -1150,8 +1182,8 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _send() {
-    final input = _inputCtrl.text;
-    if (input.trim().isEmpty) {
+    final input = _inputCtrl.commandText;
+    if (input.trim().isEmpty && (_verbPill == null || _verbPill!.isEmpty)) {
       return;
     }
 
@@ -1159,8 +1191,13 @@ class _SessionScreenState extends State<SessionScreen> {
     for (final line in input.split('\n')) {
       final cmd = line.trim();
       if (cmd.isEmpty) continue;
-      commandsSent.add(cmd);
-      _ws?.sendText(cmd);
+      final msg = _verbPill == null ? cmd : '${_verbPill!} $cmd';
+      commandsSent.add(msg);
+      _ws?.sendText(msg);
+    }
+    if (commandsSent.isEmpty && _verbPill != null && _verbPill!.isNotEmpty) {
+      commandsSent.add(_verbPill!);
+      _ws?.sendText(_verbPill!);
     }
     if (commandsSent.isEmpty) {
       return;
@@ -1176,12 +1213,92 @@ class _SessionScreenState extends State<SessionScreen> {
 
     _historyBuffer.clear();
     _historyOffset = 0;
-    _inputCtrl.clear();
+    setState(() {
+      _verbPill = null;
+      _verbPillPlaceholder = null;
+    });
+    _inputCtrl
+      ..verbPill = null
+      ..verbPillPlaceholder = null
+      ..ghostCompletion = null
+      ..clear();
 
     // Keep focus in the input field after sending (desktop UX).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _inputFocus.requestFocus();
+    });
+
+    _refreshVerbSuggestions();
+  }
+
+  PaletteVerb? _bestVerbCompletion(String token) {
+    if (_paletteVerbs.isEmpty) return null;
+    final lower = token.toLowerCase();
+    for (final v in _paletteVerbs) {
+      if (v.verb.toLowerCase() == lower) {
+        return v;
+      }
+    }
+    for (final v in _paletteVerbs) {
+      if (v.verb.toLowerCase().startsWith(lower) &&
+          v.verb.length > token.length) {
+        return v;
+      }
+    }
+    return null;
+  }
+
+  void _updateVerbCompletionGhost() {
+    if (!mounted) return;
+    if (!_verbPaletteEnabled || _verbPill != null) {
+      if (_inputCtrl.ghostCompletion != null) {
+        setState(() {
+          _inputCtrl.ghostCompletion = null;
+        });
+      }
+      return;
+    }
+
+    final cmd = _inputCtrl.commandText;
+    if (cmd.contains('\n')) {
+      if (_inputCtrl.ghostCompletion != null) {
+        setState(() {
+          _inputCtrl.ghostCompletion = null;
+        });
+      }
+      return;
+    }
+
+    // Only when editing a single leading token (no args yet).
+    if (cmd.trim().isEmpty || cmd.contains(' ') || cmd.contains('\t')) {
+      if (_inputCtrl.ghostCompletion != null) {
+        setState(() {
+          _inputCtrl.ghostCompletion = null;
+        });
+      }
+      return;
+    }
+
+    final sel = _inputCtrl.selection;
+    final atEnd =
+        sel.isValid &&
+        sel.isCollapsed &&
+        sel.baseOffset == _inputCtrl.text.length;
+    if (!atEnd) {
+      if (_inputCtrl.ghostCompletion != null) {
+        setState(() {
+          _inputCtrl.ghostCompletion = null;
+        });
+      }
+      return;
+    }
+
+    final suggestion = _bestVerbCompletion(cmd);
+    final ghost = suggestion?.verb.substring(cmd.length);
+    if (ghost == _inputCtrl.ghostCompletion) return;
+    setState(() {
+      _inputCtrl.ghostCompletion = ghost;
     });
   }
 
@@ -1197,7 +1314,7 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
 
-    final currentText = _inputCtrl.text;
+    final currentText = _inputCtrl.commandText;
     _historyBuffer[_historyOffset] = currentText;
 
     final nextOffset = (_historyOffset + delta).clamp(
@@ -1277,6 +1394,38 @@ class _SessionScreenState extends State<SessionScreen> {
       return KeyEventResult.ignored;
     }
 
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      final shift = HardwareKeyboard.instance.isShiftPressed;
+      if (!shift && _verbPaletteEnabled && _verbPill == null) {
+        final cmd = _inputCtrl.commandText;
+        if (!cmd.contains('\n')) {
+          final token = cmd.trim();
+          if (token.isEmpty) {
+            return KeyEventResult.ignored;
+          }
+          final suggestion = _bestVerbCompletion(token);
+          if (suggestion != null) {
+            setState(() {
+              _verbPill = suggestion.verb;
+              _verbPillPlaceholder = suggestion.placeholder;
+            });
+            _inputCtrl.promoteLeadingTokenToPill(
+              verb: suggestion.verb,
+              placeholder: suggestion.placeholder,
+            );
+            return KeyEventResult.handled;
+          }
+        }
+      }
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (_inputCtrl.handleBackspaceAtPillBoundary()) {
+        return KeyEventResult.handled;
+      }
+    }
+
     return KeyEventResult.ignored;
   }
 
@@ -1304,6 +1453,67 @@ class _SessionScreenState extends State<SessionScreen> {
     _appendSystem('Unhandled link: $url');
   }
 
+  Future<void> _refreshVerbSuggestions() async {
+    final authToken = widget.session.authToken;
+    final player = widget.session.playerCurie;
+    final api = MoorHttpApi(widget.session.baseUri);
+
+    try {
+      final success = await api.invokeVerb(
+        authToken: authToken,
+        objectCurie: player,
+        verbName: 'verb_suggestions',
+      );
+      final decoded = decodeVarLoose(success.result);
+      final suggestions = parseVerbSuggestionsLoose(decoded);
+      final placeholder = suggestions
+          .where((s) => s.placeholderText != null)
+          .firstOrNull;
+
+      final verbs = <PaletteVerb>[];
+      for (final s in suggestions) {
+        verbs.add(suggestionToPaletteVerb(s));
+      }
+      verbs.sort((a, b) {
+        final aIsAt = a.verb.startsWith('@');
+        final bIsAt = b.verb.startsWith('@');
+        if (aIsAt == bIsAt) return 0;
+        return aIsAt ? 1 : -1;
+      });
+
+      if (!mounted) return;
+      setState(() {
+        // "available" in Meadow web means the verb exists and returned a list,
+        // even if it's empty.
+        _verbSuggestionsAvailable = decoded is List;
+        _serverPlaceholderText = placeholder?.placeholderText;
+        _paletteVerbs = verbs.isNotEmpty ? verbs : paletteVerbsFallback;
+      });
+
+      if (decoded != null && suggestions.isEmpty) {
+        _appendSystem(
+          'verb_suggestions returned no suggestions (decoded=$decoded)',
+        );
+      }
+    } on Object catch (e) {
+      if (!mounted) return;
+      _appendSystem('verb_suggestions fetch failed: $e');
+      setState(() {
+        _verbSuggestionsAvailable = false;
+        _serverPlaceholderText = null;
+        _paletteVerbs = paletteVerbsFallback;
+      });
+    }
+  }
+
+  void _selectPaletteVerb(PaletteVerb v) {
+    setState(() {
+      _verbPill = v.verb;
+      _verbPillPlaceholder = v.placeholder;
+    });
+    _inputCtrl.setVerbPill(verb: v.verb, placeholder: v.placeholder);
+  }
+
   Future<void> _showSettingsSheet() async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -1314,6 +1524,7 @@ class _SessionScreenState extends State<SessionScreen> {
         // automatically rebuild this subtree, so keep local state here.
         var roomHudEnabled = _roomHudEnabled;
         var showNarrativeMeta = _showNarrativeMeta;
+        var verbPaletteEnabled = _verbPaletteEnabled;
 
         return StatefulBuilder(
           builder: (context, modalSetState) {
@@ -1360,6 +1571,23 @@ class _SessionScreenState extends State<SessionScreen> {
                         });
                       },
                     ),
+                    SwitchListTile(
+                      value: verbPaletteEnabled,
+                      title: const Text('Verb palette'),
+                      subtitle: Text(
+                        _verbSuggestionsAvailable
+                            ? 'Show quick verbs (server)'
+                            : 'Show quick verbs (fallback)',
+                      ),
+                      onChanged: (v) {
+                        modalSetState(() {
+                          verbPaletteEnabled = v;
+                        });
+                        setState(() {
+                          _verbPaletteEnabled = v;
+                        });
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -1384,6 +1612,14 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Widget _buildLeftPane(BuildContext context) {
+    // Keep controller styling/placeholder in sync with theme and pill state.
+    _inputCtrl
+      ..verbPill = _verbPill
+      ..verbPillPlaceholder = _verbPillPlaceholder
+      ..placeholderColor = Theme.of(context).colorScheme.outline.withValues(
+        alpha: 0.75,
+      );
+
     return Column(
       children: [
         AnimatedBuilder(
@@ -1463,98 +1699,142 @@ class _SessionScreenState extends State<SessionScreen> {
           },
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-            child: Card(
-              margin: EdgeInsets.zero,
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ListView.builder(
-                key: _listKey,
-                controller: _scrollCtrl,
-                itemCount: _items.length,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemBuilder: (context, idx) {
-                  final it = _items[idx];
-                  final key = _messageKeys.putIfAbsent(it.id, GlobalKey.new);
-                  final ts = it.timestamp.toIso8601String().split('T').last;
-                  return Container(
-                    key: key,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_showNarrativeMeta) ...[
-                          Row(
-                            children: [
-                              Text(
-                                ts,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: Theme.of(context).colorScheme.outline,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                it.contentType,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: Theme.of(context).colorScheme.outline,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+          child: FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: Column(
+              children: [
+                Expanded(
+                  child: FocusTraversalOrder(
+                    order: const NumericFocusOrder(1),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        elevation: 0,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.outlineVariant,
                           ),
-                          const SizedBox(height: 2),
-                        ],
-                        ContentRenderer(
-                          content: it.content,
-                          contentType: it.contentType,
-                          isStale: false,
-                          onLinkTap: _handleLinkTap,
                         ),
-                      ],
+                        clipBehavior: Clip.antiAlias,
+                        child: ListView.builder(
+                          key: _listKey,
+                          controller: _scrollCtrl,
+                          itemCount: _items.length,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemBuilder: (context, idx) {
+                            final it = _items[idx];
+                            final key = _messageKeys.putIfAbsent(
+                              it.id,
+                              GlobalKey.new,
+                            );
+                            final ts = it.timestamp
+                                .toIso8601String()
+                                .split('T')
+                                .last;
+                            return Container(
+                              key: key,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_showNarrativeMeta) ...[
+                                    Row(
+                                      children: [
+                                        Text(
+                                          ts,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.outline,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          it.contentType,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.outline,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                  ],
+                                  ContentRenderer(
+                                    content: it.content,
+                                    contentType: it.contentType,
+                                    isStale: false,
+                                    onLinkTap: _handleLinkTap,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _inputCtrl,
-                  autofocus: true,
-                  focusNode: _inputFocus,
-                  keyboardType: TextInputType.multiline,
-                  minLines: 1,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Command',
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: _send,
-                child: const Text('Send'),
-              ),
-            ],
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(2),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                    child: VerbPaletteBar(
+                      visible: _verbPaletteEnabled,
+                      verbs: _paletteVerbs,
+                      onSelect: _selectPaletteVerb,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FocusTraversalOrder(
+                          order: const NumericFocusOrder(3),
+                          child: TextField(
+                            controller: _inputCtrl,
+                            autofocus: true,
+                            focusNode: _inputFocus,
+                            keyboardType: TextInputType.multiline,
+                            minLines: 1,
+                            maxLines: 6,
+                            decoration: InputDecoration(
+                              labelText: 'Command',
+                              hintText: _verbPill != null
+                                  ? _verbPillPlaceholder
+                                  : _serverPlaceholderText,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(4),
+                        child: FilledButton(
+                          onPressed: _send,
+                          child: const Text('Send'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
