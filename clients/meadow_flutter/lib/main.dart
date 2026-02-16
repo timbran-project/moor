@@ -1575,6 +1575,103 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
+  Widget _buildThoughtBubbleMessage(
+    BuildContext context,
+    NarrativeItem item,
+    ColorScheme cs,
+  ) {
+    final actorCurie = _actorCurie(item);
+    final isSelf =
+        actorCurie != null &&
+        actorCurie.toLowerCase() == widget.session.playerCurie.toLowerCase();
+    final actorLabel = _actorName(item) ?? actorCurie ?? 'Unknown';
+    final semanticThought = item.metadata?.content;
+    final bubbleContent =
+        (semanticThought != null && semanticThought.isNotEmpty)
+        ? <String>[semanticThought]
+        : (item.content.isNotEmpty
+              ? item.content
+              : <String>[_speechContent(item)]);
+    final bubbleContentType =
+        (semanticThought != null && semanticThought.isNotEmpty)
+        ? 'text/djot'
+        : item.contentType;
+
+    final bubbleColor = isSelf
+        ? Color.lerp(cs.primaryContainer, cs.primary, 0.08) ??
+              cs.primaryContainer
+        : Color.lerp(cs.tertiaryContainer, cs.surfaceContainerHigh, 0.25) ??
+              cs.tertiaryContainer;
+    final bubbleTextColor = isSelf
+        ? cs.onPrimaryContainer
+        : cs.onTertiaryContainer;
+    final rowAlign = isSelf ? MainAxisAlignment.end : MainAxisAlignment.start;
+
+    final nameText = Flexible(
+      child: Text(
+        actorLabel,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          color: cs.outline,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+
+    final bubbleBody = Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Color.lerp(bubbleColor, cs.outline, 0.25) ?? cs.outline,
+          ),
+        ),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(
+            color: bubbleTextColor,
+            fontSize: 14,
+          ),
+          child: ContentRenderer(
+            content: bubbleContent,
+            contentType: bubbleContentType,
+            isStale: false,
+            onLinkTap: _handleLinkTap,
+            monospace: _monospaceNarrative,
+          ),
+        ),
+      ),
+    );
+
+    final thoughtDots = CustomPaint(
+      size: const Size(16, 18),
+      painter: _ThoughtBubbleDotsPainter(
+        color: bubbleColor,
+        isSelf: isSelf,
+      ),
+    );
+    final bubbleWithDots = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: isSelf
+          ? <Widget>[bubbleBody, thoughtDots]
+          : <Widget>[thoughtDots, bubbleBody],
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Row(
+        mainAxisAlignment: rowAlign,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: isSelf
+            ? <Widget>[bubbleWithDots, const SizedBox(width: 5), nameText]
+            : <Widget>[nameText, const SizedBox(width: 5), bubbleWithDots],
+      ),
+    );
+  }
+
   static bool _sameActor(NarrativeItem a, NarrativeItem b) {
     final ak = a.metadata?.actorCurie;
     final bk = b.metadata?.actorCurie;
@@ -2858,6 +2955,14 @@ class _SessionScreenState extends State<SessionScreen> {
                                                     it,
                                                     cs,
                                                   )
+                                                else if (_speechBubblesEnabled &&
+                                                    it.presentationHint ==
+                                                        'thought_bubble')
+                                                  _buildThoughtBubbleMessage(
+                                                    context,
+                                                    it,
+                                                    cs,
+                                                  )
                                                 else
                                                   ContentRenderer(
                                                     content: it.content,
@@ -3286,6 +3391,33 @@ class _SpeechBubbleTailPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SpeechBubbleTailPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.isSelf != isSelf;
+  }
+}
+
+class _ThoughtBubbleDotsPainter extends CustomPainter {
+  final Color color;
+  final bool isSelf;
+
+  const _ThoughtBubbleDotsPainter({
+    required this.color,
+    required this.isSelf,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = color;
+    final x = isSelf ? size.width - 1 : 1.0;
+    final align = isSelf ? -1.0 : 1.0;
+
+    canvas
+      ..drawCircle(Offset(x, size.height - 5), 1.8, p)
+      ..drawCircle(Offset(x + 5 * align, size.height - 9), 2.8, p)
+      ..drawCircle(Offset(x + 11 * align, size.height - 13), 4.3, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ThoughtBubbleDotsPainter oldDelegate) {
     return oldDelegate.color != color || oldDelegate.isSelf != isSelf;
   }
 }
