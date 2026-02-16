@@ -478,19 +478,6 @@ class MoorWsClient {
           }
           onPresentationUpsert(model);
         }
-
-        onNarrativeItem(
-          NarrativeItem(
-            id: _newId(),
-            timestamp: ts,
-            content: [pres.content ?? ''],
-            contentType: normalizeContentType(pres.contentType),
-            noNewline: false,
-            presentationHint: null,
-            groupId: null,
-            eventMetadata: null,
-          ),
-        );
       }
 
       if (e.eventType?.value ==

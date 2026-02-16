@@ -57,6 +57,17 @@ class RoomSnapshotDockItem implements DockItem {
   });
 }
 
+String normalizeDockTarget(String target) {
+  final t = target.trim().toLowerCase();
+  switch (t) {
+    case 'tools':
+    case 'inventory':
+      return 'right';
+    default:
+      return t;
+  }
+}
+
 PresentationModel? presentationFromFb(moor_common.Presentation? p) {
   if (p == null) return null;
   final id = p.id?.trim();
@@ -75,7 +86,7 @@ PresentationModel? presentationFromFb(moor_common.Presentation? p) {
 
   return PresentationModel(
     id: id,
-    target: (p.target ?? '').trim(),
+    target: normalizeDockTarget(p.target ?? ''),
     contentType: (p.contentType ?? 'text/plain').trim(),
     content: p.content ?? '',
     attrs: attrs,

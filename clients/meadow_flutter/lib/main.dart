@@ -27,9 +27,11 @@ import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
+import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
+import 'package:meadow_flutter/moor/types/moor_coll.dart';
 import 'package:meadow_flutter/moor/types/moor_str.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
@@ -430,6 +432,9 @@ class _SessionScreenState extends State<SessionScreen> {
   final _presentations = PresentationStore();
   final GlobalKey _listKey = GlobalKey();
   final _messageKeys = <String, GlobalKey>{};
+  static const String _debugPanelId = 'local-debug-panel';
+  final _debugLines = <String>[];
+  bool _debugPanelVisible = false;
 
   String? _currentRoomLookKey;
   String? _currentRoomLookMessageId;
@@ -687,18 +692,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _closeEditorSession(EditorSession s) async {
-    final authToken = widget.session.authToken;
-    final baseUri = widget.session.baseUri;
-    final api = MoorHttpApi(baseUri);
-
-    try {
-      await api.dismissPresentation(
-        authToken: authToken,
-        presentationId: s.presentationId,
-      );
-    } on Object catch (e) {
-      _appendSystem('dismiss presentation failed: $e');
-    }
+    await _dismissPresentationById(s.presentationId);
 
     if (!mounted) return;
     setState(() {
@@ -719,6 +713,28 @@ class _SessionScreenState extends State<SessionScreen> {
     // Also remove from local presentation store so we don't reopen it if the
     // backend is slow to send Unpresent.
     _presentations.remove(s.presentationId);
+  }
+
+  Future<void> _dismissPresentationById(String presentationId) async {
+    if (presentationId == _debugPanelId) {
+      setState(() {
+        _debugPanelVisible = false;
+      });
+      _presentations.remove(presentationId);
+      return;
+    }
+    final authToken = widget.session.authToken;
+    final baseUri = widget.session.baseUri;
+    final api = MoorHttpApi(baseUri);
+    try {
+      await api.dismissPresentation(
+        authToken: authToken,
+        presentationId: presentationId,
+      );
+    } on Object catch (e) {
+      _appendSystem('dismiss presentation failed: $e');
+    }
+    _presentations.remove(presentationId);
   }
 
   Future<void> _openEditorFullscreen(EditorSession s) async {
@@ -1299,18 +1315,48 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _appendSystem(String m) {
-    _appendItem(
-      NarrativeItem(
-        id: _newId('s'),
-        timestamp: DateTime.now(),
-        content: ['[system] $m'],
+    _appendDebugLine(m);
+  }
+
+  void _ensureDebugPanel() {
+    if (!_debugPanelVisible) return;
+    final content = _debugLines.isEmpty
+        ? '(debug output)'
+        : _debugLines.join('\n');
+    _presentations.upsert(
+      PresentationModel(
+        id: _debugPanelId,
+        target: 'right',
         contentType: 'text/plain',
-        noNewline: false,
-        presentationHint: null,
-        groupId: null,
-        eventMetadata: null,
+        content: content,
+        attrs: const <String, String>{
+          'title': 'Debug',
+          'source': 'local_debug',
+          'kind': 'debug_output',
+        },
       ),
     );
+  }
+
+  void _appendDebugLine(String line) {
+    final ts = DateTime.now().toIso8601String().split('T').last;
+    _debugLines.add('[$ts] $line');
+    const maxLines = 500;
+    if (_debugLines.length > maxLines) {
+      _debugLines.removeRange(0, _debugLines.length - maxLines);
+    }
+    _ensureDebugPanel();
+  }
+
+  void _toggleDebugPanel() {
+    setState(() {
+      _debugPanelVisible = !_debugPanelVisible;
+    });
+    if (_debugPanelVisible) {
+      _ensureDebugPanel();
+    } else {
+      _presentations.remove(_debugPanelId);
+    }
   }
 
   void _appendItem(NarrativeItem it) {
@@ -1700,6 +1746,11 @@ class _SessionScreenState extends State<SessionScreen> {
       _ws?.sendText(cmd);
       return;
     }
+    if (url.startsWith('moo://inspect/')) {
+      final curie = Uri.decodeComponent(url.substring('moo://inspect/'.length));
+      await _showInspectSheet(curie);
+      return;
+    }
 
     if (url.startsWith('http://') || url.startsWith('https://')) {
       final u = Uri.tryParse(url);
@@ -1716,6 +1767,314 @@ class _SessionScreenState extends State<SessionScreen> {
 
     // Unknown or unhandled scheme: show it.
     _appendSystem('Unhandled link: $url');
+  }
+
+  Future<void> _showInspectSheet(String objectCurie) async {
+    final api = MoorHttpApi(widget.session.baseUri);
+
+    InspectData? inspectData;
+    try {
+      final success = await api.invokeVerb(
+        authToken: widget.session.authToken,
+        objectCurie: objectCurie,
+        verbName: 'inspection',
+      );
+      final result = success.result;
+      final decoded = result != null
+          ? MoorVar.fromFlatBuffer(result)
+          : moorNoneVar;
+      inspectData = parseInspectData(decoded);
+      if (inspectData == null) {
+        _appendSystem('No inspect data available for $objectCurie');
+        return;
+      }
+      for (final action in inspectData.actions) {
+        _appendSystem(
+          '[inspect] action metadata: '
+          'label=${action.label} '
+          'kind=${action.kind ?? "-"} '
+          'command=${action.command ?? "-"} '
+          'verb=${action.verb ?? "-"} '
+          'target=${action.target ?? "-"} '
+          'args=${action.args} '
+          'resultMode=${action.resultMode ?? "-"} '
+          'panelTarget=${action.panelTarget ?? "-"} '
+          'panelId=${action.panelId ?? "-"} '
+          'panelTitle=${action.panelTitle ?? "-"}',
+        );
+      }
+    } on Object catch (e) {
+      _appendSystem('Inspect failed: $e');
+      return;
+    }
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        final data = inspectData!;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    data.title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  if (data.description.trim().isNotEmpty)
+                    ContentRenderer(
+                      content: [data.description],
+                      contentType: 'text/plain',
+                      isStale: false,
+                      onLinkTap: _handleLinkTap,
+                      monospace: _monospaceNarrative,
+                    ),
+                  if (data.actions.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final action in data.actions)
+                          FilledButton.tonal(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _runInspectAction(action);
+                            },
+                            child: Text(action.label),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _runInspectAction(InspectAction action) async {
+    _appendSystem(
+      '[inspect] run action: '
+      'label=${action.label} '
+      'kind=${action.kind ?? "-"} '
+      'command=${action.command ?? "-"} '
+      'verb=${action.verb ?? "-"} '
+      'target=${action.target ?? "-"} '
+      'args=${action.args} '
+      'inputType=${action.inputType ?? "-"} '
+      'inputPrompt=${action.inputPrompt ?? "-"} '
+      'inputPlaceholder=${action.inputPlaceholder ?? "-"} '
+      'resultMode=${action.resultMode ?? "-"} '
+      'panelTarget=${action.panelTarget ?? "-"} '
+      'panelId=${action.panelId ?? "-"} '
+      'panelTitle=${action.panelTitle ?? "-"}',
+    );
+    String? inputValue;
+    if (action.inputType == 'text') {
+      inputValue = await _promptInspectActionInput(action);
+      if (inputValue == null) {
+        _appendSystem('[inspect] action canceled: ${action.label}');
+        return;
+      }
+    }
+    if (action.kind == 'command' || action.command != null) {
+      var command = action.command ?? '';
+      if (inputValue != null) {
+        command = command.contains('{input}')
+            ? command.replaceAll('{input}', inputValue)
+            : '$command $inputValue'.trim();
+      }
+      if (command.trim().isNotEmpty) {
+        _appendSystem(
+          '[inspect] sending command action over websocket: $command',
+        );
+        _ws?.sendText(command);
+      }
+      return;
+    }
+
+    final verb = action.verb;
+    final target = action.target;
+    if (verb == null || target == null) {
+      return;
+    }
+
+    try {
+      final api = MoorHttpApi(widget.session.baseUri);
+      final args = [...action.args];
+      if (inputValue != null) {
+        args.add(inputValue);
+      }
+      final invokeArgs = _buildInspectInvokeArgs(args);
+      final success = await api.invokeVerb(
+        authToken: widget.session.authToken,
+        objectCurie: target,
+        verbName: verb,
+        argsVarBytes: invokeArgs,
+      );
+      final eventTypes = success.output
+          ?.map((evt) => evt.event?.eventType?.value ?? -1)
+          .toList();
+      _appendSystem(
+        '[inspect] invoke completed: '
+        'resultPresent=${success.result != null} '
+        'outputEvents=${success.output?.length ?? 0} '
+        'eventTypes=${eventTypes ?? const <int>[]}',
+      );
+
+      final outputLines = _extractInvokeOutputLines(success.output);
+      if (action.resultMode == 'panel' && outputLines.isNotEmpty) {
+        final panelTarget = _mapInspectPanelTarget(action.panelTarget);
+        final panelId = action.panelId ?? _newId('inspect-action-');
+        final panelTitle = action.panelTitle ?? action.label;
+        _appendSystem(
+          '[inspect] routing action output to panel: '
+          'target=$panelTarget id=$panelId title=$panelTitle '
+          'lines=${outputLines.length}',
+        );
+        _presentations.upsert(
+          PresentationModel(
+            id: panelId,
+            target: panelTarget,
+            contentType: 'text/plain',
+            content: outputLines.join('\n'),
+            attrs: <String, String>{
+              'title': panelTitle,
+              'kind': 'action_output',
+              'source': 'inspect_action',
+            },
+          ),
+        );
+        return;
+      }
+      if (action.resultMode == 'panel' && outputLines.isEmpty) {
+        _appendSystem(
+          '[inspect] panel requested but invoke output had no lines',
+        );
+      }
+
+      var emittedOutput = false;
+      for (final line in outputLines) {
+        _appendSystem(line);
+        emittedOutput = true;
+      }
+      if (!emittedOutput) {
+        _appendSystem('Action ran: ${action.label}');
+      }
+    } on Object catch (e) {
+      _appendSystem('Action failed (${action.label}): $e');
+    }
+  }
+
+  Future<String?> _promptInspectActionInput(InspectAction action) async {
+    final ctrl = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(action.inputPrompt ?? action.label),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: action.inputPlaceholder ?? 'Enter text',
+            ),
+            onSubmitted: (_) {
+              final text = ctrl.text.trim();
+              Navigator.of(context).pop(text.isEmpty ? null : text);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = ctrl.text.trim();
+                Navigator.of(context).pop(text.isEmpty ? null : text);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+    ctrl.dispose();
+    return value;
+  }
+
+  List<String> _extractInvokeOutputLines(
+    List<moor_common.NarrativeEvent>? output,
+  ) {
+    final lines = <String>[];
+    if (output == null) return lines;
+    for (final evt in output) {
+      final e = evt.event;
+      if (e == null) continue;
+      final eventType = e.eventType?.value ?? 0;
+      if (eventType == moor_common.EventUnionTypeId.NotifyEvent.value) {
+        final notify = e.event as moor_common.NotifyEvent?;
+        if (notify == null || notify.value == null) continue;
+        lines.addAll(MoorVar.fromFlatBuffer(notify.value!).asLines());
+      } else if (eventType ==
+          moor_common.EventUnionTypeId.TracebackEvent.value) {
+        final tb = e.event as moor_common.TracebackEvent?;
+        final bt = tb?.exception?.backtrace;
+        if (bt == null) continue;
+        for (final entry in bt) {
+          lines.addAll(MoorVar.fromFlatBuffer(entry).asLines());
+        }
+      }
+    }
+    return lines;
+  }
+
+  String _mapInspectPanelTarget(String? target) {
+    final t = (target ?? '').trim().toLowerCase();
+    switch (t) {
+      case 'top':
+      case 'left':
+      case 'right':
+      case 'bottom':
+        return t;
+      case 'tools':
+      case 'status':
+      case 'inventory':
+      case 'navigation':
+      case 'communication':
+      case 'help':
+        // Flutter spike currently renders top presentations for this UI lane.
+        return 'top';
+      default:
+        return 'top';
+    }
+  }
+
+  Uint8List? _buildInspectInvokeArgs(List<String> args) {
+    if (args.isEmpty) return null;
+    final packed = <MoorVar>[];
+    for (final a in args) {
+      final ref = ObjectRef.fromCurie(a);
+      if (ref != null) {
+        packed.add(MoorVar(ref.obj));
+      } else {
+        packed.add(MoorVar(a));
+      }
+    }
+    return Uint8List.fromList(MoorList(packed).toVar().toBytes());
   }
 
   Future<void> _refreshVerbSuggestions() async {
@@ -1922,6 +2281,59 @@ class _SessionScreenState extends State<SessionScreen> {
     Navigator.of(context).pop();
   }
 
+  Widget _buildDockItemCard(BuildContext context, DockItem p) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: switch (p) {
+          RoomSnapshotDockItem(:final snapshot) => RoomSnapshotWidget(
+            snapshot: snapshot,
+            onCommand: (cmd) {
+              _ws?.sendText(cmd);
+            },
+            onInspect: (obj) => _showInspectSheet(obj.curie),
+          ),
+          PresentationModel() => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (p.attrs['title'] ?? '').trim().isNotEmpty
+                          ? p.attrs['title']!
+                          : p.id,
+                      style: Theme.of(context).textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close panel',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () async {
+                      await _dismissPresentationById(p.id);
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ContentRenderer(
+                content: [p.content],
+                contentType: normalizeContentType(p.contentType),
+                isStale: false,
+                onLinkTap: _handleLinkTap,
+                monospace:
+                    p.attrs['kind'] == 'debug_output' || _monospaceNarrative,
+              ),
+            ],
+          ),
+        },
+      ),
+    );
+  }
+
   Widget _buildLeftPane(BuildContext context) {
     // Keep controller styling/placeholder in sync with theme and pill state.
     _inputCtrl
@@ -1979,32 +2391,7 @@ class _SessionScreenState extends State<SessionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final p in filtered)
-                    Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: switch (p) {
-                          RoomSnapshotDockItem(:final snapshot) =>
-                            RoomSnapshotWidget(
-                              snapshot: snapshot,
-                              onCommand: (cmd) {
-                                _ws?.sendText(cmd);
-                              },
-                              onInspect: (obj) {
-                                _appendSystem('inspect: ${obj.curie}');
-                              },
-                            ),
-                          PresentationModel() => ContentRenderer(
-                            content: [p.content],
-                            contentType: normalizeContentType(p.contentType),
-                            isStale: false,
-                            onLinkTap: _handleLinkTap,
-                            monospace: _monospaceNarrative,
-                          ),
-                        },
-                      ),
-                    ),
+                  for (final p in filtered) _buildDockItemCard(context, p),
                 ],
               ),
             );
@@ -2016,150 +2403,184 @@ class _SessionScreenState extends State<SessionScreen> {
             child: Column(
               children: [
                 Expanded(
-                  child: FocusTraversalOrder(
-                    order: const NumericFocusOrder(1),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                      child: Card(
-                        margin: EdgeInsets.zero,
-                        elevation: 0,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(
-                            color: Theme.of(context).colorScheme.outlineVariant,
-                          ),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Builder(
-                          builder: (context) {
-                            final groups = _groupNarrativeItems(_items);
-                            return ListView.builder(
-                              key: _listKey,
-                              controller: _scrollCtrl,
-                              itemCount: groups.length,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemBuilder: (context, idx) {
-                                final group = groups[idx];
-                                final first = group.first;
-                                final cs = Theme.of(context).colorScheme;
-
-                                Widget buildMessage(NarrativeItem it) {
-                                  final key = _messageKeys.putIfAbsent(
-                                    it.id,
-                                    GlobalKey.new,
-                                  );
-                                  final ts = it.timestamp
-                                      .toIso8601String()
-                                      .split('T')
-                                      .last;
-                                  return Container(
-                                    key: key,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FocusTraversalOrder(
+                          order: const NumericFocusOrder(1),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                            child: Card(
+                              margin: EdgeInsets.zero,
+                              elevation: 0,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.outlineVariant,
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Builder(
+                                builder: (context) {
+                                  final groups = _groupNarrativeItems(_items);
+                                  return ListView.builder(
+                                    key: _listKey,
+                                    controller: _scrollCtrl,
+                                    itemCount: groups.length,
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
+                                      vertical: 8,
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (_showNarrativeMeta) ...[
-                                          Row(
+                                    itemBuilder: (context, idx) {
+                                      final group = groups[idx];
+                                      final first = group.first;
+                                      final cs = Theme.of(context).colorScheme;
+
+                                      Widget buildMessage(NarrativeItem it) {
+                                        final key = _messageKeys.putIfAbsent(
+                                          it.id,
+                                          GlobalKey.new,
+                                        );
+                                        final ts = it.timestamp
+                                            .toIso8601String()
+                                            .split('T')
+                                            .last;
+                                        return Container(
+                                          key: key,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                ts,
-                                                style: TextStyle(
-                                                  fontFamily: 'monospace',
-                                                  color: cs.outline,
-                                                  fontSize: 12,
+                                              if (_showNarrativeMeta) ...[
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      ts,
+                                                      style: TextStyle(
+                                                        fontFamily: 'monospace',
+                                                        color: cs.outline,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      it.contentType,
+                                                      style: TextStyle(
+                                                        fontFamily: 'monospace',
+                                                        color: cs.outline,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                it.contentType,
-                                                style: TextStyle(
-                                                  fontFamily: 'monospace',
-                                                  color: cs.outline,
-                                                  fontSize: 12,
-                                                ),
+                                                const SizedBox(height: 2),
+                                              ],
+                                              ContentRenderer(
+                                                content: it.content,
+                                                contentType: it.contentType,
+                                                isStale: false,
+                                                onLinkTap: _handleLinkTap,
+                                                monospace: _monospaceNarrative,
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 2),
+                                        );
+                                      }
+
+                                      final hint = first.presentationHint;
+                                      final isInset = hint == 'inset';
+                                      final isHintGroup =
+                                          hint != null &&
+                                          first.groupId != null &&
+                                          group.every(
+                                            (m) =>
+                                                m.presentationHint == hint &&
+                                                m.groupId == first.groupId,
+                                          );
+
+                                      final inner = Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          for (final it in group)
+                                            buildMessage(it),
                                         ],
-                                        ContentRenderer(
-                                          content: it.content,
-                                          contentType: it.contentType,
-                                          isStale: false,
-                                          onLinkTap: _handleLinkTap,
-                                          monospace: _monospaceNarrative,
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
+                                      );
 
-                                final hint = first.presentationHint;
-                                final isInset = hint == 'inset';
-                                final isHintGroup =
-                                    hint != null &&
-                                    first.groupId != null &&
-                                    group.every(
-                                      (m) =>
-                                          m.presentationHint == hint &&
-                                          m.groupId == first.groupId,
-                                    );
+                                      if (!isInset) {
+                                        if (group.length == 1 && !isHintGroup) {
+                                          return inner;
+                                        }
+                                        return inner;
+                                      }
 
-                                final inner = Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    for (final it in group) buildMessage(it),
-                                  ],
-                                );
-
-                                if (!isInset) {
-                                  if (group.length == 1 && !isHintGroup) {
-                                    return inner;
-                                  }
-                                  return inner;
-                                }
-
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  child: Semantics(
-                                    container: true,
-                                    label: 'Inset',
-                                    child: Card(
-                                      elevation: 0,
-                                      color: cs.surfaceContainerLow,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: BorderSide(
-                                          color: cs.primary,
-                                          width: 2,
-                                        ),
-                                      ),
-                                      child: Padding(
+                                      return Padding(
                                         padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
                                           vertical: 6,
                                         ),
-                                        child: inner,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                                        child: Semantics(
+                                          container: true,
+                                          label: 'Inset',
+                                          child: Card(
+                                            elevation: 0,
+                                            color: cs.surfaceContainerLow,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              side: BorderSide(
+                                                color: cs.primary,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 6,
+                                                  ),
+                                              child: inner,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      AnimatedBuilder(
+                        animation: _presentations,
+                        builder: (context, _) {
+                          final side = _presentations.byTarget('right');
+                          if (side.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return SizedBox(
+                            width: 330,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+                              child: ListView(
+                                children: [
+                                  for (final p in side)
+                                    _buildDockItemCard(context, p),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 FocusTraversalOrder(
@@ -2341,6 +2762,15 @@ class _SessionScreenState extends State<SessionScreen> {
         automaticallyImplyLeading: false,
         title: Text('${widget.session.playerCurie} ($_status)'),
         actions: [
+          IconButton(
+            onPressed: _toggleDebugPanel,
+            tooltip: _debugPanelVisible
+                ? 'Hide debug panel'
+                : 'Show debug panel',
+            icon: Icon(
+              _debugPanelVisible ? Icons.bug_report : Icons.bug_report_outlined,
+            ),
+          ),
           IconButton(
             onPressed: _showSettingsSheet,
             tooltip: 'Settings',
