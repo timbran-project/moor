@@ -455,7 +455,7 @@ class _SessionScreenState extends State<SessionScreen> {
   final _latestLookMessageIdByRoom = <String, String>{};
 
   bool _roomHudEnabled = true;
-  bool _showNarrativeMeta = true;
+  bool _showNarrativeMeta = false;
   bool _verbPaletteEnabled = true;
   bool _monospaceNarrative = false;
 
