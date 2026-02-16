@@ -27,6 +27,7 @@ import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
+import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
@@ -438,6 +439,7 @@ class SessionScreen extends StatefulWidget {
 
 class _SessionScreenState extends State<SessionScreen> {
   final _inputCtrl = CommandEditingController();
+  final _promptCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
 
@@ -490,6 +492,7 @@ class _SessionScreenState extends State<SessionScreen> {
   String? _serverPlaceholderText;
   bool _verbSuggestionsAvailable = false;
   List<PaletteVerb> _paletteVerbs = paletteVerbsFallback;
+  InputPromptRequest? _inputPrompt;
 
   @override
   void initState() {
@@ -523,6 +526,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   void dispose() {
+    _promptCtrl.dispose();
     _inputCtrl
       ..removeListener(_updateVerbCompletionGhost)
       ..dispose();
@@ -888,6 +892,7 @@ class _SessionScreenState extends State<SessionScreen> {
       onNarrativeItem: _appendItem,
       onPresentationUpsert: _presentations.upsert,
       onPresentationRemove: _presentations.remove,
+      onInputPromptRequest: _handleInputPromptRequest,
       onConnectionStatusChanged: (status) {
         if (!mounted) return;
         if (status == 'connected') {
@@ -896,6 +901,9 @@ class _SessionScreenState extends State<SessionScreen> {
             unawaited(_loadInitialHistory());
           }
         } else if (status == 'disconnected') {
+          if (_inputPrompt != null) {
+            _clearInputPrompt();
+          }
           final shouldResyncHistory =
               _wasWsConnected && _eventLogHasLocalKey && _historyLoaded;
           _wasWsConnected = false;
@@ -1350,6 +1358,24 @@ class _SessionScreenState extends State<SessionScreen> {
     _appendDebugLine(m);
   }
 
+  void _appendNarrativeText(String text, {String contentType = 'text/plain'}) {
+    if (text.trim().isEmpty) {
+      return;
+    }
+    _appendItem(
+      NarrativeItem(
+        id: _newId('local'),
+        timestamp: DateTime.now(),
+        content: [text],
+        contentType: contentType,
+        noNewline: false,
+        presentationHint: null,
+        groupId: null,
+        eventMetadata: null,
+      ),
+    );
+  }
+
   void _ensureDebugPanel() {
     if (!_debugPanelVisible) return;
     final content = _debugLines.isEmpty
@@ -1522,6 +1548,223 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     return grouped;
+  }
+
+  void _handleInputPromptRequest(InputPromptRequest request) {
+    final md = request.metadata;
+    final initial = md.defaultValue?.toString() ?? '';
+    setState(() {
+      _inputPrompt = request;
+      _promptCtrl.text = initial;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _appendSystem(
+        'Input prompt requested: id=${request.requestId} type=${md.inputType ?? "text"}',
+      );
+    });
+  }
+
+  void _clearInputPrompt() {
+    setState(() {
+      _inputPrompt = null;
+      _promptCtrl.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _inputFocus.requestFocus();
+    });
+  }
+
+  void _submitInputPromptValue(String value) {
+    final v = value.trim();
+    if (v.isEmpty) {
+      return;
+    }
+    _ws?.sendText(v);
+    _clearInputPrompt();
+  }
+
+  Widget _buildInputPromptComposer(
+    BuildContext context,
+    InputPromptRequest req,
+  ) {
+    final md = req.metadata;
+    final type = md.inputType ?? 'text';
+    final promptText = (md.prompt?.trim().isNotEmpty ?? false)
+        ? md.prompt!.trim()
+        : 'Input required';
+    final cs = Theme.of(context).colorScheme;
+    final promptBorder = Color.lerp(cs.error, Colors.amber, 0.45) ?? cs.error;
+    final promptSurface =
+        Color.lerp(cs.errorContainer, cs.surfaceContainerHighest, 0.72) ??
+        cs.surfaceContainerHighest;
+
+    Widget promptHeader() {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: ContentRenderer(
+          content: [promptText],
+          contentType: 'text/plain',
+          isStale: false,
+          onLinkTap: _handleLinkTap,
+          monospace: _monospaceNarrative,
+        ),
+      );
+    }
+
+    Widget body;
+    if (type == 'yes_no') {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          promptHeader(),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton(
+                onPressed: () => _submitInputPromptValue('yes'),
+                child: const Text('Yes'),
+              ),
+              FilledButton.tonal(
+                onPressed: () => _submitInputPromptValue('no'),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => _submitInputPromptValue('@abort'),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else if (type == 'confirmation') {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          promptHeader(),
+          FilledButton(
+            onPressed: () => _submitInputPromptValue('ok'),
+            child: const Text('OK'),
+          ),
+        ],
+      );
+    } else if (type == 'choice' && md.choices.isNotEmpty) {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          promptHeader(),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final choice in md.choices)
+                FilledButton.tonal(
+                  onPressed: () => _submitInputPromptValue(choice),
+                  child: Text(choice),
+                ),
+              TextButton(
+                onPressed: () => _submitInputPromptValue('@abort'),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else {
+      final isMultiline = type == 'text_area';
+      final isAlt =
+          type == 'yes_no_alternative' || type == 'yes_no_alternative_all';
+
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          promptHeader(),
+          if (isAlt) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton(
+                  onPressed: () => _submitInputPromptValue('yes'),
+                  child: const Text('Yes'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () => _submitInputPromptValue('no'),
+                  child: const Text('No'),
+                ),
+                if (type == 'yes_no_alternative_all')
+                  FilledButton.tonal(
+                    onPressed: () => _submitInputPromptValue('all'),
+                    child: const Text('All'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _promptCtrl,
+                  keyboardType: isMultiline
+                      ? TextInputType.multiline
+                      : (type == 'number'
+                            ? const TextInputType.numberWithOptions(
+                                decimal: true,
+                              )
+                            : TextInputType.text),
+                  minLines: isMultiline ? (md.rows ?? 3) : 1,
+                  maxLines: isMultiline ? (md.rows ?? 3) : 1,
+                  decoration: InputDecoration(
+                    labelText: isAlt
+                        ? (md.alternativeLabel ?? 'Alternative response')
+                        : 'Response',
+                    hintText: isAlt
+                        ? (md.alternativePlaceholder ?? md.placeholder)
+                        : md.placeholder,
+                  ),
+                  onSubmitted: (_) => _submitInputPromptValue(_promptCtrl.text),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: () => _submitInputPromptValue(_promptCtrl.text),
+                child: const Text('Submit'),
+              ),
+              const SizedBox(width: 6),
+              TextButton(
+                onPressed: () => _submitInputPromptValue('@abort'),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: promptSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: promptBorder,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: promptBorder.withOpacity(0.22),
+            blurRadius: 12,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(10),
+      child: body,
+    );
   }
 
   void _send() {
@@ -1997,11 +2240,11 @@ class _SessionScreenState extends State<SessionScreen> {
 
       var emittedOutput = false;
       for (final line in outputLines) {
-        _appendSystem(line);
+        _appendNarrativeText(line);
         emittedOutput = true;
       }
       if (!emittedOutput) {
-        _appendSystem('Action ran: ${action.label}');
+        _appendNarrativeText('Action ran: ${action.label}');
       }
     } on Object catch (e) {
       _appendSystem('Action failed (${action.label}): $e');
@@ -2620,7 +2863,7 @@ class _SessionScreenState extends State<SessionScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                     child: VerbPaletteBar(
-                      visible: _verbPaletteEnabled,
+                      visible: _verbPaletteEnabled && _inputPrompt == null,
                       verbs: _paletteVerbs,
                       onSelect: _selectPaletteVerb,
                     ),
@@ -2628,37 +2871,39 @@ class _SessionScreenState extends State<SessionScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: FocusTraversalOrder(
-                          order: const NumericFocusOrder(3),
-                          child: TextField(
-                            controller: _inputCtrl,
-                            autofocus: true,
-                            focusNode: _inputFocus,
-                            keyboardType: TextInputType.multiline,
-                            minLines: 1,
-                            maxLines: 6,
-                            decoration: InputDecoration(
-                              labelText: 'Command',
-                              hintText: _verbPill != null
-                                  ? _verbPillPlaceholder
-                                  : _serverPlaceholderText,
+                  child: _inputPrompt != null
+                      ? _buildInputPromptComposer(context, _inputPrompt!)
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: FocusTraversalOrder(
+                                order: const NumericFocusOrder(3),
+                                child: TextField(
+                                  controller: _inputCtrl,
+                                  autofocus: true,
+                                  focusNode: _inputFocus,
+                                  keyboardType: TextInputType.multiline,
+                                  minLines: 1,
+                                  maxLines: 6,
+                                  decoration: InputDecoration(
+                                    labelText: 'Command',
+                                    hintText: _verbPill != null
+                                        ? _verbPillPlaceholder
+                                        : _serverPlaceholderText,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(4),
+                              child: FilledButton(
+                                onPressed: _send,
+                                child: const Text('Send'),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      FocusTraversalOrder(
-                        order: const NumericFocusOrder(4),
-                        child: FilledButton(
-                          onPressed: _send,
-                          child: const Text('Send'),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),

@@ -205,6 +205,19 @@ class _HtmlBlock extends StatelessWidget {
     return HtmlWidget(
       html,
       textStyle: DefaultTextStyle.of(context).style,
+      customWidgetBuilder: (element) {
+        if (element.localName != 'pre') {
+          return null;
+        }
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: SelectableText(
+            element.text,
+            style: DefaultTextStyle.of(context).style,
+          ),
+        );
+      },
       customStylesBuilder: (element) {
         final tag = element.localName;
         if (tag == null) return null;
@@ -250,6 +263,21 @@ class _HtmlBlock extends StatelessWidget {
               'border-left': '3px solid #9AA6A1',
               'padding-left': '10px',
               'margin': '6px 0',
+            };
+          case 'pre':
+            return {
+              // Preserve explicit newlines but wrap long lines instead of
+              // overflowing horizontally.
+              'white-space': 'pre-wrap',
+              'overflow-wrap': 'anywhere',
+              'word-break': 'break-word',
+            };
+          case 'code':
+            return {
+              // Some sources emit very long code-like tokens/identifiers.
+              // Allow wrapping in narrative/panel views.
+              'overflow-wrap': 'anywhere',
+              'word-break': 'break-word',
             };
           case 'table':
             return {'border-collapse': 'collapse', 'margin': '6px 0'};

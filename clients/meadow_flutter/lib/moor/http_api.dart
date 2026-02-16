@@ -285,7 +285,8 @@ class MoorHttpApi {
     final replyType = reply.replyType?.value ?? 0;
 
     MoorVar? value;
-    if (replyType == moor_rpc.DaemonToClientReplyUnionTypeId.SysPropValue.value) {
+    if (replyType ==
+        moor_rpc.DaemonToClientReplyUnionTypeId.SysPropValue.value) {
       final sysProp = reply.reply as moor_rpc.SysPropValue?;
       final v = sysProp?.value;
       if (v != null) {
@@ -298,7 +299,10 @@ class MoorHttpApi {
             .value) {
       final handler = reply.reply as moor_rpc.SystemHandlerResponseReply?;
       if (handler?.responseType?.value ==
-          moor_rpc.SystemHandlerResponseUnionTypeId.SystemHandlerSuccess.value) {
+          moor_rpc
+              .SystemHandlerResponseUnionTypeId
+              .SystemHandlerSuccess
+              .value) {
         final success = handler?.response as moor_rpc.SystemHandlerSuccess?;
         final v = success?.result;
         if (v != null) {

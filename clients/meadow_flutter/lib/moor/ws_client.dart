@@ -20,6 +20,7 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
 import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
     as moor_rpc;
 import 'package:meadow_flutter/moor/content_type.dart';
+import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_snapshot.dart';
@@ -33,6 +34,7 @@ class MoorWsClient {
   final void Function(NarrativeItem item) onNarrativeItem;
   final void Function(DockItem p) onPresentationUpsert;
   final void Function(String id) onPresentationRemove;
+  final void Function(InputPromptRequest request)? onInputPromptRequest;
   final void Function({required String clientId, required String clientToken})?
   onCredentialsUpdated;
   final void Function(String status)? onConnectionStatusChanged;
@@ -63,6 +65,7 @@ class MoorWsClient {
     required this.onNarrativeItem,
     required this.onPresentationUpsert,
     required this.onPresentationRemove,
+    this.onInputPromptRequest,
     this.onCredentialsUpdated,
     this.onConnectionStatusChanged,
   }) {
@@ -387,6 +390,36 @@ class MoorWsClient {
       _clientToken = clientToken;
       onSystemMessage('WS: updated session credentials (client_id=$clientId)');
       onCredentialsUpdated?.call(clientId: clientId, clientToken: clientToken);
+      return;
+    }
+
+    if (type == moor_rpc.ClientEventUnionTypeId.RequestInputEvent.value) {
+      final req = ev.event as moor_rpc.RequestInputEvent?;
+      final reqId = _uuidBytesToHex(req?.requestId?.data);
+      if (reqId == null || reqId.isEmpty) {
+        onSystemMessage('WS: RequestInputEvent missing request id');
+        return;
+      }
+
+      final raw = <String, MoorVar>{};
+      final metadata = req?.metadata;
+      if (metadata != null) {
+        for (final pair in metadata) {
+          final key = pair.key?.value;
+          final value = pair.value;
+          if (key == null || key.isEmpty || value == null) {
+            continue;
+          }
+          raw[key] = MoorVar.fromFlatBuffer(value);
+        }
+      }
+
+      onInputPromptRequest?.call(
+        InputPromptRequest(
+          requestId: reqId,
+          metadata: parseInputPromptMetadata(raw),
+        ),
+      );
       return;
     }
 

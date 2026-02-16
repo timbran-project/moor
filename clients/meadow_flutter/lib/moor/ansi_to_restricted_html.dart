@@ -25,7 +25,9 @@ bool containsAnsiEscapeCodes(String s) => s.contains('\x1B');
 String ansiToRestrictedHtml(String input) {
   const esc = HtmlEscape(HtmlEscapeMode.element);
 
-  final out = StringBuffer('<pre style="margin:0">');
+  final out = StringBuffer(
+    '<div style="margin:0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word">',
+  );
   final parser = ansi.AnsiParser(input);
   for (final m in parser.matches) {
     final entity = m.entity;
@@ -39,7 +41,7 @@ String ansiToRestrictedHtml(String input) {
       style.isEmpty ? safeText : '<span style="$style">$safeText</span>',
     );
   }
-  out.write('</pre>');
+  out.write('</div>');
   return out.toString();
 }
 
