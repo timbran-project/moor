@@ -22,6 +22,7 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
 import 'package:meadow_flutter/moor/content_type.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/narrative_metadata.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_snapshot.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
@@ -451,30 +452,10 @@ class MoorWsClient {
 
         final ct = normalizeContentType(notify.contentType?.value);
 
-        String? presentationHint;
-        String? groupId;
-        final eventMetadata = <String, Object?>{};
-        final md = notify.metadata;
-        if (md != null) {
-          for (final m in md) {
-            if (m.key == null || m.value == null) continue;
-            final k = m.key?.value;
-            if (k == null || k.isEmpty) continue;
-            final v = MoorVar.fromFlatBuffer(m.value!);
-            eventMetadata[k] = v.value;
-            if (presentationHint == null &&
-                (k == 'presentation_hint' || k == 'presentationHint')) {
-              presentationHint = v.toKey();
-            }
-            if (groupId == null && k == 'group_id') {
-              groupId = v.toKey();
-            }
-          }
-        }
-        if (eventId != null) {
-          eventMetadata['eventId'] = eventId;
-          eventMetadata['event_id'] = eventId;
-        }
+        final metadata = parseNarrativeMetadata(
+          metadataPairs: notify.metadata,
+          eventId: eventId,
+        );
 
         onNarrativeItem(
           NarrativeItem(
@@ -483,9 +464,9 @@ class MoorWsClient {
             content: content,
             contentType: ct,
             noNewline: notify.noNewline,
-            presentationHint: presentationHint,
-            groupId: groupId,
-            eventMetadata: eventMetadata.isEmpty ? null : eventMetadata,
+            presentationHint: metadata.presentationHint,
+            groupId: metadata.groupId,
+            metadata: metadata,
           ),
         );
       }
@@ -534,7 +515,7 @@ class MoorWsClient {
             noNewline: false,
             presentationHint: null,
             groupId: null,
-            eventMetadata: null,
+            metadata: null,
           ),
         );
       }

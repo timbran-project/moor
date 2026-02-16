@@ -14,6 +14,8 @@
 
 import 'dart:typed_data';
 
+import 'package:meadow_flutter/moor/narrative_metadata.dart';
+
 class WelcomeMessage {
   final List<String> lines;
   final String contentType;
@@ -52,7 +54,7 @@ class NarrativeItem {
   final bool noNewline;
   final String? presentationHint;
   final String? groupId;
-  final Map<String, Object?>? eventMetadata;
+  final NarrativeMetadata? metadata;
 
   const NarrativeItem({
     required this.id,
@@ -62,7 +64,7 @@ class NarrativeItem {
     required this.noNewline,
     required this.presentationHint,
     required this.groupId,
-    required this.eventMetadata,
+    required this.metadata,
   });
 }
 

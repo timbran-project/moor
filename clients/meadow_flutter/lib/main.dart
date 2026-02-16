@@ -30,10 +30,10 @@ import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/narrative_metadata.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/types/moor_coll.dart';
-import 'package:meadow_flutter/moor/types/moor_str.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
@@ -461,6 +461,7 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _showNarrativeMeta = false;
   bool _verbPaletteEnabled = true;
   bool _monospaceNarrative = false;
+  bool _speechBubblesEnabled = true;
 
   double _splitRatio = 0.64;
 
@@ -1156,39 +1157,19 @@ class _SessionScreenState extends State<SessionScreen> {
       if (lines.isEmpty) return null;
       final ct = normalizeContentType(notify.contentType?.value);
 
-      String? presentationHint;
-      String? groupId;
-      final eventMetadata = <String, Object?>{};
-      final md = notify.metadata;
-      if (md != null) {
-        for (final m in md) {
-          if (m.key == null || m.value == null) continue;
-          final k = m.key?.value;
-          if (k == null || k.isEmpty) continue;
-          final v = MoorVar.fromFlatBuffer(m.value!);
-          eventMetadata[k] = v.value;
-          if (presentationHint == null &&
-              (k == 'presentation_hint' || k == 'presentationHint')) {
-            presentationHint = v.toKey();
-          }
-          if (groupId == null && k == 'group_id') {
-            groupId = v.toKey();
-          }
-        }
-      }
-      if (eventId != null) {
-        eventMetadata['eventId'] = eventId;
-        eventMetadata['event_id'] = eventId;
-      }
+      final metadata = parseNarrativeMetadata(
+        metadataPairs: notify.metadata,
+        eventId: eventId,
+      );
       return NarrativeItem(
         id: _newId('h'),
         timestamp: ts,
         content: lines,
         contentType: ct,
         noNewline: notify.noNewline,
-        presentationHint: presentationHint,
-        groupId: groupId,
-        eventMetadata: eventMetadata.isEmpty ? null : eventMetadata,
+        presentationHint: metadata.presentationHint,
+        groupId: metadata.groupId,
+        metadata: metadata,
       );
     }
 
@@ -1208,7 +1189,7 @@ class _SessionScreenState extends State<SessionScreen> {
         noNewline: false,
         presentationHint: null,
         groupId: null,
-        eventMetadata: null,
+        metadata: null,
       );
     }
 
@@ -1233,7 +1214,7 @@ class _SessionScreenState extends State<SessionScreen> {
         noNewline: false,
         presentationHint: null,
         groupId: null,
-        eventMetadata: null,
+        metadata: null,
       );
     }
 
@@ -1373,7 +1354,7 @@ class _SessionScreenState extends State<SessionScreen> {
         noNewline: false,
         presentationHint: null,
         groupId: null,
-        eventMetadata: null,
+        metadata: null,
       ),
     );
   }
@@ -1429,7 +1410,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
     final roomKey = getRoomLookKeyFromNarrative(
       presentationHint: it.presentationHint,
-      eventMetadata: it.eventMetadata,
+      eventMetadata: it.metadata?.raw,
     );
     if (roomKey != null) {
       _latestLookMessageIdByRoom[roomKey] = it.id;
@@ -1452,27 +1433,13 @@ class _SessionScreenState extends State<SessionScreen> {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  String? _metadataString(
-    Map<String, Object?>? metadata,
-    List<String> keys,
-  ) {
-    if (metadata == null) return null;
-    for (final key in keys) {
-      final value = metadata[key];
-      if (value is String && value.trim().isNotEmpty) {
-        return value.trim();
-      }
-    }
-    return null;
-  }
-
   String? _narrativeEventId(NarrativeItem item) {
-    return _metadataString(item.eventMetadata, const ['eventId', 'event_id']);
+    return item.metadata?.eventId ??
+        item.metadata?.text(const ['eventId', 'event_id']);
   }
 
   String? _narrativeDedupKey(NarrativeItem item) {
-    final correlation = _metadataString(
-      item.eventMetadata,
+    final correlation = item.metadata?.text(
       const ['correlationId', 'correlation_id', 'deliveryId', 'delivery_id'],
     );
     if (correlation != null) {
@@ -1496,27 +1463,119 @@ class _SessionScreenState extends State<SessionScreen> {
     }
   }
 
-  static Object? _actorKey(Map<String, Object?>? md) {
-    final actorVal = md?['actor'];
-    if (actorVal == null) return null;
+  String? _actorCurie(NarrativeItem item) {
+    return item.metadata?.actorCurie;
+  }
 
-    final actor = MoorVar(actorVal).asMap();
-    if (actor != null) {
-      MoorVar? get(String k) =>
-          actor.pairs[MoorVar(MoorSym(k))] ?? actor.pairs[MoorVar(k)];
+  String? _actorName(NarrativeItem item) {
+    return item.metadata?.actorName;
+  }
 
-      final oid = get('oid')?.asObj();
-      if (oid != null) return oid.toCurie();
-
-      final uuid = get('uuid')?.asString();
-      if (uuid != null) return 'uuid:$uuid';
+  String _speechContent(NarrativeItem item) {
+    final content = item.metadata?.content;
+    if (content != null && content.isNotEmpty) {
+      return content;
     }
-    return null;
+    return item.content.join('\n');
+  }
+
+  Widget _buildSpeechBubbleMessage(
+    BuildContext context,
+    NarrativeItem item,
+    ColorScheme cs,
+  ) {
+    final actorCurie = _actorCurie(item);
+    final isSelf =
+        actorCurie != null &&
+        actorCurie.toLowerCase() == widget.session.playerCurie.toLowerCase();
+    final actorLabel = isSelf ? 'You' : (_actorName(item) ?? actorCurie ?? 'Unknown');
+    final semanticSpeech = item.metadata?.content;
+    final bubbleContent = (semanticSpeech != null && semanticSpeech.isNotEmpty)
+        ? <String>[semanticSpeech]
+        : (item.content.isNotEmpty
+              ? item.content
+              : <String>[_speechContent(item)]);
+    final bubbleContentType =
+        (semanticSpeech != null && semanticSpeech.isNotEmpty)
+        ? 'text/djot'
+        : item.contentType;
+
+    final bubbleColor = isSelf
+        ? Color.lerp(cs.primaryContainer, cs.primary, 0.12) ??
+              cs.primaryContainer
+        : cs.secondaryContainer;
+    final bubbleTextColor = isSelf
+        ? cs.onPrimaryContainer
+        : cs.onSecondaryContainer;
+    final rowAlign = isSelf ? MainAxisAlignment.end : MainAxisAlignment.start;
+    final nameText = Flexible(
+      child: Text(
+        actorLabel,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          color: cs.outline,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+    final bubbleBody = Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(14),
+            topRight: const Radius.circular(14),
+            bottomLeft: Radius.circular(isSelf ? 14 : 4),
+            bottomRight: Radius.circular(isSelf ? 4 : 14),
+          ),
+        ),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(
+            color: bubbleTextColor,
+            fontSize: 14,
+          ),
+          child: ContentRenderer(
+            content: bubbleContent,
+            contentType: bubbleContentType,
+            isStale: false,
+            onLinkTap: _handleLinkTap,
+            monospace: _monospaceNarrative,
+          ),
+        ),
+      ),
+    );
+    final bubbleTail = CustomPaint(
+      size: const Size(8, 10),
+      painter: _SpeechBubbleTailPainter(
+        color: bubbleColor,
+        isSelf: isSelf,
+      ),
+    );
+    final bubbleWithTail = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: isSelf
+          ? <Widget>[bubbleBody, bubbleTail]
+          : <Widget>[bubbleTail, bubbleBody],
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      child: Row(
+        mainAxisAlignment: rowAlign,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: isSelf
+            ? <Widget>[bubbleWithTail, const SizedBox(width: 2), nameText]
+            : <Widget>[nameText, const SizedBox(width: 2), bubbleWithTail],
+      ),
+    );
   }
 
   static bool _sameActor(NarrativeItem a, NarrativeItem b) {
-    final ak = _actorKey(a.eventMetadata);
-    final bk = _actorKey(b.eventMetadata);
+    final ak = a.metadata?.actorCurie;
+    final bk = b.metadata?.actorCurie;
     if (ak == null || bk == null) return true;
     return ak == bk;
   }
@@ -2438,6 +2497,7 @@ class _SessionScreenState extends State<SessionScreen> {
         var showNarrativeMeta = _showNarrativeMeta;
         var verbPaletteEnabled = _verbPaletteEnabled;
         var monospaceNarrative = _monospaceNarrative;
+        var speechBubblesEnabled = _speechBubblesEnabled;
         var themeMode = _ThemeScope.of(context).mode;
 
         return StatefulBuilder(
@@ -2497,6 +2557,21 @@ class _SessionScreenState extends State<SessionScreen> {
                         });
                         setState(() {
                           _monospaceNarrative = v;
+                        });
+                      },
+                    ),
+                    SwitchListTile(
+                      value: speechBubblesEnabled,
+                      title: const Text('Speech bubbles'),
+                      subtitle: const Text(
+                        'Render say/chat events as speech bubbles',
+                      ),
+                      onChanged: (v) {
+                        modalSetState(() {
+                          speechBubblesEnabled = v;
+                        });
+                        setState(() {
+                          _speechBubblesEnabled = v;
                         });
                       },
                     ),
@@ -2773,14 +2848,23 @@ class _SessionScreenState extends State<SessionScreen> {
                                                   ),
                                                   const SizedBox(height: 2),
                                                 ],
-                                                ContentRenderer(
-                                                  content: it.content,
-                                                  contentType: it.contentType,
-                                                  isStale: false,
-                                                  onLinkTap: _handleLinkTap,
-                                                  monospace:
-                                                      _monospaceNarrative,
-                                                ),
+                                                if (_speechBubblesEnabled &&
+                                                    it.presentationHint ==
+                                                        'speech_bubble')
+                                                  _buildSpeechBubbleMessage(
+                                                    context,
+                                                    it,
+                                                    cs,
+                                                  )
+                                                else
+                                                  ContentRenderer(
+                                                    content: it.content,
+                                                    contentType: it.contentType,
+                                                    isStale: false,
+                                                    onLinkTap: _handleLinkTap,
+                                                    monospace:
+                                                        _monospaceNarrative,
+                                                  ),
                                               ],
                                             ),
                                           );
@@ -3167,6 +3251,40 @@ class _SessionScreenState extends State<SessionScreen> {
         },
       ),
     );
+  }
+}
+
+class _SpeechBubbleTailPainter extends CustomPainter {
+  final Color color;
+  final bool isSelf;
+
+  const _SpeechBubbleTailPainter({
+    required this.color,
+    required this.isSelf,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = color;
+    final path = Path();
+    if (isSelf) {
+      path
+        ..moveTo(0, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(0, size.height);
+    } else {
+      path
+        ..moveTo(size.width, 0)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, 0);
+    }
+    path.close();
+    canvas.drawPath(path, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpeechBubbleTailPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.isSelf != isSelf;
   }
 }
 
