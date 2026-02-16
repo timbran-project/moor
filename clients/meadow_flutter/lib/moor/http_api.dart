@@ -247,6 +247,86 @@ class MoorHttpApi {
     }
   }
 
+  Future<String?> fetchSystemPropertyText({
+    required List<String> objectPath,
+    required String propertyName,
+    String? authToken,
+  }) async {
+    final path = [
+      ...objectPath,
+      propertyName,
+    ].map(Uri.encodeComponent).join('/');
+    final uri = _resolve('/v1/system_property/$path');
+    final headers = <String, String>{
+      'Accept': 'application/x-flatbuffers',
+    };
+    if (authToken != null && authToken.isNotEmpty) {
+      headers['X-Moor-Auth-Token'] = authToken;
+    }
+
+    final resp = await http.get(uri, headers: headers);
+    if (resp.statusCode == 404) {
+      return null;
+    }
+    if (resp.statusCode == 401) {
+      throw Exception('system property: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'system property http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+    if (resp.bodyBytes.isEmpty) return null;
+
+    final reply = _parseClientSuccess(
+      resp.bodyBytes,
+      context: 'system property',
+    );
+    final replyType = reply.replyType?.value ?? 0;
+
+    MoorVar? value;
+    if (replyType == moor_rpc.DaemonToClientReplyUnionTypeId.SysPropValue.value) {
+      final sysProp = reply.reply as moor_rpc.SysPropValue?;
+      final v = sysProp?.value;
+      if (v != null) {
+        value = MoorVar.fromFlatBuffer(v);
+      }
+    } else if (replyType ==
+        moor_rpc
+            .DaemonToClientReplyUnionTypeId
+            .SystemHandlerResponseReply
+            .value) {
+      final handler = reply.reply as moor_rpc.SystemHandlerResponseReply?;
+      if (handler?.responseType?.value ==
+          moor_rpc.SystemHandlerResponseUnionTypeId.SystemHandlerSuccess.value) {
+        final success = handler?.response as moor_rpc.SystemHandlerSuccess?;
+        final v = success?.result;
+        if (v != null) {
+          value = MoorVar.fromFlatBuffer(v);
+        }
+      }
+    } else {
+      throw Exception('system property: unexpected reply type $replyType');
+    }
+
+    if (value == null) {
+      return null;
+    }
+    final text = value.coerceText();
+    if (text.isEmpty) {
+      return null;
+    }
+    return text;
+  }
+
+  Future<String?> fetchMooTitle({String? authToken}) {
+    return fetchSystemPropertyText(
+      objectPath: const ['login'],
+      propertyName: 'moo_title',
+      authToken: authToken,
+    );
+  }
+
   Future<moor_rpc.CurrentPresentations> listPresentations({
     required String authToken,
   }) async {

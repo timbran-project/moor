@@ -132,6 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
 
   String _mode = 'connect';
+  String _mooTitle = 'mooR';
   WelcomeMessage? _welcome;
   String? _error;
   bool _loadingWelcome = false;
@@ -218,9 +219,18 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final api = MoorHttpApi(baseUri);
+      String? mooTitle;
+      try {
+        mooTitle = await api.fetchMooTitle();
+      } on Object {
+        // Keep default title when moo_title is unavailable.
+      }
       final msg = await api.fetchWelcomeMessage();
       if (!mounted) return;
       setState(() {
+        if (mooTitle != null && mooTitle.trim().isNotEmpty) {
+          _mooTitle = mooTitle.trim();
+        }
         _welcome = msg;
         _loadingWelcome = false;
       });
@@ -271,6 +281,7 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (_) => SessionScreen(
             session: session,
             mode: _mode,
+            initialMooTitle: _mooTitle,
           ),
         ),
       );
@@ -312,7 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meadow (Flutter Spike)'),
+        title: Text(_mooTitle),
         actions: [
           IconButton(
             onPressed: _loadingWelcome ? null : _loadWelcome,
@@ -412,11 +423,13 @@ class _LoginScreenState extends State<LoginScreen> {
 class SessionScreen extends StatefulWidget {
   final LoginSession session;
   final String mode; // "connect" | "create"
+  final String initialMooTitle;
 
   const SessionScreen({
     super.key,
     required this.session,
     required this.mode,
+    required this.initialMooTitle,
   });
 
   @override
@@ -455,6 +468,7 @@ class _SessionScreenState extends State<SessionScreen> {
   int _idSeq = 0;
   MoorWsClient? _ws;
   String _status = 'disconnected';
+  String _mooTitle = 'mooR';
 
   static const int _maxCommandHistory = 500;
 
@@ -480,6 +494,7 @@ class _SessionScreenState extends State<SessionScreen> {
   @override
   void initState() {
     super.initState();
+    _mooTitle = widget.initialMooTitle;
     _scrollCtrl.addListener(_onScroll);
     _presentations.addListener(_onPresentationsChanged);
     _inputCtrl.onPillCleared = () {
@@ -503,6 +518,7 @@ class _SessionScreenState extends State<SessionScreen> {
     _connectWs();
     _initEncryption();
     _refreshVerbSuggestions();
+    _refreshMooTitle();
   }
 
   @override
@@ -517,6 +533,22 @@ class _SessionScreenState extends State<SessionScreen> {
       ..dispose();
     _ws?.close();
     super.dispose();
+  }
+
+  Future<void> _refreshMooTitle() async {
+    try {
+      final api = MoorHttpApi(widget.session.baseUri);
+      final title = await api.fetchMooTitle(
+        authToken: widget.session.authToken,
+      );
+      if (!mounted) return;
+      if (title == null || title.trim().isEmpty) return;
+      setState(() {
+        _mooTitle = title.trim();
+      });
+    } on Object {
+      // Keep existing title when moo_title is unavailable.
+    }
   }
 
   String _newId(String prefix) {
@@ -2760,7 +2792,7 @@ class _SessionScreenState extends State<SessionScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('${widget.session.playerCurie} ($_status)'),
+        title: Text('$_mooTitle ($_status)'),
         actions: [
           IconButton(
             onPressed: _toggleDebugPanel,

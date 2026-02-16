@@ -13,7 +13,7 @@ import 'package:meadow_flutter/moor/args.dart';
 void main() {
   testWidgets('Renders Login Screen', (WidgetTester tester) async {
     await tester.pumpWidget(MeadowApp(launchArgs: parseLaunchArgs(const [])));
-    expect(find.text('Meadow (Flutter Spike)'), findsOneWidget);
+    expect(find.text('mooR'), findsOneWidget);
     expect(find.text('Login'), findsOneWidget);
   });
 }
