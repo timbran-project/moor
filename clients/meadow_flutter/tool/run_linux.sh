@@ -17,12 +17,41 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+mode="debug"
+
+print_usage() {
+    cat <<'EOF'
+Usage: ./tool/run_linux.sh [--debug|--profile|--release] [entrypoint args...]
+
+Examples:
+  ./tool/run_linux.sh --server=http://localhost:8080 --username=foo --password=bar --login
+  ./tool/run_linux.sh --profile --server=http://localhost:8080 --login
+  ./tool/run_linux.sh --release --server=http://localhost:8080 --login
+EOF
+}
+
 # Flutter doesn’t support passing arbitrary args after `--` to the Dart entrypoint.
 # Desktop uses `--dart-entrypoint-args` (`-a`) instead, one flag per arg.
 entry_args=()
 for a in "$@"; do
-    entry_args+=( -a "$a" )
+    case "$a" in
+        --debug)
+            mode="debug"
+            ;;
+        --profile)
+            mode="profile"
+            ;;
+        --release)
+            mode="release"
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        *)
+            entry_args+=( -a "$a" )
+            ;;
+    esac
 done
 
-exec flutter run -d linux "${entry_args[@]}"
-
+exec flutter run -d linux "--$mode" "${entry_args[@]}"
