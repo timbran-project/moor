@@ -62,16 +62,22 @@ class ContentRenderer extends StatelessWidget {
   Widget build(BuildContext context) {
     final joined = content.join('\n');
     final child = _buildInner(context, joined);
-    // Make output selectable for copy/paste. HtmlWidget supports SelectionArea.
+    final hasSelectionContainer = SelectionContainer.maybeOf(context) != null;
+
+    var wrapped = child;
+    if (!hasSelectionContainer) {
+      // Make output selectable for copy/paste. HtmlWidget supports SelectionArea.
+      wrapped = SelectionArea(child: wrapped);
+    }
     if (!monospace) {
-      return SelectionArea(child: child);
+      return wrapped;
     }
     return DefaultTextStyle.merge(
       style: const TextStyle(
         fontFamily: 'monospace',
         fontFamilyFallback: _monospaceFontFallback,
       ),
-      child: SelectionArea(child: child),
+      child: wrapped,
     );
   }
 
@@ -202,25 +208,20 @@ class _HtmlBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final normalizedHtml = _normalizePreBlocks(html);
     return HtmlWidget(
-      html,
+      normalizedHtml,
       textStyle: DefaultTextStyle.of(context).style,
-      customWidgetBuilder: (element) {
-        if (element.localName != 'pre') {
-          return null;
-        }
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: SelectableText(
-            element.text,
-            style: DefaultTextStyle.of(context).style,
-          ),
-        );
-      },
       customStylesBuilder: (element) {
         final tag = element.localName;
         if (tag == null) return null;
+        if (tag == 'div' && element.classes.contains('meadow-pre-wrap')) {
+          return {
+            'white-space': 'pre-wrap',
+            'overflow-wrap': 'anywhere',
+            'word-break': 'break-word',
+          };
+        }
         switch (tag) {
           case 'h1':
             return {
@@ -300,6 +301,13 @@ class _HtmlBlock extends StatelessWidget {
       },
     );
   }
+}
+
+String _normalizePreBlocks(String html) {
+  final openPre = RegExp(r'<\s*pre(?:\s[^>]*)?>', caseSensitive: false);
+  final closePre = RegExp(r'<\s*/\s*pre\s*>', caseSensitive: false);
+  final withOpen = html.replaceAll(openPre, '<div class="meadow-pre-wrap">');
+  return withOpen.replaceAll(closePre, '</div>');
 }
 
 class _PlainTextBlock extends StatelessWidget {

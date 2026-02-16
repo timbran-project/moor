@@ -442,6 +442,7 @@ class _SessionScreenState extends State<SessionScreen> {
   final _promptCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
+  final _promptFocus = FocusNode();
 
   final _items = <NarrativeItem>[];
   final _presentations = PresentationStore();
@@ -526,6 +527,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   void dispose() {
+    _promptFocus.dispose();
     _promptCtrl.dispose();
     _inputCtrl
       ..removeListener(_updateVerbCompletionGhost)
@@ -1559,6 +1561,8 @@ class _SessionScreenState extends State<SessionScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _inputFocus.unfocus();
+      _promptFocus.requestFocus();
       _appendSystem(
         'Input prompt requested: id=${request.requestId} type=${md.inputType ?? "text"}',
       );
@@ -1624,6 +1628,7 @@ class _SessionScreenState extends State<SessionScreen> {
             runSpacing: 8,
             children: [
               FilledButton(
+                autofocus: true,
                 onPressed: () => _submitInputPromptValue('yes'),
                 child: const Text('Yes'),
               ),
@@ -1645,6 +1650,7 @@ class _SessionScreenState extends State<SessionScreen> {
         children: [
           promptHeader(),
           FilledButton(
+            autofocus: true,
             onPressed: () => _submitInputPromptValue('ok'),
             child: const Text('OK'),
           ),
@@ -1661,6 +1667,7 @@ class _SessionScreenState extends State<SessionScreen> {
             children: [
               for (final choice in md.choices)
                 FilledButton.tonal(
+                  autofocus: choice == md.choices.first,
                   onPressed: () => _submitInputPromptValue(choice),
                   child: Text(choice),
                 ),
@@ -1687,6 +1694,7 @@ class _SessionScreenState extends State<SessionScreen> {
               runSpacing: 8,
               children: [
                 FilledButton(
+                  autofocus: true,
                   onPressed: () => _submitInputPromptValue('yes'),
                   child: const Text('Yes'),
                 ),
@@ -1708,6 +1716,8 @@ class _SessionScreenState extends State<SessionScreen> {
               Expanded(
                 child: TextField(
                   controller: _promptCtrl,
+                  focusNode: _promptFocus,
+                  autofocus: true,
                   keyboardType: isMultiline
                       ? TextInputType.multiline
                       : (type == 'number'
@@ -1756,7 +1766,7 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: promptBorder.withOpacity(0.22),
+            color: promptBorder.withValues(alpha: 0.22),
             blurRadius: 12,
             spreadRadius: 1,
           ),
@@ -2703,130 +2713,138 @@ class _SessionScreenState extends State<SessionScreen> {
                               child: Builder(
                                 builder: (context) {
                                   final groups = _groupNarrativeItems(_items);
-                                  return ListView.builder(
-                                    key: _listKey,
-                                    controller: _scrollCtrl,
-                                    itemCount: groups.length,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    itemBuilder: (context, idx) {
-                                      final group = groups[idx];
-                                      final first = group.first;
-                                      final cs = Theme.of(context).colorScheme;
+                                  return SelectionArea(
+                                    child: ListView.builder(
+                                      key: _listKey,
+                                      controller: _scrollCtrl,
+                                      itemCount: groups.length,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      itemBuilder: (context, idx) {
+                                        final group = groups[idx];
+                                        final first = group.first;
+                                        final cs = Theme.of(
+                                          context,
+                                        ).colorScheme;
 
-                                      Widget buildMessage(NarrativeItem it) {
-                                        final key = _messageKeys.putIfAbsent(
-                                          it.id,
-                                          GlobalKey.new,
-                                        );
-                                        final ts = it.timestamp
-                                            .toIso8601String()
-                                            .split('T')
-                                            .last;
-                                        return Container(
-                                          key: key,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 4,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              if (_showNarrativeMeta) ...[
-                                                Row(
-                                                  children: [
-                                                    Text(
-                                                      ts,
-                                                      style: TextStyle(
-                                                        fontFamily: 'monospace',
-                                                        color: cs.outline,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      it.contentType,
-                                                      style: TextStyle(
-                                                        fontFamily: 'monospace',
-                                                        color: cs.outline,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 2),
-                                              ],
-                                              ContentRenderer(
-                                                content: it.content,
-                                                contentType: it.contentType,
-                                                isStale: false,
-                                                onLinkTap: _handleLinkTap,
-                                                monospace: _monospaceNarrative,
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }
-
-                                      final hint = first.presentationHint;
-                                      final isInset = hint == 'inset';
-                                      final isHintGroup =
-                                          hint != null &&
-                                          first.groupId != null &&
-                                          group.every(
-                                            (m) =>
-                                                m.presentationHint == hint &&
-                                                m.groupId == first.groupId,
+                                        Widget buildMessage(NarrativeItem it) {
+                                          final key = _messageKeys.putIfAbsent(
+                                            it.id,
+                                            GlobalKey.new,
                                           );
+                                          final ts = it.timestamp
+                                              .toIso8601String()
+                                              .split('T')
+                                              .last;
+                                          return Container(
+                                            key: key,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 4,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                if (_showNarrativeMeta) ...[
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        ts,
+                                                        style: TextStyle(
+                                                          fontFamily:
+                                                              'monospace',
+                                                          color: cs.outline,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        it.contentType,
+                                                        style: TextStyle(
+                                                          fontFamily:
+                                                              'monospace',
+                                                          color: cs.outline,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                ],
+                                                ContentRenderer(
+                                                  content: it.content,
+                                                  contentType: it.contentType,
+                                                  isStale: false,
+                                                  onLinkTap: _handleLinkTap,
+                                                  monospace:
+                                                      _monospaceNarrative,
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
 
-                                      final inner = Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          for (final it in group)
-                                            buildMessage(it),
-                                        ],
-                                      );
+                                        final hint = first.presentationHint;
+                                        final isInset = hint == 'inset';
+                                        final isHintGroup =
+                                            hint != null &&
+                                            first.groupId != null &&
+                                            group.every(
+                                              (m) =>
+                                                  m.presentationHint == hint &&
+                                                  m.groupId == first.groupId,
+                                            );
 
-                                      if (!isInset) {
-                                        if (group.length == 1 && !isHintGroup) {
+                                        final inner = Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            for (final it in group)
+                                              buildMessage(it),
+                                          ],
+                                        );
+
+                                        if (!isInset) {
+                                          if (group.length == 1 &&
+                                              !isHintGroup) {
+                                            return inner;
+                                          }
                                           return inner;
                                         }
-                                        return inner;
-                                      }
 
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        child: Semantics(
-                                          container: true,
-                                          label: 'Inset',
-                                          child: Card(
-                                            elevation: 0,
-                                            color: cs.surfaceContainerLow,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              side: BorderSide(
-                                                color: cs.primary,
-                                                width: 2,
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          child: Semantics(
+                                            container: true,
+                                            label: 'Inset',
+                                            child: Card(
+                                              elevation: 0,
+                                              color: cs.surfaceContainerLow,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                side: BorderSide(
+                                                  color: cs.primary,
+                                                  width: 2,
+                                                ),
+                                              ),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 6,
+                                                    ),
+                                                child: inner,
                                               ),
                                             ),
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 6,
-                                                  ),
-                                              child: inner,
-                                            ),
                                           ),
-                                        ),
-                                      );
-                                    },
+                                        );
+                                      },
+                                    ),
                                   );
                                 },
                               ),
