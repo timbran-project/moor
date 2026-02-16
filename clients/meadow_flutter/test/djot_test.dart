@@ -30,7 +30,27 @@ void main() {
     final html = renderDjotToRestrictedHtml('```moo\nreturn 1;\n```');
     expect(html, contains('<pre><code'));
     expect(html, contains('language-moo'));
-    expect(html, contains('return 1;'));
+    expect(html, contains('moo-keyword'));
+    expect(html, contains('return'));
+    expect(html, contains('moo-number'));
+    expect(html, contains('1'));
+  });
+
+  test('fenced moocode alias maps to moo highlighting', () {
+    final html = renderDjotToRestrictedHtml('```moocode\n#2\n```');
+    expect(html, contains('language-moo'));
+    expect(html, contains('moo-number'));
+  });
+
+  test('fenced code block preserves multiline breaks', () {
+    final html = renderDjotToRestrictedHtml(
+      '```moo\nreturn 1;\nreturn 2;\n```',
+    );
+    expect(
+      html,
+      contains('return</span> <span class="moo-number">1</span>;\n'),
+    );
+    expect(html, contains('return</span> <span class="moo-number">2</span>;'));
   });
 
   test('blockquote', () {

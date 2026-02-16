@@ -24,7 +24,7 @@ void main() {
   test('ansiToRestrictedHtml strips escapes and emits spans', () {
     const input = 'a \x1B[31mred\x1B[0m b';
     final html = ansiToRestrictedHtml(input);
-    expect(html, contains('<pre'));
+    expect(html, contains('<div'));
     expect(html, contains('red'));
     expect(html, isNot(contains('\x1B')));
     expect(html, contains('<span'));

@@ -16,9 +16,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:meadow_flutter/moor/ansi_to_restricted_html.dart';
 import 'package:meadow_flutter/moor/djot/djot.dart';
 import 'package:meadow_flutter/moor/html_sanitize.dart';
+import 'package:meadow_flutter/moor/moo_code_highlight.dart';
 
 typedef LinkTapHandler = void Function(String url);
 
@@ -103,7 +106,8 @@ class ContentRenderer extends StatelessWidget {
     switch (contentType) {
       case 'text/html':
         {
-          final sanitized = sanitizeRestrictedHtml(joined);
+          final highlighted = _highlightMooCodeBlocksInHtml(joined);
+          final sanitized = sanitizeRestrictedHtml(highlighted);
           return _HtmlBlock(
             html: sanitized,
             isStale: isStale,
@@ -160,7 +164,12 @@ class _Preformatted extends StatelessWidget {
       ),
       child: SelectableText(
         text,
-        style: DefaultTextStyle.of(context).style,
+        style: DefaultTextStyle.of(context).style.merge(
+          const TextStyle(
+            fontFamily: 'monospace',
+            fontFamilyFallback: _monospaceFontFallback,
+          ),
+        ),
       ),
     );
   }
@@ -195,6 +204,102 @@ class _PreformattedHtml extends StatelessWidget {
   }
 }
 
+class _PreformattedCodeBlock extends StatelessWidget {
+  final dom.Element element;
+
+  const _PreformattedCodeBlock({
+    required this.element,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final base = DefaultTextStyle.of(context).style.merge(
+      const TextStyle(
+        fontFamily: 'monospace',
+        fontFamilyFallback: _monospaceFontFallback,
+      ),
+    );
+
+    final code = element.querySelector('code');
+    final classes =
+        code?.classes.map((c) => c.toLowerCase()).toList() ?? const <String>[];
+    final hasLanguageClass = classes.any((c) => c.startsWith('language-'));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: hasLanguageClass
+          ? SelectableText.rich(
+              TextSpan(
+                style: base,
+                children: _inlineSpansFromNode(
+                  code ?? element,
+                  base: base,
+                  colorScheme: cs,
+                ),
+              ),
+            )
+          : SelectableText(
+              element.text,
+              style: base,
+            ),
+    );
+  }
+}
+
+List<InlineSpan> _inlineSpansFromNode(
+  dom.Node node, {
+  required TextStyle base,
+  required ColorScheme colorScheme,
+}) {
+  if (node is dom.Text) {
+    return <InlineSpan>[TextSpan(text: node.data)];
+  }
+  if (node is! dom.Element) {
+    return const <InlineSpan>[];
+  }
+
+  final nodeStyle = base.merge(_styleForMooClass(node, colorScheme));
+  final children = <InlineSpan>[];
+  for (final child in node.nodes) {
+    children.addAll(
+      _inlineSpansFromNode(
+        child,
+        base: nodeStyle,
+        colorScheme: colorScheme,
+      ),
+    );
+  }
+  return <InlineSpan>[TextSpan(style: nodeStyle, children: children)];
+}
+
+TextStyle? _styleForMooClass(dom.Element node, ColorScheme cs) {
+  if (node.classes.contains('moo-keyword')) {
+    return TextStyle(
+      color: Color.lerp(cs.primary, Colors.indigo, 0.4),
+      fontWeight: FontWeight.w700,
+    );
+  }
+  if (node.classes.contains('moo-string')) {
+    return TextStyle(color: Color.lerp(cs.tertiary, Colors.teal, 0.4));
+  }
+  if (node.classes.contains('moo-number')) {
+    return TextStyle(color: Color.lerp(cs.secondary, Colors.orange, 0.5));
+  }
+  if (node.classes.contains('moo-comment')) {
+    return TextStyle(
+      color: cs.outline,
+      fontStyle: FontStyle.italic,
+    );
+  }
+  return null;
+}
+
 class _HtmlBlock extends StatelessWidget {
   final String html;
   final bool isStale;
@@ -208,19 +313,32 @@ class _HtmlBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalizedHtml = _normalizePreBlocks(html);
     return HtmlWidget(
-      normalizedHtml,
+      html,
       textStyle: DefaultTextStyle.of(context).style,
+      customWidgetBuilder: (element) {
+        if (element.localName == 'pre') {
+          return _PreformattedCodeBlock(element: element);
+        }
+        return null;
+      },
       customStylesBuilder: (element) {
         final tag = element.localName;
         if (tag == null) return null;
-        if (tag == 'div' && element.classes.contains('meadow-pre-wrap')) {
-          return {
-            'white-space': 'pre-wrap',
-            'overflow-wrap': 'anywhere',
-            'word-break': 'break-word',
-          };
+        final parent = element.parent;
+        if (tag == 'span') {
+          if (element.classes.contains('moo-keyword')) {
+            return {'color': '#7b3fcf', 'font-weight': '700'};
+          }
+          if (element.classes.contains('moo-string')) {
+            return {'color': '#0b7f6f'};
+          }
+          if (element.classes.contains('moo-number')) {
+            return {'color': '#b34a0b'};
+          }
+          if (element.classes.contains('moo-comment')) {
+            return {'color': '#5f6f69', 'font-style': 'italic'};
+          }
         }
         switch (tag) {
           case 'h1':
@@ -272,13 +390,22 @@ class _HtmlBlock extends StatelessWidget {
               'white-space': 'pre-wrap',
               'overflow-wrap': 'anywhere',
               'word-break': 'break-word',
+              'font-family': 'monospace',
             };
           case 'code':
+            final parentIsPre = parent != null && parent.localName == 'pre';
             return {
-              // Some sources emit very long code-like tokens/identifiers.
-              // Allow wrapping in narrative/panel views.
-              'overflow-wrap': 'anywhere',
-              'word-break': 'break-word',
+              if (parentIsPre) ...{
+                'display': 'block',
+                'white-space': 'pre-wrap',
+                'font-family': 'monospace',
+              } else ...{
+                // Some sources emit very long code-like tokens/identifiers.
+                // Allow wrapping in narrative/panel views.
+                'overflow-wrap': 'anywhere',
+                'word-break': 'break-word',
+                'font-family': 'monospace',
+              },
             };
           case 'table':
             return {'border-collapse': 'collapse', 'margin': '6px 0'};
@@ -303,11 +430,52 @@ class _HtmlBlock extends StatelessWidget {
   }
 }
 
-String _normalizePreBlocks(String html) {
-  final openPre = RegExp(r'<\s*pre(?:\s[^>]*)?>', caseSensitive: false);
-  final closePre = RegExp(r'<\s*/\s*pre\s*>', caseSensitive: false);
-  final withOpen = html.replaceAll(openPre, '<div class="meadow-pre-wrap">');
-  return withOpen.replaceAll(closePre, '</div>');
+String _highlightMooCodeBlocksInHtml(String input) {
+  final fragment = html_parser.parseFragment(input);
+
+  void walk(dom.Node node) {
+    if (node is dom.Element) {
+      final tag = node.localName;
+      if (tag == 'code') {
+        final classes = node.classes.map((c) => c.toLowerCase()).toList();
+        String? langClass;
+        for (final c in classes) {
+          if (c.startsWith('language-')) {
+            langClass = c;
+            break;
+          }
+        }
+        final lang = langClass?.substring('language-'.length);
+        if (isMooLanguage(lang)) {
+          final codeText = node.text;
+          final highlighted = html_parser.parseFragment(
+            highlightMooCodeToHtml(codeText),
+          );
+          node.nodes
+            ..clear()
+            ..addAll(highlighted.nodes);
+          node.classes.removeWhere(
+            (c) => c.toLowerCase() == 'language-moocode',
+          );
+          if (!node.classes.any((c) => c.toLowerCase() == 'language-moo')) {
+            node.classes.add('language-moo');
+          }
+        }
+      }
+      for (final child in node.nodes.toList()) {
+        walk(child);
+      }
+      return;
+    }
+    for (final child in node.nodes.toList()) {
+      walk(child);
+    }
+  }
+
+  for (final node in fragment.nodes.toList()) {
+    walk(node);
+  }
+  return fragment.outerHtml;
 }
 
 class _PlainTextBlock extends StatelessWidget {

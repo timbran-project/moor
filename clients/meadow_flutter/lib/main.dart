@@ -1488,7 +1488,9 @@ class _SessionScreenState extends State<SessionScreen> {
     final isSelf =
         actorCurie != null &&
         actorCurie.toLowerCase() == widget.session.playerCurie.toLowerCase();
-    final actorLabel = isSelf ? 'You' : (_actorName(item) ?? actorCurie ?? 'Unknown');
+    final actorLabel = isSelf
+        ? 'You'
+        : (_actorName(item) ?? actorCurie ?? 'Unknown');
     final semanticSpeech = item.metadata?.content;
     final bubbleContent = (semanticSpeech != null && semanticSpeech.isNotEmpty)
         ? <String>[semanticSpeech]

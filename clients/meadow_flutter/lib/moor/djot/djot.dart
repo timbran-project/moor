@@ -13,6 +13,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:meadow_flutter/moor/html_sanitize.dart';
+import 'package:meadow_flutter/moor/moo_code_highlight.dart';
 
 String renderDjotToRestrictedHtml(String input) {
   final doc = _parseBlocks(input);
@@ -48,10 +49,14 @@ class _CodeBlock extends _Block {
 
   @override
   String toHtml() {
-    final cls = (info == null || info!.trim().isEmpty)
+    final normalized = normalizeMooFenceInfo(info);
+    final cls = (normalized == null || normalized.isEmpty)
         ? ''
-        : ' class="language-${_escapeAttr(info!.trim())}"';
-    return '<pre><code$cls>${_escapeHtml(content)}</code></pre>';
+        : ' class="language-${_escapeAttr(normalized)}"';
+    final body = (normalized == 'moo')
+        ? highlightMooCodeToHtml(content)
+        : _escapeHtml(content);
+    return '<pre><code$cls>$body</code></pre>';
   }
 }
 
