@@ -52,6 +52,11 @@ if [[ ! -f "${vite_bin}" ]]; then
 fi
 
 cleanup() {
+  if [[ -n "${flutter_pgid:-}" ]]; then
+    # Kill the entire Flutter process group so child dart/frontend-server
+    # processes do not survive script exit.
+    kill -- -"${flutter_pgid}" >/dev/null 2>&1 || true
+  fi
   if [[ -n "${flutter_pid:-}" ]]; then
     kill "${flutter_pid}" >/dev/null 2>&1 || true
   fi
@@ -61,20 +66,36 @@ trap cleanup EXIT INT TERM
 echo "Starting Flutter web-server on :${flutter_port}..."
 flutter run -d web-server --web-port "${flutter_port}" --web-hostname "${flutter_hostname}" >/tmp/meadow_flutter_web.log 2>&1 &
 flutter_pid="$!"
+flutter_pgid="$(
+  ps -o pgid= "${flutter_pid}" 2>/dev/null | tr -d ' ' || true
+)"
 
 echo "Waiting for Flutter web-server to become ready..."
-deadline=$((SECONDS + 30))
+deadline=$((SECONDS + 60))
+probe_hosts=("${flutter_hostname}" "localhost" "127.0.0.1")
 while true; do
+  if ! kill -0 "${flutter_pid}" >/dev/null 2>&1; then
+    echo "Flutter web-server process exited while starting. Recent log:"
+    tail -n 80 /tmp/meadow_flutter_web.log || true
+    exit 1
+  fi
+
   if [[ "${SECONDS}" -ge "${deadline}" ]]; then
-    echo "Flutter web-server did not become ready within 30s. Recent log:"
-    tail -n 40 /tmp/meadow_flutter_web.log || true
+    echo "Flutter web-server did not become ready within 60s. Recent log:"
+    tail -n 80 /tmp/meadow_flutter_web.log || true
     exit 1
   fi
 
   if command -v curl >/dev/null 2>&1; then
-    if curl -fsS "http://${flutter_hostname}:${flutter_port}/" | rg -q "flutter_bootstrap\\.js"; then
+    if rg -q "is being served at http://" /tmp/meadow_flutter_web.log; then
       break
     fi
+    for h in "${probe_hosts[@]}"; do
+      base="http://${h}:${flutter_port}"
+      if curl -fsS "${base}/" 2>/dev/null | rg -q "flutter_bootstrap\\.js"; then
+        break 2
+      fi
+    done
   else
     # Fallback: just sleep if curl isn't available.
     sleep 1

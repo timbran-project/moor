@@ -23,28 +23,27 @@ const wsTarget = process.env.MOOR_WS_URL || "ws://localhost:8080";
 const flutterTarget = process.env.FLUTTER_WEB_TARGET || "http://localhost:9010";
 
 export default {
-  server: {
-    port: 3001,
-    // Avoid stale bootstrap/main.dart.js caching during rapid rebuild/reload.
-    headers: {
-      "Cache-Control": "no-store",
-    },
-    proxy: {
-      "/v1": apiTarget,
-      "/auth": apiTarget,
-      "/health": apiTarget,
-      "/version": apiTarget,
-      "/webhooks": apiTarget,
-      "/ws": {
-        target: wsTarget,
-        ws: true,
-      },
-      // Proxy everything else (Flutter app + assets) to the Flutter web-server.
-      "^/(?!v1/|v1$|auth/|auth$|health/|health$|version/|version$|webhooks/|webhooks$|ws/|ws$).*":
-        {
-          target: flutterTarget,
-          changeOrigin: true,
+    server: {
+        port: 3001,
+        // Avoid stale bootstrap/main.dart.js caching during rapid rebuild/reload.
+        headers: {
+            "Cache-Control": "no-store",
+        },
+        proxy: {
+            "/v1": apiTarget,
+            "/auth": apiTarget,
+            "/health": apiTarget,
+            "/version": apiTarget,
+            "/webhooks": apiTarget,
+            "/ws": {
+                target: wsTarget,
+                ws: true,
+            },
+            // Proxy everything else (Flutter app + assets) to the Flutter web-server.
+            "^/(?!v1/|v1$|auth/|auth$|health/|health$|version/|version$|webhooks/|webhooks$|ws/|ws$).*": {
+                target: flutterTarget,
+                changeOrigin: true,
+            },
         },
     },
-  },
 };

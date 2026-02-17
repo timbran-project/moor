@@ -49,6 +49,7 @@ class MoorWsClient {
   String? _connectMode;
   String? _clientId;
   String? _clientToken;
+  bool _initialAttachPending = false;
 
   static const Duration _keepaliveInterval = Duration(seconds: 45);
   static const Duration _reconnectDelay = Duration(seconds: 3);
@@ -72,6 +73,7 @@ class MoorWsClient {
   }) {
     _clientId = session.clientId;
     _clientToken = session.clientToken;
+    _initialAttachPending = session.isInitialAttach;
   }
 
   bool get isConnected => _channel != null;
@@ -102,7 +104,7 @@ class MoorWsClient {
       'paseto.${session.authToken}',
     ];
 
-    if (session.isInitialAttach) {
+    if (_initialAttachPending) {
       protocols.add('initial_attach.true');
     }
     if (_clientId != null && _clientToken != null) {
@@ -152,6 +154,7 @@ class MoorWsClient {
     _channel = channel;
     _setConnectionStatus('connected');
     _connecting = false;
+    _initialAttachPending = false;
 
     // Keepalive to prevent proxy idle timeouts (Meadow uses 45s).
     _keepalive = Timer.periodic(_keepaliveInterval, (_) {

@@ -313,12 +313,128 @@ class _HtmlBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tableBorder = _cssColor(
+      Color.lerp(cs.outlineVariant, cs.outline, 0.35) ?? cs.outlineVariant,
+    );
+    final tableSurface = _cssColor(
+      Color.lerp(cs.surfaceContainerLow, cs.surface, 0.15) ??
+          cs.surfaceContainerLow,
+    );
+    final tableHeaderSurface = _cssColor(
+      Color.lerp(cs.surfaceContainerHigh, cs.surfaceContainerHighest, 0.35) ??
+          cs.surfaceContainerHigh,
+    );
+    final tableCardColor =
+        Color.lerp(cs.surfaceContainerLow, cs.surface, 0.15) ??
+        cs.surfaceContainerLow;
+    final tableCardBorder =
+        Color.lerp(cs.outlineVariant, cs.outline, 0.35) ?? cs.outlineVariant;
+
     return HtmlWidget(
       html,
       textStyle: DefaultTextStyle.of(context).style,
       customWidgetBuilder: (element) {
         if (element.localName == 'pre') {
           return _PreformattedCodeBlock(element: element);
+        }
+        if (element.localName == 'dl') {
+          return _DefinitionListBlock(
+            element: element,
+            isStale: isStale,
+            onLinkTap: onLinkTap,
+          );
+        }
+        if (element.localName == 'table') {
+          final cardRadius = BorderRadius.circular(6);
+          final cardBorderColor = tableCardBorder;
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: tableCardColor,
+              borderRadius: cardRadius,
+              border: Border.all(color: cardBorderColor),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: HtmlWidget(
+              element.outerHtml,
+              textStyle: DefaultTextStyle.of(context).style,
+              customStylesBuilder: (inner) {
+                final tag = inner.localName;
+                if (tag == null) return null;
+                switch (tag) {
+                  case 'table':
+                    return {
+                      'border-collapse': 'separate',
+                      'border-spacing': '0',
+                      'margin': '0',
+                      'width': '100%',
+                      'background': tableSurface,
+                    };
+                  case 'thead':
+                    return {'background': tableHeaderSurface};
+                  case 'tr':
+                    return {'background': tableSurface};
+                  case 'td':
+                    final row = inner.parent;
+                    final section = row?.parent;
+                    final rowCells =
+                        row?.children
+                            .where(
+                              (c) => c.localName == 'td' || c.localName == 'th',
+                            )
+                            .toList() ??
+                        const <dom.Element>[];
+                    final isLastCell =
+                        rowCells.isNotEmpty && identical(rowCells.last, inner);
+                    final sectionRows =
+                        section?.children
+                            .where((c) => c.localName == 'tr')
+                            .toList() ??
+                        const <dom.Element>[];
+                    final isLastRow =
+                        sectionRows.isNotEmpty &&
+                        identical(sectionRows.last, row);
+                    return {
+                      'padding': '8px 12px',
+                      'text-align': 'left',
+                      if (!isLastCell) 'border-right': '1px solid $tableBorder',
+                      if (!isLastRow) 'border-bottom': '1px solid $tableBorder',
+                    };
+                  case 'th':
+                    final row = inner.parent;
+                    final rowCells =
+                        row?.children
+                            .where(
+                              (c) => c.localName == 'td' || c.localName == 'th',
+                            )
+                            .toList() ??
+                        const <dom.Element>[];
+                    final isLastCell =
+                        rowCells.isNotEmpty && identical(rowCells.last, inner);
+                    return {
+                      'padding': '8px 12px',
+                      'text-align': 'left',
+                      'font-weight': '700',
+                      'border-bottom': '1px solid $tableBorder',
+                      if (!isLastCell) 'border-right': '1px solid $tableBorder',
+                    };
+                  default:
+                    return null;
+                }
+              },
+              onTapUrl: (url) {
+                if (url.isEmpty) {
+                  return true;
+                }
+                if (isStale && url.startsWith('moo://')) {
+                  return true;
+                }
+                onLinkTap?.call(url);
+                return true;
+              },
+            ),
+          );
         }
         return null;
       },
@@ -383,6 +499,17 @@ class _HtmlBlock extends StatelessWidget {
               'padding-left': '10px',
               'margin': '6px 0',
             };
+          case 'dl':
+            return {'margin': '4px 0'};
+          case 'dt':
+            return {
+              'margin': '6px 0 1px 0',
+              'font-weight': '700',
+            };
+          case 'dd':
+            return {
+              'margin': '0 0 4px 10px',
+            };
           case 'pre':
             return {
               // Preserve explicit newlines but wrap long lines instead of
@@ -408,10 +535,64 @@ class _HtmlBlock extends StatelessWidget {
               },
             };
           case 'table':
-            return {'border-collapse': 'collapse', 'margin': '6px 0'};
+            return {
+              'border-collapse': 'separate',
+              'border-spacing': '0',
+              'margin': '8px 0',
+              'border': '1px solid $tableBorder',
+              'border-radius': '12px',
+              'overflow': 'hidden',
+              'background': tableSurface,
+            };
+          case 'thead':
+            return {'background': tableHeaderSurface};
+          case 'tr':
+            return {'background': tableSurface};
           case 'td':
+            final row = element.parent;
+            final section = row?.parent;
+            final rowCells =
+                row?.children
+                    .where((c) => c.localName == 'td' || c.localName == 'th')
+                    .toList() ??
+                const <dom.Element>[];
+            final isFirstCell =
+                rowCells.isNotEmpty && identical(rowCells.first, element);
+            final isLastCell =
+                rowCells.isNotEmpty && identical(rowCells.last, element);
+            final sectionRows =
+                section?.children.where((c) => c.localName == 'tr').toList() ??
+                const <dom.Element>[];
+            final isLastRowInSection =
+                sectionRows.isNotEmpty && identical(sectionRows.last, row);
+            return {
+              'border-top': '1px solid $tableBorder',
+              'border-left': '1px solid $tableBorder',
+              'padding': '7px 10px',
+              if (isLastRowInSection && isFirstCell)
+                'border-bottom-left-radius': '12px',
+              if (isLastRowInSection && isLastCell)
+                'border-bottom-right-radius': '12px',
+            };
           case 'th':
-            return {'border': '1px solid #B8C2BE', 'padding': '4px 6px'};
+            final row = element.parent;
+            final rowCells =
+                row?.children
+                    .where((c) => c.localName == 'td' || c.localName == 'th')
+                    .toList() ??
+                const <dom.Element>[];
+            final isFirstCell =
+                rowCells.isNotEmpty && identical(rowCells.first, element);
+            final isLastCell =
+                rowCells.isNotEmpty && identical(rowCells.last, element);
+            return {
+              'border-top': '1px solid $tableBorder',
+              'border-left': '1px solid $tableBorder',
+              'padding': '8px 10px',
+              'font-weight': '700',
+              if (isFirstCell) 'border-top-left-radius': '12px',
+              if (isLastCell) 'border-top-right-radius': '12px',
+            };
           default:
             return null;
         }
@@ -428,6 +609,11 @@ class _HtmlBlock extends StatelessWidget {
       },
     );
   }
+}
+
+String _cssColor(Color color) {
+  final hex = color.toARGB32().toRadixString(16).padLeft(8, '0');
+  return '#${hex.substring(2)}';
 }
 
 String _highlightMooCodeBlocksInHtml(String input) {
@@ -602,6 +788,119 @@ class _PlainTextBlock extends StatelessWidget {
 
   String _cleanupDetectedUrl(String url) {
     return url.replaceAll(RegExp(r'[.,;:!?]+$'), '');
+  }
+}
+
+class _DefinitionListBlock extends StatelessWidget {
+  final dom.Element element;
+  final bool isStale;
+  final LinkTapHandler? onLinkTap;
+
+  const _DefinitionListBlock({
+    required this.element,
+    required this.isStale,
+    required this.onLinkTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <(String, String)>[];
+    String? pendingTermHtml;
+    for (final child in element.children) {
+      final tag = child.localName?.toLowerCase();
+      if (tag == 'dt') {
+        pendingTermHtml = child.innerHtml.trim();
+        continue;
+      }
+      if (tag == 'dd') {
+        rows.add((pendingTermHtml ?? '', child.innerHtml.trim()));
+        pendingTermHtml = null;
+      }
+    }
+    if (rows.isEmpty) {
+      return HtmlWidget(
+        element.outerHtml,
+        textStyle: DefaultTextStyle.of(context).style,
+      );
+    }
+
+    final cs = Theme.of(context).colorScheme;
+    final labelStyle = DefaultTextStyle.of(context).style.merge(
+      TextStyle(
+        fontWeight: FontWeight.w700,
+        color: cs.onSurface,
+      ),
+    );
+    final valueStyle = DefaultTextStyle.of(context).style;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (termHtml, valueHtml) in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: HtmlWidget(
+                        termHtml,
+                        textStyle: labelStyle,
+                        customStylesBuilder: (inner) {
+                          final tag = inner.localName?.toLowerCase();
+                          if (tag == 'p') return {'margin': '0'};
+                          return null;
+                        },
+                        onTapUrl: (url) {
+                          if (url.isEmpty) {
+                            return true;
+                          }
+                          if (isStale && url.startsWith('moo://')) {
+                            return true;
+                          }
+                          onLinkTap?.call(url);
+                          return true;
+                        },
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    color: cs.outlineVariant,
+                  ),
+                  Expanded(
+                    child: HtmlWidget(
+                      valueHtml,
+                      textStyle: valueStyle,
+                      customStylesBuilder: (inner) {
+                        final tag = inner.localName?.toLowerCase();
+                        if (tag == 'p') return {'margin': '0'};
+                        return null;
+                      },
+                      onTapUrl: (url) {
+                        if (url.isEmpty) {
+                          return true;
+                        }
+                        if (isStale && url.startsWith('moo://')) {
+                          return true;
+                        }
+                        onLinkTap?.call(url);
+                        return true;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

@@ -31,7 +31,8 @@
 - change table building to assert() instead of exceptions (#6754)
 - optimize `writeString()` for ASCII (param `asciiOptimization`) (#6736)
 - change `StringReader` to make ASCII optimization optional (param `asciiOptimization`) (#6758)
-- change `[byte]` and `[ubyte]` representation to `dart:typed_data` `Int8List` and `Uint8List` (#6839)
+- change `[byte]` and `[ubyte]` representation to `dart:typed_data` `Int8List` and `Uint8List`
+  (#6839)
 - rename `lowFinish()` to `buffer` getter (#6712)
 - fix `Builder._writeString()` - always write trailing zero byte (#6390)
 - fix `Builder.reset()` - clear vTables (#6386)

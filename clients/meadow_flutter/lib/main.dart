@@ -31,6 +31,7 @@ import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_metadata.dart';
+import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/types/moor_coll.dart';
@@ -131,6 +132,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _baseUrlCtrl = TextEditingController(text: 'http://localhost:8080');
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _handoffCodeCtrl = TextEditingController();
+  final _oauthCreateNameCtrl = TextEditingController();
+  final _oauthLinkUserCtrl = TextEditingController();
+  final _oauthLinkPassCtrl = TextEditingController();
 
   String _mode = 'connect';
   String _mooTitle = 'mooR';
@@ -138,6 +143,14 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   bool _loadingWelcome = false;
   bool _loggingIn = false;
+  bool _loadingOAuth2Config = false;
+  bool _oauth2Busy = false;
+  bool _oauth2Enabled = false;
+  List<String> _oauth2Providers = const <String>[];
+  String? _oauth2CodeVerifier;
+  String? _oauth2IdentityCode;
+  OAuth2AppIdentity? _oauth2Identity;
+  String _oauth2AccountMode = 'oauth2_create';
 
   @override
   void initState() {
@@ -163,6 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     _loadWelcome();
+    _consumeOAuth2CallbackFromUri();
 
     if (a.login) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -181,6 +195,10 @@ class _LoginScreenState extends State<LoginScreen> {
     _baseUrlCtrl.dispose();
     _userCtrl.dispose();
     _passCtrl.dispose();
+    _handoffCodeCtrl.dispose();
+    _oauthCreateNameCtrl.dispose();
+    _oauthLinkUserCtrl.dispose();
+    _oauthLinkPassCtrl.dispose();
     super.dispose();
   }
 
@@ -220,6 +238,27 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final api = MoorHttpApi(baseUri);
+      if (!_loadingOAuth2Config) {
+        _loadingOAuth2Config = true;
+        try {
+          final oauthCfg = await api.fetchOAuth2Config();
+          if (mounted) {
+            setState(() {
+              _oauth2Enabled = oauthCfg.enabled;
+              _oauth2Providers = oauthCfg.providers;
+            });
+          }
+        } on Object {
+          if (mounted) {
+            setState(() {
+              _oauth2Enabled = false;
+              _oauth2Providers = const <String>[];
+            });
+          }
+        } finally {
+          _loadingOAuth2Config = false;
+        }
+      }
       String? mooTitle;
       try {
         mooTitle = await api.fetchMooTitle();
@@ -242,6 +281,257 @@ class _LoginScreenState extends State<LoginScreen> {
         _loadingWelcome = false;
         _error = '$e';
       });
+    }
+  }
+
+  void _consumeOAuth2CallbackFromUri() {
+    final q = Uri.base.queryParameters;
+    final handoff = q['handoff_code']?.trim();
+    if (handoff != null && handoff.isNotEmpty) {
+      _handoffCodeCtrl.text = handoff;
+    }
+    final err = q['error']?.trim();
+    if (err != null && err.isNotEmpty) {
+      final details = q['details']?.trim();
+      setState(() {
+        _error = details == null || details.isEmpty
+            ? 'OAuth2 error: $err'
+            : 'OAuth2 error: $err ($details)';
+      });
+    }
+  }
+
+  String _oauth2RedirectUri() {
+    if (kIsWeb) {
+      final u = Uri.base;
+      return Uri(
+        scheme: u.scheme,
+        userInfo: u.userInfo,
+        host: u.host,
+        port: u.hasPort ? u.port : null,
+        path: u.path,
+      ).toString();
+    }
+    return 'moor://oauth/callback';
+  }
+
+  Future<void> _navigateToSession({
+    required LoginSession session,
+    required String mode,
+  }) async {
+    if (!mounted) return;
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SessionScreen(
+          session: session,
+          mode: mode,
+          initialMooTitle: _mooTitle,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startOAuth2ProofBound(String provider) async {
+    final baseUri = _parseBaseUri();
+    if (baseUri == null) {
+      setState(() {
+        _error = 'Invalid base URL';
+      });
+      return;
+    }
+
+    setState(() {
+      _oauth2Busy = true;
+      _error = null;
+      _oauth2IdentityCode = null;
+      _oauth2Identity = null;
+      _oauth2AccountMode = 'oauth2_create';
+      _handoffCodeCtrl.clear();
+    });
+
+    try {
+      final api = MoorHttpApi(baseUri);
+      final pkce = await generatePkcePair();
+      final start = await api.oauth2AppStart(
+        provider: provider,
+        redirectUri: _oauth2RedirectUri(),
+        codeChallenge: pkce.codeChallenge,
+        codeChallengeMethod: pkce.codeChallengeMethod,
+        intent: 'connect',
+      );
+      _oauth2CodeVerifier = pkce.codeVerifier;
+
+      await launchUrl(start.authUrl, mode: LaunchMode.externalApplication);
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _oauth2Busy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _exchangeOAuth2HandoffCode() async {
+    final baseUri = _parseBaseUri();
+    if (baseUri == null) {
+      setState(() {
+        _error = 'Invalid base URL';
+      });
+      return;
+    }
+    final handoff = _handoffCodeCtrl.text.trim();
+    final verifier = _oauth2CodeVerifier;
+    if (handoff.isEmpty) {
+      setState(() {
+        _error = 'Missing handoff code';
+      });
+      return;
+    }
+    if (verifier == null || verifier.isEmpty) {
+      setState(() {
+        _error = 'OAuth2 session expired; start OAuth2 again';
+      });
+      return;
+    }
+
+    setState(() {
+      _oauth2Busy = true;
+      _error = null;
+    });
+    try {
+      final api = MoorHttpApi(baseUri);
+      final result = await api.oauth2AppExchange(
+        handoffCode: handoff,
+        codeVerifier: verifier,
+      );
+
+      if (result is OAuth2AppAuthSession) {
+        final session = LoginSession(
+          baseUri: baseUri,
+          authToken: result.authToken,
+          playerCurie: result.playerCurie,
+          playerFlags: result.playerFlags,
+          clientToken: result.clientToken,
+          clientId: result.clientId,
+          isInitialAttach: false,
+        );
+        await _navigateToSession(session: session, mode: 'connect');
+        return;
+      }
+
+      if (result is OAuth2AppIdentity) {
+        if (!mounted) return;
+        setState(() {
+          _oauth2IdentityCode = result.identityCode;
+          _oauth2Identity = result;
+          _oauthCreateNameCtrl.text = (result.name?.trim().isNotEmpty ?? false)
+              ? result.name!.trim()
+              : ((result.username?.trim().isNotEmpty ?? false)
+                    ? result.username!.trim()
+                    : '');
+        });
+      }
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _oauth2Busy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitOAuth2AccountChoice() async {
+    final baseUri = _parseBaseUri();
+    if (baseUri == null) {
+      setState(() {
+        _error = 'Invalid base URL';
+      });
+      return;
+    }
+    final verifier = _oauth2CodeVerifier;
+    final identityCode = _oauth2IdentityCode;
+    if (verifier == null || verifier.isEmpty || identityCode == null) {
+      setState(() {
+        _error = 'OAuth2 identity flow expired; start again';
+      });
+      return;
+    }
+
+    final isCreate = _oauth2AccountMode == 'oauth2_create';
+    final playerName = _oauthCreateNameCtrl.text.trim();
+    final existingUser = _oauthLinkUserCtrl.text.trim();
+    final existingPassword = _oauthLinkPassCtrl.text;
+
+    if (isCreate && playerName.isEmpty) {
+      setState(() {
+        _error = 'Missing player name';
+      });
+      return;
+    }
+    if (!isCreate && (existingUser.isEmpty || existingPassword.isEmpty)) {
+      setState(() {
+        _error = 'Missing existing account credentials';
+      });
+      return;
+    }
+
+    setState(() {
+      _oauth2Busy = true;
+      _error = null;
+    });
+    try {
+      final api = MoorHttpApi(baseUri);
+      final result = await api.oauth2AppAccountChoice(
+        mode: _oauth2AccountMode,
+        identityCode: identityCode,
+        codeVerifier: verifier,
+        playerName: isCreate ? playerName : null,
+        existingEmail: isCreate ? null : existingUser,
+        existingPassword: isCreate ? null : existingPassword,
+      );
+
+      if (!result.success ||
+          result.authToken == null ||
+          result.playerCurie == null ||
+          result.playerFlags == null) {
+        throw Exception(result.error ?? 'OAuth2 account choice failed');
+      }
+
+      final session = LoginSession(
+        baseUri: baseUri,
+        authToken: result.authToken!,
+        playerCurie: result.playerCurie!,
+        playerFlags: result.playerFlags!,
+        clientToken: result.clientToken,
+        clientId: result.clientId,
+        isInitialAttach: false,
+      );
+      await _navigateToSession(
+        session: session,
+        mode: isCreate ? 'create' : 'connect',
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _oauth2Busy = false;
+        });
+      }
     }
   }
 
@@ -403,17 +693,137 @@ class _LoginScreenState extends State<LoginScreen> {
               onSubmitted: (_) => _loggingIn ? null : _login(),
             ),
             const SizedBox(height: 12),
-            if (_error != null) ...[
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              const SizedBox(height: 12),
-            ],
             FilledButton(
               onPressed: _loggingIn ? null : _login,
               child: Text(_loggingIn ? 'Logging in...' : 'Login'),
             ),
+            if (_oauth2Enabled && _oauth2Providers.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              Text(
+                'OAuth2 login',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final provider in _oauth2Providers)
+                    OutlinedButton(
+                      onPressed: _oauth2Busy
+                          ? null
+                          : () => _startOAuth2ProofBound(provider),
+                      child: Text('Continue with $provider'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'After provider login, paste handoff code if callback does not return here automatically.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _handoffCodeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Handoff code',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _oauth2Busy ? null : _exchangeOAuth2HandoffCode,
+                    child: Text(_oauth2Busy ? 'Working...' : 'Exchange'),
+                  ),
+                ],
+              ),
+              if (_oauth2IdentityCode != null && _oauth2Identity != null) ...[
+                const SizedBox(height: 12),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Complete OAuth2 account setup (${_oauth2Identity!.provider})',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 'oauth2_create',
+                              label: Text('Create'),
+                            ),
+                            ButtonSegment(
+                              value: 'oauth2_connect',
+                              label: Text('Link'),
+                            ),
+                          ],
+                          selected: {_oauth2AccountMode},
+                          onSelectionChanged: (s) {
+                            setState(() {
+                              _oauth2AccountMode = s.first;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        if (_oauth2AccountMode == 'oauth2_create')
+                          TextField(
+                            controller: _oauthCreateNameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Player name',
+                            ),
+                          )
+                        else ...[
+                          TextField(
+                            controller: _oauthLinkUserCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Existing username/email',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _oauthLinkPassCtrl,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Existing password',
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        FilledButton(
+                          onPressed: _oauth2Busy
+                              ? null
+                              : _submitOAuth2AccountChoice,
+                          child: Text(
+                            _oauth2Busy
+                                ? 'Working...'
+                                : (_oauth2AccountMode == 'oauth2_create'
+                                      ? 'Create account'
+                                      : 'Link account'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
           ],
         ),
       ),
@@ -1482,8 +1892,10 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget _buildSpeechBubbleMessage(
     BuildContext context,
     NarrativeItem item,
-    ColorScheme cs,
-  ) {
+    ColorScheme cs, {
+    required bool hasPrevFromSameActor,
+    required bool hasNextFromSameActor,
+  }) {
     final actorCurie = _actorCurie(item);
     final isSelf =
         actorCurie != null &&
@@ -1510,15 +1922,15 @@ class _SessionScreenState extends State<SessionScreen> {
         ? cs.onPrimaryContainer
         : cs.onSecondaryContainer;
     final rowAlign = isSelf ? MainAxisAlignment.end : MainAxisAlignment.start;
-    final nameText = Flexible(
-      child: Text(
-        actorLabel,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13,
-          color: cs.outline,
-          fontWeight: FontWeight.w700,
-        ),
+    final showActorLabel = !hasNextFromSameActor;
+    final showTail = !hasNextFromSameActor;
+    final actorText = Text(
+      actorLabel,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 13,
+        color: cs.outline,
+        fontWeight: FontWeight.w700,
       ),
     );
     final bubbleBody = Flexible(
@@ -1527,10 +1939,14 @@ class _SessionScreenState extends State<SessionScreen> {
         decoration: BoxDecoration(
           color: bubbleColor,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(14),
-            topRight: const Radius.circular(14),
-            bottomLeft: Radius.circular(isSelf ? 14 : 4),
-            bottomRight: Radius.circular(isSelf ? 4 : 14),
+            topLeft: Radius.circular(hasPrevFromSameActor ? 9 : 14),
+            topRight: Radius.circular(hasPrevFromSameActor ? 9 : 14),
+            bottomLeft: Radius.circular(
+              isSelf ? 14 : (hasNextFromSameActor ? 9 : 4),
+            ),
+            bottomRight: Radius.circular(
+              isSelf ? (hasNextFromSameActor ? 9 : 4) : 14,
+            ),
           ),
         ),
         child: DefaultTextStyle.merge(
@@ -1548,29 +1964,63 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
       ),
     );
-    final bubbleTail = CustomPaint(
-      size: const Size(8, 10),
-      painter: _SpeechBubbleTailPainter(
-        color: bubbleColor,
-        isSelf: isSelf,
-      ),
-    );
     final bubbleWithTail = Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: isSelf
-          ? <Widget>[bubbleBody, bubbleTail]
-          : <Widget>[bubbleTail, bubbleBody],
+          ? <Widget>[
+              bubbleBody,
+              if (showTail)
+                CustomPaint(
+                  size: const Size(8, 10),
+                  painter: _SpeechBubbleTailPainter(
+                    color: bubbleColor,
+                    isSelf: isSelf,
+                  ),
+                ),
+            ]
+          : <Widget>[
+              if (showTail)
+                CustomPaint(
+                  size: const Size(8, 10),
+                  painter: _SpeechBubbleTailPainter(
+                    color: bubbleColor,
+                    isSelf: isSelf,
+                  ),
+                ),
+              bubbleBody,
+            ],
     );
 
+    final verticalPadding = hasPrevFromSameActor || hasNextFromSameActor
+        ? 0.0
+        : 5.0;
+    final reserveActorGutter = hasPrevFromSameActor || hasNextFromSameActor;
+    final actorGutterWidth = ((actorLabel.length * 8) + 8)
+        .clamp(56, 180)
+        .toDouble();
+    final actorGutter = SizedBox(
+      width: actorGutterWidth,
+      child: showActorLabel ? actorText : null,
+    );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: verticalPadding),
       child: Row(
         mainAxisAlignment: rowAlign,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: isSelf
-            ? <Widget>[bubbleWithTail, const SizedBox(width: 2), nameText]
-            : <Widget>[nameText, const SizedBox(width: 2), bubbleWithTail],
+            ? <Widget>[
+                bubbleWithTail,
+                if (showActorLabel || reserveActorGutter)
+                  const SizedBox(width: 2),
+                if (showActorLabel || reserveActorGutter) actorGutter,
+              ]
+            : <Widget>[
+                if (showActorLabel || reserveActorGutter) actorGutter,
+                if (showActorLabel || reserveActorGutter)
+                  const SizedBox(width: 2),
+                bubbleWithTail,
+              ],
       ),
     );
   }
@@ -1679,6 +2129,23 @@ class _SessionScreenState extends State<SessionScreen> {
     return ak == bk;
   }
 
+  static bool _isBubbleHint(String? hint) {
+    return hint == 'speech_bubble' || hint == 'thought_bubble';
+  }
+
+  static bool _sameBubbleRun(NarrativeItem a, NarrativeItem b) {
+    final hint = a.presentationHint;
+    if (!_isBubbleHint(hint) || hint != b.presentationHint) {
+      return false;
+    }
+    final actorA = a.metadata?.actorCurie ?? a.metadata?.actorName;
+    final actorB = b.metadata?.actorCurie ?? b.metadata?.actorName;
+    if (actorA == null || actorB == null) {
+      return false;
+    }
+    return actorA == actorB;
+  }
+
   static List<List<NarrativeItem>> _groupNarrativeItems(
     List<NarrativeItem> items,
   ) {
@@ -1699,7 +2166,9 @@ class _SessionScreenState extends State<SessionScreen> {
           it.groupId == next?.groupId &&
           next != null &&
           _sameActor(it, next);
-      final shouldContinueGroup = it.noNewline || sameHintGroup;
+      final sameBubbleRun = next != null && _sameBubbleRun(it, next);
+      final shouldContinueGroup =
+          it.noNewline || sameHintGroup || sameBubbleRun;
 
       if (!shouldContinueGroup || i == items.length - 1) {
         grouped.add(current);
@@ -2902,20 +3371,41 @@ class _SessionScreenState extends State<SessionScreen> {
                                           context,
                                         ).colorScheme;
 
-                                        Widget buildMessage(NarrativeItem it) {
+                                        Widget buildMessage(
+                                          int localIdx,
+                                          NarrativeItem it,
+                                        ) {
                                           final key = _messageKeys.putIfAbsent(
                                             it.id,
                                             GlobalKey.new,
                                           );
+                                          final prev = localIdx > 0
+                                              ? group[localIdx - 1]
+                                              : null;
+                                          final next =
+                                              localIdx < group.length - 1
+                                              ? group[localIdx + 1]
+                                              : null;
+                                          final hasPrevFromSameActor =
+                                              prev != null &&
+                                              _sameBubbleRun(prev, it);
+                                          final hasNextFromSameActor =
+                                              next != null &&
+                                              _sameBubbleRun(it, next);
+                                          final isGroupedBubbleMessage =
+                                              hasPrevFromSameActor ||
+                                              hasNextFromSameActor;
                                           final ts = it.timestamp
                                               .toIso8601String()
                                               .split('T')
                                               .last;
                                           return Container(
                                             key: key,
-                                            padding: const EdgeInsets.symmetric(
+                                            padding: EdgeInsets.symmetric(
                                               horizontal: 12,
-                                              vertical: 4,
+                                              vertical: isGroupedBubbleMessage
+                                                  ? 0
+                                                  : 4,
                                             ),
                                             child: Column(
                                               crossAxisAlignment:
@@ -2954,6 +3444,10 @@ class _SessionScreenState extends State<SessionScreen> {
                                                     context,
                                                     it,
                                                     cs,
+                                                    hasPrevFromSameActor:
+                                                        hasPrevFromSameActor,
+                                                    hasNextFromSameActor:
+                                                        hasNextFromSameActor,
                                                   )
                                                 else if (_speechBubblesEnabled &&
                                                     it.presentationHint ==
@@ -2992,8 +3486,15 @@ class _SessionScreenState extends State<SessionScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.stretch,
                                           children: [
-                                            for (final it in group)
-                                              buildMessage(it),
+                                            for (
+                                              var i = 0;
+                                              i < group.length;
+                                              i++
+                                            )
+                                              buildMessage(
+                                                i,
+                                                group[i],
+                                              ),
                                           ],
                                         );
 
