@@ -188,9 +188,13 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         isInputEcho?: boolean;
     }[]>([]);
 
-    // Minimum time between DOM additions (ms) - only applies when messages arrive rapidly
-    // Normal messages (arriving >100ms apart) have zero delay
-    const MIN_DOM_ADDITION_INTERVAL = 100;
+    // Minimum time between DOM additions (ms).
+    // Keep staggered announcements only for reduced-motion accessibility mode.
+    const MIN_DOM_ADDITION_INTERVAL = (
+            typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        )
+        ? 100
+        : 0;
 
     // Add a message to the DOM and update timestamp
     const commitMessageToDOM = useCallback((
