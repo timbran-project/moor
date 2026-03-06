@@ -1,6 +1,6 @@
 [package]
 name = "meadow"
-version = "1.0.0-rc1"
+version = "1.1.0-dev"
 authors = ["Ryan Daum <ryan.daum@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0"
