@@ -31,6 +31,7 @@ import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_metadata.dart';
+import 'package:meadow_flutter/moor/narrative_tracker.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
@@ -41,8 +42,10 @@ import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/command_controller.dart';
+import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
-import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
+import 'package:meadow_flutter/widgets/session_dock_item_card.dart';
+import 'package:meadow_flutter/widgets/session_narrative_list.dart';
 import 'package:meadow_flutter/widgets/verb_editor.dart';
 import 'package:meadow_flutter/widgets/verb_palette_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -865,7 +868,7 @@ class _SessionScreenState extends State<SessionScreen> {
   String? _currentRoomLookKey;
   String? _currentRoomLookMessageId;
   bool _isCurrentRoomLookDockLatched = false;
-  final _latestLookMessageIdByRoom = <String, String>{};
+  final _narrativeTracker = NarrativeTracker();
 
   bool _roomHudEnabled = true;
   bool _showNarrativeMeta = false;
@@ -891,8 +894,6 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _historyLoading = false;
   bool _historyLoaded = false;
   bool _wasWsConnected = false;
-  final Set<String> _seenNarrativeEventIds = <String>{};
-  final Set<String> _seenNarrativeDedupKeys = <String>{};
 
   // Command history: 0 = current input, 1 = most recent command, etc.
   final List<String> _commandHistory = [];
@@ -1247,7 +1248,7 @@ class _SessionScreenState extends State<SessionScreen> {
     final roomKey = _currentRoomLookKey;
     if (roomKey == null) return;
 
-    final msgId = _latestLookMessageIdByRoom[roomKey];
+    final msgId = _narrativeTracker.latestLookMessageIdForRoom(roomKey);
     if (msgId == null) return;
 
     if (msgId != _currentRoomLookMessageId) {
@@ -1502,24 +1503,19 @@ class _SessionScreenState extends State<SessionScreen> {
         if (parsed == null) {
           continue;
         }
-        final eventId = _narrativeEventId(parsed);
-        final dedupKey = _narrativeDedupKey(parsed);
-        final alreadySeen =
-            (eventId != null &&
-                (_seenNarrativeEventIds.contains(eventId) ||
-                    batchEventIds.contains(eventId))) ||
-            (dedupKey != null &&
-                (_seenNarrativeDedupKeys.contains(dedupKey) ||
-                    batchDedupKeys.contains(dedupKey)));
+        final alreadySeen = _narrativeTracker.batchContains(
+          item: parsed,
+          batchEventIds: batchEventIds,
+          batchDedupKeys: batchDedupKeys,
+        );
         if (alreadySeen) {
           continue;
         }
-        if (eventId != null) {
-          batchEventIds.add(eventId);
-        }
-        if (dedupKey != null) {
-          batchDedupKeys.add(dedupKey);
-        }
+        _narrativeTracker.rememberBatch(
+          parsed,
+          batchEventIds: batchEventIds,
+          batchDedupKeys: batchDedupKeys,
+        );
         items.add(parsed);
       }
 
@@ -1527,7 +1523,7 @@ class _SessionScreenState extends State<SessionScreen> {
       setState(() {
         _items.insertAll(0, items);
         for (final item in items) {
-          _rememberNarrativeIdentity(item);
+          _narrativeTracker.remember(item);
         }
         _historyLoaded = true;
       });
@@ -1811,24 +1807,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _appendItem(NarrativeItem it) {
-    final eventId = _narrativeEventId(it);
-    final dedupKey = _narrativeDedupKey(it);
-    if ((eventId != null && _seenNarrativeEventIds.contains(eventId)) ||
-        (dedupKey != null && _seenNarrativeDedupKeys.contains(dedupKey))) {
+    if (_narrativeTracker.contains(it)) {
       return;
-    }
-
-    final roomKey = getRoomLookKeyFromNarrative(
-      presentationHint: it.presentationHint,
-      eventMetadata: it.metadata?.raw,
-    );
-    if (roomKey != null) {
-      _latestLookMessageIdByRoom[roomKey] = it.id;
     }
 
     setState(() {
       _items.add(it);
-      _rememberNarrativeIdentity(it);
+      _narrativeTracker.remember(it);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollCtrl.hasClients) return;
@@ -1841,342 +1826,6 @@ class _SessionScreenState extends State<SessionScreen> {
   String? _uuidBytesToHex(List<int>? bytes) {
     if (bytes == null || bytes.isEmpty) return null;
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  }
-
-  String? _narrativeEventId(NarrativeItem item) {
-    return item.metadata?.eventId ??
-        item.metadata?.text(const ['eventId', 'event_id']);
-  }
-
-  String? _narrativeDedupKey(NarrativeItem item) {
-    final correlation = item.metadata?.text(
-      const ['correlationId', 'correlation_id', 'deliveryId', 'delivery_id'],
-    );
-    if (correlation != null) {
-      return 'corr:$correlation';
-    }
-    final eventId = _narrativeEventId(item);
-    if (eventId != null) {
-      return 'event:$eventId';
-    }
-    return null;
-  }
-
-  void _rememberNarrativeIdentity(NarrativeItem item) {
-    final eventId = _narrativeEventId(item);
-    if (eventId != null) {
-      _seenNarrativeEventIds.add(eventId);
-    }
-    final dedupKey = _narrativeDedupKey(item);
-    if (dedupKey != null) {
-      _seenNarrativeDedupKeys.add(dedupKey);
-    }
-  }
-
-  String? _actorCurie(NarrativeItem item) {
-    return item.metadata?.actorCurie;
-  }
-
-  String? _actorName(NarrativeItem item) {
-    return item.metadata?.actorName;
-  }
-
-  String _speechContent(NarrativeItem item) {
-    final content = item.metadata?.content;
-    if (content != null && content.isNotEmpty) {
-      return content;
-    }
-    return item.content.join('\n');
-  }
-
-  Widget _buildSpeechBubbleMessage(
-    BuildContext context,
-    NarrativeItem item,
-    ColorScheme cs, {
-    required bool hasPrevFromSameActor,
-    required bool hasNextFromSameActor,
-  }) {
-    final actorCurie = _actorCurie(item);
-    final isSelf =
-        actorCurie != null &&
-        actorCurie.toLowerCase() == widget.session.playerCurie.toLowerCase();
-    final actorLabel = isSelf
-        ? 'You'
-        : (_actorName(item) ?? actorCurie ?? 'Unknown');
-    final semanticSpeech = item.metadata?.content;
-    final bubbleContent = (semanticSpeech != null && semanticSpeech.isNotEmpty)
-        ? <String>[semanticSpeech]
-        : (item.content.isNotEmpty
-              ? item.content
-              : <String>[_speechContent(item)]);
-    final bubbleContentType =
-        (semanticSpeech != null && semanticSpeech.isNotEmpty)
-        ? 'text/djot'
-        : item.contentType;
-
-    final bubbleColor = isSelf
-        ? Color.lerp(cs.primaryContainer, cs.primary, 0.12) ??
-              cs.primaryContainer
-        : cs.secondaryContainer;
-    final bubbleTextColor = isSelf
-        ? cs.onPrimaryContainer
-        : cs.onSecondaryContainer;
-    final rowAlign = isSelf ? MainAxisAlignment.end : MainAxisAlignment.start;
-    final showActorLabel = !hasNextFromSameActor;
-    final showTail = !hasNextFromSameActor;
-    final actorText = Text(
-      actorLabel,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 13,
-        color: cs.outline,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-    final bubbleBody = Flexible(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(hasPrevFromSameActor ? 9 : 14),
-            topRight: Radius.circular(hasPrevFromSameActor ? 9 : 14),
-            bottomLeft: Radius.circular(
-              isSelf ? 14 : (hasNextFromSameActor ? 9 : 4),
-            ),
-            bottomRight: Radius.circular(
-              isSelf ? (hasNextFromSameActor ? 9 : 4) : 14,
-            ),
-          ),
-        ),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(
-            color: bubbleTextColor,
-            fontSize: 14,
-          ),
-          child: ContentRenderer(
-            content: bubbleContent,
-            contentType: bubbleContentType,
-            isStale: false,
-            onLinkTap: _handleLinkTap,
-            monospace: _monospaceNarrative,
-          ),
-        ),
-      ),
-    );
-    final bubbleWithTail = Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: isSelf
-          ? <Widget>[
-              bubbleBody,
-              if (showTail)
-                CustomPaint(
-                  size: const Size(8, 10),
-                  painter: _SpeechBubbleTailPainter(
-                    color: bubbleColor,
-                    isSelf: isSelf,
-                  ),
-                ),
-            ]
-          : <Widget>[
-              if (showTail)
-                CustomPaint(
-                  size: const Size(8, 10),
-                  painter: _SpeechBubbleTailPainter(
-                    color: bubbleColor,
-                    isSelf: isSelf,
-                  ),
-                ),
-              bubbleBody,
-            ],
-    );
-
-    final verticalPadding = hasPrevFromSameActor || hasNextFromSameActor
-        ? 0.0
-        : 5.0;
-    final reserveActorGutter = hasPrevFromSameActor || hasNextFromSameActor;
-    final actorGutterWidth = ((actorLabel.length * 8) + 8)
-        .clamp(56, 180)
-        .toDouble();
-    final actorGutter = SizedBox(
-      width: actorGutterWidth,
-      child: showActorLabel ? actorText : null,
-    );
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: verticalPadding),
-      child: Row(
-        mainAxisAlignment: rowAlign,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: isSelf
-            ? <Widget>[
-                bubbleWithTail,
-                if (showActorLabel || reserveActorGutter)
-                  const SizedBox(width: 2),
-                if (showActorLabel || reserveActorGutter) actorGutter,
-              ]
-            : <Widget>[
-                if (showActorLabel || reserveActorGutter) actorGutter,
-                if (showActorLabel || reserveActorGutter)
-                  const SizedBox(width: 2),
-                bubbleWithTail,
-              ],
-      ),
-    );
-  }
-
-  Widget _buildThoughtBubbleMessage(
-    BuildContext context,
-    NarrativeItem item,
-    ColorScheme cs,
-  ) {
-    final actorCurie = _actorCurie(item);
-    final isSelf =
-        actorCurie != null &&
-        actorCurie.toLowerCase() == widget.session.playerCurie.toLowerCase();
-    final actorLabel = _actorName(item) ?? actorCurie ?? 'Unknown';
-    final semanticThought = item.metadata?.content;
-    final bubbleContent =
-        (semanticThought != null && semanticThought.isNotEmpty)
-        ? <String>[semanticThought]
-        : (item.content.isNotEmpty
-              ? item.content
-              : <String>[_speechContent(item)]);
-    final bubbleContentType =
-        (semanticThought != null && semanticThought.isNotEmpty)
-        ? 'text/djot'
-        : item.contentType;
-
-    final bubbleColor = isSelf
-        ? Color.lerp(cs.primaryContainer, cs.primary, 0.08) ??
-              cs.primaryContainer
-        : Color.lerp(cs.tertiaryContainer, cs.surfaceContainerHigh, 0.25) ??
-              cs.tertiaryContainer;
-    final bubbleTextColor = isSelf
-        ? cs.onPrimaryContainer
-        : cs.onTertiaryContainer;
-    final rowAlign = isSelf ? MainAxisAlignment.end : MainAxisAlignment.start;
-
-    final nameText = Flexible(
-      child: Text(
-        actorLabel,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13,
-          color: cs.outline,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-
-    final bubbleBody = Flexible(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: Color.lerp(bubbleColor, cs.outline, 0.25) ?? cs.outline,
-          ),
-        ),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(
-            color: bubbleTextColor,
-            fontSize: 14,
-          ),
-          child: ContentRenderer(
-            content: bubbleContent,
-            contentType: bubbleContentType,
-            isStale: false,
-            onLinkTap: _handleLinkTap,
-            monospace: _monospaceNarrative,
-          ),
-        ),
-      ),
-    );
-
-    final thoughtDots = CustomPaint(
-      size: const Size(16, 18),
-      painter: _ThoughtBubbleDotsPainter(
-        color: bubbleColor,
-        isSelf: isSelf,
-      ),
-    );
-    final bubbleWithDots = Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: isSelf
-          ? <Widget>[bubbleBody, thoughtDots]
-          : <Widget>[thoughtDots, bubbleBody],
-    );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        mainAxisAlignment: rowAlign,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: isSelf
-            ? <Widget>[bubbleWithDots, const SizedBox(width: 5), nameText]
-            : <Widget>[nameText, const SizedBox(width: 5), bubbleWithDots],
-      ),
-    );
-  }
-
-  static bool _sameActor(NarrativeItem a, NarrativeItem b) {
-    final ak = a.metadata?.actorCurie;
-    final bk = b.metadata?.actorCurie;
-    if (ak == null || bk == null) return true;
-    return ak == bk;
-  }
-
-  static bool _isBubbleHint(String? hint) {
-    return hint == 'speech_bubble' || hint == 'thought_bubble';
-  }
-
-  static bool _sameBubbleRun(NarrativeItem a, NarrativeItem b) {
-    final hint = a.presentationHint;
-    if (!_isBubbleHint(hint) || hint != b.presentationHint) {
-      return false;
-    }
-    final actorA = a.metadata?.actorCurie ?? a.metadata?.actorName;
-    final actorB = b.metadata?.actorCurie ?? b.metadata?.actorName;
-    if (actorA == null || actorB == null) {
-      return false;
-    }
-    return actorA == actorB;
-  }
-
-  static List<List<NarrativeItem>> _groupNarrativeItems(
-    List<NarrativeItem> items,
-  ) {
-    if (items.isEmpty) return const <List<NarrativeItem>>[];
-
-    final grouped = <List<NarrativeItem>>[];
-    var current = <NarrativeItem>[];
-
-    for (var i = 0; i < items.length; i++) {
-      final it = items[i];
-      current.add(it);
-
-      final next = (i + 1) < items.length ? items[i + 1] : null;
-      final sameHintGroup =
-          it.presentationHint != null &&
-          next?.presentationHint == it.presentationHint &&
-          it.groupId != null &&
-          it.groupId == next?.groupId &&
-          next != null &&
-          _sameActor(it, next);
-      final sameBubbleRun = next != null && _sameBubbleRun(it, next);
-      final shouldContinueGroup =
-          it.noNewline || sameHintGroup || sameBubbleRun;
-
-      if (!shouldContinueGroup || i == items.length - 1) {
-        grouped.add(current);
-        current = <NarrativeItem>[];
-      }
-    }
-
-    return grouped;
   }
 
   void _handleInputPromptRequest(InputPromptRequest request) {
@@ -2214,194 +1863,6 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     _ws?.sendText(v);
     _clearInputPrompt();
-  }
-
-  Widget _buildInputPromptComposer(
-    BuildContext context,
-    InputPromptRequest req,
-  ) {
-    final md = req.metadata;
-    final type = md.inputType ?? 'text';
-    final promptText = (md.prompt?.trim().isNotEmpty ?? false)
-        ? md.prompt!.trim()
-        : 'Input required';
-    final cs = Theme.of(context).colorScheme;
-    final promptBorder = Color.lerp(cs.error, Colors.amber, 0.45) ?? cs.error;
-    final promptSurface =
-        Color.lerp(cs.errorContainer, cs.surfaceContainerHighest, 0.72) ??
-        cs.surfaceContainerHighest;
-
-    Widget promptHeader() {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: ContentRenderer(
-          content: [promptText],
-          contentType: 'text/plain',
-          isStale: false,
-          onLinkTap: _handleLinkTap,
-          monospace: _monospaceNarrative,
-        ),
-      );
-    }
-
-    Widget body;
-    if (type == 'yes_no') {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          promptHeader(),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton(
-                autofocus: true,
-                onPressed: () => _submitInputPromptValue('yes'),
-                child: const Text('Yes'),
-              ),
-              FilledButton.tonal(
-                onPressed: () => _submitInputPromptValue('no'),
-                child: const Text('No'),
-              ),
-              TextButton(
-                onPressed: () => _submitInputPromptValue('@abort'),
-                child: const Text('Cancel'),
-              ),
-            ],
-          ),
-        ],
-      );
-    } else if (type == 'confirmation') {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          promptHeader(),
-          FilledButton(
-            autofocus: true,
-            onPressed: () => _submitInputPromptValue('ok'),
-            child: const Text('OK'),
-          ),
-        ],
-      );
-    } else if (type == 'choice' && md.choices.isNotEmpty) {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          promptHeader(),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final choice in md.choices)
-                FilledButton.tonal(
-                  autofocus: choice == md.choices.first,
-                  onPressed: () => _submitInputPromptValue(choice),
-                  child: Text(choice),
-                ),
-              TextButton(
-                onPressed: () => _submitInputPromptValue('@abort'),
-                child: const Text('Cancel'),
-              ),
-            ],
-          ),
-        ],
-      );
-    } else {
-      final isMultiline = type == 'text_area';
-      final isAlt =
-          type == 'yes_no_alternative' || type == 'yes_no_alternative_all';
-
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          promptHeader(),
-          if (isAlt) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton(
-                  autofocus: true,
-                  onPressed: () => _submitInputPromptValue('yes'),
-                  child: const Text('Yes'),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => _submitInputPromptValue('no'),
-                  child: const Text('No'),
-                ),
-                if (type == 'yes_no_alternative_all')
-                  FilledButton.tonal(
-                    onPressed: () => _submitInputPromptValue('all'),
-                    child: const Text('All'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _promptCtrl,
-                  focusNode: _promptFocus,
-                  autofocus: true,
-                  keyboardType: isMultiline
-                      ? TextInputType.multiline
-                      : (type == 'number'
-                            ? const TextInputType.numberWithOptions(
-                                decimal: true,
-                              )
-                            : TextInputType.text),
-                  minLines: isMultiline ? (md.rows ?? 3) : 1,
-                  maxLines: isMultiline ? (md.rows ?? 3) : 1,
-                  decoration: InputDecoration(
-                    labelText: isAlt
-                        ? (md.alternativeLabel ?? 'Alternative response')
-                        : 'Response',
-                    hintText: isAlt
-                        ? (md.alternativePlaceholder ?? md.placeholder)
-                        : md.placeholder,
-                  ),
-                  onSubmitted: (_) => _submitInputPromptValue(_promptCtrl.text),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: () => _submitInputPromptValue(_promptCtrl.text),
-                child: const Text('Submit'),
-              ),
-              const SizedBox(width: 6),
-              TextButton(
-                onPressed: () => _submitInputPromptValue('@abort'),
-                child: const Text('Cancel'),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        color: promptSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: promptBorder,
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: promptBorder.withValues(alpha: 0.22),
-            blurRadius: 12,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(10),
-      child: body,
-    );
   }
 
   void _send() {
@@ -3209,59 +2670,6 @@ class _SessionScreenState extends State<SessionScreen> {
     Navigator.of(context).pop();
   }
 
-  Widget _buildDockItemCard(BuildContext context, DockItem p) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: switch (p) {
-          RoomSnapshotDockItem(:final snapshot) => RoomSnapshotWidget(
-            snapshot: snapshot,
-            onCommand: (cmd) {
-              _ws?.sendText(cmd);
-            },
-            onInspect: (obj) => _showInspectSheet(obj.curie),
-          ),
-          PresentationModel() => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      (p.attrs['title'] ?? '').trim().isNotEmpty
-                          ? p.attrs['title']!
-                          : p.id,
-                      style: Theme.of(context).textTheme.titleSmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close panel',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () async {
-                      await _dismissPresentationById(p.id);
-                    },
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ContentRenderer(
-                content: [p.content],
-                contentType: normalizeContentType(p.contentType),
-                isStale: false,
-                onLinkTap: _handleLinkTap,
-                monospace:
-                    p.attrs['kind'] == 'debug_output' || _monospaceNarrative,
-              ),
-            ],
-          ),
-        },
-      ),
-    );
-  }
-
   Widget _buildLeftPane(BuildContext context) {
     // Keep controller styling/placeholder in sync with theme and pill state.
     _inputCtrl
@@ -3319,7 +2727,17 @@ class _SessionScreenState extends State<SessionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final p in filtered) _buildDockItemCard(context, p),
+                  for (final p in filtered)
+                    SessionDockItemCard(
+                      item: p,
+                      monospaceNarrative: _monospaceNarrative,
+                      onDismissPresentation: _dismissPresentationById,
+                      onInspect: _showInspectSheet,
+                      onSendCommand: (cmd) {
+                        _ws?.sendText(cmd);
+                      },
+                      onLinkTap: _handleLinkTap,
+                    ),
                 ],
               ),
             );
@@ -3353,192 +2771,16 @@ class _SessionScreenState extends State<SessionScreen> {
                                 ),
                               ),
                               clipBehavior: Clip.antiAlias,
-                              child: Builder(
-                                builder: (context) {
-                                  final groups = _groupNarrativeItems(_items);
-                                  return SelectionArea(
-                                    child: ListView.builder(
-                                      key: _listKey,
-                                      controller: _scrollCtrl,
-                                      itemCount: groups.length,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8,
-                                      ),
-                                      itemBuilder: (context, idx) {
-                                        final group = groups[idx];
-                                        final first = group.first;
-                                        final cs = Theme.of(
-                                          context,
-                                        ).colorScheme;
-
-                                        Widget buildMessage(
-                                          int localIdx,
-                                          NarrativeItem it,
-                                        ) {
-                                          final key = _messageKeys.putIfAbsent(
-                                            it.id,
-                                            GlobalKey.new,
-                                          );
-                                          final prev = localIdx > 0
-                                              ? group[localIdx - 1]
-                                              : null;
-                                          final next =
-                                              localIdx < group.length - 1
-                                              ? group[localIdx + 1]
-                                              : null;
-                                          final hasPrevFromSameActor =
-                                              prev != null &&
-                                              _sameBubbleRun(prev, it);
-                                          final hasNextFromSameActor =
-                                              next != null &&
-                                              _sameBubbleRun(it, next);
-                                          final isGroupedBubbleMessage =
-                                              hasPrevFromSameActor ||
-                                              hasNextFromSameActor;
-                                          final ts = it.timestamp
-                                              .toIso8601String()
-                                              .split('T')
-                                              .last;
-                                          return Container(
-                                            key: key,
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: isGroupedBubbleMessage
-                                                  ? 0
-                                                  : 4,
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                if (_showNarrativeMeta) ...[
-                                                  Row(
-                                                    children: [
-                                                      Text(
-                                                        ts,
-                                                        style: TextStyle(
-                                                          fontFamily:
-                                                              'monospace',
-                                                          color: cs.outline,
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        it.contentType,
-                                                        style: TextStyle(
-                                                          fontFamily:
-                                                              'monospace',
-                                                          color: cs.outline,
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                ],
-                                                if (_speechBubblesEnabled &&
-                                                    it.presentationHint ==
-                                                        'speech_bubble')
-                                                  _buildSpeechBubbleMessage(
-                                                    context,
-                                                    it,
-                                                    cs,
-                                                    hasPrevFromSameActor:
-                                                        hasPrevFromSameActor,
-                                                    hasNextFromSameActor:
-                                                        hasNextFromSameActor,
-                                                  )
-                                                else if (_speechBubblesEnabled &&
-                                                    it.presentationHint ==
-                                                        'thought_bubble')
-                                                  _buildThoughtBubbleMessage(
-                                                    context,
-                                                    it,
-                                                    cs,
-                                                  )
-                                                else
-                                                  ContentRenderer(
-                                                    content: it.content,
-                                                    contentType: it.contentType,
-                                                    isStale: false,
-                                                    onLinkTap: _handleLinkTap,
-                                                    monospace:
-                                                        _monospaceNarrative,
-                                                  ),
-                                              ],
-                                            ),
-                                          );
-                                        }
-
-                                        final hint = first.presentationHint;
-                                        final isInset = hint == 'inset';
-                                        final isHintGroup =
-                                            hint != null &&
-                                            first.groupId != null &&
-                                            group.every(
-                                              (m) =>
-                                                  m.presentationHint == hint &&
-                                                  m.groupId == first.groupId,
-                                            );
-
-                                        final inner = Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            for (
-                                              var i = 0;
-                                              i < group.length;
-                                              i++
-                                            )
-                                              buildMessage(
-                                                i,
-                                                group[i],
-                                              ),
-                                          ],
-                                        );
-
-                                        if (!isInset) {
-                                          if (group.length == 1 &&
-                                              !isHintGroup) {
-                                            return inner;
-                                          }
-                                          return inner;
-                                        }
-
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          child: Semantics(
-                                            container: true,
-                                            label: 'Inset',
-                                            child: Card(
-                                              elevation: 0,
-                                              color: cs.surfaceContainerLow,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                side: BorderSide(
-                                                  color: cs.primary,
-                                                  width: 2,
-                                                ),
-                                              ),
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 6,
-                                                    ),
-                                                child: inner,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  );
-                                },
+                              child: SessionNarrativeList(
+                                items: _items,
+                                monospaceNarrative: _monospaceNarrative,
+                                showNarrativeMeta: _showNarrativeMeta,
+                                speechBubblesEnabled: _speechBubblesEnabled,
+                                playerCurie: widget.session.playerCurie,
+                                scrollController: _scrollCtrl,
+                                listKey: _listKey,
+                                messageKeys: _messageKeys,
+                                onLinkTap: _handleLinkTap,
                               ),
                             ),
                           ),
@@ -3558,7 +2800,17 @@ class _SessionScreenState extends State<SessionScreen> {
                               child: ListView(
                                 children: [
                                   for (final p in side)
-                                    _buildDockItemCard(context, p),
+                                    SessionDockItemCard(
+                                      item: p,
+                                      monospaceNarrative: _monospaceNarrative,
+                                      onDismissPresentation:
+                                          _dismissPresentationById,
+                                      onInspect: _showInspectSheet,
+                                      onSendCommand: (cmd) {
+                                        _ws?.sendText(cmd);
+                                      },
+                                      onLinkTap: _handleLinkTap,
+                                    ),
                                 ],
                               ),
                             ),
@@ -3582,7 +2834,14 @@ class _SessionScreenState extends State<SessionScreen> {
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: _inputPrompt != null
-                      ? _buildInputPromptComposer(context, _inputPrompt!)
+                      ? InputPromptComposer(
+                          request: _inputPrompt!,
+                          controller: _promptCtrl,
+                          focusNode: _promptFocus,
+                          monospaceNarrative: _monospaceNarrative,
+                          onLinkTap: _handleLinkTap,
+                          onSubmit: _submitInputPromptValue,
+                        )
                       : Row(
                           children: [
                             Expanded(
@@ -3859,67 +3118,6 @@ class _SessionScreenState extends State<SessionScreen> {
         },
       ),
     );
-  }
-}
-
-class _SpeechBubbleTailPainter extends CustomPainter {
-  final Color color;
-  final bool isSelf;
-
-  const _SpeechBubbleTailPainter({
-    required this.color,
-    required this.isSelf,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = color;
-    final path = Path();
-    if (isSelf) {
-      path
-        ..moveTo(0, 0)
-        ..lineTo(size.width, 0)
-        ..lineTo(0, size.height);
-    } else {
-      path
-        ..moveTo(size.width, 0)
-        ..lineTo(size.width, size.height)
-        ..lineTo(0, 0);
-    }
-    path.close();
-    canvas.drawPath(path, p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SpeechBubbleTailPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.isSelf != isSelf;
-  }
-}
-
-class _ThoughtBubbleDotsPainter extends CustomPainter {
-  final Color color;
-  final bool isSelf;
-
-  const _ThoughtBubbleDotsPainter({
-    required this.color,
-    required this.isSelf,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = color;
-    final x = isSelf ? size.width - 1 : 1.0;
-    final align = isSelf ? -1.0 : 1.0;
-
-    canvas
-      ..drawCircle(Offset(x, size.height - 5), 1.8, p)
-      ..drawCircle(Offset(x + 5 * align, size.height - 9), 2.8, p)
-      ..drawCircle(Offset(x + 11 * align, size.height - 13), 4.3, p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ThoughtBubbleDotsPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.isSelf != isSelf;
   }
 }
 
