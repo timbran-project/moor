@@ -45,6 +45,12 @@ const _monospaceFontFallback = <String>[
   ..._emojiFontFallback,
 ];
 
+final _urlRe = RegExp(
+  r'''(https?://[^\s<>"')\]\u201C\u201D\u2018\u2019]+|moo://[^\s<>"')\]\u201C\u201D\u2018\u2019]+)''',
+);
+final _uuObjIdRe = RegExp(r'#?[\da-fA-F]{6}-[\da-fA-F]{10}');
+final _objIdRe = RegExp(r'#\d+(?![0-9a-fA-F]*-[0-9a-fA-F])');
+
 class ContentRenderer extends StatelessWidget {
   final List<String> content;
   final String contentType;
@@ -88,7 +94,9 @@ class ContentRenderer extends StatelessWidget {
     // Some backend output can be mislabeled as HTML but still contain ANSI SGR
     // sequences; detect ESC and force it through the ANSI->HTML path first.
     if (contentType != 'text/x-uri' && containsAnsiEscapeCodes(joined)) {
-      final html = sanitizeRestrictedHtml(ansiToRestrictedHtml(joined));
+      final html = _linkifyBareUrlsInHtml(
+        sanitizeRestrictedHtml(ansiToRestrictedHtml(joined)),
+      );
       if (contentType == 'text/traceback') {
         return _PreformattedHtml(
           html: html,
@@ -107,7 +115,9 @@ class ContentRenderer extends StatelessWidget {
       case 'text/html':
         {
           final highlighted = _highlightMooCodeBlocksInHtml(joined);
-          final sanitized = sanitizeRestrictedHtml(highlighted);
+          final sanitized = _linkifyBareUrlsInHtml(
+            sanitizeRestrictedHtml(highlighted),
+          );
           return _HtmlBlock(
             html: sanitized,
             isStale: isStale,
@@ -116,7 +126,9 @@ class ContentRenderer extends StatelessWidget {
         }
       case 'text/djot':
         {
-          final html = renderDjotToRestrictedHtml(joined);
+          final html = _linkifyBareUrlsInHtml(
+            renderDjotToRestrictedHtml(joined),
+          );
           return _HtmlBlock(
             html: html,
             isStale: isStale,
@@ -125,7 +137,11 @@ class ContentRenderer extends StatelessWidget {
         }
       case 'text/traceback':
         {
-          return _Preformatted(text: joined);
+          return _Preformatted(
+            text: joined,
+            isStale: isStale,
+            onLinkTap: onLinkTap,
+          );
         }
       case 'text/x-uri':
         {
@@ -151,10 +167,23 @@ class ContentRenderer extends StatelessWidget {
 
 class _Preformatted extends StatelessWidget {
   final String text;
-  const _Preformatted({required this.text});
+  final bool isStale;
+  final LinkTapHandler? onLinkTap;
+
+  const _Preformatted({
+    required this.text,
+    required this.isStale,
+    required this.onLinkTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final textStyle = DefaultTextStyle.of(context).style.merge(
+      const TextStyle(
+        fontFamily: 'monospace',
+        fontFamilyFallback: _monospaceFontFallback,
+      ),
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(8),
@@ -162,14 +191,16 @@ class _Preformatted extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
-      child: SelectableText(
-        text,
-        style: DefaultTextStyle.of(context).style.merge(
-          const TextStyle(
-            fontFamily: 'monospace',
-            fontFamilyFallback: _monospaceFontFallback,
+      child: SelectableText.rich(
+        TextSpan(
+          children: _buildLinkifiedSpans(
+            context,
+            text,
+            isStale: isStale,
+            onLinkTap: onLinkTap,
           ),
         ),
+        style: textStyle,
       ),
     );
   }
@@ -457,6 +488,11 @@ class _HtmlBlock extends StatelessWidget {
           }
         }
         switch (tag) {
+          case 'a':
+            return {
+              'color': _cssColor(cs.primary),
+              'text-decoration': 'underline',
+            };
           case 'h1':
             return {
               'font-weight': '700',
@@ -677,117 +713,199 @@ class _PlainTextBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spans = _buildSpans(context, text);
+    final spans = _buildLinkifiedSpans(
+      context,
+      text,
+      isStale: isStale,
+      onLinkTap: onLinkTap,
+    );
     return SelectableText.rich(
       TextSpan(children: spans),
       style: DefaultTextStyle.of(context).style,
     );
   }
+}
 
-  List<InlineSpan> _buildSpans(BuildContext context, String input) {
-    // Similar behavior to Meadow plain renderer: linkify http/https and moo://,
-    // and make ObjIds copyable.
-    final matches = <_TokenMatch>[];
+List<InlineSpan> _buildLinkifiedSpans(
+  BuildContext context,
+  String input, {
+  required bool isStale,
+  required LinkTapHandler? onLinkTap,
+}) {
+  final matches = <_TokenMatch>[];
 
-    final urlRe = RegExp(
-      r'''(https?://[^\s<>"')\]\u201C\u201D\u2018\u2019]+|moo://[^\s<>"')\]\u201C\u201D\u2018\u2019]+)''',
+  for (final m in _urlRe.allMatches(input)) {
+    matches.add(_TokenMatch(m.start, m.end, _TokenKind.link, m.group(0)!));
+  }
+  for (final m in _uuObjIdRe.allMatches(input)) {
+    matches.add(_TokenMatch(m.start, m.end, _TokenKind.uuobjid, m.group(0)!));
+  }
+  for (final m in _objIdRe.allMatches(input)) {
+    matches.add(_TokenMatch(m.start, m.end, _TokenKind.objid, m.group(0)!));
+  }
+
+  matches.sort((a, b) => a.start.compareTo(b.start));
+
+  final filtered = <_TokenMatch>[];
+  var cursor = 0;
+  for (final m in matches) {
+    if (m.start < cursor) {
+      continue;
+    }
+    filtered.add(m);
+    cursor = m.end;
+  }
+
+  final out = <InlineSpan>[];
+  var pos = 0;
+  for (final m in filtered) {
+    if (m.start > pos) {
+      out.add(TextSpan(text: input.substring(pos, m.start)));
+    }
+    out.add(
+      _spanForToken(
+        context,
+        m,
+        isStale: isStale,
+        onLinkTap: onLinkTap,
+      ),
     );
-    final uuObjIdRe = RegExp(r'#?[\da-fA-F]{6}-[\da-fA-F]{10}');
-    final objIdRe = RegExp(r'#\d+(?![0-9a-fA-F]*-[0-9a-fA-F])');
+    pos = m.end;
+  }
+  if (pos < input.length) {
+    out.add(TextSpan(text: input.substring(pos)));
+  }
+  return out;
+}
 
-    for (final m in urlRe.allMatches(input)) {
-      matches.add(_TokenMatch(m.start, m.end, _TokenKind.link, m.group(0)!));
-    }
-    for (final m in uuObjIdRe.allMatches(input)) {
-      matches.add(_TokenMatch(m.start, m.end, _TokenKind.uuobjid, m.group(0)!));
-    }
-    for (final m in objIdRe.allMatches(input)) {
-      matches.add(_TokenMatch(m.start, m.end, _TokenKind.objid, m.group(0)!));
+InlineSpan _spanForToken(
+  BuildContext context,
+  _TokenMatch m, {
+  required bool isStale,
+  required LinkTapHandler? onLinkTap,
+}) {
+  switch (m.kind) {
+    case _TokenKind.link:
+      final url = _cleanupDetectedUrl(m.text);
+      final trailing = m.text.substring(url.length);
+      final linkSpan = TextSpan(
+        text: url,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          decoration: TextDecoration.underline,
+        ),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () {
+            if (isStale && url.startsWith('moo://')) {
+              return;
+            }
+            onLinkTap?.call(url);
+          },
+      );
+      if (trailing.isEmpty) {
+        return linkSpan;
+      }
+      return TextSpan(
+        children: [
+          linkSpan,
+          TextSpan(text: trailing),
+        ],
+      );
+    case _TokenKind.objid:
+    case _TokenKind.uuobjid:
+      final v = m.text;
+      return TextSpan(
+        text: v,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.secondary,
+          decoration: TextDecoration.underline,
+        ),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () async {
+            await Clipboard.setData(ClipboardData(text: v));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Copied to clipboard')),
+            );
+          },
+      );
+  }
+}
+
+String _cleanupDetectedUrl(String url) {
+  return url.replaceAll(RegExp(r'[.,;:!?]+$'), '');
+}
+
+String _linkifyBareUrlsInHtml(String html) {
+  final parsed = html_parser.parseFragment('<div>$html</div>');
+  if (parsed.children.isEmpty) {
+    return html;
+  }
+  final root = parsed.children.first;
+  _linkifyBareUrlsInNode(root);
+  return root.innerHtml;
+}
+
+@visibleForTesting
+String linkifyBareUrlsInHtmlForTest(String html) =>
+    _linkifyBareUrlsInHtml(html);
+
+void _linkifyBareUrlsInNode(dom.Node node) {
+  if (node is dom.Text) {
+    final text = node.data;
+    final matches = _urlRe.allMatches(text).toList();
+    if (matches.isEmpty) {
+      return;
     }
 
-    matches.sort((a, b) => a.start.compareTo(b.start));
-
-    // Drop overlaps (prefer the earlier match; good enough for spike).
-    final filtered = <_TokenMatch>[];
+    final replacementNodes = <dom.Node>[];
     var cursor = 0;
-    for (final m in matches) {
-      if (m.start < cursor) {
-        continue;
+    for (final match in matches) {
+      if (match.start > cursor) {
+        replacementNodes.add(dom.Text(text.substring(cursor, match.start)));
       }
-      filtered.add(m);
-      cursor = m.end;
+
+      final rawUrl = match.group(0)!;
+      final url = _cleanupDetectedUrl(rawUrl);
+      final trailing = rawUrl.substring(url.length);
+      if (isSafeUrl(url)) {
+        replacementNodes.add(
+          dom.Element.tag('a')
+            ..attributes['href'] = url
+            ..text = url,
+        );
+        if (trailing.isNotEmpty) {
+          replacementNodes.add(dom.Text(trailing));
+        }
+      } else {
+        replacementNodes.add(dom.Text(rawUrl));
+      }
+      cursor = match.end;
     }
 
-    final out = <InlineSpan>[];
-    var pos = 0;
-    for (final m in filtered) {
-      if (m.start > pos) {
-        out.add(TextSpan(text: input.substring(pos, m.start)));
-      }
-      out.add(_spanForToken(context, m));
-      pos = m.end;
+    if (cursor < text.length) {
+      replacementNodes.add(dom.Text(text.substring(cursor)));
     }
-    if (pos < input.length) {
-      out.add(TextSpan(text: input.substring(pos)));
+
+    final parent = node.parent;
+    if (parent == null) {
+      return;
     }
-    return out;
+    final index = parent.nodes.indexOf(node);
+    parent.nodes.removeAt(index);
+    parent.nodes.insertAll(index, replacementNodes);
+    return;
   }
 
-  InlineSpan _spanForToken(BuildContext context, _TokenMatch m) {
-    switch (m.kind) {
-      case _TokenKind.link:
-        {
-          final url = _cleanupDetectedUrl(m.text);
-          final trailing = m.text.substring(url.length);
-          final linkSpan = TextSpan(
-            text: url,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              decoration: TextDecoration.underline,
-            ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () {
-                if (isStale && url.startsWith('moo://')) {
-                  return;
-                }
-                onLinkTap?.call(url);
-              },
-          );
-          if (trailing.isEmpty) {
-            return linkSpan;
-          }
-          return TextSpan(
-            children: [
-              linkSpan,
-              TextSpan(text: trailing),
-            ],
-          );
-        }
-      case _TokenKind.objid:
-      case _TokenKind.uuobjid:
-        {
-          final v = m.text;
-          return TextSpan(
-            text: v,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.secondary,
-              decoration: TextDecoration.underline,
-            ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () async {
-                await Clipboard.setData(ClipboardData(text: v));
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied to clipboard')),
-                );
-              },
-          );
-        }
+  if (node is dom.Element) {
+    final tag = node.localName?.toLowerCase();
+    if (tag == 'a' || tag == 'pre' || tag == 'code') {
+      return;
     }
   }
 
-  String _cleanupDetectedUrl(String url) {
-    return url.replaceAll(RegExp(r'[.,;:!?]+$'), '');
+  for (final child in node.nodes.toList()) {
+    _linkifyBareUrlsInNode(child);
   }
 }
 
