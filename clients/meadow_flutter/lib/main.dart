@@ -21,17 +21,17 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
 import 'package:meadow_flutter/moor/age_decrypt.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
-import 'package:meadow_flutter/moor/content_type.dart';
 import 'package:meadow_flutter/moor/editor_session_controller.dart';
 import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
+import 'package:meadow_flutter/moor/history_encryption_controller.dart';
+import 'package:meadow_flutter/moor/history_loader.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/inspect_controller.dart';
 import 'package:meadow_flutter/moor/models.dart';
-import 'package:meadow_flutter/moor/narrative_metadata.dart';
 import 'package:meadow_flutter/moor/narrative_tracker.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
@@ -886,6 +886,23 @@ class _SessionScreenState extends State<SessionScreen> {
 
   late final EditorSessionController _editorSessionController =
       EditorSessionController();
+  late final HistoryEncryptionController _historyEncryptionController =
+      HistoryEncryptionController(
+        getLocalIdentity: EventLogKeyStore.getIdentity,
+        setLocalIdentity: EventLogKeyStore.setIdentity,
+        removeLocalIdentity: EventLogKeyStore.removeIdentity,
+        getBackendPubkey: ({required authToken}) => MoorHttpApi(
+          widget.session.baseUri,
+        ).getEventLogPubkey(authToken: authToken),
+        setBackendPubkey: ({required authToken, required publicKey}) =>
+            MoorHttpApi(widget.session.baseUri).setEventLogPubkey(
+              authToken: authToken,
+              publicKey: publicKey,
+            ),
+        deriveKeyBytes: EventLogEncryption.deriveKeyBytes,
+        identityFromDerivedBytes: EventLogEncryption.identityFromDerivedBytes,
+        publicKeyFromDerivedBytes: EventLogEncryption.publicKeyFromDerivedBytes,
+      );
   final Map<String, Widget> _editorPaneCache = <String, Widget>{};
 
   int _idSeq = 0;
@@ -893,11 +910,6 @@ class _SessionScreenState extends State<SessionScreen> {
   String _status = 'disconnected';
   String _mooTitle = 'mooR';
 
-  bool _eventLogBackendHasPubkey = false;
-  bool _eventLogHasLocalKey = false;
-  bool _historyLoading = false;
-  bool _historyLoaded = false;
-  bool _wasWsConnected = false;
   InputPromptRequest? _inputPrompt;
 
   @override
@@ -921,6 +933,7 @@ class _SessionScreenState extends State<SessionScreen> {
     };
     _commandController.addListener(_onCommandControllerChanged);
     _editorSessionController.addListener(_onEditorSessionsChanged);
+    _historyEncryptionController.addListener(_onHistoryEncryptionChanged);
     _connectWs();
     _initEncryption();
     _refreshVerbSuggestions();
@@ -936,6 +949,9 @@ class _SessionScreenState extends State<SessionScreen> {
       ..dispose();
     _editorSessionController
       ..removeListener(_onEditorSessionsChanged)
+      ..dispose();
+    _historyEncryptionController
+      ..removeListener(_onHistoryEncryptionChanged)
       ..dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
@@ -954,6 +970,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _onEditorSessionsChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  void _onHistoryEncryptionChanged() {
     if (!mounted) {
       return;
     }
@@ -1169,22 +1192,16 @@ class _SessionScreenState extends State<SessionScreen> {
       onConnectionStatusChanged: (status) {
         if (!mounted) return;
         if (status == 'connected') {
-          _wasWsConnected = true;
-          if (_eventLogHasLocalKey && !_historyLoaded && !_historyLoading) {
+          _historyEncryptionController.markWsConnected();
+          if (_historyEncryptionController.shouldLoadHistoryOnConnect()) {
             unawaited(_loadInitialHistory());
           }
         } else if (status == 'disconnected') {
           if (_inputPrompt != null) {
             _clearInputPrompt();
           }
-          final shouldResyncHistory =
-              _wasWsConnected && _eventLogHasLocalKey && _historyLoaded;
-          _wasWsConnected = false;
-          if (shouldResyncHistory) {
-            setState(() {
-              _historyLoaded = false;
-            });
-          }
+          _historyEncryptionController
+              .markWsDisconnectedAndShouldResyncHistory();
         }
         setState(() {
           _status = status;
@@ -1211,125 +1228,36 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _initEncryption() async {
-    // Match Meadow web flow:
-    // - check if backend has a pubkey
-    // - check if we have a local age identity
-    final playerOid = widget.session.playerCurie;
-    final authToken = widget.session.authToken;
-    final api = MoorHttpApi(widget.session.baseUri);
-
-    final localIdentity = await EventLogKeyStore.getIdentity(playerOid);
-    final hasLocal = localIdentity != null && localIdentity.trim().isNotEmpty;
-
-    String? backendPubkey;
-    try {
-      backendPubkey = await api.getEventLogPubkey(authToken: authToken);
-    } on Object catch (e) {
-      _appendSystem('History encryption check failed: $e');
-      return;
-    }
-
-    final backendHasPubkey =
-        backendPubkey != null && backendPubkey.trim().isNotEmpty;
-    if (!mounted) return;
-    setState(() {
-      _eventLogBackendHasPubkey = backendHasPubkey;
-      _eventLogHasLocalKey = hasLocal;
-    });
-
-    if (hasLocal && !backendHasPubkey) {
-      // Backend was reset; clear stale local identity.
-      await EventLogKeyStore.removeIdentity(playerOid);
-      _appendSystem(
-        'History encryption: backend missing pubkey, clearing local key',
-      );
-      if (!mounted) return;
-      setState(() {
-        _eventLogHasLocalKey = false;
-      });
-    }
-
-    if (!backendHasPubkey && !hasLocal) {
-      // No key anywhere; user can set it up later from the session menu.
-      return;
-    }
-
-    if (backendHasPubkey && !hasLocal) {
-      final password = await _promptHistoryPassword();
-      if (!mounted) return;
-      if (password == null || password.isEmpty) {
-        _appendSystem('History encryption locked (no password provided)');
-        return;
-      }
-      await _unlockEncryption(password);
-      if (!mounted) return;
-      setState(() {
-        _eventLogHasLocalKey = true;
-      });
-      return;
-    }
-
-    if (backendHasPubkey && hasLocal) {
-      _appendSystem('History encryption unlocked');
-      await _loadInitialHistory();
-      return;
-    }
+    await _historyEncryptionController.init(
+      playerOid: widget.session.playerCurie,
+      authToken: widget.session.authToken,
+      promptForPassword: _promptHistoryPassword,
+      loadInitialHistory: _loadInitialHistory,
+      onSystemMessage: _appendSystem,
+    );
   }
 
   Future<void> _setupEncryption(String password) async {
-    final playerOid = widget.session.playerCurie;
-    final authToken = widget.session.authToken;
-    final api = MoorHttpApi(widget.session.baseUri);
-
-    try {
-      _appendSystem('Setting up history encryption...');
-      final derived = await EventLogEncryption.deriveKeyBytes(
-        password: password,
-        identifier: playerOid,
-      );
-      final identity = EventLogEncryption.identityFromDerivedBytes(derived);
-      final pubkey = await EventLogEncryption.publicKeyFromDerivedBytes(
-        derived,
-      );
-      await api.setEventLogPubkey(authToken: authToken, publicKey: pubkey);
-      await EventLogKeyStore.setIdentity(
-        playerOid: playerOid,
-        ageIdentity: identity,
-      );
-      _appendSystem('History encryption set');
-      if (!mounted) return;
-      setState(() {
-        _eventLogBackendHasPubkey = true;
-        _eventLogHasLocalKey = true;
-      });
-      await _loadInitialHistory();
-    } on Object catch (e) {
-      _appendSystem('History encryption setup failed: $e');
-    }
+    await _historyEncryptionController.setup(
+      playerOid: widget.session.playerCurie,
+      authToken: widget.session.authToken,
+      password: password,
+      loadInitialHistory: _loadInitialHistory,
+      onSystemMessage: _appendSystem,
+    );
   }
 
   Future<void> _unlockEncryption(String password) async {
-    final playerOid = widget.session.playerCurie;
-    try {
-      _appendSystem('Unlocking history encryption...');
-      final derived = await EventLogEncryption.deriveKeyBytes(
-        password: password,
-        identifier: playerOid,
-      );
-      final identity = EventLogEncryption.identityFromDerivedBytes(derived);
-      await EventLogKeyStore.setIdentity(
-        playerOid: playerOid,
-        ageIdentity: identity,
-      );
-      _appendSystem('History encryption unlocked');
-      await _loadInitialHistory();
-    } on Object catch (e) {
-      _appendSystem('History encryption unlock failed: $e');
-    }
+    await _historyEncryptionController.unlock(
+      playerOid: widget.session.playerCurie,
+      password: password,
+      loadInitialHistory: _loadInitialHistory,
+      onSystemMessage: _appendSystem,
+    );
   }
 
   Future<void> _loadInitialHistory() async {
-    if (_historyLoading || _historyLoaded) {
+    if (!_historyEncryptionController.beginHistoryLoad()) {
       return;
     }
 
@@ -1340,10 +1268,6 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     if (!mounted) return;
-    setState(() {
-      _historyLoading = true;
-    });
-
     try {
       _appendSystem('Loading history...');
       final api = MoorHttpApi(widget.session.baseUri);
@@ -1352,31 +1276,13 @@ class _SessionScreenState extends State<SessionScreen> {
         sinceSeconds: 86400,
         limit: 100,
       );
-
-      final items = <NarrativeItem>[];
-      final batchEventIds = <String>{};
-      final batchDedupKeys = <String>{};
-      for (final ev in events) {
-        final decrypted = await decryptEventBlobAge(ev.encryptedBlob, identity);
-        final parsed = _parseNarrativeEnvelope(decrypted);
-        if (parsed == null) {
-          continue;
-        }
-        final alreadySeen = _narrativeTracker.batchContains(
-          item: parsed,
-          batchEventIds: batchEventIds,
-          batchDedupKeys: batchDedupKeys,
-        );
-        if (alreadySeen) {
-          continue;
-        }
-        _narrativeTracker.rememberBatch(
-          parsed,
-          batchEventIds: batchEventIds,
-          batchDedupKeys: batchDedupKeys,
-        );
-        items.add(parsed);
-      }
+      final items = await loadHistoricalNarrativeItems(
+        events: events,
+        identity: identity,
+        tracker: _narrativeTracker,
+        decryptEvent: decryptEventBlobAge,
+        newId: _newId,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -1384,123 +1290,27 @@ class _SessionScreenState extends State<SessionScreen> {
         for (final item in items) {
           _narrativeTracker.remember(item);
         }
-        _historyLoaded = true;
       });
+      _historyEncryptionController.completeHistoryLoad();
       _appendSystem('History loaded (${items.length} events)');
     } on Object catch (e) {
       _appendSystem('History load failed: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _historyLoading = false;
-        });
-      }
+      _historyEncryptionController.finishHistoryLoad();
     }
-  }
-
-  NarrativeItem? _parseNarrativeEnvelope(Uint8List bytes) {
-    final evt = moor_common.NarrativeEvent(bytes);
-    final e = evt.event;
-    if (e == null) {
-      return null;
-    }
-    final eventId = _uuidBytesToHex(evt.eventId?.data);
-
-    final ts = DateTime.fromMillisecondsSinceEpoch(
-      (evt.timestamp / 1000000).toInt(),
-      isUtc: true,
-    ).toLocal();
-
-    final eventType = e.eventType?.value ?? 0;
-    if (eventType == moor_common.EventUnionTypeId.NotifyEvent.value) {
-      final notify = e.event as moor_common.NotifyEvent?;
-      if (notify == null || notify.value == null) {
-        return null;
-      }
-      final moorValue = MoorVar.fromFlatBuffer(notify.value!);
-      final lines = moorValue.asLines();
-      if (lines.isEmpty) return null;
-      final ct = normalizeContentType(notify.contentType?.value);
-
-      final metadata = parseNarrativeMetadata(
-        metadataPairs: notify.metadata,
-        eventId: eventId,
-      );
-      return NarrativeItem(
-        id: _newId('h'),
-        timestamp: ts,
-        content: lines,
-        contentType: ct,
-        noNewline: notify.noNewline,
-        presentationHint: metadata.presentationHint,
-        groupId: metadata.groupId,
-        metadata: metadata,
-      );
-    }
-
-    if (eventType == moor_common.EventUnionTypeId.PresentEvent.value) {
-      final present = e.event as moor_common.PresentEvent?;
-      final p = present?.presentation;
-      if (p == null) return null;
-      final c = p.content ?? '';
-      final content = c.isEmpty ? const <String>[] : <String>[c];
-      if (content.isEmpty) return null;
-      final ct = normalizeContentType(p.contentType);
-      return NarrativeItem(
-        id: _newId('h'),
-        timestamp: ts,
-        content: content,
-        contentType: ct,
-        noNewline: false,
-        presentationHint: null,
-        groupId: null,
-        metadata: null,
-      );
-    }
-
-    if (eventType == moor_common.EventUnionTypeId.TracebackEvent.value) {
-      final tb = e.event as moor_common.TracebackEvent?;
-      final ex = tb?.exception;
-      final bt = ex?.backtrace;
-      if (bt == null) return null;
-      final lines = <String>[];
-      for (final v in bt) {
-        final s = MoorVar.fromFlatBuffer(v).asLines();
-        if (s.isNotEmpty) {
-          lines.addAll(s);
-        }
-      }
-      if (lines.isEmpty) return null;
-      return NarrativeItem(
-        id: _newId('h'),
-        timestamp: ts,
-        content: [lines.join('\n')],
-        contentType: 'text/traceback',
-        noNewline: false,
-        presentationHint: null,
-        groupId: null,
-        metadata: null,
-      );
-    }
-
-    // Ignore unpresent/data for now.
-    return null;
   }
 
   Future<void> _forgetLocalEncryptionKey() async {
-    final playerOid = widget.session.playerCurie;
-    await EventLogKeyStore.removeIdentity(playerOid);
-    if (!mounted) return;
-    setState(() {
-      _eventLogHasLocalKey = false;
-    });
-    _appendSystem('History encryption: forgot local key');
+    await _historyEncryptionController.forgetLocalKey(
+      playerOid: widget.session.playerCurie,
+      onSystemMessage: _appendSystem,
+    );
   }
 
   Future<void> _showEncryptionMenu() async {
     final playerOid = widget.session.playerCurie;
-    final backendHas = _eventLogBackendHasPubkey;
-    final localHas = _eventLogHasLocalKey;
+    final backendHas = _historyEncryptionController.backendHasPubkey;
+    final localHas = _historyEncryptionController.hasLocalKey;
 
     final choice = await showDialog<String>(
       context: context,
@@ -1551,10 +1361,6 @@ class _SessionScreenState extends State<SessionScreen> {
           if (!mounted) return;
           if (password == null || password.isEmpty) return;
           await _unlockEncryption(password);
-          if (!mounted) return;
-          setState(() {
-            _eventLogHasLocalKey = true;
-          });
         }
       case 'forget':
         await _forgetLocalEncryptionKey();
@@ -1680,11 +1486,6 @@ class _SessionScreenState extends State<SessionScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
-  }
-
-  String? _uuidBytesToHex(List<int>? bytes) {
-    if (bytes == null || bytes.isEmpty) return null;
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   void _handleInputPromptRequest(InputPromptRequest request) {
