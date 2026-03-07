@@ -17,18 +17,21 @@ import 'package:meadow_flutter/moor/history_loader.dart';
 import 'package:meadow_flutter/moor/narrative_tracker.dart';
 
 void main() {
-  test('loadHistoricalNarrativeItems returns empty list for empty history', () async {
-    final tracker = NarrativeTracker();
+  test(
+    'loadHistoricalNarrativeItems returns empty list for empty history',
+    () async {
+      final tracker = NarrativeTracker();
 
-    var ids = 0;
-    final items = await loadHistoricalNarrativeItems(
-      events: const [],
-      identity: 'identity',
-      tracker: tracker,
-      decryptEvent: (encryptedBlob, _) async => encryptedBlob,
-      newId: (_) => 'h${++ids}',
-    );
+      var ids = 0;
+      final items = await loadHistoricalNarrativeItems(
+        events: const [],
+        identity: 'identity',
+        tracker: tracker,
+        decryptEvent: (encryptedBlob, _) async => encryptedBlob,
+        newId: (_) => 'h${++ids}',
+      );
 
-    expect(items, isEmpty);
-  });
+      expect(items, isEmpty);
+    },
+  );
 }
