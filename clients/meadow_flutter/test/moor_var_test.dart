@@ -15,6 +15,7 @@
 import 'package:flat_buffers/flat_buffers.dart' as fb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meadow_flutter/fbs/moor_rpc_moor_var_generated.dart' as fbs;
+import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/types/moor_coll.dart';
 import 'package:meadow_flutter/moor/types/moor_obj.dart';
 import 'package:meadow_flutter/moor/types/moor_str.dart';
@@ -125,6 +126,12 @@ void main() {
         MoorObj.parse('anonymous:12345'),
         equals(MoorAnonymousObjId(BigInt.from(12345))),
       );
+    });
+
+    test('ObjectRef parsing accepts oid strings', () {
+      expect(objectRefToCurie('oid:1'), equals('oid:1'));
+      expect(objectRefToCurie('#1'), equals('oid:1'));
+      expect(objectRefToCurie('"oid:1"'), equals('oid:1'));
     });
 
     test('toKey coercion', () {

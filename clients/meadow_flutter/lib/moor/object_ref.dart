@@ -51,18 +51,47 @@ ObjectRef? objectRefFromDynamic(Object? value) {
 
   if (value is ObjectRef) return value;
   if (value is MoorObj) return ObjectRef(value);
-  if (value is MoorVar) {
-    final obj = (value as MoorVar).asObj();
-    if (obj != null) return ObjectRef(obj);
-    return null;
-  }
 
   if (value is int) {
     return ObjectRef(MoorObjId(value));
   }
 
   if (value is String) {
-    return ObjectRef.fromCurie(value);
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+
+    final lower = trimmed.toLowerCase();
+    if (lower.startsWith('oid:')) {
+      final id = int.tryParse(lower.substring(4));
+      if (id != null) {
+        return ObjectRef(MoorObjId(id));
+      }
+    }
+
+    final fromCurie = ObjectRef.fromCurie(trimmed);
+    if (fromCurie != null) {
+      return fromCurie;
+    }
+
+    if (trimmed.startsWith('#')) {
+      final id = int.tryParse(trimmed.substring(1));
+      if (id != null) {
+        return ObjectRef(MoorObjId(id));
+      }
+    }
+
+    final id = int.tryParse(trimmed);
+    if (id != null) {
+      return ObjectRef(MoorObjId(id));
+    }
+
+    final unquoted =
+        trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')
+        ? trimmed.substring(1, trimmed.length - 1)
+        : null;
+    if (unquoted != null) {
+      return objectRefFromDynamic(unquoted);
+    }
   }
 
   if (value is Map) {
@@ -74,6 +103,12 @@ ObjectRef? objectRefFromDynamic(Object? value) {
     if (uuid is String) {
       return ObjectRef.fromCurie('uuid:$uuid');
     }
+  }
+
+  if (value is MoorVar) {
+    final obj = (value as MoorVar).asObj();
+    if (obj != null) return ObjectRef(obj);
+    return null;
   }
 
   return null;
