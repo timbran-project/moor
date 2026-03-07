@@ -41,6 +41,7 @@ import 'package:meadow_flutter/moor/room_look_controller.dart';
 import 'package:meadow_flutter/moor/session_bootstrap.dart';
 import 'package:meadow_flutter/moor/session_connection_controller.dart';
 import 'package:meadow_flutter/moor/session_view_controller.dart';
+import 'package:meadow_flutter/moor/trusted_external_domains.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
@@ -1464,6 +1465,24 @@ class _SessionScreenState extends State<SessionScreen> {
       final u = Uri.tryParse(url);
       if (u == null) {
         _appendSystem('Bad URL: $url');
+        return;
+      }
+      var shouldOpen = await TrustedExternalDomainsStore.isTrusted(url);
+      if (!shouldOpen) {
+        if (!mounted) return;
+        final decision = await showExternalLinkDialog(context, url: url);
+        if (!mounted || decision == null) {
+          return;
+        }
+        if (decision.trustDomain) {
+          final hostname = TrustedExternalDomainsStore.hostnameFor(url);
+          if (hostname != null) {
+            await TrustedExternalDomainsStore.addDomain(hostname);
+          }
+        }
+        shouldOpen = true;
+      }
+      if (!shouldOpen) {
         return;
       }
       final ok = await launchUrl(u, mode: LaunchMode.externalApplication);

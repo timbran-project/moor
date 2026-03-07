@@ -15,6 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/widgets/link_preview_card.dart';
 
 class SessionNarrativeList extends StatelessWidget {
   final List<NarrativeItem> items;
@@ -85,6 +86,25 @@ class SessionNarrativeList extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                   ],
+                  if (item.metadata?.thumbnail case final thumbnail?)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ExcludeSemantics(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxHeight: 220,
+                              maxWidth: 320,
+                            ),
+                            child: Image.memory(
+                              thumbnail.data,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ContentRenderer(
                     content: item.content,
                     contentType: item.contentType,
@@ -92,6 +112,11 @@ class SessionNarrativeList extends StatelessWidget {
                     onLinkTap: onLinkTap,
                     monospace: monospaceNarrative,
                   ),
+                  if (item.metadata?.linkPreview case final preview?)
+                    LinkPreviewCard(
+                      preview: preview,
+                      onTap: onLinkTap,
+                    ),
                 ],
               ),
             );

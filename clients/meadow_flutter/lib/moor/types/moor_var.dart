@@ -12,6 +12,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:typed_data';
+
 import 'package:flat_buffers/flat_buffers.dart' as fb;
 import 'package:meadow_flutter/fbs/moor_rpc_moor_var_generated.dart' as fbs;
 import 'package:meadow_flutter/moor/types/moor_coll.dart';
@@ -63,6 +65,8 @@ extension type const MoorVar(Object value) {
       return MoorVar(MoorMap.fromFlatBuffer(variant as fbs.VarMap));
     } else if (type == fbs.VarUnionTypeId.VarSym.value) {
       return MoorVar(MoorSym((variant as fbs.VarSym).symbol?.value ?? ''));
+    } else if (type == fbs.VarUnionTypeId.VarBinary.value) {
+      return MoorVar(Uint8List.fromList((variant as fbs.VarBinary).data ?? []));
     } else {
       return moorNoneVar;
     }
@@ -83,6 +87,7 @@ extension type const MoorVar(Object value) {
   MoorMap? asMap() => value is MoorMap ? value as MoorMap : null;
   MoorSym? asSym() => value is MoorSym ? value as MoorSym : null;
   MoorErr? asErr() => value is MoorErr ? value as MoorErr : null;
+  Uint8List? asBinary() => value is Uint8List ? value as Uint8List : null;
 
   bool isNone() => value is MoorNone;
 
@@ -127,6 +132,7 @@ extension type const MoorVar(Object value) {
     if (v is MoorList) return v.toLiteral();
     if (v is MoorMap) return v.toLiteral();
     if (v is MoorErr) return v.toLiteral();
+    if (v is Uint8List) return '<binary:${v.length}>';
     return v.toString();
   }
 
@@ -178,6 +184,12 @@ extension type const MoorVar(Object value) {
     if (v is MoorMap) {
       return v.toVarBuilder();
     }
+    if (v is Uint8List) {
+      return fbs.VarObjectBuilder(
+        variantType: fbs.VarUnionTypeId.VarBinary,
+        variant: fbs.VarBinaryObjectBuilder(data: v),
+      );
+    }
     if (v is MoorErr) {
       return v.toVarBuilder();
     }
@@ -217,6 +229,14 @@ extension type const MoorVar(Object value) {
     if (v1 is MoorList && v2 is MoorList) return v1.compareTo(v2);
     if (v1 is MoorMap && v2 is MoorMap) return v1.compareTo(v2);
     if (v1 is MoorErr && v2 is MoorErr) return v1.compareTo(v2);
+    if (v1 is Uint8List && v2 is Uint8List) {
+      if (v1.length != v2.length) return v1.length.compareTo(v2.length);
+      for (var i = 0; i < v1.length; i++) {
+        final cmp = v1[i].compareTo(v2[i]);
+        if (cmp != 0) return cmp;
+      }
+      return 0;
+    }
 
     if (v1 is Comparable && v2 is Comparable) return v1.compareTo(v2);
 
@@ -233,8 +253,9 @@ extension type const MoorVar(Object value) {
     if (v is String) return 5;
     if (v is MoorSym) return 6;
     if (v is MoorErr) return 7;
-    if (v is MoorList) return 8;
-    if (v is MoorMap) return 9;
-    return 10;
+    if (v is Uint8List) return 8;
+    if (v is MoorList) return 9;
+    if (v is MoorMap) return 10;
+    return 11;
   }
 }

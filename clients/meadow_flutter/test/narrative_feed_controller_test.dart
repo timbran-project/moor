@@ -86,6 +86,8 @@ NarrativeItem _item({
       actorName: null,
       verb: null,
       content: null,
+      thumbnail: null,
+      linkPreview: null,
     ),
   );
 }

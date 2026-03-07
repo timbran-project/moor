@@ -12,6 +12,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meadow_flutter/widgets/session_dialogs.dart';
 
@@ -25,5 +26,38 @@ void main() {
       ),
       equals('player: oid:1\nbackend pubkey: yes\nlocal key: no'),
     );
+  });
+
+  testWidgets('showExternalLinkDialog presents warning and trust toggle', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return FilledButton(
+              onPressed: () {
+                showExternalLinkDialog(
+                  context,
+                  url: 'https://example.com/post?id=1',
+                );
+              },
+              child: const Text('Open'),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('External Link'), findsOneWidget);
+    expect(
+      find.textContaining('This link will take you to an external website'),
+      findsOneWidget,
+    );
+    expect(find.text("Don't ask again for example.com"), findsOneWidget);
+    expect(find.text('Visit Site'), findsOneWidget);
   });
 }

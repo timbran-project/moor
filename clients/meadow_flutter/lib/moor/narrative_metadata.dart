@@ -14,6 +14,7 @@
 
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
+import 'package:meadow_flutter/moor/link_preview.dart';
 import 'package:meadow_flutter/moor/types/moor_obj.dart';
 import 'package:meadow_flutter/moor/types/moor_str.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
@@ -28,6 +29,8 @@ class NarrativeMetadata {
   final String? actorName;
   final String? verb;
   final String? content;
+  final NarrativeThumbnailData? thumbnail;
+  final LinkPreviewData? linkPreview;
 
   const NarrativeMetadata({
     required this.raw,
@@ -38,6 +41,8 @@ class NarrativeMetadata {
     required this.actorName,
     required this.verb,
     required this.content,
+    required this.thumbnail,
+    required this.linkPreview,
   });
 
   Object? value(String key) => raw[key];
@@ -158,6 +163,12 @@ NarrativeMetadata parseNarrativeMetadata({
   final content = contentVal == null
       ? null
       : (_toMetadataText(contentVal) ?? MoorVar(contentVal).coerceText());
+  final thumbnail =
+      parseNarrativeThumbnailData(raw['thumbnail']) ??
+      parseNarrativeThumbnailData(raw['image_thumbnail']);
+  final linkPreview =
+      parseLinkPreviewData(raw['link_preview']) ??
+      parseLinkPreviewData(raw['linkPreview']);
 
   return NarrativeMetadata(
     raw: raw,
@@ -171,5 +182,7 @@ NarrativeMetadata parseNarrativeMetadata({
     actorName: actorNameFromRaw(),
     verb: textFor(const ['verb']),
     content: (content?.isEmpty ?? true) ? null : content,
+    thumbnail: thumbnail,
+    linkPreview: linkPreview,
   );
 }

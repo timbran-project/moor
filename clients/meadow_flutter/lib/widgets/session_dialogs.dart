@@ -197,3 +197,103 @@ Future<void> showInspectSheet(
     },
   );
 }
+
+class ExternalLinkDecision {
+  final bool trustDomain;
+
+  const ExternalLinkDecision({
+    required this.trustDomain,
+  });
+}
+
+Future<ExternalLinkDecision?> showExternalLinkDialog(
+  BuildContext context, {
+  required String url,
+}) {
+  var trustDomain = false;
+  final uri = Uri.tryParse(url);
+  final protocol = (uri?.scheme.isNotEmpty ?? false) ? '${uri!.scheme}://' : '';
+  final hostname = uri?.host ?? url;
+  final path = uri == null
+      ? ''
+      : '${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}${uri.hasFragment ? '#${uri.fragment}' : ''}';
+
+  return showDialog<ExternalLinkDecision>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('External Link'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: protocol,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                      TextSpan(
+                        text: hostname,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      TextSpan(
+                        text: path,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'This link will take you to an external website. Make sure you trust this destination before proceeding.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: trustDomain,
+                  onChanged: (value) {
+                    setState(() {
+                      trustDomain = value ?? false;
+                    });
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text("Don't ask again for $hostname"),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    ExternalLinkDecision(trustDomain: trustDomain),
+                  );
+                },
+                child: const Text('Visit Site'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}

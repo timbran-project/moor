@@ -20,7 +20,9 @@ import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
+import 'package:meadow_flutter/moor/link_preview.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/narrative_metadata.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_snapshot.dart';
@@ -569,6 +571,73 @@ void main() {
         expect(find.text('Debug panel'), findsOneWidget);
         expect(find.text('Recent debug output'), findsOneWidget);
         expect(find.byTooltip('Close panel'), findsOneWidget);
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('narrative link previews expose accessible cards', (
+      WidgetTester tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final scrollController = ScrollController();
+      final messageKeys = <String, GlobalKey>{};
+      addTearDown(scrollController.dispose);
+
+      try {
+        await tester.pumpWidget(
+          _wrap(
+            child: SizedBox(
+              height: 300,
+              child: SessionNarrativeList(
+                items: <NarrativeItem>[
+                  NarrativeItem(
+                    id: 'preview-1',
+                    timestamp: DateTime.parse('2026-03-07T12:00:00Z'),
+                    content: const <String>['https://example.com/post'],
+                    contentType: 'text/x-uri',
+                    noNewline: false,
+                    presentationHint: null,
+                    groupId: null,
+                    metadata: const NarrativeMetadata(
+                      raw: <String, Object?>{},
+                      eventId: 'evt-1',
+                      presentationHint: null,
+                      groupId: null,
+                      actorCurie: null,
+                      actorName: null,
+                      verb: null,
+                      content: null,
+                      thumbnail: null,
+                      linkPreview: LinkPreviewData(
+                        url: 'https://example.com/post',
+                        title: 'Example post',
+                        description: 'A concise description',
+                        image: null,
+                        siteName: 'Example',
+                      ),
+                    ),
+                  ),
+                ],
+                monospaceNarrative: false,
+                showNarrativeMeta: false,
+                playerCurie: 'oid:1',
+                scrollController: scrollController,
+                listKey: GlobalKey(),
+                messageKeys: messageKeys,
+                onLinkTap: null,
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('Example post'), findsOneWidget);
+        expect(find.text('A concise description'), findsOneWidget);
+        expect(find.text('Example'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('Link preview: Example post from Example'),
+          findsOneWidget,
+        );
       } finally {
         handle.dispose();
       }
