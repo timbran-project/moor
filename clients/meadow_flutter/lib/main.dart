@@ -22,6 +22,7 @@ import 'package:meadow_flutter/moor/age_decrypt.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
 import 'package:meadow_flutter/moor/content_type.dart';
+import 'package:meadow_flutter/moor/editor_session_controller.dart';
 import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
@@ -33,7 +34,6 @@ import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_metadata.dart';
 import 'package:meadow_flutter/moor/narrative_tracker.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
-import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
@@ -885,8 +885,8 @@ class _SessionScreenState extends State<SessionScreen> {
 
   double _splitRatio = 0.64;
 
-  final _editorSessions = <EditorSession>[];
-  int _activeEditorIndex = 0;
+  late final EditorSessionController _editorSessionController =
+      EditorSessionController();
   final Map<String, Widget> _editorPaneCache = <String, Widget>{};
 
   int _idSeq = 0;
@@ -921,6 +921,7 @@ class _SessionScreenState extends State<SessionScreen> {
       });
     };
     _commandController.addListener(_onCommandControllerChanged);
+    _editorSessionController.addListener(_onEditorSessionsChanged);
     _connectWs();
     _initEncryption();
     _refreshVerbSuggestions();
@@ -934,6 +935,9 @@ class _SessionScreenState extends State<SessionScreen> {
     _commandController
       ..removeListener(_onCommandControllerChanged)
       ..dispose();
+    _editorSessionController
+      ..removeListener(_onEditorSessionsChanged)
+      ..dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
     _presentations
@@ -944,6 +948,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _onCommandControllerChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  void _onEditorSessionsChanged() {
     if (!mounted) {
       return;
     }
@@ -984,162 +995,20 @@ class _SessionScreenState extends State<SessionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
   }
 
-  List<EditorSession> _deriveEditorSessionsFromPresentations() {
-    final wanted = <String, EditorSession>{};
-
-    void addWanted(EditorSession session) {
-      wanted[session.presentationId] = session;
-    }
-
-    for (final item in _presentations.byTarget('verb-editor')) {
-      if (item is! PresentationModel) continue;
-      final pid = item.id;
-      final rawObject = item.attrs['object'] ?? item.attrs['objectCurie'];
-      final rawVerb = item.attrs['verb'] ?? item.attrs['verbName'];
-      if (rawObject == null || rawVerb == null) continue;
-      final objectCurie = objectRefToCurie(rawObject);
-      if (objectCurie == null) {
-        _appendSystem('verb-editor: invalid object=$rawObject');
-        continue;
-      }
-      final title = (item.attrs['title']?.toString().trim().isNotEmpty ?? false)
-          ? item.attrs['title'].toString()
-          : 'Edit $objectCurie:$rawVerb';
-      addWanted(
-        VerbEditorSession(
-          id: pid,
-          title: title,
-          presentationId: pid,
-          objectCurie: objectCurie,
-          verbName: rawVerb,
-        ),
-      );
-    }
-
-    for (final item in _presentations.byTarget('property-editor')) {
-      if (item is! PresentationModel) continue;
-      final pid = item.id;
-      final rawObject = item.attrs['object'] ?? item.attrs['objectCurie'];
-      final rawProp = item.attrs['property'] ?? item.attrs['propertyName'];
-      if (rawObject == null || rawProp == null) continue;
-      final objectCurie = objectRefToCurie(rawObject);
-      if (objectCurie == null) {
-        _appendSystem('property-editor: invalid object=$rawObject');
-        continue;
-      }
-      final title = (item.attrs['title']?.toString().trim().isNotEmpty ?? false)
-          ? item.attrs['title'].toString()
-          : 'Edit $objectCurie.$rawProp';
-      addWanted(
-        PropertyEditorSession(
-          id: pid,
-          title: title,
-          presentationId: pid,
-          objectCurie: objectCurie,
-          propertyName: rawProp,
-          isValueEditor: false,
-        ),
-      );
-    }
-
-    for (final item in _presentations.byTarget('property-value-editor')) {
-      if (item is! PresentationModel) continue;
-      final pid = item.id;
-      final rawObject = item.attrs['object'] ?? item.attrs['objectCurie'];
-      final rawProp = item.attrs['property'] ?? item.attrs['propertyName'];
-      if (rawObject == null || rawProp == null) continue;
-      final objectCurie = objectRefToCurie(rawObject);
-      if (objectCurie == null) {
-        _appendSystem('property-value-editor: invalid object=$rawObject');
-        continue;
-      }
-      final title = (item.attrs['title']?.toString().trim().isNotEmpty ?? false)
-          ? item.attrs['title'].toString()
-          : 'Edit $objectCurie.$rawProp';
-      addWanted(
-        PropertyEditorSession(
-          id: pid,
-          title: title,
-          presentationId: pid,
-          objectCurie: objectCurie,
-          propertyName: rawProp,
-          isValueEditor: true,
-        ),
-      );
-    }
-
-    final existingByPid = <String, EditorSession>{
-      for (final session in _editorSessions) session.presentationId: session,
-    };
-    final nextSessions = <EditorSession>[];
-
-    for (final session in _editorSessions) {
-      final keep = wanted[session.presentationId];
-      if (keep == null) continue;
-      nextSessions.add(existingByPid[session.presentationId]!);
-      wanted.remove(session.presentationId);
-    }
-    if (wanted.isNotEmpty) {
-      nextSessions.addAll(wanted.values);
-    }
-
-    return nextSessions;
-  }
-
   void _syncEditorSessionsFromPresentations() {
-    if (!mounted) return;
-    final wasEmpty = _editorSessions.isEmpty;
-    final oldPids = _editorSessions.map((e) => e.presentationId).toSet();
-    final nextSessions = _deriveEditorSessionsFromPresentations();
-
-    final didChange =
-        nextSessions.length != _editorSessions.length ||
-        !_sameStringList(
-          nextSessions.map((e) => e.presentationId).toList(),
-          _editorSessions.map((e) => e.presentationId).toList(),
-        );
-    if (!didChange) return;
-
-    final nextPids = nextSessions.map((e) => e.presentationId).toSet();
-    final newPids = nextPids.difference(oldPids);
+    _editorSessionController.syncFromPresentations(
+      _presentations,
+      onSystemMessage: _appendSystem,
+    );
+    final nextPids = _editorSessionController.sessions
+        .map((session) => session.presentationId)
+        .toSet();
     final toRemove = _editorPaneCache.keys
         .where((pid) => !nextPids.contains(pid))
         .toList();
     for (final pid in toRemove) {
       _editorPaneCache.remove(pid);
     }
-
-    setState(() {
-      _editorSessions
-        ..clear()
-        ..addAll(nextSessions);
-      if (_activeEditorIndex >= _editorSessions.length) {
-        _activeEditorIndex = _editorSessions.isEmpty
-            ? 0
-            : _editorSessions.length - 1;
-      }
-      if (_activeEditorIndex < 0) _activeEditorIndex = 0;
-      if (wasEmpty && _editorSessions.isNotEmpty) {
-        // First editor opened: make the newest one active.
-        _activeEditorIndex = _editorSessions.length - 1;
-      }
-      if (newPids.isNotEmpty) {
-        final lastNewIdx = _editorSessions.lastIndexWhere(
-          (s) => newPids.contains(s.presentationId),
-        );
-        if (lastNewIdx >= 0) {
-          _activeEditorIndex = lastNewIdx;
-        }
-      }
-    });
-  }
-
-  bool _sameStringList(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
   }
 
   Future<void> _closeEditorSession(EditorSession s) async {
@@ -1148,17 +1017,7 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!mounted) return;
     setState(() {
       _editorPaneCache.remove(s.presentationId);
-      final idx = _editorSessions.indexWhere(
-        (it) => it.presentationId == s.presentationId,
-      );
-      if (idx >= 0) {
-        _editorSessions.removeAt(idx);
-        if (_activeEditorIndex >= _editorSessions.length) {
-          _activeEditorIndex = _editorSessions.isEmpty
-              ? 0
-              : _editorSessions.length - 1;
-        }
-      }
+      _editorSessionController.removePresentationId(s.presentationId);
     });
 
     // Also remove from local presentation store so we don't reopen it if the
@@ -2207,9 +2066,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _ws = null;
     _presentations.clear();
     setState(() {
-      _editorSessions.clear();
+      _editorSessionController.clear();
       _editorPaneCache.clear();
-      _activeEditorIndex = 0;
     });
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -2485,7 +2343,7 @@ class _SessionScreenState extends State<SessionScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final editorSessions = _deriveEditorSessionsFromPresentations();
+          final editorSessions = _editorSessionController.sessions;
 
           if (editorSessions.isEmpty) {
             return _buildLeftPane(context);
@@ -2515,12 +2373,8 @@ class _SessionScreenState extends State<SessionScreen> {
                   height: editorHeight,
                   child: SessionEditorDock(
                     sessions: editorSessions,
-                    activeIndex: _activeEditorIndex,
-                    onSelectIndex: (index) {
-                      setState(() {
-                        _activeEditorIndex = index;
-                      });
-                    },
+                    activeIndex: _editorSessionController.activeIndex,
+                    onSelectIndex: _editorSessionController.selectIndex,
                     onCloseSession: _closeEditorSession,
                     onOpenFullscreen: _openEditorFullscreen,
                     paneBuilder: _editorPaneForSession,
@@ -2576,12 +2430,8 @@ class _SessionScreenState extends State<SessionScreen> {
               Expanded(
                 child: SessionEditorDock(
                   sessions: editorSessions,
-                  activeIndex: _activeEditorIndex,
-                  onSelectIndex: (index) {
-                    setState(() {
-                      _activeEditorIndex = index;
-                    });
-                  },
+                  activeIndex: _editorSessionController.activeIndex,
+                  onSelectIndex: _editorSessionController.selectIndex,
                   onCloseSession: _closeEditorSession,
                   onOpenFullscreen: _openEditorFullscreen,
                   paneBuilder: _editorPaneForSession,
