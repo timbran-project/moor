@@ -38,6 +38,7 @@ import 'package:meadow_flutter/moor/narrative_feed_controller.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
+import 'package:meadow_flutter/moor/session_bootstrap.dart';
 import 'package:meadow_flutter/moor/session_connection_controller.dart';
 import 'package:meadow_flutter/moor/session_view_controller.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
@@ -918,6 +919,10 @@ class _SessionScreenState extends State<SessionScreen> {
       SessionViewController();
   late final InputPromptController _inputPromptController =
       InputPromptController();
+  late final SessionBootstrapService _sessionBootstrapService =
+      SessionBootstrapService(
+        api: MoorHttpApi(widget.session.baseUri),
+      );
 
   int _idSeq = 0;
   String _mooTitle = 'mooR';
@@ -1065,14 +1070,14 @@ class _SessionScreenState extends State<SessionScreen> {
 
   Future<void> _refreshMooTitle() async {
     try {
-      final api = MoorHttpApi(widget.session.baseUri);
-      final title = await api.fetchMooTitle(
+      final title = await _sessionBootstrapService.fetchMooTitle(
         authToken: widget.session.authToken,
       );
+      final normalizedTitle = normalizeMooTitle(title);
       if (!mounted) return;
-      if (title == null || title.trim().isEmpty) return;
+      if (normalizedTitle == null) return;
       setState(() {
-        _mooTitle = title.trim();
+        _mooTitle = normalizedTitle;
       });
     } on Object {
       // Keep existing title when moo_title is unavailable.
@@ -1524,47 +1529,22 @@ class _SessionScreenState extends State<SessionScreen> {
   Future<void> _refreshVerbSuggestions() async {
     final authToken = widget.session.authToken;
     final player = widget.session.playerCurie;
-    final api = MoorHttpApi(widget.session.baseUri);
 
     try {
-      final success = await api.invokeVerb(
+      final result = await _sessionBootstrapService.loadVerbSuggestions(
         authToken: authToken,
-        objectCurie: player,
-        verbName: 'verb_suggestions',
+        playerCurie: player,
       );
-      final result = success.result;
-      final decoded = result != null
-          ? MoorVar.fromFlatBuffer(result)
-          : moorNoneVar;
-      final suggestions = parseVerbSuggestions(decoded);
-      final placeholder = suggestions
-          .where((s) => s.placeholderText != null)
-          .firstOrNull;
-
-      final verbs = <PaletteVerb>[];
-      for (final s in suggestions) {
-        verbs.add(suggestionToPaletteVerb(s));
-      }
-      verbs.sort((a, b) {
-        final aIsAt = a.verb.startsWith('@');
-        final bIsAt = b.verb.startsWith('@');
-        if (aIsAt == bIsAt) return 0;
-        return aIsAt ? 1 : -1;
-      });
 
       if (!mounted) return;
       _commandController.updateVerbSuggestions(
-        // "available" in Meadow web means the verb exists and returned a list,
-        // even if it's empty.
-        suggestionsAvailable: decoded.asList() != null,
-        serverPlaceholderText: placeholder?.placeholderText,
-        paletteVerbs: verbs,
+        suggestionsAvailable: result.suggestionsAvailable,
+        serverPlaceholderText: result.serverPlaceholderText,
+        paletteVerbs: result.paletteVerbs,
       );
 
-      if (!decoded.isNone() && suggestions.isEmpty) {
-        _appendSystem(
-          'verb_suggestions returned no suggestions (decoded=${decoded.toLiteral()})',
-        );
+      if (result.debugMessage != null) {
+        _appendSystem(result.debugMessage!);
       }
     } on Object catch (e) {
       if (!mounted) return;
