@@ -881,7 +881,6 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _showNarrativeMeta = false;
   bool _verbPaletteEnabled = true;
   bool _monospaceNarrative = false;
-  bool _speechBubblesEnabled = true;
 
   double _splitRatio = 0.64;
 
@@ -2038,7 +2037,6 @@ class _SessionScreenState extends State<SessionScreen> {
             showNarrativeMeta: _showNarrativeMeta,
             verbPaletteEnabled: _verbPaletteEnabled,
             monospaceNarrative: _monospaceNarrative,
-            speechBubblesEnabled: _speechBubblesEnabled,
             verbSuggestionsAvailable:
                 _commandController.verbSuggestionsAvailable,
             themeMode: _ThemeScope.of(context).mode,
@@ -2049,7 +2047,6 @@ class _SessionScreenState extends State<SessionScreen> {
               _showNarrativeMeta = settings.showNarrativeMeta;
               _verbPaletteEnabled = settings.verbPaletteEnabled;
               _monospaceNarrative = settings.monospaceNarrative;
-              _speechBubblesEnabled = settings.speechBubblesEnabled;
             });
             _onPresentationsChanged();
           },
@@ -2175,7 +2172,6 @@ class _SessionScreenState extends State<SessionScreen> {
                                 items: _items,
                                 monospaceNarrative: _monospaceNarrative,
                                 showNarrativeMeta: _showNarrativeMeta,
-                                speechBubblesEnabled: _speechBubblesEnabled,
                                 playerCurie: widget.session.playerCurie,
                                 scrollController: _scrollCtrl,
                                 listKey: _listKey,

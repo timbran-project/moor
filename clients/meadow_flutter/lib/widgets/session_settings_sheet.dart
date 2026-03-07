@@ -19,7 +19,6 @@ class SessionViewSettings {
   final bool showNarrativeMeta;
   final bool verbPaletteEnabled;
   final bool monospaceNarrative;
-  final bool speechBubblesEnabled;
   final bool verbSuggestionsAvailable;
   final ThemeMode themeMode;
 
@@ -28,7 +27,6 @@ class SessionViewSettings {
     required this.showNarrativeMeta,
     required this.verbPaletteEnabled,
     required this.monospaceNarrative,
-    required this.speechBubblesEnabled,
     required this.verbSuggestionsAvailable,
     required this.themeMode,
   });
@@ -38,7 +36,6 @@ class SessionViewSettings {
     bool? showNarrativeMeta,
     bool? verbPaletteEnabled,
     bool? monospaceNarrative,
-    bool? speechBubblesEnabled,
     bool? verbSuggestionsAvailable,
     ThemeMode? themeMode,
   }) {
@@ -47,7 +44,6 @@ class SessionViewSettings {
       showNarrativeMeta: showNarrativeMeta ?? this.showNarrativeMeta,
       verbPaletteEnabled: verbPaletteEnabled ?? this.verbPaletteEnabled,
       monospaceNarrative: monospaceNarrative ?? this.monospaceNarrative,
-      speechBubblesEnabled: speechBubblesEnabled ?? this.speechBubblesEnabled,
       verbSuggestionsAvailable:
           verbSuggestionsAvailable ?? this.verbSuggestionsAvailable,
       themeMode: themeMode ?? this.themeMode,
@@ -119,14 +115,6 @@ class _SessionSettingsSheetState extends State<SessionSettingsSheet> {
               ),
               onChanged: (value) {
                 _update(_settings.copyWith(monospaceNarrative: value));
-              },
-            ),
-            SwitchListTile(
-              value: _settings.speechBubblesEnabled,
-              title: const Text('Speech bubbles'),
-              subtitle: const Text('Render say/chat events as speech bubbles'),
-              onChanged: (value) {
-                _update(_settings.copyWith(speechBubblesEnabled: value));
               },
             ),
             SwitchListTile(
