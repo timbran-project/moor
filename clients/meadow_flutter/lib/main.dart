@@ -41,9 +41,9 @@ import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/moor/ws_client.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
-import 'package:meadow_flutter/widgets/command_controller.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
+import 'package:meadow_flutter/widgets/session_command_controller.dart';
 import 'package:meadow_flutter/widgets/session_command_input_bar.dart';
 import 'package:meadow_flutter/widgets/session_dock_item_card.dart';
 import 'package:meadow_flutter/widgets/session_editor_dock.dart';
@@ -854,9 +854,10 @@ class SessionScreen extends StatefulWidget {
 }
 
 class _SessionScreenState extends State<SessionScreen> {
-  final _inputCtrl = CommandEditingController();
   final _promptCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  late final SessionCommandController _commandController =
+      SessionCommandController();
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
   final _promptFocus = FocusNode();
 
@@ -890,24 +891,11 @@ class _SessionScreenState extends State<SessionScreen> {
   String _status = 'disconnected';
   String _mooTitle = 'mooR';
 
-  static const int _maxCommandHistory = 500;
-
   bool _eventLogBackendHasPubkey = false;
   bool _eventLogHasLocalKey = false;
   bool _historyLoading = false;
   bool _historyLoaded = false;
   bool _wasWsConnected = false;
-
-  // Command history: 0 = current input, 1 = most recent command, etc.
-  final List<String> _commandHistory = [];
-  final Map<int, String> _historyBuffer = {};
-  int _historyOffset = 0;
-
-  String? _verbPill;
-  String? _verbPillPlaceholder;
-  String? _serverPlaceholderText;
-  bool _verbSuggestionsAvailable = false;
-  List<PaletteVerb> _paletteVerbs = paletteVerbsFallback;
   InputPromptRequest? _inputPrompt;
 
   @override
@@ -916,24 +904,20 @@ class _SessionScreenState extends State<SessionScreen> {
     _mooTitle = widget.initialMooTitle;
     _scrollCtrl.addListener(_onScroll);
     _presentations.addListener(_onPresentationsChanged);
-    _inputCtrl.onPillCleared = () {
+    _commandController.onPillCleared = () {
       if (!mounted) return;
-      setState(() {
-        _verbPill = null;
-        _verbPillPlaceholder = null;
-      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _inputFocus.requestFocus();
       });
     };
-    _inputCtrl.onPillSelected = () {
+    _commandController.onPillSelected = () {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _inputFocus.requestFocus();
       });
     };
-    _inputCtrl.addListener(_updateVerbCompletionGhost);
+    _commandController.addListener(_onCommandControllerChanged);
     _connectWs();
     _initEncryption();
     _refreshVerbSuggestions();
@@ -944,8 +928,8 @@ class _SessionScreenState extends State<SessionScreen> {
   void dispose() {
     _promptFocus.dispose();
     _promptCtrl.dispose();
-    _inputCtrl
-      ..removeListener(_updateVerbCompletionGhost)
+    _commandController
+      ..removeListener(_onCommandControllerChanged)
       ..dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
@@ -954,6 +938,13 @@ class _SessionScreenState extends State<SessionScreen> {
       ..dispose();
     _ws?.close();
     super.dispose();
+  }
+
+  void _onCommandControllerChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   Future<void> _refreshMooTitle() async {
@@ -1873,46 +1864,14 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _send() {
-    final input = _inputCtrl.commandText;
-    if (input.trim().isEmpty && (_verbPill == null || _verbPill!.isEmpty)) {
-      return;
-    }
-
-    final commandsSent = <String>[];
-    for (final line in input.split('\n')) {
-      final cmd = line.trim();
-      if (cmd.isEmpty) continue;
-      final msg = _verbPill == null ? cmd : '${_verbPill!} $cmd';
-      commandsSent.add(msg);
-      _ws?.sendText(msg);
-    }
-    if (commandsSent.isEmpty && _verbPill != null && _verbPill!.isNotEmpty) {
-      commandsSent.add(_verbPill!);
-      _ws?.sendText(_verbPill!);
-    }
+    final commandsSent = _commandController.consumeCommandsToSend();
     if (commandsSent.isEmpty) {
       return;
     }
 
     for (final cmd in commandsSent) {
-      _commandHistory.add(cmd);
+      _ws?.sendText(cmd);
     }
-    if (_commandHistory.length > _maxCommandHistory) {
-      final start = _commandHistory.length - _maxCommandHistory;
-      _commandHistory.removeRange(0, start);
-    }
-
-    _historyBuffer.clear();
-    _historyOffset = 0;
-    setState(() {
-      _verbPill = null;
-      _verbPillPlaceholder = null;
-    });
-    _inputCtrl
-      ..verbPill = null
-      ..verbPillPlaceholder = null
-      ..ghostCompletion = null
-      ..clear();
 
     // Keep focus in the input field after sending (desktop UX).
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1923,201 +1882,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _refreshVerbSuggestions();
   }
 
-  PaletteVerb? _bestVerbCompletion(String token) {
-    if (_paletteVerbs.isEmpty) return null;
-    final lower = token.toLowerCase();
-    for (final v in _paletteVerbs) {
-      if (v.verb.toLowerCase() == lower) {
-        return v;
-      }
-    }
-    for (final v in _paletteVerbs) {
-      if (v.verb.toLowerCase().startsWith(lower) &&
-          v.verb.length > token.length) {
-        return v;
-      }
-    }
-    return null;
-  }
-
-  void _updateVerbCompletionGhost() {
-    if (!mounted) return;
-    if (!_verbPaletteEnabled || _verbPill != null) {
-      if (_inputCtrl.ghostCompletion != null) {
-        setState(() {
-          _inputCtrl.ghostCompletion = null;
-        });
-      }
-      return;
-    }
-
-    final cmd = _inputCtrl.commandText;
-    if (cmd.contains('\n')) {
-      if (_inputCtrl.ghostCompletion != null) {
-        setState(() {
-          _inputCtrl.ghostCompletion = null;
-        });
-      }
-      return;
-    }
-
-    // Only when editing a single leading token (no args yet).
-    if (cmd.trim().isEmpty || cmd.contains(' ') || cmd.contains('\t')) {
-      if (_inputCtrl.ghostCompletion != null) {
-        setState(() {
-          _inputCtrl.ghostCompletion = null;
-        });
-      }
-      return;
-    }
-
-    final sel = _inputCtrl.selection;
-    final atEnd =
-        sel.isValid &&
-        sel.isCollapsed &&
-        sel.baseOffset == _inputCtrl.text.length;
-    if (!atEnd) {
-      if (_inputCtrl.ghostCompletion != null) {
-        setState(() {
-          _inputCtrl.ghostCompletion = null;
-        });
-      }
-      return;
-    }
-
-    final suggestion = _bestVerbCompletion(cmd);
-    final ghost = suggestion?.verb.substring(cmd.length);
-    if (ghost == _inputCtrl.ghostCompletion) return;
-    setState(() {
-      _inputCtrl.ghostCompletion = ghost;
-    });
-  }
-
-  void _navigateHistory(int delta) {
-    if (_commandHistory.isEmpty) {
-      return;
-    }
-
-    final canNavigate = delta > 0
-        ? _historyOffset < _commandHistory.length
-        : _historyOffset > 0;
-    if (!canNavigate) {
-      return;
-    }
-
-    final currentText = _inputCtrl.commandText;
-    _historyBuffer[_historyOffset] = currentText;
-
-    final nextOffset = (_historyOffset + delta).clamp(
-      0,
-      _commandHistory.length,
-    );
-    _historyOffset = nextOffset;
-
-    String nextText;
-    final buffered = _historyBuffer[nextOffset];
-    if (buffered != null) {
-      nextText = buffered;
-    } else if (nextOffset == 0) {
-      nextText = '';
-    } else {
-      final idx = _commandHistory.length - nextOffset;
-      nextText = (idx >= 0 && idx < _commandHistory.length)
-          ? _commandHistory[idx]
-          : '';
-    }
-
-    _inputCtrl.value = TextEditingValue(
-      text: nextText,
-      selection: TextSelection.collapsed(offset: nextText.length),
-    );
-  }
-
   KeyEventResult _handleCommandKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) {
-      return KeyEventResult.ignored;
-    }
-
-    if (HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.isAltPressed ||
-        HardwareKeyboard.instance.isMetaPressed) {
-      return KeyEventResult.ignored;
-    }
-
-    final text = _inputCtrl.text;
-    final sel = _inputCtrl.selection;
-    final selStart = sel.isValid
-        ? (sel.baseOffset < sel.extentOffset
-              ? sel.baseOffset
-              : sel.extentOffset)
-        : -1;
-    final selEnd = sel.isValid
-        ? (sel.baseOffset > sel.extentOffset
-              ? sel.baseOffset
-              : sel.extentOffset)
-        : -1;
-    final isCollapsed = selStart >= 0 && selStart == selEnd;
-    final isMultiline = text.contains('\n');
-    final cursorAtEdge =
-        selStart <= 0 || (isCollapsed && selStart >= text.length);
-
-    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      if (!isMultiline || cursorAtEdge) {
-        _navigateHistory(1);
-        return KeyEventResult.handled;
-      }
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      if (!isMultiline || cursorAtEdge) {
-        _navigateHistory(-1);
-        return KeyEventResult.handled;
-      }
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.enter) {
-      final shift = HardwareKeyboard.instance.isShiftPressed;
-      if (!shift) {
-        _send();
-        return KeyEventResult.handled;
-      }
-      // Shift+Enter: allow newline insertion.
-      return KeyEventResult.ignored;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.tab) {
-      final shift = HardwareKeyboard.instance.isShiftPressed;
-      if (!shift && _verbPaletteEnabled && _verbPill == null) {
-        final cmd = _inputCtrl.commandText;
-        if (!cmd.contains('\n')) {
-          final token = cmd.trim();
-          if (token.isEmpty) {
-            return KeyEventResult.ignored;
-          }
-          final suggestion = _bestVerbCompletion(token);
-          if (suggestion != null) {
-            setState(() {
-              _verbPill = suggestion.verb;
-              _verbPillPlaceholder = suggestion.placeholder;
-            });
-            _inputCtrl.promoteLeadingTokenToPill(
-              verb: suggestion.verb,
-              placeholder: suggestion.placeholder,
-            );
-            return KeyEventResult.handled;
-          }
-        }
-      }
-      return KeyEventResult.ignored;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.backspace) {
-      if (_inputCtrl.handleBackspaceAtPillBoundary()) {
-        return KeyEventResult.handled;
-      }
-    }
-
-    return KeyEventResult.ignored;
+    return _commandController.handleKeyEvent(event, onSend: _send);
   }
 
   Future<void> _handleLinkTap(String url) async {
@@ -2489,13 +2255,13 @@ class _SessionScreenState extends State<SessionScreen> {
       });
 
       if (!mounted) return;
-      setState(() {
+      _commandController.updateVerbSuggestions(
         // "available" in Meadow web means the verb exists and returned a list,
         // even if it's empty.
-        _verbSuggestionsAvailable = decoded.asList() != null;
-        _serverPlaceholderText = placeholder?.placeholderText;
-        _paletteVerbs = verbs.isNotEmpty ? verbs : paletteVerbsFallback;
-      });
+        suggestionsAvailable: decoded.asList() != null,
+        serverPlaceholderText: placeholder?.placeholderText,
+        paletteVerbs: verbs,
+      );
 
       if (!decoded.isNone() && suggestions.isEmpty) {
         _appendSystem(
@@ -2505,20 +2271,16 @@ class _SessionScreenState extends State<SessionScreen> {
     } on Object catch (e) {
       if (!mounted) return;
       _appendSystem('verb_suggestions fetch failed: $e');
-      setState(() {
-        _verbSuggestionsAvailable = false;
-        _serverPlaceholderText = null;
-        _paletteVerbs = paletteVerbsFallback;
-      });
+      _commandController.updateVerbSuggestions(
+        suggestionsAvailable: false,
+        serverPlaceholderText: null,
+        paletteVerbs: paletteVerbsFallback,
+      );
     }
   }
 
   void _selectPaletteVerb(PaletteVerb v) {
-    setState(() {
-      _verbPill = v.verb;
-      _verbPillPlaceholder = v.placeholder;
-    });
-    _inputCtrl.setVerbPill(verb: v.verb, placeholder: v.placeholder);
+    _commandController.selectPaletteVerb(v);
   }
 
   Future<void> _showSettingsSheet() async {
@@ -2534,7 +2296,8 @@ class _SessionScreenState extends State<SessionScreen> {
             verbPaletteEnabled: _verbPaletteEnabled,
             monospaceNarrative: _monospaceNarrative,
             speechBubblesEnabled: _speechBubblesEnabled,
-            verbSuggestionsAvailable: _verbSuggestionsAvailable,
+            verbSuggestionsAvailable:
+                _commandController.verbSuggestionsAvailable,
             themeMode: _ThemeScope.of(context).mode,
           ),
           onSettingsChanged: (settings) {
@@ -2570,12 +2333,9 @@ class _SessionScreenState extends State<SessionScreen> {
 
   Widget _buildLeftPane(BuildContext context) {
     // Keep controller styling/placeholder in sync with theme and pill state.
-    _inputCtrl
-      ..verbPill = _verbPill
-      ..verbPillPlaceholder = _verbPillPlaceholder
-      ..placeholderColor = Theme.of(context).colorScheme.outline.withValues(
-        alpha: 0.75,
-      );
+    _commandController.placeholderColor = Theme.of(
+      context,
+    ).colorScheme.outline.withValues(alpha: 0.75);
 
     return Column(
       children: [
@@ -2724,7 +2484,7 @@ class _SessionScreenState extends State<SessionScreen> {
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                     child: VerbPaletteBar(
                       visible: _verbPaletteEnabled && _inputPrompt == null,
-                      verbs: _paletteVerbs,
+                      verbs: _commandController.paletteVerbs,
                       onSelect: _selectPaletteVerb,
                     ),
                   ),
@@ -2741,11 +2501,13 @@ class _SessionScreenState extends State<SessionScreen> {
                           onSubmit: _submitInputPromptValue,
                         )
                       : SessionCommandInputBar(
-                          controller: _inputCtrl,
+                          controller: _commandController.inputController,
                           focusNode: _inputFocus,
-                          verbPill: _verbPill,
-                          verbPillPlaceholder: _verbPillPlaceholder,
-                          serverPlaceholderText: _serverPlaceholderText,
+                          verbPill: _commandController.verbPill,
+                          verbPillPlaceholder:
+                              _commandController.verbPillPlaceholder,
+                          serverPlaceholderText:
+                              _commandController.serverPlaceholderText,
                           onSend: _send,
                         ),
                 ),
