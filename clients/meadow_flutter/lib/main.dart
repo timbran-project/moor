@@ -30,6 +30,7 @@ import 'package:meadow_flutter/moor/history_encryption_controller.dart';
 import 'package:meadow_flutter/moor/history_loader.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
+import 'package:meadow_flutter/moor/input_prompt_controller.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/inspect_controller.dart';
 import 'package:meadow_flutter/moor/models.dart';
@@ -38,13 +39,16 @@ import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
 import 'package:meadow_flutter/moor/session_connection_controller.dart';
+import 'package:meadow_flutter/moor/session_view_controller.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
+import 'package:meadow_flutter/widgets/session_app_bar_actions.dart';
 import 'package:meadow_flutter/widgets/session_command_controller.dart';
 import 'package:meadow_flutter/widgets/session_command_input_bar.dart';
+import 'package:meadow_flutter/widgets/session_dialogs.dart';
 import 'package:meadow_flutter/widgets/session_dock_item_card.dart';
 import 'package:meadow_flutter/widgets/session_editor_dock.dart';
 import 'package:meadow_flutter/widgets/session_editor_presenter.dart';
@@ -871,11 +875,6 @@ class _SessionScreenState extends State<SessionScreen> {
   late final NarrativeFeedController _narrativeFeedController =
       NarrativeFeedController();
 
-  bool _roomHudEnabled = true;
-  bool _showNarrativeMeta = false;
-  bool _verbPaletteEnabled = true;
-  bool _monospaceNarrative = false;
-
   double _splitRatio = 0.64;
 
   late final EditorSessionController _editorSessionController =
@@ -915,11 +914,13 @@ class _SessionScreenState extends State<SessionScreen> {
     baseUri: widget.session.baseUri,
     authToken: widget.session.authToken,
   );
+  late final SessionViewController _sessionViewController =
+      SessionViewController();
+  late final InputPromptController _inputPromptController =
+      InputPromptController();
 
   int _idSeq = 0;
   String _mooTitle = 'mooR';
-
-  InputPromptRequest? _inputPrompt;
 
   @override
   void initState() {
@@ -944,8 +945,10 @@ class _SessionScreenState extends State<SessionScreen> {
     _debugPanelController.addListener(_onDebugPanelChanged);
     _editorSessionController.addListener(_onEditorSessionsChanged);
     _historyEncryptionController.addListener(_onHistoryEncryptionChanged);
+    _inputPromptController.addListener(_onInputPromptChanged);
     _narrativeFeedController.addListener(_onNarrativeFeedChanged);
     _roomLookController.addListener(_onRoomLookChanged);
+    _sessionViewController.addListener(_onSessionViewChanged);
     _sessionConnectionController
       ..addListener(_onSessionConnectionChanged)
       ..connect();
@@ -970,11 +973,17 @@ class _SessionScreenState extends State<SessionScreen> {
     _historyEncryptionController
       ..removeListener(_onHistoryEncryptionChanged)
       ..dispose();
+    _inputPromptController
+      ..removeListener(_onInputPromptChanged)
+      ..dispose();
     _narrativeFeedController
       ..removeListener(_onNarrativeFeedChanged)
       ..dispose();
     _roomLookController
       ..removeListener(_onRoomLookChanged)
+      ..dispose();
+    _sessionViewController
+      ..removeListener(_onSessionViewChanged)
       ..dispose();
     _sessionConnectionController
       ..removeListener(_onSessionConnectionChanged)
@@ -1022,10 +1031,28 @@ class _SessionScreenState extends State<SessionScreen> {
     setState(() {});
   }
 
+  void _onInputPromptChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
   void _onRoomLookChanged() {
     if (!mounted) {
       return;
     }
+    setState(() {});
+  }
+
+  void _onSessionViewChanged() {
+    if (!mounted) {
+      return;
+    }
+    _roomLookController.handlePresentationsChanged(
+      _presentations,
+      roomHudEnabled: _sessionViewController.roomHudEnabled,
+    );
     setState(() {});
   }
 
@@ -1060,7 +1087,7 @@ class _SessionScreenState extends State<SessionScreen> {
   void _onPresentationsChanged() {
     _roomLookController.handlePresentationsChanged(
       _presentations,
-      roomHudEnabled: _roomHudEnabled,
+      roomHudEnabled: _sessionViewController.roomHudEnabled,
     );
     _syncEditorSessionsFromPresentations();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
@@ -1113,7 +1140,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
   void _updateRoomLookLatch() {
     _roomLookController.updateLatch(
-      roomHudEnabled: _roomHudEnabled,
+      roomHudEnabled: _sessionViewController.roomHudEnabled,
       tracker: _narrativeFeedController.tracker,
       listKey: _listKey,
       messageKeys: _messageKeys,
@@ -1132,7 +1159,7 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     if (status == 'disconnected') {
-      if (_inputPrompt != null) {
+      if (_inputPromptController.hasActivePrompt) {
         _clearInputPrompt();
       }
       _historyEncryptionController.markWsDisconnectedAndShouldResyncHistory();
@@ -1219,100 +1246,44 @@ class _SessionScreenState extends State<SessionScreen> {
     final backendHas = _historyEncryptionController.backendHasPubkey;
     final localHas = _historyEncryptionController.hasLocalKey;
 
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('History Encryption'),
-          content: SelectableText(
-            'player: $playerOid\nbackend pubkey: ${backendHas ? "yes" : "no"}\nlocal key: ${localHas ? "yes" : "no"}',
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
-          actions: [
-            if (!backendHas)
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop('setup'),
-                child: const Text('Setup'),
-              ),
-            if (backendHas && !localHas)
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop('unlock'),
-                child: const Text('Unlock'),
-              ),
-            if (localHas)
-              TextButton(
-                onPressed: () => Navigator.of(context).pop('forget'),
-                child: const Text('Forget Local Key'),
-              ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
+    final choice = await showHistoryEncryptionDialog(
+      context,
+      playerOid: playerOid,
+      backendHasPubkey: backendHas,
+      hasLocalKey: localHas,
     );
 
     if (!mounted) return;
     switch (choice) {
-      case 'setup':
+      case HistoryEncryptionAction.setup:
         {
           final password = await _promptHistoryPassword();
           if (!mounted) return;
           if (password == null || password.isEmpty) return;
           await _setupEncryption(password);
         }
-      case 'unlock':
+      case HistoryEncryptionAction.unlock:
         {
           final password = await _promptHistoryPassword();
           if (!mounted) return;
           if (password == null || password.isEmpty) return;
           await _unlockEncryption(password);
         }
-      case 'forget':
+      case HistoryEncryptionAction.forget:
         await _forgetLocalEncryptionKey();
-      default:
+      case null:
         break;
     }
   }
 
   Future<String?> _promptHistoryPassword() async {
-    final ctrl = TextEditingController();
-    final focus = FocusNode();
-    try {
-      final res = await showDialog<String>(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Enter History Password'),
-            content: TextField(
-              controller: ctrl,
-              focusNode: focus,
-              autofocus: true,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-              ),
-              onSubmitted: (_) => Navigator.of(context).pop(ctrl.text),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(ctrl.text),
-                child: const Text('Unlock'),
-              ),
-            ],
-          );
-        },
-      );
-      return res;
-    } finally {
-      ctrl.dispose();
-      focus.dispose();
-    }
+    return showTextPromptDialog(
+      context,
+      title: 'Enter History Password',
+      confirmLabel: 'Unlock',
+      labelText: 'Password',
+      obscureText: true,
+    );
   }
 
   void _appendSystem(String m) {
@@ -1354,11 +1325,8 @@ class _SessionScreenState extends State<SessionScreen> {
 
   void _handleInputPromptRequest(InputPromptRequest request) {
     final md = request.metadata;
-    final initial = md.defaultValue?.toString() ?? '';
-    setState(() {
-      _inputPrompt = request;
-      _promptCtrl.text = initial;
-    });
+    _inputPromptController.handleRequest(request);
+    _promptCtrl.text = _inputPromptController.initialValue;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _inputFocus.unfocus();
@@ -1370,10 +1338,8 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _clearInputPrompt() {
-    setState(() {
-      _inputPrompt = null;
-      _promptCtrl.clear();
-    });
+    _inputPromptController.clear();
+    _promptCtrl.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _inputFocus.requestFocus();
@@ -1458,56 +1424,12 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) {
-        final data = inspectData!;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    data.title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 10),
-                  if (data.description.trim().isNotEmpty)
-                    ContentRenderer(
-                      content: [data.description],
-                      contentType: 'text/plain',
-                      isStale: false,
-                      onLinkTap: _handleLinkTap,
-                      monospace: _monospaceNarrative,
-                    ),
-                  if (data.actions.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final action in data.actions)
-                          FilledButton.tonal(
-                            onPressed: () async {
-                              Navigator.of(context).pop();
-                              await _runInspectAction(action);
-                            },
-                            child: Text(action.label),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+    await showInspectSheet(
+      context,
+      data: inspectData,
+      monospaceNarrative: _sessionViewController.monospaceNarrative,
+      onRunAction: _runInspectAction,
+      onLinkTap: _handleLinkTap,
     );
   }
 
@@ -1538,43 +1460,12 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<String?> _promptInspectActionInput(InspectAction action) async {
-    final ctrl = TextEditingController();
-    final value = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(action.inputPrompt ?? action.label),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: action.inputPlaceholder ?? 'Enter text',
-            ),
-            onSubmitted: (_) {
-              final text = ctrl.text.trim();
-              Navigator.of(context).pop(text.isEmpty ? null : text);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final text = ctrl.text.trim();
-                Navigator.of(context).pop(text.isEmpty ? null : text);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
+    return showTextPromptDialog(
+      context,
+      title: action.inputPrompt ?? action.label,
+      confirmLabel: 'OK',
+      hintText: action.inputPlaceholder ?? 'Enter text',
     );
-    ctrl.dispose();
-    return value;
   }
 
   List<String> _extractInvokeOutputLines(
@@ -1697,27 +1588,12 @@ class _SessionScreenState extends State<SessionScreen> {
       showDragHandle: true,
       builder: (context) {
         return SessionSettingsSheet(
-          initialSettings: SessionViewSettings(
-            roomHudEnabled: _roomHudEnabled,
-            showNarrativeMeta: _showNarrativeMeta,
-            verbPaletteEnabled: _verbPaletteEnabled,
-            monospaceNarrative: _monospaceNarrative,
+          initialSettings: _sessionViewController.settings(
             verbSuggestionsAvailable:
                 _commandController.verbSuggestionsAvailable,
             themeMode: _ThemeScope.of(context).mode,
           ),
-          onSettingsChanged: (settings) {
-            setState(() {
-              _roomHudEnabled = settings.roomHudEnabled;
-              _showNarrativeMeta = settings.showNarrativeMeta;
-              _verbPaletteEnabled = settings.verbPaletteEnabled;
-              _monospaceNarrative = settings.monospaceNarrative;
-            });
-            _roomLookController.handlePresentationsChanged(
-              _presentations,
-              roomHudEnabled: _roomHudEnabled,
-            );
-          },
+          onSettingsChanged: _sessionViewController.applySettings,
           onThemeModeChanged: (mode) {
             _ThemeScope.of(context).mode = mode;
           },
@@ -1738,6 +1614,15 @@ class _SessionScreenState extends State<SessionScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _handleAccountAction(SessionAccountAction action) async {
+    switch (action) {
+      case SessionAccountAction.historyEncryption:
+        await _showEncryptionMenu();
+      case SessionAccountAction.logout:
+        await _logout();
+    }
+  }
+
   Widget _buildLeftPane(BuildContext context) {
     // Keep controller styling/placeholder in sync with theme and pill state.
     _commandController.placeholderColor = Theme.of(
@@ -1750,7 +1635,7 @@ class _SessionScreenState extends State<SessionScreen> {
           animation: _presentations,
           builder: (context, _) {
             final suppressRoomKey = _roomLookController.suppressedRoomKey(
-              roomHudEnabled: _roomHudEnabled,
+              roomHudEnabled: _sessionViewController.roomHudEnabled,
             );
 
             final top = _presentations.byTarget('top');
@@ -1765,7 +1650,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 filtered.add(p);
                 continue;
               }
-              if (!_roomHudEnabled) {
+              if (!_sessionViewController.roomHudEnabled) {
                 // When disabled, remove room-look presentations entirely.
                 continue;
               }
@@ -1794,7 +1679,8 @@ class _SessionScreenState extends State<SessionScreen> {
                   for (final p in filtered)
                     SessionDockItemCard(
                       item: p,
-                      monospaceNarrative: _monospaceNarrative,
+                      monospaceNarrative:
+                          _sessionViewController.monospaceNarrative,
                       onDismissPresentation: _dismissPresentationById,
                       onInspect: _showInspectSheet,
                       onSendCommand: (cmd) {
@@ -1837,8 +1723,10 @@ class _SessionScreenState extends State<SessionScreen> {
                               clipBehavior: Clip.antiAlias,
                               child: SessionNarrativeList(
                                 items: _narrativeFeedController.items,
-                                monospaceNarrative: _monospaceNarrative,
-                                showNarrativeMeta: _showNarrativeMeta,
+                                monospaceNarrative:
+                                    _sessionViewController.monospaceNarrative,
+                                showNarrativeMeta:
+                                    _sessionViewController.showNarrativeMeta,
                                 playerCurie: widget.session.playerCurie,
                                 scrollController: _scrollCtrl,
                                 listKey: _listKey,
@@ -1865,7 +1753,8 @@ class _SessionScreenState extends State<SessionScreen> {
                                   for (final p in side)
                                     SessionDockItemCard(
                                       item: p,
-                                      monospaceNarrative: _monospaceNarrative,
+                                      monospaceNarrative: _sessionViewController
+                                          .monospaceNarrative,
                                       onDismissPresentation:
                                           _dismissPresentationById,
                                       onInspect: _showInspectSheet,
@@ -1890,7 +1779,9 @@ class _SessionScreenState extends State<SessionScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                     child: VerbPaletteBar(
-                      visible: _verbPaletteEnabled && _inputPrompt == null,
+                      visible:
+                          _sessionViewController.verbPaletteEnabled &&
+                          !_inputPromptController.hasActivePrompt,
                       verbs: _commandController.paletteVerbs,
                       onSelect: _selectPaletteVerb,
                     ),
@@ -1898,12 +1789,13 @@ class _SessionScreenState extends State<SessionScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(12),
-                  child: _inputPrompt != null
+                  child: _inputPromptController.current != null
                       ? InputPromptComposer(
-                          request: _inputPrompt!,
+                          request: _inputPromptController.current!,
                           controller: _promptCtrl,
                           focusNode: _promptFocus,
-                          monospaceNarrative: _monospaceNarrative,
+                          monospaceNarrative:
+                              _sessionViewController.monospaceNarrative,
                           onLinkTap: _handleLinkTap,
                           onSubmit: _submitInputPromptValue,
                         )
@@ -1933,52 +1825,15 @@ class _SessionScreenState extends State<SessionScreen> {
         automaticallyImplyLeading: false,
         title: Text('$_mooTitle (${_sessionConnectionController.status})'),
         actions: [
-          IconButton(
-            onPressed: _toggleDebugPanel,
-            tooltip: _debugPanelController.visible
-                ? 'Hide debug panel'
-                : 'Show debug panel',
-            icon: Icon(
-              _debugPanelController.visible
-                  ? Icons.bug_report
-                  : Icons.bug_report_outlined,
-            ),
-          ),
-          IconButton(
-            onPressed: _showSettingsSheet,
-            tooltip: 'Settings',
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          PopupMenuButton<_AccountAction>(
-            tooltip: 'Account',
-            icon: const Icon(Icons.account_circle_outlined),
-            onSelected: (a) async {
-              switch (a) {
-                case _AccountAction.historyEncryption:
-                  await _showEncryptionMenu();
-                case _AccountAction.logout:
-                  await _logout();
-              }
+          SessionAppBarActions(
+            debugPanelVisible: _debugPanelController.visible,
+            playerCurie: widget.session.playerCurie,
+            onToggleDebugPanel: _toggleDebugPanel,
+            onShowSettings: () {
+              unawaited(_showSettingsSheet());
             },
-            itemBuilder: (context) {
-              return [
-                PopupMenuItem<_AccountAction>(
-                  enabled: false,
-                  child: Text(
-                    widget.session.playerCurie,
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem<_AccountAction>(
-                  value: _AccountAction.historyEncryption,
-                  child: Text('History encryption'),
-                ),
-                const PopupMenuItem<_AccountAction>(
-                  value: _AccountAction.logout,
-                  child: Text('Logout'),
-                ),
-              ];
+            onSelectAccountAction: (action) {
+              unawaited(_handleAccountAction(action));
             },
           ),
         ],
@@ -2091,9 +1946,4 @@ class _SessionScreenState extends State<SessionScreen> {
       ),
     );
   }
-}
-
-enum _AccountAction {
-  historyEncryption,
-  logout,
 }

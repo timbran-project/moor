@@ -13,43 +13,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
-
-class SessionViewSettings {
-  final bool roomHudEnabled;
-  final bool showNarrativeMeta;
-  final bool verbPaletteEnabled;
-  final bool monospaceNarrative;
-  final bool verbSuggestionsAvailable;
-  final ThemeMode themeMode;
-
-  const SessionViewSettings({
-    required this.roomHudEnabled,
-    required this.showNarrativeMeta,
-    required this.verbPaletteEnabled,
-    required this.monospaceNarrative,
-    required this.verbSuggestionsAvailable,
-    required this.themeMode,
-  });
-
-  SessionViewSettings copyWith({
-    bool? roomHudEnabled,
-    bool? showNarrativeMeta,
-    bool? verbPaletteEnabled,
-    bool? monospaceNarrative,
-    bool? verbSuggestionsAvailable,
-    ThemeMode? themeMode,
-  }) {
-    return SessionViewSettings(
-      roomHudEnabled: roomHudEnabled ?? this.roomHudEnabled,
-      showNarrativeMeta: showNarrativeMeta ?? this.showNarrativeMeta,
-      verbPaletteEnabled: verbPaletteEnabled ?? this.verbPaletteEnabled,
-      monospaceNarrative: monospaceNarrative ?? this.monospaceNarrative,
-      verbSuggestionsAvailable:
-          verbSuggestionsAvailable ?? this.verbSuggestionsAvailable,
-      themeMode: themeMode ?? this.themeMode,
-    );
-  }
-}
+import 'package:meadow_flutter/moor/session_view_controller.dart';
 
 class SessionSettingsSheet extends StatefulWidget {
   final SessionViewSettings initialSettings;
