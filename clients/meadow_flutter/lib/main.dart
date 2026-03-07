@@ -37,10 +37,10 @@ import 'package:meadow_flutter/moor/narrative_tracker.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
+import 'package:meadow_flutter/moor/session_connection_controller.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
-import 'package:meadow_flutter/moor/ws_client.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
@@ -901,11 +901,20 @@ class _SessionScreenState extends State<SessionScreen> {
         publicKeyFromDerivedBytes: EventLogEncryption.publicKeyFromDerivedBytes,
       );
   late final RoomLookController _roomLookController = RoomLookController();
+  late final SessionConnectionController _sessionConnectionController =
+      SessionConnectionController(
+        session: widget.session,
+        mode: widget.mode,
+        onSystemMessage: _appendSystem,
+        onNarrativeItem: _appendItem,
+        onPresentationUpsert: _presentations.upsert,
+        onPresentationRemove: _presentations.remove,
+        onInputPromptRequest: _handleInputPromptRequest,
+        onStatusChanged: _handleConnectionStatusChanged,
+      );
   final Map<String, Widget> _editorPaneCache = <String, Widget>{};
 
   int _idSeq = 0;
-  MoorWsClient? _ws;
-  String _status = 'disconnected';
   String _mooTitle = 'mooR';
 
   InputPromptRequest? _inputPrompt;
@@ -934,7 +943,9 @@ class _SessionScreenState extends State<SessionScreen> {
     _editorSessionController.addListener(_onEditorSessionsChanged);
     _historyEncryptionController.addListener(_onHistoryEncryptionChanged);
     _roomLookController.addListener(_onRoomLookChanged);
-    _connectWs();
+    _sessionConnectionController
+      ..addListener(_onSessionConnectionChanged)
+      ..connect();
     _initEncryption();
     _refreshVerbSuggestions();
     _refreshMooTitle();
@@ -959,12 +970,14 @@ class _SessionScreenState extends State<SessionScreen> {
     _roomLookController
       ..removeListener(_onRoomLookChanged)
       ..dispose();
+    _sessionConnectionController
+      ..removeListener(_onSessionConnectionChanged)
+      ..close();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
     _presentations
       ..removeListener(_onPresentationsChanged)
       ..dispose();
-    _ws?.close();
     super.dispose();
   }
 
@@ -997,6 +1010,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _onRoomLookChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  void _onSessionConnectionChanged() {
     if (!mounted) {
       return;
     }
@@ -1133,53 +1153,22 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Future<void> _connectWs() async {
-    setState(() {
-      _status = 'connecting';
-    });
-
-    final ws = MoorWsClient(
-      session: widget.session,
-      onSystemMessage: _appendSystem,
-      onNarrativeItem: _appendItem,
-      onPresentationUpsert: _presentations.upsert,
-      onPresentationRemove: _presentations.remove,
-      onInputPromptRequest: _handleInputPromptRequest,
-      onConnectionStatusChanged: (status) {
-        if (!mounted) return;
-        if (status == 'connected') {
-          _historyEncryptionController.markWsConnected();
-          if (_historyEncryptionController.shouldLoadHistoryOnConnect()) {
-            unawaited(_loadInitialHistory());
-          }
-        } else if (status == 'disconnected') {
-          if (_inputPrompt != null) {
-            _clearInputPrompt();
-          }
-          _historyEncryptionController
-              .markWsDisconnectedAndShouldResyncHistory();
-        }
-        setState(() {
-          _status = status;
-        });
-      },
-    );
-    _ws = ws;
-
-    try {
-      final connected = await ws.connect(mode: widget.mode);
-      if (!mounted) return;
-      if (!connected) {
-        setState(() {
-          _status = 'error';
-        });
+  void _handleConnectionStatusChanged(String status) {
+    if (!mounted) {
+      return;
+    }
+    if (status == 'connected') {
+      _historyEncryptionController.markWsConnected();
+      if (_historyEncryptionController.shouldLoadHistoryOnConnect()) {
+        unawaited(_loadInitialHistory());
       }
-    } on Object catch (e) {
-      if (!mounted) return;
-      _appendSystem('WS connect failed: $e');
-      setState(() {
-        _status = 'error';
-      });
+      return;
+    }
+    if (status == 'disconnected') {
+      if (_inputPrompt != null) {
+        _clearInputPrompt();
+      }
+      _historyEncryptionController.markWsDisconnectedAndShouldResyncHistory();
     }
   }
 
@@ -1440,7 +1429,7 @@ class _SessionScreenState extends State<SessionScreen> {
     if (v.isEmpty) {
       return;
     }
-    _ws?.sendText(v);
+    _sessionConnectionController.sendText(v);
     _clearInputPrompt();
   }
 
@@ -1451,7 +1440,7 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     for (final cmd in commandsSent) {
-      _ws?.sendText(cmd);
+      _sessionConnectionController.sendText(cmd);
     }
 
     // Keep focus in the input field after sending (desktop UX).
@@ -1470,7 +1459,7 @@ class _SessionScreenState extends State<SessionScreen> {
   Future<void> _handleLinkTap(String url) async {
     if (url.startsWith('moo://cmd/')) {
       final cmd = Uri.decodeComponent(url.substring('moo://cmd/'.length));
-      _ws?.sendText(cmd);
+      _sessionConnectionController.sendText(cmd);
       return;
     }
     if (url.startsWith('moo://inspect/')) {
@@ -1578,7 +1567,7 @@ class _SessionScreenState extends State<SessionScreen> {
       }
       final commandToSend = result.commandToSend;
       if (commandToSend != null && commandToSend.trim().isNotEmpty) {
-        _ws?.sendText(commandToSend);
+        _sessionConnectionController.sendText(commandToSend);
       }
       final panelPresentation = result.panelPresentation;
       if (panelPresentation != null) {
@@ -1782,8 +1771,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _logout() async {
-    _ws?.close();
-    _ws = null;
+    _sessionConnectionController.close();
     _presentations.clear();
     setState(() {
       _editorSessionController.clear();
@@ -1853,7 +1841,7 @@ class _SessionScreenState extends State<SessionScreen> {
                       onDismissPresentation: _dismissPresentationById,
                       onInspect: _showInspectSheet,
                       onSendCommand: (cmd) {
-                        _ws?.sendText(cmd);
+                        _sessionConnectionController.sendText(cmd);
                       },
                       onLinkTap: _handleLinkTap,
                     ),
@@ -1925,7 +1913,9 @@ class _SessionScreenState extends State<SessionScreen> {
                                           _dismissPresentationById,
                                       onInspect: _showInspectSheet,
                                       onSendCommand: (cmd) {
-                                        _ws?.sendText(cmd);
+                                        _sessionConnectionController.sendText(
+                                          cmd,
+                                        );
                                       },
                                       onLinkTap: _handleLinkTap,
                                     ),
@@ -2009,7 +1999,7 @@ class _SessionScreenState extends State<SessionScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('$_mooTitle ($_status)'),
+        title: Text('$_mooTitle (${_sessionConnectionController.status})'),
         actions: [
           IconButton(
             onPressed: _toggleDebugPanel,
