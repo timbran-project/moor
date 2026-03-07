@@ -153,6 +153,10 @@ class PresentationStore extends ChangeNotifier {
   }
 
   void upsert(DockItem p) {
+    final existing = _byId[p.id];
+    if (existing != null && _sameDockItem(existing, p)) {
+      return;
+    }
     _byId[p.id] = p;
     notifyListeners();
   }
@@ -167,5 +171,49 @@ class PresentationStore extends ChangeNotifier {
     if (_byId.isEmpty) return;
     _byId.clear();
     notifyListeners();
+  }
+
+  bool _sameDockItem(DockItem a, DockItem b) {
+    if (a.runtimeType != b.runtimeType ||
+        a.id != b.id ||
+        a.target != b.target) {
+      return false;
+    }
+
+    if (a is PresentationModel && b is PresentationModel) {
+      return a.contentType == b.contentType &&
+          a.content == b.content &&
+          mapEquals(a.attrs, b.attrs);
+    }
+
+    if (a is RoomSnapshotDockItem && b is RoomSnapshotDockItem) {
+      return mapEquals(a.attrs, b.attrs) &&
+          _sameRoomSnapshot(a.snapshot, b.snapshot);
+    }
+
+    return false;
+  }
+
+  bool _sameRoomSnapshot(RoomSnapshot a, RoomSnapshot b) {
+    return a.title == b.title &&
+        a.description == b.description &&
+        a.room == b.room &&
+        listEquals(a.exits, b.exits) &&
+        listEquals(
+          a.actions.map((it) => '${it.label}\u0000${it.command}').toList(),
+          b.actions.map((it) => '${it.label}\u0000${it.command}').toList(),
+        ) &&
+        listEquals(
+          a.things.map((it) => '${it.name}\u0000${it.object}').toList(),
+          b.things.map((it) => '${it.name}\u0000${it.object}').toList(),
+        ) &&
+        listEquals(
+          a.actors
+              .map((it) => '${it.name}\u0000${it.status}\u0000${it.object}')
+              .toList(),
+          b.actors
+              .map((it) => '${it.name}\u0000${it.status}\u0000${it.object}')
+              .toList(),
+        );
   }
 }

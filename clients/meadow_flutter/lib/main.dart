@@ -990,29 +990,26 @@ class _SessionScreenState extends State<SessionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
   }
 
-  void _syncEditorSessionsFromPresentations() {
-    if (!mounted) return;
-    final wasEmpty = _editorSessions.isEmpty;
-    final oldPids = _editorSessions.map((e) => e.presentationId).toSet();
+  List<EditorSession> _deriveEditorSessionsFromPresentations() {
     final wanted = <String, EditorSession>{};
 
-    void addWanted(EditorSession s) {
-      wanted[s.presentationId] = s;
+    void addWanted(EditorSession session) {
+      wanted[session.presentationId] = session;
     }
 
-    for (final it in _presentations.byTarget('verb-editor')) {
-      if (it is! PresentationModel) continue;
-      final pid = it.id;
-      final rawObject = it.attrs['object'] ?? it.attrs['objectCurie'];
-      final rawVerb = it.attrs['verb'] ?? it.attrs['verbName'];
+    for (final item in _presentations.byTarget('verb-editor')) {
+      if (item is! PresentationModel) continue;
+      final pid = item.id;
+      final rawObject = item.attrs['object'] ?? item.attrs['objectCurie'];
+      final rawVerb = item.attrs['verb'] ?? item.attrs['verbName'];
       if (rawObject == null || rawVerb == null) continue;
       final objectCurie = objectRefToCurie(rawObject);
       if (objectCurie == null) {
         _appendSystem('verb-editor: invalid object=$rawObject');
         continue;
       }
-      final title = (it.attrs['title']?.toString().trim().isNotEmpty ?? false)
-          ? it.attrs['title'].toString()
+      final title = (item.attrs['title']?.toString().trim().isNotEmpty ?? false)
+          ? item.attrs['title'].toString()
           : 'Edit $objectCurie:$rawVerb';
       addWanted(
         VerbEditorSession(
@@ -1025,19 +1022,19 @@ class _SessionScreenState extends State<SessionScreen> {
       );
     }
 
-    for (final it in _presentations.byTarget('property-editor')) {
-      if (it is! PresentationModel) continue;
-      final pid = it.id;
-      final rawObject = it.attrs['object'] ?? it.attrs['objectCurie'];
-      final rawProp = it.attrs['property'] ?? it.attrs['propertyName'];
+    for (final item in _presentations.byTarget('property-editor')) {
+      if (item is! PresentationModel) continue;
+      final pid = item.id;
+      final rawObject = item.attrs['object'] ?? item.attrs['objectCurie'];
+      final rawProp = item.attrs['property'] ?? item.attrs['propertyName'];
       if (rawObject == null || rawProp == null) continue;
       final objectCurie = objectRefToCurie(rawObject);
       if (objectCurie == null) {
         _appendSystem('property-editor: invalid object=$rawObject');
         continue;
       }
-      final title = (it.attrs['title']?.toString().trim().isNotEmpty ?? false)
-          ? it.attrs['title'].toString()
+      final title = (item.attrs['title']?.toString().trim().isNotEmpty ?? false)
+          ? item.attrs['title'].toString()
           : 'Edit $objectCurie.$rawProp';
       addWanted(
         PropertyEditorSession(
@@ -1051,19 +1048,19 @@ class _SessionScreenState extends State<SessionScreen> {
       );
     }
 
-    for (final it in _presentations.byTarget('property-value-editor')) {
-      if (it is! PresentationModel) continue;
-      final pid = it.id;
-      final rawObject = it.attrs['object'] ?? it.attrs['objectCurie'];
-      final rawProp = it.attrs['property'] ?? it.attrs['propertyName'];
+    for (final item in _presentations.byTarget('property-value-editor')) {
+      if (item is! PresentationModel) continue;
+      final pid = item.id;
+      final rawObject = item.attrs['object'] ?? item.attrs['objectCurie'];
+      final rawProp = item.attrs['property'] ?? item.attrs['propertyName'];
       if (rawObject == null || rawProp == null) continue;
       final objectCurie = objectRefToCurie(rawObject);
       if (objectCurie == null) {
         _appendSystem('property-value-editor: invalid object=$rawObject');
         continue;
       }
-      final title = (it.attrs['title']?.toString().trim().isNotEmpty ?? false)
-          ? it.attrs['title'].toString()
+      final title = (item.attrs['title']?.toString().trim().isNotEmpty ?? false)
+          ? item.attrs['title'].toString()
           : 'Edit $objectCurie.$rawProp';
       addWanted(
         PropertyEditorSession(
@@ -1078,21 +1075,28 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     final existingByPid = <String, EditorSession>{
-      for (final s in _editorSessions) s.presentationId: s,
+      for (final session in _editorSessions) session.presentationId: session,
     };
     final nextSessions = <EditorSession>[];
 
-    for (final s in _editorSessions) {
-      final keep = wanted[s.presentationId];
+    for (final session in _editorSessions) {
+      final keep = wanted[session.presentationId];
       if (keep == null) continue;
-      // Keep existing instance to preserve widget state; title changes are rare
-      // and not worth a hard refresh for the spike.
-      nextSessions.add(existingByPid[s.presentationId]!);
-      wanted.remove(s.presentationId);
+      nextSessions.add(existingByPid[session.presentationId]!);
+      wanted.remove(session.presentationId);
     }
     if (wanted.isNotEmpty) {
       nextSessions.addAll(wanted.values);
     }
+
+    return nextSessions;
+  }
+
+  void _syncEditorSessionsFromPresentations() {
+    if (!mounted) return;
+    final wasEmpty = _editorSessions.isEmpty;
+    final oldPids = _editorSessions.map((e) => e.presentationId).toSet();
+    final nextSessions = _deriveEditorSessionsFromPresentations();
 
     final didChange =
         nextSessions.length != _editorSessions.length ||
@@ -2835,7 +2839,9 @@ class _SessionScreenState extends State<SessionScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          if (_editorSessions.isEmpty) {
+          final editorSessions = _deriveEditorSessionsFromPresentations();
+
+          if (editorSessions.isEmpty) {
             return _buildLeftPane(context);
           }
 
@@ -2843,6 +2849,40 @@ class _SessionScreenState extends State<SessionScreen> {
           const minDock = 360.0;
           const minLeft = 520.0;
           const dividerW = 10.0;
+          const compactBreakpoint = minLeft + minDock + dividerW;
+
+          if (w < compactBreakpoint) {
+            final editorHeight = (constraints.maxHeight * 0.46).clamp(
+              320.0,
+              constraints.maxHeight - 180,
+            );
+            return Column(
+              children: [
+                Expanded(
+                  child: _buildLeftPane(context),
+                ),
+                Divider(
+                  height: 1,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+                SizedBox(
+                  height: editorHeight,
+                  child: SessionEditorDock(
+                    sessions: editorSessions,
+                    activeIndex: _activeEditorIndex,
+                    onSelectIndex: (index) {
+                      setState(() {
+                        _activeEditorIndex = index;
+                      });
+                    },
+                    onCloseSession: _closeEditorSession,
+                    onOpenFullscreen: _openEditorFullscreen,
+                    paneBuilder: _editorPaneForSession,
+                  ),
+                ),
+              ],
+            );
+          }
 
           var leftW = w * _splitRatio;
           if (leftW < minLeft) leftW = minLeft;
@@ -2889,7 +2929,7 @@ class _SessionScreenState extends State<SessionScreen> {
               ),
               Expanded(
                 child: SessionEditorDock(
-                  sessions: _editorSessions,
+                  sessions: editorSessions,
                   activeIndex: _activeEditorIndex,
                   onSelectIndex: (index) {
                     setState(() {
