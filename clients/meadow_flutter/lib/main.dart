@@ -33,7 +33,7 @@ import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/inspect_controller.dart';
 import 'package:meadow_flutter/moor/models.dart';
-import 'package:meadow_flutter/moor/narrative_tracker.dart';
+import 'package:meadow_flutter/moor/narrative_feed_controller.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
@@ -43,14 +43,13 @@ import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
-import 'package:meadow_flutter/widgets/property_editor.dart';
 import 'package:meadow_flutter/widgets/session_command_controller.dart';
 import 'package:meadow_flutter/widgets/session_command_input_bar.dart';
 import 'package:meadow_flutter/widgets/session_dock_item_card.dart';
 import 'package:meadow_flutter/widgets/session_editor_dock.dart';
+import 'package:meadow_flutter/widgets/session_editor_presenter.dart';
 import 'package:meadow_flutter/widgets/session_narrative_list.dart';
 import 'package:meadow_flutter/widgets/session_settings_sheet.dart';
-import 'package:meadow_flutter/widgets/verb_editor.dart';
 import 'package:meadow_flutter/widgets/verb_palette_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -866,11 +865,11 @@ class _SessionScreenState extends State<SessionScreen> {
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
   final _promptFocus = FocusNode();
 
-  final _items = <NarrativeItem>[];
   final _presentations = PresentationStore();
   final GlobalKey _listKey = GlobalKey();
   final _messageKeys = <String, GlobalKey>{};
-  final _narrativeTracker = NarrativeTracker();
+  late final NarrativeFeedController _narrativeFeedController =
+      NarrativeFeedController();
 
   bool _roomHudEnabled = true;
   bool _showNarrativeMeta = false;
@@ -912,7 +911,10 @@ class _SessionScreenState extends State<SessionScreen> {
         onInputPromptRequest: _handleInputPromptRequest,
         onStatusChanged: _handleConnectionStatusChanged,
       );
-  final Map<String, Widget> _editorPaneCache = <String, Widget>{};
+  late final SessionEditorPresenter _editorPresenter = SessionEditorPresenter(
+    baseUri: widget.session.baseUri,
+    authToken: widget.session.authToken,
+  );
 
   int _idSeq = 0;
   String _mooTitle = 'mooR';
@@ -942,6 +944,7 @@ class _SessionScreenState extends State<SessionScreen> {
     _debugPanelController.addListener(_onDebugPanelChanged);
     _editorSessionController.addListener(_onEditorSessionsChanged);
     _historyEncryptionController.addListener(_onHistoryEncryptionChanged);
+    _narrativeFeedController.addListener(_onNarrativeFeedChanged);
     _roomLookController.addListener(_onRoomLookChanged);
     _sessionConnectionController
       ..addListener(_onSessionConnectionChanged)
@@ -966,6 +969,9 @@ class _SessionScreenState extends State<SessionScreen> {
       ..dispose();
     _historyEncryptionController
       ..removeListener(_onHistoryEncryptionChanged)
+      ..dispose();
+    _narrativeFeedController
+      ..removeListener(_onNarrativeFeedChanged)
       ..dispose();
     _roomLookController
       ..removeListener(_onRoomLookChanged)
@@ -1003,6 +1009,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _onHistoryEncryptionChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  void _onNarrativeFeedChanged() {
     if (!mounted) {
       return;
     }
@@ -1058,15 +1071,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _presentations,
       onSystemMessage: _appendSystem,
     );
-    final nextPids = _editorSessionController.sessions
-        .map((session) => session.presentationId)
-        .toSet();
-    final toRemove = _editorPaneCache.keys
-        .where((pid) => !nextPids.contains(pid))
-        .toList();
-    for (final pid in toRemove) {
-      _editorPaneCache.remove(pid);
-    }
+    _editorPresenter.pruneSessions(_editorSessionController.sessions);
   }
 
   Future<void> _closeEditorSession(EditorSession s) async {
@@ -1074,7 +1079,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
     if (!mounted) return;
     setState(() {
-      _editorPaneCache.remove(s.presentationId);
+      _editorPresenter.removePresentationId(s.presentationId);
       _editorSessionController.removePresentationId(s.presentationId);
     });
 
@@ -1102,44 +1107,6 @@ class _SessionScreenState extends State<SessionScreen> {
     _presentations.remove(presentationId);
   }
 
-  Future<void> _openEditorFullscreen(EditorSession s) async {
-    final authToken = widget.session.authToken;
-    final baseUri = widget.session.baseUri;
-    final title = s.title;
-
-    final child = switch (s) {
-      VerbEditorSession(:final objectCurie, :final verbName) => VerbEditorPane(
-        key: ValueKey('fullscreen:${s.presentationId}'),
-        baseUri: baseUri,
-        authToken: authToken,
-        objectCurie: objectCurie,
-        verbName: verbName,
-      ),
-      PropertyEditorSession(:final objectCurie, :final propertyName) =>
-        PropertyEditorPane(
-          key: ValueKey('fullscreen:${s.presentationId}'),
-          baseUri: baseUri,
-          authToken: authToken,
-          objectCurie: objectCurie,
-          propertyName: propertyName,
-        ),
-    };
-
-    final screen = switch (s) {
-      VerbEditorSession() => VerbEditorScreen(title: title, child: child),
-      PropertyEditorSession() => PropertyEditorScreen(
-        title: title,
-        child: child,
-      ),
-    };
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => screen,
-      ),
-    );
-  }
-
   void _onScroll() {
     _updateRoomLookLatch();
   }
@@ -1147,7 +1114,7 @@ class _SessionScreenState extends State<SessionScreen> {
   void _updateRoomLookLatch() {
     _roomLookController.updateLatch(
       roomHudEnabled: _roomHudEnabled,
-      tracker: _narrativeTracker,
+      tracker: _narrativeFeedController.tracker,
       listKey: _listKey,
       messageKeys: _messageKeys,
     );
@@ -1224,20 +1191,15 @@ class _SessionScreenState extends State<SessionScreen> {
       final items = await loadHistoricalNarrativeItems(
         events: events,
         identity: identity,
-        tracker: _narrativeTracker,
+        tracker: _narrativeFeedController.tracker,
         decryptEvent: decryptEventBlobAge,
         newId: _newId,
       );
 
       if (!mounted) return;
-      setState(() {
-        _items.insertAll(0, items);
-        for (final item in items) {
-          _narrativeTracker.remember(item);
-        }
-      });
+      final added = _narrativeFeedController.prependHistoricalItems(items);
       _historyEncryptionController.completeHistoryLoad();
-      _appendSystem('History loaded (${items.length} events)');
+      _appendSystem('History loaded ($added events)');
     } on Object catch (e) {
       _appendSystem('History load failed: $e');
     } finally {
@@ -1358,36 +1320,30 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _appendNarrativeText(String text, {String contentType = 'text/plain'}) {
-    if (text.trim().isEmpty) {
-      return;
-    }
-    _appendItem(
-      NarrativeItem(
-        id: _newId('local'),
-        timestamp: DateTime.now(),
-        content: [text],
-        contentType: contentType,
-        noNewline: false,
-        presentationHint: null,
-        groupId: null,
-        metadata: null,
-      ),
-    );
+    _appendItemFromText(text, contentType: contentType);
   }
 
   void _toggleDebugPanel() {
     _debugPanelController.toggle(_presentations);
   }
 
-  void _appendItem(NarrativeItem it) {
-    if (_narrativeTracker.contains(it)) {
+  void _appendItemFromText(String text, {required String contentType}) {
+    final appended = _narrativeFeedController.appendNarrativeText(
+      text,
+      newId: _newId,
+      contentType: contentType,
+    );
+    if (!appended) {
       return;
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
 
-    setState(() {
-      _items.add(it);
-      _narrativeTracker.remember(it);
-    });
+  void _appendItem(NarrativeItem it) {
+    final appended = _narrativeFeedController.appendItem(it);
+    if (!appended) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollCtrl.hasClients) return;
       _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
@@ -1775,7 +1731,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _presentations.clear();
     setState(() {
       _editorSessionController.clear();
-      _editorPaneCache.clear();
+      _narrativeFeedController.clear();
+      _editorPresenter.clear();
     });
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -1879,7 +1836,7 @@ class _SessionScreenState extends State<SessionScreen> {
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: SessionNarrativeList(
-                                items: _items,
+                                items: _narrativeFeedController.items,
                                 monospaceNarrative: _monospaceNarrative,
                                 showNarrativeMeta: _showNarrativeMeta,
                                 playerCurie: widget.session.playerCurie,
@@ -1967,31 +1924,6 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
       ],
     );
-  }
-
-  Widget _editorPaneForSession(EditorSession s) {
-    return _editorPaneCache.putIfAbsent(s.presentationId, () {
-      final authToken = widget.session.authToken;
-      final baseUri = widget.session.baseUri;
-      return switch (s) {
-        VerbEditorSession(:final objectCurie, :final verbName) =>
-          VerbEditorPane(
-            key: ValueKey(s.presentationId),
-            baseUri: baseUri,
-            authToken: authToken,
-            objectCurie: objectCurie,
-            verbName: verbName,
-          ),
-        PropertyEditorSession(:final objectCurie, :final propertyName) =>
-          PropertyEditorPane(
-            key: ValueKey(s.presentationId),
-            baseUri: baseUri,
-            authToken: authToken,
-            objectCurie: objectCurie,
-            propertyName: propertyName,
-          ),
-      };
-    });
   }
 
   @override
@@ -2086,8 +2018,11 @@ class _SessionScreenState extends State<SessionScreen> {
                     activeIndex: _editorSessionController.activeIndex,
                     onSelectIndex: _editorSessionController.selectIndex,
                     onCloseSession: _closeEditorSession,
-                    onOpenFullscreen: _openEditorFullscreen,
-                    paneBuilder: _editorPaneForSession,
+                    onOpenFullscreen: (session) async {
+                      if (!mounted) return;
+                      await _editorPresenter.openFullscreen(context, session);
+                    },
+                    paneBuilder: _editorPresenter.paneForSession,
                   ),
                 ),
               ],
@@ -2143,8 +2078,11 @@ class _SessionScreenState extends State<SessionScreen> {
                   activeIndex: _editorSessionController.activeIndex,
                   onSelectIndex: _editorSessionController.selectIndex,
                   onCloseSession: _closeEditorSession,
-                  onOpenFullscreen: _openEditorFullscreen,
-                  paneBuilder: _editorPaneForSession,
+                  onOpenFullscreen: (session) async {
+                    if (!mounted) return;
+                    await _editorPresenter.openFullscreen(context, session);
+                  },
+                  paneBuilder: _editorPresenter.paneForSession,
                 ),
               ),
             ],
