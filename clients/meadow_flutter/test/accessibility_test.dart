@@ -27,6 +27,7 @@ import 'package:meadow_flutter/moor/room_snapshot.dart';
 import 'package:meadow_flutter/moor/session_view_controller.dart';
 import 'package:meadow_flutter/widgets/command_controller.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
+import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
 import 'package:meadow_flutter/widgets/session_app_bar_actions.dart';
 import 'package:meadow_flutter/widgets/session_command_input_bar.dart';
 import 'package:meadow_flutter/widgets/session_dialogs.dart';
@@ -455,6 +456,10 @@ void main() {
           ),
         );
 
+        expect(
+          tester.getSemantics(find.byType(SessionEditorDock)).label,
+          contains('Editor dock'),
+        );
         expect(find.text('Edit look_self'), findsNWidgets(2));
         expect(find.text('Edit name'), findsOneWidget);
         expect(find.byTooltip('Fullscreen'), findsOneWidget);
@@ -508,8 +513,15 @@ void main() {
           ),
         );
 
+        expect(
+          tester.getSemantics(find.byType(RoomSnapshotWidget)).label,
+          contains('Room snapshot: Town Square'),
+        );
         expect(find.text('Town Square'), findsOneWidget);
         expect(find.byTooltip('Inspect room'), findsOneWidget);
+        expect(find.text('Exits'), findsOneWidget);
+        expect(find.text('Things'), findsOneWidget);
+        expect(find.text('Players'), findsOneWidget);
         _expectButtonSemantics(
           tester.getSemantics(find.widgetWithText(FilledButton, 'north')),
           'north',

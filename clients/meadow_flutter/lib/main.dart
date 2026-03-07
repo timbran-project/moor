@@ -846,16 +846,63 @@ class SessionScreen extends StatefulWidget {
   final LoginSession session;
   final String mode; // "connect" | "create"
   final String initialMooTitle;
+  final SessionScreenBehavior behavior;
+  final SessionScreenControllers? controllers;
 
   const SessionScreen({
     super.key,
     required this.session,
     required this.mode,
     required this.initialMooTitle,
+    this.behavior = const SessionScreenBehavior(),
+    this.controllers,
   });
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
+}
+
+@immutable
+class SessionScreenBehavior {
+  final bool autoConnect;
+  final bool autoInitEncryption;
+  final bool autoRefreshVerbSuggestions;
+  final bool autoRefreshMooTitle;
+
+  const SessionScreenBehavior({
+    this.autoConnect = true,
+    this.autoInitEncryption = true,
+    this.autoRefreshVerbSuggestions = true,
+    this.autoRefreshMooTitle = true,
+  });
+
+  const SessionScreenBehavior.testing()
+    : autoConnect = false,
+      autoInitEncryption = false,
+      autoRefreshVerbSuggestions = false,
+      autoRefreshMooTitle = false;
+}
+
+class SessionScreenControllers {
+  final PresentationStore? presentations;
+  final NarrativeFeedController? narrativeFeedController;
+  final EditorSessionController? editorSessionController;
+  final DebugPanelController? debugPanelController;
+  final SessionViewController? sessionViewController;
+  final InputPromptController? inputPromptController;
+  final SessionConnectionController? sessionConnectionController;
+  final SessionEditorPresenter? editorPresenter;
+
+  const SessionScreenControllers({
+    this.presentations,
+    this.narrativeFeedController,
+    this.editorSessionController,
+    this.debugPanelController,
+    this.sessionViewController,
+    this.inputPromptController,
+    this.sessionConnectionController,
+    this.editorPresenter,
+  });
 }
 
 class _SessionScreenState extends State<SessionScreen> {
@@ -870,18 +917,19 @@ class _SessionScreenState extends State<SessionScreen> {
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
   final _promptFocus = FocusNode();
 
-  final _presentations = PresentationStore();
+  late final PresentationStore _presentations =
+      widget.controllers?.presentations ?? PresentationStore();
   final GlobalKey _listKey = GlobalKey();
   final _messageKeys = <String, GlobalKey>{};
   late final NarrativeFeedController _narrativeFeedController =
-      NarrativeFeedController();
+      widget.controllers?.narrativeFeedController ?? NarrativeFeedController();
 
   double _splitRatio = 0.64;
 
   late final EditorSessionController _editorSessionController =
-      EditorSessionController();
+      widget.controllers?.editorSessionController ?? EditorSessionController();
   late final DebugPanelController _debugPanelController =
-      DebugPanelController();
+      widget.controllers?.debugPanelController ?? DebugPanelController();
   late final HistoryEncryptionController _historyEncryptionController =
       HistoryEncryptionController(
         getLocalIdentity: EventLogKeyStore.getIdentity,
@@ -901,6 +949,7 @@ class _SessionScreenState extends State<SessionScreen> {
       );
   late final RoomLookController _roomLookController = RoomLookController();
   late final SessionConnectionController _sessionConnectionController =
+      widget.controllers?.sessionConnectionController ??
       SessionConnectionController(
         session: widget.session,
         mode: widget.mode,
@@ -911,14 +960,16 @@ class _SessionScreenState extends State<SessionScreen> {
         onInputPromptRequest: _handleInputPromptRequest,
         onStatusChanged: _handleConnectionStatusChanged,
       );
-  late final SessionEditorPresenter _editorPresenter = SessionEditorPresenter(
-    baseUri: widget.session.baseUri,
-    authToken: widget.session.authToken,
-  );
+  late final SessionEditorPresenter _editorPresenter =
+      widget.controllers?.editorPresenter ??
+      SessionEditorPresenter(
+        baseUri: widget.session.baseUri,
+        authToken: widget.session.authToken,
+      );
   late final SessionViewController _sessionViewController =
-      SessionViewController();
+      widget.controllers?.sessionViewController ?? SessionViewController();
   late final InputPromptController _inputPromptController =
-      InputPromptController();
+      widget.controllers?.inputPromptController ?? InputPromptController();
   late final SessionBootstrapService _sessionBootstrapService =
       SessionBootstrapService(
         api: MoorHttpApi(widget.session.baseUri),
@@ -954,12 +1005,19 @@ class _SessionScreenState extends State<SessionScreen> {
     _narrativeFeedController.addListener(_onNarrativeFeedChanged);
     _roomLookController.addListener(_onRoomLookChanged);
     _sessionViewController.addListener(_onSessionViewChanged);
-    _sessionConnectionController
-      ..addListener(_onSessionConnectionChanged)
-      ..connect();
-    _initEncryption();
-    _refreshVerbSuggestions();
-    _refreshMooTitle();
+    _sessionConnectionController.addListener(_onSessionConnectionChanged);
+    if (widget.behavior.autoConnect) {
+      _sessionConnectionController.connect();
+    }
+    if (widget.behavior.autoInitEncryption) {
+      _initEncryption();
+    }
+    if (widget.behavior.autoRefreshVerbSuggestions) {
+      _refreshVerbSuggestions();
+    }
+    if (widget.behavior.autoRefreshMooTitle) {
+      _refreshMooTitle();
+    }
   }
 
   @override
@@ -969,35 +1027,42 @@ class _SessionScreenState extends State<SessionScreen> {
     _commandController
       ..removeListener(_onCommandControllerChanged)
       ..dispose();
-    _debugPanelController
-      ..removeListener(_onDebugPanelChanged)
-      ..dispose();
-    _editorSessionController
-      ..removeListener(_onEditorSessionsChanged)
-      ..dispose();
+    _debugPanelController.removeListener(_onDebugPanelChanged);
+    _editorSessionController.removeListener(_onEditorSessionsChanged);
     _historyEncryptionController
       ..removeListener(_onHistoryEncryptionChanged)
       ..dispose();
-    _inputPromptController
-      ..removeListener(_onInputPromptChanged)
-      ..dispose();
-    _narrativeFeedController
-      ..removeListener(_onNarrativeFeedChanged)
-      ..dispose();
+    _inputPromptController.removeListener(_onInputPromptChanged);
+    _narrativeFeedController.removeListener(_onNarrativeFeedChanged);
     _roomLookController
       ..removeListener(_onRoomLookChanged)
       ..dispose();
-    _sessionViewController
-      ..removeListener(_onSessionViewChanged)
-      ..dispose();
-    _sessionConnectionController
-      ..removeListener(_onSessionConnectionChanged)
-      ..close();
+    _sessionViewController.removeListener(_onSessionViewChanged);
+    _sessionConnectionController.removeListener(_onSessionConnectionChanged);
+    if (widget.controllers?.sessionConnectionController == null) {
+      _sessionConnectionController.close();
+    }
     _scrollCtrl.dispose();
     _inputFocus.dispose();
-    _presentations
-      ..removeListener(_onPresentationsChanged)
-      ..dispose();
+    _presentations.removeListener(_onPresentationsChanged);
+    if (widget.controllers?.presentations == null) {
+      _presentations.dispose();
+    }
+    if (widget.controllers?.debugPanelController == null) {
+      _debugPanelController.dispose();
+    }
+    if (widget.controllers?.editorSessionController == null) {
+      _editorSessionController.dispose();
+    }
+    if (widget.controllers?.inputPromptController == null) {
+      _inputPromptController.dispose();
+    }
+    if (widget.controllers?.narrativeFeedController == null) {
+      _narrativeFeedController.dispose();
+    }
+    if (widget.controllers?.sessionViewController == null) {
+      _sessionViewController.dispose();
+    }
     super.dispose();
   }
 

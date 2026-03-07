@@ -44,85 +44,89 @@ class SessionEditorDock extends StatelessWidget {
         : 0;
     final active = sessions[safeActiveIndex];
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < sessions.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: InputChip(
-                              label: Text(
-                                sessions[i].title,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              selected: i == safeActiveIndex,
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                onSelectIndex(i);
-                              },
-                              onDeleted: () async {
-                                await onCloseSession(sessions[i]);
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Fullscreen',
-                  onPressed: () async {
-                    await onOpenFullscreen(active);
-                  },
-                  icon: const Icon(Icons.open_in_full),
-                ),
-                IconButton(
-                  tooltip: 'Close',
-                  onPressed: () async {
-                    await onCloseSession(active);
-                  },
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-          Divider(
-            height: 1,
+    return Semantics(
+      container: true,
+      label: 'Editor dock',
+      child: Card(
+        margin: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+        elevation: 0,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
             color: Theme.of(context).colorScheme.outlineVariant,
           ),
-          Expanded(
-            child: IndexedStack(
-              index: safeActiveIndex,
-              children: [
-                for (final session in sessions)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: paneBuilder(session),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < sessions.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: InputChip(
+                                label: Text(
+                                  sessions[i].title,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                selected: i == safeActiveIndex,
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () {
+                                  onSelectIndex(i);
+                                },
+                                onDeleted: () async {
+                                  await onCloseSession(sessions[i]);
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-              ],
+                  IconButton(
+                    tooltip: 'Fullscreen',
+                    onPressed: () async {
+                      await onOpenFullscreen(active);
+                    },
+                    icon: const Icon(Icons.open_in_full),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () async {
+                      await onCloseSession(active);
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Divider(
+              height: 1,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: safeActiveIndex,
+                children: [
+                  for (final session in sessions)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: paneBuilder(session),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

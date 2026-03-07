@@ -17,16 +17,32 @@ import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
 import 'package:meadow_flutter/widgets/verb_editor.dart';
 
+typedef EditorPaneFactory =
+    Widget Function(
+      EditorSession session, {
+      required Key key,
+      required Uri baseUri,
+      required String authToken,
+    });
+
+typedef EditorScreenFactory =
+    Widget Function(EditorSession session, Widget child);
+
 class SessionEditorPresenter {
   final Uri baseUri;
   final String authToken;
+  final EditorPaneFactory _paneFactory;
+  final EditorScreenFactory _screenFactory;
 
   final Map<String, Widget> _paneCache = <String, Widget>{};
 
   SessionEditorPresenter({
     required this.baseUri,
     required this.authToken,
-  });
+    EditorPaneFactory? paneFactory,
+    EditorScreenFactory? screenFactory,
+  }) : _paneFactory = paneFactory ?? _defaultPaneFactory,
+       _screenFactory = screenFactory ?? _defaultScreenFactory;
 
   @visibleForTesting
   int get cachedPaneCount => _paneCache.length;
@@ -51,31 +67,40 @@ class SessionEditorPresenter {
 
   Widget paneForSession(EditorSession session) {
     return _paneCache.putIfAbsent(session.presentationId, () {
-      return switch (session) {
-        VerbEditorSession(:final objectCurie, :final verbName) =>
-          VerbEditorPane(
-            key: ValueKey(session.presentationId),
-            baseUri: baseUri,
-            authToken: authToken,
-            objectCurie: objectCurie,
-            verbName: verbName,
-          ),
-        PropertyEditorSession(:final objectCurie, :final propertyName) =>
-          PropertyEditorPane(
-            key: ValueKey(session.presentationId),
-            baseUri: baseUri,
-            authToken: authToken,
-            objectCurie: objectCurie,
-            propertyName: propertyName,
-          ),
-      };
+      return _paneFactory(
+        session,
+        key: ValueKey(session.presentationId),
+        baseUri: baseUri,
+        authToken: authToken,
+      );
     });
   }
 
   Future<void> openFullscreen(BuildContext context, EditorSession session) {
-    final child = switch (session) {
+    final child = _paneFactory(
+      session,
+      key: ValueKey('fullscreen:${session.presentationId}'),
+      baseUri: baseUri,
+      authToken: authToken,
+    );
+    final screen = _screenFactory(session, child);
+
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => screen,
+      ),
+    );
+  }
+
+  static Widget _defaultPaneFactory(
+    EditorSession session, {
+    required Key key,
+    required Uri baseUri,
+    required String authToken,
+  }) {
+    return switch (session) {
       VerbEditorSession(:final objectCurie, :final verbName) => VerbEditorPane(
-        key: ValueKey('fullscreen:${session.presentationId}'),
+        key: key,
         baseUri: baseUri,
         authToken: authToken,
         objectCurie: objectCurie,
@@ -83,15 +108,17 @@ class SessionEditorPresenter {
       ),
       PropertyEditorSession(:final objectCurie, :final propertyName) =>
         PropertyEditorPane(
-          key: ValueKey('fullscreen:${session.presentationId}'),
+          key: key,
           baseUri: baseUri,
           authToken: authToken,
           objectCurie: objectCurie,
           propertyName: propertyName,
         ),
     };
+  }
 
-    final screen = switch (session) {
+  static Widget _defaultScreenFactory(EditorSession session, Widget child) {
+    return switch (session) {
       VerbEditorSession() => VerbEditorScreen(
         title: session.title,
         child: child,
@@ -101,11 +128,5 @@ class SessionEditorPresenter {
         child: child,
       ),
     };
-
-    return Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => screen,
-      ),
-    );
   }
 }

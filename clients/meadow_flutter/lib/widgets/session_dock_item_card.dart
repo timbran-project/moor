@@ -38,23 +38,36 @@ class SessionDockItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final panelTitle = item is PresentationModel
+        ? ((((item as PresentationModel).attrs['title'] ?? '')
+                  .trim()
+                  .isNotEmpty)
+              ? (item as PresentationModel).attrs['title']!
+              : item.id)
+        : item.id;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: switch (item) {
-          RoomSnapshotDockItem(:final snapshot) => RoomSnapshotWidget(
-            snapshot: snapshot,
-            onCommand: onSendCommand,
-            onInspect: (obj) => onInspect(obj.curie),
-          ),
-          PresentationModel() => _PresentationCardBody(
-            presentation: item as PresentationModel,
-            monospaceNarrative: monospaceNarrative,
-            onDismissPresentation: onDismissPresentation,
-            onLinkTap: onLinkTap,
-          ),
-        },
+      child: Semantics(
+        container: true,
+        label: item is RoomSnapshotDockItem
+            ? 'Dock panel: room snapshot'
+            : 'Dock panel: $panelTitle',
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: switch (item) {
+            RoomSnapshotDockItem(:final snapshot) => RoomSnapshotWidget(
+              snapshot: snapshot,
+              onCommand: onSendCommand,
+              onInspect: (obj) => onInspect(obj.curie),
+            ),
+            PresentationModel() => _PresentationCardBody(
+              presentation: item as PresentationModel,
+              monospaceNarrative: monospaceNarrative,
+              onDismissPresentation: onDismissPresentation,
+              onLinkTap: onLinkTap,
+            ),
+          },
+        ),
       ),
     );
   }

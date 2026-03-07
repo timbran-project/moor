@@ -60,96 +60,104 @@ class RoomSnapshotWidget extends StatelessWidget {
       if (chips.isEmpty) {
         return const SizedBox.shrink();
       }
-      return Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 62,
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.labelLarge,
+      return Semantics(
+        container: true,
+        label: '$label actions',
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 62,
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ChipRail(chips: chips),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ChipRail(chips: chips),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                snapshot.title,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            if (snapshot.room != null)
-              IconButton(
-                tooltip: 'Inspect room',
-                onPressed: () => onInspect(snapshot.room!),
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.info_outline),
-              ),
-          ],
-        ),
-        if (snapshot.description.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(snapshot.description),
-          ),
-        railRow(
-          'Exits',
-          [
-            for (final e in exits)
-              FilledButton.tonal(
-                style: chipStyle,
-                onPressed: () => onCommand('go $e'),
-                child: Text(e),
-              ),
-          ],
-        ),
-        railRow(
-          'Things',
-          [
-            for (final a in actions)
-              FilledButton(
-                style: chipStyle,
-                onPressed: () => onCommand(a.command),
-                child: Text(a.label),
-              ),
-            for (final t in things)
-              OutlinedButton(
-                style: chipStyle,
-                onPressed: () => onInspect(t.object),
-                child: Text(t.name),
-              ),
-          ],
-        ),
-        railRow(
-          'Players',
-          [
-            for (final a in actors)
-              OutlinedButton.icon(
-                style: chipStyle,
-                onPressed: () => onInspect(a.object),
-                icon: const Icon(Icons.person_outline, size: 16),
-                label: Text(
-                  a.status.isNotEmpty && a.status != 'awake'
-                      ? '${a.name} (${a.status})'
-                      : a.name,
+    return Semantics(
+      container: true,
+      label: 'Room snapshot: ${snapshot.title}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  snapshot.title,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-          ],
-        ),
-      ],
+              if (snapshot.room != null)
+                IconButton(
+                  tooltip: 'Inspect room',
+                  onPressed: () => onInspect(snapshot.room!),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.info_outline),
+                ),
+            ],
+          ),
+          if (snapshot.description.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(snapshot.description),
+            ),
+          railRow(
+            'Exits',
+            [
+              for (final e in exits)
+                FilledButton.tonal(
+                  style: chipStyle,
+                  onPressed: () => onCommand('go $e'),
+                  child: Text(e),
+                ),
+            ],
+          ),
+          railRow(
+            'Things',
+            [
+              for (final a in actions)
+                FilledButton(
+                  style: chipStyle,
+                  onPressed: () => onCommand(a.command),
+                  child: Text(a.label),
+                ),
+              for (final t in things)
+                OutlinedButton(
+                  style: chipStyle,
+                  onPressed: () => onInspect(t.object),
+                  child: Text(t.name),
+                ),
+            ],
+          ),
+          railRow(
+            'Players',
+            [
+              for (final a in actors)
+                OutlinedButton.icon(
+                  style: chipStyle,
+                  onPressed: () => onInspect(a.object),
+                  icon: const Icon(Icons.person_outline, size: 16),
+                  label: Text(
+                    a.status.isNotEmpty && a.status != 'awake'
+                        ? '${a.name} (${a.status})'
+                        : a.name,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
