@@ -79,14 +79,16 @@ SessionVerbSuggestionsResult buildSessionVerbSuggestionsResultFromSuggestions(
       .where((suggestion) => suggestion.placeholderText != null)
       .firstOrNull;
 
-  final verbs = <PaletteVerb>[
-    for (final suggestion in suggestions) suggestionToPaletteVerb(suggestion),
-  ]..sort((a, b) {
-      final aIsAt = a.verb.startsWith('@');
-      final bIsAt = b.verb.startsWith('@');
-      if (aIsAt == bIsAt) return 0;
-      return aIsAt ? 1 : -1;
-    });
+  final verbs =
+      <PaletteVerb>[
+        for (final suggestion in suggestions)
+          suggestionToPaletteVerb(suggestion),
+      ]..sort((a, b) {
+        final aIsAt = a.verb.startsWith('@');
+        final bIsAt = b.verb.startsWith('@');
+        if (aIsAt == bIsAt) return 0;
+        return aIsAt ? 1 : -1;
+      });
 
   return SessionVerbSuggestionsResult(
     suggestionsAvailable: suggestionsAvailable,

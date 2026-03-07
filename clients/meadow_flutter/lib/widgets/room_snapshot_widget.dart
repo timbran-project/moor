@@ -48,7 +48,7 @@ class RoomSnapshotWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chipStyle = _chipButtonStyle(context);
-    final exits = snapshot.exits..sort();
+    final exits = snapshot.exits.toList()..sort();
     final actors = snapshot.actors.toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final things = snapshot.things.toList()

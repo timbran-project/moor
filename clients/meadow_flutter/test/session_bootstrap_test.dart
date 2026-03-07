@@ -24,32 +24,35 @@ void main() {
       expect(normalizeMooTitle(null), isNull);
     });
 
-    test('buildSessionVerbSuggestionsResultFromSuggestions sorts @ verbs last', () {
-      final result = buildSessionVerbSuggestionsResultFromSuggestions(
-        const <VerbSuggestion>[
-          VerbSuggestion(
-            verb: '@admin',
-            hint: 'admin hint',
-            placeholderText: null,
-          ),
-          VerbSuggestion(
-            verb: 'look',
-            hint: null,
-            placeholderText: 'look around',
-          ),
-        ],
-        suggestionsAvailable: true,
-        decodedLiteral: '{...}',
-        decodedWasNone: false,
-      );
+    test(
+      'buildSessionVerbSuggestionsResultFromSuggestions sorts @ verbs last',
+      () {
+        final result = buildSessionVerbSuggestionsResultFromSuggestions(
+          const <VerbSuggestion>[
+            VerbSuggestion(
+              verb: '@admin',
+              hint: 'admin hint',
+              placeholderText: null,
+            ),
+            VerbSuggestion(
+              verb: 'look',
+              hint: null,
+              placeholderText: 'look around',
+            ),
+          ],
+          suggestionsAvailable: true,
+          decodedLiteral: '{...}',
+          decodedWasNone: false,
+        );
 
-      expect(result.suggestionsAvailable, isTrue);
-      expect(result.serverPlaceholderText, equals('look around'));
-      expect(result.paletteVerbs.map((verb) => verb.verb).toList(), <String>[
-        'look',
-        '@admin',
-      ]);
-      expect(result.debugMessage, isNull);
-    });
+        expect(result.suggestionsAvailable, isTrue);
+        expect(result.serverPlaceholderText, equals('look around'));
+        expect(result.paletteVerbs.map((verb) => verb.verb).toList(), <String>[
+          'look',
+          '@admin',
+        ]);
+        expect(result.debugMessage, isNull);
+      },
+    );
   });
 }
