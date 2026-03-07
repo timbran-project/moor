@@ -13,7 +13,6 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,13 +28,13 @@ import 'package:meadow_flutter/moor/event_log_keystore.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
+import 'package:meadow_flutter/moor/inspect_controller.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_metadata.dart';
 import 'package:meadow_flutter/moor/narrative_tracker.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
-import 'package:meadow_flutter/moor/types/moor_coll.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
@@ -858,6 +857,10 @@ class _SessionScreenState extends State<SessionScreen> {
   final _scrollCtrl = ScrollController();
   late final SessionCommandController _commandController =
       SessionCommandController();
+  late final InspectController _inspectController = InspectController(
+    invokeVerb: _invokeInspectVerb,
+    newId: _newId,
+  );
   late final FocusNode _inputFocus = FocusNode(onKeyEvent: _handleCommandKey);
   final _promptFocus = FocusNode();
 
@@ -1916,38 +1919,15 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _showInspectSheet(String objectCurie) async {
-    final api = MoorHttpApi(widget.session.baseUri);
-
     InspectData? inspectData;
     try {
-      final success = await api.invokeVerb(
-        authToken: widget.session.authToken,
-        objectCurie: objectCurie,
-        verbName: 'inspection',
+      inspectData = await _inspectController.loadInspectData(
+        objectCurie,
+        onDebug: _appendSystem,
       );
-      final result = success.result;
-      final decoded = result != null
-          ? MoorVar.fromFlatBuffer(result)
-          : moorNoneVar;
-      inspectData = parseInspectData(decoded);
       if (inspectData == null) {
         _appendSystem('No inspect data available for $objectCurie');
         return;
-      }
-      for (final action in inspectData.actions) {
-        _appendSystem(
-          '[inspect] action metadata: '
-          'label=${action.label} '
-          'kind=${action.kind ?? "-"} '
-          'command=${action.command ?? "-"} '
-          'verb=${action.verb ?? "-"} '
-          'target=${action.target ?? "-"} '
-          'args=${action.args} '
-          'resultMode=${action.resultMode ?? "-"} '
-          'panelTarget=${action.panelTarget ?? "-"} '
-          'panelId=${action.panelId ?? "-"} '
-          'panelTitle=${action.panelTitle ?? "-"}',
-        );
       }
     } on Object catch (e) {
       _appendSystem('Inspect failed: $e');
@@ -2009,113 +1989,25 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _runInspectAction(InspectAction action) async {
-    _appendSystem(
-      '[inspect] run action: '
-      'label=${action.label} '
-      'kind=${action.kind ?? "-"} '
-      'command=${action.command ?? "-"} '
-      'verb=${action.verb ?? "-"} '
-      'target=${action.target ?? "-"} '
-      'args=${action.args} '
-      'inputType=${action.inputType ?? "-"} '
-      'inputPrompt=${action.inputPrompt ?? "-"} '
-      'inputPlaceholder=${action.inputPlaceholder ?? "-"} '
-      'resultMode=${action.resultMode ?? "-"} '
-      'panelTarget=${action.panelTarget ?? "-"} '
-      'panelId=${action.panelId ?? "-"} '
-      'panelTitle=${action.panelTitle ?? "-"}',
-    );
-    String? inputValue;
-    if (action.inputType == 'text') {
-      inputValue = await _promptInspectActionInput(action);
-      if (inputValue == null) {
-        _appendSystem('[inspect] action canceled: ${action.label}');
-        return;
-      }
-    }
-    if (action.kind == 'command' || action.command != null) {
-      var command = action.command ?? '';
-      if (inputValue != null) {
-        command = command.contains('{input}')
-            ? command.replaceAll('{input}', inputValue)
-            : '$command $inputValue'.trim();
-      }
-      if (command.trim().isNotEmpty) {
-        _appendSystem(
-          '[inspect] sending command action over websocket: $command',
-        );
-        _ws?.sendText(command);
-      }
-      return;
-    }
-
-    final verb = action.verb;
-    final target = action.target;
-    if (verb == null || target == null) {
-      return;
-    }
-
     try {
-      final api = MoorHttpApi(widget.session.baseUri);
-      final args = [...action.args];
-      if (inputValue != null) {
-        args.add(inputValue);
-      }
-      final invokeArgs = _buildInspectInvokeArgs(args);
-      final success = await api.invokeVerb(
-        authToken: widget.session.authToken,
-        objectCurie: target,
-        verbName: verb,
-        argsVarBytes: invokeArgs,
+      final result = await _inspectController.runAction(
+        action,
+        promptForInput: _promptInspectActionInput,
+        onDebug: _appendSystem,
       );
-      final eventTypes = success.output
-          ?.map((evt) => evt.event?.eventType?.value ?? -1)
-          .toList();
-      _appendSystem(
-        '[inspect] invoke completed: '
-        'resultPresent=${success.result != null} '
-        'outputEvents=${success.output?.length ?? 0} '
-        'eventTypes=${eventTypes ?? const <int>[]}',
-      );
-
-      final outputLines = _extractInvokeOutputLines(success.output);
-      if (action.resultMode == 'panel' && outputLines.isNotEmpty) {
-        final panelTarget = _mapInspectPanelTarget(action.panelTarget);
-        final panelId = action.panelId ?? _newId('inspect-action-');
-        final panelTitle = action.panelTitle ?? action.label;
-        _appendSystem(
-          '[inspect] routing action output to panel: '
-          'target=$panelTarget id=$panelId title=$panelTitle '
-          'lines=${outputLines.length}',
-        );
-        _presentations.upsert(
-          PresentationModel(
-            id: panelId,
-            target: panelTarget,
-            contentType: 'text/plain',
-            content: outputLines.join('\n'),
-            attrs: <String, String>{
-              'title': panelTitle,
-              'kind': 'action_output',
-              'source': 'inspect_action',
-            },
-          ),
-        );
+      if (result.canceled) {
         return;
       }
-      if (action.resultMode == 'panel' && outputLines.isEmpty) {
-        _appendSystem(
-          '[inspect] panel requested but invoke output had no lines',
-        );
+      final commandToSend = result.commandToSend;
+      if (commandToSend != null && commandToSend.trim().isNotEmpty) {
+        _ws?.sendText(commandToSend);
       }
-
-      var emittedOutput = false;
-      for (final line in outputLines) {
+      final panelPresentation = result.panelPresentation;
+      if (panelPresentation != null) {
+        _presentations.upsert(panelPresentation);
+      }
+      for (final line in result.narrativeLines) {
         _appendNarrativeText(line);
-        emittedOutput = true;
-      }
-      if (!emittedOutput) {
-        _appendNarrativeText('Action ran: ${action.label}');
       }
     } on Object catch (e) {
       _appendSystem('Action failed (${action.label}): $e');
@@ -2188,39 +2080,31 @@ class _SessionScreenState extends State<SessionScreen> {
     return lines;
   }
 
-  String _mapInspectPanelTarget(String? target) {
-    final t = (target ?? '').trim().toLowerCase();
-    switch (t) {
-      case 'top':
-      case 'left':
-      case 'right':
-      case 'bottom':
-        return t;
-      case 'tools':
-      case 'status':
-      case 'inventory':
-      case 'navigation':
-      case 'communication':
-      case 'help':
-        // Flutter spike currently renders top presentations for this UI lane.
-        return 'top';
-      default:
-        return 'top';
-    }
-  }
-
-  Uint8List? _buildInspectInvokeArgs(List<String> args) {
-    if (args.isEmpty) return null;
-    final packed = <MoorVar>[];
-    for (final a in args) {
-      final ref = ObjectRef.fromCurie(a);
-      if (ref != null) {
-        packed.add(MoorVar(ref.obj));
-      } else {
-        packed.add(MoorVar(a));
-      }
-    }
-    return Uint8List.fromList(MoorList(packed).toVar().toBytes());
+  Future<InspectVerbResponse> _invokeInspectVerb({
+    required String objectCurie,
+    required String verbName,
+    Uint8List? argsVarBytes,
+  }) async {
+    final api = MoorHttpApi(widget.session.baseUri);
+    final success = await api.invokeVerb(
+      authToken: widget.session.authToken,
+      objectCurie: objectCurie,
+      verbName: verbName,
+      argsVarBytes: argsVarBytes,
+    );
+    final result = success.result != null
+        ? MoorVar.fromFlatBuffer(success.result!)
+        : moorNoneVar;
+    final eventTypes =
+        success.output
+            ?.map((evt) => evt.event?.eventType?.value ?? -1)
+            .toList() ??
+        const <int>[];
+    return InspectVerbResponse(
+      result: result,
+      outputLines: _extractInvokeOutputLines(success.output),
+      eventTypes: eventTypes,
+    );
   }
 
   Future<void> _refreshVerbSuggestions() async {
