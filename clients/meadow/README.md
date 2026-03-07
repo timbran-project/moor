@@ -14,6 +14,21 @@ communicating with the backend through WebSocket connections and RESTful API cal
 Meadow can run as a web application served alongside a mooR backend, or as a standalone desktop
 application built with [Tauri](https://v2.tauri.app/) that connects to any remote mooR server.
 
+## Version Lines
+
+Meadow and `moor` currently have two active version lines:
+
+- `v1.0-release`: the stable 1.0 line
+- `main`: the post-1.0 development line
+
+Use matching branches across the stack. A Meadow checkout on `v1.0-release` should be used with the
+`v1.0-release` line of `moor` and the corresponding `1.0.0-rc1-dev...` published packages. A
+Meadow checkout on `main` should be used with `moor` `main` and the corresponding `1.1.0-dev...`
+published packages.
+
+`main` in the `moor` repository tracks post-1.0 development. If you want the stable 1.0 setup, use
+the `v1.0-release` line rather than `main`.
+
 ## Features
 
 ### Rich Presentation
@@ -79,7 +94,8 @@ package for FlatBuffer bindings, which are shared with the mooR backend.
 
 ## Development
 
-Meadow is designed to be developed alongside the `moor` backend.
+Meadow is designed to be developed alongside the `moor` backend. Use a matching `moor` checkout for
+the Meadow branch you are on.
 
 ```bash
 # Install dependencies
@@ -109,13 +125,28 @@ npm run lint
 
 ## FlatBuffer Schemas
 
-This project uses `@moor/schema` for communication. If you modify schemas in the `moor` repository,
-they will be automatically published to the Codeberg registry. To update Meadow to the latest
-schema:
+This project uses published `@moor/schema` and `@moor/web-sdk` packages. Keep Meadow on the same
+package line as the branch you have checked out:
+
+- `v1.0-release`: use `1.0.0-rc1-dev...`
+- `main`: use `1.1.0-dev...`
+
+Do not use `latest` blindly across the branch split.
 
 ```bash
-npm install @moor/schema@latest
+npm install @moor/schema@1.0.0-rc1-dev...
 ```
+
+## Running Stable 1.0
+
+To run the stable 1.0 line, use:
+
+- `moor` on `v1.0-release`
+- Meadow on `v1.0-release`
+- `@moor/schema` and `@moor/web-sdk` from the `1.0.0-rc1-dev...` package line
+
+If you use `main` checkouts or `1.1.0-dev...` packages, you are on the post-1.0 development line
+instead.
 
 ## Desktop App (Tauri)
 
