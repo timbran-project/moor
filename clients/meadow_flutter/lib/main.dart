@@ -44,8 +44,11 @@ import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/command_controller.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
 import 'package:meadow_flutter/widgets/property_editor.dart';
+import 'package:meadow_flutter/widgets/session_command_input_bar.dart';
 import 'package:meadow_flutter/widgets/session_dock_item_card.dart';
+import 'package:meadow_flutter/widgets/session_editor_dock.dart';
 import 'package:meadow_flutter/widgets/session_narrative_list.dart';
+import 'package:meadow_flutter/widgets/session_settings_sheet.dart';
 import 'package:meadow_flutter/widgets/verb_editor.dart';
 import 'package:meadow_flutter/widgets/verb_palette_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -2520,137 +2523,28 @@ class _SessionScreenState extends State<SessionScreen> {
       context: context,
       showDragHandle: true,
       builder: (context) {
-        // Modal bottom sheets are separate routes; parent setState does not
-        // automatically rebuild this subtree, so keep local state here.
-        var roomHudEnabled = _roomHudEnabled;
-        var showNarrativeMeta = _showNarrativeMeta;
-        var verbPaletteEnabled = _verbPaletteEnabled;
-        var monospaceNarrative = _monospaceNarrative;
-        var speechBubblesEnabled = _speechBubblesEnabled;
-        var themeMode = _ThemeScope.of(context).mode;
-
-        return StatefulBuilder(
-          builder: (context, modalSetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Settings',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      value: roomHudEnabled,
-                      title: const Text('Room HUD'),
-                      subtitle: const Text(
-                        'Show room description when scrolled out',
-                      ),
-                      onChanged: (v) {
-                        modalSetState(() {
-                          roomHudEnabled = v;
-                        });
-                        setState(() {
-                          _roomHudEnabled = v;
-                        });
-                        _onPresentationsChanged();
-                      },
-                    ),
-                    SwitchListTile(
-                      value: showNarrativeMeta,
-                      title: const Text('Timestamps'),
-                      subtitle: const Text(
-                        'Show timestamp and content type per line',
-                      ),
-                      onChanged: (v) {
-                        modalSetState(() {
-                          showNarrativeMeta = v;
-                        });
-                        setState(() {
-                          _showNarrativeMeta = v;
-                        });
-                      },
-                    ),
-                    SwitchListTile(
-                      value: monospaceNarrative,
-                      title: const Text('Monospace output'),
-                      subtitle: const Text(
-                        'Render narrative/panels in monospace (better alignment)',
-                      ),
-                      onChanged: (v) {
-                        modalSetState(() {
-                          monospaceNarrative = v;
-                        });
-                        setState(() {
-                          _monospaceNarrative = v;
-                        });
-                      },
-                    ),
-                    SwitchListTile(
-                      value: speechBubblesEnabled,
-                      title: const Text('Speech bubbles'),
-                      subtitle: const Text(
-                        'Render say/chat events as speech bubbles',
-                      ),
-                      onChanged: (v) {
-                        modalSetState(() {
-                          speechBubblesEnabled = v;
-                        });
-                        setState(() {
-                          _speechBubblesEnabled = v;
-                        });
-                      },
-                    ),
-                    SwitchListTile(
-                      value: verbPaletteEnabled,
-                      title: const Text('Verb palette'),
-                      subtitle: Text(
-                        _verbSuggestionsAvailable
-                            ? 'Show quick verbs (server)'
-                            : 'Show quick verbs (fallback)',
-                      ),
-                      onChanged: (v) {
-                        modalSetState(() {
-                          verbPaletteEnabled = v;
-                        });
-                        setState(() {
-                          _verbPaletteEnabled = v;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Theme',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 6),
-                    SegmentedButton<ThemeMode>(
-                      segments: const [
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.light,
-                          label: Text('Light'),
-                        ),
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.dark,
-                          label: Text('Dark'),
-                        ),
-                      ],
-                      selected: {themeMode},
-                      onSelectionChanged: (s) {
-                        final next = s.first;
-                        modalSetState(() {
-                          themeMode = next;
-                        });
-                        _ThemeScope.of(context).mode = next;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
+        return SessionSettingsSheet(
+          initialSettings: SessionViewSettings(
+            roomHudEnabled: _roomHudEnabled,
+            showNarrativeMeta: _showNarrativeMeta,
+            verbPaletteEnabled: _verbPaletteEnabled,
+            monospaceNarrative: _monospaceNarrative,
+            speechBubblesEnabled: _speechBubblesEnabled,
+            verbSuggestionsAvailable: _verbSuggestionsAvailable,
+            themeMode: _ThemeScope.of(context).mode,
+          ),
+          onSettingsChanged: (settings) {
+            setState(() {
+              _roomHudEnabled = settings.roomHudEnabled;
+              _showNarrativeMeta = settings.showNarrativeMeta;
+              _verbPaletteEnabled = settings.verbPaletteEnabled;
+              _monospaceNarrative = settings.monospaceNarrative;
+              _speechBubblesEnabled = settings.speechBubblesEnabled;
+            });
+            _onPresentationsChanged();
+          },
+          onThemeModeChanged: (mode) {
+            _ThemeScope.of(context).mode = mode;
           },
         );
       },
@@ -2842,36 +2736,13 @@ class _SessionScreenState extends State<SessionScreen> {
                           onLinkTap: _handleLinkTap,
                           onSubmit: _submitInputPromptValue,
                         )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: FocusTraversalOrder(
-                                order: const NumericFocusOrder(3),
-                                child: TextField(
-                                  controller: _inputCtrl,
-                                  autofocus: true,
-                                  focusNode: _inputFocus,
-                                  keyboardType: TextInputType.multiline,
-                                  minLines: 1,
-                                  maxLines: 6,
-                                  decoration: InputDecoration(
-                                    labelText: 'Command',
-                                    hintText: _verbPill != null
-                                        ? _verbPillPlaceholder
-                                        : _serverPlaceholderText,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            FocusTraversalOrder(
-                              order: const NumericFocusOrder(4),
-                              child: FilledButton(
-                                onPressed: _send,
-                                child: const Text('Send'),
-                              ),
-                            ),
-                          ],
+                      : SessionCommandInputBar(
+                          controller: _inputCtrl,
+                          focusNode: _inputFocus,
+                          verbPill: _verbPill,
+                          verbPillPlaceholder: _verbPillPlaceholder,
+                          serverPlaceholderText: _serverPlaceholderText,
+                          onSend: _send,
                         ),
                 ),
               ],
@@ -2905,100 +2776,6 @@ class _SessionScreenState extends State<SessionScreen> {
           ),
       };
     });
-  }
-
-  Widget _buildEditorDock(BuildContext context) {
-    if (_editorSessions.isEmpty) return const SizedBox.shrink();
-
-    final activeIdx =
-        (_activeEditorIndex >= 0 && _activeEditorIndex < _editorSessions.length)
-        ? _activeEditorIndex
-        : 0;
-    final active = _editorSessions[activeIdx];
-
-    return Card(
-      margin: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < _editorSessions.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: InputChip(
-                              label: Text(
-                                _editorSessions[i].title,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              selected: i == activeIdx,
-                              visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                setState(() {
-                                  _activeEditorIndex = i;
-                                });
-                              },
-                              onDeleted: () async {
-                                await _closeEditorSession(_editorSessions[i]);
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Fullscreen',
-                  onPressed: () async {
-                    await _openEditorFullscreen(active);
-                  },
-                  icon: const Icon(Icons.open_in_full),
-                ),
-                IconButton(
-                  tooltip: 'Close',
-                  onPressed: () async {
-                    await _closeEditorSession(active);
-                  },
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-          Divider(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: activeIdx,
-              children: [
-                for (final s in _editorSessions)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: _editorPaneForSession(s),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -3111,7 +2888,18 @@ class _SessionScreenState extends State<SessionScreen> {
                 ),
               ),
               Expanded(
-                child: _buildEditorDock(context),
+                child: SessionEditorDock(
+                  sessions: _editorSessions,
+                  activeIndex: _activeEditorIndex,
+                  onSelectIndex: (index) {
+                    setState(() {
+                      _activeEditorIndex = index;
+                    });
+                  },
+                  onCloseSession: _closeEditorSession,
+                  onOpenFullscreen: _openEditorFullscreen,
+                  paneBuilder: _editorPaneForSession,
+                ),
               ),
             ],
           );
