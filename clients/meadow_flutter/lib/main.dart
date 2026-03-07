@@ -21,6 +21,7 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
 import 'package:meadow_flutter/moor/age_decrypt.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
+import 'package:meadow_flutter/moor/debug_panel_controller.dart';
 import 'package:meadow_flutter/moor/editor_session_controller.dart';
 import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
@@ -35,6 +36,7 @@ import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_tracker.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
+import 'package:meadow_flutter/moor/room_look_controller.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
@@ -868,13 +870,6 @@ class _SessionScreenState extends State<SessionScreen> {
   final _presentations = PresentationStore();
   final GlobalKey _listKey = GlobalKey();
   final _messageKeys = <String, GlobalKey>{};
-  static const String _debugPanelId = 'local-debug-panel';
-  final _debugLines = <String>[];
-  bool _debugPanelVisible = false;
-
-  String? _currentRoomLookKey;
-  String? _currentRoomLookMessageId;
-  bool _isCurrentRoomLookDockLatched = false;
   final _narrativeTracker = NarrativeTracker();
 
   bool _roomHudEnabled = true;
@@ -886,6 +881,8 @@ class _SessionScreenState extends State<SessionScreen> {
 
   late final EditorSessionController _editorSessionController =
       EditorSessionController();
+  late final DebugPanelController _debugPanelController =
+      DebugPanelController();
   late final HistoryEncryptionController _historyEncryptionController =
       HistoryEncryptionController(
         getLocalIdentity: EventLogKeyStore.getIdentity,
@@ -903,6 +900,7 @@ class _SessionScreenState extends State<SessionScreen> {
         identityFromDerivedBytes: EventLogEncryption.identityFromDerivedBytes,
         publicKeyFromDerivedBytes: EventLogEncryption.publicKeyFromDerivedBytes,
       );
+  late final RoomLookController _roomLookController = RoomLookController();
   final Map<String, Widget> _editorPaneCache = <String, Widget>{};
 
   int _idSeq = 0;
@@ -932,8 +930,10 @@ class _SessionScreenState extends State<SessionScreen> {
       });
     };
     _commandController.addListener(_onCommandControllerChanged);
+    _debugPanelController.addListener(_onDebugPanelChanged);
     _editorSessionController.addListener(_onEditorSessionsChanged);
     _historyEncryptionController.addListener(_onHistoryEncryptionChanged);
+    _roomLookController.addListener(_onRoomLookChanged);
     _connectWs();
     _initEncryption();
     _refreshVerbSuggestions();
@@ -947,11 +947,17 @@ class _SessionScreenState extends State<SessionScreen> {
     _commandController
       ..removeListener(_onCommandControllerChanged)
       ..dispose();
+    _debugPanelController
+      ..removeListener(_onDebugPanelChanged)
+      ..dispose();
     _editorSessionController
       ..removeListener(_onEditorSessionsChanged)
       ..dispose();
     _historyEncryptionController
       ..removeListener(_onHistoryEncryptionChanged)
+      ..dispose();
+    _roomLookController
+      ..removeListener(_onRoomLookChanged)
       ..dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
@@ -969,6 +975,13 @@ class _SessionScreenState extends State<SessionScreen> {
     setState(() {});
   }
 
+  void _onDebugPanelChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
   void _onEditorSessionsChanged() {
     if (!mounted) {
       return;
@@ -977,6 +990,13 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _onHistoryEncryptionChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  void _onRoomLookChanged() {
     if (!mounted) {
       return;
     }
@@ -1005,14 +1025,10 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _onPresentationsChanged() {
-    final nextKey = _computeCurrentRoomLookKey();
-    if (nextKey != _currentRoomLookKey) {
-      setState(() {
-        _currentRoomLookKey = nextKey;
-        _currentRoomLookMessageId = null;
-        _isCurrentRoomLookDockLatched = false;
-      });
-    }
+    _roomLookController.handlePresentationsChanged(
+      _presentations,
+      roomHudEnabled: _roomHudEnabled,
+    );
     _syncEditorSessionsFromPresentations();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
   }
@@ -1048,11 +1064,8 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _dismissPresentationById(String presentationId) async {
-    if (presentationId == _debugPanelId) {
-      setState(() {
-        _debugPanelVisible = false;
-      });
-      _presentations.remove(presentationId);
+    if (presentationId == DebugPanelController.panelId) {
+      _debugPanelController.hide(_presentations);
       return;
     }
     final authToken = widget.session.authToken;
@@ -1111,70 +1124,13 @@ class _SessionScreenState extends State<SessionScreen> {
     _updateRoomLookLatch();
   }
 
-  String? _computeCurrentRoomLookKey() {
-    if (!_roomHudEnabled) {
-      return null;
-    }
-    final tops = _presentations.byTarget('top');
-    for (final p in tops) {
-      if (p.id == 'room-look') {
-        return getRoomLookKeyFromDockItem(p);
-      }
-    }
-    return null;
-  }
-
   void _updateRoomLookLatch() {
-    if (!mounted) return;
-    if (!_roomHudEnabled) return;
-    final roomKey = _currentRoomLookKey;
-    if (roomKey == null) return;
-
-    final msgId = _narrativeTracker.latestLookMessageIdForRoom(roomKey);
-    if (msgId == null) return;
-
-    if (msgId != _currentRoomLookMessageId) {
-      setState(() {
-        _currentRoomLookMessageId = msgId;
-        _isCurrentRoomLookDockLatched = false;
-      });
-      return;
-    }
-
-    if (_isCurrentRoomLookDockLatched) {
-      return;
-    }
-
-    final targetKey = _messageKeys[msgId];
-    final targetCtx = targetKey?.currentContext;
-    final listCtx = _listKey.currentContext;
-    if (targetCtx == null || listCtx == null) return;
-
-    final targetBox = targetCtx.findRenderObject();
-    final listBox = listCtx.findRenderObject();
-    if (targetBox is! RenderBox || listBox is! RenderBox) return;
-    if (!targetBox.attached || !listBox.attached) return;
-    if (!targetBox.hasSize || !listBox.hasSize) return;
-
-    double targetTop;
-    double listTop;
-    try {
-      targetTop = targetBox.localToGlobal(Offset.zero).dy;
-      listTop = listBox.localToGlobal(Offset.zero).dy;
-    } on Object {
-      // During rapid rebuilds/route transitions the render objects can be in a
-      // transient state; skip latching until the next frame.
-      return;
-    }
-    final listBottom = listTop + listBox.size.height;
-    const epsilon = 1.0;
-    final isVisible =
-        targetTop >= (listTop - epsilon) && targetTop < (listBottom + epsilon);
-    if (!isVisible) {
-      setState(() {
-        _isCurrentRoomLookDockLatched = true;
-      });
-    }
+    _roomLookController.updateLatch(
+      roomHudEnabled: _roomHudEnabled,
+      tracker: _narrativeTracker,
+      listKey: _listKey,
+      messageKeys: _messageKeys,
+    );
   }
 
   Future<void> _connectWs() async {
@@ -1409,7 +1365,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _appendSystem(String m) {
-    _appendDebugLine(m);
+    _debugPanelController.appendLine(m, _presentations);
   }
 
   void _appendNarrativeText(String text, {String contentType = 'text/plain'}) {
@@ -1430,45 +1386,8 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  void _ensureDebugPanel() {
-    if (!_debugPanelVisible) return;
-    final content = _debugLines.isEmpty
-        ? '(debug output)'
-        : _debugLines.join('\n');
-    _presentations.upsert(
-      PresentationModel(
-        id: _debugPanelId,
-        target: 'right',
-        contentType: 'text/plain',
-        content: content,
-        attrs: const <String, String>{
-          'title': 'Debug',
-          'source': 'local_debug',
-          'kind': 'debug_output',
-        },
-      ),
-    );
-  }
-
-  void _appendDebugLine(String line) {
-    final ts = DateTime.now().toIso8601String().split('T').last;
-    _debugLines.add('[$ts] $line');
-    const maxLines = 500;
-    if (_debugLines.length > maxLines) {
-      _debugLines.removeRange(0, _debugLines.length - maxLines);
-    }
-    _ensureDebugPanel();
-  }
-
   void _toggleDebugPanel() {
-    setState(() {
-      _debugPanelVisible = !_debugPanelVisible;
-    });
-    if (_debugPanelVisible) {
-      _ensureDebugPanel();
-    } else {
-      _presentations.remove(_debugPanelId);
-    }
+    _debugPanelController.toggle(_presentations);
   }
 
   void _appendItem(NarrativeItem it) {
@@ -1849,7 +1768,10 @@ class _SessionScreenState extends State<SessionScreen> {
               _verbPaletteEnabled = settings.verbPaletteEnabled;
               _monospaceNarrative = settings.monospaceNarrative;
             });
-            _onPresentationsChanged();
+            _roomLookController.handlePresentationsChanged(
+              _presentations,
+              roomHudEnabled: _roomHudEnabled,
+            );
           },
           onThemeModeChanged: (mode) {
             _ThemeScope.of(context).mode = mode;
@@ -1882,10 +1804,9 @@ class _SessionScreenState extends State<SessionScreen> {
         AnimatedBuilder(
           animation: _presentations,
           builder: (context, _) {
-            final currentRoomKey = _roomHudEnabled ? _currentRoomLookKey : null;
-            final suppressRoomKey = (!_isCurrentRoomLookDockLatched)
-                ? currentRoomKey
-                : null;
+            final suppressRoomKey = _roomLookController.suppressedRoomKey(
+              roomHudEnabled: _roomHudEnabled,
+            );
 
             final top = _presentations.byTarget('top');
             final filtered = <DockItem>[];
@@ -2092,11 +2013,13 @@ class _SessionScreenState extends State<SessionScreen> {
         actions: [
           IconButton(
             onPressed: _toggleDebugPanel,
-            tooltip: _debugPanelVisible
+            tooltip: _debugPanelController.visible
                 ? 'Hide debug panel'
                 : 'Show debug panel',
             icon: Icon(
-              _debugPanelVisible ? Icons.bug_report : Icons.bug_report_outlined,
+              _debugPanelController.visible
+                  ? Icons.bug_report
+                  : Icons.bug_report_outlined,
             ),
           ),
           IconButton(
