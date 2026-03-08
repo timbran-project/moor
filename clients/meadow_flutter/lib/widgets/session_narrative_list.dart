@@ -12,6 +12,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
 import 'package:meadow_flutter/moor/models.dart';
@@ -56,6 +58,13 @@ class SessionNarrativeList extends StatelessWidget {
           Widget buildMessage(NarrativeItem item) {
             final key = messageKeys.putIfAbsent(item.id, GlobalKey.new);
             final ts = item.timestamp.toIso8601String().split('T').last;
+            final content = ContentRenderer(
+              content: item.content,
+              contentType: item.contentType,
+              isStale: false,
+              onLinkTap: onLinkTap,
+              monospace: monospaceNarrative,
+            );
             return Container(
               key: key,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -87,31 +96,12 @@ class SessionNarrativeList extends StatelessWidget {
                     const SizedBox(height: 2),
                   ],
                   if (item.metadata?.thumbnail case final thumbnail?)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: ExcludeSemantics(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxHeight: 220,
-                              maxWidth: 320,
-                            ),
-                            child: Image.memory(
-                              thumbnail.data,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ContentRenderer(
-                    content: item.content,
-                    contentType: item.contentType,
-                    isStale: false,
-                    onLinkTap: onLinkTap,
-                    monospace: monospaceNarrative,
-                  ),
+                    _NarrativeThumbnailLayout(
+                      thumbnail: thumbnail.data,
+                      content: content,
+                    )
+                  else
+                    content,
                   if (item.metadata?.linkPreview case final preview?)
                     LinkPreviewCard(
                       preview: preview,
@@ -212,4 +202,62 @@ List<List<NarrativeItem>> _groupNarrativeItems(List<NarrativeItem> items) {
   }
 
   return grouped;
+}
+
+class _NarrativeThumbnailLayout extends StatelessWidget {
+  final Uint8List thumbnail;
+  final Widget content;
+
+  const _NarrativeThumbnailLayout({
+    required this.thumbnail,
+    required this.content,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+        final image = ExcludeSemantics(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: compact ? 0 : 14,
+              right: compact ? 0 : 6,
+              bottom: compact ? 8 : 0,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: compact ? 116 : 128,
+                height: compact ? 116 : 128,
+                child: Image.memory(
+                  thumbnail,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              image,
+              content,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: content),
+            image,
+          ],
+        );
+      },
+    );
+  }
 }
