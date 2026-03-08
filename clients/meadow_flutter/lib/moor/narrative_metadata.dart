@@ -28,6 +28,7 @@ class NarrativeMetadata {
   final String? actorCurie;
   final String? actorName;
   final String? verb;
+  final String? ttsText;
   final String? content;
   final NarrativeThumbnailData? thumbnail;
   final LinkPreviewData? linkPreview;
@@ -40,6 +41,7 @@ class NarrativeMetadata {
     required this.actorCurie,
     required this.actorName,
     required this.verb,
+    required this.ttsText,
     required this.content,
     required this.thumbnail,
     required this.linkPreview,
@@ -181,6 +183,7 @@ NarrativeMetadata parseNarrativeMetadata({
     actorCurie: actorCurie,
     actorName: actorNameFromRaw(),
     verb: textFor(const ['verb']),
+    ttsText: textFor(const ['tts_text', 'ttsText']),
     content: (content?.isEmpty ?? true) ? null : content,
     thumbnail: thumbnail,
     linkPreview: linkPreview,

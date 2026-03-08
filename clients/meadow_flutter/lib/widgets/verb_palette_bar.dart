@@ -14,6 +14,7 @@
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 
@@ -93,6 +94,23 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
     );
   }
 
+  void _announceSelectedVerb() {
+    if (!mounted || !_hasFocus) {
+      return;
+    }
+    final idx = _selectedIndex;
+    if (idx == null || idx < 0 || idx >= widget.verbs.length) {
+      return;
+    }
+    final verb = widget.verbs[idx];
+    final message = '${verb.label}, ${idx + 1} of ${widget.verbs.length}';
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      message,
+      Directionality.of(context),
+    );
+  }
+
   void _recomputeEdges() {
     if (!mounted) return;
     if (!_ctrl.hasClients) return;
@@ -123,6 +141,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
         _selectedIndex = (current - 1).clamp(0, widget.verbs.length - 1);
       });
       _ensureSelectedVisible();
+      _announceSelectedVerb();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowRight) {
@@ -131,6 +150,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
         _selectedIndex = (current + 1).clamp(0, widget.verbs.length - 1);
       });
       _ensureSelectedVisible();
+      _announceSelectedVerb();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.enter ||
@@ -183,6 +203,7 @@ class _VerbPaletteBarState extends State<VerbPaletteBar> {
           });
           if (v) {
             _ensureSelectedVisible();
+            _announceSelectedVerb();
           }
         },
         child: Semantics(

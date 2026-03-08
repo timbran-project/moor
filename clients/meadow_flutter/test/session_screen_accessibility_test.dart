@@ -237,6 +237,31 @@ void main() {
       expect(find.text('Editor pane: Edit look_self'), findsOneWidget);
       expect(find.text('Command'), findsOneWidget);
     });
+
+    testWidgets('exposes narrative output and app bar actions accessibly', (
+      WidgetTester tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          _wrap(
+            child: SessionScreen(
+              session: _session,
+              mode: 'connect',
+              initialMooTitle: 'mooR',
+              behavior: const SessionScreenBehavior.testing(),
+            ),
+          ),
+        );
+
+        expect(find.bySemanticsLabel('Narrative output'), findsWidgets);
+        expect(find.byTooltip('Show debug panel'), findsOneWidget);
+        expect(find.byTooltip('Account'), findsOneWidget);
+        expect(find.byTooltip('Settings'), findsOneWidget);
+      } finally {
+        handle.dispose();
+      }
+    });
   });
 }
 

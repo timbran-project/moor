@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
 import 'package:meadow_flutter/moor/account_profile_controller.dart';
@@ -1785,6 +1786,12 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!appended) {
       return;
     }
+    _announceNarrativeText(
+      _plainTextForAnnouncement(
+        text,
+        contentType: contentType,
+      ),
+    );
     _scheduleScrollToBottom();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
   }
@@ -1794,8 +1801,49 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!appended) {
       return;
     }
+    _announceNarrativeText(_announcementTextForNarrativeItem(it));
     _scheduleScrollToBottom();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
+
+  void _announceNarrativeText(String text) {
+    final normalized = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty || !mounted) {
+      return;
+    }
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      normalized,
+      Directionality.of(context),
+    );
+  }
+
+  String _announcementTextForNarrativeItem(NarrativeItem item) {
+    final ttsText = item.metadata?.ttsText;
+    if (ttsText != null && ttsText.trim().isNotEmpty) {
+      return ttsText;
+    }
+    return _plainTextForAnnouncement(
+      item.content.join('\n'),
+      contentType: item.contentType,
+    );
+  }
+
+  String _plainTextForAnnouncement(
+    String text, {
+    required String contentType,
+  }) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    switch (contentType) {
+      case 'text/html':
+        return (html_parser.parseFragment(trimmed).text ?? '').trim();
+      default:
+        return trimmed;
+    }
   }
 
   void _scheduleScrollToBottom() {

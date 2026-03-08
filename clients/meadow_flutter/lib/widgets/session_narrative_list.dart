@@ -15,6 +15,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:meadow_flutter/moor/content_renderer.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/widgets/link_preview_card.dart';
@@ -45,123 +46,160 @@ class SessionNarrativeList extends StatelessWidget {
   Widget build(BuildContext context) {
     final groups = _groupNarrativeItems(items);
     return SelectionArea(
-      child: ListView.builder(
-        key: listKey,
-        controller: scrollController,
-        itemCount: groups.length,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemBuilder: (context, idx) {
-          final group = groups[idx];
-          final first = group.first;
-          final cs = Theme.of(context).colorScheme;
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        readOnly: true,
+        label: 'Narrative output',
+        child: ListView.builder(
+          key: listKey,
+          controller: scrollController,
+          itemCount: groups.length,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemBuilder: (context, idx) {
+            final group = groups[idx];
+            final first = group.first;
+            final cs = Theme.of(context).colorScheme;
 
-          Widget buildMessage(NarrativeItem item) {
-            final key = messageKeys.putIfAbsent(item.id, GlobalKey.new);
-            final ts = item.timestamp.toIso8601String().split('T').last;
-            final content = ContentRenderer(
-              content: item.content,
-              contentType: item.contentType,
-              isStale: false,
-              onLinkTap: onLinkTap,
-              monospace: monospaceNarrative,
-            );
-            return Container(
-              key: key,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (showNarrativeMeta) ...[
-                    Row(
-                      children: [
-                        Text(
-                          ts,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: cs.outline,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          item.contentType,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: cs.outline,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                  ],
-                  if (item.metadata?.thumbnail case final thumbnail?)
-                    _NarrativeThumbnailLayout(
-                      thumbnail: thumbnail.data,
-                      content: content,
-                    )
-                  else
-                    content,
-                  if (item.metadata?.linkPreview case final preview?)
-                    LinkPreviewCard(
-                      preview: preview,
-                      onTap: onLinkTap,
-                    ),
-                ],
-              ),
-            );
-          }
-
-          final hint = first.presentationHint;
-          final isInset = hint == 'inset';
-          final isHintGroup =
-              hint != null &&
-              first.groupId != null &&
-              group.every(
-                (m) => m.presentationHint == hint && m.groupId == first.groupId,
+            Widget buildMessage(NarrativeItem item) {
+              final key = messageKeys.putIfAbsent(item.id, GlobalKey.new);
+              final ts = item.timestamp.toIso8601String().split('T').last;
+              final content = ContentRenderer(
+                content: item.content,
+                contentType: item.contentType,
+                isStale: false,
+                onLinkTap: onLinkTap,
+                monospace: monospaceNarrative,
               );
-
-          final inner = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final item in group) buildMessage(item),
-            ],
-          );
-
-          if (!isInset) {
-            return inner;
-          }
-
-          if (group.length == 1 && !isHintGroup) {
-            return inner;
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Semantics(
-              container: true,
-              label: 'Inset',
-              child: Card(
-                elevation: 0,
-                color: cs.surfaceContainerLow,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: cs.primary,
-                    width: 2,
+              return Semantics(
+                container: true,
+                readOnly: true,
+                label: _semanticTextForNarrativeItem(item),
+                child: Container(
+                  key: key,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (showNarrativeMeta) ...[
+                        Row(
+                          children: [
+                            Text(
+                              ts,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: cs.outline,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              item.contentType,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: cs.outline,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                      if (item.metadata?.thumbnail case final thumbnail?)
+                        _NarrativeThumbnailLayout(
+                          thumbnail: thumbnail.data,
+                          content: content,
+                        )
+                      else
+                        content,
+                      if (item.metadata?.linkPreview case final preview?)
+                        LinkPreviewCard(
+                          preview: preview,
+                          onTap: onLinkTap,
+                        ),
+                    ],
                   ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: inner,
+              );
+            }
+
+            final hint = first.presentationHint;
+            final isInset = hint == 'inset';
+            final isHintGroup =
+                hint != null &&
+                first.groupId != null &&
+                group.every(
+                  (m) =>
+                      m.presentationHint == hint && m.groupId == first.groupId,
+                );
+
+            final inner = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final item in group) buildMessage(item),
+              ],
+            );
+
+            if (!isInset) {
+              return inner;
+            }
+
+            if (group.length == 1 && !isHintGroup) {
+              return inner;
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Semantics(
+                container: true,
+                label: 'Inset',
+                child: Card(
+                  elevation: 0,
+                  color: cs.surfaceContainerLow,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: cs.primary,
+                      width: 2,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: inner,
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
+}
+
+String _semanticTextForNarrativeItem(NarrativeItem item) {
+  final ttsText = item.metadata?.ttsText;
+  if (ttsText != null && ttsText.trim().isNotEmpty) {
+    return ttsText.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  final joined = item.content.join('\n').trim();
+  if (joined.isEmpty) {
+    return item.contentType;
+  }
+
+  if (item.contentType == 'text/html') {
+    final text = html_parser.parseFragment(joined).text ?? '';
+    return text.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+  }
+
+  return joined.replaceAll(RegExp(r'\s+'), ' ');
 }
 
 bool _sameActor(NarrativeItem a, NarrativeItem b) {

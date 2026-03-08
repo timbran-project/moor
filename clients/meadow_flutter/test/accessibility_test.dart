@@ -343,6 +343,7 @@ void main() {
         );
 
         expect(find.bySemanticsLabel('Inset'), findsOneWidget);
+        expect(find.bySemanticsLabel('Narrative output'), findsOneWidget);
       } finally {
         handle.dispose();
       }
@@ -664,6 +665,7 @@ void main() {
                       actorCurie: null,
                       actorName: null,
                       verb: null,
+                      ttsText: null,
                       content: null,
                       thumbnail: null,
                       linkPreview: LinkPreviewData(

@@ -85,6 +85,7 @@ NarrativeItem _item({
       actorCurie: null,
       actorName: null,
       verb: null,
+      ttsText: null,
       content: null,
       thumbnail: null,
       linkPreview: null,
