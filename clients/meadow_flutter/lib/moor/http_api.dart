@@ -400,6 +400,40 @@ class MoorHttpApi {
     return value;
   }
 
+  Future<moor_rpc.VerbsReply> getVerbs({
+    required String authToken,
+    required String objectCurie,
+    bool inherited = true,
+  }) async {
+    final uri = _resolve('/v1/verbs/$objectCurie').replace(
+      queryParameters: inherited ? const {'inherited': 'true'} : null,
+    );
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('verbs: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('verbs http ${resp.statusCode}: ${resp.reasonPhrase}');
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'verbs');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType != moor_rpc.DaemonToClientReplyUnionTypeId.VerbsReply.value) {
+      throw Exception('verbs: unexpected reply type $replyType');
+    }
+    final value = reply.reply as moor_rpc.VerbsReply?;
+    if (value == null) {
+      throw Exception('verbs: missing VerbsReply');
+    }
+    return value;
+  }
+
   Uint8List _emptyArgsVarBytes() {
     // Equivalent to Meadow web's MoorVar.buildEmptyList().
     return moor_var.VarObjectBuilder(
@@ -535,6 +569,43 @@ class MoorHttpApi {
     return value;
   }
 
+  Future<moor_rpc.PropertiesReply> getProperties({
+    required String authToken,
+    required String objectCurie,
+    bool inherited = true,
+  }) async {
+    final uri = _resolve('/v1/properties/$objectCurie').replace(
+      queryParameters: inherited ? const {'inherited': 'true'} : null,
+    );
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('properties: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'properties http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'properties');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc.DaemonToClientReplyUnionTypeId.PropertiesReply.value) {
+      throw Exception('properties: unexpected reply type $replyType');
+    }
+    final value = reply.reply as moor_rpc.PropertiesReply?;
+    if (value == null) {
+      throw Exception('properties: missing PropertiesReply');
+    }
+    return value;
+  }
+
   Future<moor_rpc.PropertyUpdated> updateProperty({
     required String authToken,
     required String objectCurie,
@@ -576,6 +647,37 @@ class MoorHttpApi {
       throw Exception('update property: missing PropertyUpdated');
     }
     return updated;
+  }
+
+  Future<moor_rpc.ListObjectsReply> listObjects({
+    required String authToken,
+  }) async {
+    final uri = _resolve('/v1/objects');
+    final resp = await http.get(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+      },
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('objects: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('objects http ${resp.statusCode}: ${resp.reasonPhrase}');
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'objects');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType !=
+        moor_rpc.DaemonToClientReplyUnionTypeId.ListObjectsReply.value) {
+      throw Exception('objects: unexpected reply type $replyType');
+    }
+    final value = reply.reply as moor_rpc.ListObjectsReply?;
+    if (value == null) {
+      throw Exception('objects: missing ListObjectsReply');
+    }
+    return value;
   }
 
   Future<List<EncryptedHistoricalEvent>> fetchHistory({

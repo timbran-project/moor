@@ -19,6 +19,7 @@ class SessionAppBarActions extends StatelessWidget {
   final VoidCallback onToggleDebugPanel;
   final VoidCallback onShowSettings;
   final VoidCallback onShowAccount;
+  final VoidCallback? onShowObjectBrowser;
 
   const SessionAppBarActions({
     super.key,
@@ -26,6 +27,7 @@ class SessionAppBarActions extends StatelessWidget {
     required this.onToggleDebugPanel,
     required this.onShowSettings,
     required this.onShowAccount,
+    this.onShowObjectBrowser,
   });
 
   @override
@@ -45,6 +47,12 @@ class SessionAppBarActions extends StatelessWidget {
           tooltip: 'Account',
           icon: const Icon(Icons.account_circle_outlined),
         ),
+        if (onShowObjectBrowser != null)
+          IconButton(
+            onPressed: onShowObjectBrowser,
+            tooltip: 'Object Browser',
+            icon: const Icon(Icons.dashboard_outlined),
+          ),
         IconButton(
           onPressed: onShowSettings,
           tooltip: 'Settings',

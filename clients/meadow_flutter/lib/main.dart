@@ -44,6 +44,7 @@ import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_feed_controller.dart';
 import 'package:meadow_flutter/moor/oauth2_pending_flow_store.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
+import 'package:meadow_flutter/moor/object_browser_controller.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
 import 'package:meadow_flutter/moor/session_bootstrap.dart';
@@ -58,6 +59,7 @@ import 'package:meadow_flutter/moor/web_navigation_stub.dart'
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/account_sheet.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
+import 'package:meadow_flutter/widgets/object_browser_sheet.dart';
 import 'package:meadow_flutter/widgets/session_app_bar_actions.dart';
 import 'package:meadow_flutter/widgets/session_command_controller.dart';
 import 'package:meadow_flutter/widgets/session_command_input_bar.dart';
@@ -1262,6 +1264,8 @@ class _SessionScreenState extends State<SessionScreen> {
         baseUri: widget.session.baseUri,
         authToken: widget.session.authToken,
       );
+  bool get _canUseObjectBrowser =>
+      (widget.session.playerFlags & ((1 << 1) | (1 << 2))) != 0;
   late final SessionViewController _sessionViewController =
       widget.controllers?.sessionViewController ?? SessionViewController();
   late final InputPromptController _inputPromptController =
@@ -1668,6 +1672,29 @@ class _SessionScreenState extends State<SessionScreen> {
           },
         );
       },
+    );
+  }
+
+  Future<void> _showObjectBrowser() async {
+    if (!_canUseObjectBrowser) {
+      return;
+    }
+    final controller = ObjectBrowserController(
+      api: MoorHttpApi(widget.session.baseUri),
+      authToken: widget.session.authToken,
+      initialObjectCurie: widget.session.playerCurie,
+    );
+    final presenter = SessionEditorPresenter(
+      baseUri: widget.session.baseUri,
+      authToken: widget.session.authToken,
+    );
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ObjectBrowserSheet(
+          controller: controller,
+          editorPresenter: presenter,
+        ),
+      ),
     );
   }
 
@@ -2473,6 +2500,11 @@ class _SessionScreenState extends State<SessionScreen> {
               onShowAccount: () {
                 unawaited(_showAccountSheet());
               },
+              onShowObjectBrowser: _canUseObjectBrowser
+                  ? () {
+                      unawaited(_showObjectBrowser());
+                    }
+                  : null,
               onShowSettings: () {
                 unawaited(_showSettingsSheet());
               },
