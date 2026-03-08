@@ -65,6 +65,23 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     return _canEditOwner(verb.ownerCurie);
   }
 
+  bool _canAddMembers(BrowserObjectEntry object) {
+    return _canEditOwner(object.ownerCurie);
+  }
+
+  bool _canDeleteProperty(BrowserPropertyEntry property) {
+    final selectedObjectCurie = widget.controller.selectedObject?.objectCurie;
+    if (selectedObjectCurie == null ||
+        property.definerCurie != selectedObjectCurie) {
+      return false;
+    }
+    return _canEditOwner(property.ownerCurie);
+  }
+
+  bool _canDeleteVerb(BrowserVerbEntry verb) {
+    return _canEditVerbMetadata(verb);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -933,6 +950,773 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     namesController.dispose();
   }
 
+  Future<void> _showAddPropertyDialog() async {
+    final object = widget.controller.selectedObject;
+    if (object == null) {
+      return;
+    }
+    final nameController = TextEditingController();
+    final valueController = TextEditingController(text: '0');
+    final ownerController = TextEditingController(
+      text: _formatObjectRef(widget.currentPlayerCurie),
+    );
+    var readable = true;
+    var writable = true;
+    var chown = false;
+    var saving = false;
+    String? errorText;
+    final canAdd = _canAddMembers(object);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submit() async {
+              if (!canAdd) {
+                setDialogState(() {
+                  errorText =
+                      'Only the owner or a wizard can add properties here.';
+                });
+                return;
+              }
+              final name = nameController.text.trim();
+              if (name.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Property name cannot be empty.';
+                });
+                return;
+              }
+              final valueExpr = valueController.text.trim();
+              if (valueExpr.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Value expression cannot be empty.';
+                });
+                return;
+              }
+              final ownerExpr = _isWizard
+                  ? _normalizeObjectExpr(ownerController.text)
+                  : _formatObjectRef(widget.currentPlayerCurie);
+              if (ownerExpr.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Owner cannot be empty.';
+                });
+                return;
+              }
+              final perms = [
+                if (readable) 'r',
+                if (writable) 'w',
+                if (chown) 'c',
+              ].join();
+
+              setDialogState(() {
+                saving = true;
+                errorText = null;
+              });
+              try {
+                final objectExpr = _normalizeObjectExpr(object.objectCurie);
+                await _runEval(
+                  'return add_property($objectExpr, "${_escapeMooString(name)}", $valueExpr, {$ownerExpr, "$perms"});',
+                );
+                final propertyKey =
+                    '${object.objectCurie}:${nameController.text.trim()}';
+                await widget.controller.refreshSelectedObjectWithSelection(
+                  selectedPropertyKey: propertyKey,
+                );
+                final addedProperty = widget.controller.properties
+                    .cast<BrowserPropertyEntry?>()
+                    .firstWhere(
+                      (entry) =>
+                          entry?.name == name &&
+                          entry?.definerCurie == object.objectCurie,
+                      orElse: () => null,
+                    );
+                if (addedProperty != null) {
+                  widget.controller.selectProperty(addedProperty);
+                }
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                _showSnackBar('Property "$name" added');
+              } on Object catch (e) {
+                setDialogState(() {
+                  saving = false;
+                  errorText = '$e';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text(
+                'Add property to ${_formatObjectRef(object.objectCurie)}',
+              ),
+              content: SizedBox(
+                width: 460,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: nameController,
+                        enabled: !saving && canAdd,
+                        decoration: const InputDecoration(
+                          labelText: 'Name',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: valueController,
+                        enabled: !saving && canAdd,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Initial value (MOO expression)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      if (_isWizard) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: ownerController,
+                          enabled: !saving && canAdd,
+                          decoration: const InputDecoration(
+                            labelText: 'Owner (wizard only)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Text(
+                        'Permissions',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Readable'),
+                        value: readable,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) => setDialogState(
+                                () => readable = value ?? false,
+                              ),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Writable'),
+                        value: writable,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) => setDialogState(
+                                () => writable = value ?? false,
+                              ),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Chown'),
+                        value: chown,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) =>
+                                  setDialogState(() => chown = value ?? false),
+                      ),
+                      if (!canAdd) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Only the owner or a wizard can add properties here.',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (errorText != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          errorText!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving || !canAdd ? null : submit,
+                  child: Text(saving ? 'Adding…' : 'Add Property'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+    valueController.dispose();
+    ownerController.dispose();
+  }
+
+  Future<void> _showDeletePropertyDialog(BrowserPropertyEntry property) async {
+    final canDelete = _canDeleteProperty(property);
+    var deleting = false;
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submit() async {
+              if (!canDelete) {
+                setDialogState(() {
+                  errorText =
+                      'Only local properties owned by you, or properties deleted as a wizard, can be removed.';
+                });
+                return;
+              }
+              setDialogState(() {
+                deleting = true;
+                errorText = null;
+              });
+              try {
+                final objectExpr = _normalizeObjectExpr(property.definerCurie);
+                await _runEval(
+                  'return delete_property($objectExpr, "${_escapeMooString(property.name)}");',
+                );
+                widget.controller.closeSessionByPresentationId(
+                  ObjectBrowserController.propertyPresentationId(property),
+                );
+                widget.controller.clearSelectedProperty();
+                await widget.controller.refreshSelectedObjectWithSelection(
+                  selectedVerbKey: widget.controller.selectedVerbKey,
+                );
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                _showSnackBar('Property "${property.name}" deleted');
+              } on Object catch (e) {
+                setDialogState(() {
+                  deleting = false;
+                  errorText = '$e';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text('Delete property ${property.name}?'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'This will remove ${property.name} from ${_formatObjectRef(property.definerCurie)}.',
+                    ),
+                    if (!canDelete) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Only local properties owned by you, or properties deleted as a wizard, can be removed.',
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: deleting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: deleting || !canDelete ? null : submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
+                  child: Text(deleting ? 'Deleting…' : 'Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showAddVerbDialog() async {
+    final object = widget.controller.selectedObject;
+    if (object == null) {
+      return;
+    }
+    final namesController = TextEditingController();
+    final ownerController = TextEditingController(
+      text: _formatObjectRef(widget.currentPlayerCurie),
+    );
+    const dobjOptions = <String>['none', 'any', 'this'];
+    const iobjOptions = <String>['none', 'any', 'this'];
+    const prepOptions = <String>[
+      'none',
+      'any',
+      'with',
+      'using',
+      'at',
+      'to',
+      'in front of',
+      'in',
+      'on top of',
+      'on',
+      'onto',
+      'upon',
+      'out of',
+      'from inside',
+      'from',
+      'over',
+      'through',
+      'under',
+      'underneath',
+      'beneath',
+      'behind',
+      'beside',
+      'for',
+      'is',
+      'as',
+      'off of',
+      'off',
+    ];
+    var selectedDobj = 'this';
+    var selectedPrep = 'none';
+    var selectedIobj = 'this';
+    var readable = true;
+    var writable = false;
+    var executable = true;
+    var debug = true;
+    var saving = false;
+    String? errorText;
+    final canAdd = _canAddMembers(object);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submit() async {
+              if (!canAdd) {
+                setDialogState(() {
+                  errorText = 'Only the owner or a wizard can add verbs here.';
+                });
+                return;
+              }
+              final names = namesController.text.trim();
+              if (names.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Verb names cannot be empty.';
+                });
+                return;
+              }
+              final ownerExpr = _isWizard
+                  ? _normalizeObjectExpr(ownerController.text)
+                  : _formatObjectRef(widget.currentPlayerCurie);
+              if (ownerExpr.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Owner cannot be empty.';
+                });
+                return;
+              }
+              final perms = [
+                if (readable) 'r',
+                if (writable) 'w',
+                if (executable) 'x',
+                if (debug) 'd',
+              ].join();
+
+              setDialogState(() {
+                saving = true;
+                errorText = null;
+              });
+              try {
+                final objectExpr = _normalizeObjectExpr(object.objectCurie);
+                await _runEval(
+                  'return add_verb($objectExpr, {$ownerExpr, "$perms", "${_escapeMooString(names)}"}, {"${_escapeMooString(selectedDobj)}", "${_escapeMooString(selectedPrep)}", "${_escapeMooString(selectedIobj)}"});',
+                );
+                await widget.controller.refreshSelectedObject();
+                final addedVerb = widget.controller.verbs
+                    .cast<BrowserVerbEntry?>()
+                    .firstWhere(
+                      (entry) =>
+                          entry != null &&
+                          entry.locationCurie == object.objectCurie &&
+                          entry.names.join(' ') == names,
+                      orElse: () => null,
+                    );
+                if (addedVerb != null) {
+                  widget.controller.selectVerb(addedVerb);
+                }
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                _showSnackBar('Verb "$names" added');
+              } on Object catch (e) {
+                setDialogState(() {
+                  saving = false;
+                  errorText = '$e';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text(
+                'Add verb to ${_formatObjectRef(object.objectCurie)}',
+              ),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: namesController,
+                        enabled: !saving && canAdd,
+                        decoration: const InputDecoration(
+                          labelText: 'Names',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      if (_isWizard) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: ownerController,
+                          enabled: !saving && canAdd,
+                          decoration: const InputDecoration(
+                            labelText: 'Owner (wizard only)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Text(
+                        'Permissions',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Readable'),
+                        value: readable,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) => setDialogState(
+                                () => readable = value ?? false,
+                              ),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Writable'),
+                        value: writable,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) => setDialogState(
+                                () => writable = value ?? false,
+                              ),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Executable'),
+                        value: executable,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) => setDialogState(
+                                () => executable = value ?? false,
+                              ),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Debug'),
+                        value: debug,
+                        onChanged: saving || !canAdd
+                            ? null
+                            : (value) =>
+                                  setDialogState(() => debug = value ?? false),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Argspec',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedDobj,
+                              decoration: const InputDecoration(
+                                labelText: 'Direct object',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                for (final option in dobjOptions)
+                                  DropdownMenuItem<String>(
+                                    value: option,
+                                    child: Text(option),
+                                  ),
+                              ],
+                              onChanged: saving || !canAdd
+                                  ? null
+                                  : (value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+                                      setDialogState(() {
+                                        selectedDobj = value;
+                                      });
+                                    },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedPrep,
+                              decoration: const InputDecoration(
+                                labelText: 'Preposition',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                for (final option in prepOptions)
+                                  DropdownMenuItem<String>(
+                                    value: option,
+                                    child: Text(option),
+                                  ),
+                              ],
+                              onChanged: saving || !canAdd
+                                  ? null
+                                  : (value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+                                      setDialogState(() {
+                                        selectedPrep = value;
+                                      });
+                                    },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedIobj,
+                              decoration: const InputDecoration(
+                                labelText: 'Indirect object',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                for (final option in iobjOptions)
+                                  DropdownMenuItem<String>(
+                                    value: option,
+                                    child: Text(option),
+                                  ),
+                              ],
+                              onChanged: saving || !canAdd
+                                  ? null
+                                  : (value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+                                      setDialogState(() {
+                                        selectedIobj = value;
+                                      });
+                                    },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!canAdd) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Only the owner or a wizard can add verbs here.',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (errorText != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          errorText!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving || !canAdd ? null : submit,
+                  child: Text(saving ? 'Adding…' : 'Add Verb'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    namesController.dispose();
+    ownerController.dispose();
+  }
+
+  Future<void> _showDeleteVerbDialog(BrowserVerbEntry verb) async {
+    final canDelete = _canDeleteVerb(verb);
+    var deleting = false;
+    String? errorText;
+    final primaryName = verb.names.isEmpty ? '(unnamed)' : verb.names.first;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submit() async {
+              if (!canDelete) {
+                setDialogState(() {
+                  errorText =
+                      'Only local verbs owned by you, or verbs deleted as a wizard, can be removed.';
+                });
+                return;
+              }
+              setDialogState(() {
+                deleting = true;
+                errorText = null;
+              });
+              try {
+                final objectExpr = _normalizeObjectExpr(verb.locationCurie);
+                await _runEval(
+                  'return delete_verb($objectExpr, "${_escapeMooString(primaryName)}");',
+                );
+                widget.controller.closeSessionByPresentationId(
+                  ObjectBrowserController.verbPresentationId(verb),
+                );
+                widget.controller.clearSelectedVerb();
+                await widget.controller.refreshSelectedObjectWithSelection(
+                  selectedPropertyKey: widget.controller.selectedPropertyKey,
+                );
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                _showSnackBar('Verb "$primaryName" deleted');
+              } on Object catch (e) {
+                setDialogState(() {
+                  deleting = false;
+                  errorText = '$e';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text('Delete verb $primaryName?'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'This will remove $primaryName from ${_formatObjectRef(verb.locationCurie)}.',
+                    ),
+                    if (!canDelete) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Only local verbs owned by you, or verbs deleted as a wizard, can be removed.',
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    if (errorText != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorText!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: deleting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: deleting || !canDelete ? null : submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
+                  child: Text(deleting ? 'Deleting…' : 'Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   String _formatPropertyFlags(BrowserPropertyEntry property) {
     final parts = <String>[];
     if (property.readable) parts.add('r');
@@ -1190,6 +1974,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
   Widget _buildPropertiesPane() {
     final grouped = _groupedProperties();
     final selectedObject = widget.controller.selectedObject;
+    final canAdd = selectedObject != null && _canAddMembers(selectedObject);
     return _buildPane(
       title: 'PROPERTIES',
       count: widget.controller.filteredProperties.length,
@@ -1205,9 +1990,9 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
             activeIcon: Icons.account_tree,
             inactiveIcon: Icons.account_tree_outlined,
           ),
-          const FilledButton.tonal(
-            onPressed: null,
-            child: Text('+ Add'),
+          FilledButton.tonal(
+            onPressed: canAdd ? _showAddPropertyDialog : null,
+            child: const Text('+ Add'),
           ),
         ],
       ),
@@ -1267,6 +2052,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
   Widget _buildVerbsPane() {
     final grouped = _groupedVerbs();
     final selectedObject = widget.controller.selectedObject;
+    final canAdd = selectedObject != null && _canAddMembers(selectedObject);
     return _buildPane(
       title: 'VERBS',
       count: widget.controller.filteredVerbs.length,
@@ -1286,9 +2072,9 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
             onPressed: null,
             child: Text('Run Tests'),
           ),
-          const FilledButton.tonal(
-            onPressed: null,
-            child: Text('+ Add'),
+          FilledButton.tonal(
+            onPressed: canAdd ? _showAddVerbDialog : null,
+            child: const Text('+ Add'),
           ),
         ],
       ),
@@ -1550,6 +2336,18 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                       : null,
                   icon: const Icon(Icons.edit_outlined, size: 18),
                 ),
+                IconButton(
+                  tooltip: _canDeleteProperty(property)
+                      ? 'Delete property'
+                      : 'Only local properties owned by you, or properties deleted as a wizard, can be removed',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _canDeleteProperty(property)
+                      ? () {
+                          _showDeletePropertyDialog(property);
+                        }
+                      : null,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -1619,6 +2417,18 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                         }
                       : null,
                   icon: const Icon(Icons.edit_outlined, size: 18),
+                ),
+                IconButton(
+                  tooltip: _canDeleteVerb(verb)
+                      ? 'Delete verb'
+                      : 'Only local verbs owned by you, or verbs deleted as a wizard, can be removed',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _canDeleteVerb(verb)
+                      ? () {
+                          _showDeleteVerbDialog(verb);
+                        }
+                      : null,
+                  icon: const Icon(Icons.delete_outline, size: 18),
                 ),
               ],
             ),

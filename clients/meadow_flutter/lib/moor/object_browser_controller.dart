@@ -251,14 +251,24 @@ class ObjectBrowserController extends ChangeNotifier {
   }
 
   Future<void> refreshSelectedObject() async {
+    await refreshSelectedObjectWithSelection(
+      selectedPropertyKey: _selectedPropertyKey,
+      selectedVerbKey: _selectedVerbKey,
+    );
+  }
+
+  Future<void> refreshSelectedObjectWithSelection({
+    String? selectedPropertyKey,
+    String? selectedVerbKey,
+  }) async {
     final entry = _selectedObject;
     if (entry == null) {
       return;
     }
     await _loadMembersForSelection(
       entry,
-      selectedPropertyKey: _selectedPropertyKey,
-      selectedVerbKey: _selectedVerbKey,
+      selectedPropertyKey: selectedPropertyKey,
+      selectedVerbKey: selectedVerbKey,
     );
   }
 
@@ -300,10 +310,9 @@ class ObjectBrowserController extends ChangeNotifier {
     _selectedPropertyKey = propertyKey(entry);
     _selectedVerbKey = null;
     final session = PropertyEditorSession(
-      id: 'object-browser:property:${entry.definerCurie}:${entry.name}',
+      id: propertyPresentationId(entry),
       title: entry.name,
-      presentationId:
-          'object-browser:property:${entry.definerCurie}:${entry.name}',
+      presentationId: propertyPresentationId(entry),
       objectCurie: entry.definerCurie,
       propertyName: entry.name,
       isValueEditor: false,
@@ -316,14 +325,23 @@ class ObjectBrowserController extends ChangeNotifier {
     _selectedVerbKey = verbKey(entry);
     final primaryName = entry.names.isEmpty ? '(unnamed)' : entry.names.first;
     final session = VerbEditorSession(
-      id: 'object-browser:verb:${entry.locationCurie}:${entry.indexInLocation}',
+      id: verbPresentationId(entry),
       title: primaryName,
-      presentationId:
-          'object-browser:verb:${entry.locationCurie}:${entry.indexInLocation}',
+      presentationId: verbPresentationId(entry),
       objectCurie: entry.locationCurie,
       verbName: primaryName,
     );
     _upsertSession(session);
+  }
+
+  void clearSelectedProperty() {
+    _selectedPropertyKey = null;
+    notifyListeners();
+  }
+
+  void clearSelectedVerb() {
+    _selectedVerbKey = null;
+    notifyListeners();
   }
 
   void closeSession(EditorSession session) {
@@ -353,8 +371,27 @@ class ObjectBrowserController extends ChangeNotifier {
     return '${entry.definerCurie}:${entry.name}';
   }
 
+  static String propertyPresentationId(BrowserPropertyEntry entry) {
+    return 'object-browser:property:${entry.definerCurie}:${entry.name}';
+  }
+
   static String verbKey(BrowserVerbEntry entry) {
     return '${entry.locationCurie}:${entry.indexInLocation}';
+  }
+
+  static String verbPresentationId(BrowserVerbEntry entry) {
+    return 'object-browser:verb:${entry.locationCurie}:${entry.indexInLocation}';
+  }
+
+  void closeSessionByPresentationId(String presentationId) {
+    final session = _editorSessions.cast<EditorSession?>().firstWhere(
+      (item) => item?.presentationId == presentationId,
+      orElse: () => null,
+    );
+    if (session == null) {
+      return;
+    }
+    closeSession(session);
   }
 
   BrowserObjectEntry? _resolveInitialSelection(
