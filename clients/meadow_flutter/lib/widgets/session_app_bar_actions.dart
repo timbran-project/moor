@@ -14,25 +14,18 @@
 
 import 'package:flutter/material.dart';
 
-enum SessionAccountAction {
-  historyEncryption,
-  logout,
-}
-
 class SessionAppBarActions extends StatelessWidget {
   final bool debugPanelVisible;
-  final String playerCurie;
   final VoidCallback onToggleDebugPanel;
   final VoidCallback onShowSettings;
-  final ValueChanged<SessionAccountAction> onSelectAccountAction;
+  final VoidCallback onShowAccount;
 
   const SessionAppBarActions({
     super.key,
     required this.debugPanelVisible,
-    required this.playerCurie,
     required this.onToggleDebugPanel,
     required this.onShowSettings,
-    required this.onSelectAccountAction,
+    required this.onShowAccount,
   });
 
   @override
@@ -48,34 +41,14 @@ class SessionAppBarActions extends StatelessWidget {
           ),
         ),
         IconButton(
+          onPressed: onShowAccount,
+          tooltip: 'Account',
+          icon: const Icon(Icons.account_circle_outlined),
+        ),
+        IconButton(
           onPressed: onShowSettings,
           tooltip: 'Settings',
           icon: const Icon(Icons.settings_outlined),
-        ),
-        PopupMenuButton<SessionAccountAction>(
-          tooltip: 'Account',
-          icon: const Icon(Icons.account_circle_outlined),
-          onSelected: onSelectAccountAction,
-          itemBuilder: (context) {
-            return [
-              PopupMenuItem<SessionAccountAction>(
-                enabled: false,
-                child: Text(
-                  playerCurie,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem<SessionAccountAction>(
-                value: SessionAccountAction.historyEncryption,
-                child: Text('History encryption'),
-              ),
-              const PopupMenuItem<SessionAccountAction>(
-                value: SessionAccountAction.logout,
-                child: Text('Logout'),
-              ),
-            ];
-          },
         ),
       ],
     );

@@ -12,12 +12,18 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meadow_flutter/main.dart';
+import 'package:meadow_flutter/moor/account_profile_controller.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/editor_sessions.dart';
+import 'package:meadow_flutter/moor/history_encryption_controller.dart';
+import 'package:meadow_flutter/moor/history_export_controller.dart';
+import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
 import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/link_preview.dart';
@@ -27,6 +33,7 @@ import 'package:meadow_flutter/moor/object_ref.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_snapshot.dart';
 import 'package:meadow_flutter/moor/session_view_controller.dart';
+import 'package:meadow_flutter/widgets/account_sheet.dart';
 import 'package:meadow_flutter/widgets/command_controller.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
 import 'package:meadow_flutter/widgets/room_snapshot_widget.dart';
@@ -177,22 +184,73 @@ void main() {
           _wrap(
             child: SessionAppBarActions(
               debugPanelVisible: false,
-              playerCurie: 'oid:1',
               onToggleDebugPanel: () {},
+              onShowAccount: () {},
               onShowSettings: () {},
-              onSelectAccountAction: (_) {},
             ),
           ),
         );
 
         expect(find.byTooltip('Show debug panel'), findsOneWidget);
-        expect(find.byTooltip('Settings'), findsOneWidget);
         expect(find.byTooltip('Account'), findsOneWidget);
+        expect(find.byTooltip('Settings'), findsOneWidget);
+      } finally {
+        handle.dispose();
+      }
+    });
 
-        await tester.tap(find.byIcon(Icons.account_circle_outlined));
-        await tester.pumpAndSettle();
+    testWidgets('account sheet exposes profile and encryption controls', (
+      WidgetTester tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      try {
+        final profileController = AccountProfileController(
+          api: MoorHttpApi(Uri(scheme: 'http', host: 'localhost')),
+        );
+        final encryptionController = HistoryEncryptionController(
+          getLocalIdentity: (_) async => null,
+          setLocalIdentity:
+              ({required playerOid, required ageIdentity}) async {},
+          removeLocalIdentity: (_) async {},
+          getBackendPubkey: ({required authToken}) async => null,
+          setBackendPubkey: ({required authToken, required publicKey}) async {},
+          deriveKeyBytes: ({required password, required identifier}) async =>
+              Uint8List(0),
+          identityFromDerivedBytes: (_) => '',
+          publicKeyFromDerivedBytes: (_) async => '',
+        );
+        final exportController = HistoryExportController();
+        addTearDown(profileController.dispose);
+        addTearDown(encryptionController.dispose);
+        addTearDown(exportController.dispose);
 
-        expect(find.text('History encryption'), findsOneWidget);
+        await tester.pumpWidget(
+          _wrap(
+            child: AccountSheet(
+              playerCurie: 'oid:1',
+              profileController: profileController,
+              historyEncryptionController: encryptionController,
+              historyExportController: exportController,
+              onPickProfilePicture: () {},
+              onEditDescription: () {},
+              onPronounsChanged: (_) {},
+              onSetupEncryption: () {},
+              onUnlockEncryption: () {},
+              onForgetLocalKey: () {},
+              onExportHistory: () {},
+              onDeleteHistory: () {},
+              onLogout: () {},
+            ),
+          ),
+        );
+
+        expect(find.text('Account'), findsOneWidget);
+        expect(find.text('Profile Picture'), findsOneWidget);
+        expect(find.text('Description'), findsOneWidget);
+        expect(find.text('Security'), findsOneWidget);
+        expect(find.text('Upload Picture'), findsOneWidget);
+        expect(find.text('Add Description'), findsOneWidget);
+        expect(find.text('Set Up Encryption'), findsOneWidget);
         expect(find.text('Logout'), findsOneWidget);
       } finally {
         handle.dispose();

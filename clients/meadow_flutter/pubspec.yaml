@@ -35,8 +35,10 @@ dependencies:
   bech32: ^0.2.2
   chat_bubbles: ^1.6.0
   collection: ^1.18.0
+  crop_image: ^1.0.16
   cryptography: ^2.9.0
   cupertino_icons: ^1.0.8
+  file_selector: ^1.0.3
   flat_buffers: ^25.9.23
   flutter:
     sdk: flutter

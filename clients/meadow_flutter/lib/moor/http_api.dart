@@ -641,6 +641,34 @@ class MoorHttpApi {
     return out;
   }
 
+  Future<bool> deleteEventLogHistory({
+    required String authToken,
+  }) async {
+    final uri = _resolve('/v1/event-log/history');
+    final resp = await http.delete(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/json',
+      },
+    );
+
+    if (resp.statusCode == 401) {
+      throw Exception('event-log history delete: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'event-log history delete http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! Map) {
+      throw Exception('event-log history delete: invalid json');
+    }
+    return decoded['success'] == true;
+  }
+
   moor_rpc.DaemonToClientReply _parseClientSuccess(
     Uint8List bytes, {
     required String context,

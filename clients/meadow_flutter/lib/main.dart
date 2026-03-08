@@ -13,11 +13,15 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
+import 'package:meadow_flutter/moor/account_profile_controller.dart';
 import 'package:meadow_flutter/moor/age_decrypt.dart';
 import 'package:meadow_flutter/moor/args.dart';
 import 'package:meadow_flutter/moor/content_renderer.dart';
@@ -27,6 +31,7 @@ import 'package:meadow_flutter/moor/editor_sessions.dart';
 import 'package:meadow_flutter/moor/event_log_encryption.dart';
 import 'package:meadow_flutter/moor/event_log_keystore.dart';
 import 'package:meadow_flutter/moor/history_encryption_controller.dart';
+import 'package:meadow_flutter/moor/history_export_controller.dart';
 import 'package:meadow_flutter/moor/history_loader.dart';
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/input_prompt.dart';
@@ -46,6 +51,7 @@ import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
+import 'package:meadow_flutter/widgets/account_sheet.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
 import 'package:meadow_flutter/widgets/session_app_bar_actions.dart';
 import 'package:meadow_flutter/widgets/session_command_controller.dart';
@@ -948,6 +954,12 @@ class _SessionScreenState extends State<SessionScreen> {
         identityFromDerivedBytes: EventLogEncryption.identityFromDerivedBytes,
         publicKeyFromDerivedBytes: EventLogEncryption.publicKeyFromDerivedBytes,
       );
+  late final HistoryExportController _historyExportController =
+      HistoryExportController();
+  late final AccountProfileController _accountProfileController =
+      AccountProfileController(
+        api: MoorHttpApi(widget.session.baseUri),
+      );
   late final RoomLookController _roomLookController = RoomLookController();
   late final SessionConnectionController _sessionConnectionController =
       widget.controllers?.sessionConnectionController ??
@@ -1033,6 +1045,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _historyEncryptionController
       ..removeListener(_onHistoryEncryptionChanged)
       ..dispose();
+    _accountProfileController.dispose();
+    _historyExportController.dispose();
     _inputPromptController.removeListener(_onInputPromptChanged);
     _narrativeFeedController.removeListener(_onNarrativeFeedChanged);
     _roomLookController
@@ -1312,41 +1326,6 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Future<void> _showEncryptionMenu() async {
-    final playerOid = widget.session.playerCurie;
-    final backendHas = _historyEncryptionController.backendHasPubkey;
-    final localHas = _historyEncryptionController.hasLocalKey;
-
-    final choice = await showHistoryEncryptionDialog(
-      context,
-      playerOid: playerOid,
-      backendHasPubkey: backendHas,
-      hasLocalKey: localHas,
-    );
-
-    if (!mounted) return;
-    switch (choice) {
-      case HistoryEncryptionAction.setup:
-        {
-          final password = await _promptHistoryPassword();
-          if (!mounted) return;
-          if (password == null || password.isEmpty) return;
-          await _setupEncryption(password);
-        }
-      case HistoryEncryptionAction.unlock:
-        {
-          final password = await _promptHistoryPassword();
-          if (!mounted) return;
-          if (password == null || password.isEmpty) return;
-          await _unlockEncryption(password);
-        }
-      case HistoryEncryptionAction.forget:
-        await _forgetLocalEncryptionKey();
-      case null:
-        break;
-    }
-  }
-
   Future<String?> _promptHistoryPassword() async {
     return showTextPromptDialog(
       context,
@@ -1355,6 +1334,261 @@ class _SessionScreenState extends State<SessionScreen> {
       labelText: 'Password',
       obscureText: true,
     );
+  }
+
+  Future<void> _showAccountSheet() async {
+    await _accountProfileController.load(
+      authToken: widget.session.authToken,
+      playerCurie: widget.session.playerCurie,
+      onStatus: _appendSystem,
+    );
+    if (!mounted) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return AccountSheet(
+          playerCurie: widget.session.playerCurie,
+          profileController: _accountProfileController,
+          historyEncryptionController: _historyEncryptionController,
+          historyExportController: _historyExportController,
+          onPickProfilePicture: () {
+            unawaited(_pickProfilePicture());
+          },
+          onEditDescription: () {
+            unawaited(_editProfileDescription());
+          },
+          onPronounsChanged: (value) {
+            unawaited(_updatePronouns(value));
+          },
+          onSetupEncryption: () {
+            unawaited(_promptAndSetupEncryption());
+          },
+          onUnlockEncryption: () {
+            unawaited(_promptAndUnlockEncryption());
+          },
+          onForgetLocalKey: () {
+            unawaited(_forgetLocalEncryptionKey());
+          },
+          onExportHistory: () {
+            unawaited(_exportHistory());
+          },
+          onDeleteHistory: () {
+            unawaited(_confirmDeleteHistory());
+          },
+          onLogout: () {
+            Navigator.of(context).pop();
+            unawaited(_logout());
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _promptAndSetupEncryption() async {
+    final password = await _promptHistoryPassword();
+    if (!mounted || password == null || password.isEmpty) {
+      return;
+    }
+    await _setupEncryption(password);
+  }
+
+  Future<void> _promptAndUnlockEncryption() async {
+    final password = await _promptHistoryPassword();
+    if (!mounted || password == null || password.isEmpty) {
+      return;
+    }
+    await _unlockEncryption(password);
+  }
+
+  Future<void> _editProfileDescription() async {
+    final next = await showTextPromptDialog(
+      context,
+      title: 'Profile Description',
+      confirmLabel: 'Save',
+      labelText: 'Description',
+      hintText: 'Tell people about your character',
+      initialValue: _accountProfileController.playerDescription ?? '',
+      minLines: 4,
+      maxLines: 8,
+    );
+    if (!mounted || next == null) {
+      return;
+    }
+    final ok = await _accountProfileController.updateDescription(
+      authToken: widget.session.authToken,
+      playerCurie: widget.session.playerCurie,
+      description: next,
+      onStatus: _appendSystem,
+    );
+    _showUserMessage(
+      ok ? 'Profile description saved' : 'Profile description save failed',
+    );
+  }
+
+  Future<void> _updatePronouns(String value) async {
+    final ok = await _accountProfileController.updatePronouns(
+      authToken: widget.session.authToken,
+      playerCurie: widget.session.playerCurie,
+      pronouns: value,
+      onStatus: _appendSystem,
+    );
+    _showUserMessage(ok ? 'Pronouns saved' : 'Pronouns save failed');
+  }
+
+  Future<void> _pickProfilePicture() async {
+    const imageGroup = XTypeGroup(
+      label: 'images',
+      extensions: <String>['png', 'jpg', 'jpeg', 'gif', 'webp'],
+      mimeTypes: <String>[
+        'image/png',
+        'image/jpeg',
+        'image/gif',
+        'image/webp',
+      ],
+    );
+    XFile? selected;
+    try {
+      selected = await openFile(
+        acceptedTypeGroups: <XTypeGroup>[imageGroup],
+      );
+    } on PlatformException catch (e) {
+      const message =
+          'Profile picture picker unavailable. Restart the Linux app and try again.';
+      _appendSystem('$message ($e)');
+      _showUserMessage(message);
+      return;
+    } on Object catch (e) {
+      const message = 'Profile picture picker failed.';
+      _appendSystem('$message $e');
+      _showUserMessage(message);
+      return;
+    }
+    if (selected == null) {
+      return;
+    }
+    final bytes = await selected.readAsBytes();
+    if (!mounted) {
+      return;
+    }
+    final cropped = await showProfilePictureCropDialog(
+      context,
+      imageBytes: bytes,
+    );
+    if (!mounted || cropped == null || cropped.isEmpty) {
+      return;
+    }
+    const contentType = 'image/png';
+    final ok = await _accountProfileController.uploadProfilePicture(
+      authToken: widget.session.authToken,
+      playerCurie: widget.session.playerCurie,
+      contentType: contentType,
+      data: cropped,
+      onStatus: _appendSystem,
+    );
+    _showUserMessage(
+      ok ? 'Profile picture saved' : 'Profile picture save failed',
+    );
+  }
+
+  Future<void> _exportHistory() async {
+    final identity = await EventLogKeyStore.getIdentity(
+      widget.session.playerCurie,
+    );
+    if (identity == null || identity.trim().isEmpty) {
+      _appendSystem('History export unavailable: unlock encryption first');
+      return;
+    }
+    await _historyExportController.exportAll(
+      api: MoorHttpApi(widget.session.baseUri),
+      authToken: widget.session.authToken,
+      ageIdentity: identity,
+      systemTitle: _mooTitle,
+      playerOid: widget.session.playerCurie,
+      decryptEvent: decryptEventBlobAge,
+      saveFile: _saveHistoryExport,
+      onStatus: _appendSystem,
+    );
+  }
+
+  Future<void> _saveHistoryExport({
+    required String suggestedName,
+    required Uint8List bytes,
+  }) async {
+    final location = await getSaveLocation(
+      suggestedName: suggestedName,
+      acceptedTypeGroups: const <XTypeGroup>[
+        XTypeGroup(
+          label: 'json',
+          extensions: <String>['json'],
+          mimeTypes: <String>['application/json'],
+        ),
+      ],
+    );
+    if (location == null) {
+      _appendSystem('History export canceled');
+      return;
+    }
+    final file = File(location.path);
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
+  Future<void> _confirmDeleteHistory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete All History'),
+          content: const Text(
+            'This permanently deletes your event history from the server. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted || confirmed != true) {
+      return;
+    }
+    try {
+      final success = await MoorHttpApi(widget.session.baseUri)
+          .deleteEventLogHistory(
+            authToken: widget.session.authToken,
+          );
+      _appendSystem(
+        success ? 'Event history deleted' : 'Event history delete failed',
+      );
+    } on Object catch (e) {
+      _appendSystem('Event history delete failed: $e');
+    }
+  }
+
+  void _showUserMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
   }
 
   void _appendSystem(String m) {
@@ -1678,15 +1912,6 @@ class _SessionScreenState extends State<SessionScreen> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _handleAccountAction(SessionAccountAction action) async {
-    switch (action) {
-      case SessionAccountAction.historyEncryption:
-        await _showEncryptionMenu();
-      case SessionAccountAction.logout:
-        await _logout();
-    }
-  }
-
   Widget _buildLeftPane(BuildContext context) {
     // Keep controller styling/placeholder in sync with theme and pill state.
     _commandController.placeholderColor = Theme.of(
@@ -1891,13 +2116,12 @@ class _SessionScreenState extends State<SessionScreen> {
         actions: [
           SessionAppBarActions(
             debugPanelVisible: _debugPanelController.visible,
-            playerCurie: widget.session.playerCurie,
             onToggleDebugPanel: _toggleDebugPanel,
+            onShowAccount: () {
+              unawaited(_showAccountSheet());
+            },
             onShowSettings: () {
               unawaited(_showSettingsSheet());
-            },
-            onSelectAccountAction: (action) {
-              unawaited(_handleAccountAction(action));
             },
           ),
         ],
