@@ -159,6 +159,7 @@ class ObjectBrowserController extends ChangeNotifier {
     }
     return null;
   }
+
   List<EditorSession> get editorSessions => _editorSessions;
   int get activeEditorIndex => _activeEditorIndex;
 
@@ -220,10 +221,18 @@ class ObjectBrowserController extends ChangeNotifier {
 
       _objects = nextObjects;
       final target = _resolveInitialSelection(nextObjects);
+      final preserveSelection =
+          target != null &&
+          _selectedObject != null &&
+          target.objectCurie == _selectedObject!.objectCurie;
       _loadingObjects = false;
       notifyListeners();
       if (target != null) {
-        await selectObject(target);
+        await _loadMembersForSelection(
+          target,
+          selectedPropertyKey: preserveSelection ? _selectedPropertyKey : null,
+          selectedVerbKey: preserveSelection ? _selectedVerbKey : null,
+        );
       }
     } on Object catch (e) {
       _loadingObjects = false;
@@ -234,37 +243,23 @@ class ObjectBrowserController extends ChangeNotifier {
 
   Future<void> selectObject(BrowserObjectEntry entry) async {
     _selectedObject = entry;
-    _selectedPropertyKey = null;
-    _selectedVerbKey = null;
-    _loadingMembers = true;
-    _error = null;
-    notifyListeners();
+    await _loadMembersForSelection(
+      entry,
+      selectedPropertyKey: null,
+      selectedVerbKey: null,
+    );
+  }
 
-    try {
-      final propsReply = await api.getProperties(
-        authToken: authToken,
-        objectCurie: entry.objectCurie,
-      );
-      final verbsReply = await api.getVerbs(
-        authToken: authToken,
-        objectCurie: entry.objectCurie,
-      );
-
-      _properties = [
-        for (final prop
-            in propsReply.properties ?? const <moor_common.PropInfo>[])
-          _toPropertyEntry(prop),
-      ];
-      _verbs = _buildVerbEntries(
-        verbsReply.verbs ?? const <moor_common.VerbInfo>[],
-      );
-      _loadingMembers = false;
-      notifyListeners();
-    } on Object catch (e) {
-      _loadingMembers = false;
-      _error = '$e';
-      notifyListeners();
+  Future<void> refreshSelectedObject() async {
+    final entry = _selectedObject;
+    if (entry == null) {
+      return;
     }
+    await _loadMembersForSelection(
+      entry,
+      selectedPropertyKey: _selectedPropertyKey,
+      selectedVerbKey: _selectedVerbKey,
+    );
   }
 
   void setObjectFilter(String value) {
@@ -368,16 +363,16 @@ class ObjectBrowserController extends ChangeNotifier {
     if (entries.isEmpty) {
       return null;
     }
-    if (initialObjectCurie != null) {
+    if (_selectedObject != null) {
       for (final entry in entries) {
-        if (entry.objectCurie == initialObjectCurie) {
+        if (entry.objectCurie == _selectedObject!.objectCurie) {
           return entry;
         }
       }
     }
-    if (_selectedObject != null) {
+    if (initialObjectCurie != null) {
       for (final entry in entries) {
-        if (entry.objectCurie == _selectedObject!.objectCurie) {
+        if (entry.objectCurie == initialObjectCurie) {
           return entry;
         }
       }
@@ -466,5 +461,56 @@ class ObjectBrowserController extends ChangeNotifier {
     _editorSessions = [..._editorSessions, session];
     _activeEditorIndex = _editorSessions.length - 1;
     notifyListeners();
+  }
+
+  Future<void> _loadMembersForSelection(
+    BrowserObjectEntry entry, {
+    required String? selectedPropertyKey,
+    required String? selectedVerbKey,
+  }) async {
+    _selectedObject = entry;
+    _selectedPropertyKey = selectedPropertyKey;
+    _selectedVerbKey = selectedVerbKey;
+    _loadingMembers = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final propsReply = await api.getProperties(
+        authToken: authToken,
+        objectCurie: entry.objectCurie,
+      );
+      final verbsReply = await api.getVerbs(
+        authToken: authToken,
+        objectCurie: entry.objectCurie,
+      );
+
+      _properties = [
+        for (final prop
+            in propsReply.properties ?? const <moor_common.PropInfo>[])
+          _toPropertyEntry(prop),
+      ];
+      _verbs = _buildVerbEntries(
+        verbsReply.verbs ?? const <moor_common.VerbInfo>[],
+      );
+
+      if (_selectedPropertyKey != null &&
+          !_properties.any(
+            (prop) => propertyKey(prop) == _selectedPropertyKey,
+          )) {
+        _selectedPropertyKey = null;
+      }
+      if (_selectedVerbKey != null &&
+          !_verbs.any((verb) => verbKey(verb) == _selectedVerbKey)) {
+        _selectedVerbKey = null;
+      }
+
+      _loadingMembers = false;
+      notifyListeners();
+    } on Object catch (e) {
+      _loadingMembers = false;
+      _error = '$e';
+      notifyListeners();
+    }
   }
 }

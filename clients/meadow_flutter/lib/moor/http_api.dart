@@ -680,6 +680,44 @@ class MoorHttpApi {
     return value;
   }
 
+  Future<MoorVar> performEval({
+    required String authToken,
+    required String expression,
+  }) async {
+    final uri = _resolve('/v1/eval');
+    final resp = await http.post(
+      uri,
+      headers: {
+        'X-Moor-Auth-Token': authToken,
+        'Accept': 'application/x-flatbuffers',
+        'Content-Type': 'text/plain',
+      },
+      body: expression,
+    );
+    if (resp.statusCode == 401) {
+      throw Exception('eval: unauthorized');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('eval http ${resp.statusCode}: ${resp.reasonPhrase}');
+    }
+
+    final reply = _parseClientSuccess(resp.bodyBytes, context: 'eval');
+    final replyType = reply.replyType?.value ?? 0;
+    if (replyType != moor_rpc.DaemonToClientReplyUnionTypeId.EvalResult.value) {
+      throw Exception('eval: unexpected reply type $replyType');
+    }
+
+    final evalResult = reply.reply as moor_rpc.EvalResult?;
+    if (evalResult == null) {
+      throw Exception('eval: missing EvalResult');
+    }
+    final result = evalResult.result;
+    if (result == null) {
+      throw Exception('eval: missing EvalResult.result');
+    }
+    return MoorVar.fromFlatBuffer(result);
+  }
+
   Future<List<EncryptedHistoricalEvent>> fetchHistory({
     required String authToken,
     int? sinceSeconds,

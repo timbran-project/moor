@@ -13,6 +13,10 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
+    as moor_common;
+import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
+    as moor_rpc;
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/object_browser_controller.dart';
 
@@ -124,5 +128,147 @@ void main() {
       expect(controller.editorSessions, hasLength(1));
       expect(controller.activeEditorIndex, 0);
     });
+
+    test(
+      'refreshSelectedObject preserves selected property and verb keys',
+      () async {
+        final api = _FakeObjectBrowserApi();
+        final controller = ObjectBrowserController(
+          api: api,
+          authToken: 'token',
+        );
+
+        await controller.load();
+        controller.selectProperty(
+          controller.properties.firstWhere(
+            (prop) => prop.name == 'description',
+          ),
+        );
+        expect(controller.selectedProperty?.name, 'description');
+
+        await controller.refreshSelectedObject();
+        expect(controller.selectedProperty?.name, 'description');
+
+        controller.selectVerb(
+          controller.verbs.firstWhere((verb) => verb.names.first == 'look'),
+        );
+        expect(controller.selectedVerb?.names.first, 'look');
+
+        await controller.refreshSelectedObject();
+        expect(controller.selectedVerb?.names.first, 'look');
+      },
+    );
   });
+}
+
+class _FakeObjectBrowserApi extends MoorHttpApi {
+  _FakeObjectBrowserApi() : super(Uri(scheme: 'http', host: 'example.com'));
+
+  @override
+  Future<moor_rpc.ListObjectsReply> listObjects({
+    required String authToken,
+  }) async {
+    return moor_rpc.ListObjectsReplyObjectBuilder(
+      objects: [
+        moor_rpc.ObjectInfoObjectBuilder(
+          obj: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          name: moor_common.SymbolObjectBuilder(value: 'Wizard'),
+          parent: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 0),
+          ),
+          owner: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          location: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          flags: 0,
+          verbsCount: 1,
+          propertiesCount: 1,
+        ),
+      ],
+    ).toBytes().toListObjectsReply();
+  }
+
+  @override
+  Future<moor_rpc.PropertiesReply> getProperties({
+    required String authToken,
+    required String objectCurie,
+    bool inherited = true,
+  }) async {
+    return moor_rpc.PropertiesReplyObjectBuilder(
+      properties: [
+        moor_common.PropInfoObjectBuilder(
+          name: moor_common.SymbolObjectBuilder(value: 'description'),
+          definer: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          location: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          owner: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          r: true,
+          w: true,
+          chown: false,
+        ),
+      ],
+    ).toBytes().toPropertiesReply();
+  }
+
+  @override
+  Future<moor_rpc.VerbsReply> getVerbs({
+    required String authToken,
+    required String objectCurie,
+    bool inherited = true,
+  }) async {
+    return moor_rpc.VerbsReplyObjectBuilder(
+      verbs: [
+        moor_common.VerbInfoObjectBuilder(
+          names: [moor_common.SymbolObjectBuilder(value: 'look')],
+          location: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          owner: moor_common.ObjObjectBuilder(
+            objType: moor_common.ObjUnionTypeId.ObjId,
+            obj: moor_common.ObjIdObjectBuilder(id: 1),
+          ),
+          r: true,
+          w: true,
+          x: true,
+          d: false,
+          argSpec: [
+            moor_common.SymbolObjectBuilder(value: 'none'),
+            moor_common.SymbolObjectBuilder(value: 'none'),
+            moor_common.SymbolObjectBuilder(value: 'none'),
+          ],
+        ),
+      ],
+    ).toBytes().toVerbsReply();
+  }
+}
+
+extension on List<int> {
+  moor_rpc.ListObjectsReply toListObjectsReply() {
+    return moor_rpc.ListObjectsReply(this);
+  }
+
+  moor_rpc.PropertiesReply toPropertiesReply() {
+    return moor_rpc.PropertiesReply(this);
+  }
+
+  moor_rpc.VerbsReply toVerbsReply() {
+    return moor_rpc.VerbsReply(this);
+  }
 }

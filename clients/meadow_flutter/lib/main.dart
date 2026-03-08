@@ -1693,6 +1693,8 @@ class _SessionScreenState extends State<SessionScreen> {
         builder: (_) => ObjectBrowserSheet(
           controller: controller,
           editorPresenter: presenter,
+          currentPlayerCurie: widget.session.playerCurie,
+          currentPlayerFlags: widget.session.playerFlags,
         ),
       ),
     );
