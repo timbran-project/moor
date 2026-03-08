@@ -18,6 +18,7 @@ class LaunchArgs {
   final String? password;
   final String? mode; // "connect" | "create"
   final bool login;
+  final Uri? callbackUri;
 
   const LaunchArgs({
     required this.server,
@@ -25,6 +26,7 @@ class LaunchArgs {
     required this.password,
     required this.mode,
     required this.login,
+    required this.callbackUri,
   });
 }
 
@@ -34,6 +36,7 @@ LaunchArgs parseLaunchArgs(List<String> args) {
   String? password;
   String? mode;
   var login = false;
+  Uri? callbackUri;
 
   String? takeValue(String a, int i, String name) {
     final eq = a.indexOf('=');
@@ -48,6 +51,13 @@ LaunchArgs parseLaunchArgs(List<String> args) {
 
   for (var i = 0; i < args.length; i++) {
     final a = args[i];
+    if (!a.startsWith('--')) {
+      final uri = Uri.tryParse(a);
+      if (uri != null && uri.scheme.isNotEmpty) {
+        callbackUri ??= uri;
+      }
+      continue;
+    }
     if (a == '--login') {
       login = true;
       continue;
@@ -82,5 +92,6 @@ LaunchArgs parseLaunchArgs(List<String> args) {
     password: password,
     mode: mode,
     login: login,
+    callbackUri: callbackUri,
   );
 }

@@ -42,6 +42,7 @@ import 'package:meadow_flutter/moor/inspect.dart';
 import 'package:meadow_flutter/moor/inspect_controller.dart';
 import 'package:meadow_flutter/moor/models.dart';
 import 'package:meadow_flutter/moor/narrative_feed_controller.dart';
+import 'package:meadow_flutter/moor/oauth2_pending_flow_store.dart';
 import 'package:meadow_flutter/moor/oauth2_pkce.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
@@ -52,6 +53,8 @@ import 'package:meadow_flutter/moor/trusted_external_domains.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
+import 'package:meadow_flutter/moor/web_navigation_stub.dart'
+    if (dart.library.html) 'package:meadow_flutter/moor/web_navigation_web.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/account_sheet.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
@@ -173,6 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _oauth2Enabled = false;
   List<String> _oauth2Providers = const <String>[];
   String? _oauth2CodeVerifier;
+  bool _oauth2AutoExchangePending = false;
   String? _oauth2IdentityCode;
   OAuth2AppIdentity? _oauth2Identity;
   String _oauth2AccountMode = 'oauth2_create';
@@ -203,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     _loadWelcome();
-    _consumeOAuth2CallbackFromUri();
+    unawaited(_restorePendingOAuth2Flow());
 
     if (a.login) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -215,6 +219,29 @@ class _LoginScreenState extends State<LoginScreen> {
         await _login();
       });
     }
+  }
+
+  Future<void> _restorePendingOAuth2Flow() async {
+    debugPrint('[oauth-debug] restore begin');
+    final pending = await OAuth2PendingFlowStore.load();
+    if (!mounted) {
+      debugPrint('[oauth-debug] restore aborted unmounted');
+      return;
+    }
+    if (pending != null) {
+      _oauth2CodeVerifier = pending.codeVerifier;
+      debugPrint(
+        '[oauth-debug] restore verifier hit len=${pending.codeVerifier.length}',
+      );
+      if (_baseUrlCtrl.text.trim().isEmpty ||
+          _baseUrlCtrl.text.trim() == 'http://localhost:8080') {
+        _baseUrlCtrl.text = pending.baseUrl;
+        debugPrint('[oauth-debug] restore base url ${pending.baseUrl}');
+      }
+    } else {
+      debugPrint('[oauth-debug] restore verifier miss');
+    }
+    _consumeOAuth2Callback();
   }
 
   @override
@@ -311,11 +338,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _consumeOAuth2CallbackFromUri() {
-    final q = Uri.base.queryParameters;
+  void _consumeOAuth2Callback() {
+    final callbackUri = widget.launchArgs.callbackUri ?? Uri.base;
+    debugPrint(
+      '[oauth-debug] consume callback source='
+      '${widget.launchArgs.callbackUri != null ? 'launch-arg' : 'uri-base'} '
+      'uri=$callbackUri',
+    );
+    final q = callbackUri.queryParameters;
     final handoff = q['handoff_code']?.trim();
     if (handoff != null && handoff.isNotEmpty) {
       _handoffCodeCtrl.text = handoff;
+      _oauth2AutoExchangePending = true;
+      debugPrint(
+        '[oauth-debug] consume callback handoff len=${handoff.length} auto=true',
+      );
     }
     final err = q['error']?.trim();
     if (err != null && err.isNotEmpty) {
@@ -324,6 +361,19 @@ class _LoginScreenState extends State<LoginScreen> {
         _error = details == null || details.isEmpty
             ? 'OAuth2 error: $err'
             : 'OAuth2 error: $err ($details)';
+      });
+      return;
+    }
+    if (_oauth2AutoExchangePending &&
+        _handoffCodeCtrl.text.trim().isNotEmpty &&
+        (_oauth2CodeVerifier?.isNotEmpty ?? false)) {
+      debugPrint('[oauth-debug] auto exchange scheduled');
+      _oauth2AutoExchangePending = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_exchangeOAuth2HandoffCode());
       });
     }
   }
@@ -375,11 +425,23 @@ class _LoginScreenState extends State<LoginScreen> {
       _oauth2Identity = null;
       _oauth2AccountMode = 'oauth2_create';
       _handoffCodeCtrl.clear();
+      _oauth2AutoExchangePending = false;
     });
 
     try {
       final api = MoorHttpApi(baseUri);
       final pkce = await generatePkcePair();
+      _oauth2CodeVerifier = pkce.codeVerifier;
+      debugPrint(
+        '[oauth-debug] oauth start provider=$provider base=$baseUri redirect=${_oauth2RedirectUri()} verifier_len=${pkce.codeVerifier.length}',
+      );
+      await OAuth2PendingFlowStore.save(
+        OAuth2PendingFlow(
+          baseUrl: baseUri.toString(),
+          codeVerifier: pkce.codeVerifier,
+          redirectUri: _oauth2RedirectUri(),
+        ),
+      );
       final start = await api.oauth2AppStart(
         provider: provider,
         redirectUri: _oauth2RedirectUri(),
@@ -387,9 +449,11 @@ class _LoginScreenState extends State<LoginScreen> {
         codeChallengeMethod: pkce.codeChallengeMethod,
         intent: 'connect',
       );
-      _oauth2CodeVerifier = pkce.codeVerifier;
-
-      await launchUrl(start.authUrl, mode: LaunchMode.externalApplication);
+      if (kIsWeb) {
+        await navigateSameTab(start.authUrl.toString());
+      } else {
+        await launchUrl(start.authUrl, mode: LaunchMode.externalApplication);
+      }
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -404,6 +468,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _startOAuth2Login(String provider) async {
+    await _startOAuth2ProofBound(provider);
+  }
+
   Future<void> _exchangeOAuth2HandoffCode() async {
     final baseUri = _parseBaseUri();
     if (baseUri == null) {
@@ -413,7 +481,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     final handoff = _handoffCodeCtrl.text.trim();
-    final verifier = _oauth2CodeVerifier;
+    final verifier = await _resolveOAuth2CodeVerifier();
+    debugPrint(
+      '[oauth-debug] exchange requested handoff_len=${handoff.length} '
+      'verifier_present=${verifier != null && verifier.isNotEmpty}',
+    );
     if (handoff.isEmpty) {
       setState(() {
         _error = 'Missing handoff code';
@@ -439,6 +511,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result is OAuth2AppAuthSession) {
+        await OAuth2PendingFlowStore.clear();
+        _oauth2CodeVerifier = null;
+        _oauth2IdentityCode = null;
+        _oauth2Identity = null;
         final session = LoginSession(
           baseUri: baseUri,
           authToken: result.authToken,
@@ -478,6 +554,35 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<String?> _resolveOAuth2CodeVerifier() async {
+    final current = _oauth2CodeVerifier?.trim();
+    if (current != null && current.isNotEmpty) {
+      debugPrint(
+        '[oauth-debug] verifier resolve hit memory len=${current.length}',
+      );
+      return current;
+    }
+    debugPrint('[oauth-debug] verifier resolve memory miss');
+    final pending = await OAuth2PendingFlowStore.load();
+    final restored = pending?.codeVerifier.trim();
+    if (restored == null || restored.isEmpty) {
+      debugPrint('[oauth-debug] verifier resolve prefs miss');
+      return null;
+    }
+    _oauth2CodeVerifier = restored;
+    debugPrint(
+      '[oauth-debug] verifier resolve prefs hit len=${restored.length}',
+    );
+    final currentBaseUrl = _baseUrlCtrl.text.trim();
+    if (currentBaseUrl.isEmpty || currentBaseUrl == 'http://localhost:8080') {
+      _baseUrlCtrl.text = pending!.baseUrl;
+      debugPrint(
+        '[oauth-debug] verifier resolve restored base ${pending.baseUrl}',
+      );
+    }
+    return restored;
+  }
+
   Future<void> _submitOAuth2AccountChoice() async {
     final baseUri = _parseBaseUri();
     if (baseUri == null) {
@@ -486,7 +591,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
       return;
     }
-    final verifier = _oauth2CodeVerifier;
+    final verifier = await _resolveOAuth2CodeVerifier();
     final identityCode = _oauth2IdentityCode;
     if (verifier == null || verifier.isEmpty || identityCode == null) {
       setState(() {
@@ -534,6 +639,10 @@ class _LoginScreenState extends State<LoginScreen> {
           result.playerFlags == null) {
         throw Exception(result.error ?? 'OAuth2 account choice failed');
       }
+      await OAuth2PendingFlowStore.clear();
+      _oauth2CodeVerifier = null;
+      _oauth2IdentityCode = null;
+      _oauth2Identity = null;
 
       final session = LoginSession(
         baseUri: baseUri,
@@ -730,7 +839,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(14),
           ),
         ),
-        onPressed: _oauth2Busy ? null : () => _startOAuth2ProofBound(provider),
+        onPressed: _oauth2Busy ? null : () => _startOAuth2Login(provider),
         child: Text(label),
       ),
     );

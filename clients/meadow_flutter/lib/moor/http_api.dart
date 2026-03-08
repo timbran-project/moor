@@ -705,6 +705,16 @@ class OAuth2AppStartResponse {
   });
 }
 
+class OAuth2AuthorizeResponse {
+  final Uri authUrl;
+  final String? state;
+
+  const OAuth2AuthorizeResponse({
+    required this.authUrl,
+    required this.state,
+  });
+}
+
 sealed class OAuth2AppExchangeResult {
   const OAuth2AppExchangeResult();
 }
@@ -761,7 +771,75 @@ class OAuth2LoginResult {
   });
 }
 
+class OAuth2BrowserIdentity {
+  final String oauth2Code;
+  final String provider;
+  final String? email;
+  final String? name;
+  final String? username;
+
+  const OAuth2BrowserIdentity({
+    required this.oauth2Code,
+    required this.provider,
+    required this.email,
+    required this.name,
+    required this.username,
+  });
+}
+
+class OAuth2AuthCodeExchangeResult {
+  final String authToken;
+  final String playerCurie;
+  final int playerFlags;
+  final String? clientToken;
+  final String? clientId;
+
+  const OAuth2AuthCodeExchangeResult({
+    required this.authToken,
+    required this.playerCurie,
+    required this.playerFlags,
+    required this.clientToken,
+    required this.clientId,
+  });
+}
+
 extension MoorHttpApiOAuth2 on MoorHttpApi {
+  Future<OAuth2AuthorizeResponse> oauth2Authorize({
+    required String provider,
+  }) async {
+    final uri = _resolve('/auth/oauth2/$provider/authorize');
+    final resp = await http.get(
+      uri,
+      headers: const {
+        'Accept': 'application/json',
+      },
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'oauth2 authorize http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! Map) {
+      throw Exception('oauth2 authorize: invalid json');
+    }
+    final authUrl = decoded['auth_url'];
+    if (authUrl is! String || authUrl.trim().isEmpty) {
+      throw Exception('oauth2 authorize: missing auth_url');
+    }
+    final uriParsed = Uri.tryParse(authUrl.trim());
+    if (uriParsed == null) {
+      throw Exception('oauth2 authorize: bad auth_url');
+    }
+    final state = decoded['state'];
+    return OAuth2AuthorizeResponse(
+      authUrl: uriParsed,
+      state: state is String && state.trim().isNotEmpty ? state.trim() : null,
+    );
+  }
+
   Future<OAuth2Config> fetchOAuth2Config() async {
     final uri = _resolve('/v1/oauth2/config');
     final resp = await http.get(
@@ -954,6 +1032,103 @@ extension MoorHttpApiOAuth2 on MoorHttpApi {
     final decoded = jsonDecode(resp.body);
     if (decoded is! Map) {
       throw Exception('oauth2 app/account: invalid json');
+    }
+
+    final success = decoded['success'] == true;
+    final flagsRaw = decoded['player_flags'];
+    final flags = flagsRaw is int ? flagsRaw : int.tryParse('$flagsRaw');
+    return OAuth2LoginResult(
+      success: success,
+      authToken: decoded['auth_token'] as String?,
+      playerCurie: decoded['player'] as String?,
+      playerFlags: flags,
+      clientToken: decoded['client_token'] as String?,
+      clientId: decoded['client_id'] as String?,
+      error: decoded['error'] as String?,
+    );
+  }
+
+  Future<OAuth2AuthCodeExchangeResult> oauth2ExchangeAuthCode({
+    required String code,
+  }) async {
+    final uri = _resolve('/auth/oauth2/exchange');
+    final resp = await http.post(
+      uri,
+      headers: const {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, Object?>{
+        'code': code,
+      }),
+    );
+
+    if (resp.statusCode != 200) {
+      final decoded = jsonDecode(resp.body);
+      if (decoded is Map && decoded['error'] is String) {
+        throw Exception('oauth2 exchange: ${decoded['error']}');
+      }
+      throw Exception(
+        'oauth2 exchange http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! Map) {
+      throw Exception('oauth2 exchange: invalid json');
+    }
+    final authToken = decoded['auth_token'];
+    final player = decoded['player'];
+    final flags = decoded['player_flags'];
+    if (authToken is! String || player is! String || flags is! int) {
+      throw Exception('oauth2 exchange: invalid payload');
+    }
+    return OAuth2AuthCodeExchangeResult(
+      authToken: authToken,
+      playerCurie: player,
+      playerFlags: flags,
+      clientToken: decoded['client_token'] as String?,
+      clientId: decoded['client_id'] as String?,
+    );
+  }
+
+  Future<OAuth2LoginResult> oauth2BrowserAccountChoice({
+    required String mode,
+    required String oauth2Code,
+    String? playerName,
+    String? existingEmail,
+    String? existingPassword,
+  }) async {
+    final uri = _resolve('/auth/oauth2/account');
+    final payload = <String, Object?>{
+      'mode': mode,
+      'oauth2_code': oauth2Code,
+      if (playerName != null && playerName.isNotEmpty)
+        'player_name': playerName,
+      if (existingEmail != null && existingEmail.isNotEmpty)
+        'existing_email': existingEmail,
+      if (existingPassword != null && existingPassword.isNotEmpty)
+        'existing_password': existingPassword,
+    };
+
+    final resp = await http.post(
+      uri,
+      headers: const {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(payload),
+    );
+
+    if (resp.statusCode != 200 && resp.statusCode != 401) {
+      throw Exception(
+        'oauth2 account http ${resp.statusCode}: ${resp.reasonPhrase}',
+      );
+    }
+
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! Map) {
+      throw Exception('oauth2 account: invalid json');
     }
 
     final success = decoded['success'] == true;
