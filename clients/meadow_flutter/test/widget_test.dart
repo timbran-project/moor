@@ -14,6 +14,7 @@ void main() {
   testWidgets('Renders Login Screen', (WidgetTester tester) async {
     await tester.pumpWidget(MeadowApp(launchArgs: parseLaunchArgs(const [])));
     expect(find.text('mooR'), findsOneWidget);
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.text('Sign In'), findsWidgets);
+    expect(find.text('Create Account'), findsOneWidget);
   });
 }

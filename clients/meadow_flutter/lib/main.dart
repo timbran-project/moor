@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
@@ -68,7 +69,12 @@ import 'package:url_launcher/url_launcher.dart';
 void main(List<String> args) {
   final launchArgs = parseLaunchArgs(args);
   runApp(MeadowApp(launchArgs: launchArgs));
+  if (kIsWeb) {
+    SemanticsBinding.instance.ensureSemantics();
+  }
 }
+
+const _webDefaultServer = String.fromEnvironment('MOOR_DEFAULT_SERVER');
 
 class MeadowApp extends StatefulWidget {
   final LaunchArgs launchArgs;
@@ -121,7 +127,7 @@ class _MeadowAppState extends State<MeadowApp> {
         animation: _theme,
         builder: (context, _) {
           return MaterialApp(
-            title: 'Meadow (Flutter Spike)',
+            title: 'The Timbran',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
@@ -178,7 +184,9 @@ class _LoginScreenState extends State<LoginScreen> {
     // For web we strongly prefer same-origin (avoid CORS). If you serve this app
     // behind a reverse proxy (e.g. Vite), default to the current origin.
     if (kIsWeb && (a.server == null || a.server!.trim().isEmpty)) {
-      _baseUrlCtrl.text = Uri.base.origin;
+      _baseUrlCtrl.text = _webDefaultServer.trim().isNotEmpty
+          ? _webDefaultServer.trim()
+          : Uri.base.origin;
     }
     if (a.server != null && a.server!.trim().isNotEmpty) {
       _baseUrlCtrl.text = a.server!.trim();
@@ -626,26 +634,123 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final welcome = _welcome;
+  Color _oauthProviderBackground(
+    String provider,
+    ColorScheme colorScheme,
+  ) {
+    switch (provider.toLowerCase()) {
+      case 'discord':
+        return const Color(0xFF5865F2);
+      case 'github':
+        return const Color(0xFF24292E);
+      case 'google':
+        return Colors.white;
+      default:
+        return colorScheme.surfaceContainerHighest;
+    }
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_mooTitle),
-        actions: [
-          IconButton(
-            onPressed: _loadingWelcome ? null : _loadWelcome,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Reload welcome',
+  Color _oauthProviderForeground(
+    String provider,
+    ColorScheme colorScheme,
+  ) {
+    switch (provider.toLowerCase()) {
+      case 'google':
+        return const Color(0xFF202124);
+      default:
+        return provider.toLowerCase() == 'custom'
+            ? colorScheme.onSurface
+            : Colors.white;
+    }
+  }
+
+  Widget _buildWelcomeCard(BuildContext context, WelcomeMessage? welcome) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final panelColor = Color.alphaBlend(
+      colorScheme.primary.withValues(alpha: 0.05),
+      colorScheme.surfaceContainerLow,
+    );
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: panelColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 160),
+            child: _loadingWelcome
+                ? Text(
+                    'Loading welcome message...',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+                  )
+                : (welcome == null || welcome.lines.isEmpty)
+                ? Text(
+                    '(no welcome message)',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+                  )
+                : ContentRenderer(
+                    content: welcome.lines,
+                    contentType: welcome.contentType,
+                    isStale: false,
+                    onLinkTap: _handleWelcomeLinkTap,
+                    monospace: false,
+                  ),
           ),
         ],
       ),
-      body: Padding(
+    );
+  }
+
+  Widget _buildOAuthProviderButton(BuildContext context, String provider) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final background = _oauthProviderBackground(provider, colorScheme);
+    final foreground = _oauthProviderForeground(provider, colorScheme);
+    final label = _mode == 'connect'
+        ? 'Sign in with $provider'
+        : 'Continue with $provider';
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        onPressed: _oauth2Busy ? null : () => _startOAuth2ProofBound(provider),
+        child: Text(label),
+      ),
+    );
+  }
+
+  Widget _buildBaseUrlCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Connection',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
             TextField(
               controller: _baseUrlCtrl,
               decoration: const InputDecoration(
@@ -654,42 +759,95 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               onSubmitted: (_) => _loadWelcome(),
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SingleChildScrollView(
-                  child: _loadingWelcome
-                      ? const Text(
-                          'Loading welcome message...',
-                          style: TextStyle(fontFamily: 'monospace'),
-                        )
-                      : (welcome == null || welcome.lines.isEmpty)
-                      ? const Text(
-                          '(no welcome message)',
-                          style: TextStyle(fontFamily: 'monospace'),
-                        )
-                      : ContentRenderer(
-                          content: welcome.lines,
-                          contentType: welcome.contentType,
-                          isStale: false,
-                          onLinkTap: _handleWelcomeLinkTap,
-                          monospace: false,
-                        ),
-                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOAuthAccountChoiceCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Complete OAuth2 account setup (${_oauth2Identity!.provider})',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 12),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'connect', label: Text('Connect')),
-                ButtonSegment(value: 'create', label: Text('Create')),
+                ButtonSegment(value: 'oauth2_create', label: Text('Create')),
+                ButtonSegment(value: 'oauth2_connect', label: Text('Link')),
+              ],
+              selected: {_oauth2AccountMode},
+              onSelectionChanged: (s) {
+                setState(() {
+                  _oauth2AccountMode = s.first;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            if (_oauth2AccountMode == 'oauth2_create')
+              TextField(
+                controller: _oauthCreateNameCtrl,
+                decoration: const InputDecoration(labelText: 'Player name'),
+              )
+            else ...[
+              TextField(
+                controller: _oauthLinkUserCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Existing username/email',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _oauthLinkPassCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Existing password',
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: _oauth2Busy ? null : _submitOAuth2AccountChoice,
+              child: Text(
+                _oauth2Busy
+                    ? 'Working...'
+                    : (_oauth2AccountMode == 'oauth2_create'
+                          ? 'Create account'
+                          : 'Link account'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAuthCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isCreate = _mode == 'create';
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'connect', label: Text('Sign In')),
+                ButtonSegment(value: 'create', label: Text('Create Account')),
               ],
               selected: {_mode},
               onSelectionChanged: (s) {
@@ -698,151 +856,166 @@ class _LoginScreenState extends State<LoginScreen> {
                 });
               },
             ),
-            const SizedBox(height: 12),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                _error!,
+                style: TextStyle(color: colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 20),
+            if (_oauth2Enabled && _oauth2Providers.isNotEmpty) ...[
+              for (final provider in _oauth2Providers) ...[
+                _buildOAuthProviderButton(context, provider),
+                const SizedBox(height: 12),
+              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        isCreate
+                            ? 'or create with username'
+                            : 'or continue with username',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+              ),
+            ],
             TextField(
               controller: _userCtrl,
-              decoration: const InputDecoration(labelText: 'Username'),
+              decoration: InputDecoration(
+                labelText: isCreate ? 'Player Name' : 'Username',
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             TextField(
               controller: _passCtrl,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Password'),
               onSubmitted: (_) => _loggingIn ? null : _login(),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             FilledButton(
               onPressed: _loggingIn ? null : _login,
-              child: Text(_loggingIn ? 'Logging in...' : 'Login'),
+              child: Text(
+                _loggingIn
+                    ? (isCreate ? 'Creating...' : 'Signing in...')
+                    : (isCreate ? 'Create Account' : 'Sign In'),
+              ),
             ),
             if (_oauth2Enabled && _oauth2Providers.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const Divider(height: 1),
-              const SizedBox(height: 12),
-              Text(
-                'OAuth2 login',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final provider in _oauth2Providers)
-                    OutlinedButton(
-                      onPressed: _oauth2Busy
-                          ? null
-                          : () => _startOAuth2ProofBound(provider),
-                      child: Text('Continue with $provider'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'After provider login, paste handoff code if callback does not return here automatically.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _handoffCodeCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Handoff code',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _oauth2Busy ? null : _exchangeOAuth2HandoffCode,
-                    child: Text(_oauth2Busy ? 'Working...' : 'Exchange'),
-                  ),
-                ],
-              ),
-              if (_oauth2IdentityCode != null && _oauth2Identity != null) ...[
-                const SizedBox(height: 12),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Complete OAuth2 account setup (${_oauth2Identity!.provider})',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 8),
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: 'oauth2_create',
-                              label: Text('Create'),
-                            ),
-                            ButtonSegment(
-                              value: 'oauth2_connect',
-                              label: Text('Link'),
-                            ),
-                          ],
-                          selected: {_oauth2AccountMode},
-                          onSelectionChanged: (s) {
-                            setState(() {
-                              _oauth2AccountMode = s.first;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        if (_oauth2AccountMode == 'oauth2_create')
-                          TextField(
-                            controller: _oauthCreateNameCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Player name',
-                            ),
-                          )
-                        else ...[
-                          TextField(
-                            controller: _oauthLinkUserCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Existing username/email',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _oauthLinkPassCtrl,
-                            obscureText: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Existing password',
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 10),
-                        FilledButton(
-                          onPressed: _oauth2Busy
-                              ? null
-                              : _submitOAuth2AccountChoice,
-                          child: Text(
-                            _oauth2Busy
-                                ? 'Working...'
-                                : (_oauth2AccountMode == 'oauth2_create'
-                                      ? 'Create account'
-                                      : 'Link account'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(height: 18),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 4),
+                title: const Text('OAuth handoff'),
+                subtitle: const Text(
+                  'Use this only if provider login does not return here automatically.',
                 ),
-              ],
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _handoffCodeCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Handoff code',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton.tonal(
+                        onPressed: _oauth2Busy
+                            ? null
+                            : _exchangeOAuth2HandoffCode,
+                        child: Text(_oauth2Busy ? 'Working...' : 'Exchange'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final welcome = _welcome;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Title(
+      title: _mooTitle,
+      color: colorScheme.primary,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_mooTitle),
+          actions: [
+            IconButton(
+              onPressed: _loadingWelcome ? null : _loadWelcome,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Reload welcome',
+            ),
+          ],
+        ),
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color.alphaBlend(
+                  colorScheme.primary.withValues(alpha: 0.08),
+                  colorScheme.surface,
+                ),
+                colorScheme.surface,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!kIsWeb) ...[
+                            _buildBaseUrlCard(context),
+                            const SizedBox(height: 18),
+                          ],
+                          _buildWelcomeCard(context, welcome),
+                          const SizedBox(height: 24),
+                          _buildAuthCard(context),
+                          if (_oauth2IdentityCode != null &&
+                              _oauth2Identity != null) ...[
+                            const SizedBox(height: 18),
+                            _buildOAuthAccountChoiceCard(context),
+                          ],
+                          SizedBox(
+                            height: constraints.maxHeight > 720 ? 32 : 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -1612,6 +1785,7 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!appended) {
       return;
     }
+    _scheduleScrollToBottom();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
   }
 
@@ -1620,12 +1794,31 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!appended) {
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollCtrl.hasClients) return;
-      _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
-    });
-
+    _scheduleScrollToBottom();
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateRoomLookLatch());
+  }
+
+  void _scheduleScrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_scrollCtrl.hasClients) {
+        return;
+      }
+
+      // Narrative groups such as inset cards can grow over more than one
+      // layout pass, so chase the bottom for a couple of frames.
+      for (var i = 0; i < 3; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || !_scrollCtrl.hasClients) {
+          return;
+        }
+        final position = _scrollCtrl.position;
+        final target = position.maxScrollExtent;
+        if ((position.pixels - target).abs() <= 1) {
+          break;
+        }
+        _scrollCtrl.jumpTo(target);
+      }
+    });
   }
 
   void _handleInputPromptRequest(InputPromptRequest request) {
@@ -2109,53 +2302,116 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text('$_mooTitle (${_sessionConnectionController.status})'),
-        actions: [
-          SessionAppBarActions(
-            debugPanelVisible: _debugPanelController.visible,
-            onToggleDebugPanel: _toggleDebugPanel,
-            onShowAccount: () {
-              unawaited(_showAccountSheet());
-            },
-            onShowSettings: () {
-              unawaited(_showSettingsSheet());
-            },
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final editorSessions = _editorSessionController.sessions;
+    return Title(
+      title: _mooTitle,
+      color: Theme.of(context).colorScheme.primary,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Text('$_mooTitle (${_sessionConnectionController.status})'),
+          actions: [
+            SessionAppBarActions(
+              debugPanelVisible: _debugPanelController.visible,
+              onToggleDebugPanel: _toggleDebugPanel,
+              onShowAccount: () {
+                unawaited(_showAccountSheet());
+              },
+              onShowSettings: () {
+                unawaited(_showSettingsSheet());
+              },
+            ),
+          ],
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final editorSessions = _editorSessionController.sessions;
 
-          if (editorSessions.isEmpty) {
-            return _buildLeftPane(context);
-          }
+            if (editorSessions.isEmpty) {
+              return _buildLeftPane(context);
+            }
 
-          final w = constraints.maxWidth;
-          const minDock = 360.0;
-          const minLeft = 520.0;
-          const dividerW = 10.0;
-          const compactBreakpoint = minLeft + minDock + dividerW;
+            final w = constraints.maxWidth;
+            const minDock = 360.0;
+            const minLeft = 520.0;
+            const dividerW = 10.0;
+            const compactBreakpoint = minLeft + minDock + dividerW;
 
-          if (w < compactBreakpoint) {
-            final editorHeight = (constraints.maxHeight * 0.46).clamp(
-              320.0,
-              constraints.maxHeight - 180,
-            );
-            return Column(
+            if (w < compactBreakpoint) {
+              final editorHeight = (constraints.maxHeight * 0.46).clamp(
+                320.0,
+                constraints.maxHeight - 180,
+              );
+              return Column(
+                children: [
+                  Expanded(
+                    child: _buildLeftPane(context),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  SizedBox(
+                    height: editorHeight,
+                    child: SessionEditorDock(
+                      sessions: editorSessions,
+                      activeIndex: _editorSessionController.activeIndex,
+                      onSelectIndex: _editorSessionController.selectIndex,
+                      onCloseSession: _closeEditorSession,
+                      onOpenFullscreen: (session) async {
+                        if (!mounted) return;
+                        await _editorPresenter.openFullscreen(context, session);
+                      },
+                      paneBuilder: _editorPresenter.paneForSession,
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            var leftW = w * _splitRatio;
+            if (leftW < minLeft) leftW = minLeft;
+            if (w - leftW - dividerW < minDock) {
+              leftW = w - minDock - dividerW;
+            }
+            if (leftW < minLeft) leftW = minLeft;
+            if (leftW > w - dividerW) leftW = w - dividerW;
+
+            return Row(
               children: [
-                Expanded(
+                SizedBox(
+                  width: leftW,
                   child: _buildLeftPane(context),
                 ),
-                Divider(
-                  height: 1,
-                  color: Theme.of(context).colorScheme.outlineVariant,
+                MouseRegion(
+                  cursor: SystemMouseCursors.resizeLeftRight,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragUpdate: (d) {
+                      final currentLeft = w * _splitRatio;
+                      final nextLeft = (currentLeft + d.delta.dx).clamp(
+                        minLeft,
+                        w - minDock - dividerW,
+                      );
+                      setState(() {
+                        _splitRatio = nextLeft / w;
+                      });
+                    },
+                    child: SizedBox(
+                      width: dividerW,
+                      child: Center(
+                        child: Container(
+                          width: 3,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                SizedBox(
-                  height: editorHeight,
+                Expanded(
                   child: SessionEditorDock(
                     sessions: editorSessions,
                     activeIndex: _editorSessionController.activeIndex,
@@ -2170,67 +2426,8 @@ class _SessionScreenState extends State<SessionScreen> {
                 ),
               ],
             );
-          }
-
-          var leftW = w * _splitRatio;
-          if (leftW < minLeft) leftW = minLeft;
-          if (w - leftW - dividerW < minDock) {
-            leftW = w - minDock - dividerW;
-          }
-          if (leftW < minLeft) leftW = minLeft;
-          if (leftW > w - dividerW) leftW = w - dividerW;
-
-          return Row(
-            children: [
-              SizedBox(
-                width: leftW,
-                child: _buildLeftPane(context),
-              ),
-              MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragUpdate: (d) {
-                    final currentLeft = w * _splitRatio;
-                    final nextLeft = (currentLeft + d.delta.dx).clamp(
-                      minLeft,
-                      w - minDock - dividerW,
-                    );
-                    setState(() {
-                      _splitRatio = nextLeft / w;
-                    });
-                  },
-                  child: SizedBox(
-                    width: dividerW,
-                    child: Center(
-                      child: Container(
-                        width: 3,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: SessionEditorDock(
-                  sessions: editorSessions,
-                  activeIndex: _editorSessionController.activeIndex,
-                  onSelectIndex: _editorSessionController.selectIndex,
-                  onCloseSession: _closeEditorSession,
-                  onOpenFullscreen: (session) async {
-                    if (!mounted) return;
-                    await _editorPresenter.openFullscreen(context, session);
-                  },
-                  paneBuilder: _editorPresenter.paneForSession,
-                ),
-              ),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }

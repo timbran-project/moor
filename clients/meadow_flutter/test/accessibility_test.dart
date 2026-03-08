@@ -58,9 +58,8 @@ void main() {
         await tester.pump();
 
         expect(find.byTooltip('Reload welcome'), findsOneWidget);
-        expect(find.text('Login'), findsOneWidget);
-        expect(find.text('Connect'), findsOneWidget);
-        expect(find.text('Create'), findsOneWidget);
+        expect(find.text('Sign In'), findsWidgets);
+        expect(find.text('Create Account'), findsOneWidget);
 
         _expectLabeledTextField(
           tester.getSemantics(find.byType(EditableText).at(0)),
@@ -75,8 +74,8 @@ void main() {
           'Password',
         );
         _expectButtonSemantics(
-          tester.getSemantics(find.widgetWithText(FilledButton, 'Login')),
-          'Login',
+          tester.getSemantics(find.widgetWithText(FilledButton, 'Sign In')),
+          'Sign In',
         );
       } finally {
         handle.dispose();
