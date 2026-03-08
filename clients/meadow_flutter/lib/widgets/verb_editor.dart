@@ -13,13 +13,13 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
-import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
-    as moor_common;
 import 'package:meadow_flutter/fbs/moor_rpc_moor_rpc_generated.dart'
     as moor_rpc;
 import 'package:meadow_flutter/moor/http_api.dart';
 import 'package:meadow_flutter/moor/moo_syntax.dart';
+import 'package:meadow_flutter/moor/verb_compile_diagnostics.dart';
 import 'package:re_editor/re_editor.dart';
+import 'package:re_highlight/styles/atom-one-dark.dart';
 import 'package:re_highlight/styles/github.dart';
 
 class VerbEditorPane extends StatefulWidget {
@@ -49,16 +49,12 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
   );
   bool _loading = true;
   bool _compiling = false;
-  String? _compileResult;
   String? _error;
   String _lastCompiled = '';
-
-  late final _codeTheme = CodeHighlightTheme(
-    languages: <String, CodeHighlightThemeMode>{
-      'moo': CodeHighlightThemeMode(mode: langMoo),
-    },
-    theme: githubTheme,
-  );
+  List<VerbCompileDiagnostic> _compileDiagnostics =
+      const <VerbCompileDiagnostic>[];
+  bool _compileSuccess = false;
+  int _activeDiagnosticIndex = 0;
 
   static const _monoFallback = <String>[
     'Ubuntu Mono',
@@ -85,7 +81,8 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
     setState(() {
       _loading = true;
       _error = null;
-      _compileResult = null;
+      _compileSuccess = false;
+      _compileDiagnostics = const <VerbCompileDiagnostic>[];
     });
     try {
       final api = MoorHttpApi(widget.baseUri);
@@ -118,45 +115,83 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
 
   bool get _hasUnsavedChanges => _currentText() != _lastCompiled;
 
-  String _formatCompileFailure(moor_rpc.VerbProgramResponse resp) {
-    if (resp.responseType?.value !=
-        moor_rpc.VerbProgramResponseUnionTypeId.VerbProgramFailure.value) {
-      return 'Compile failed';
+  CodeHighlightTheme _codeTheme(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return CodeHighlightTheme(
+      languages: <String, CodeHighlightThemeMode>{
+        'moo': CodeHighlightThemeMode(mode: langMoo),
+      },
+      theme: brightness == Brightness.dark ? atomOneDarkTheme : githubTheme,
+    );
+  }
+
+  Set<int> _errorLineSet() {
+    return {
+      for (final diagnostic in _compileDiagnostics)
+        if (diagnostic.line != null && diagnostic.line! > 0) diagnostic.line!,
+    };
+  }
+
+  void _focusDiagnostic(
+    VerbCompileDiagnostic diagnostic, {
+    bool updateState = true,
+  }) {
+    final line = diagnostic.line;
+    final column = diagnostic.column;
+    if (line == null || column == null) {
+      return;
     }
-    final failure = resp.response as moor_rpc.VerbProgramFailure?;
-    final err = failure?.error;
-    if (err == null) return 'Compile failed';
-
-    if (err.errorType?.value ==
-        moor_rpc.VerbProgramErrorUnionTypeId.VerbCompilationError.value) {
-      final ce = err.error as moor_rpc.VerbCompilationError?;
-      final compileError = ce?.error;
-      if (compileError == null) return 'Compilation error';
-
-      if (compileError.errorType?.value ==
-          moor_common.CompileErrorUnionTypeId.ParseError.value) {
-        final pe = compileError.error as moor_common.ParseError?;
-        final msg = pe?.message ?? 'Parse error';
-        final pos = pe?.errorPosition;
-        final line = pos?.line;
-        final col = pos?.col;
-        if (line != null && col != null) {
-          return '$msg (line $line, col $col)';
-        }
-        return msg;
-      }
-
-      return compileError.toString();
+    final lineIndex = line - 1;
+    if (lineIndex < 0 || lineIndex >= _ctrl.codeLines.length) {
+      return;
     }
-
-    return err.toString();
+    final lineText = _ctrl.codeLines[lineIndex].text;
+    final startOffset = column <= 0
+        ? 0
+        : column > lineText.length
+        ? lineText.length
+        : column - 1;
+    var endOffset = startOffset + 1;
+    if (diagnostic.endLine == line &&
+        diagnostic.endColumn != null &&
+        diagnostic.endColumn! > 0) {
+      endOffset = diagnostic.endColumn! - 1;
+    } else if (diagnostic.spanStart != null &&
+        diagnostic.spanEnd != null &&
+        diagnostic.spanEnd! > diagnostic.spanStart!) {
+      final spanLength = diagnostic.spanEnd! - diagnostic.spanStart!;
+      endOffset = startOffset + spanLength;
+    } else if (diagnostic.contextLine != null) {
+      final wordEnd = lineText.indexOf(' ', startOffset);
+      endOffset = wordEnd == -1 ? lineText.length : wordEnd;
+    }
+    if (endOffset <= startOffset) {
+      endOffset = startOffset < lineText.length ? startOffset + 1 : startOffset;
+    }
+    if (endOffset > lineText.length) {
+      endOffset = lineText.length;
+    }
+    final selection = CodeLineSelection(
+      baseIndex: lineIndex,
+      baseOffset: startOffset,
+      extentIndex: lineIndex,
+      extentOffset: endOffset,
+    );
+    _ctrl.selection = selection;
+    _ctrl.makePositionVisible(selection.start);
+    if (updateState) {
+      setState(() {
+        _activeDiagnosticIndex = _compileDiagnostics.indexOf(diagnostic);
+      });
+    }
   }
 
   Future<void> _compile() async {
     if (_compiling) return;
     setState(() {
       _compiling = true;
-      _compileResult = null;
+      _compileSuccess = false;
+      _compileDiagnostics = const <VerbCompileDiagnostic>[];
     });
     try {
       final api = MoorHttpApi(widget.baseUri);
@@ -172,17 +207,33 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
           moor_rpc.VerbProgramResponseUnionTypeId.VerbProgramSuccess.value) {
         setState(() {
           _lastCompiled = _currentText();
-          _compileResult = 'Compiled';
+          _compileSuccess = true;
+          _compileDiagnostics = const <VerbCompileDiagnostic>[];
         });
       } else {
+        final diagnostics = parseVerbCompileDiagnostics(resp);
         setState(() {
-          _compileResult = _formatCompileFailure(resp);
+          _compileSuccess = false;
+          _compileDiagnostics = diagnostics;
+          _activeDiagnosticIndex = 0;
         });
+        if (diagnostics.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            _focusDiagnostic(diagnostics.first, updateState: false);
+          });
+        }
       }
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
-        _compileResult = 'Compile failed: $e';
+        _compileSuccess = false;
+        _compileDiagnostics = <VerbCompileDiagnostic>[
+          VerbCompileDiagnostic(type: 'other', message: 'Compile failed: $e'),
+        ];
+        _activeDiagnosticIndex = 0;
       });
     } finally {
       if (mounted) {
@@ -195,6 +246,8 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
 
   @override
   Widget build(BuildContext context) {
+    final codeTheme = _codeTheme(context);
+    final errorLines = _errorLineSet();
     final compileLabel = _compiling
         ? 'Compiling...'
         : _hasUnsavedChanges
@@ -238,17 +291,36 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
                 ),
               ),
             ),
-          if (_compileResult != null)
+          if (_compileSuccess)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: SelectableText(
-                _compileResult!,
-                style: TextStyle(
-                  color: _compileResult == 'Compiled'
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.error,
-                  fontFamily: 'monospace',
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Compiled',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+              ),
+            ),
+          if (_compileDiagnostics.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _VerbCompileDiagnosticsPanel(
+                diagnostics: _compileDiagnostics,
+                activeIndex: _activeDiagnosticIndex,
+                onDismiss: () {
+                  setState(() {
+                    _compileDiagnostics = const <VerbCompileDiagnostic>[];
+                    _activeDiagnosticIndex = 0;
+                  });
+                },
+                onSelect: (index) {
+                  _focusDiagnostic(_compileDiagnostics[index]);
+                },
               ),
             ),
           const SizedBox(height: 12),
@@ -259,7 +331,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
               style: CodeEditorStyle(
                 fontFamily: 'Ubuntu Mono',
                 fontFamilyFallback: _monoFallback,
-                codeTheme: _codeTheme,
+                codeTheme: codeTheme,
               ),
               indicatorBuilder:
                   (context, editingController, chunkController, notifier) {
@@ -268,6 +340,13 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
                         DefaultCodeLineNumber(
                           controller: editingController,
                           notifier: notifier,
+                          customLineIndex2Text: (lineIndex) {
+                            final display = '${lineIndex + 1}';
+                            if (errorLines.contains(lineIndex + 1)) {
+                              return '$display!';
+                            }
+                            return display;
+                          },
                         ),
                         DefaultCodeChunkIndicator(
                           width: 20,
@@ -280,6 +359,165 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VerbCompileDiagnosticsPanel extends StatelessWidget {
+  final List<VerbCompileDiagnostic> diagnostics;
+  final int activeIndex;
+  final VoidCallback onDismiss;
+  final ValueChanged<int> onSelect;
+
+  const _VerbCompileDiagnosticsPanel({
+    required this.diagnostics,
+    required this.activeIndex,
+    required this.onDismiss,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+        border: Border.all(color: theme.colorScheme.error),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    diagnostics.length == 1
+                        ? 'Compiler Error'
+                        : 'Compiler Errors (${diagnostics.length})',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Dismiss compiler errors',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDismiss,
+                  icon: Icon(
+                    Icons.close,
+                    size: 18,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (var i = 0; i < diagnostics.length; i++) ...[
+              if (i > 0) const SizedBox(height: 8),
+              _VerbCompileDiagnosticTile(
+                diagnostic: diagnostics[i],
+                selected: i == activeIndex,
+                onTap: () => onSelect(i),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VerbCompileDiagnosticTile extends StatelessWidget {
+  final VerbCompileDiagnostic diagnostic;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _VerbCompileDiagnosticTile({
+    required this.diagnostic,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = theme.colorScheme.onErrorContainer;
+    return Material(
+      color: selected
+          ? theme.colorScheme.error.withValues(alpha: 0.16)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      diagnostic.message,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: foreground,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (diagnostic.hasLocation)
+                    Text(
+                      'L${diagnostic.line}:C${diagnostic.column}',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: foreground,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                ],
+              ),
+              if (diagnostic.contextLine != null &&
+                  diagnostic.contextLine!.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  diagnostic.contextLine!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: foreground,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+              if (diagnostic.expectedTokens.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Expected: ${diagnostic.expectedTokens.join(', ')}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: foreground,
+                  ),
+                ),
+              ],
+              if (diagnostic.notes.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                for (final note in diagnostic.notes)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      note,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: foreground,
+                      ),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
