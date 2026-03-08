@@ -41,6 +41,11 @@ void main() {
 
       expect(controller.editorSessions, hasLength(1));
       expect(controller.activeEditorIndex, 0);
+      expect(
+        controller.selectedPropertyKey,
+        ObjectBrowserController.propertyKey(property),
+      );
+      expect(controller.selectedVerbKey, isNull);
     });
 
     test('reuses verb editor sessions for the same verb slot', () {
@@ -70,6 +75,8 @@ void main() {
 
       expect(controller.editorSessions, hasLength(1));
       expect(controller.activeEditorIndex, 0);
+      expect(controller.selectedPropertyKey, isNull);
+      expect(controller.selectedVerbKey, ObjectBrowserController.verbKey(verb));
     });
 
     test('closing the active session clamps the selected index', () {

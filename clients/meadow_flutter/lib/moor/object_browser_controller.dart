@@ -109,6 +109,8 @@ class ObjectBrowserController extends ChangeNotifier {
   List<BrowserPropertyEntry> _properties = const <BrowserPropertyEntry>[];
   List<BrowserVerbEntry> _verbs = const <BrowserVerbEntry>[];
   BrowserObjectEntry? _selectedObject;
+  String? _selectedPropertyKey;
+  String? _selectedVerbKey;
   List<EditorSession> _editorSessions = const <EditorSession>[];
   int _activeEditorIndex = 0;
 
@@ -130,6 +132,33 @@ class ObjectBrowserController extends ChangeNotifier {
   List<BrowserPropertyEntry> get properties => _properties;
   List<BrowserVerbEntry> get verbs => _verbs;
   BrowserObjectEntry? get selectedObject => _selectedObject;
+  String? get selectedPropertyKey => _selectedPropertyKey;
+  String? get selectedVerbKey => _selectedVerbKey;
+  BrowserPropertyEntry? get selectedProperty {
+    final key = _selectedPropertyKey;
+    if (key == null) {
+      return null;
+    }
+    for (final property in _properties) {
+      if (propertyKey(property) == key) {
+        return property;
+      }
+    }
+    return null;
+  }
+
+  BrowserVerbEntry? get selectedVerb {
+    final key = _selectedVerbKey;
+    if (key == null) {
+      return null;
+    }
+    for (final verb in _verbs) {
+      if (verbKey(verb) == key) {
+        return verb;
+      }
+    }
+    return null;
+  }
   List<EditorSession> get editorSessions => _editorSessions;
   int get activeEditorIndex => _activeEditorIndex;
 
@@ -205,6 +234,8 @@ class ObjectBrowserController extends ChangeNotifier {
 
   Future<void> selectObject(BrowserObjectEntry entry) async {
     _selectedObject = entry;
+    _selectedPropertyKey = null;
+    _selectedVerbKey = null;
     _loadingMembers = true;
     _error = null;
     notifyListeners();
@@ -271,6 +302,8 @@ class ObjectBrowserController extends ChangeNotifier {
   }
 
   void selectProperty(BrowserPropertyEntry entry) {
+    _selectedPropertyKey = propertyKey(entry);
+    _selectedVerbKey = null;
     final session = PropertyEditorSession(
       id: 'object-browser:property:${entry.definerCurie}:${entry.name}',
       title: entry.name,
@@ -284,6 +317,8 @@ class ObjectBrowserController extends ChangeNotifier {
   }
 
   void selectVerb(BrowserVerbEntry entry) {
+    _selectedPropertyKey = null;
+    _selectedVerbKey = verbKey(entry);
     final primaryName = entry.names.isEmpty ? '(unnamed)' : entry.names.first;
     final session = VerbEditorSession(
       id: 'object-browser:verb:${entry.locationCurie}:${entry.indexInLocation}',
@@ -317,6 +352,14 @@ class ObjectBrowserController extends ChangeNotifier {
     }
     _activeEditorIndex = index;
     notifyListeners();
+  }
+
+  static String propertyKey(BrowserPropertyEntry entry) {
+    return '${entry.definerCurie}:${entry.name}';
+  }
+
+  static String verbKey(BrowserVerbEntry entry) {
+    return '${entry.locationCurie}:${entry.indexInLocation}';
   }
 
   BrowserObjectEntry? _resolveInitialSelection(

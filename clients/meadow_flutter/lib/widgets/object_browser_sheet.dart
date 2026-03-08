@@ -146,6 +146,11 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
   }) {
     final theme = Theme.of(context);
     return Card(
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -168,8 +173,9 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                       ),
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.secondaryContainer,
+                          color: theme.colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: theme.colorScheme.outlineVariant),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -179,8 +185,8 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                           child: Text(
                             '$count',
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSecondaryContainer,
-                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -209,21 +215,38 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     );
   }
 
+  Widget _buildCountToggle({
+    required bool active,
+    required String activeTooltip,
+    required String inactiveTooltip,
+    required VoidCallback onPressed,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
+  }) {
+    return IconButton(
+      visualDensity: VisualDensity.compact,
+      tooltip: active ? activeTooltip : inactiveTooltip,
+      onPressed: onPressed,
+      icon: Icon(active ? activeIcon : inactiveIcon),
+    );
+  }
+
   Widget _buildInheritedHeader(String objectCurie) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.colorScheme.onSurface,
+          color: theme.colorScheme.secondaryContainer,
           borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Text(
             'from ${_formatObjectRef(objectCurie)}',
             style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.surface,
+              color: theme.colorScheme.onSecondaryContainer,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -254,13 +277,22 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
           : ListView.builder(
               itemCount: widget.controller.filteredObjects.length,
               itemBuilder: (context, index) {
+                final theme = Theme.of(context);
                 final entry = widget.controller.filteredObjects[index];
                 final isSelected = entry.objectCurie == selected?.objectCurie;
                 final flags = _formatFlags(entry.flags);
                 return ListTile(
                   selected: isSelected,
+                  selectedTileColor: isSelected
+                      ? Color.lerp(
+                          theme.colorScheme.surfaceContainerLow,
+                          theme.colorScheme.primaryContainer,
+                          0.55,
+                        )
+                      : null,
                   dense: true,
                   visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                   title: Text(
                     _formatObjectLabel(entry),
                     style: const TextStyle(fontFamily: 'monospace'),
@@ -280,15 +312,51 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     );
   }
 
+  Widget _buildObjectsColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _buildObjectsPane()),
+        const SizedBox(height: 12),
+        _buildObjectInfoPanel(),
+      ],
+    );
+  }
+
+  Widget _buildPropertiesColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _buildPropertiesPane()),
+        const SizedBox(height: 12),
+        _buildPropertyInfoPanel(),
+      ],
+    );
+  }
+
   Widget _buildPropertiesPane() {
     final grouped = _groupedProperties();
     final selectedObject = widget.controller.selectedObject;
     return _buildPane(
       title: 'PROPERTIES',
       count: widget.controller.filteredProperties.length,
-      headerAction: const FilledButton.tonal(
-        onPressed: null,
-        child: Text('+ Add'),
+      headerAction: Wrap(
+        spacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _buildCountToggle(
+            active: widget.controller.showInheritedProperties,
+            activeTooltip: 'Hide inherited properties',
+            inactiveTooltip: 'Show inherited properties',
+            onPressed: widget.controller.toggleInheritedProperties,
+            activeIcon: Icons.account_tree,
+            inactiveIcon: Icons.account_tree_outlined,
+          ),
+          const FilledButton.tonal(
+            onPressed: null,
+            child: Text('+ Add'),
+          ),
+        ],
       ),
       filter: TextField(
         decoration: const InputDecoration(
@@ -307,8 +375,21 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                     _buildInheritedHeader(group.key),
                   for (final property in group.value)
                     ListTile(
+                      selectedTileColor:
+                          ObjectBrowserController.propertyKey(property) ==
+                                  widget.controller.selectedPropertyKey
+                              ? Color.lerp(
+                                  Theme.of(context).colorScheme.surfaceContainerLow,
+                                  Theme.of(context).colorScheme.primaryContainer,
+                                  0.55,
+                                )
+                              : null,
+                      selected:
+                          ObjectBrowserController.propertyKey(property) ==
+                          widget.controller.selectedPropertyKey,
                       dense: true,
                       visualDensity: VisualDensity.compact,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                       title: Text(
                         property.name,
                         style: const TextStyle(fontFamily: 'monospace'),
@@ -333,14 +414,23 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     return _buildPane(
       title: 'VERBS',
       count: widget.controller.filteredVerbs.length,
-      headerAction: const Wrap(
+      headerAction: Wrap(
         spacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          FilledButton.tonal(
+          _buildCountToggle(
+            active: widget.controller.showInheritedVerbs,
+            activeTooltip: 'Hide inherited verbs',
+            inactiveTooltip: 'Show inherited verbs',
+            onPressed: widget.controller.toggleInheritedVerbs,
+            activeIcon: Icons.functions,
+            inactiveIcon: Icons.functions_outlined,
+          ),
+          const FilledButton.tonal(
             onPressed: null,
             child: Text('Run Tests'),
           ),
-          FilledButton.tonal(
+          const FilledButton.tonal(
             onPressed: null,
             child: Text('+ Add'),
           ),
@@ -363,8 +453,21 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                     _buildInheritedHeader(group.key),
                   for (final verb in group.value)
                     ListTile(
+                      selectedTileColor:
+                          ObjectBrowserController.verbKey(verb) ==
+                                  widget.controller.selectedVerbKey
+                              ? Color.lerp(
+                                  Theme.of(context).colorScheme.surfaceContainerLow,
+                                  Theme.of(context).colorScheme.primaryContainer,
+                                  0.55,
+                                )
+                              : null,
+                      selected:
+                          ObjectBrowserController.verbKey(verb) ==
+                          widget.controller.selectedVerbKey,
                       dense: true,
                       visualDensity: VisualDensity.compact,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                       title: Text(
                         verb.names.join(' '),
                         style: const TextStyle(fontFamily: 'monospace'),
@@ -383,16 +486,269 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     );
   }
 
+  Widget _buildVerbsColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _buildVerbsPane()),
+        const SizedBox(height: 12),
+        _buildVerbInfoPanel(),
+      ],
+    );
+  }
+
   Widget _buildBrowserGrid() {
     return Row(
       children: [
-        Expanded(child: _buildObjectsPane()),
+        Expanded(child: _buildObjectsColumn()),
         const SizedBox(width: 12),
-        Expanded(child: _buildPropertiesPane()),
+        Expanded(child: _buildPropertiesColumn()),
         const SizedBox(width: 12),
-        Expanded(child: _buildVerbsPane()),
+        Expanded(child: _buildVerbsColumn()),
       ],
     );
+  }
+
+  Widget _buildInfoChip(String label, String value) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 5, 8, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value.isEmpty ? '-' : value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricChip(String label, String value) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '$label ',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              TextSpan(
+                text: value,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildObjectInfoPanel() {
+    final object = widget.controller.selectedObject;
+    if (object == null) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _formatObjectLabel(object),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                _buildInfoChip('Parent', _formatObjectRef(object.parentCurie)),
+                _buildInfoChip('Owner', _formatObjectRef(object.ownerCurie)),
+                _buildInfoChip(
+                  'Location',
+                  _formatObjectRef(object.locationCurie),
+                ),
+                _buildInfoChip('Flags', _formatFlags(object.flags)),
+                _buildMetricChip('Props', '${object.propertiesCount}'),
+                _buildMetricChip('Verbs', '${object.verbsCount}'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPropertyInfoPanel() {
+    final property = widget.controller.selectedProperty;
+    if (property == null) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              property.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                fontFamily: 'monospace',
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                _buildInfoChip('Definer', _formatObjectRef(property.definerCurie)),
+                _buildInfoChip('Owner', _formatObjectRef(property.ownerCurie)),
+                _buildInfoChip(
+                  'Location',
+                  _formatObjectRef(property.locationCurie),
+                ),
+                _buildInfoChip('Flags', _formatPropertyFlags(property)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerbInfoPanel() {
+    final verb = widget.controller.selectedVerb;
+    if (verb == null) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final names = verb.names.isEmpty ? '(unnamed)' : verb.names.join(' ');
+    return Card(
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              names,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                fontFamily: 'monospace',
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                _buildInfoChip('Location', _formatObjectRef(verb.locationCurie)),
+                _buildInfoChip('Owner', _formatObjectRef(verb.ownerCurie)),
+                _buildInfoChip('Flags', _formatVerbFlags(verb)),
+                _buildInfoChip('Args', '${verb.dobj} ${verb.prep} ${verb.iobj}'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLowerPane(List<EditorSession> sessions) {
+    return sessions.isEmpty
+        ? Card(
+            margin: EdgeInsets.zero,
+            child: Center(
+              child: Text(
+                'Select a property or verb to open an editor.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          )
+        : SessionEditorDock(
+            sessions: sessions,
+            activeIndex: widget.controller.activeEditorIndex,
+            onSelectIndex: widget.controller.selectSessionIndex,
+            onCloseSession: (session) async {
+              widget.controller.closeSession(session);
+            },
+            onOpenFullscreen: (session) {
+              return widget.editorPresenter.openFullscreen(
+                context,
+                session,
+              );
+            },
+            paneBuilder: widget.editorPresenter.paneForSession,
+          );
   }
 
   Widget _buildHorizontalSplitter(double totalHeight) {
@@ -422,10 +778,6 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
   }
 
   Widget _buildBodyContent(List<EditorSession> sessions) {
-    if (sessions.isEmpty) {
-      return _buildBrowserGrid();
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final usableHeight = constraints.maxHeight - _splitterHeight;
@@ -434,23 +786,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
             children: [
               Expanded(child: _buildBrowserGrid()),
               _buildHorizontalSplitter(constraints.maxHeight),
-              Expanded(
-                child: SessionEditorDock(
-                  sessions: sessions,
-                  activeIndex: widget.controller.activeEditorIndex,
-                  onSelectIndex: widget.controller.selectSessionIndex,
-                  onCloseSession: (session) async {
-                    widget.controller.closeSession(session);
-                  },
-                  onOpenFullscreen: (session) {
-                    return widget.editorPresenter.openFullscreen(
-                      context,
-                      session,
-                    );
-                  },
-                  paneBuilder: widget.editorPresenter.paneForSession,
-                ),
-              ),
+              Expanded(child: _buildLowerPane(sessions)),
             ],
           );
         }
@@ -469,21 +805,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
             _buildHorizontalSplitter(constraints.maxHeight),
             SizedBox(
               height: bottomHeight,
-              child: SessionEditorDock(
-                sessions: sessions,
-                activeIndex: widget.controller.activeEditorIndex,
-                onSelectIndex: widget.controller.selectSessionIndex,
-                onCloseSession: (session) async {
-                  widget.controller.closeSession(session);
-                },
-                onOpenFullscreen: (session) {
-                  return widget.editorPresenter.openFullscreen(
-                    context,
-                    session,
-                  );
-                },
-                paneBuilder: widget.editorPresenter.paneForSession,
-              ),
+              child: _buildLowerPane(sessions),
             ),
           ],
         );
@@ -500,28 +822,6 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
       appBar: AppBar(
         title: const Text('Object Browser'),
         actions: [
-          IconButton(
-            tooltip: widget.controller.showInheritedProperties
-                ? 'Hide inherited properties'
-                : 'Show inherited properties',
-            onPressed: widget.controller.toggleInheritedProperties,
-            icon: Icon(
-              widget.controller.showInheritedProperties
-                  ? Icons.account_tree
-                  : Icons.account_tree_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: widget.controller.showInheritedVerbs
-                ? 'Hide inherited verbs'
-                : 'Show inherited verbs',
-            onPressed: widget.controller.toggleInheritedVerbs,
-            icon: Icon(
-              widget.controller.showInheritedVerbs
-                  ? Icons.functions
-                  : Icons.functions_outlined,
-            ),
-          ),
           IconButton(
             tooltip: 'Close object browser',
             onPressed: () {
