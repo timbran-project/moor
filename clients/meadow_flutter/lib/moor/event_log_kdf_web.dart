@@ -16,6 +16,9 @@ import 'dart:js_interop';
 import 'dart:typed_data';
 
 @JS('argon2')
+external JSAny? get _argon2Raw;
+
+@JS('argon2')
 external JSArgon2 get _argon2;
 
 @JS()
@@ -53,8 +56,7 @@ Future<Uint8List> deriveEventLogKeyBytesImpl({
   required String identifier,
 }) async {
   // Check if argon2 is defined on globalThis
-  final argon2Exists = (globalContext.hasProperty('argon2'.toJS).toDart);
-  if (!argon2Exists) {
+  if (_argon2Raw == null) {
     throw StateError(
       'argon2 JS runtime not found; ensure argon2-browser is loaded in web/index.html',
     );

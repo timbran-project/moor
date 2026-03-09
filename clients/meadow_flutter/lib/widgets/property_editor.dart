@@ -44,6 +44,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
     verticalScroller: ScrollController(),
     horizontalScroller: ScrollController(),
   );
+  late final FocusNode _focusNode = FocusNode();
 
   bool _loading = true;
   bool _saving = false;
@@ -78,6 +79,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
     _ctrl.dispose();
     _scrollCtrl.verticalScroller.dispose();
     _scrollCtrl.horizontalScroller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -225,6 +227,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
             child: CodeEditor(
               controller: _ctrl,
               scrollController: _scrollCtrl,
+              focusNode: _focusNode,
               readOnly: !_supported,
               showCursorWhenReadOnly: false,
               style: CodeEditorStyle(

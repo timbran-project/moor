@@ -47,6 +47,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
     verticalScroller: ScrollController(),
     horizontalScroller: ScrollController(),
   );
+  late final FocusNode _focusNode = FocusNode();
   bool _loading = true;
   bool _compiling = false;
   String? _error;
@@ -75,6 +76,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
     _ctrl.dispose();
     _scrollCtrl.verticalScroller.dispose();
     _scrollCtrl.horizontalScroller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -329,6 +331,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
             child: CodeEditor(
               controller: _ctrl,
               scrollController: _scrollCtrl,
+              focusNode: _focusNode,
               style: CodeEditorStyle(
                 fontFamily: 'Comic Mono',
                 fontFamilyFallback: _monoFallback,
