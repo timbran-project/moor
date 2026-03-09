@@ -17,6 +17,7 @@ import 'dart:typed_data';
 import 'package:meadow_flutter/moor/event_log_kdf_native.dart'
     if (dart.library.js_interop) 'package:meadow_flutter/moor/event_log_kdf_web.dart';
 
+
 /// Derive the 32-byte event-log key bytes from user password + identifier.
 ///
 /// Must remain compatible across platforms (native + web) because the derived
