@@ -104,3 +104,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+  fonts:
+    - family: Comic Mono
+      fonts:
+        - asset: fonts/ComicMono.ttf
+        - asset: fonts/ComicMono-Bold.ttf
+          weight: 700
+    - family: Glass TTY VT220
+      fonts:
+        - asset: fonts/Glass_TTY_VT220.ttf

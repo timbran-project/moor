@@ -60,6 +60,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
   );
 
   static const _monoFallback = <String>[
+    'Comic Mono',
     'Ubuntu Mono',
     'DejaVu Sans Mono',
     'Liberation Mono',
@@ -182,7 +183,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
                   'unsupported',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.outline,
-                    fontFamily: 'monospace',
+                    fontFamily: 'Comic Mono',
                   ),
                 )
               else if (_hasUnsavedChanges)
@@ -190,7 +191,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
                   'unsaved',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.outline,
-                    fontFamily: 'monospace',
+                    fontFamily: 'Comic Mono',
                   ),
                 ),
             ],
@@ -202,7 +203,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
                 _error!,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.error,
-                  fontFamily: 'monospace',
+                  fontFamily: 'Comic Mono',
                 ),
               ),
             ),
@@ -215,7 +216,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
                   color: _saveResult == 'Saved'
                       ? Theme.of(context).colorScheme.primary
                       : Theme.of(context).colorScheme.error,
-                  fontFamily: 'monospace',
+                  fontFamily: 'Comic Mono',
                 ),
               ),
             ),
@@ -227,7 +228,7 @@ class _PropertyEditorPaneState extends State<PropertyEditorPane> {
               readOnly: !_supported,
               showCursorWhenReadOnly: false,
               style: CodeEditorStyle(
-                fontFamily: 'Ubuntu Mono',
+                fontFamily: 'Comic Mono',
                 fontFamilyFallback: _monoFallback,
                 codeTheme: _codeTheme,
               ),

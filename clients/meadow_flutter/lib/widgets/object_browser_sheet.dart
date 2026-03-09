@@ -1932,13 +1932,13 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                   title: Text(
                     _formatObjectLabel(entry),
-                    style: const TextStyle(fontFamily: 'monospace'),
+                    style: const TextStyle(fontFamily: 'Comic Mono'),
                   ),
                   trailing: flags.isEmpty
                       ? null
                       : Text(
                           flags,
-                          style: const TextStyle(fontFamily: 'monospace'),
+                          style: const TextStyle(fontFamily: 'Comic Mono'),
                         ),
                   onTap: () {
                     widget.controller.selectObject(entry);
@@ -2033,11 +2033,11 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                       ),
                       title: Text(
                         property.name,
-                        style: const TextStyle(fontFamily: 'monospace'),
+                        style: const TextStyle(fontFamily: 'Comic Mono'),
                       ),
                       trailing: Text(
                         _formatPropertyFlags(property),
-                        style: const TextStyle(fontFamily: 'monospace'),
+                        style: const TextStyle(fontFamily: 'Comic Mono'),
                       ),
                       onTap: () {
                         widget.controller.selectProperty(property);
@@ -2115,11 +2115,11 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                       ),
                       title: Text(
                         verb.names.join(' '),
-                        style: const TextStyle(fontFamily: 'monospace'),
+                        style: const TextStyle(fontFamily: 'Comic Mono'),
                       ),
                       trailing: Text(
                         _formatVerbFlags(verb),
-                        style: const TextStyle(fontFamily: 'monospace'),
+                        style: const TextStyle(fontFamily: 'Comic Mono'),
                       ),
                       onTap: () {
                         widget.controller.selectVerb(verb);
@@ -2181,7 +2181,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
               value.isEmpty ? '-' : value,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface,
-                fontFamily: 'monospace',
+                fontFamily: 'Comic Mono',
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -2214,7 +2214,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                 text: value,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSecondaryContainer,
-                  fontFamily: 'monospace',
+                  fontFamily: 'Comic Mono',
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -2320,7 +2320,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      fontFamily: 'monospace',
+                      fontFamily: 'Comic Mono',
                     ),
                   ),
                 ),
@@ -2402,7 +2402,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      fontFamily: 'monospace',
+                      fontFamily: 'Comic Mono',
                     ),
                   ),
                 ),

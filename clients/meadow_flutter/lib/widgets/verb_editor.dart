@@ -57,6 +57,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
   int _activeDiagnosticIndex = 0;
 
   static const _monoFallback = <String>[
+    'Comic Mono',
     'Ubuntu Mono',
     'DejaVu Sans Mono',
     'Liberation Mono',
@@ -275,7 +276,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
                   'unsaved',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.outline,
-                    fontFamily: 'monospace',
+                    fontFamily: 'Comic Mono',
                   ),
                 ),
             ],
@@ -287,7 +288,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
                 _error!,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.error,
-                  fontFamily: 'monospace',
+                  fontFamily: 'Comic Mono',
                 ),
               ),
             ),
@@ -300,7 +301,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
                   'Compiled',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
-                    fontFamily: 'monospace',
+                    fontFamily: 'Comic Mono',
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -329,7 +330,7 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
               controller: _ctrl,
               scrollController: _scrollCtrl,
               style: CodeEditorStyle(
-                fontFamily: 'Ubuntu Mono',
+                fontFamily: 'Comic Mono',
                 fontFamilyFallback: _monoFallback,
                 codeTheme: codeTheme,
               ),
@@ -476,7 +477,7 @@ class _VerbCompileDiagnosticTile extends StatelessWidget {
                       'L${diagnostic.line}:C${diagnostic.column}',
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: foreground,
-                        fontFamily: 'monospace',
+                        fontFamily: 'Comic Mono',
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -489,7 +490,7 @@ class _VerbCompileDiagnosticTile extends StatelessWidget {
                   diagnostic.contextLine!,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: foreground,
-                    fontFamily: 'monospace',
+                    fontFamily: 'Comic Mono',
                   ),
                 ),
               ],

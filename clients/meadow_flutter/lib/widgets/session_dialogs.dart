@@ -53,7 +53,7 @@ Future<HistoryEncryptionAction?> showHistoryEncryptionDialog(
             backendHasPubkey: backendHasPubkey,
             hasLocalKey: hasLocalKey,
           ),
-          style: const TextStyle(fontFamily: 'monospace'),
+          style: const TextStyle(fontFamily: 'Comic Mono'),
         ),
         actions: [
           if (!backendHasPubkey)

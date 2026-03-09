@@ -799,14 +799,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? Text(
                     'Loading welcome message...',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontFamily: 'monospace',
+                      fontFamily: 'Comic Mono',
                     ),
                   )
                 : (welcome == null || welcome.lines.isEmpty)
                 ? Text(
                     '(no welcome message)',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontFamily: 'monospace',
+                      fontFamily: 'Comic Mono',
                     ),
                   )
                 : ContentRenderer(

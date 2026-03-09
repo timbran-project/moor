@@ -90,7 +90,7 @@ class SessionNarrativeList extends StatelessWidget {
                             Text(
                               ts,
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: 'Comic Mono',
                                 color: cs.outline,
                                 fontSize: 12,
                               ),
@@ -99,7 +99,7 @@ class SessionNarrativeList extends StatelessWidget {
                             Text(
                               item.contentType,
                               style: TextStyle(
-                                fontFamily: 'monospace',
+                                fontFamily: 'Comic Mono',
                                 color: cs.outline,
                                 fontSize: 12,
                               ),

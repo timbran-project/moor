@@ -36,6 +36,7 @@ const _emojiFontFallback = <String>[
 // When rendering monospace, keep monospace fallbacks first to avoid breaking
 // spacing, and only then fall back to emoji fonts.
 const _monospaceFontFallback = <String>[
+  'Comic Mono',
   'Noto Sans Mono',
   'DejaVu Sans Mono',
   'Liberation Mono',
@@ -83,7 +84,7 @@ class ContentRenderer extends StatelessWidget {
     }
     return DefaultTextStyle.merge(
       style: const TextStyle(
-        fontFamily: 'monospace',
+        fontFamily: 'Comic Mono',
         fontFamilyFallback: _monospaceFontFallback,
       ),
       child: wrapped,
@@ -180,7 +181,7 @@ class _Preformatted extends StatelessWidget {
   Widget build(BuildContext context) {
     final textStyle = DefaultTextStyle.of(context).style.merge(
       const TextStyle(
-        fontFamily: 'monospace',
+        fontFamily: 'Comic Mono',
         fontFamilyFallback: _monospaceFontFallback,
       ),
     );
@@ -247,7 +248,7 @@ class _PreformattedCodeBlock extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final base = DefaultTextStyle.of(context).style.merge(
       const TextStyle(
-        fontFamily: 'monospace',
+        fontFamily: 'Comic Mono',
         fontFamilyFallback: _monospaceFontFallback,
       ),
     );
@@ -553,7 +554,7 @@ class _HtmlBlock extends StatelessWidget {
               'white-space': 'pre-wrap',
               'overflow-wrap': 'anywhere',
               'word-break': 'break-word',
-              'font-family': 'monospace',
+              'font-family': 'Comic Mono',
             };
           case 'code':
             final parentIsPre = parent != null && parent.localName == 'pre';
@@ -561,13 +562,13 @@ class _HtmlBlock extends StatelessWidget {
               if (parentIsPre) ...{
                 'display': 'block',
                 'white-space': 'pre-wrap',
-                'font-family': 'monospace',
+                'font-family': 'Comic Mono',
               } else ...{
                 // Some sources emit very long code-like tokens/identifiers.
                 // Allow wrapping in narrative/panel views.
                 'overflow-wrap': 'anywhere',
                 'word-break': 'break-word',
-                'font-family': 'monospace',
+                'font-family': 'Comic Mono',
               },
             };
           case 'table':
