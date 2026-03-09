@@ -12,9 +12,39 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:js_interop';
 import 'dart:typed_data';
 
-import 'package:js/js_util.dart' as js_util;
+@JS('argon2')
+external JSArgon2 get _argon2;
+
+@JS()
+@staticInterop
+extension type JSArgon2(JSObject _) implements JSObject {
+  external JSPromise<JSArgon2Result> hash(JSArgon2Options options);
+}
+
+@JS()
+@staticInterop
+@anonymous
+extension type JSArgon2Options._(JSObject _) implements JSObject {
+  external factory JSArgon2Options({
+    JSString pass,
+    JSString salt,
+    JSNumber time,
+    JSNumber mem,
+    JSNumber parallelism,
+    JSNumber hashLen,
+    JSNumber type,
+  });
+}
+
+@JS()
+@staticInterop
+extension type JSArgon2Result(JSObject _) implements JSObject {
+  external JSUint8Array? get hash;
+  external JSString? get hashHex;
+}
 
 const _kdfSaltPrefix = 'moor-event-log-v1-';
 
@@ -22,13 +52,13 @@ Future<Uint8List> deriveEventLogKeyBytesImpl({
   required String password,
   required String identifier,
 }) async {
-  final argon2 = js_util.getProperty<Object?>(js_util.globalThis, 'argon2');
-  if (argon2 == null) {
+  // Check if argon2 is defined on globalThis
+  final argon2Exists = (globalContext.hasProperty('argon2'.toJS).toDart);
+  if (!argon2Exists) {
     throw StateError(
       'argon2 JS runtime not found; ensure argon2-browser is loaded in web/index.html',
     );
   }
-  final argon2Obj = argon2 as Object;
 
   // NOTE: These parameters must stay aligned with the native implementation
   // (argon2 package defaults) and Meadow web:
@@ -38,36 +68,33 @@ Future<Uint8List> deriveEventLogKeyBytesImpl({
   // - lanes/parallelism: 4
   // - output: 32 bytes
   final salt = '$_kdfSaltPrefix$identifier';
-  final options = <String, Object?>{
-    'pass': password,
-    'salt': salt,
-    'time': 3,
-    'mem': 65536,
-    'parallelism': 4,
-    'hashLen': 32,
+  final options = JSArgon2Options(
+    pass: password.toJS,
+    salt: salt.toJS,
+    time: 3.toJS,
+    mem: 65536.toJS,
+    parallelism: 4.toJS,
+    hashLen: 32.toJS,
     // argon2-browser uses numeric enum values: 2 == Argon2id
     // https://github.com/antelle/argon2-browser
-    'type': 2,
-  };
+    type: 2.toJS,
+  );
 
-  // Argon2 expects a plain JS object, not a Dart Map.
-  final jsOptions = js_util.jsify(options);
-
-  final promise = js_util.callMethod<Object>(argon2Obj, 'hash', <Object?>[
-    jsOptions,
-  ]);
-  final result = await js_util.promiseToFuture<Object>(promise);
+  final result = await _argon2.hash(options).toDart;
 
   // Meadow web uses `result.hash` (Uint8Array) directly. Prefer that, but
   // fall back to `hashHex` for resilience across argon2-browser variants.
-  final hash = js_util.getProperty<Object?>(result, 'hash');
-  if (hash is Uint8List) {
-    return hash;
+  final hash = result.hash;
+  if (hash != null) {
+    return hash.toDart;
   }
 
-  final hashHex = js_util.getProperty<Object?>(result, 'hashHex');
-  if (hashHex is String && hashHex.length == 64) {
-    return _hexToBytes(hashHex);
+  final hashHex = result.hashHex;
+  if (hashHex != null) {
+    final hexStr = hashHex.toDart;
+    if (hexStr.length == 64) {
+      return _hexToBytes(hexStr);
+    }
   }
 
   throw StateError(
