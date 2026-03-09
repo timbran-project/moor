@@ -12,11 +12,8 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-// This file is a web-only conditional import used solely to force same-tab
-// navigation for browser OAuth redirects.
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 
 Future<void> navigateSameTab(String url) async {
-  html.window.location.assign(url);
+  web.window.location.assign(url);
 }

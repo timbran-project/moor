@@ -55,7 +55,7 @@ import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 import 'package:meadow_flutter/moor/verb_palette.dart';
 import 'package:meadow_flutter/moor/web_navigation_stub.dart'
-    if (dart.library.html) 'package:meadow_flutter/moor/web_navigation_web.dart';
+    if (dart.library.js_interop) 'package:meadow_flutter/moor/web_navigation_web.dart';
 import 'package:meadow_flutter/theme/app_theme.dart';
 import 'package:meadow_flutter/widgets/account_sheet.dart';
 import 'package:meadow_flutter/widgets/input_prompt_composer.dart';
