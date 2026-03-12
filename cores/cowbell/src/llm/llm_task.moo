@@ -5,17 +5,17 @@ object LLM_TASK
   fertile: true
   readable: true
 
-  property agent (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property completed_at (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property created_at (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property error (owner: ARCH_WIZARD, flags: "rc") = "";
-  property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property parent_task_id (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property result (owner: ARCH_WIZARD, flags: "rc") = "";
-  property started_at (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property status (owner: ARCH_WIZARD, flags: "rc") = 'pending;
-  property subtasks (owner: ARCH_WIZARD, flags: "rc") = {};
-  property task_id (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property agent (owner: HACKER, flags: "rc") = #-1;
+  property completed_at (owner: HACKER, flags: "rc") = 0;
+  property created_at (owner: HACKER, flags: "rc") = 0;
+  property error (owner: HACKER, flags: "rc") = "";
+  property knowledge_base (owner: HACKER, flags: "rc") = #-1;
+  property parent_task_id (owner: HACKER, flags: "rc") = 0;
+  property result (owner: HACKER, flags: "rc") = "";
+  property started_at (owner: HACKER, flags: "rc") = 0;
+  property status (owner: HACKER, flags: "rc") = 'pending;
+  property subtasks (owner: HACKER, flags: "rc") = {};
+  property task_id (owner: HACKER, flags: "rc") = 0;
 
   override description = "Anonymous task spawned by an LLM agent to track work and findings.";
   override import_export_hierarchy = {"llm"};

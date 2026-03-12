@@ -24,37 +24,60 @@ object LLM_RESPONSE
   verb message (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Get the first choice's message, sanitized for API re-submission.";
     !this:is_valid() && return [];
-    msg = this.raw["choices"][1]["message"];
-    "Sanitize: remove fields that are the string 'null' or invalid";
-    cleaned = ["role" -> msg["role"] || "assistant"];
-    "Only include content if it's a real string (not 'null')";
-    content = msg["content"];
-    if (typeof(content) == TYPE_STR && content != "null")
-      "Strip leading 'null' garbage some models produce";
-      while (length(content) > 4 && content[1..4] == "null")
-        content = content[5..length(content)];
-        "Also strip leading whitespace/newlines";
-        while (length(content) > 0 && (content[1] == " " || content[1] == "\n"))
-          content = content[2..length(content)];
+    choice = this.raw["choices"][1];
+    typeof(choice) != TYPE_MAP && return [];
+    !maphaskey(choice, "message") && return [];
+    msg = choice["message"];
+    typeof(msg) != TYPE_MAP && return [];
+    role = "assistant";
+    if (maphaskey(msg, "role") && typeof(msg["role"]) == TYPE_STR && msg["role"] != "")
+      role = msg["role"];
+    endif
+    cleaned = ["role" -> role];
+    "Only include content if it's a real string (not 'null').";
+    if (maphaskey(msg, "content"))
+      content = msg["content"];
+      if (typeof(content) == TYPE_STR && content != "null")
+        "Strip leading 'null' garbage some models produce.";
+        while (length(content) > 4 && content[1..4] == "null")
+          content = content[5..length(content)];
+          while (length(content) > 0 && (content[1] == " " || content[1] == "\n"))
+            content = content[2..length(content)];
+          endwhile
         endwhile
-      endwhile
-      length(content) > 0 && (cleaned["content"] = content);
+        length(content) > 0 && (cleaned["content"] = content);
+      endif
     endif
-    "Only include tool_calls if it's a real list";
-    tc = msg["tool_calls"];
-    if (typeof(tc) == TYPE_LIST && length(tc) > 0)
-      cleaned["tool_calls"] = tc;
+    "Only include tool_calls if it's present and a non-empty list.";
+    if (maphaskey(msg, "tool_calls"))
+      tc = msg["tool_calls"];
+      if (typeof(tc) == TYPE_LIST && length(tc) > 0)
+        cleaned["tool_calls"] = tc;
+      endif
     endif
-    "Don't include name, reasoning_content, or other junk fields";
     return cleaned;
   endverb
 
   verb content (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Extract content from response, handling both content and reasoning_content.";
-    msg = this:message();
+    "Extract content from raw response, with reasoning_content fallback.";
+    !this:is_valid() && return "";
+    choice = this.raw["choices"][1];
+    typeof(choice) != TYPE_MAP && return "";
+    !maphaskey(choice, "message") && return "";
+    msg = choice["message"];
     typeof(msg) != TYPE_MAP && return "";
-    maphaskey(msg, "content") && typeof(msg["content"]) == TYPE_STR && msg["content"] != "" && msg["content"] != "null" && return msg["content"];
-    maphaskey(msg, "reasoning_content") && typeof(msg["reasoning_content"]) == TYPE_STR && msg["reasoning_content"] != "null" && return msg["reasoning_content"];
+    if (maphaskey(msg, "content"))
+      content = msg["content"];
+      if (typeof(content) == TYPE_STR && content != "" && content != "null")
+        return content;
+      endif
+    endif
+    if (maphaskey(msg, "reasoning_content"))
+      reasoning = msg["reasoning_content"];
+      if (typeof(reasoning) == TYPE_STR && reasoning != "null")
+        return reasoning;
+      endif
+    endif
     return "";
   endverb
 

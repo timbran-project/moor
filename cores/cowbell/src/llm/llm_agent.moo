@@ -5,31 +5,31 @@ object LLM_AGENT
   fertile: true
   readable: true
 
-  property all_failed_iterations (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property all_failed_iterations (owner: HACKER, flags: "rc") = 0;
   property cancel_requested (owner: HACKER, flags: "rc") = false;
-  property chat_opts (owner: ARCH_WIZARD, flags: "rc") = false;
-  property client (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property compaction_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
+  property chat_opts (owner: HACKER, flags: "rc") = false;
+  property client (owner: HACKER, flags: "rc") = #-1;
+  property compaction_callback (owner: HACKER, flags: "rc") = #-1;
   property compaction_threshold (owner: ARCH_WIZARD, flags: "r") = 0.7;
-  property consecutive_tool_failures (owner: ARCH_WIZARD, flags: "rc") = [];
-  property context (owner: ARCH_WIZARD, flags: "c") = {};
-  property current_continuation (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property current_iteration (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property current_tasks (owner: ARCH_WIZARD, flags: "rc") = [];
-  property knowledge_base (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property last_token_usage (owner: ARCH_WIZARD, flags: "c") = [];
+  property consecutive_tool_failures (owner: HACKER, flags: "rc") = [];
+  property context (owner: HACKER, flags: "c") = {};
+  property current_continuation (owner: HACKER, flags: "rc") = 0;
+  property current_iteration (owner: HACKER, flags: "rc") = 0;
+  property current_tasks (owner: HACKER, flags: "rc") = [];
+  property knowledge_base (owner: HACKER, flags: "rc") = #-1;
+  property last_token_usage (owner: HACKER, flags: "c") = [];
   property max_consecutive_failures (owner: ARCH_WIZARD, flags: "r") = 3;
   property max_iterations (owner: ARCH_WIZARD, flags: "r") = 50;
-  property min_messages_to_keep (owner: ARCH_WIZARD, flags: "c") = 15;
-  property next_task_id (owner: ARCH_WIZARD, flags: "rc") = 1;
-  property next_todo_id (owner: ARCH_WIZARD, flags: "rc") = 1;
-  property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
-  property todos (owner: ARCH_WIZARD, flags: "rc") = {};
+  property min_messages_to_keep (owner: HACKER, flags: "c") = 15;
+  property next_task_id (owner: HACKER, flags: "rc") = 1;
+  property next_todo_id (owner: HACKER, flags: "rc") = 1;
+  property system_prompt (owner: HACKER, flags: "rc") = "";
+  property todos (owner: HACKER, flags: "rc") = {};
   property token_limit (owner: ARCH_WIZARD, flags: "r") = 128000;
-  property token_owner (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property tool_callback (owner: ARCH_WIZARD, flags: "rc") = #-1;
-  property tools (owner: ARCH_WIZARD, flags: "c") = [];
-  property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property token_owner (owner: HACKER, flags: "rc") = #-1;
+  property tool_callback (owner: HACKER, flags: "rc") = #-1;
+  property tools (owner: HACKER, flags: "c") = [];
+  property total_tokens_used (owner: HACKER, flags: "rc") = 0;
 
   override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
   override import_export_hierarchy = {"llm"};
@@ -105,7 +105,20 @@ object LLM_AGENT
         return $llm_response:mk(response);
       except e (ANY)
         this:_log("ERROR: " + toliteral(e));
-        retry_count >= max_retries && raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
+        if (retry_count >= max_retries)
+          if (typeof(tool_schemas) == TYPE_LIST && length(tool_schemas) > 0)
+            this:_log("Final retry failed with tools; attempting one fallback request without tools");
+            try
+              response = this.client:chat(this.context, opts, false, false, false);
+              suspend(0);
+              return $llm_response:mk(response);
+            except fallback_err (ANY)
+              this:_log("ERROR(no-tools fallback): " + toliteral(fallback_err));
+              raise(E_INVARG, "LLM API call failed after retries (with and without tools): " + toliteral(e) + " ; fallback: " + toliteral(fallback_err));
+            endtry
+          endif
+          raise(E_INVARG, "LLM API call failed after retries: " + toliteral(e));
+        endif
         suspend(retry_count + 1);
       endtry
     endfor

@@ -6,14 +6,14 @@ object LLM_WEARABLE
   readable: true
 
   property agent (owner: HACKER, flags: "r") = #-1;
-  property auto_confirm (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property auto_confirm (owner: HACKER, flags: "rc") = 0;
   property placeholder_text (owner: HACKER, flags: "rc") = "Ask a question...";
   property preferred_model (owner: HACKER, flags: "rc") = "";
   property processing_message (owner: HACKER, flags: "rc") = "Processing request...";
-  property progress_connection (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property progress_max_visible (owner: ARCH_WIZARD, flags: "rc") = 5;
-  property progress_rewrite_id (owner: ARCH_WIZARD, flags: "rc") = "";
-  property progress_steps (owner: ARCH_WIZARD, flags: "rc") = {};
+  property progress_connection (owner: HACKER, flags: "rc") = 0;
+  property progress_max_visible (owner: HACKER, flags: "rc") = 5;
+  property progress_rewrite_id (owner: HACKER, flags: "rc") = "";
+  property progress_steps (owner: HACKER, flags: "rc") = {};
   property prompt_color (owner: HACKER, flags: "rc") = 'bright_cyan;
   property prompt_label (owner: HACKER, flags: "rc") = "[TOOL]";
   property prompt_text (owner: HACKER, flags: "rc") = "Enter your query:";
@@ -51,11 +51,26 @@ object LLM_WEARABLE
 
   verb _action_perms_check (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check tool is accessible and return wearer. Caller must set_task_perms(wearer).";
+    {?actor = #-1} = args;
     wearer = this:wearer();
     if (!valid(wearer))
-      "Check if tool is in player's inventory instead";
+      "Prefer explicit actor, then token_owner from active agent";
+      candidate = valid(actor) ? actor | `this.agent.token_owner ! ANY => #-1';
+      if (valid(candidate))
+        if (respond_to(candidate, 'is_wearing) && `candidate:is_wearing(this) ! ANY => false')
+          wearer = candidate;
+        elseif (is_member(this, `candidate.contents ! ANY => {}'))
+          wearer = candidate;
+        endif
+      endif
+    endif
+    if (!valid(wearer))
+      "Fallback to command context player";
       wearer = player;
-      valid(wearer) && is_member(this, wearer.contents) || raise(E_PERM, "Tool must be worn or in inventory to use");
+      valid(wearer) || raise(E_PERM, "Tool must be worn or in inventory to use");
+      worn = respond_to(wearer, 'is_wearing) && `wearer:is_wearing(this) ! ANY => false';
+      carried = is_member(this, `wearer.contents ! ANY => {}');
+      worn || carried || raise(E_PERM, "Tool must be worn or in inventory to use");
     endif
     "Check user eligibility - override _check_user_eligible in children for custom requirements";
     this:_check_user_eligible(wearer);
@@ -818,8 +833,13 @@ object LLM_WEARABLE
       player:inform_current($event:mk_error(player, error_msg));
       return;
     endif
-    "Configure agent if needed";
-    if (!valid(this.agent))
+    "Configure agent if needed, or if inherited/shared agent is bound to another wearable";
+    needs_config = !valid(this.agent);
+    if (!needs_config)
+      callback_target = `this.agent.tool_callback ! ANY => #-1';
+      callback_target != this && (needs_config = true);
+    endif
+    if (needs_config)
       this:configure();
     endif
     "Prompt for query text using metadata-based read";

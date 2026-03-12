@@ -9,18 +9,18 @@ object LLM_ROOM_OBSERVER
   property already_off_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already switched off."};
   property already_on_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'dobj>, " is already active."};
   property enabled (owner: HACKER, flags: "rc") = true;
-  property event_buffer (owner: ARCH_WIZARD, flags: "rc") = {};
-  property event_buffer_size (owner: ARCH_WIZARD, flags: "rc") = 5;
+  property event_buffer (owner: HACKER, flags: "rc") = {};
+  property event_buffer_size (owner: HACKER, flags: "rc") = 5;
   property knowledge_base (owner: HACKER, flags: "rc") = #-1;
-  property last_loop_probe_at (owner: ARCH_WIZARD, flags: "rc") = "0";
-  property last_loop_probe_error (owner: ARCH_WIZARD, flags: "rc") = "\"\"";
-  property last_loop_restart_at (owner: ARCH_WIZARD, flags: "rc") = "0";
+  property last_loop_probe_at (owner: HACKER, flags: "rc") = "0";
+  property last_loop_probe_error (owner: HACKER, flags: "rc") = "\"\"";
+  property last_loop_restart_at (owner: HACKER, flags: "rc") = "0";
   property last_significant_event (owner: HACKER, flags: "rc") = 0.0;
   property last_spoke_at (owner: HACKER, flags: "rc") = 0.0;
-  property loop_task (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property loop_task (owner: HACKER, flags: "rc") = 0;
   property observation_mechanics_prompt (owner: HACKER, flags: "rc") = "You are observing events in a virtual room. Events are delivered to you as MOO flyweight structures in the form OBSERVATION: <delegate, .field1 = value, .field2 = value>. Extract the relevant information from these structured events and use them to understand what's happening.";
   property preferred_model (owner: HACKER, flags: "rc") = "";
-  property responding (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property responding (owner: HACKER, flags: "rc") = 0;
   property response_opts (owner: HACKER, flags: "rc") = false;
   property response_prompt (owner: HACKER, flags: "rc") = "Respond to what you've observed. CRITICAL: Do NOT output any text directly - only use tool calls. For physical actions, use the emote tool. For speech, use directed_say. You can make multiple tool calls in sequence. If you have nothing to say or do, output nothing at all. Never explain your reasoning or thought process in your response - just act.";
   property role_prompt (owner: HACKER, flags: "rc") = "When asked, provide witty or insightful commentary based on what you've seen.";
@@ -58,8 +58,8 @@ object LLM_ROOM_OBSERVER
   property thinking_task (owner: HACKER, flags: "rc") = 0;
   property thinking_timeout (owner: HACKER, flags: "rc") = 60;
   property thinking_timeout_message (owner: HACKER, flags: "rc") = "looks confused and shakes head, seeming to have lost the thread.";
-  property triage_model (owner: ARCH_WIZARD, flags: "rc") = "MiniMaxAI/MiniMax-M2.1";
-  property triage_prompt (owner: ARCH_WIZARD, flags: "rc") = "You are a triage filter for an NPC named {name}. Decide if {name} should engage with the recent activity.\n\nEXAMPLES:\n\nActivity: Alice says, \"Hey {name}, can you help me find the restaurant?\"\nAnswer: ENGAGE (directly addressed by name, asking for help)\n\nActivity: Bob arrives from the north.\nAnswer: IGNORE (just someone arriving, wait to see if they need help)\n\nActivity: Carol says, \"I have a commit that might help with that bug\"\nAnswer: IGNORE (technical discussion between others, \"help\" not directed at {name})\n\nActivity: Dan says, \"where am I? how do I check in?\"\nAnswer: ENGAGE (newcomer seems confused and needs orientation)\n\nActivity: Eve [to Frank]: \"did you see the game last night?\"\nAnswer: IGNORE (conversation between two other people)\n\nActivity: Grace says, \"this websocket code is tricky\"\nAnswer: IGNORE (technical discussion, not asking {name} for anything)\n\nActivity: Henry says, \"{name}?\"\nAnswer: ENGAGE (directly addressed by name)\n\nActivity: Iris nods\nActivity: Jack waves to everyone\nAnswer: IGNORE (social gestures not requiring response)\n\nActivity: Kate says, \"excuse me, is there someone who works here?\"\nAnswer: ENGAGE (looking for staff assistance)\n\nNOW DECIDE for this activity:\n{events}\n\nAnswer with ONLY one word: ENGAGE or IGNORE";
+  property triage_model (owner: HACKER, flags: "rc") = "MiniMaxAI/MiniMax-M2.1";
+  property triage_prompt (owner: HACKER, flags: "rc") = "You are a triage filter for an NPC named {name}. Decide if {name} should engage with the recent activity.\n\nEXAMPLES:\n\nActivity: Alice says, \"Hey {name}, can you help me find the restaurant?\"\nAnswer: ENGAGE (directly addressed by name, asking for help)\n\nActivity: Bob arrives from the north.\nAnswer: IGNORE (just someone arriving, wait to see if they need help)\n\nActivity: Carol says, \"I have a commit that might help with that bug\"\nAnswer: IGNORE (technical discussion between others, \"help\" not directed at {name})\n\nActivity: Dan says, \"where am I? how do I check in?\"\nAnswer: ENGAGE (newcomer seems confused and needs orientation)\n\nActivity: Eve [to Frank]: \"did you see the game last night?\"\nAnswer: IGNORE (conversation between two other people)\n\nActivity: Grace says, \"this websocket code is tricky\"\nAnswer: IGNORE (technical discussion, not asking {name} for anything)\n\nActivity: Henry says, \"{name}?\"\nAnswer: ENGAGE (directly addressed by name)\n\nActivity: Iris nods\nActivity: Jack waves to everyone\nAnswer: IGNORE (social gestures not requiring response)\n\nActivity: Kate says, \"excuse me, is there someone who works here?\"\nAnswer: ENGAGE (looking for staff assistance)\n\nNOW DECIDE for this activity:\n{events}\n\nAnswer with ONLY one word: ENGAGE or IGNORE";
   property turn_on_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
@@ -928,6 +928,8 @@ object LLM_ROOM_OBSERVER
   verb _event_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Main event loop. Processes observations, pokes, and nudges via task_recv.";
     "Runs as a single long-lived task. Callers enqueue work via task_send.";
+    "Normalize perms so worker/network calls do not depend on who started the loop.";
+    set_task_perms(this.owner);
     while (this.enabled)
       "Wait for messages (up to 60s timeout)";
       messages = task_recv(60);
@@ -1080,6 +1082,8 @@ object LLM_ROOM_OBSERVER
     if (lt > 0)
       `kill_task(lt) ! ANY';
     endif
+    "Ensure loop always runs with observer owner perms regardless of caller.";
+    set_task_perms(this.owner);
     fork task_id (0)
       this:_event_loop();
     endfork

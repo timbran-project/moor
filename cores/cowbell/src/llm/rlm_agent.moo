@@ -410,7 +410,7 @@ object RLM_AGENT
       endif
       cb = this.progress_callback;
       if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-        `cb[1]:((cb[2]))(this, iteration, this.last_tool) ! ANY';
+        `cb[1]:(cb[2])(this, iteration, this.last_tool) ! ANY';
       endif
       if (iteration == wrap_up_at)
         reminder = ["role" -> "system", "content" -> "SYSTEM REMINDER: You are at iteration " + tostr(iteration) + " of " + tostr(this.max_iterations) + ". Please wrap up soon. Use report_finding with final=true when done."];

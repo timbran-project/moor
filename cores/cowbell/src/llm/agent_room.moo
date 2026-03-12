@@ -73,7 +73,7 @@ object AGENT_ROOM
     player:inform_current($event:mk_info(player, "Queued: \"" + command_text + "\""));
   endverb
 
-  verb _announce (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _announce (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Announce an agent message to the room using proper room events.";
     {message} = args;
     "Create a proper room event";
@@ -83,7 +83,7 @@ object AGENT_ROOM
     this:announce(event);
   endverb
 
-  verb stop (none none none) owner: ARCH_WIZARD flags: "xd"
+  verb halt (none none none) owner: ARCH_WIZARD flags: "xd"
     "Stop all current tasks and the event loop.";
     this:_stop_loop();
     queue_len = length(this.task_queue);
@@ -217,11 +217,11 @@ object AGENT_ROOM
     "Formatted description with explicit newlines.";
     intro = $ansi:wrap("A virtual workspace where you can interact with an AI agent.", 'dim);
     cmd_header = "\n" + $ansi:wrap("Commands:", 'bold, 'cyan);
-    cmds = $format.list:mk({$ansi:wrap("do <task>", 'green) + " - Queue a task for the agent", $ansi:wrap("status", 'green) + " - Check current activity", $ansi:wrap("stop", 'green) + " - Interrupt current task", $ansi:wrap("queue", 'green) + " - Show pending tasks", $ansi:wrap("history", 'green) + " - Show completed tasks"}, false);
+    cmds = $format.list:mk({$ansi:wrap("do <task>", 'green) + " - Queue a task for the agent", $ansi:wrap("status", 'green) + " - Check current activity", $ansi:wrap("halt", 'green) + " - Interrupt current task", $ansi:wrap("queue", 'green) + " - Show pending tasks", $ansi:wrap("history", 'green) + " - Show completed tasks"}, false);
     return {intro, cmd_header, cmds};
   endverb
 
-  verb _tool_present_code (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _tool_present_code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present formatted code to the room.";
     {args_map, actor} = args;
     title = maphaskey(args_map, "title") ? args_map["title"] | "Code";
@@ -245,7 +245,7 @@ object AGENT_ROOM
     return "Code presented: " + title;
   endverb
 
-  verb _tool_present_report (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _tool_present_report (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present a formatted report/document to the room.";
     {args_map, actor} = args;
     title = maphaskey(args_map, "title") ? args_map["title"] | "";
@@ -272,7 +272,7 @@ object AGENT_ROOM
     return "Report presented: " + (title ? title | "(untitled)");
   endverb
 
-  verb _tool_present_table (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _tool_present_table (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Present a formatted table to the room.";
     {args_map, actor} = args;
     title = maphaskey(args_map, "title") ? args_map["title"] | "";
@@ -338,12 +338,12 @@ object AGENT_ROOM
     return "Table presented: " + tostr(length(rows)) + " rows";
   endverb
 
-  verb _get_room_tools (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _get_room_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return tool definitions for this room's presentation tools.";
     return {["name" -> "show_verb", "description" -> "Display a verb's source code. Always include 'reason' to explain WHY you're reading this code.", "target_obj" -> this, "target_verb" -> "_tool_show_verb", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room', '$thing', '#123'"], "verb" -> ["type" -> "string", "description" -> "Verb name to display"], "reason" -> ["type" -> "string", "description" -> "WHY you're reading this - e.g. 'to understand how wearables work'"]], "required" -> {"object", "verb", "reason"}]], ["name" -> "present_report", "description" -> "Present a prose report. Write clear explanatory text about what you DID or found.", "target_obj" -> this, "target_verb" -> "_tool_present_report", "input_schema" -> ["type" -> "object", "properties" -> ["title" -> ["type" -> "string", "description" -> "Report title"], "content" -> ["type" -> "string", "description" -> "Report text - prose paragraphs"]], "required" -> {"content"}]], ["name" -> "present_table", "description" -> "Present tabular data like verb lists or property comparisons.", "target_obj" -> this, "target_verb" -> "_tool_present_table", "input_schema" -> ["type" -> "object", "properties" -> ["title" -> ["type" -> "string", "description" -> "Table title"], "headers" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Column headers"], "rows" -> ["type" -> "array", "items" -> ["type" -> "array"], "description" -> "Table rows"]], "required" -> {"headers", "rows"}]], ["name" -> "program_verb", "description" -> "Set the MOO code for a verb. IMPORTANT: 'code' must be a single string containing the COMPLETE verb body. Use \\n for line breaks. Example: code=\"\\\"Docstring\\\";\\nplayer:inform_current($event:mk_info(player, ctime()));\"", "target_obj" -> this, "target_verb" -> "_tool_program_verb", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$thing', '#123'"], "verb" -> ["type" -> "string", "description" -> "Verb name to program"], "code" -> ["type" -> "string", "description" -> "Complete MOO code as a SINGLE STRING. Use \\n for newlines. NOT an object/map."]], "required" -> {"object", "verb", "code"}]]};
   endverb
 
-  verb _tool_show_verb (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _tool_show_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Fetch and present verb code with explanation of why.";
     {args_map, actor} = args;
     obj_ref = args_map["object"];
@@ -456,7 +456,7 @@ object AGENT_ROOM
     return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = new_desc, .exits = exits, .ambient_passages = ambient, .actions = actions, {@contents_list}>;
   endverb
 
-  verb _on_progress (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _on_progress (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called by agent during run to report progress. Ephemeral to requester.";
     {agent, iteration, last_tool} = args;
     "Only report every 5 iterations, or on first iteration";
@@ -502,7 +502,7 @@ object AGENT_ROOM
     player:inform_current($event:mk_info(player, "Compacted context from " + tostr(old_len) + " to " + tostr(new_len) + " messages."));
   endverb
 
-  verb _announce_thinking (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _announce_thinking (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Send agent's thinking to requester only (ephemeral).";
     {thinking} = args;
     thinking && length(thinking) > 0 || return;
@@ -571,14 +571,14 @@ object AGENT_ROOM
     this:_tell_requester("Thinking: " + thinking);
   endverb
 
-  verb _announce_status (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _announce_status (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Send lightweight status update to requester only (ephemeral).";
     {status} = args;
     status && length(status) > 0 || return;
     this:_tell_requester(status);
   endverb
 
-  verb _tool_program_verb (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _tool_program_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Program a verb with code preview.";
     {args_map, actor} = args;
     obj_ref = args_map["object"];
@@ -673,7 +673,7 @@ object AGENT_ROOM
     return $agent_building_tools:program_verb(args_map, actor);
   endverb
 
-  verb _tell_requester (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _tell_requester (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Send ephemeral message to the task requester only.";
     {message} = args;
     requester = this.task_requester;
@@ -725,7 +725,7 @@ object AGENT_ROOM
     player:inform_current($event:mk_info(player, "Revision queued (continuing from previous context): \"" + command_text + "\""));
   endverb
 
-  verb _execute_task (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _execute_task (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal verb to execute a single task from the queue.";
     caller == this || raise(E_PERM);
     {task} = args;
@@ -824,7 +824,7 @@ object AGENT_ROOM
     endtry
   endverb
 
-  verb _flatten_content (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _flatten_content (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Flatten complex content (lists, maps) into readable text.";
     {val} = args;
     if (typeof(val) == TYPE_STR)
@@ -864,7 +864,7 @@ object AGENT_ROOM
     return tostr(val);
   endverb
 
-  verb _event_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _event_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Main event loop. Receives tasks via task_recv, dispatches workers.";
     pending = {};
     active = {};
@@ -960,7 +960,7 @@ object AGENT_ROOM
     this.active_tasks = {};
   endverb
 
-  verb _start_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _start_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Fork the event loop task and store its ID.";
     "Stop any existing loop first to prevent duplicates.";
     lt = this.loop_task;
@@ -985,7 +985,7 @@ object AGENT_ROOM
     commit();
   endverb
 
-  verb _stop_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _stop_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Kill the event loop and all active workers.";
     lt = this.loop_task;
     this.loop_task = 0;
@@ -1007,7 +1007,7 @@ object AGENT_ROOM
     commit();
   endverb
 
-  verb _ensure_loop (none none none) owner: ARCH_WIZARD flags: "rxd"
+  verb _ensure_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Start the event loop if not already running.";
     if (this.loop_task <= 0)
       this:_start_loop();

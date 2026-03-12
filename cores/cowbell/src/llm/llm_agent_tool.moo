@@ -44,7 +44,7 @@ object LLM_AGENT_TOOL
     if (respond_to(this.target_obj, prefixed_verb))
       result = this.target_obj:(prefixed_verb)(tool_args, actor);
     elseif (respond_to(this.target_obj, this.target_verb))
-      result = this.target_obj:((this.target_verb))(tool_args, actor);
+      result = this.target_obj:(this.target_verb)(tool_args, actor);
     else
       raise(E_VERBNF, "Tool handler not found: " + prefixed_verb + " or " + this.target_verb);
     endif
