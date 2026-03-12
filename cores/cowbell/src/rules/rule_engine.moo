@@ -186,7 +186,7 @@ object RULE_ENGINE
     length(substituted_args) == 0 && raise(E_INVARG, "goal needs at least one argument (the object)");
     target_obj = substituted_args[1];
     typeof(target_obj) == TYPE_OBJ || raise(E_TYPE, "first goal argument must be object");
-    fact_results = `target_obj:(("fact_" + tostr(predicate_name)))(@substituted_args) ! E_VERBNF => false';
+    fact_results = `target_obj:("fact_" + tostr(predicate_name))(@substituted_args) ! E_VERBNF => false';
     "Check for failure (false, 0, empty string, empty list - but NOT valid objects)";
     if (fact_results == false || fact_results == 0 || fact_results == "" || fact_results == {})
       return {};
