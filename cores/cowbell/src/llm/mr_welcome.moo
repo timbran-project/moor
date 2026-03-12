@@ -192,7 +192,6 @@ object MR_WELCOME
     if (query == "")
       return "Please provide a player name.";
     endif
-    query_lc = query:lowercase();
     exact_matches = {};
     partial_matches = {};
     for p in (players())
@@ -200,10 +199,9 @@ object MR_WELCOME
         continue;
       endif
       name = p:name();
-      name_lc = name:lowercase();
-      if (name_lc == query_lc)
+      if (name == query)
         exact_matches = {@exact_matches, p};
-      elseif (index(name_lc, query_lc) > 0)
+      elseif (index(name, query) > 0)
         partial_matches = {@partial_matches, p};
       endif
     endfor
@@ -365,12 +363,10 @@ object MR_WELCOME
       if (query == "")
         return "Please provide an object name.";
       endif
-      query_lc = query:lowercase();
       current_room = this.location;
       if (!valid(current_room))
         return "Error: Mr. Welcome is not in a room";
       endif
-      "Search in room contents with case-insensitive exact-then-partial matching";
       exact_matches = {};
       partial_matches = {};
       room_contents = `current_room:contents() ! ANY => current_room.contents';
@@ -383,10 +379,9 @@ object MR_WELCOME
           continue;
         endif
         item_name = item:name();
-        item_name_lc = item_name:lowercase();
-        if (item_name_lc == query_lc)
+        if (item_name == query)
           exact_matches = {@exact_matches, item};
-        elseif (index(item_name_lc, query_lc) > 0)
+        elseif (index(item_name, query) > 0)
           partial_matches = {@partial_matches, item};
         endif
       endfor
@@ -431,7 +426,6 @@ object MR_WELCOME
       if (query == "")
         return "Please provide an object name.";
       endif
-      query_lc = query:lowercase();
       "Find the object first";
       current_room = this.location;
       if (!valid(current_room))
@@ -449,10 +443,9 @@ object MR_WELCOME
           continue;
         endif
         item_name = item:name();
-        item_name_lc = item_name:lowercase();
-        if (item_name_lc == query_lc)
+        if (item_name == query)
           exact_matches = {@exact_matches, item};
-        elseif (index(item_name_lc, query_lc) > 0)
+        elseif (index(item_name, query) > 0)
           partial_matches = {@partial_matches, item};
         endif
       endfor
@@ -594,7 +587,6 @@ object MR_WELCOME
     if (query == "")
       return "Please provide an object name.";
     endif
-    query_lc = query:lowercase();
     "Find the object first";
     current_room = this.location;
     if (!valid(current_room))
@@ -612,10 +604,9 @@ object MR_WELCOME
         continue;
       endif
       item_name = item:name();
-      item_name_lc = item_name:lowercase();
-      if (item_name_lc == query_lc)
+      if (item_name == query)
         exact_matches = {@exact_matches, item};
-      elseif (index(item_name_lc, query_lc) > 0)
+      elseif (index(item_name, query) > 0)
         partial_matches = {@partial_matches, item};
       endif
     endfor
