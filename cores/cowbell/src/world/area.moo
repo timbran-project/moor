@@ -106,7 +106,23 @@ object AREA
       return {};
     endif
     tuples = this.passages_rel:select_containing(room);
-    return { tuple[3] for tuple in (tuples) };
+    if (length(tuples) == 0)
+      tuples = {};
+      for binding in (this.passages_rel:query({room, $dvar:mk_dest(), $dvar:mk_passage()}))
+        tuples = {@tuples, {room, binding['dest], binding['passage]}};
+      endfor
+      for binding in (this.passages_rel:query({$dvar:mk_src(), room, $dvar:mk_passage()}))
+        tuples = {@tuples, {binding['src], room, binding['passage]}};
+      endfor
+    endif
+    passages = {};
+    for tuple in (tuples)
+      passage = tuple[3];
+      if (!(passage in passages))
+        passages = {@passages, passage};
+      endif
+    endfor
+    return passages;
   endverb
 
   verb handle_passage_command (this none this) owner: HACKER flags: "rxd"

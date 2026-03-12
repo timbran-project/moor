@@ -6,11 +6,11 @@ object ROOM
   fertile: true
   readable: true
 
-  property acoustic_debug_counts (owner: ARCH_WIZARD, flags: "rc") = ["suppressed_not_loud" -> 1];
-  property acoustic_debug_enabled (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property acoustic_debug_log (owner: ARCH_WIZARD, flags: "rc") = {};
-  property acoustic_neighbors (owner: ARCH_WIZARD, flags: "rc") = [];
-  property engagements (owner: ARCH_WIZARD, flags: "rc") = [];
+  property acoustic_debug_counts (owner: HACKER, flags: "rc") = ["suppressed_not_loud" -> 1];
+  property acoustic_debug_enabled (owner: HACKER, flags: "rc") = 0;
+  property acoustic_debug_log (owner: HACKER, flags: "rc") = {};
+  property acoustic_neighbors (owner: HACKER, flags: "rc") = [];
+  property engagements (owner: HACKER, flags: "rc") = [];
 
   override description = "Parent prototype for all rooms in the system, defining room behavior and event broadcasting.";
   override import_export_hierarchy = {"world"};
@@ -111,28 +111,51 @@ object ROOM
   endverb
 
   verb enterfunc (this none this) owner: HACKER flags: "rxd"
-    "Show room description to arriving players";
+    "Show room description to arriving players and refresh room snapshot state.";
     {who} = args;
     valid(who) || return;
-    if (is_player(who))
-      `who:emit_room_look(this) ! ANY';
-      "Notify objects in the room that a player arrived";
-      for thing in (this.contents)
-        if (thing != who)
-          `thing:on_location_enter(who) ! E_VERBNF => 0';
+    "Defer expensive room presentation and fanout until after the move commits.";
+    fork (0)
+      if (is_player(who))
+        `who:emit_room_look(this) ! ANY => 0';
+        for thing in (this.contents)
+          suspend_if_needed();
+          if (thing != who)
+            `thing:on_location_enter(who) ! ANY => 0';
+          endif
+        endfor
+      endif
+      for viewer in (this.contents)
+        suspend_if_needed();
+        if (!is_player(viewer))
+          continue;
         endif
+        `$event_receiver:emit_room_snapshot_state(viewer, this) ! ANY => 0';
       endfor
-    endif
-    pass(@args);
+    endfork
+    `pass(@args) ! ANY => 0';
   endverb
 
   verb exitfunc (this none this) owner: HACKER flags: "rxd"
-    "Notify room contents of departure, then fire parent triggers.";
+    "Notify room contents of departure, then refresh room snapshot state.";
     {who} = args;
-    for item in (this.contents)
-      respond_to(item, 'on_location_exit) && `item:on_location_exit(who) ! ANY';
-    endfor
-    pass(@args);
+    "Defer expensive room fanout until after the move commits.";
+    fork (0)
+      for item in (this.contents)
+        suspend_if_needed();
+        if (respond_to(item, 'on_location_exit))
+          `item:on_location_exit(who) ! ANY => 0';
+        endif
+      endfor
+      for viewer in (this.contents)
+        suspend_if_needed();
+        if (!is_player(viewer))
+          continue;
+        endif
+        `$event_receiver:emit_room_snapshot_state(viewer, this) ! ANY => 0';
+      endfor
+    endfork
+    `pass(@args) ! ANY => 0';
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
@@ -289,6 +312,7 @@ object ROOM
     "Collect actions from objects in the room";
     actions = {};
     for item in (this.contents)
+      suspend_if_needed();
       item_actions = `item:available_actions() ! E_VERBNF => {}';
       if (typeof(item_actions) == TYPE_LIST && length(item_actions) > 0)
         actions = {@actions, @item_actions};
@@ -466,10 +490,17 @@ object ROOM
     endif
     is_passage = typeof(passage) == TYPE_FLYWEIGHT || (typeof(passage) == TYPE_OBJ && valid(passage));
     if (!is_passage)
-      if (direction == "door")
+      direction_words = {"n", "north", "s", "south", "e", "east", "w", "west", "u", "up", "d", "down", "in", "out", "ne", "nw", "se", "sw"};
+      if (valid(target))
+        player:inform_current($event:mk_error(player, "You can't unlock that."));
+      elseif (iobjstr && iobjstr != "")
+        player:inform_current($event:mk_error(player, "I don't see \"" + direction + "\" here."));
+      elseif (direction == "door")
         player:inform_current($event:mk_error(player, "There's no door here."));
-      else
+      elseif (direction in direction_words)
         player:inform_current($event:mk_error(player, "There's no exit in that direction."));
+      else
+        player:inform_current($event:mk_error(player, "I don't see \"" + direction + "\" here."));
       endif
       return;
     endif
@@ -1080,5 +1111,43 @@ object ROOM
       endif
       `#7.acoustic_debug_log = log ! E_PERM';
     endif
+  endverb
+
+  verb room_snapshot (this none this) owner: HACKER flags: "rxd"
+    "Return structured room state for OOB clients.";
+    "{?viewer = player, ?look_data = this:look_self()}";
+    {?viewer = player, ?look_data = 0} = args;
+    if (typeof(look_data) != TYPE_FLYWEIGHT)
+      look_data = this:look_self();
+    endif
+    exits = `look_data.exits ! E_PROPNF => {}';
+    ambient_passages = `look_data.ambient_passages ! E_PROPNF => {}';
+    all_exits = {@exits};
+    for ap in (ambient_passages)
+      suspend_if_needed();
+      if (typeof(ap) == TYPE_LIST && length(ap) >= 3)
+        label = ap[3];
+        if (typeof(label) == TYPE_STR && label && !(label in all_exits))
+          all_exits = {@all_exits, label};
+        endif
+      endif
+    endfor
+    available_actions = `look_data.actions ! E_PROPNF => {}';
+    actors = {};
+    things = {};
+    for o in (this:contents())
+      suspend_if_needed();
+      if (!valid(o) || o == viewer)
+        continue;
+      endif
+      name = `o:name() ! E_VERBNF => o.name';
+      if (o:is_actor())
+        status = `look_data:actor_idle_status(o) ! ANY => ""';
+        actors = {@actors, ["object" -> o, "name" -> name, "status" -> status]};
+      else
+        things = {@things, ["object" -> o, "name" -> name]};
+      endif
+    endfor
+    return ["room" -> this, "title" -> `this:name() ! ANY => "Room"', "description" -> `this:description() ! ANY => ""', "exits" -> all_exits, "ambient_passages" -> ambient_passages, "actions" -> available_actions, "actors" -> actors, "things" -> things];
   endverb
 endobject

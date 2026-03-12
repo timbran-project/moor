@@ -5,7 +5,7 @@ object PASSAGE
   fertile: true
   readable: true
 
-  property close_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property close_msg (owner: HACKER, flags: "rc") = 0;
   property direction_abbrevs (owner: HACKER, flags: "rc") = [
     "d" -> "down",
     "down" -> "d",
@@ -34,11 +34,11 @@ object PASSAGE
     "w" -> "west",
     "west" -> "w"
   ];
-  property is_locked (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property is_locked (owner: HACKER, flags: "rc") = 0;
   property is_open (owner: HACKER, flags: "rc") = true;
-  property lock_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property locked_msg (owner: ARCH_WIZARD, flags: "rc") = "";
-  property open_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property lock_msg (owner: HACKER, flags: "rc") = 0;
+  property locked_msg (owner: HACKER, flags: "rc") = "";
+  property open_msg (owner: HACKER, flags: "rc") = 0;
   property side_a_aliases (owner: HACKER, flags: "rc") = {};
   property side_a_ambient (owner: HACKER, flags: "rc") = true;
   property side_a_arrival_phrase (owner: HACKER, flags: "rc") = "";
@@ -59,8 +59,8 @@ object PASSAGE
   property side_b_leave_msg (owner: HACKER, flags: "rc") = {};
   property side_b_prose_style (owner: HACKER, flags: "rc") = 'fragment;
   property side_b_room (owner: HACKER, flags: "rc") = #-1;
-  property unlock_msg (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property unlock_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property unlock_msg (owner: HACKER, flags: "rc") = 0;
+  property unlock_rule (owner: HACKER, flags: "rc") = 0;
 
   override description = "Bidirectional passage configuration.";
   override import_export_hierarchy = {"world"};
@@ -316,80 +316,81 @@ object PASSAGE
     move_context = this:mk_movement_context(player, from_room, to_room, from_label, to_label);
     "Notify room contents before departure (e.g., stand up from furniture)";
     `from_room:notify_pre_exit(player) ! E_VERBNF => 0';
-    "Render and announce departure event";
-    from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
-    leave_msg = this:_side_lookup(from_side, 'leave_msg);
-    if (typeof(leave_msg) == TYPE_LIST && length(leave_msg) > 0)
-      "Render custom message with movement context";
-      departure_text = "";
-      for component in (leave_msg)
-        if (typeof(component) == TYPE_FLYWEIGHT)
-          try
-            rendered = component:render_as(player, 'text_plain, move_context);
-            departure_text = departure_text + rendered;
-          except (ANY)
-            departure_text = departure_text + tostr(component);
-          endtry
-        else
-          departure_text = departure_text + tostr(component);
-        endif
-      endfor
-      departure = $event:mk(player, #-1, from_room, #-1, #-1, {departure_text}, {});
-    else
-      "Fall back to default message generation";
-      from_description = this:description_for(from_room);
-      departure_phrase = this:departure_phrase_for(from_room);
-      if (!departure_phrase || departure_phrase == "" && typeof(from_description) == TYPE_STR)
-        desc_lower = from_description:lowercase();
-        if (desc_lower:starts_with("through "))
-          from_description = from_description[9..length(from_description)];
-        endif
-      endif
-      departure = `player:mk_departure_event(from_room, from_label, from_description, to_room, departure_phrase) ! E_VERBNF => 0';
-    endif
-    if (departure)
-      departure = departure:with_audience('narrative);
-      from_room:announce(departure);
-    endif
-    "Actually move the player";
+    "Actually move the player before any expensive presentation work.";
     player:moveto(to_room);
-    "Render and announce arrival event";
-    to_side = to_room == this:_side_lookup('a, 'room) ? 'a | 'b;
-    arrive_msg = this:_side_lookup(to_side, 'arrive_msg);
-    if (typeof(arrive_msg) == TYPE_LIST && length(arrive_msg) > 0)
-      "Render custom message with movement context";
-      arrival_text = "";
-      for component in (arrive_msg)
-        if (typeof(component) == TYPE_FLYWEIGHT)
-          try
-            rendered = component:render_as(player, 'text_plain, move_context);
-            arrival_text = arrival_text + rendered;
-          except (ANY)
-            arrival_text = arrival_text + tostr(component);
-          endtry
-        else
-          arrival_text = arrival_text + tostr(component);
+    "Render and announce movement asynchronously after the move commits.";
+    fork (0)
+      "Render departure event";
+      from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
+      leave_msg = this:_side_lookup(from_side, 'leave_msg);
+      if (typeof(leave_msg) == TYPE_LIST && length(leave_msg) > 0)
+        departure_text = "";
+        for component in (leave_msg)
+          suspend_if_needed();
+          if (typeof(component) == TYPE_FLYWEIGHT)
+            try
+              rendered = component:render_as(player, 'text_plain, move_context);
+              departure_text = departure_text + rendered;
+            except (ANY)
+              departure_text = departure_text + tostr(component);
+            endtry
+          else
+            departure_text = departure_text + tostr(component);
+          endif
+        endfor
+        departure = $event:mk(player, #-1, from_room, #-1, #-1, {departure_text}, {});
+      else
+        from_description = this:description_for(from_room);
+        departure_phrase = this:departure_phrase_for(from_room);
+        if (!departure_phrase || departure_phrase == "" && typeof(from_description) == TYPE_STR)
+          desc_lower = from_description:lowercase();
+          if (desc_lower:starts_with("through "))
+            from_description = from_description[9..length(from_description)];
+          endif
         endif
-      endfor
-      arrival = $event:mk(player, #-1, to_room, #-1, #-1, {arrival_text}, {});
-    else
-      "Fall back to default message generation";
-      to_description = this:description_for(to_room);
-      arrival_phrase = this:arrival_phrase_for(to_room);
-      if (!arrival_phrase || arrival_phrase == "" && typeof(to_description) == TYPE_STR)
-        desc_lower = to_description:lowercase();
-        if (desc_lower:starts_with("from "))
-          to_description = to_description[6..length(to_description)];
-        elseif (desc_lower:starts_with("through "))
-          to_description = to_description[9..length(to_description)];
-        endif
+        departure = `player:mk_departure_event(from_room, from_label, from_description, to_room, departure_phrase) ! E_VERBNF => 0';
       endif
-      arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room, arrival_phrase) ! E_VERBNF => 0';
-    endif
-    if (arrival)
-      arrival = arrival:with_audience('narrative);
-      to_room:announce(arrival);
-    endif
+      if (departure)
+        departure = departure:with_audience('narrative);
+        `from_room:announce(departure) ! ANY => 0';
+      endif
+      "Render arrival event";
+      to_side = to_room == this:_side_lookup('a, 'room) ? 'a | 'b;
+      arrive_msg = this:_side_lookup(to_side, 'arrive_msg);
+      if (typeof(arrive_msg) == TYPE_LIST && length(arrive_msg) > 0)
+        arrival_text = "";
+        for component in (arrive_msg)
+          suspend_if_needed();
+          if (typeof(component) == TYPE_FLYWEIGHT)
+            try
+              rendered = component:render_as(player, 'text_plain, move_context);
+              arrival_text = arrival_text + rendered;
+            except (ANY)
+              arrival_text = arrival_text + tostr(component);
+            endtry
+          else
+            arrival_text = arrival_text + tostr(component);
+          endif
+        endfor
+        arrival = $event:mk(player, #-1, to_room, #-1, #-1, {arrival_text}, {});
+      else
+        to_description = this:description_for(to_room);
+        arrival_phrase = this:arrival_phrase_for(to_room);
+        if (!arrival_phrase || arrival_phrase == "" && typeof(to_description) == TYPE_STR)
+          desc_lower = to_description:lowercase();
+          if (desc_lower:starts_with("from "))
+            to_description = to_description[6..length(to_description)];
+          elseif (desc_lower:starts_with("through "))
+            to_description = to_description[9..length(to_description)];
+          endif
+        endif
+        arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room, arrival_phrase) ! E_VERBNF => 0';
+      endif
+      if (arrival)
+        arrival = arrival:with_audience('narrative);
+        `to_room:announce(arrival) ! ANY => 0';
+      endif
+    endfork
     return true;
   endverb
 
