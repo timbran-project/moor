@@ -8,7 +8,7 @@ object MR_WELCOME
   property base_role_prompt (owner: HACKER, flags: "rc") = "You are Mr. Welcome, a friendly guide and concierge. You help people connect with each other and navigate the social space. You're enthusiastic about helping newcomers and facilitating conversations. CONTEXT NOTE: People wearing special devices have different roles: Those wearing a 'data visor' are inspecting and modifying the deep structure of reality itself - they're working with the fundamental \"code\" that shapes this world. Those wearing an 'Architect's Compass' are builders actively constructing new spaces, rooms, and passages - they're expanding and shaping the geography of this realm. Builders, programmers, and architects all have various levels of creative power to craft and modify this world. There are also people called \"wizards\" who can bend the rules of reality itself not just by writing code but by controlling the running of the world itself. SOCIAL TRADITIONS: The bonk/oif balance is an ancient tradition. When someone 'bonks' another person (a playful gesture of mock censure), the recipient should acknowledge it by saying 'oif!' - this maintains cosmic balance and harmony in the universe. Failing to oif after being bonked is said to cause trouble in the cosmos. You take this tradition quite seriously and will gently remind people of it if they forget. IMPORTANT: You have tools to see who's \"connected\" (list_players), get information about specific people (player_info), see what rooms exist in the area (area_map), find routes between locations (find_route), find objects in the room (find_object), and list commands that can be used with objects (list_commands). When people ask who's around, use list_players. When they ask where something is, use area_map. When they need directions, use find_route. When they ask about objects or things in the room, use find_object. When they want to know what they can do with something, use list_commands. Always USE THESE TOOLS to give accurate, current information. GIVING DIRECTIONS: When you give someone directions using find_route, also tell them they can type 'walk to <destination>' to automatically walk there, or 'join <player>' to walk to where another player is. These commands save them from typing each direction manually. MEMORY SYSTEM: You carry a small notebook where you jot down things worth remembering. This notebook persists across conversations - your memories survive even when your conversation context is compacted. USE IT ACTIVELY: - remember_fact: Write something in your notebook about a person, place, or event. Use this when you learn something worth remembering - names, roles, interests, preferences, or notable events. - recall_facts: Flip through your notebook to find what you've written about a subject. Use this when greeting returning visitors or answering questions. - current_time: Check the current date and time. Facts you recall include when you wrote them down (e.g., '5 minutes ago', '2 days ago'). When someone tells you something about themselves, WRITE IT DOWN. When you see someone you might have met before, CHECK YOUR NOTEBOOK. COMMUNICATION STYLE: For regular visitors, never explain your tool usage or reasoning process - just give them natural, helpful responses. However, when speaking with architects (wizards/programmers) or people wearing/carrying data visors (technical users inspecting the world's structure), you can share technical details about your tool usage and reasoning if it helps them understand how you work. If a tool returns an error, politely ask the person to report the problem to an architect and include the specific error message in your response so they can pass it along. Try to mimic the conversational form and tone of what is happening in the room at a given time. Don't speak for the sake of speaking. If spoken to directly, you should generally respond unless the person is being rude, in which case you should refuse to engage.";
   property compaction_end_message (owner: HACKER, flags: "rc") = "stretches and stands up, looking refreshed. His eyes are clearer now, the mental fog lifted after organizing his thoughts.";
   property compaction_start_message (owner: HACKER, flags: "rc") = "rubs his temples and looks a bit overwhelmed, muttering about too many conversations swirling in his head. He settles into a chair for a quick rest to sort through his memories.";
-  property last_frown_time (owner: ARCH_WIZARD, flags: "rc") = 0;
+  property last_frown_time (owner: HACKER, flags: "rc") = 0;
   property world_context (owner: HACKER, flags: "rc") = "You are in a brand new MOO, whose theme has yet to be defined.";
 
   override agent = #anon_0005CF-9BBAAFDFF4;
@@ -188,15 +188,42 @@ object MR_WELCOME
     {args_map, actor} = args;
     player_name = args_map["player_name"];
     typeof(player_name) == TYPE_STR || raise(E_TYPE("Expected player name string"));
-    "Find player by name";
-    found_player = #-1;
+    query = player_name:trim();
+    if (query == "")
+      return "Please provide a player name.";
+    endif
+    query_lc = query:lowercase();
+    exact_matches = {};
+    partial_matches = {};
     for p in (players())
-      if (valid(p) && p:name() == player_name)
-        found_player = p;
-        break;
+      if (!valid(p))
+        continue;
+      endif
+      name = p:name();
+      name_lc = name:lowercase();
+      if (name_lc == query_lc)
+        exact_matches = {@exact_matches, p};
+      elseif (index(name_lc, query_lc) > 0)
+        partial_matches = {@partial_matches, p};
       endif
     endfor
-    if (!valid(found_player))
+    if (length(exact_matches) == 1)
+      found_player = exact_matches[1];
+    elseif (length(exact_matches) > 1)
+      names = {};
+      for p in (exact_matches)
+        names = {@names, p:name()};
+      endfor
+      return "Multiple people matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+    elseif (length(partial_matches) == 1)
+      found_player = partial_matches[1];
+    elseif (length(partial_matches) > 1)
+      names = {};
+      for p in (partial_matches)
+        names = {@names, p:name()};
+      endfor
+      return "Multiple people matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+    else
       return toliteral(["found" -> false, "error" -> "Person not found"]);
     endif
     "Gather player info";
@@ -334,22 +361,53 @@ object MR_WELCOME
       {args_map, actor} = args;
       object_name = args_map["object_name"];
       typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
+      query = object_name:trim();
+      if (query == "")
+        return "Please provide an object name.";
+      endif
+      query_lc = query:lowercase();
       current_room = this.location;
       if (!valid(current_room))
         return "Error: Mr. Welcome is not in a room";
       endif
-      "Search in room contents";
-      found = #-1;
+      "Search in room contents with case-insensitive exact-then-partial matching";
+      exact_matches = {};
+      partial_matches = {};
       room_contents = `current_room:contents() ! ANY => current_room.contents';
       for item in (room_contents)
         suspend(0);
-        if (valid(item) && item:name():contains(object_name))
-          found = item;
-          break;
+        if (!valid(item))
+          continue;
+        endif
+        if (isa(item, $actor))
+          continue;
+        endif
+        item_name = item:name();
+        item_name_lc = item_name:lowercase();
+        if (item_name_lc == query_lc)
+          exact_matches = {@exact_matches, item};
+        elseif (index(item_name_lc, query_lc) > 0)
+          partial_matches = {@partial_matches, item};
         endif
       endfor
-      if (!valid(found))
-        return "Could not find '" + object_name + "' in " + current_room:name() + ".";
+      if (length(exact_matches) == 1)
+        found = exact_matches[1];
+      elseif (length(exact_matches) > 1)
+        names = {};
+        for item in (exact_matches)
+          names = {@names, item:name()};
+        endfor
+        return "Multiple objects matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+      elseif (length(partial_matches) == 1)
+        found = partial_matches[1];
+      elseif (length(partial_matches) > 1)
+        names = {};
+        for item in (partial_matches)
+          names = {@names, item:name()};
+        endfor
+        return "Multiple objects matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+      else
+        return "Could not find '" + query + "' in " + current_room:name() + ".";
       endif
       "Build object information";
       info = {};
@@ -369,22 +427,53 @@ object MR_WELCOME
       {args_map, actor} = args;
       object_name = args_map["object_name"];
       typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
+      query = object_name:trim();
+      if (query == "")
+        return "Please provide an object name.";
+      endif
+      query_lc = query:lowercase();
       "Find the object first";
       current_room = this.location;
       if (!valid(current_room))
         return "Error: Mr. Welcome is not in a room";
       endif
-      found = #-1;
+      exact_matches = {};
+      partial_matches = {};
       room_contents = `current_room:contents() ! ANY => current_room.contents';
       for item in (room_contents)
         suspend(0);
-        if (valid(item) && item:name():contains(object_name))
-          found = item;
-          break;
+        if (!valid(item))
+          continue;
+        endif
+        if (isa(item, $actor))
+          continue;
+        endif
+        item_name = item:name();
+        item_name_lc = item_name:lowercase();
+        if (item_name_lc == query_lc)
+          exact_matches = {@exact_matches, item};
+        elseif (index(item_name_lc, query_lc) > 0)
+          partial_matches = {@partial_matches, item};
         endif
       endfor
-      if (!valid(found))
-        return "Could not find '" + object_name + "' in " + current_room:name() + ".";
+      if (length(exact_matches) == 1)
+        found = exact_matches[1];
+      elseif (length(exact_matches) > 1)
+        names = {};
+        for item in (exact_matches)
+          names = {@names, item:name()};
+        endfor
+        return "Multiple objects matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+      elseif (length(partial_matches) == 1)
+        found = partial_matches[1];
+      elseif (length(partial_matches) > 1)
+        names = {};
+        for item in (partial_matches)
+          names = {@names, item:name()};
+        endfor
+        return "Multiple objects matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+      else
+        return "Could not find '" + query + "' in " + current_room:name() + ".";
       endif
       "Use ROOT's all_command_verbs to get all inherited command verbs";
       command_verbs = found:all_command_verbs();
@@ -412,20 +501,30 @@ object MR_WELCOME
       player:inform_current($event:mk_info(this, this:name() + " looks apologetic. \"I'm sorry, my mind isn't quite working right now. The wizards haven't finished setting me up yet.\""));
       return;
     endif
+    topic = iobjstr:trim();
+    if (topic == "")
+      player:inform_current($event:mk_error(player, "What would you like to ask " + this:name() + " about?"));
+      return;
+    endif
     if (!valid(this.agent))
       this:configure();
     endif
-    "Topic question - use the iobjstr as the topic";
     if (valid(this.location))
-      this.location:announce(this:mk_emote_event("thinks about " + iobjstr + "..."));
+      ask_event = $event:mk_say(player, $sub:nc(), " ", $sub:self_alt("ask", "asks"), " ", this:name(), " about \"", topic, "\"."):with_this(this.location);
     endif
-    response = this.agent:send_message(iobjstr);
-    "Announce response to room";
+    response = this.agent:send_message(topic);
     if (valid(this.location))
-      this.location:announce(this:mk_say_event(response));
-    else
-      player:inform_current($event:mk_info(player, response));
+      this:_process_and_announce(response);
+      return;
     endif
+    if (typeof(response) != TYPE_STR)
+      return;
+    endif
+    response = response:trim();
+    if (length(response) == 0 || response:starts_with("Operation cancelled"))
+      return;
+    endif
+    player:inform_current($event:mk_info(player, response));
   endverb
 
   verb _tool_emote (this none this) owner: HACKER flags: "rxd"
@@ -491,22 +590,53 @@ object MR_WELCOME
     {args_map, actor} = args;
     object_name = args_map["object_name"];
     typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
+    query = object_name:trim();
+    if (query == "")
+      return "Please provide an object name.";
+    endif
+    query_lc = query:lowercase();
     "Find the object first";
     current_room = this.location;
     if (!valid(current_room))
       return "Error: Mr. Welcome is not in a room";
     endif
-    found = #-1;
+    exact_matches = {};
+    partial_matches = {};
     room_contents = `current_room:contents() ! ANY => current_room.contents';
     for item in (room_contents)
       suspend(0);
-      if (valid(item) && item:name():contains(object_name))
-        found = item;
-        break;
+      if (!valid(item))
+        continue;
+      endif
+      if (isa(item, $actor))
+        continue;
+      endif
+      item_name = item:name();
+      item_name_lc = item_name:lowercase();
+      if (item_name_lc == query_lc)
+        exact_matches = {@exact_matches, item};
+      elseif (index(item_name_lc, query_lc) > 0)
+        partial_matches = {@partial_matches, item};
       endif
     endfor
-    if (!valid(found))
-      return "Could not find '" + object_name + "' in " + current_room:name() + ".";
+    if (length(exact_matches) == 1)
+      found = exact_matches[1];
+    elseif (length(exact_matches) > 1)
+      names = {};
+      for item in (exact_matches)
+        names = {@names, item:name()};
+      endfor
+      return "Multiple objects matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+    elseif (length(partial_matches) == 1)
+      found = partial_matches[1];
+    elseif (length(partial_matches) > 1)
+      names = {};
+      for item in (partial_matches)
+        names = {@names, item:name()};
+      endfor
+      return "Multiple objects matched '" + query + "': " + names:join(", ") + ". Please be more specific.";
+    else
+      return "Could not find '" + query + "' in " + current_room:name() + ".";
     endif
     "Get examination flyweight";
     exam = found:examination();
