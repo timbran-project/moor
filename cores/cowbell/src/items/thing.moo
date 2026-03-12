@@ -27,7 +27,7 @@ object THING
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
   property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .is_plural = false, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
-  property unlocks (owner: ARCH_WIZARD, flags: "rc") = #-1;
+  property unlocks (owner: HACKER, flags: "rc") = #-1;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
   override import_export_hierarchy = {"items"};
@@ -361,16 +361,119 @@ object THING
   verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return structured data for client inspection popover.";
     {?who = player} = args;
-    actions = {};
     item_name = `this:name() ! E_VERBNF => this.name';
+    desc = `this:description() ! ANY => ""';
+    actions = `this:inspection_actions(who) ! ANY => {}';
+    return ["title" -> item_name, "description" -> desc, "actions" -> actions];
+  endverb
+
+  verb inspection_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return quick inspection actions for things (transfer + examine + obvious verbs).";
+    {?who = player} = args;
+    actions = {};
+    seen = {};
     this_ref = $url_utils:to_curie_str(this);
     who_ref = $url_utils:to_curie_str(who);
-    if (this.location == who)
-      actions = {@actions, ["label" -> "Drop", "verb" -> "drop", "target" -> this_ref]};
-    else
-      actions = {@actions, ["label" -> "Take", "verb" -> "get", "target" -> this_ref]};
+    if (who_ref)
+      actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
+      seen = {"do_examine"};
     endif
-    actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
-    return ["title" -> item_name, "description" -> this:description(), "actions" -> actions];
+    transfer_verb = this.location == who ? "drop" | "get";
+    transfer_label = transfer_verb == "drop" ? "Drop" | "Take";
+    transfer_invoke = 0;
+    transfer_info = `verb_info(this, transfer_verb) ! ANY => 0';
+    if (typeof(transfer_info) == TYPE_LIST && length(transfer_info) >= 2 && typeof(transfer_info[2]) == TYPE_STR)
+      transfer_perms = transfer_info[2];
+      if ("x" in transfer_perms > 0)
+        transfer_invoke = 1;
+      endif
+    endif
+    if (transfer_invoke)
+      actions = {@actions, ["label" -> transfer_label, "verb" -> transfer_verb, "target" -> this_ref]};
+    else
+      actions = {@actions, ["label" -> transfer_label, "kind" -> "command", "command" -> transfer_verb + " " + tostr(this)]};
+    endif
+    seen = {@seen, transfer_verb};
+    exam = `this:examination() ! ANY => 0';
+    if (typeof(exam) != TYPE_FLYWEIGHT)
+      return actions;
+    endif
+    verb_specs = `exam.verbs ! ANY => {}';
+    if (typeof(verb_specs) != TYPE_LIST)
+      return actions;
+    endif
+    for spec in (verb_specs)
+      if (typeof(spec) != TYPE_LIST || length(spec) < 5)
+        continue;
+      endif
+      names = spec[1];
+      definer = spec[2];
+      dobj_spec = spec[3];
+      prep_spec = spec[4];
+      iobj_spec = spec[5];
+      if (typeof(names) != TYPE_STR)
+        continue;
+      endif
+      mode = "";
+      if (dobj_spec == "this" && iobj_spec == "none")
+        mode = "direct";
+      elseif (iobj_spec == "this" && (dobj_spec == "none" || dobj_spec == "any"))
+        mode = "indirect";
+      else
+        continue;
+      endif
+      space_at = index(names, " ");
+      candidate = space_at > 0 ? names[1..space_at - 1] | names;
+      candidate = strsub(candidate, "*", "");
+      if (!candidate)
+        continue;
+      endif
+      if (candidate == "inspect" || candidate == "inspection" || candidate == "examine" || candidate == "do_examine" || candidate == "look" || candidate == "get" || candidate == "drop")
+        continue;
+      endif
+      already_seen = 0;
+      for existing in (seen)
+        if (existing == candidate)
+          already_seen = 1;
+          break;
+        endif
+      endfor
+      if (already_seen)
+        continue;
+      endif
+      seen = {@seen, candidate};
+      if (mode == "direct")
+        can_invoke = 0;
+        info = `verb_info(definer, candidate) ! ANY => 0';
+        if (typeof(info) == TYPE_LIST && length(info) >= 2 && typeof(info[2]) == TYPE_STR)
+          perms = info[2];
+          if ("x" in perms > 0)
+            can_invoke = 1;
+          endif
+        endif
+        if (can_invoke)
+          actions = {@actions, ["label" -> candidate, "verb" -> candidate, "target" -> this_ref]};
+        else
+          actions = {@actions, ["label" -> candidate, "kind" -> "command", "command" -> candidate + " " + tostr(this)]};
+        endif
+      else
+        prep = "on";
+        if (typeof(prep_spec) == TYPE_STR && prep_spec && prep_spec != "any" && prep_spec != "none")
+          slash_at = index(prep_spec, "/");
+          prep = slash_at > 0 ? prep_spec[1..slash_at - 1] | prep_spec;
+        endif
+        if (dobj_spec == "none")
+          actions = {@actions, ["label" -> candidate, "kind" -> "command", "command" -> candidate + " " + prep + " " + tostr(this)]};
+        else
+          prompt = "Value for " + candidate + ":";
+          placeholder = "What?";
+          actions = {@actions, ["label" -> candidate, "kind" -> "command", "command" -> candidate + " {input} " + prep + " " + tostr(this), "inputType" -> "text", "inputPrompt" -> prompt, "inputPlaceholder" -> placeholder]};
+        endif
+      endif
+      if (length(actions) >= 5)
+        break;
+      endif
+    endfor
+    return actions;
   endverb
 endobject

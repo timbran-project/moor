@@ -6,7 +6,7 @@ object CONSUMABLE
   fertile: true
   readable: true
 
-  property consume_denied_msg (owner: #-1, flags: "rc") = {
+  property consume_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "can't", .for_others = "can't">,
@@ -14,7 +14,7 @@ object CONSUMABLE
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
   };
-  property consume_msg (owner: #-1, flags: "rc") = {
+  property consume_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "consume", .for_others = "consumes">,
@@ -23,11 +23,11 @@ object CONSUMABLE
     "."
   };
   property consume_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property empty_msg (owner: #-1, flags: "rc") = {
+  property empty_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     " is empty."
   };
-  property finish_msg (owner: #-1, flags: "rc") = {
+  property finish_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "finish", .for_others = "finishes">,

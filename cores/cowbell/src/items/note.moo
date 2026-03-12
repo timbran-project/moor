@@ -7,7 +7,7 @@ object NOTE
   readable: true
 
   property content_type (owner: ARCH_WIZARD, flags: "rc") = 'text_plain;
-  property erase_msg (owner: HACKER, flags: "rc") = {
+  property erase_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "erase", .for_others = "erases">,
@@ -15,8 +15,8 @@ object NOTE
     <SUB, .capitalize = false, .type = 'dobj>,
     "."
   };
-  property read_denied_msg (owner: HACKER, flags: "rc") = {"You can't read that."};
-  property read_msg (owner: HACKER, flags: "rc") = {
+  property read_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {"You can't read that."};
+  property read_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "read", .for_others = "reads">,
@@ -26,8 +26,8 @@ object NOTE
   };
   property read_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
   property text (owner: ARCH_WIZARD, flags: "rc") = {};
-  property write_denied_msg (owner: HACKER, flags: "rc") = {"You can't write on that."};
-  property write_msg (owner: HACKER, flags: "rc") = {
+  property write_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {"You can't write on that."};
+  property write_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "write", .for_others = "writes">,

@@ -62,8 +62,8 @@ object CONTAINER
     <SUB, .capitalize = false, .type = 'iobj>,
     "."
   };
-  property put_prep_display (owner: ARCH_WIZARD, flags: "rc") = "in";
-  property put_preps (owner: ARCH_WIZARD, flags: "rc") = {"in", "inside", "into"};
+  property put_prep_display (owner: HACKER, flags: "rc") = "in";
+  property put_preps (owner: HACKER, flags: "rc") = {"in", "inside", "into"};
   property put_rule (owner: HACKER, flags: "rc") = 0;
   property take_denied_msg (owner: HACKER, flags: "rc") = {<SUB, .capitalize = true, .type = 'iobj>, " is closed."};
   property take_msg (owner: HACKER, flags: "rc") = {
