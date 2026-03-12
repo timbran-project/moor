@@ -17,7 +17,7 @@ object PLAYER
   property gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property grants_area (owner: ARCH_WIZARD, flags: "") = [];
   property grants_room (owner: ARCH_WIZARD, flags: "") = [];
-  property home (owner: ARCH_WIZARD, flags: "rc") = "#000A54-9B1A1A9B2E";
+  property home (owner: ARCH_WIZARD, flags: "rc") = 0;
   property is_builder (owner: ARCH_WIZARD, flags: "") = false;
   property last_connected (owner: ARCH_WIZARD, flags: "r") = 0;
   property last_disconnected (owner: ARCH_WIZARD, flags: "r") = 0;

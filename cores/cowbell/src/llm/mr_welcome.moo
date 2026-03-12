@@ -28,7 +28,7 @@ object MR_WELCOME
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
   override import_export_hierarchy = {"llm"};
   override import_export_id = "mr_welcome";
-  override knowledge_base = #001F04-9B56702C19;
+  override knowledge_base = #-1;
   override last_significant_event = 1765577406.80481;
   override last_spoke_at = 0;
   override preferred_model = "deepseek-ai/DeepSeek-V3.2";

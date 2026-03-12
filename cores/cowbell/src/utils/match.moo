@@ -59,7 +59,7 @@ object MATCH
       valid(context) && is_player(context) && return context;
       raise(E_INVARG, "No player context for 'me'");
     endif
-    "Handle object number references (e.g., '#2', '#000053-9A6FBE399A')";
+    "Handle object number references (e.g., '#2')";
     if (player_name[1] == "#")
       obj = `toobj(player_name) ! ANY => $nothing';
       !valid(obj) && raise(E_INVARG, "Invalid object reference: " + player_name);
