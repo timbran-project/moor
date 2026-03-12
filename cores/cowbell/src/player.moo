@@ -28,9 +28,8 @@ object PLAYER
   property oauth2_identities (owner: ARCH_WIZARD, flags: "c") = {};
   property object_gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property password (owner: ARCH_WIZARD, flags: "c");
-  property profile_picture (owner: HACKER, flags: "rc") = false;
+  property profile_picture (owner: ARCH_WIZARD, flags: "rc") = false;
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
-  property walk_task (owner: ARCH_WIZARD, flags: "c") = 0;
 
   override description = "You see a player who should get around to describing themself.";
   override import_export_id = "player";
@@ -339,11 +338,11 @@ object PLAYER
     "If password not set, only need new password";
     if (typeof(this.password) != TYPE_FLYWEIGHT)
       if (length(args) != 1)
-        return this:inform_current($event:mk_error(this, "Usage: @password <new-password>"):with_audience('utility));
+        return this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <new-password>")):with_audience('utility));
       endif
       new_password = args[1];
     elseif (length(args) != 2)
-      this:inform_current($event:mk_error(this, "Usage: @password <old-password> <new-password>"):with_audience('utility));
+      this:inform_current($event:mk_error(this, $format.code:mk("Usage: @password <old-password> <new-password>")):with_audience('utility));
       return;
     elseif (!this.password:challenge(tostr(args[1])))
       this:inform_current($event:mk_error(this, "That's not your old password."):with_audience('utility));
@@ -2344,6 +2343,14 @@ object PLAYER
       return;
     endif
     area = current_room.location;
+    if (valid(area) && respond_to(area, 'find_passage_by_direction))
+      passage = `area:find_passage_by_direction(current_room, dest_str) ! ANY => false';
+      if (passage)
+        if (`passage:travel_from(this, current_room, ["verb" -> "go", "dobjstr" -> dest_str]) ! ANY => false')
+          return;
+        endif
+      endif
+    endif
     if (!valid(area) || !respond_to(area, 'find_path))
       player:inform_current($event:mk_error(player, "You can't navigate from here."));
       return;
@@ -3295,5 +3302,77 @@ object PLAYER
       sample = descriptions[1..max]:join(", ");
       player:inform_current($event:mk_info(player, "You stop " + tostr(count) + " activities (" + sample + ")."));
     endif
+  endverb
+
+  verb inspection_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return quick inspection actions for players (examine + direct message).";
+    {?who = player} = args;
+    actions = {};
+    this_ref = $url_utils:to_curie_str(this);
+    who_ref = $url_utils:to_curie_str(who);
+    if (who_ref)
+      actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
+    endif
+    if (!valid(who) || !is_player(who) || who == this || !this_ref)
+      return actions;
+    endif
+    actions = {@actions, ["label" -> "DM", "verb" -> "do_send_dm_to", "target" -> this_ref, "inputType" -> "text", "inputPrompt" -> "Message to " + this:name() + ":", "inputPlaceholder" -> "Type your direct message..."]};
+    return actions;
+  endverb
+
+  verb do_dm (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Method-style DM helper for invoke-based clients.";
+    "Args: target_player, ?message";
+    caller == this || caller == #0 || raise(E_PERM);
+    set_task_perms(this);
+    {target, ?message = ""} = args;
+    typeof(target) == TYPE_OBJ && valid(target) && is_player(target) || raise(E_INVARG, "Target must be a player");
+    target == this && return this:inform_current($event:mk_error(this, "Talking to yourself?"):with_audience('utility));
+    if (typeof(message) != TYPE_STR || !message:trim())
+      prompt = "Message to " + target:name() + ":";
+      placeholder = "Type your direct message...";
+      message = `this:prompt(prompt, placeholder) ! ANY => false';
+    endif
+    if (message == false || typeof(message) != TYPE_STR)
+      return;
+    endif
+    message = message:trim();
+    if (!message)
+      return this:inform_current($event:mk_error(this, "No message provided."):with_audience('utility));
+    endif
+    dm_obj = $dm:mk(this, target, message);
+    delivered = `target:receive_dm(dm_obj) ! ANY => E_NONE';
+    if (typeof(delivered) == TYPE_ERR || !delivered)
+      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
+    endif
+    this:inform_current(dm_obj:sender_echo_event());
+  endverb
+
+  verb do_send_dm_to (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Invoke-safe DM helper: sends a DM to this player, prompting for text when needed.";
+    "Args: ?message";
+    caller == player || caller == #0 || raise(E_PERM);
+    set_task_perms(player);
+    is_player(this) || raise(E_INVARG, "DM target must be a player");
+    this == player && return player:inform_current($event:mk_error(player, "Talking to yourself?"):with_audience('utility));
+    {?message = ""} = args;
+    if (typeof(message) != TYPE_STR || !message:trim())
+      prompt = "Message to " + this:name() + ":";
+      placeholder = "Type your direct message...";
+      message = `player:prompt(prompt, placeholder) ! ANY => false';
+    endif
+    if (message == false || typeof(message) != TYPE_STR)
+      return;
+    endif
+    message = message:trim();
+    if (!message)
+      return player:inform_current($event:mk_error(player, "No message provided."):with_audience('utility));
+    endif
+    dm_obj = $dm:mk(player, this, message);
+    delivered = `this:receive_dm(dm_obj) ! ANY => E_NONE';
+    if (typeof(delivered) == TYPE_ERR || !delivered)
+      return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + "."):with_audience('utility));
+    endif
+    player:inform_current(dm_obj:sender_echo_event());
   endverb
 endobject

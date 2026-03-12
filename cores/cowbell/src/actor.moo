@@ -154,7 +154,11 @@ object ACTOR
 
   verb mk_think_event (this none this) owner: HACKER flags: "rxd"
     "Thoughts always show the actor's name, never 'You'";
-    return $event:mk_think(this, this:name(), " . o O ( ", args[1], " )"):with_this(this.location);
+    event = $event:mk_think(this, this:name(), " . o O ( ", args[1], " )"):with_this(this.location);
+    event = event:with_metadata('content, args[1]);
+    event = event:with_metadata('preferred_content_types, {'text_html, 'text_djot});
+    event = event:as_djot():with_presentation_hint('thought_bubble);
+    return event;
   endverb
 
   verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
