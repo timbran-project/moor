@@ -179,7 +179,7 @@ object SOCIAL_FEATURES
       player:inform_current(event);
       return;
     endif
-    event = $event:mk_social(player, player:name(), " . o O ( ", argstr, " )"):with_this(player.location);
+    event = player:mk_think_event(argstr);
     player.location:announce(event);
   endverb
 

@@ -14,7 +14,9 @@ object WIZ_FEATURES
   verb "@announce" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Broadcast a message to all connected players.";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     msg = argstr;
     if (!msg || msg == "")
       player:inform_current($event:mk_error(player, "Usage: @announce <message>"):with_audience('utility));
@@ -33,7 +35,9 @@ object WIZ_FEATURES
   verb "@programmer" (any none none) owner: ARCH_WIZARD flags: "d"
     "Grant or upgrade a player to programmer status";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     if (!dobjstr || dobjstr == "")
       raise(E_INVARG, "Usage: @programmer <player>");
     endif
@@ -117,7 +121,9 @@ object WIZ_FEATURES
   verb "@builder" (any none none) owner: ARCH_WIZARD flags: "d"
     "Grant builder status or downgrade from programmer";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     if (!valid(dobj))
       raise(E_INVARG, "Usage: @builder <player>");
     endif
@@ -198,7 +204,9 @@ object WIZ_FEATURES
   verb "@reconfigure-tools" (none none none) owner: ARCH_WIZARD flags: "d"
     "Reconfigure all Architect's Compasses and Data Visors in the database";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     compasses = {};
     visors = {};
     for o in (descendants($architects_compass))
@@ -249,7 +257,9 @@ object WIZ_FEATURES
   verb "@shutdown" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Dump the database, announce, and shut down the server with countdown.";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     msg = argstr;
     if (!msg)
       msg = "Server is shutting down.";
@@ -310,7 +320,9 @@ object WIZ_FEATURES
   verb "@llm-budget" (any none none) owner: ARCH_WIZARD flags: "d"
     "View a player's LLM token budget and usage";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     "Try to resolve target player";
     target = dobj;
     if (!valid(target) && dobjstr)
@@ -356,7 +368,9 @@ object WIZ_FEATURES
   verb "@llm-set-budget" (any at any) owner: ARCH_WIZARD flags: "d"
     "Set a player's LLM token budget";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     target = dobj;
     if (!valid(target) && dobjstr)
       target = $match:match_object(dobjstr, player);
@@ -391,7 +405,9 @@ object WIZ_FEATURES
   verb "@llm-reset-usage" (any none none) owner: ARCH_WIZARD flags: "d"
     "Reset a player's LLM token usage counter";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     target = dobj;
     if (!valid(target) && dobjstr)
       target = $match:match_object(dobjstr, player);
@@ -422,7 +438,9 @@ object WIZ_FEATURES
     this:_challenge_command_perms();
     player.wizard || raise(E_PERM, "Only wizards can reissue tools.");
     "Destroy all existing visors and compasses, then reissue them to all programmers and builders";
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     compasses = {};
     visors = {};
     for o in (descendants($architects_compass))
@@ -512,7 +530,9 @@ object WIZ_FEATURES
     "Usage: @chown <object>.<property> to <new_owner>";
     "Usage: @chown <object>:<verb> to <new_owner>";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     if (!dobjstr || !iobjstr)
       player:inform_current($event:mk_error(player, $format.code:mk("@chown TARGET to NEW_OWNER")));
       return;
@@ -536,7 +556,7 @@ object WIZ_FEATURES
     endif
     type = parsed['type];
     object_str = parsed['object_str];
-    item_name = parsed['item_name];
+    item_name = maphaskey(parsed, 'item_name) ? parsed['item_name] | "";
     "Match the target object";
     try
       target_obj = $match:match_object(object_str, player);
@@ -565,7 +585,7 @@ object WIZ_FEATURES
       endtry
     elseif (type == 'object)
       try
-        target_obj.owner = new_owner;
+        target_obj:set_owner(new_owner);
         player:inform_current($event:mk_info(player, "Object " + tostr(target_obj) + " now owned by " + tostr(new_owner) + "."));
       except e (ANY)
         player:inform_current($event:mk_error(player, "Error changing object owner: " + e[2]));
@@ -583,7 +603,9 @@ object WIZ_FEATURES
     "       @llm-config model <name>     - set default model";
     "       @llm-config key              - set API key (prompts securely)";
     this:_challenge_command_perms();
-    set_task_perms(player);
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
     parts = argstr ? argstr:split(" ") | {};
     cmd = length(parts) > 0 ? parts[1] | "";
     if (cmd == "")
@@ -724,5 +746,244 @@ object WIZ_FEATURES
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'administration) ! ANY => 0';
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
+  endverb
+
+  verb "@sueval" (any none none) owner: ARCH_WIZARD flags: "d"
+    "HINT: <expression> -- Evaluate a MOO expression with wizard permissions.";
+    this:_challenge_command_perms();
+    if (!argstr || argstr:trim() == "")
+      player:inform_current($event:mk_error(player, "Usage: @sueval <expression>"):with_audience('utility));
+      return;
+    endif
+    "If invoked via @sudo, keep delegated perms; otherwise, use caller perms.";
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
+    try
+      answer = eval("return " + argstr + ";", ['me -> player, 'here -> player.location], 1, 2);
+      if (answer[1])
+        result = answer[2];
+        "Format the result";
+        {result_type, result_content} = this:_format_eval_result(result);
+        if (result_type == 'deflist)
+          "Object result - show as definition list";
+          result_event = $event:mk_eval_result(player, result_content):with_presentation_hint('inset):with_group('eval);
+        else
+          "Simple result - show in code block with =>";
+          code = $format.code:mk("=> " + result_content, 'moo);
+          result_event = $event:mk_eval_result(player, code):with_group('eval);
+        endif
+      else
+        error_content = answer[2];
+        error_text = error_content:join("\n");
+        result_event = $event:mk_eval_error(player, $format.code:mk(error_text)):with_group('eval);
+      endif
+    except id (ANY)
+      traceback = {"Eval failed: " + toliteral(id[1]) + " " + toliteral(id[2]) + ":"};
+      for tb in (id[4])
+        target = toliteral(tb[4]) + ":";
+        if (tb[4] == #-1)
+          target = "builtin function ";
+        endif
+        traceback = {@traceback, tostr("... called from ", target, tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
+      endfor
+      traceback = {@traceback, "(End of traceback)"};
+      result_event = $event:mk_eval_exception(player, $format.code:mk(traceback)):with_group('eval);
+    endtry
+    player:inform_current(result_event);
+  endverb
+
+  verb "@wizard" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Grant wizard status to a player";
+    this:_challenge_command_perms();
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
+    if (!dobjstr || dobjstr == "")
+      raise(E_INVARG, "Usage: @wizard <player>");
+    endif
+    target = `$match:match_player(dobjstr) ! E_INVARG => $nothing';
+    if (!valid(target))
+      raise(E_INVARG, "No player found matching '" + dobjstr + "'");
+    endif
+    if (!is_player(target))
+      raise(E_INVARG, tostr(target) + " is not a player.");
+    endif
+    if (target.wizard)
+      player:inform_current($event:mk_error(player, target:name() + " is already a wizard."));
+      return;
+    endif
+    was_programmer = target.authoring_features == $prog_features;
+    was_builder = target.authoring_features == $builder_features;
+    "Ensure programmer/builder flags and tools";
+    target.authoring_features = $prog_features;
+    target.programmer = true;
+    target.is_builder = true;
+    owner_name = target:name();
+    if (!was_programmer)
+      if (was_builder)
+        visor = create($data_visor, target);
+        visor.owner = target;
+        visor.name = owner_name + "'s " + $data_visor.name;
+        visor.aliases = $data_visor.aliases;
+        visor:moveto(target);
+      else
+        compass = create($architects_compass, target);
+        compass.owner = target;
+        compass.name = owner_name + "'s " + $architects_compass.name;
+        compass.aliases = $architects_compass.aliases;
+        compass:moveto(target);
+        visor = create($data_visor, target);
+        visor.owner = target;
+        visor.name = owner_name + "'s " + $data_visor.name;
+        visor.aliases = $data_visor.aliases;
+        visor:moveto(target);
+      endif
+    endif
+    "Ensure admin and wizard feature objects are wired";
+    admin_features = `target.admin_features ! ANY => {}';
+    if (typeof(admin_features) != TYPE_LIST)
+      admin_features = valid(admin_features) ? {admin_features} | {};
+    endif
+    admin_feat_obj = `$admin_features ! ANY => $nothing';
+    if (valid(admin_feat_obj) && !is_member(admin_feat_obj, admin_features))
+      admin_features = {@admin_features, admin_feat_obj};
+    endif
+    if (!is_member(this, admin_features))
+      admin_features = {@admin_features, this};
+    endif
+    target.admin_features = admin_features;
+    target.wizard = true;
+    if (valid(target.location))
+      event = $event:mk_info(target, $sub:nc(), " ", $sub:verb_have(), " been granted wizard privileges."):with_this(target.location);
+      target.location:announce(event);
+    endif
+    target:tell($event:mk_info(target, "You have been granted wizard privileges. Your command set now includes programmer, admin, and wizard features."));
+    player:inform_current($event:mk_info(player, "You granted ", target:name(), " wizard privileges."));
+  endverb
+
+  verb "@audit-cprops" (any none none) owner: ARCH_WIZARD flags: "rd"
+    "Audit c-flagged property owners against object owners.";
+    "Usage: @audit-cprops [--repair|-r] [OBJECT]";
+    "With no OBJECT, scans all objects visible to current task permissions.";
+    this:_challenge_command_perms();
+    if (!player:has_admin_elevation())
+      set_task_perms(player);
+    endif
+    start_time = ftime();
+    input = argstr ? argstr:trim() | "";
+    repair = false;
+    target_spec = "";
+    if (input)
+      for tok in (input:words())
+        if (tok == "--repair" || tok == "-r")
+          repair = true;
+        elseif (tok:starts_with("-"))
+          player:inform_current($event:mk_error(player, "Unknown option: " + tok));
+          return;
+        elseif (target_spec == "")
+          target_spec = tok;
+        else
+          target_spec = target_spec + " " + tok;
+        endif
+      endfor
+    endif
+    if (target_spec != "")
+      try
+        target = $match:match_object(target_spec, player);
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Could not resolve object: " + e[2]));
+        return;
+      endtry
+      scan_objects = {target};
+    else
+      scan_objects = `objects() ! ANY => {}';
+    endif
+    if (!scan_objects)
+      player:inform_current($event:mk_info(player, "No objects available to scan."));
+      return;
+    endif
+    mismatches = {};
+    scanned_props = 0;
+    repaired_count = 0;
+    failed_repairs = 0;
+    obj_count = 0;
+    for obj in (scan_objects)
+      obj_count = obj_count + 1;
+      if (obj_count % 25 == 0)
+        suspend_if_needed();
+      endif
+      prop_names = `obj:all_properties() ! ANY => {}';
+      for prop_name in (prop_names)
+        info = `property_info(obj, prop_name) ! ANY => 0';
+        if (!(typeof(info) == TYPE_LIST && length(info) >= 2))
+          continue;
+        endif
+        perms = info[2];
+        if (!(typeof(perms) == TYPE_STR && index(perms, "c")))
+          continue;
+        endif
+        scanned_props = scanned_props + 1;
+        prop_owner = info[1];
+        if (prop_owner != obj.owner)
+          action = "mismatch";
+          if (repair)
+            try
+              set_property_info(obj, prop_name, {obj.owner, perms});
+              repaired_count = repaired_count + 1;
+              action = "repaired";
+            except e (ANY)
+              failed_repairs = failed_repairs + 1;
+              action = "failed: " + toliteral(e);
+            endtry
+          endif
+          obj_name = `obj.name ! ANY => "<unnamed>"';
+          if (typeof(obj_name) != TYPE_STR || obj_name == "")
+            obj_name = "<unnamed>";
+          endif
+          obj_owner_name = valid(obj.owner) ? obj.owner.name | "Recycled";
+          prop_owner_name = valid(prop_owner) ? prop_owner.name | "Recycled";
+          mismatches = {@mismatches, {obj, obj_name, prop_name, obj.owner, prop_owner, obj_owner_name, prop_owner_name, action}};
+        endif
+      endfor
+    endfor
+    elapsed = ftime() - start_time;
+    if (!mismatches)
+      scope = length(scan_objects) == 1 ? tostr(" on ", scan_objects[1]) | "";
+      if (repair)
+        player:inform_current($event:mk_info(player, tostr("No mismatched c-properties found", scope, ". Nothing repaired. Scanned ", length(scan_objects), " object(s), ", scanned_props, " c-property entries. Time: ", elapsed, "s")));
+      else
+        player:inform_current($event:mk_info(player, tostr("No mismatched c-properties found", scope, ". Scanned ", length(scan_objects), " object(s), ", scanned_props, " c-property entries. Time: ", elapsed, "s")));
+      endif
+      return;
+    endif
+    if (repair)
+      headers = {"Object", "Property", "Object Owner", "Property Owner", "Action"};
+    else
+      headers = {"Object", "Property", "Object Owner", "Property Owner"};
+    endif
+    rows = {};
+    row_count = 0;
+    for m in (mismatches)
+      row_count = row_count + 1;
+      if (row_count % 50 == 0)
+        suspend_if_needed();
+      endif
+      {obj, obj_name, prop_name, obj_owner, prop_owner, obj_owner_name, prop_owner_name, action} = m;
+      obj_label = tostr(obj) + " (" + obj_name + ")";
+      base = {obj_label, "." + prop_name, obj_owner_name + " (" + tostr(obj_owner) + ")", prop_owner_name + " (" + tostr(prop_owner) + ")"};
+      if (repair)
+        rows = {@rows, {@base, action}};
+      else
+        rows = {@rows, base};
+      endif
+    endfor
+    summary = tostr("Found ", length(mismatches), " mismatched c-properties across ", length(scan_objects), " object(s). Scanned ", scanned_props, " c-property entries.");
+    if (repair)
+      summary = summary + tostr(" Repaired ", repaired_count, "; failed ", failed_repairs, ".");
+    endif
+    content = $format.block:mk(summary, $format.table:mk(headers, rows));
+    player:inform_current($event:mk_info(player, content));
+    player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
   endverb
 endobject
