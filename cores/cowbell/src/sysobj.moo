@@ -8,6 +8,7 @@ object SYSOBJ
   property admin_features (owner: ARCH_WIZARD, flags: "rc") = ADMIN_FEATURES;
   property agent_building_tools (owner: HACKER, flags: "r") = AGENT_BUILDING_TOOLS;
   property agent_room (owner: ARCH_WIZARD, flags: "rc") = AGENT_ROOM;
+  property agentic (owner: ARCH_WIZARD, flags: "rc") = AGENTIC;
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
   property ansi (owner: HACKER, flags: "r") = ANSI;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
@@ -118,7 +119,7 @@ object SYSOBJ
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;
     args = $login:parse_command(@args);
-    return $login:((args[1]))(@listdelete(args, 1));
+    return $login:(args[1])(@listdelete(args, 1));
   endverb
 
   verb "user_created user_reconnected user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -236,6 +237,23 @@ object SYSOBJ
       endif
       return true;
     endtry
+    "Treat `go home` as the dedicated `home` command.";
+    if (typeof(pc) == TYPE_MAP && `pc["verb"] ! E_RANGE => ""' == "go")
+      go_target = `pc["dobjstr"] ! E_RANGE => ""';
+      if (typeof(go_target) == TYPE_STR && go_target:trim():lowercase() == "home")
+        pc["verb"] = "home";
+        pc["argstr"] = "";
+        pc["args"] = {};
+        pc["dobj"] = $nothing;
+        pc["dobjstr"] = "";
+        pc["iobj"] = $nothing;
+        pc["iobjstr"] = "";
+        pc["prep"] = -1;
+        pc["prepstr"] = "";
+        pc["ambiguous_dobj"] = {};
+        pc["ambiguous_iobj"] = {};
+      endif
+    endif
     "Get command environment (only player and location for primary verb searching)";
     command_env = player:command_environment();
     if (pc["dobj"] == $ambiguous_match)
@@ -265,7 +283,6 @@ object SYSOBJ
             except e (ANY)
               "Command verb threw an error - report it to the player";
               if (player.programmer || player.wizard)
-                "Programmers/wizards get full traceback - use eval's pattern";
                 traceback = {"Command failed: " + toliteral(e[2]) + ":"};
                 for tb in (e[4])
                   traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
@@ -273,7 +290,6 @@ object SYSOBJ
                 traceback = {@traceback, "(End of traceback)"};
                 player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
               else
-                "Regular users get friendly message";
                 player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."));
               endif
               return true;

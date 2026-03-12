@@ -70,11 +70,24 @@ object ROOT
   endverb
 
   verb set_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Set this object's owner. Permission: wizard or 'set_owner capability.";
+    "Set this object's owner and retitle any `c` properties on the object.";
     {target, perms} = this:check_permissions('set_owner);
     set_task_perms(perms);
-    {new_owner} = args;
+    {new_owner, ?suspendok = 0} = args;
+    valid(new_owner) || raise(E_INVARG);
     target.owner = new_owner;
+    for pname in (target:all_properties())
+      if (suspendok && (ticks_left() < 5000 || seconds_left() < 2))
+        suspend(0);
+      endif
+      info = `property_info(target, pname) ! ANY => 0';
+      if (typeof(info) == TYPE_LIST && length(info) >= 2)
+        perms_string = info[2];
+        if (typeof(perms_string) == TYPE_STR && index(perms_string, "c"))
+          `set_property_info(target, pname, {new_owner, perms_string}) ! ANY';
+        endif
+      endif
+    endfor
   endverb
 
   verb set_name_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -92,7 +105,7 @@ object ROOT
     return this.contents;
   endverb
 
-  verb all_contents (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb all_contents (this none this) owner: ARCH_WIZARD flags: "rd"
     "Return a list of all objects contained (at some level) by this object.";
     set_task_perms(caller_perms());
     res = {};
