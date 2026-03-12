@@ -71,19 +71,19 @@ object SUB_UTILS
     "tc" -> {"tc", {}}
   ];
   property typemap (owner: HACKER, flags: "rc") = [
-    'verb_be -> "be",
-    'verb_have -> "have",
-    'verb_look -> "look",
+    'actor -> "n",
     'this -> "t",
-    'location -> "l",
     'dobj -> "d",
     'iobj -> "i",
+    'verb_be -> "be",
+    'verb_have -> "have",
+    'location -> "l",
     'subject -> "s",
-    'actor -> "n",
     'object -> "o",
     'reflexive -> "r",
     'pos_adj -> "p",
-    'pos_noun -> "q"
+    'pos_noun -> "q",
+    'verb_look -> "look"
   ];
   property verb_map (owner: HACKER, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
 
