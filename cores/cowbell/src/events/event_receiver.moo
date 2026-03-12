@@ -19,6 +19,8 @@ object EVENT_RECEIVER
       return;
     endif
     event_slots = flyslots(event);
+    "Attach a shared delivery id so live/history copies can be correlated client-side.";
+    event_slots["delivery_id"] = uuid();
     "First, log the djot version to the event log for persistence/replay";
     transformed_djot = event:transform_for(this, 'text_djot);
     output_djot = {};
@@ -316,9 +318,9 @@ object EVENT_RECEIVER
   endverb
 
   verb emit_room_look (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Emit room look to both narrative notify and top presentation.";
+    "Emit room look to narrative notify plus OOB room panel state.";
     this:_can_inform() || raise(E_PERM);
-    {room, ?target = "top"} = args;
+    {?room = this.location} = args;
     if (!valid(room) || !isa(room, $room))
       room = this.location;
     endif
@@ -329,18 +331,27 @@ object EVENT_RECEIVER
     look_event = look_d:into_event();
     look_event = look_event:with_metadata('look_kind, "room");
     look_event = look_event:with_metadata('look_room, room);
-    look_event = look_event:with_audience('utility);
-    "First attempt a rich present panel for room looks.";
-    try
-      payload = look_d:into_presentation('text_html);
-      title = payload["title"] || `room:name() ! ANY => "Room"';
-      content = payload["content"] || "";
-      attrs = {{"title", title}, {"kind", "room_look"}, {"room", tostr(room)}};
-      this:_present(this, "room-look", "text/html", target, content, attrs);
-    except e (ANY)
-      "Presentation is best-effort.";
-    endtry
+    "Emit OOB structured room state for this viewer only.";
+    `this:emit_room_snapshot_state(this, room, look_d) ! ANY';
     "Always emit the existing narrative event path.";
     this:inform_current(look_event);
+  endverb
+
+  verb emit_room_snapshot_state (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Emit room snapshot state to a specific viewer.";
+    this:_can_inform() || raise(E_PERM);
+    {viewer, room, ?look_d = 0} = args;
+    if (!valid(viewer) || !is_player(viewer))
+      return;
+    endif
+    if (!valid(room) || !isa(room, $room))
+      return;
+    endif
+    try
+      snapshot = room:room_snapshot(viewer, look_d);
+      emit_data(viewer, 'state, 'room_snapshot, snapshot);
+    except e (ANY)
+      "Best-effort snapshot broadcast.";
+    endtry
   endverb
 endobject

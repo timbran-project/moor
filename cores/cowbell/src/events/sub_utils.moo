@@ -4,7 +4,7 @@ object SUB_UTILS
   owner: HACKER
   readable: true
 
-  property article_patterns (owner: ARCH_WIZARD, flags: "rc") = {
+  property article_patterns (owner: HACKER, flags: "rc") = {
     {"a ", 3, "a"},
     {"an ", 4, "a"},
     {"the ", 5, "the"},
@@ -12,14 +12,14 @@ object SUB_UTILS
     {"An ", 4, "ac"},
     {"The ", 5, "thec"}
   };
-  property pronoun_map (owner: ARCH_WIZARD, flags: "rc") = [
+  property pronoun_map (owner: HACKER, flags: "rc") = [
     "object" -> "o",
     "pos_adj" -> "p",
     "pos_noun" -> "q",
     "reflexive" -> "r",
     "subject" -> "s"
   ];
-  property token_map (owner: ARCH_WIZARD, flags: "rc") = [
+  property token_map (owner: HACKER, flags: "rc") = [
     "be" -> {"verb_be", {}},
     "be_dobj" -> {"verb_be_dobj", {}},
     "be_iobj" -> {"verb_be_iobj", {}},
@@ -70,7 +70,7 @@ object SUB_UTILS
     "t" -> {"t", {}},
     "tc" -> {"tc", {}}
   ];
-  property typemap (owner: ARCH_WIZARD, flags: "rc") = [
+  property typemap (owner: HACKER, flags: "rc") = [
     'verb_be -> "be",
     'verb_have -> "have",
     'verb_look -> "look",
@@ -80,12 +80,12 @@ object SUB_UTILS
     'iobj -> "i",
     'subject -> "s",
     'actor -> "n",
-    'pos_adj -> "p",
     'object -> "o",
     'reflexive -> "r",
+    'pos_adj -> "p",
     'pos_noun -> "q"
   ];
-  property verb_map (owner: ARCH_WIZARD, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
+  property verb_map (owner: HACKER, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
 
   override description = "Compiler and utilities for $sub template language.";
   override import_export_hierarchy = {"events"};
