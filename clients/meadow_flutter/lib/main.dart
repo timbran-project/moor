@@ -48,6 +48,7 @@ import 'package:meadow_flutter/moor/object_browser_controller.dart';
 import 'package:meadow_flutter/moor/presentations.dart';
 import 'package:meadow_flutter/moor/room_look_controller.dart';
 import 'package:meadow_flutter/moor/session_bootstrap.dart';
+import 'package:meadow_flutter/moor/session_store.dart';
 import 'package:meadow_flutter/moor/session_connection_controller.dart';
 import 'package:meadow_flutter/moor/session_view_controller.dart';
 import 'package:meadow_flutter/moor/trusted_external_domains.dart';
@@ -216,16 +217,29 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadWelcome();
     unawaited(_restorePendingOAuth2Flow());
 
-    if (a.login) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        // Only auto-login if we have the core fields.
-        if (_userCtrl.text.trim().isEmpty || _passCtrl.text.isEmpty) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      // Try to restore a previous session first.
+      if (!a.login) {
+        final restored = await SessionStore.restore();
+        if (restored != null && mounted) {
+          debugPrint('[session] restored session for ${restored.playerCurie}');
+          await _navigateToSession(
+            session: restored,
+            mode: 'connect',
+          );
           return;
         }
+      }
+
+      // Auto-login from launch args if credentials are provided.
+      if (a.login &&
+          _userCtrl.text.trim().isNotEmpty &&
+          _passCtrl.text.isNotEmpty) {
         await _login();
-      });
-    }
+      }
+    });
   }
 
   Future<void> _restorePendingOAuth2Flow() async {
@@ -404,6 +418,9 @@ class _LoginScreenState extends State<LoginScreen> {
     required String mode,
     String? loginPassword,
   }) async {
+    // Persist credentials for session restore on restart.
+    unawaited(SessionStore.save(session));
+
     if (!mounted) return;
     if (!context.mounted) return;
     await Navigator.of(context).push(
@@ -717,6 +734,13 @@ class _LoginScreenState extends State<LoginScreen> {
         mode: _mode,
         loginPassword: _mode == 'create' ? pass : null,
       );
+    } on Exception catch (e) {
+      if (!mounted) return;
+      // Strip the "Exception: " prefix for cleaner display.
+      final msg = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      setState(() {
+        _error = msg;
+      });
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -2437,6 +2461,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _logout() async {
+    unawaited(SessionStore.clear());
     _sessionConnectionController.close();
     _presentations.clear();
     setState(() {

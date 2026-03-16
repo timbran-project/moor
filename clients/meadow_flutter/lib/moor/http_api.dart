@@ -128,8 +128,15 @@ class MoorHttpApi {
         'password': password,
       },
     );
+    if (resp.statusCode == 401) {
+      throw Exception(
+        mode == 'create'
+            ? 'Account creation failed (username may already exist)'
+            : 'Login failed (invalid username or password)',
+      );
+    }
     if (resp.statusCode != 200) {
-      throw Exception('auth http ${resp.statusCode}: ${resp.reasonPhrase}');
+      throw Exception('Login failed (server error ${resp.statusCode})');
     }
 
     final authToken = resp.headers['x-moor-auth-token']?.trim();
@@ -172,6 +179,16 @@ class MoorHttpApi {
       // New login starts a fresh WS attach. Reconnects should use client creds.
       isInitialAttach: true,
     );
+  }
+
+  /// Returns true if the auth token is still valid on the server.
+  Future<bool> validateAuthToken({required String authToken}) async {
+    final uri = _resolve('/auth/validate');
+    final resp = await http.get(
+      uri,
+      headers: {'X-Moor-Auth-Token': authToken},
+    );
+    return resp.statusCode == 200;
   }
 
   Future<String?> getEventLogPubkey({required String authToken}) async {
