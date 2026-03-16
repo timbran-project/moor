@@ -32,12 +32,20 @@ class LaunchArgs {
   });
 }
 
+// Compile-time defaults via --dart-define (used on Android where main() args
+// are not supported).
+const _defineServer = String.fromEnvironment('SERVER');
+const _defineUsername = String.fromEnvironment('USERNAME');
+const _definePassword = String.fromEnvironment('PASSWORD');
+const _defineMode = String.fromEnvironment('MODE');
+const _defineLogin = bool.fromEnvironment('LOGIN');
+
 LaunchArgs parseLaunchArgs(List<String> args) {
-  String? server;
-  String? username;
-  String? password;
-  String? mode;
-  var login = false;
+  String? server = _defineServer.isNotEmpty ? _defineServer : null;
+  String? username = _defineUsername.isNotEmpty ? _defineUsername : null;
+  String? password = _definePassword.isNotEmpty ? _definePassword : null;
+  String? mode = _defineMode.isNotEmpty ? _defineMode : null;
+  var login = _defineLogin;
   var purgeLocalKey = false;
   Uri? callbackUri;
 

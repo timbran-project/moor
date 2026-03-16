@@ -1132,10 +1132,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (!kIsWeb) ...[
-                            _buildBaseUrlCard(context),
-                            const SizedBox(height: 18),
-                          ],
                           _buildWelcomeCard(context, welcome),
                           const SizedBox(height: 24),
                           _buildAuthCard(context),
@@ -1143,6 +1139,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               _oauth2Identity != null) ...[
                             const SizedBox(height: 18),
                             _buildOAuthAccountChoiceCard(context),
+                          ],
+                          if (!kIsWeb) ...[
+                            const SizedBox(height: 18),
+                            _buildBaseUrlCard(context),
                           ],
                           SizedBox(
                             height: constraints.maxHeight > 720 ? 32 : 16,
