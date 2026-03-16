@@ -33,9 +33,6 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# FlatBuffers Dart codegen (generated locally by tool/gen_flatbuffers.sh)
-/lib/fbs/*_generated.dart
-
 # Symbolication related
 app.*.symbols
 
