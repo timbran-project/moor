@@ -195,6 +195,10 @@ class HistoryEncryptionController extends ChangeNotifier {
         password: password,
         identifier: playerOid,
       );
+      debugPrint(
+        '[encryption] derived ${derived.length} bytes: '
+        '${derived.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+      );
       final identity = _identityFromDerivedBytes(derived);
       final pubkey = await _publicKeyFromDerivedBytes(derived);
       debugPrint(
@@ -225,6 +229,10 @@ class HistoryEncryptionController extends ChangeNotifier {
       final derived = await _deriveKeyBytes(
         password: password,
         identifier: playerOid,
+      );
+      debugPrint(
+        '[encryption] derived ${derived.length} bytes: '
+        '${derived.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
       );
       final identity = _identityFromDerivedBytes(derived);
       debugPrint(

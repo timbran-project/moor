@@ -72,8 +72,13 @@ import 'package:meadow_flutter/widgets/session_settings_sheet.dart';
 import 'package:meadow_flutter/widgets/verb_palette_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-void main(List<String> args) {
+void main(List<String> args) async {
   final launchArgs = parseLaunchArgs(args);
+  if (launchArgs.purgeLocalKey) {
+    WidgetsFlutterBinding.ensureInitialized();
+    await EventLogKeyStore.purgeAll();
+    debugPrint('[startup] purged all local encryption keys');
+  }
   runApp(MeadowApp(launchArgs: launchArgs));
   if (kIsWeb) {
     SemanticsBinding.instance.ensureSemantics();
@@ -1510,15 +1515,36 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   bool _loadingMoreHistory = false;
+  bool _shouldAutoScroll = true;
+  bool _isViewingHistory = false;
 
   void _onScroll() {
     _updateRoomLookLatch();
 
     if (!_scrollCtrl.hasClients) return;
     final pos = _scrollCtrl.position;
+
+    // Only auto-scroll to bottom when user is near the bottom.
+    final nearBottom =
+        (pos.pixels + pos.viewportDimension) >= (pos.maxScrollExtent - 100);
+    _shouldAutoScroll = nearBottom;
+
+    // Update "viewing history" state for the Jump to Now button.
+    final viewing = !nearBottom && pos.maxScrollExtent > 0;
+    if (viewing != _isViewingHistory) {
+      setState(() => _isViewingHistory = viewing);
+    }
+
     if (pos.pixels <= 50 && !_loadingMoreHistory) {
       unawaited(_loadMoreHistory());
     }
+  }
+
+  void _jumpToNow() {
+    if (!_scrollCtrl.hasClients) return;
+    _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+    _shouldAutoScroll = true;
+    setState(() => _isViewingHistory = false);
   }
 
   void _updateRoomLookLatch() {
@@ -1610,7 +1636,7 @@ class _SessionScreenState extends State<SessionScreen> {
       final api = MoorHttpApi(widget.session.baseUri);
       final events = await api.fetchHistory(
         authToken: widget.session.authToken,
-        sinceSeconds: 86400,
+        sinceSeconds: 999999999, // effectively "all history"
         limit: 100,
       );
       debugPrint('[history] fetched ${events.length} encrypted events');
@@ -1630,6 +1656,11 @@ class _SessionScreenState extends State<SessionScreen> {
       final added = _narrativeFeedController.prependHistoricalItems(items);
       _historyEncryptionController.completeHistoryLoad();
       _appendSystem('History loaded ($added events)');
+      // Jump to bottom after initial history load so the user starts at the
+      // most recent content, not stranded in the middle of the backlog.
+      _shouldAutoScroll = true;
+      _scheduleScrollToBottom();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoFillIfNeeded());
     } on Object catch (e, st) {
       debugPrint('[history] load failed: $e\n$st');
       _appendSystem('History load failed: $e');
@@ -1646,7 +1677,7 @@ class _SessionScreenState extends State<SessionScreen> {
     final identity = await EventLogKeyStore.getIdentity(playerOid);
     if (identity == null || identity.trim().isEmpty) return;
 
-    _loadingMoreHistory = true;
+    setState(() => _loadingMoreHistory = true);
     try {
       final api = MoorHttpApi(widget.session.baseUri);
       final events = await api.fetchHistory(
@@ -1682,11 +1713,25 @@ class _SessionScreenState extends State<SessionScreen> {
         if (delta > 0) {
           _scrollCtrl.jumpTo(scrollBefore + delta);
         }
+        // If content still doesn't fill the viewport, load more.
+        _autoFillIfNeeded();
       });
     } on Object catch (e) {
       _appendSystem('Load more history failed: $e');
     } finally {
-      _loadingMoreHistory = false;
+      if (mounted) setState(() => _loadingMoreHistory = false);
+    }
+  }
+
+  /// If the list content is shorter than the viewport, automatically load
+  /// more history so the user doesn't need to scroll to trigger it.
+  void _autoFillIfNeeded() {
+    if (!mounted || !_scrollCtrl.hasClients) return;
+    final pos = _scrollCtrl.position;
+    if (pos.maxScrollExtent <= 0 &&
+        _narrativeFeedController.earliestHistoryEventId != null &&
+        !_loadingMoreHistory) {
+      unawaited(_loadMoreHistory());
     }
   }
 
@@ -2096,6 +2141,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _scheduleScrollToBottom() {
+    if (!_shouldAutoScroll) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || !_scrollCtrl.hasClients) {
         return;
@@ -2500,17 +2546,47 @@ class _SessionScreenState extends State<SessionScreen> {
                                 ),
                               ),
                               clipBehavior: Clip.antiAlias,
-                              child: SessionNarrativeList(
-                                items: _narrativeFeedController.items,
-                                monospaceNarrative:
-                                    _sessionViewController.monospaceNarrative,
-                                showNarrativeMeta:
-                                    _sessionViewController.showNarrativeMeta,
-                                playerCurie: widget.session.playerCurie,
-                                scrollController: _scrollCtrl,
-                                listKey: _listKey,
-                                messageKeys: _messageKeys,
-                                onLinkTap: _handleLinkTap,
+                              child: Stack(
+                                children: [
+                                  SessionNarrativeList(
+                                    items: _narrativeFeedController.items,
+                                    monospaceNarrative:
+                                        _sessionViewController
+                                            .monospaceNarrative,
+                                    showNarrativeMeta:
+                                        _sessionViewController
+                                            .showNarrativeMeta,
+                                    playerCurie: widget.session.playerCurie,
+                                    scrollController: _scrollCtrl,
+                                    listKey: _listKey,
+                                    messageKeys: _messageKeys,
+                                    onLinkTap: _handleLinkTap,
+                                    isLoadingMore: _loadingMoreHistory,
+                                  ),
+                                  if (_isViewingHistory)
+                                    Positioned(
+                                      bottom: 12,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: FilledButton.icon(
+                                          onPressed: _jumpToNow,
+                                          icon: const Icon(
+                                            Icons.arrow_downward,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Jump to Now'),
+                                          style: FilledButton.styleFrom(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                  vertical: 8,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),

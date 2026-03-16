@@ -1,6 +1,6 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
-project(runner LANGUAGES CXX)
+project(runner LANGUAGES C CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
@@ -54,6 +54,23 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
+# Argon2 reference implementation (vendored C source).
+set(ARGON2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../native/argon2")
+add_library(moor_argon2 SHARED
+  "${CMAKE_CURRENT_SOURCE_DIR}/../native/argon2_wrapper.c"
+  "${ARGON2_DIR}/argon2.c"
+  "${ARGON2_DIR}/core.c"
+  "${ARGON2_DIR}/encoding.c"
+  "${ARGON2_DIR}/ref.c"
+  "${ARGON2_DIR}/thread.c"
+  "${ARGON2_DIR}/blake2/blake2b.c"
+)
+target_include_directories(moor_argon2 PRIVATE "${ARGON2_DIR}")
+target_compile_options(moor_argon2 PRIVATE -O2 -pthread)
+set_target_properties(moor_argon2 PROPERTIES
+  C_VISIBILITY_PRESET hidden
+)
+
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
@@ -73,6 +90,9 @@ set_target_properties(${BINARY_NAME}
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
+
+# Bundle our vendored argon2 library alongside the plugins.
+list(APPEND PLUGIN_BUNDLED_LIBRARIES $<TARGET_FILE:moor_argon2>)
 
 
 # === Installation ===

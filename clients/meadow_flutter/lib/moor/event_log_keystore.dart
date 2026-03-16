@@ -38,4 +38,16 @@ class EventLogKeyStore {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyForPlayer(playerOid));
   }
+
+  static const _keyPrefix = 'moor_event_log_identity_';
+
+  /// Remove all stored encryption identities.
+  static Future<void> purgeAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys =
+        prefs.getKeys().where((k) => k.startsWith(_keyPrefix)).toList();
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+  }
 }

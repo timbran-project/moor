@@ -31,13 +31,13 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   ansi_escape_codes: ^2.1.0
-  argon2: ^1.0.1
   bech32: ^0.2.2
   chat_bubbles: ^1.6.0
   collection: ^1.18.0
   crop_image: ^1.0.16
   cryptography: ^2.9.0
   cupertino_icons: ^1.0.8
+  ffi: ^2.2.0
   file_selector: ^1.0.3
   flat_buffers: ^25.9.23
   flutter:

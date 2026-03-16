@@ -29,6 +29,7 @@ class SessionNarrativeList extends StatelessWidget {
   final GlobalKey listKey;
   final Map<String, GlobalKey> messageKeys;
   final LinkTapHandler? onLinkTap;
+  final bool isLoadingMore;
 
   const SessionNarrativeList({
     super.key,
@@ -40,11 +41,15 @@ class SessionNarrativeList extends StatelessWidget {
     required this.listKey,
     required this.messageKeys,
     required this.onLinkTap,
+    this.isLoadingMore = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final groups = _groupNarrativeItems(items);
+    // Reserve index 0 for a loading indicator when fetching older history.
+    final hasLoadingHeader = isLoadingMore;
+    final offset = hasLoadingHeader ? 1 : 0;
     return SelectionArea(
       child: Semantics(
         container: true,
@@ -54,10 +59,22 @@ class SessionNarrativeList extends StatelessWidget {
         child: ListView.builder(
           key: listKey,
           controller: scrollController,
-          itemCount: groups.length,
+          itemCount: groups.length + offset,
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemBuilder: (context, idx) {
-            final group = groups[idx];
+            if (hasLoadingHeader && idx == 0) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            final group = groups[idx - offset];
             final first = group.first;
             final cs = Theme.of(context).colorScheme;
 

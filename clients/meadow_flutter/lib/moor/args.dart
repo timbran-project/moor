@@ -18,6 +18,7 @@ class LaunchArgs {
   final String? password;
   final String? mode; // "connect" | "create"
   final bool login;
+  final bool purgeLocalKey;
   final Uri? callbackUri;
 
   const LaunchArgs({
@@ -26,6 +27,7 @@ class LaunchArgs {
     required this.password,
     required this.mode,
     required this.login,
+    required this.purgeLocalKey,
     required this.callbackUri,
   });
 }
@@ -36,6 +38,7 @@ LaunchArgs parseLaunchArgs(List<String> args) {
   String? password;
   String? mode;
   var login = false;
+  var purgeLocalKey = false;
   Uri? callbackUri;
 
   String? takeValue(String a, int i, String name) {
@@ -60,6 +63,10 @@ LaunchArgs parseLaunchArgs(List<String> args) {
     }
     if (a == '--login') {
       login = true;
+      continue;
+    }
+    if (a == '--purge-local-key') {
+      purgeLocalKey = true;
       continue;
     }
     if (a.startsWith('--server')) {
@@ -92,6 +99,7 @@ LaunchArgs parseLaunchArgs(List<String> args) {
     password: password,
     mode: mode,
     login: login,
+    purgeLocalKey: purgeLocalKey,
     callbackUri: callbackUri,
   );
 }
