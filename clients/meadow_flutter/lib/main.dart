@@ -397,6 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _navigateToSession({
     required LoginSession session,
     required String mode,
+    String? loginPassword,
   }) async {
     if (!mounted) return;
     if (!context.mounted) return;
@@ -406,6 +407,7 @@ class _LoginScreenState extends State<LoginScreen> {
           session: session,
           mode: mode,
           initialMooTitle: _mooTitle,
+          loginPassword: loginPassword,
         ),
       ),
     );
@@ -705,14 +707,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (!mounted) return;
       if (!context.mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => SessionScreen(
-            session: session,
-            mode: _mode,
-            initialMooTitle: _mooTitle,
-          ),
-        ),
+      await _navigateToSession(
+        session: session,
+        mode: _mode,
+        loginPassword: _mode == 'create' ? pass : null,
       );
     } on Object catch (e) {
       if (!mounted) return;
@@ -1141,6 +1139,10 @@ class SessionScreen extends StatefulWidget {
   final SessionScreenBehavior behavior;
   final SessionScreenControllers? controllers;
 
+  /// The login password, passed only on "create" so that encryption can be
+  /// set up automatically without prompting the user a second time.
+  final String? loginPassword;
+
   const SessionScreen({
     super.key,
     required this.session,
@@ -1148,6 +1150,7 @@ class SessionScreen extends StatefulWidget {
     required this.initialMooTitle,
     this.behavior = const SessionScreenBehavior(),
     this.controllers,
+    this.loginPassword,
   });
 
   @override
@@ -1506,8 +1509,16 @@ class _SessionScreenState extends State<SessionScreen> {
     _presentations.remove(presentationId);
   }
 
+  bool _loadingMoreHistory = false;
+
   void _onScroll() {
     _updateRoomLookLatch();
+
+    if (!_scrollCtrl.hasClients) return;
+    final pos = _scrollCtrl.position;
+    if (pos.pixels <= 50 && !_loadingMoreHistory) {
+      unawaited(_loadMoreHistory());
+    }
   }
 
   void _updateRoomLookLatch() {
@@ -1543,6 +1554,13 @@ class _SessionScreenState extends State<SessionScreen> {
       playerOid: widget.session.playerCurie,
       authToken: widget.session.authToken,
       promptForPassword: _promptHistoryPassword,
+      promptForSetup: () async {
+        // On account creation, auto-setup using the login password.
+        if (widget.mode == 'create' && widget.loginPassword != null) {
+          return widget.loginPassword;
+        }
+        return _promptHistorySetup();
+      },
       loadInitialHistory: _loadInitialHistory,
       onSystemMessage: _appendSystem,
     );
@@ -1569,17 +1587,25 @@ class _SessionScreenState extends State<SessionScreen> {
 
   Future<void> _loadInitialHistory() async {
     if (!_historyEncryptionController.beginHistoryLoad()) {
+      debugPrint('[history] beginHistoryLoad returned false, skipping');
       return;
     }
 
     final playerOid = widget.session.playerCurie;
     final identity = await EventLogKeyStore.getIdentity(playerOid);
     if (identity == null || identity.trim().isEmpty) {
+      debugPrint('[history] no local identity for $playerOid');
+      _historyEncryptionController.finishHistoryLoad();
       return;
     }
+    debugPrint(
+      '[history] identity present for $playerOid '
+      '(${identity.length > 20 ? '${identity.substring(0, 20)}...' : identity})',
+    );
 
     if (!mounted) return;
     try {
+      _narrativeFeedController.setHistoryBoundaryNow();
       _appendSystem('Loading history...');
       final api = MoorHttpApi(widget.session.baseUri);
       final events = await api.fetchHistory(
@@ -1587,6 +1613,7 @@ class _SessionScreenState extends State<SessionScreen> {
         sinceSeconds: 86400,
         limit: 100,
       );
+      debugPrint('[history] fetched ${events.length} encrypted events');
       final items = await loadHistoricalNarrativeItems(
         events: events,
         identity: identity,
@@ -1594,15 +1621,72 @@ class _SessionScreenState extends State<SessionScreen> {
         decryptEvent: decryptEventBlobAge,
         newId: _newId,
       );
+      debugPrint(
+        '[history] decrypted ${items.length} items '
+        'from ${events.length} events',
+      );
 
       if (!mounted) return;
       final added = _narrativeFeedController.prependHistoricalItems(items);
       _historyEncryptionController.completeHistoryLoad();
       _appendSystem('History loaded ($added events)');
-    } on Object catch (e) {
+    } on Object catch (e, st) {
+      debugPrint('[history] load failed: $e\n$st');
       _appendSystem('History load failed: $e');
     } finally {
       _historyEncryptionController.finishHistoryLoad();
+    }
+  }
+
+  Future<void> _loadMoreHistory() async {
+    final cursor = _narrativeFeedController.earliestHistoryEventId;
+    if (cursor == null || _loadingMoreHistory) return;
+
+    final playerOid = widget.session.playerCurie;
+    final identity = await EventLogKeyStore.getIdentity(playerOid);
+    if (identity == null || identity.trim().isEmpty) return;
+
+    _loadingMoreHistory = true;
+    try {
+      final api = MoorHttpApi(widget.session.baseUri);
+      final events = await api.fetchHistory(
+        authToken: widget.session.authToken,
+        untilEvent: cursor,
+        limit: 50,
+      );
+      if (events.isEmpty || !mounted) return;
+
+      // Remember scroll position before prepending.
+      final scrollBefore = _scrollCtrl.hasClients
+          ? _scrollCtrl.position.pixels
+          : 0.0;
+      final extentBefore = _scrollCtrl.hasClients
+          ? _scrollCtrl.position.maxScrollExtent
+          : 0.0;
+
+      final items = await loadHistoricalNarrativeItems(
+        events: events,
+        identity: identity,
+        tracker: _narrativeFeedController.tracker,
+        decryptEvent: decryptEventBlobAge,
+        newId: _newId,
+      );
+      if (items.isEmpty || !mounted) return;
+      _narrativeFeedController.prependHistoricalItems(items);
+
+      // Restore scroll position after the layout updates.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollCtrl.hasClients) return;
+        final extentAfter = _scrollCtrl.position.maxScrollExtent;
+        final delta = extentAfter - extentBefore;
+        if (delta > 0) {
+          _scrollCtrl.jumpTo(scrollBefore + delta);
+        }
+      });
+    } on Object catch (e) {
+      _appendSystem('Load more history failed: $e');
+    } finally {
+      _loadingMoreHistory = false;
     }
   }
 
@@ -1613,14 +1697,26 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Future<String?> _promptHistoryPassword() async {
-    return showTextPromptDialog(
+  Future<UnlockPromptResult?> _promptHistoryPassword() async {
+    final result = await showEncryptionUnlockDialog(
       context,
-      title: 'Enter History Password',
-      confirmLabel: 'Unlock',
-      labelText: 'Password',
-      obscureText: true,
+      systemTitle: _mooTitle,
     );
+    if (result == null) return null;
+    return switch (result.action) {
+      EncryptionUnlockAction.unlock =>
+        UnlockWithPassword(result.password!),
+      EncryptionUnlockAction.forgotPassword =>
+        UnlockForgotPassword(),
+    };
+  }
+
+  Future<String?> _promptHistorySetup() async {
+    final result = await showEncryptionSetupDialog(
+      context,
+      systemTitle: _mooTitle,
+    );
+    return result?.password;
   }
 
   Future<void> _showAccountSheet() async {
@@ -1701,19 +1797,30 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Future<void> _promptAndSetupEncryption() async {
-    final password = await _promptHistoryPassword();
-    if (!mounted || password == null || password.isEmpty) {
-      return;
-    }
-    await _setupEncryption(password);
+    final result = await showEncryptionSetupDialog(
+      context,
+      systemTitle: _mooTitle,
+    );
+    if (!mounted || result == null) return;
+    await _setupEncryption(result.password);
   }
 
   Future<void> _promptAndUnlockEncryption() async {
-    final password = await _promptHistoryPassword();
-    if (!mounted || password == null || password.isEmpty) {
-      return;
+    final result = await showEncryptionUnlockDialog(
+      context,
+      systemTitle: _mooTitle,
+    );
+    if (!mounted || result == null) return;
+    switch (result.action) {
+      case EncryptionUnlockAction.unlock:
+        await _unlockEncryption(result.password!);
+      case EncryptionUnlockAction.forgotPassword:
+        await _forgetLocalEncryptionKey();
+        _appendSystem(
+          'History encryption reset — old history is no longer accessible',
+        );
+        await _promptAndSetupEncryption();
     }
-    await _unlockEncryption(password);
   }
 
   Future<void> _editProfileDescription() async {
@@ -1935,6 +2042,10 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _appendItem(NarrativeItem it) {
+    // Drop WebSocket events that overlap with already-loaded history.
+    if (_narrativeFeedController.isHistoricalDuplicate(it.timestamp)) {
+      return;
+    }
     final appended = _narrativeFeedController.appendItem(it);
     if (!appended) {
       return;

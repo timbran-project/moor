@@ -14,6 +14,17 @@
 
 import 'package:flutter/foundation.dart';
 
+/// Result from the unlock prompt: either a password, a request to reset
+/// (forgot password), or null/skip.
+sealed class UnlockPromptResult {}
+
+class UnlockWithPassword extends UnlockPromptResult {
+  final String password;
+  UnlockWithPassword(this.password);
+}
+
+class UnlockForgotPassword extends UnlockPromptResult {}
+
 typedef GetLocalIdentity = Future<String?> Function(String playerOid);
 typedef SetLocalIdentity =
     Future<void> Function({
@@ -78,7 +89,8 @@ class HistoryEncryptionController extends ChangeNotifier {
   Future<void> init({
     required String playerOid,
     required String authToken,
-    required Future<String?> Function() promptForPassword,
+    required Future<UnlockPromptResult?> Function() promptForPassword,
+    required Future<String?> Function() promptForSetup,
     required Future<void> Function() loadInitialHistory,
     required void Function(String message) onSystemMessage,
   }) async {
@@ -96,6 +108,10 @@ class HistoryEncryptionController extends ChangeNotifier {
     _backendHasPubkey =
         backendPubkey != null && backendPubkey.trim().isNotEmpty;
     _hasLocalKey = hasLocal;
+    debugPrint(
+      '[encryption] init: playerOid=$playerOid '
+      'backendHasPubkey=$_backendHasPubkey hasLocalKey=$_hasLocalKey',
+    );
     notifyListeners();
 
     if (hasLocal && !_backendHasPubkey) {
@@ -108,21 +124,55 @@ class HistoryEncryptionController extends ChangeNotifier {
     }
 
     if (!_backendHasPubkey && !_hasLocalKey) {
+      final setupPassword = await promptForSetup();
+      if (setupPassword == null || setupPassword.isEmpty) {
+        onSystemMessage('History encryption skipped');
+        return;
+      }
+      await setup(
+        playerOid: playerOid,
+        authToken: authToken,
+        password: setupPassword,
+        loadInitialHistory: loadInitialHistory,
+        onSystemMessage: onSystemMessage,
+      );
       return;
     }
 
     if (_backendHasPubkey && !_hasLocalKey) {
-      final password = await promptForPassword();
-      if (password == null || password.isEmpty) {
-        onSystemMessage('History encryption locked (no password provided)');
-        return;
+      final result = await promptForPassword();
+      switch (result) {
+        case UnlockWithPassword(:final password):
+          await unlock(
+            playerOid: playerOid,
+            password: password,
+            loadInitialHistory: loadInitialHistory,
+            onSystemMessage: onSystemMessage,
+          );
+        case UnlockForgotPassword():
+          // Clear the server-side key so the user can set up fresh.
+          await _removeLocalIdentity(playerOid);
+          _backendHasPubkey = false;
+          _hasLocalKey = false;
+          notifyListeners();
+          onSystemMessage(
+            'History encryption reset — old history is no longer accessible',
+          );
+          // Prompt for new setup.
+          final setupPassword = await promptForSetup();
+          if (setupPassword == null || setupPassword.isEmpty) {
+            return;
+          }
+          await setup(
+            playerOid: playerOid,
+            authToken: authToken,
+            password: setupPassword,
+            loadInitialHistory: loadInitialHistory,
+            onSystemMessage: onSystemMessage,
+          );
+        case null:
+          onSystemMessage('History encryption locked (no password provided)');
       }
-      await unlock(
-        playerOid: playerOid,
-        password: password,
-        loadInitialHistory: loadInitialHistory,
-        onSystemMessage: onSystemMessage,
-      );
       return;
     }
 
@@ -147,6 +197,10 @@ class HistoryEncryptionController extends ChangeNotifier {
       );
       final identity = _identityFromDerivedBytes(derived);
       final pubkey = await _publicKeyFromDerivedBytes(derived);
+      debugPrint(
+        '[encryption] setup: pubkey=${pubkey.length > 20 ? '${pubkey.substring(0, 20)}...' : pubkey} '
+        'identity=${identity.length > 20 ? '${identity.substring(0, 20)}...' : identity}',
+      );
       await _setBackendPubkey(authToken: authToken, publicKey: pubkey);
       await _setLocalIdentity(playerOid: playerOid, ageIdentity: identity);
       onSystemMessage('History encryption set');
@@ -154,7 +208,8 @@ class HistoryEncryptionController extends ChangeNotifier {
       _hasLocalKey = true;
       notifyListeners();
       await loadInitialHistory();
-    } on Object catch (e) {
+    } on Object catch (e, st) {
+      debugPrint('[encryption] setup failed: $e\n$st');
       onSystemMessage('History encryption setup failed: $e');
     }
   }
@@ -172,12 +227,17 @@ class HistoryEncryptionController extends ChangeNotifier {
         identifier: playerOid,
       );
       final identity = _identityFromDerivedBytes(derived);
+      debugPrint(
+        '[encryption] unlock: playerOid=$playerOid '
+        'identity=${identity.length > 20 ? '${identity.substring(0, 20)}...' : identity}',
+      );
       await _setLocalIdentity(playerOid: playerOid, ageIdentity: identity);
       _hasLocalKey = true;
       notifyListeners();
       onSystemMessage('History encryption unlocked');
       await loadInitialHistory();
-    } on Object catch (e) {
+    } on Object catch (e, st) {
+      debugPrint('[encryption] unlock failed: $e\n$st');
       onSystemMessage('History encryption unlock failed: $e');
     }
   }

@@ -89,6 +89,322 @@ Future<HistoryEncryptionAction?> showHistoryEncryptionDialog(
   );
 }
 
+/// Result from the encryption setup dialog: either a password to use,
+/// or null if the user skipped/cancelled.
+class EncryptionSetupResult {
+  final String password;
+  const EncryptionSetupResult(this.password);
+}
+
+/// Full-screen-ish dialog for first-time history encryption setup.
+/// Mirrors the TS client's EncryptionSetupPrompt: password, confirm,
+/// acknowledge checkbox, skip option.
+Future<EncryptionSetupResult?> showEncryptionSetupDialog(
+  BuildContext context, {
+  required String systemTitle,
+}) {
+  return showDialog<EncryptionSetupResult>(
+    context: context,
+    builder: (context) => _EncryptionSetupDialog(systemTitle: systemTitle),
+  );
+}
+
+class _EncryptionSetupDialog extends StatefulWidget {
+  final String systemTitle;
+  const _EncryptionSetupDialog({required this.systemTitle});
+
+  @override
+  State<_EncryptionSetupDialog> createState() => _EncryptionSetupDialogState();
+}
+
+class _EncryptionSetupDialogState extends State<_EncryptionSetupDialog> {
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _understood = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    setState(() => _error = null);
+
+    final pw = _passwordCtrl.text;
+    if (pw.isEmpty) {
+      setState(() => _error = 'Password is required');
+      return;
+    }
+    if (pw.length < 8) {
+      setState(() => _error = 'Password must be at least 8 characters');
+      return;
+    }
+    if (pw != _confirmCtrl.text) {
+      setState(() => _error = 'Passwords do not match');
+      return;
+    }
+    if (!_understood) {
+      setState(
+        () => _error =
+            'Please confirm you understand this password cannot be recovered',
+      );
+      return;
+    }
+
+    Navigator.of(context).pop(EncryptionSetupResult(pw));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('Set Up History Encryption'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your history is a record of everything you see and do in '
+                '${widget.systemTitle}. It is stored encrypted so only you '
+                'can read it.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'With the same encryption password, your history follows you '
+                'across devices and persists over time.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This password is separate from your ${widget.systemTitle} '
+                'login and is used only to protect your history.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer.withValues(alpha: 0.3),
+                  border: Border.all(color: cs.error.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'If you lose this password, you lose access to your history '
+                  'permanently. There is no password recovery.',
+                  style: TextStyle(color: cs.onSurface),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Encryption Password',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirmCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Password',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _understood,
+                onChanged: (v) => setState(() => _understood = v ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text(
+                  'I understand that if I lose this password, I will '
+                  'permanently lose access to my history.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: TextStyle(color: cs.error, fontSize: 13),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Skip for Now'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Set Up Encryption'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Result from the encryption unlock dialog.
+enum EncryptionUnlockAction { unlock, forgotPassword }
+
+class EncryptionUnlockResult {
+  final EncryptionUnlockAction action;
+  final String? password;
+  const EncryptionUnlockResult.unlock(String this.password)
+      : action = EncryptionUnlockAction.unlock;
+  const EncryptionUnlockResult.forgotPassword()
+      : action = EncryptionUnlockAction.forgotPassword,
+        password = null;
+}
+
+/// Dialog shown when the server has a pubkey but the local device does not
+/// have the identity stored. The user must enter their encryption password
+/// to derive the key, or choose "I forgot my password" to reset.
+Future<EncryptionUnlockResult?> showEncryptionUnlockDialog(
+  BuildContext context, {
+  required String systemTitle,
+}) {
+  return showDialog<EncryptionUnlockResult>(
+    context: context,
+    builder: (context) => _EncryptionUnlockDialog(systemTitle: systemTitle),
+  );
+}
+
+class _EncryptionUnlockDialog extends StatefulWidget {
+  final String systemTitle;
+  const _EncryptionUnlockDialog({required this.systemTitle});
+
+  @override
+  State<_EncryptionUnlockDialog> createState() =>
+      _EncryptionUnlockDialogState();
+}
+
+class _EncryptionUnlockDialogState extends State<_EncryptionUnlockDialog> {
+  final _passwordCtrl = TextEditingController();
+  String? _error;
+  bool _confirmingReset = false;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final pw = _passwordCtrl.text;
+    if (pw.isEmpty) {
+      setState(() => _error = 'Password is required');
+      return;
+    }
+    Navigator.of(context).pop(EncryptionUnlockResult.unlock(pw));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_confirmingReset) {
+      return AlertDialog(
+        title: const Text('Reset History Encryption?'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Text(
+            'This will delete your existing encryption key on the server '
+            'and let you set up a new one. You will permanently lose '
+            'access to all previously encrypted history.',
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => setState(() => _confirmingReset = false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: cs.error),
+            onPressed: () {
+              Navigator.of(context).pop(
+                const EncryptionUnlockResult.forgotPassword(),
+              );
+            },
+            child: const Text('Reset Encryption'),
+          ),
+        ],
+      );
+    }
+
+    return AlertDialog(
+      title: const Text('Enter History Password'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your history is encrypted. Enter your encryption password '
+                'to access it.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This is the password you set up for history encryption, '
+                'separate from your ${widget.systemTitle} login.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Encryption Password',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: TextStyle(color: cs.error, fontSize: 13),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Skip for Now'),
+        ),
+        TextButton(
+          onPressed: () => setState(() => _confirmingReset = true),
+          child: const Text('I Forgot My Password'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Unlock History'),
+        ),
+      ],
+    );
+  }
+}
+
 Future<String?> showTextPromptDialog(
   BuildContext context, {
   required String title,

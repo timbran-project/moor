@@ -12,8 +12,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
 import 'package:meadow_flutter/moor/content_type.dart';
@@ -38,10 +37,31 @@ Future<List<NarrativeItem>> loadHistoricalNarrativeItems({
   final batchEventIds = <String>{};
   final batchDedupKeys = <String>{};
 
-  for (final event in events) {
-    final decrypted = await decryptEvent(event.encryptedBlob, identity);
+  var decryptFails = 0;
+  var parseFails = 0;
+  var dupes = 0;
+
+  for (var i = 0; i < events.length; i++) {
+    final event = events[i];
+    Uint8List decrypted;
+    try {
+      decrypted = await decryptEvent(event.encryptedBlob, identity);
+    } on Object catch (e) {
+      decryptFails++;
+      if (decryptFails <= 3) {
+        debugPrint('[history] decrypt failed event $i: $e');
+      }
+      continue;
+    }
     final parsed = parseHistoricalNarrativeEnvelope(decrypted, newId: newId);
     if (parsed == null) {
+      parseFails++;
+      if (parseFails <= 3) {
+        debugPrint(
+          '[history] parse returned null for event $i '
+          '(${decrypted.length} bytes)',
+        );
+      }
       continue;
     }
     final alreadySeen = tracker.batchContains(
@@ -50,6 +70,7 @@ Future<List<NarrativeItem>> loadHistoricalNarrativeItems({
       batchDedupKeys: batchDedupKeys,
     );
     if (alreadySeen) {
+      dupes++;
       continue;
     }
     tracker.rememberBatch(
@@ -60,7 +81,49 @@ Future<List<NarrativeItem>> loadHistoricalNarrativeItems({
     items.add(parsed);
   }
 
-  return items;
+  if (decryptFails > 0 || parseFails > 0 || dupes > 0) {
+    debugPrint(
+      '[history] loaded ${items.length} items, '
+      '$decryptFails decrypt failures, '
+      '$parseFails parse failures, '
+      '$dupes duplicates',
+    );
+  }
+
+  return filterMcpSequences(items);
+}
+
+/// Filter out MCP protocol sequences (`#$#` commands and their spool
+/// content) from historical narrative items. These are internal protocol
+/// messages (e.g. `#$# edit ...` followed by program text terminated by
+/// a lone `.`) that should not be shown to the user.
+List<NarrativeItem> filterMcpSequences(List<NarrativeItem> items) {
+  final filtered = <NarrativeItem>[];
+  var inMcpSpool = false;
+
+  for (final item in items) {
+    final content = item.content.join().trim();
+
+    if (content.startsWith(r'#$#')) {
+      if (content.startsWith(r'#$# edit')) {
+        inMcpSpool = true;
+      }
+      continue;
+    }
+
+    if (inMcpSpool && content == '.') {
+      inMcpSpool = false;
+      continue;
+    }
+
+    if (inMcpSpool) {
+      continue;
+    }
+
+    filtered.add(item);
+  }
+
+  return filtered;
 }
 
 NarrativeItem? parseHistoricalNarrativeEnvelope(

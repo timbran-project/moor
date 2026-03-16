@@ -41,6 +41,7 @@ void main() {
         playerOid: 'oid:1',
         authToken: 'token',
         promptForPassword: () async => null,
+        promptForSetup: () async => null,
         loadInitialHistory: () async {},
         onSystemMessage: messages.add,
       );

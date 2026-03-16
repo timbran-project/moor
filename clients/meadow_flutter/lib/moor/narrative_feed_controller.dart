@@ -22,8 +22,26 @@ class NarrativeFeedController extends ChangeNotifier {
   final List<NarrativeItem> _items = <NarrativeItem>[];
   final NarrativeTracker _tracker = NarrativeTracker();
 
+  /// Earliest event ID seen from history loads, used as pagination cursor.
+  String? _earliestHistoryEventId;
+
+  /// Timestamp boundary set when history is first loaded. WebSocket events
+  /// with timestamps before this boundary are considered duplicates of
+  /// already-loaded history and should be dropped.
+  int? _historyBoundaryMs;
+
   List<NarrativeItem> get items => UnmodifiableListView<NarrativeItem>(_items);
   NarrativeTracker get tracker => _tracker;
+  String? get earliestHistoryEventId => _earliestHistoryEventId;
+
+  void setHistoryBoundaryNow() {
+    _historyBoundaryMs = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  bool isHistoricalDuplicate(DateTime eventTimestamp) {
+    if (_historyBoundaryMs == null) return false;
+    return eventTimestamp.millisecondsSinceEpoch < _historyBoundaryMs!;
+  }
 
   bool appendItem(NarrativeItem item) {
     if (_tracker.contains(item)) {
@@ -72,6 +90,15 @@ class NarrativeFeedController extends ChangeNotifier {
     }
     if (uniqueItems.isEmpty) {
       return 0;
+    }
+
+    // Track the earliest event ID for pagination cursor.
+    for (final item in uniqueItems) {
+      final eventId = item.metadata?.eventId;
+      if (eventId != null) {
+        _earliestHistoryEventId = eventId;
+        break;
+      }
     }
 
     _items.insertAll(0, uniqueItems);

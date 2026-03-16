@@ -31,14 +31,13 @@ Supports most of what the original SPA client does:
 - Input prompt composer (for in-game prompts to the player)
 - Editor dock for concurrent verb/property editing sessions
 - OAuth2 PKCE authentication
-- Encrypted event log support (Argon2id KDF, X25519, AGE encryption)
+- Encrypted event log support (Argon2id KDF, X25519, AGE encryption) with automatic setup on
+  account creation, unlock/forgot-password dialogs, and infinite backward scroll
 - Link previews, history export
 
 ### Known gaps
 
 - Verb editor lacks autocompletion, suggestion, and syntax template features
-- Encrypted event log retrieval of existing web logs is broken
-- Event log does not support infinite backscroll
 - TTS still needs work
 
 ## Run

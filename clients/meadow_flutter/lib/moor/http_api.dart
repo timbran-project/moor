@@ -13,8 +13,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:meadow_flutter/fbs/moor_rpc_moor_common_generated.dart'
     as moor_common;
@@ -740,6 +740,7 @@ class MoorHttpApi {
     }
 
     final uri = _resolve('/v1/history').replace(queryParameters: params);
+    debugPrint('[history] GET $uri');
     final resp = await http.get(
       uri,
       headers: {
@@ -766,6 +767,12 @@ class MoorHttpApi {
     final history = historyReply?.response;
     final events =
         history?.events ?? const <moor_rpc.HistoricalNarrativeEvent>[];
+
+    debugPrint(
+      '[history] response: ${resp.statusCode}, '
+      '${resp.bodyBytes.length} bytes, '
+      '${events.length} events in flatbuffer',
+    );
 
     final out = <EncryptedHistoricalEvent>[];
     for (final e in events) {
