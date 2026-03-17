@@ -2479,11 +2479,19 @@ class _SessionScreenState extends State<SessionScreen> {
       context,
     ).colorScheme.outline.withValues(alpha: 0.75);
 
+    final keyboardVisible =
+        MediaQuery.of(context).viewInsets.bottom > 0 ||
+        View.of(context).viewInsets.bottom > 0;
+
     return Column(
       children: [
         AnimatedBuilder(
           animation: _presentations,
           builder: (context, _) {
+            if (keyboardVisible) {
+              return const SizedBox.shrink();
+            }
+
             final suppressRoomKey = _roomLookController.suppressedRoomKey(
               roomHudEnabled: _sessionViewController.roomHudEnabled,
             );
