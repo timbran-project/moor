@@ -164,7 +164,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _baseUrlCtrl = TextEditingController(text: 'http://localhost:8080');
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -214,6 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _mode = a.mode!;
     }
 
+    WidgetsBinding.instance.addObserver(this);
     _loadWelcome();
     unawaited(_restorePendingOAuth2Flow());
 
@@ -266,7 +267,51 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+    final uri = Uri.tryParse(routeInformation.uri.toString());
+    if (uri != null && uri.scheme == 'moor' && uri.host == 'oauth') {
+      debugPrint('[oauth-debug] deep link received uri=$uri');
+      _handleOAuth2DeepLink(uri);
+      return true;
+    }
+    return super.didPushRouteInformation(routeInformation);
+  }
+
+  void _handleOAuth2DeepLink(Uri uri) {
+    final q = uri.queryParameters;
+    final handoff = q['handoff_code']?.trim();
+    if (handoff != null && handoff.isNotEmpty) {
+      _handoffCodeCtrl.text = handoff;
+      _oauth2AutoExchangePending = true;
+      debugPrint(
+        '[oauth-debug] deep link handoff len=${handoff.length}',
+      );
+    }
+    final err = q['error']?.trim();
+    if (err != null && err.isNotEmpty) {
+      final details = q['details']?.trim();
+      setState(() {
+        _error = details == null || details.isEmpty
+            ? 'OAuth2 error: $err'
+            : 'OAuth2 error: $err ($details)';
+      });
+      return;
+    }
+    if (_oauth2AutoExchangePending &&
+        _handoffCodeCtrl.text.trim().isNotEmpty &&
+        (_oauth2CodeVerifier?.isNotEmpty ?? false)) {
+      debugPrint('[oauth-debug] deep link auto exchange');
+      _oauth2AutoExchangePending = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_exchangeOAuth2HandoffCode());
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _baseUrlCtrl.dispose();
     _userCtrl.dispose();
     _passCtrl.dispose();
