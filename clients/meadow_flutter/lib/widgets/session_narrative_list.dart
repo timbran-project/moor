@@ -161,31 +161,33 @@ class SessionNarrativeList extends StatelessWidget {
             );
 
             if (!isInset) {
-              return inner;
+              return RepaintBoundary(child: inner);
             }
 
             if (group.length == 1 && !isHintGroup) {
               return inner;
             }
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Semantics(
-                container: true,
-                label: 'Inset',
-                child: Card(
-                  elevation: 0,
-                  color: cs.surfaceContainerLow,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: cs.primary,
-                      width: 2,
+            return RepaintBoundary(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Semantics(
+                  container: true,
+                  label: 'Inset',
+                  child: Card(
+                    elevation: 0,
+                    color: cs.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: cs.primary,
+                        width: 2,
+                      ),
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: inner,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: inner,
+                    ),
                   ),
                 ),
               ),

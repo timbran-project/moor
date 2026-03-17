@@ -52,7 +52,7 @@ final _urlRe = RegExp(
 final _uuObjIdRe = RegExp(r'#?[\da-fA-F]{6}-[\da-fA-F]{10}');
 final _objIdRe = RegExp(r'#\d+(?![0-9a-fA-F]*-[0-9a-fA-F])');
 
-class ContentRenderer extends StatelessWidget {
+class ContentRenderer extends StatefulWidget {
   final List<String> content;
   final String contentType;
   final bool isStale;
@@ -69,17 +69,113 @@ class ContentRenderer extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final joined = content.join('\n');
-    final child = _buildInner(context, joined);
-    final hasSelectionContainer = SelectionContainer.maybeOf(context) != null;
+  State<ContentRenderer> createState() => _ContentRendererState();
+}
 
-    var wrapped = child;
+enum _RenderMode { htmlBlock, preformattedHtml, preformatted, plainText }
+
+class _ContentRendererState extends State<ContentRenderer> {
+  late _RenderMode _mode;
+  late String _processed;
+
+  @override
+  void initState() {
+    super.initState();
+    _reprocess();
+  }
+
+  @override
+  void didUpdateWidget(ContentRenderer old) {
+    super.didUpdateWidget(old);
+    if (old.contentType != widget.contentType ||
+        !_stringListEquals(old.content, widget.content)) {
+      _reprocess();
+    }
+  }
+
+  static bool _stringListEquals(List<String> a, List<String> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Run the expensive string processing (HTML parsing, sanitization,
+  /// linkification, syntax highlighting) once and cache the result.
+  void _reprocess() {
+    final joined = widget.content.join('\n');
+    final contentType = widget.contentType;
+
+    // Some backend output can be mislabeled as HTML but still contain ANSI SGR
+    // sequences; detect ESC and force it through the ANSI->HTML path first.
+    if (contentType != 'text/x-uri' && containsAnsiEscapeCodes(joined)) {
+      _processed = _linkifyBareUrlsInHtml(
+        sanitizeRestrictedHtml(ansiToRestrictedHtml(joined)),
+      );
+      _mode = contentType == 'text/traceback'
+          ? _RenderMode.preformattedHtml
+          : _RenderMode.htmlBlock;
+      return;
+    }
+
+    switch (contentType) {
+      case 'text/html':
+        final highlighted = _highlightMooCodeBlocksInHtml(joined);
+        _processed = _linkifyBareUrlsInHtml(
+          sanitizeRestrictedHtml(highlighted),
+        );
+        _mode = _RenderMode.htmlBlock;
+      case 'text/djot':
+        _processed = _linkifyBareUrlsInHtml(
+          renderDjotToRestrictedHtml(joined),
+        );
+        _mode = _RenderMode.htmlBlock;
+      case 'text/traceback':
+        _processed = joined;
+        _mode = _RenderMode.preformatted;
+      case 'text/x-uri':
+        _processed = joined.trim();
+        _mode = _RenderMode.plainText;
+      case 'text/plain':
+      default:
+        _processed = joined;
+        _mode = _RenderMode.plainText;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final child = switch (_mode) {
+      _RenderMode.htmlBlock => _HtmlBlock(
+          html: _processed,
+          isStale: widget.isStale,
+          onLinkTap: widget.onLinkTap,
+        ),
+      _RenderMode.preformattedHtml => _PreformattedHtml(
+          html: _processed,
+          isStale: widget.isStale,
+          onLinkTap: widget.onLinkTap,
+        ),
+      _RenderMode.preformatted => _Preformatted(
+          text: _processed,
+          isStale: widget.isStale,
+          onLinkTap: widget.onLinkTap,
+        ),
+      _RenderMode.plainText => _PlainTextBlock(
+          text: _processed,
+          isStale: widget.isStale,
+          onLinkTap: widget.onLinkTap,
+        ),
+    };
+
+    final hasSelectionContainer = SelectionContainer.maybeOf(context) != null;
+    Widget wrapped = child;
     if (!hasSelectionContainer) {
-      // Make output selectable for copy/paste. HtmlWidget supports SelectionArea.
       wrapped = SelectionArea(child: wrapped);
     }
-    if (!monospace) {
+    if (!widget.monospace) {
       return wrapped;
     }
     return DefaultTextStyle.merge(
@@ -89,80 +185,6 @@ class ContentRenderer extends StatelessWidget {
       ),
       child: wrapped,
     );
-  }
-
-  Widget _buildInner(BuildContext context, String joined) {
-    // Some backend output can be mislabeled as HTML but still contain ANSI SGR
-    // sequences; detect ESC and force it through the ANSI->HTML path first.
-    if (contentType != 'text/x-uri' && containsAnsiEscapeCodes(joined)) {
-      final html = _linkifyBareUrlsInHtml(
-        sanitizeRestrictedHtml(ansiToRestrictedHtml(joined)),
-      );
-      if (contentType == 'text/traceback') {
-        return _PreformattedHtml(
-          html: html,
-          isStale: isStale,
-          onLinkTap: onLinkTap,
-        );
-      }
-      return _HtmlBlock(
-        html: html,
-        isStale: isStale,
-        onLinkTap: onLinkTap,
-      );
-    }
-
-    switch (contentType) {
-      case 'text/html':
-        {
-          final highlighted = _highlightMooCodeBlocksInHtml(joined);
-          final sanitized = _linkifyBareUrlsInHtml(
-            sanitizeRestrictedHtml(highlighted),
-          );
-          return _HtmlBlock(
-            html: sanitized,
-            isStale: isStale,
-            onLinkTap: onLinkTap,
-          );
-        }
-      case 'text/djot':
-        {
-          final html = _linkifyBareUrlsInHtml(
-            renderDjotToRestrictedHtml(joined),
-          );
-          return _HtmlBlock(
-            html: html,
-            isStale: isStale,
-            onLinkTap: onLinkTap,
-          );
-        }
-      case 'text/traceback':
-        {
-          return _Preformatted(
-            text: joined,
-            isStale: isStale,
-            onLinkTap: onLinkTap,
-          );
-        }
-      case 'text/x-uri':
-        {
-          // For the spike: show as a link instead of embedding a webview.
-          return _PlainTextBlock(
-            text: joined.trim(),
-            isStale: isStale,
-            onLinkTap: onLinkTap,
-          );
-        }
-      case 'text/plain':
-      default:
-        {
-          return _PlainTextBlock(
-            text: joined,
-            isStale: isStale,
-            onLinkTap: onLinkTap,
-          );
-        }
-    }
   }
 }
 
@@ -332,7 +354,7 @@ TextStyle? _styleForMooClass(dom.Element node, ColorScheme cs) {
   return null;
 }
 
-class _HtmlBlock extends StatelessWidget {
+class _HtmlBlock extends StatefulWidget {
   final String html;
   final bool isStale;
   final LinkTapHandler? onLinkTap;
@@ -344,8 +366,36 @@ class _HtmlBlock extends StatelessWidget {
   });
 
   @override
+  State<_HtmlBlock> createState() => _HtmlBlockState();
+}
+
+class _HtmlBlockState extends State<_HtmlBlock> {
+  HtmlWidget? _cached;
+  String? _cachedHtml;
+  bool? _cachedIsStale;
+  ColorScheme? _cachedCs;
+  TextStyle? _cachedTextStyle;
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final textStyle = DefaultTextStyle.of(context).style;
+
+    // Return the cached HtmlWidget instance if nothing has changed.
+    // Returning an identical widget skips the entire HtmlWidget subtree rebuild.
+    if (_cached != null &&
+        _cachedHtml == widget.html &&
+        _cachedIsStale == widget.isStale &&
+        _cachedCs == cs &&
+        _cachedTextStyle == textStyle) {
+      return _cached!;
+    }
+
+    _cachedHtml = widget.html;
+    _cachedIsStale = widget.isStale;
+    _cachedCs = cs;
+    _cachedTextStyle = textStyle;
+
     final tableBorder = _cssColor(
       Color.lerp(cs.outlineVariant, cs.outline, 0.35) ?? cs.outlineVariant,
     );
@@ -363,9 +413,9 @@ class _HtmlBlock extends StatelessWidget {
     final tableCardBorder =
         Color.lerp(cs.outlineVariant, cs.outline, 0.35) ?? cs.outlineVariant;
 
-    return HtmlWidget(
-      html,
-      textStyle: DefaultTextStyle.of(context).style,
+    _cached = HtmlWidget(
+      widget.html,
+      textStyle: textStyle,
       customWidgetBuilder: (element) {
         if (element.localName == 'pre') {
           return _PreformattedCodeBlock(element: element);
@@ -373,278 +423,322 @@ class _HtmlBlock extends StatelessWidget {
         if (element.localName == 'dl') {
           return _DefinitionListBlock(
             element: element,
-            isStale: isStale,
-            onLinkTap: onLinkTap,
+            isStale: widget.isStale,
+            onLinkTap: widget.onLinkTap,
           );
         }
         if (element.localName == 'table') {
-          final cardRadius = BorderRadius.circular(6);
-          final cardBorderColor = tableCardBorder;
-          return Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: tableCardColor,
-              borderRadius: cardRadius,
-              border: Border.all(color: cardBorderColor),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: HtmlWidget(
-              element.outerHtml,
-              textStyle: DefaultTextStyle.of(context).style,
-              customStylesBuilder: (inner) {
-                final tag = inner.localName;
-                if (tag == null) return null;
-                switch (tag) {
-                  case 'table':
-                    return {
-                      'border-collapse': 'separate',
-                      'border-spacing': '0',
-                      'margin': '0',
-                      'width': '100%',
-                      'background': tableSurface,
-                    };
-                  case 'thead':
-                    return {'background': tableHeaderSurface};
-                  case 'tr':
-                    return {'background': tableSurface};
-                  case 'td':
-                    final row = inner.parent;
-                    final section = row?.parent;
-                    final rowCells =
-                        row?.children
-                            .where(
-                              (c) => c.localName == 'td' || c.localName == 'th',
-                            )
-                            .toList() ??
-                        const <dom.Element>[];
-                    final isLastCell =
-                        rowCells.isNotEmpty && identical(rowCells.last, inner);
-                    final sectionRows =
-                        section?.children
-                            .where((c) => c.localName == 'tr')
-                            .toList() ??
-                        const <dom.Element>[];
-                    final isLastRow =
-                        sectionRows.isNotEmpty &&
-                        identical(sectionRows.last, row);
-                    return {
-                      'padding': '8px 12px',
-                      'text-align': 'left',
-                      if (!isLastCell) 'border-right': '1px solid $tableBorder',
-                      if (!isLastRow) 'border-bottom': '1px solid $tableBorder',
-                    };
-                  case 'th':
-                    final row = inner.parent;
-                    final rowCells =
-                        row?.children
-                            .where(
-                              (c) => c.localName == 'td' || c.localName == 'th',
-                            )
-                            .toList() ??
-                        const <dom.Element>[];
-                    final isLastCell =
-                        rowCells.isNotEmpty && identical(rowCells.last, inner);
-                    return {
-                      'padding': '8px 12px',
-                      'text-align': 'left',
-                      'font-weight': '700',
-                      'border-bottom': '1px solid $tableBorder',
-                      if (!isLastCell) 'border-right': '1px solid $tableBorder',
-                    };
-                  default:
-                    return null;
-                }
-              },
-              onTapUrl: (url) {
-                if (url.isEmpty) {
-                  return true;
-                }
-                if (isStale && url.startsWith('moo://')) {
-                  return true;
-                }
-                onLinkTap?.call(url);
-                return true;
-              },
-            ),
+          return _TableCard(
+            element: element,
+            textStyle: textStyle,
+            isStale: widget.isStale,
+            onLinkTap: widget.onLinkTap,
+            tableBorder: tableBorder,
+            tableSurface: tableSurface,
+            tableHeaderSurface: tableHeaderSurface,
+            tableCardColor: tableCardColor,
+            tableCardBorder: tableCardBorder,
           );
         }
         return null;
       },
-      customStylesBuilder: (element) {
-        final tag = element.localName;
-        if (tag == null) return null;
-        final parent = element.parent;
-        if (tag == 'span') {
-          if (element.classes.contains('moo-keyword')) {
-            return {'color': '#7b3fcf', 'font-weight': '700'};
-          }
-          if (element.classes.contains('moo-string')) {
-            return {'color': '#0b7f6f'};
-          }
-          if (element.classes.contains('moo-number')) {
-            return {'color': '#b34a0b'};
-          }
-          if (element.classes.contains('moo-comment')) {
-            return {'color': '#5f6f69', 'font-style': 'italic'};
-          }
-        }
-        switch (tag) {
-          case 'a':
-            return {
-              'color': _cssColor(cs.primary),
-              'text-decoration': 'underline',
-            };
-          case 'h1':
-            return {
-              'font-weight': '700',
-              'font-size': '22px',
-              'margin': '8px 0 4px 0',
-            };
-          case 'h2':
-            return {
-              'font-weight': '700',
-              'font-size': '20px',
-              'margin': '8px 0 4px 0',
-            };
-          case 'h3':
-            return {
-              'font-weight': '700',
-              'font-size': '18px',
-              'margin': '8px 0 4px 0',
-            };
-          case 'h4':
-            return {
-              'font-weight': '700',
-              'font-size': '16px',
-              'margin': '8px 0 4px 0',
-            };
-          case 'h5':
-            return {
-              'font-weight': '700',
-              'font-size': '14px',
-              'margin': '8px 0 4px 0',
-            };
-          case 'h6':
-            return {
-              'font-weight': '700',
-              'font-size': '13px',
-              'margin': '8px 0 4px 0',
-            };
-          case 'blockquote':
-            return {
-              'border-left': '3px solid #9AA6A1',
-              'padding-left': '10px',
-              'margin': '6px 0',
-            };
-          case 'dl':
-            return {'margin': '4px 0'};
-          case 'dt':
-            return {
-              'margin': '6px 0 1px 0',
-              'font-weight': '700',
-            };
-          case 'dd':
-            return {
-              'margin': '0 0 4px 10px',
-            };
-          case 'pre':
-            return {
-              // Preserve explicit newlines but wrap long lines instead of
-              // overflowing horizontally.
-              'white-space': 'pre-wrap',
-              'overflow-wrap': 'anywhere',
-              'word-break': 'break-word',
-              'font-family': 'Comic Mono',
-            };
-          case 'code':
-            final parentIsPre = parent != null && parent.localName == 'pre';
-            return {
-              if (parentIsPre) ...{
-                'display': 'block',
-                'white-space': 'pre-wrap',
-                'font-family': 'Comic Mono',
-              } else ...{
-                // Some sources emit very long code-like tokens/identifiers.
-                // Allow wrapping in narrative/panel views.
-                'overflow-wrap': 'anywhere',
-                'word-break': 'break-word',
-                'font-family': 'Comic Mono',
-              },
-            };
-          case 'table':
-            return {
-              'border-collapse': 'separate',
-              'border-spacing': '0',
-              'margin': '8px 0',
-              'border': '1px solid $tableBorder',
-              'border-radius': '12px',
-              'overflow': 'hidden',
-              'background': tableSurface,
-            };
-          case 'thead':
-            return {'background': tableHeaderSurface};
-          case 'tr':
-            return {'background': tableSurface};
-          case 'td':
-            final row = element.parent;
-            final section = row?.parent;
-            final rowCells =
-                row?.children
-                    .where((c) => c.localName == 'td' || c.localName == 'th')
-                    .toList() ??
-                const <dom.Element>[];
-            final isFirstCell =
-                rowCells.isNotEmpty && identical(rowCells.first, element);
-            final isLastCell =
-                rowCells.isNotEmpty && identical(rowCells.last, element);
-            final sectionRows =
-                section?.children.where((c) => c.localName == 'tr').toList() ??
-                const <dom.Element>[];
-            final isLastRowInSection =
-                sectionRows.isNotEmpty && identical(sectionRows.last, row);
-            return {
-              'border-top': '1px solid $tableBorder',
-              'border-left': '1px solid $tableBorder',
-              'padding': '7px 10px',
-              if (isLastRowInSection && isFirstCell)
-                'border-bottom-left-radius': '12px',
-              if (isLastRowInSection && isLastCell)
-                'border-bottom-right-radius': '12px',
-            };
-          case 'th':
-            final row = element.parent;
-            final rowCells =
-                row?.children
-                    .where((c) => c.localName == 'td' || c.localName == 'th')
-                    .toList() ??
-                const <dom.Element>[];
-            final isFirstCell =
-                rowCells.isNotEmpty && identical(rowCells.first, element);
-            final isLastCell =
-                rowCells.isNotEmpty && identical(rowCells.last, element);
-            return {
-              'border-top': '1px solid $tableBorder',
-              'border-left': '1px solid $tableBorder',
-              'padding': '8px 10px',
-              'font-weight': '700',
-              if (isFirstCell) 'border-top-left-radius': '12px',
-              if (isLastCell) 'border-top-right-radius': '12px',
-            };
-          default:
-            return null;
-        }
-      },
+      customStylesBuilder: (element) => _stylesForElement(
+        element,
+        cs: cs,
+        tableBorder: tableBorder,
+        tableSurface: tableSurface,
+        tableHeaderSurface: tableHeaderSurface,
+      ),
       onTapUrl: (url) {
-        if (url.isEmpty) {
-          return true;
-        }
-        if (isStale && url.startsWith('moo://')) {
-          return true;
-        }
-        onLinkTap?.call(url);
+        if (url.isEmpty) return true;
+        if (widget.isStale && url.startsWith('moo://')) return true;
+        widget.onLinkTap?.call(url);
         return true;
       },
     );
+    return _cached!;
+  }
+}
+
+/// Table rendered as a clipped card with its own nested HtmlWidget.
+class _TableCard extends StatelessWidget {
+  final dom.Element element;
+  final TextStyle textStyle;
+  final bool isStale;
+  final LinkTapHandler? onLinkTap;
+  final String tableBorder;
+  final String tableSurface;
+  final String tableHeaderSurface;
+  final Color tableCardColor;
+  final Color tableCardBorder;
+
+  const _TableCard({
+    required this.element,
+    required this.textStyle,
+    required this.isStale,
+    required this.onLinkTap,
+    required this.tableBorder,
+    required this.tableSurface,
+    required this.tableHeaderSurface,
+    required this.tableCardColor,
+    required this.tableCardBorder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: tableCardColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: tableCardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: HtmlWidget(
+        element.outerHtml,
+        textStyle: textStyle,
+        customStylesBuilder: (inner) {
+          final tag = inner.localName;
+          if (tag == null) return null;
+          switch (tag) {
+            case 'table':
+              return {
+                'border-collapse': 'separate',
+                'border-spacing': '0',
+                'margin': '0',
+                'width': '100%',
+                'background': tableSurface,
+              };
+            case 'thead':
+              return {'background': tableHeaderSurface};
+            case 'tr':
+              return {'background': tableSurface};
+            case 'td':
+              final row = inner.parent;
+              final section = row?.parent;
+              final rowCells =
+                  row?.children
+                      .where(
+                        (c) => c.localName == 'td' || c.localName == 'th',
+                      )
+                      .toList() ??
+                  const <dom.Element>[];
+              final isLastCell =
+                  rowCells.isNotEmpty && identical(rowCells.last, inner);
+              final sectionRows =
+                  section?.children
+                      .where((c) => c.localName == 'tr')
+                      .toList() ??
+                  const <dom.Element>[];
+              final isLastRow =
+                  sectionRows.isNotEmpty && identical(sectionRows.last, row);
+              return {
+                'padding': '8px 12px',
+                'text-align': 'left',
+                if (!isLastCell) 'border-right': '1px solid $tableBorder',
+                if (!isLastRow) 'border-bottom': '1px solid $tableBorder',
+              };
+            case 'th':
+              final row = inner.parent;
+              final rowCells =
+                  row?.children
+                      .where(
+                        (c) => c.localName == 'td' || c.localName == 'th',
+                      )
+                      .toList() ??
+                  const <dom.Element>[];
+              final isLastCell =
+                  rowCells.isNotEmpty && identical(rowCells.last, inner);
+              return {
+                'padding': '8px 12px',
+                'text-align': 'left',
+                'font-weight': '700',
+                'border-bottom': '1px solid $tableBorder',
+                if (!isLastCell) 'border-right': '1px solid $tableBorder',
+              };
+            default:
+              return null;
+          }
+        },
+        onTapUrl: (url) {
+          if (url.isEmpty) return true;
+          if (isStale && url.startsWith('moo://')) return true;
+          onLinkTap?.call(url);
+          return true;
+        },
+      ),
+    );
+  }
+}
+
+/// Shared style builder for the main HtmlWidget. Extracted so it does not
+/// allocate a new closure on every build when the inputs haven't changed.
+Map<String, String>? _stylesForElement(
+  dom.Element element, {
+  required ColorScheme cs,
+  required String tableBorder,
+  required String tableSurface,
+  required String tableHeaderSurface,
+}) {
+  final tag = element.localName;
+  if (tag == null) return null;
+  final parent = element.parent;
+  if (tag == 'span') {
+    if (element.classes.contains('moo-keyword')) {
+      return {'color': '#7b3fcf', 'font-weight': '700'};
+    }
+    if (element.classes.contains('moo-string')) {
+      return {'color': '#0b7f6f'};
+    }
+    if (element.classes.contains('moo-number')) {
+      return {'color': '#b34a0b'};
+    }
+    if (element.classes.contains('moo-comment')) {
+      return {'color': '#5f6f69', 'font-style': 'italic'};
+    }
+  }
+  switch (tag) {
+    case 'a':
+      return {
+        'color': _cssColor(cs.primary),
+        'text-decoration': 'underline',
+      };
+    case 'h1':
+      return {
+        'font-weight': '700',
+        'font-size': '22px',
+        'margin': '8px 0 4px 0',
+      };
+    case 'h2':
+      return {
+        'font-weight': '700',
+        'font-size': '20px',
+        'margin': '8px 0 4px 0',
+      };
+    case 'h3':
+      return {
+        'font-weight': '700',
+        'font-size': '18px',
+        'margin': '8px 0 4px 0',
+      };
+    case 'h4':
+      return {
+        'font-weight': '700',
+        'font-size': '16px',
+        'margin': '8px 0 4px 0',
+      };
+    case 'h5':
+      return {
+        'font-weight': '700',
+        'font-size': '14px',
+        'margin': '8px 0 4px 0',
+      };
+    case 'h6':
+      return {
+        'font-weight': '700',
+        'font-size': '13px',
+        'margin': '8px 0 4px 0',
+      };
+    case 'blockquote':
+      return {
+        'border-left': '3px solid #9AA6A1',
+        'padding-left': '10px',
+        'margin': '6px 0',
+      };
+    case 'dl':
+      return {'margin': '4px 0'};
+    case 'dt':
+      return {
+        'margin': '6px 0 1px 0',
+        'font-weight': '700',
+      };
+    case 'dd':
+      return {
+        'margin': '0 0 4px 10px',
+      };
+    case 'pre':
+      return {
+        // Preserve explicit newlines but wrap long lines instead of
+        // overflowing horizontally.
+        'white-space': 'pre-wrap',
+        'overflow-wrap': 'anywhere',
+        'word-break': 'break-word',
+        'font-family': 'Comic Mono',
+      };
+    case 'code':
+      final parentIsPre = parent != null && parent.localName == 'pre';
+      return {
+        if (parentIsPre) ...{
+          'display': 'block',
+          'white-space': 'pre-wrap',
+          'font-family': 'Comic Mono',
+        } else ...{
+          'overflow-wrap': 'anywhere',
+          'word-break': 'break-word',
+          'font-family': 'Comic Mono',
+        },
+      };
+    case 'table':
+      return {
+        'border-collapse': 'separate',
+        'border-spacing': '0',
+        'margin': '8px 0',
+        'border': '1px solid $tableBorder',
+        'border-radius': '12px',
+        'overflow': 'hidden',
+        'background': tableSurface,
+      };
+    case 'thead':
+      return {'background': tableHeaderSurface};
+    case 'tr':
+      return {'background': tableSurface};
+    case 'td':
+      final row = element.parent;
+      final section = row?.parent;
+      final rowCells =
+          row?.children
+              .where((c) => c.localName == 'td' || c.localName == 'th')
+              .toList() ??
+          const <dom.Element>[];
+      final isFirstCell =
+          rowCells.isNotEmpty && identical(rowCells.first, element);
+      final isLastCell =
+          rowCells.isNotEmpty && identical(rowCells.last, element);
+      final sectionRows =
+          section?.children.where((c) => c.localName == 'tr').toList() ??
+          const <dom.Element>[];
+      final isLastRowInSection =
+          sectionRows.isNotEmpty && identical(sectionRows.last, row);
+      return {
+        'border-top': '1px solid $tableBorder',
+        'border-left': '1px solid $tableBorder',
+        'padding': '7px 10px',
+        if (isLastRowInSection && isFirstCell)
+          'border-bottom-left-radius': '12px',
+        if (isLastRowInSection && isLastCell)
+          'border-bottom-right-radius': '12px',
+      };
+    case 'th':
+      final row = element.parent;
+      final rowCells =
+          row?.children
+              .where((c) => c.localName == 'td' || c.localName == 'th')
+              .toList() ??
+          const <dom.Element>[];
+      final isFirstCell =
+          rowCells.isNotEmpty && identical(rowCells.first, element);
+      final isLastCell =
+          rowCells.isNotEmpty && identical(rowCells.last, element);
+      return {
+        'border-top': '1px solid $tableBorder',
+        'border-left': '1px solid $tableBorder',
+        'padding': '8px 10px',
+        'font-weight': '700',
+        if (isFirstCell) 'border-top-left-radius': '12px',
+        if (isLastCell) 'border-top-right-radius': '12px',
+      };
+    default:
+      return null;
   }
 }
 
