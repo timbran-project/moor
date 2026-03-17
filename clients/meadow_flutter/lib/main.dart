@@ -1249,6 +1249,7 @@ class _SessionScreenState extends State<SessionScreen> {
       widget.controllers?.narrativeFeedController ?? NarrativeFeedController();
 
   double _splitRatio = 0.64;
+  final Set<String> _autoOpenedSessions = {};
 
   late final EditorSessionController _editorSessionController =
       widget.controllers?.editorSessionController ?? EditorSessionController();
@@ -1419,6 +1420,22 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     setState(() {});
+    _autoFullscreenIfMobile();
+  }
+
+  void _autoFullscreenIfMobile() {
+    final width = MediaQuery.of(context).size.width;
+    if (width >= 600) return;
+    final sessions = _editorSessionController.sessions;
+    if (sessions.isEmpty) return;
+    final active = sessions[_editorSessionController.activeIndex];
+    final pid = active.presentationId;
+    if (_autoOpenedSessions.contains(pid)) return;
+    _autoOpenedSessions.add(pid);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _editorPresenter.openFullscreen(context, active);
+    });
   }
 
   void _onHistoryEncryptionChanged() {
@@ -2629,7 +2646,9 @@ class _SessionScreenState extends State<SessionScreen> {
                         animation: _presentations,
                         builder: (context, _) {
                           final side = _presentations.byTarget('right');
-                          if (side.isEmpty) {
+                          final screenWidth =
+                              MediaQuery.of(context).size.width;
+                          if (side.isEmpty || screenWidth < 600) {
                             return const SizedBox.shrink();
                           }
                           return SizedBox(
@@ -2736,12 +2755,12 @@ class _SessionScreenState extends State<SessionScreen> {
         body: LayoutBuilder(
           builder: (context, constraints) {
             final editorSessions = _editorSessionController.sessions;
+            final w = constraints.maxWidth;
 
-            if (editorSessions.isEmpty) {
+            // On mobile-width screens, editors open fullscreen — skip the dock.
+            if (editorSessions.isEmpty || w < 600) {
               return _buildLeftPane(context);
             }
-
-            final w = constraints.maxWidth;
             const minDock = 360.0;
             const minLeft = 520.0;
             const dividerW = 10.0;

@@ -63,15 +63,15 @@ void main() {
 
         _expectLabeledTextField(
           tester.getSemantics(find.byType(EditableText).at(0)),
-          'Web Host Base URL',
-        );
-        _expectLabeledTextField(
-          tester.getSemantics(find.byType(EditableText).at(1)),
           'Username',
         );
         _expectLabeledTextField(
-          tester.getSemantics(find.byType(EditableText).at(2)),
+          tester.getSemantics(find.byType(EditableText).at(1)),
           'Password',
+        );
+        _expectLabeledTextField(
+          tester.getSemantics(find.byType(EditableText).at(2)),
+          'Web Host Base URL',
         );
         _expectButtonSemantics(
           tester.getSemantics(find.widgetWithText(FilledButton, 'Sign In')),

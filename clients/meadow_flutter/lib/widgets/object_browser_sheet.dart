@@ -39,7 +39,8 @@ class ObjectBrowserSheet extends StatefulWidget {
   State<ObjectBrowserSheet> createState() => _ObjectBrowserSheetState();
 }
 
-class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
+class _ObjectBrowserSheetState extends State<ObjectBrowserSheet>
+    with TickerProviderStateMixin {
   static const _splitterHeight = 14.0;
   static const _minTopHeight = 220.0;
   static const _minBottomHeight = 180.0;
@@ -48,6 +49,9 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
   late final ScrollController _objectsScrollController = ScrollController();
   late final ScrollController _propertiesScrollController = ScrollController();
   late final ScrollController _verbsScrollController = ScrollController();
+  late final TabController _browserTabController =
+      TabController(length: 3, vsync: this);
+  final Set<String> _autoOpenedSessions = {};
 
   MoorHttpApi get _api => MoorHttpApi(widget.editorPresenter.baseUri);
   bool get _isWizard => (widget.currentPlayerFlags & (1 << 2)) != 0;
@@ -98,6 +102,7 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     _objectsScrollController.dispose();
     _propertiesScrollController.dispose();
     _verbsScrollController.dispose();
+    _browserTabController.dispose();
     super.dispose();
   }
 
@@ -2143,13 +2148,45 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
   }
 
   Widget _buildBrowserGrid() {
-    return Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return _buildBrowserTabs();
+        }
+        return Row(
+          children: [
+            Expanded(child: _buildObjectsColumn()),
+            const SizedBox(width: 12),
+            Expanded(child: _buildPropertiesColumn()),
+            const SizedBox(width: 12),
+            Expanded(child: _buildVerbsColumn()),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBrowserTabs() {
+    return Column(
       children: [
-        Expanded(child: _buildObjectsColumn()),
-        const SizedBox(width: 12),
-        Expanded(child: _buildPropertiesColumn()),
-        const SizedBox(width: 12),
-        Expanded(child: _buildVerbsColumn()),
+        TabBar(
+          controller: _browserTabController,
+          tabs: const [
+            Tab(text: 'Objects'),
+            Tab(text: 'Properties'),
+            Tab(text: 'Verbs'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _browserTabController,
+            children: [
+              _buildObjectsColumn(),
+              _buildPropertiesColumn(),
+              _buildVerbsColumn(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -2509,9 +2546,28 @@ class _ObjectBrowserSheetState extends State<ObjectBrowserSheet> {
     );
   }
 
+  void _autoFullscreenIfMobile(List<EditorSession> sessions) {
+    final width = MediaQuery.of(context).size.width;
+    if (width >= 600 || sessions.isEmpty) return;
+    final active = sessions[widget.controller.activeEditorIndex];
+    final pid = active.presentationId;
+    if (_autoOpenedSessions.contains(pid)) return;
+    _autoOpenedSessions.add(pid);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.editorPresenter.openFullscreen(context, active);
+    });
+  }
+
   Widget _buildBodyContent(List<EditorSession> sessions) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // On mobile, editors open fullscreen — show only the browser grid.
+        if (constraints.maxWidth < 600) {
+          _autoFullscreenIfMobile(sessions);
+          return _buildBrowserGrid();
+        }
+
         final usableHeight = constraints.maxHeight - _splitterHeight;
         if (usableHeight <= (_minTopHeight + _minBottomHeight)) {
           return Column(
