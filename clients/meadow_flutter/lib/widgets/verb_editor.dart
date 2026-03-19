@@ -328,41 +328,39 @@ class _VerbEditorPaneState extends State<VerbEditorPane> {
             ),
           const SizedBox(height: 12),
           Expanded(
-            child: SelectionArea(
-              child: CodeEditor(
-                controller: _ctrl,
-                scrollController: _scrollCtrl,
-                focusNode: _focusNode,
-                style: CodeEditorStyle(
-                  fontFamily: 'Comic Mono',
-                  fontFamilyFallback: _monoFallback,
-                  codeTheme: codeTheme,
-                ),
-                indicatorBuilder:
-                    (context, editingController, chunkController, notifier) {
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          DefaultCodeLineNumber(
-                            controller: editingController,
-                            notifier: notifier,
-                            customLineIndex2Text: (lineIndex) {
-                              final display = '${lineIndex + 1}';
-                              if (errorLines.contains(lineIndex + 1)) {
-                                return '$display!';
-                              }
-                              return display;
-                            },
-                          ),
-                          DefaultCodeChunkIndicator(
-                            width: 20,
-                            controller: chunkController,
-                            notifier: notifier,
-                          ),
-                        ],
-                      );
-                    },
+            child: CodeEditor(
+              controller: _ctrl,
+              scrollController: _scrollCtrl,
+              focusNode: _focusNode,
+              style: CodeEditorStyle(
+                fontFamily: 'Comic Mono',
+                fontFamilyFallback: _monoFallback,
+                codeTheme: codeTheme,
               ),
+              indicatorBuilder:
+                  (context, editingController, chunkController, notifier) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DefaultCodeLineNumber(
+                          controller: editingController,
+                          notifier: notifier,
+                          customLineIndex2Text: (lineIndex) {
+                            final display = '${lineIndex + 1}';
+                            if (errorLines.contains(lineIndex + 1)) {
+                              return '$display!';
+                            }
+                            return display;
+                          },
+                        ),
+                        DefaultCodeChunkIndicator(
+                          width: 20,
+                          controller: chunkController,
+                          notifier: notifier,
+                        ),
+                      ],
+                    );
+                  },
             ),
           ),
         ],
