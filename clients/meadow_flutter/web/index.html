@@ -52,6 +52,16 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    {{flutter_js}}
+    {{flutter_build_config}}
+
+    _flutter.loader.load({
+      config: {
+        // Allow skwasm on all browser engines, not just Chromium.
+        wasmAllowList: { blink: true, gecko: true, webkit: true, unknown: true },
+      },
+    });
+  </script>
 </body>
 </html>
