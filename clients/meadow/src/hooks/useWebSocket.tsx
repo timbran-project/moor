@@ -312,7 +312,9 @@ export const useWebSocket = (
                         reconnectTimeoutRef.current = window.setTimeout(() => {
                             reconnectTimeoutRef.current = null;
                             if (connectionStatusRef.current !== "connected" && connectRef.current) {
-                                connectRef.current(mode);
+                                // Always reconnect as "connect", never "create" --
+                                // the create path is one-time for new accounts.
+                                connectRef.current("connect");
                             }
                         }, delay);
                     }
@@ -374,12 +376,12 @@ export const useWebSocket = (
             console.log("[WebSocket] Resume-triggered reconnect", {
                 idleMs,
                 sinceLastResumeReconnect,
-                mode: lastConnectModeRef.current,
                 socketState: socketRef.current?.readyState,
             });
             lastResumeReconnectAtRef.current = now;
             onSystemMessage("Resuming connection...", 2);
-            connectRef.current?.(lastConnectModeRef.current, true);
+            // Always reconnect as "connect" -- create is one-time for new accounts.
+            connectRef.current?.("connect", true);
         };
 
         const handleVisibility = () => {
