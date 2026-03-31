@@ -49,6 +49,7 @@ void main() {
             showNarrativeMeta: true,
             verbPaletteEnabled: false,
             monospaceNarrative: true,
+            echoCommands: true,
             verbSuggestionsAvailable: false,
             themeMode: ThemeMode.light,
           ),

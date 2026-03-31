@@ -81,6 +81,7 @@ class SessionNarrativeList extends StatelessWidget {
             Widget buildMessage(NarrativeItem item) {
               final key = messageKeys.putIfAbsent(item.id, GlobalKey.new);
               final ts = item.timestamp.toIso8601String().split('T').last;
+              final isEcho = item.presentationHint == 'input_echo';
               final content = ContentRenderer(
                 content: item.content,
                 contentType: item.contentType,
@@ -98,46 +99,54 @@ class SessionNarrativeList extends StatelessWidget {
                     horizontal: 12,
                     vertical: 4,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (showNarrativeMeta) ...[
-                        Row(
-                          children: [
-                            Text(
-                              ts,
-                              style: TextStyle(
-                                fontFamily: 'Comic Mono',
-                                color: cs.outline,
-                                fontSize: 12,
+                  child: DefaultTextStyle.merge(
+                    style: isEcho
+                        ? TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: cs.outline,
+                          )
+                        : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (showNarrativeMeta) ...[
+                          Row(
+                            children: [
+                              Text(
+                                ts,
+                                style: TextStyle(
+                                  fontFamily: 'Comic Mono',
+                                  color: cs.outline,
+                                  fontSize: 12,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              item.contentType,
-                              style: TextStyle(
-                                fontFamily: 'Comic Mono',
-                                color: cs.outline,
-                                fontSize: 12,
+                              const SizedBox(width: 8),
+                              Text(
+                                item.contentType,
+                                style: TextStyle(
+                                  fontFamily: 'Comic Mono',
+                                  color: cs.outline,
+                                  fontSize: 12,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                        ],
+                        if (item.metadata?.thumbnail case final thumbnail?)
+                          _NarrativeThumbnailLayout(
+                            thumbnail: thumbnail.data,
+                            content: content,
+                          )
+                        else
+                          content,
+                        if (item.metadata?.linkPreview case final preview?)
+                          LinkPreviewCard(
+                            preview: preview,
+                            onTap: onLinkTap,
+                          ),
                       ],
-                      if (item.metadata?.thumbnail case final thumbnail?)
-                        _NarrativeThumbnailLayout(
-                          thumbnail: thumbnail.data,
-                          content: content,
-                        )
-                      else
-                        content,
-                      if (item.metadata?.linkPreview case final preview?)
-                        LinkPreviewCard(
-                          preview: preview,
-                          onTap: onLinkTap,
-                        ),
-                    ],
+                    ),
                   ),
                 ),
               );

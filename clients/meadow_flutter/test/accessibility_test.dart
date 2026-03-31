@@ -269,6 +269,7 @@ void main() {
                 showNarrativeMeta: false,
                 verbPaletteEnabled: true,
                 monospaceNarrative: false,
+                echoCommands: true,
                 verbSuggestionsAvailable: true,
                 themeMode: ThemeMode.dark,
               ),

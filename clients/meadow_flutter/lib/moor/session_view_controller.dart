@@ -20,6 +20,7 @@ class SessionViewSettings {
   final bool showNarrativeMeta;
   final bool verbPaletteEnabled;
   final bool monospaceNarrative;
+  final bool echoCommands;
   final bool verbSuggestionsAvailable;
   final ThemeMode themeMode;
 
@@ -28,6 +29,7 @@ class SessionViewSettings {
     required this.showNarrativeMeta,
     required this.verbPaletteEnabled,
     required this.monospaceNarrative,
+    required this.echoCommands,
     required this.verbSuggestionsAvailable,
     required this.themeMode,
   });
@@ -37,6 +39,7 @@ class SessionViewSettings {
     bool? showNarrativeMeta,
     bool? verbPaletteEnabled,
     bool? monospaceNarrative,
+    bool? echoCommands,
     bool? verbSuggestionsAvailable,
     ThemeMode? themeMode,
   }) {
@@ -45,6 +48,7 @@ class SessionViewSettings {
       showNarrativeMeta: showNarrativeMeta ?? this.showNarrativeMeta,
       verbPaletteEnabled: verbPaletteEnabled ?? this.verbPaletteEnabled,
       monospaceNarrative: monospaceNarrative ?? this.monospaceNarrative,
+      echoCommands: echoCommands ?? this.echoCommands,
       verbSuggestionsAvailable:
           verbSuggestionsAvailable ?? this.verbSuggestionsAvailable,
       themeMode: themeMode ?? this.themeMode,
@@ -57,11 +61,13 @@ class SessionViewController extends ChangeNotifier {
   bool _showNarrativeMeta = false;
   bool _verbPaletteEnabled = true;
   bool _monospaceNarrative = false;
+  bool _echoCommands = true;
 
   bool get roomHudEnabled => _roomHudEnabled;
   bool get showNarrativeMeta => _showNarrativeMeta;
   bool get verbPaletteEnabled => _verbPaletteEnabled;
   bool get monospaceNarrative => _monospaceNarrative;
+  bool get echoCommands => _echoCommands;
 
   SessionViewSettings settings({
     required bool verbSuggestionsAvailable,
@@ -72,6 +78,7 @@ class SessionViewController extends ChangeNotifier {
       showNarrativeMeta: showNarrativeMeta,
       verbPaletteEnabled: verbPaletteEnabled,
       monospaceNarrative: monospaceNarrative,
+      echoCommands: echoCommands,
       verbSuggestionsAvailable: verbSuggestionsAvailable,
       themeMode: themeMode,
     );
@@ -82,7 +89,8 @@ class SessionViewController extends ChangeNotifier {
         _roomHudEnabled != settings.roomHudEnabled ||
         _showNarrativeMeta != settings.showNarrativeMeta ||
         _verbPaletteEnabled != settings.verbPaletteEnabled ||
-        _monospaceNarrative != settings.monospaceNarrative;
+        _monospaceNarrative != settings.monospaceNarrative ||
+        _echoCommands != settings.echoCommands;
     if (!didChange) {
       return;
     }
@@ -91,6 +99,7 @@ class SessionViewController extends ChangeNotifier {
     _showNarrativeMeta = settings.showNarrativeMeta;
     _verbPaletteEnabled = settings.verbPaletteEnabled;
     _monospaceNarrative = settings.monospaceNarrative;
+    _echoCommands = settings.echoCommands;
     notifyListeners();
   }
 }

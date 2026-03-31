@@ -82,6 +82,14 @@ class _SessionSettingsSheetState extends State<SessionSettingsSheet> {
               },
             ),
             SwitchListTile(
+              value: _settings.echoCommands,
+              title: const Text('Echo commands'),
+              subtitle: const Text('Show typed commands in the transcript'),
+              onChanged: (value) {
+                _update(_settings.copyWith(echoCommands: value));
+              },
+            ),
+            SwitchListTile(
               value: _settings.verbPaletteEnabled,
               title: const Text('Verb palette'),
               subtitle: Text(

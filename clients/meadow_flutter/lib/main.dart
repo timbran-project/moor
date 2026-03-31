@@ -2289,6 +2289,21 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     for (final cmd in commandsSent) {
+      if (_sessionViewController.echoCommands) {
+        _narrativeFeedController.appendItem(
+          NarrativeItem(
+            id: _newId('echo'),
+            timestamp: DateTime.now(),
+            content: <String>[cmd],
+            contentType: 'text/plain',
+            noNewline: false,
+            presentationHint: 'input_echo',
+            groupId: null,
+            metadata: null,
+          ),
+        );
+        _scheduleScrollToBottom();
+      }
       _sessionConnectionController.sendText(cmd);
     }
 
