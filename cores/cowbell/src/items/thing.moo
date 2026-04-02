@@ -26,6 +26,7 @@ object THING
   property is_countable_noun (owner: HACKER, flags: "rc") = true;
   property is_plural_noun (owner: HACKER, flags: "rc") = false;
   property is_proper_noun_name (owner: HACKER, flags: "rc") = false;
+  property portable (owner: HACKER, flags: "rc") = true;
   property pronouns (owner: HACKER, flags: "rc") = <SCHEDULED_TASK, .is_plural = false, .verb_be = "is", .verb_have = "has", .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
   property unlocks (owner: HACKER, flags: "rc") = #-1;
 
@@ -190,6 +191,8 @@ object THING
   verb can_get (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Check if actor can pick up this object. Returns true/false.";
     {?who = player} = args;
+    "Not portable means never allowed";
+    !this.portable && return false;
     "No rule means always allowed";
     this.get_rule == 0 && return true;
     "Evaluate rule with context";
@@ -475,5 +478,9 @@ object THING
       endif
     endfor
     return actions;
+  endverb
+
+  verb fact_is_portable (this none this) owner: ARCH_WIZARD flags: "rxd"
+    return this.portable;
   endverb
 endobject
