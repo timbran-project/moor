@@ -122,73 +122,73 @@ object SYSOBJ
     return $login:(args[1])(@listdelete(args, 1));
   endverb
 
-  verb "user_created user_reconnected user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called by the server when a user connects...";
-    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+  verb "user_created user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called by the server when a user connects (or reconnects, or is created).";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
     if (user < #0)
       return;
     endif
-    "Track if new player for greeting later";
-    is_new_player = verb == "user_created";
-    "Calculate whether to announce based on time since last connection";
-    "New players always announced, otherwise check quiet period";
-    quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
+    "Don't trust verb name alone -- old clients may call user_created on reconnect.";
+    "Verify by checking whether the player has connected before.";
     last_conn = `user.last_connected ! E_PROPNF => 0';
+    is_new_player = verb == "user_created" && !last_conn;
+    "If player already has other connections, just show the room and return.";
+    "No announce, no confunc -- they are already awake.";
+    if (length(connections(user)) > 1)
+      set_task_perms(user);
+      `user:emit_room_look(user.location) ! ANY';
+      return;
+    endif
+    "First connection. Decide whether to announce.";
+    "Based on time since last connect -- last_disconnected is not reliably";
+    "set because silent connection reaping (mobile/network) skips it.";
+    quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
     time_since_last = last_conn > 0 ? time() - last_conn | quiet_period + 1;
     should_announce = is_new_player || time_since_last > quiet_period;
-    "Update last_connected timestamp";
-    `user.last_connected = time() ! E_PROPNF, E_PERM';
-    "Set up new players before dropping perms (mailbox, welcome letter)";
+    "Set up new players before dropping perms (mailbox, welcome letter).";
     if (is_new_player)
       `$login:setup_new_player(user) ! E_VERBNF';
     endif
-    "Now set perms to user for confunc etc";
+    "Drop to user perms for confunc.";
     set_task_perms(user);
     `user.location:confunc(user, is_new_player, should_announce) ! E_INVIND, E_VERBNF';
     `user:anyconfunc() ! E_VERBNF';
-    "Greet new players after room confunc";
+    "Greet new players after room confunc.";
     if (is_new_player)
       `$login:greet_new_player(user) ! E_VERBNF';
     endif
-    "Check mail last (after setup_new_player has created mailbox)";
+    "Player confunc handles DM/mail notifications, then updates last_connected.";
     `user:confunc() ! E_VERBNF';
   endverb
 
   verb "user_disconnected user_client_disconnected" (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called when a user disconnects...";
-    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    "Called when a user disconnects (only when last connection is removed).";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
     if (user < #0)
       return;
     endif
-    "Never run disfunc while the user still has any active connection.";
+    "Guard: don't run disfunc if the user still has active connections.";
     `length(connections(user)) > 0 ! ANY => 0' && return;
+    "Set last_disconnected before calling disfunc so it reads consistently.";
+    `user.last_disconnected = time() ! E_PROPNF, E_PERM';
     set_task_perms(user);
-    fork (0)
-      `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
-    endfork
+    "Room disfunc and player disfunc run inline, no fork.";
+    `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
     `user:disfunc() ! E_VERBNF';
   endverb
 
   verb user_reconnected (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called when a user re-connects to the system from another session... Which isn't really a thing in mooR, but here for compatibility...";
-    "...This code should only be run as a server task, but we'll let wizards poke at it...";
+    "Called by the server when a user reconnects (network blip, browser wake, etc).";
+    "Quiet reconnect: no room description, no announce, just update last_connected.";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
-    set_task_perms(user);
     if (user < #0)
       return;
     endif
-    fork (0)
-      `user.location:reconfunc(user) ! E_INVIND, E_VERBNF';
-    endfork
-    fork (0)
-      `user:reconfunc() ! E_VERBNF';
-    endfork
-    `user:anyconfunc() ! E_VERBNF';
+    "Update last_connected.";
+    `user.last_connected = time() ! E_PROPNF, E_PERM';
   endverb
 
   verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -425,5 +425,8 @@ object SYSOBJ
   verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
     callers() && !caller_perms().wizard && return E_PERM;
     server_log(@args);
+  endverb
+
+  verb user_reconnected (this none this) owner: ARCH_WIZARD flags: "rxd"
   endverb
 endobject

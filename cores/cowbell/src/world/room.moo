@@ -101,11 +101,8 @@ object ROOM
   endverb
 
   verb disfunc (this none this) owner: HACKER flags: "rxd"
-    cooldown = `$login.sleep_announce_cooldown ! E_PROPNF => 10';
-    last = `player.last_disconnected ! ANY => 0';
-    if (typeof(last) == TYPE_INT && last > 0 && time() - last < cooldown)
-      return;
-    endif
+    "Called when a player disconnects from this room.";
+    "By the time this runs, all connections are gone (daemon handles soft detach).";
     discon_event = player:mk_disconnected_event():with_audience('utility);
     this:announce(discon_event);
   endverb

@@ -410,7 +410,6 @@ object PLAYER
   verb match_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
     "Return list of objects to match against for execution in commands.";
-    {command, ?options = []} = args;
     location = this.location;
     env = {this};
     "Add player's inventory.";
@@ -505,8 +504,9 @@ object PLAYER
 
   verb confunc (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Called when player connects. Check for new DMs and unread mail.";
-    "Check for DMs received since last connection";
+    "last_connected still holds the *previous* connection time here.";
     last_conn = this.last_connected;
+    "Check for DMs received since last connection.";
     new_dm_count = 0;
     for dm in (this.direct_messages)
       if (dm.sent > last_conn)
@@ -518,7 +518,7 @@ object PLAYER
       event = $event:mk_info(this, msg):as_djot():as_inset():with_group('dm_notify);
       this:inform_current(event);
     endif
-    "Check for unread mail";
+    "Check for unread mail.";
     mailbox = `this:find_mailbox() ! ANY => #-1';
     if (valid(mailbox))
       unread = mailbox:unread_count();
@@ -528,7 +528,7 @@ object PLAYER
         this:inform_current(event);
       endif
     endif
-    "Update last_connected timestamp for next login";
+    "Now update last_connected for next login.";
     this.last_connected = time();
   endverb
 
@@ -2589,8 +2589,9 @@ object PLAYER
   endverb
 
   verb disfunc (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called when player disconnects. Record the time for housekeeping.";
-    this.last_disconnected = time();
+    "Called when player disconnects (after last connection is removed).";
+    "last_disconnected is set by #0:user_disconnected before this runs.";
+    "Override in subclasses for custom disconnect behavior.";
   endverb
 
   verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
