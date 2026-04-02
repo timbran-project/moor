@@ -3220,8 +3220,6 @@ dependencies = [
  "md5",
  "moor-common",
  "moor-var",
- "pest",
- "pest_derive",
  "planus",
  "pretty_assertions",
  "proptest",
