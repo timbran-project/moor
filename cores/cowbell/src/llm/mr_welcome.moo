@@ -147,6 +147,9 @@ object MR_WELCOME
     "Register directed_say tool";
     directed_say_tool = $llm_agent_tool:mk("directed_say", "Say something directed at a specific person in the room. Use when you want to specifically address someone (like when answering their direct question, or making a pointed remark to them). The message will be shown as 'Mr. Welcome [to Person]: message'.", ["type" -> "object", "properties" -> ["target_name" -> ["type" -> "string", "description" -> "The name of the person to address"], "message" -> ["type" -> "string", "description" -> "What to say to them"]], "required" -> {"target_name", "message"}], this, "directed_say");
     agent:add_tool("directed_say", directed_say_tool);
+    "Register think tool";
+    think_tool = $llm_agent_tool:mk("think", "Express a visible internal thought in the room when useful for social context.", ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "The thought to express"]], "required" -> {"thought"}], this, "think");
+    agent:add_tool("think", think_tool);
     "Register inspect_object tool";
     inspect_object_tool = $llm_agent_tool:mk("inspect_object", "Examine an object in detail to get comprehensive information about it. Shows name, description, owner, parent, location, and available commands. Use this when you want detailed information about what an object is and what players can do with it.", ["type" -> "object", "properties" -> ["object_name" -> ["type" -> "string", "description" -> "The name of the object to inspect (e.g., 'compass', 'welcome', 'chair')"]], "required" -> {"object_name"}], this, "inspect_object");
     agent:add_tool("inspect_object", inspect_object_tool);
@@ -503,6 +506,8 @@ object MR_WELCOME
     endif
     if (valid(this.location))
       ask_event = $event:mk_say(player, $sub:nc(), " ", $sub:self_alt("ask", "asks"), " ", this:name(), " about \"", topic, "\"."):with_this(this.location);
+      this.location:announce(ask_event);
+      this.location:announce(this:mk_emote_event("thinks about " + topic + "..."));
     endif
     response = this.agent:send_message(topic);
     if (valid(this.location))
@@ -631,7 +636,7 @@ object MR_WELCOME
     "Get examination flyweight";
     exam = found:examination();
     if (typeof(exam) != TYPE_FLYWEIGHT)
-      return "Error: Could not examine '" + object_name + "'.";
+      return "Error: Could not examine '" + query + "'.";
     endif
     "Build detailed information from examination";
     result = {};
