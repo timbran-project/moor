@@ -131,9 +131,9 @@ object AREA
     valid(room) || return false;
     passages = this:passages_from(room);
     passages || return false;
-    verb_name = tostr(parsed["verb"]);
+    verb_name = tostr(parsed['verb]);
     `length(verb_name) ! ANY => false' || return false;
-    dobj_name = parsed["dobjstr"];
+    dobj_name = parsed['dobjstr];
     for passage in (passages)
       if (passage:matches_command(room, verb_name))
         return passage:travel_from(player, room, parsed);

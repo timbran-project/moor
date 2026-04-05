@@ -311,23 +311,23 @@ object ADMIN_FEATURES
     if (valid($wiz_features))
       command_env = {@command_env, $wiz_features};
     endif
-    if (pc["dobj"] == $ambiguous_match)
-      dobj_candidates = pc["ambiguous_dobj"];
+    if (pc['dobj] == $ambiguous_match)
+      dobj_candidates = pc['ambiguous_dobj];
     else
-      dobj_candidates = {pc["dobj"]};
+      dobj_candidates = {pc['dobj]};
     endif
-    if (pc["iobj"] == $ambiguous_match)
-      iobj_candidates = pc["ambiguous_iobj"];
+    if (pc['iobj] == $ambiguous_match)
+      iobj_candidates = pc['ambiguous_iobj];
     else
-      iobj_candidates = {pc["iobj"]};
+      iobj_candidates = {pc['iobj]};
     endif
     any_match = false;
     blocked = [];
     for dobj in (dobj_candidates)
       for iobj in (iobj_candidates)
         test_pc = pc;
-        test_pc["dobj"] = dobj;
-        test_pc["iobj"] = iobj;
+        test_pc['dobj] = dobj;
+        test_pc['iobj] = iobj;
         vm_matches = find_command_verb(test_pc, command_env);
         if (!vm_matches)
           continue;

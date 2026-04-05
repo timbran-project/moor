@@ -2851,7 +2851,7 @@ object PLAYER
       known_players = {@known_players, pname + " (" + pstatus + ")"};
     endfor
     verb_pattern_hints = {};
-    attempted_verb = `pc["verb"] ! ANY => ""';
+    attempted_verb = `pc['verb] ! ANY => ""';
     if (typeof(attempted_verb) == TYPE_STR && length(attempted_verb) > 0)
       scope_objects = this:match_environment("", ['complex -> true]);
       {exact_verb_matches, near_verb_matches} = `this:_find_verb_matches(attempted_verb, scope_objects) ! ANY => {{}, {}}';
@@ -2873,10 +2873,10 @@ object PLAYER
     placeholder = $event:mk_info(this, "Checking a few possibilities..."):with_rewritable(rewrite_id, 30, fallback_html):with_presentation_hint('processing):with_audience('utility);
     this:inform_current(placeholder);
     fork (0)
-      cmd_verb = `pc["verb"] ! ANY => ""';
-      cmd_dobjstr = `pc["dobjstr"] ! ANY => ""';
-      cmd_prepstr = `pc["prepstr"] ! ANY => ""';
-      cmd_iobjstr = `pc["iobjstr"] ! ANY => ""';
+      cmd_verb = `pc['verb] ! ANY => ""';
+      cmd_dobjstr = `pc['dobjstr] ! ANY => ""';
+      cmd_prepstr = `pc['prepstr] ! ANY => ""';
+      cmd_iobjstr = `pc['iobjstr] ! ANY => ""';
       location_name = valid(location) ? location:name() | "nowhere";
       "Build full object/verb context (restoring prior behavior).";
       all_objects = {};
@@ -3040,8 +3040,8 @@ object PLAYER
                 vm = find_command_verb(cpc, cmd_env);
                 vm_scope = find_command_verb(cpc, match_env);
                 passage_ok = false;
-                verb_name = `tostr(cpc["verb"]) ! ANY => ""';
-                dobj_name = `cpc["dobjstr"] ! ANY => ""';
+                verb_name = `tostr(cpc['verb]) ! ANY => ""';
+                dobj_name = `cpc['dobjstr] ! ANY => ""';
                 for passage in (area_passages)
                   if (`passage:matches_command(location, verb_name) ! ANY => false')
                     passage_ok = true;

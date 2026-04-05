@@ -238,39 +238,39 @@ object SYSOBJ
       return true;
     endtry
     "Treat `go home` as the dedicated `home` command.";
-    if (typeof(pc) == TYPE_MAP && `pc["verb"] ! E_RANGE => ""' == "go")
-      go_target = `pc["dobjstr"] ! E_RANGE => ""';
+    if (typeof(pc) == TYPE_MAP && `pc['verb] ! E_RANGE => ""' == "go")
+      go_target = `pc['dobjstr] ! E_RANGE => ""';
       if (typeof(go_target) == TYPE_STR && go_target:trim():lowercase() == "home")
-        pc["verb"] = "home";
-        pc["argstr"] = "";
-        pc["args"] = {};
-        pc["dobj"] = $nothing;
-        pc["dobjstr"] = "";
-        pc["iobj"] = $nothing;
-        pc["iobjstr"] = "";
-        pc["prep"] = -1;
-        pc["prepstr"] = "";
-        pc["ambiguous_dobj"] = {};
-        pc["ambiguous_iobj"] = {};
+        pc['verb] = "home";
+        pc['argstr] = "";
+        pc['args] = {};
+        pc['dobj] = $nothing;
+        pc['dobjstr] = "";
+        pc['iobj] = $nothing;
+        pc['iobjstr] = "";
+        pc['prep] = -1;
+        pc['prepstr] = "";
+        pc['ambiguous_dobj] = {};
+        pc['ambiguous_iobj] = {};
       endif
     endif
     "Get command environment (only player and location for primary verb searching)";
     command_env = player:command_environment();
-    if (pc["dobj"] == $ambiguous_match)
-      dobj_candidates = pc["ambiguous_dobj"];
+    if (pc['dobj] == $ambiguous_match)
+      dobj_candidates = pc['ambiguous_dobj];
     else
-      dobj_candidates = {pc["dobj"]};
+      dobj_candidates = {pc['dobj]};
     endif
-    if (pc["iobj"] == $ambiguous_match)
-      iobj_candidates = pc["ambiguous_iobj"];
+    if (pc['iobj] == $ambiguous_match)
+      iobj_candidates = pc['ambiguous_iobj];
     else
-      iobj_candidates = {pc["iobj"]};
+      iobj_candidates = {pc['iobj]};
     endif
     for dobj in (dobj_candidates)
       for iobj in (iobj_candidates)
         test_pc = pc;
-        test_pc["dobj"] = dobj;
-        test_pc["iobj"] = iobj;
+        test_pc['dobj] = dobj;
+        test_pc['iobj] = iobj;
         vm_matches = find_command_verb(test_pc, command_env);
         if (vm_matches)
           for m in (vm_matches)
