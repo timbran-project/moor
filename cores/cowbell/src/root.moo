@@ -785,7 +785,7 @@ object ROOT
     result = {};
     all_props = this:all_properties();
     for prop_name in (all_props)
-      if (!prop_name:ends_with("_reaction"))
+      if (!tostr(prop_name):ends_with("_reaction"))
         continue;
       endif
       try
