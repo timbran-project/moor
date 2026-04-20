@@ -13,10 +13,10 @@ description = "Functions and structures for compilation and decompilation of MOO
 
 [dev-dependencies]
 chrono.workspace = true
-criterion.workspace = true
-md5 = "0.7"
+micromeasure.workspace = true
 pretty_assertions.workspace = true
-proptest = "1.5"
+proptest.workspace = true
+md5.workspace = true
 tempfile.workspace = true
 test-case.workspace = true
 unindent.workspace = true

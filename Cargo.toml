@@ -224,7 +224,9 @@ zerocopy = { version = "0.8", features = ["derive"] }
 criterion = { version = "0.8", features = ["async_tokio"] }
 escargot = "0.5"
 glob = "0.3"
+md5 = "0.7"
 pretty_assertions = "1.4"
+proptest = "1.5"
 serial_test = "3.2"
 tempfile = "3.23"
 test-case = "3.3"
