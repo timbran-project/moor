@@ -100,10 +100,7 @@ where
     /// Partition a working set into insert and tombstone vectors for apply_batch.
     fn collect_index_ops(
         working_set: &WorkingSet<Domain, Codomain>,
-    ) -> (
-        Vec<(Timestamp, Domain, Codomain)>,
-        Vec<(Timestamp, Domain)>,
-    ) {
+    ) -> (Vec<(Timestamp, Domain, Codomain)>, Vec<(Timestamp, Domain)>) {
         let total_ops = working_set.len();
         let mut inserts = Vec::with_capacity(total_ops);
         let mut tombstones = Vec::new();
@@ -400,15 +397,21 @@ mod tests {
         let rebased = checker.rebased_snapshot_index(&winner_index, &working_set);
 
         assert_eq!(
-            rebased.index_lookup(&base_key).map(|entry| entry.value.clone()),
+            rebased
+                .index_lookup(&base_key)
+                .map(|entry| entry.value.clone()),
             Some(TestCodomain(10))
         );
         assert_eq!(
-            rebased.index_lookup(&winner_key).map(|entry| entry.value.clone()),
+            rebased
+                .index_lookup(&winner_key)
+                .map(|entry| entry.value.clone()),
             Some(TestCodomain(20))
         );
         assert_eq!(
-            rebased.index_lookup(&our_key).map(|entry| entry.value.clone()),
+            rebased
+                .index_lookup(&our_key)
+                .map(|entry| entry.value.clone()),
             Some(TestCodomain(30))
         );
     }

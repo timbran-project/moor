@@ -12,7 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext,
+    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
     black_box,
 };
 use moor_var::Symbol;
@@ -403,41 +404,142 @@ fn symbol_lookup_long(ctx: &mut LongStringContext, chunk_size: usize, _chunk_num
 }
 
 // ============================================================================
-// CONCURRENT ACCESS SIMULATION
+// CONCURRENT ACCESS BENCHMARKS
 // ============================================================================
 
-// Simulates the access pattern of looking up the same symbol repeatedly
-// (common in verb dispatch where the same verb name is looked up many times)
-struct HotSymbolContext {
+struct SharedSymbolContext {
     hot_symbol_str: String,
     hot_symbol: Symbol,
+    case_variants: Vec<String>,
+    short_strings: Vec<String>,
+    long_strings: Vec<String>,
+    unique_strings_per_thread: Vec<Vec<String>>,
 }
 
-impl BenchContext for HotSymbolContext {
-    fn prepare(_num_chunks: usize) -> Self {
-        let hot_symbol_str = "tell".to_string(); // Common verb name
+impl ConcurrentBenchContext for SharedSymbolContext {
+    fn prepare(num_threads: usize) -> Self {
+        let hot_symbol_str = "tell".to_string();
         let hot_symbol = Symbol::mk(&hot_symbol_str);
-        HotSymbolContext {
+
+        let case_variants = vec![
+            "CaseVariantTest".to_string(),
+            "casevarianttest".to_string(),
+            "CASEVARIANTTEST".to_string(),
+            "caseVariantTest".to_string(),
+        ];
+        for variant in &case_variants {
+            let _ = Symbol::mk(variant);
+        }
+
+        let pool_size = (num_threads.max(1) * 128).max(256);
+        let short_strings: Vec<String> = (0..pool_size).map(|i| format!("s{i:03}")).collect();
+        let long_strings: Vec<String> = (0..pool_size)
+            .map(|i| {
+                format!(
+                    "this_is_a_very_long_symbol_name_that_might_be_used_for_method_names_or_properties_{i:04}"
+                )
+            })
+            .collect();
+        for s in short_strings.iter().chain(long_strings.iter()) {
+            let _ = Symbol::mk(s);
+        }
+
+        let unique_pool_size = 50_000;
+        let unique_strings_per_thread: Vec<Vec<String>> = (0..num_threads.max(1))
+            .map(|thread_idx| {
+                (0..unique_pool_size)
+                    .map(|i| format!("concurrent_unique_symbol_{thread_idx}_{i}"))
+                    .collect()
+            })
+            .collect();
+
+        SharedSymbolContext {
             hot_symbol_str,
             hot_symbol,
+            case_variants,
+            short_strings,
+            long_strings,
+            unique_strings_per_thread,
         }
     }
 }
 
-fn symbol_hot_path_lookup(ctx: &mut HotSymbolContext, chunk_size: usize, _chunk_num: usize) {
-    let s = &ctx.hot_symbol_str;
-    for _ in 0..chunk_size {
-        let sym = Symbol::mk(s);
+fn symbol_hot_path_lookup_concurrent(
+    ctx: &SharedSymbolContext,
+    control: &ConcurrentBenchControl,
+) -> ConcurrentWorkerResult {
+    let mut operations = 0_u64;
+    while !control.should_stop() {
+        let sym = Symbol::mk(&ctx.hot_symbol_str);
         black_box(sym);
+        operations = operations.wrapping_add(1);
     }
+    ConcurrentWorkerResult::operations(operations)
 }
 
-fn symbol_hot_path_compare_id(ctx: &mut HotSymbolContext, chunk_size: usize, _chunk_num: usize) {
+fn symbol_case_variant_lookup_concurrent(
+    ctx: &SharedSymbolContext,
+    control: &ConcurrentBenchControl,
+) -> ConcurrentWorkerResult {
+    let mut operations = 0_u64;
+    while !control.should_stop() {
+        let idx = (operations as usize + control.thread_index()) % ctx.case_variants.len();
+        let sym = Symbol::mk(&ctx.case_variants[idx]);
+        black_box(sym);
+        operations = operations.wrapping_add(1);
+    }
+    ConcurrentWorkerResult::operations(operations)
+}
+
+fn symbol_mixed_lookup_concurrent(
+    ctx: &SharedSymbolContext,
+    control: &ConcurrentBenchControl,
+) -> ConcurrentWorkerResult {
+    let mut operations = 0_u64;
+    while !control.should_stop() {
+        let idx = (operations as usize + control.thread_index()) % ctx.short_strings.len();
+        let sym = match operations % 4 {
+            0 => Symbol::mk(&ctx.hot_symbol_str),
+            1 => Symbol::mk(&ctx.case_variants[idx % ctx.case_variants.len()]),
+            2 => Symbol::mk(&ctx.short_strings[idx]),
+            _ => Symbol::mk(&ctx.long_strings[idx % ctx.long_strings.len()]),
+        };
+        black_box(sym);
+        operations = operations.wrapping_add(1);
+    }
+    ConcurrentWorkerResult::operations(operations)
+}
+
+fn symbol_create_unique_concurrent(
+    ctx: &SharedSymbolContext,
+    control: &ConcurrentBenchControl,
+) -> ConcurrentWorkerResult {
+    let thread_idx = control.thread_index() % ctx.unique_strings_per_thread.len();
+    let strings = &ctx.unique_strings_per_thread[thread_idx];
+    let mut operations = 0_u64;
+    while !control.should_stop() {
+        if operations as usize >= strings.len() {
+            break;
+        }
+        let sym = Symbol::mk(&strings[operations as usize]);
+        black_box(sym);
+        operations = operations.wrapping_add(1);
+    }
+    ConcurrentWorkerResult::operations(operations)
+}
+
+fn symbol_hot_path_compare_id_concurrent(
+    ctx: &SharedSymbolContext,
+    control: &ConcurrentBenchControl,
+) -> ConcurrentWorkerResult {
     let sym = ctx.hot_symbol;
-    for _ in 0..chunk_size {
+    let mut operations = 0_u64;
+    while !control.should_stop() {
         let id = sym.compare_id();
         black_box(id);
+        operations = operations.wrapping_add(1);
     }
+    ConcurrentWorkerResult::operations(operations)
 }
 
 // ============================================================================
@@ -456,72 +558,129 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
-    runner.group::<UniqueStringsContext>("Symbol Creation (Unique)", |g| {
-        g.throughput(Throughput::per_operation(1, "symbols"))
-            .bench("symbol_create_unique", symbol_create_unique);
-    });
+        runner.group::<UniqueStringsContext>("Symbol Creation (Unique)", |g| {
+            g.throughput(Throughput::per_operation(1, "symbols"))
+                .bench("symbol_create_unique", symbol_create_unique);
+        });
 
-    runner.group::<RepeatedSymbolContext>("Symbol Creation (Cached)", |g| {
-        g.throughput(Throughput::per_operation(1, "lookups"))
-            .bench("symbol_lookup_cached", symbol_lookup_cached);
-    });
+        runner.group::<RepeatedSymbolContext>("Symbol Creation (Cached)", |g| {
+            g.throughput(Throughput::per_operation(1, "lookups"))
+                .bench("symbol_lookup_cached", symbol_lookup_cached);
+        });
 
-    runner.group::<CaseVariantContext>("Symbol Creation (Case Variants)", |g| {
-        g.throughput(Throughput::per_operation(1, "lookups"))
-            .bench("symbol_lookup_case_variants", symbol_lookup_case_variants);
-    });
+        runner.group::<CaseVariantContext>("Symbol Creation (Case Variants)", |g| {
+            g.throughput(Throughput::per_operation(1, "lookups"))
+                .bench("symbol_lookup_case_variants", symbol_lookup_case_variants);
+        });
 
-    runner.group::<SymbolRetrievalContext>("Symbol Retrieval", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "retrievals"));
-        g.bench("symbol_as_string", symbol_as_string);
-        g.bench("symbol_as_arc_str", symbol_as_arc_str);
-        g.bench("symbol_display", symbol_display);
-        g.bench("symbol_debug", symbol_debug);
-    });
+        runner.group::<SymbolRetrievalContext>("Symbol Retrieval", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "retrievals"));
+            g.bench("symbol_as_string", symbol_as_string);
+            g.bench("symbol_as_arc_str", symbol_as_arc_str);
+            g.bench("symbol_display", symbol_display);
+            g.bench("symbol_debug", symbol_debug);
+        });
 
-    runner.group::<SymbolCompareContext>("Symbol Comparison", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "comparisons"));
-        g.bench("symbol_eq_same", symbol_eq_same);
-        g.bench("symbol_eq_case_variant", symbol_eq_case_variant);
-        g.bench("symbol_eq_different", symbol_eq_different);
-    });
+        runner.group::<SymbolCompareContext>("Symbol Comparison", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "comparisons"));
+            g.bench("symbol_eq_same", symbol_eq_same);
+            g.bench("symbol_eq_case_variant", symbol_eq_case_variant);
+            g.bench("symbol_eq_different", symbol_eq_different);
+        });
 
-    runner.group::<SymbolHashContext>("Symbol Hashing", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "hash_ops"));
-        g.bench("symbol_hash_lookup", symbol_hash_lookup);
-        g.bench("symbol_hash_insert", symbol_hash_insert);
-    });
+        runner.group::<SymbolHashContext>("Symbol Hashing", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "hash_ops"));
+            g.bench("symbol_hash_lookup", symbol_hash_lookup);
+            g.bench("symbol_hash_insert", symbol_hash_insert);
+        });
 
-    runner.group::<SymbolCloneContext>("Symbol Clone", |g| {
-        g.throughput(Throughput::per_operation(1, "symbols"))
-            .bench("symbol_clone", symbol_clone);
-    });
+        runner.group::<SymbolCloneContext>("Symbol Clone", |g| {
+            g.throughput(Throughput::per_operation(1, "symbols"))
+                .bench("symbol_clone", symbol_clone);
+        });
 
-    runner.group::<SymbolSerializeContext>("Symbol Serialization", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "symbols"));
-        g.bench("symbol_serialize", symbol_serialize);
-        g.bench("symbol_deserialize", symbol_deserialize);
-    });
+        runner.group::<SymbolSerializeContext>("Symbol Serialization", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "symbols"));
+            g.bench("symbol_serialize", symbol_serialize);
+            g.bench("symbol_deserialize", symbol_deserialize);
+        });
 
-    runner.group::<ShortStringContext>("Symbol Lookup (Short Strings)", |g| {
-        g.throughput(Throughput::per_operation(1, "lookups"))
-            .bench("symbol_lookup_short", symbol_lookup_short);
-    });
+        runner.group::<ShortStringContext>("Symbol Lookup (Short Strings)", |g| {
+            g.throughput(Throughput::per_operation(1, "lookups"))
+                .bench("symbol_lookup_short", symbol_lookup_short);
+        });
 
-    runner.group::<MediumStringContext>("Symbol Lookup (Medium Strings)", |g| {
-        g.throughput(Throughput::per_operation(1, "lookups"))
-            .bench("symbol_lookup_medium", symbol_lookup_medium);
-    });
+        runner.group::<MediumStringContext>("Symbol Lookup (Medium Strings)", |g| {
+            g.throughput(Throughput::per_operation(1, "lookups"))
+                .bench("symbol_lookup_medium", symbol_lookup_medium);
+        });
 
-    runner.group::<LongStringContext>("Symbol Lookup (Long Strings)", |g| {
-        g.throughput(Throughput::per_operation(1, "lookups"))
-            .bench("symbol_lookup_long", symbol_lookup_long);
-    });
+        runner.group::<LongStringContext>("Symbol Lookup (Long Strings)", |g| {
+            g.throughput(Throughput::per_operation(1, "lookups"))
+                .bench("symbol_lookup_long", symbol_lookup_long);
+        });
 
-    runner.group::<HotSymbolContext>("Symbol Hot Path", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "lookups"));
-        g.bench("symbol_hot_path_lookup", symbol_hot_path_lookup);
-        g.bench("symbol_hot_path_compare_id", symbol_hot_path_compare_id);
-    });
+        let max_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .min(8);
+        for &threads in &[1usize, 2, 4, 8] {
+            if threads > max_threads {
+                continue;
+            }
+
+            let readers = [ConcurrentWorker {
+                name: "lookup_reader",
+                threads,
+                run: symbol_hot_path_lookup_concurrent,
+            }];
+            let case_variants = [ConcurrentWorker {
+                name: "case_variant_reader",
+                threads,
+                run: symbol_case_variant_lookup_concurrent,
+            }];
+            let mixed = [ConcurrentWorker {
+                name: "mixed_reader",
+                threads,
+                run: symbol_mixed_lookup_concurrent,
+            }];
+            let unique_creation = [ConcurrentWorker {
+                name: "unique_creator",
+                threads,
+                run: symbol_create_unique_concurrent,
+            }];
+            let compare_id = [ConcurrentWorker {
+                name: "compare_id_reader",
+                threads,
+                run: symbol_hot_path_compare_id_concurrent,
+            }];
+
+            runner.concurrent_group::<SharedSymbolContext>("Symbol Concurrent Access", |g| {
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(1, "lookups"))
+                    .bench(&format!("symbol_hot_path_lookup_{threads}t"), &readers);
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(1, "lookups"))
+                    .bench(
+                        &format!("symbol_case_variant_lookup_{threads}t"),
+                        &case_variants,
+                    );
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(1, "lookups"))
+                    .bench(&format!("symbol_mixed_lookup_{threads}t"), &mixed);
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(1, "symbols"))
+                    .bench(
+                        &format!("symbol_create_unique_{threads}t"),
+                        &unique_creation,
+                    );
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(1, "lookups"))
+                    .bench(
+                        &format!("symbol_hot_path_compare_id_{threads}t"),
+                        &compare_id,
+                    );
+            });
+        }
     }
 );

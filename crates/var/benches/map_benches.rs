@@ -196,25 +196,28 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
-    runner.group::<MapContext>("Map Operations", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "map_ops"));
-        g.bench("map_get_hit", map_get_hit);
-        g.bench("map_get_miss", map_get_miss);
-        g.bench("map_set_existing", map_set_existing);
-        g.bench("map_set_new_insert_destructive", map_set_new_insert_destructive);
-        g.bench("map_set_new_insert_steady", map_set_new_insert_steady);
-        g.bench("map_set_owned_existing", map_set_owned_existing);
-        g.bench("map_remove_hit_destructive", map_remove_hit_destructive);
-        g.bench("map_remove_hit_steady", map_remove_hit_steady);
-        g.bench("map_remove_miss", map_remove_miss);
-        g.bench(
-            "map_remove_case_sensitive_hit_destructive",
-            map_remove_case_sensitive_hit_destructive,
-        );
-        g.bench(
-            "map_remove_case_sensitive_hit_steady",
-            map_remove_case_sensitive_hit_steady,
-        );
-    });
+        runner.group::<MapContext>("Map Operations", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "map_ops"));
+            g.bench("map_get_hit", map_get_hit);
+            g.bench("map_get_miss", map_get_miss);
+            g.bench("map_set_existing", map_set_existing);
+            g.bench(
+                "map_set_new_insert_destructive",
+                map_set_new_insert_destructive,
+            );
+            g.bench("map_set_new_insert_steady", map_set_new_insert_steady);
+            g.bench("map_set_owned_existing", map_set_owned_existing);
+            g.bench("map_remove_hit_destructive", map_remove_hit_destructive);
+            g.bench("map_remove_hit_steady", map_remove_hit_steady);
+            g.bench("map_remove_miss", map_remove_miss);
+            g.bench(
+                "map_remove_case_sensitive_hit_destructive",
+                map_remove_case_sensitive_hit_destructive,
+            );
+            g.bench(
+                "map_remove_case_sensitive_hit_steady",
+                map_remove_case_sensitive_hit_steady,
+            );
+        });
     }
 );

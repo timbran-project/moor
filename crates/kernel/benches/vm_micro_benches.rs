@@ -273,65 +273,77 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
-    runner.group::<DispatchContext>("dispatch", |g| {
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| DispatchContext::with_program("while(1) 1; endwhile"))
-            .bench(
-                "dispatch_constant_discard",
-                |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
-                    dispatch_constant_discard(ctx, 1, 0)
-                },
-            );
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| DispatchContext::with_program("i=0; while(1) i; endwhile"))
-            .bench(
-                "dispatch_push_pop",
-                |ctx: &mut DispatchContext, _chunk_size, _chunk_num| dispatch_push_pop(ctx, 1, 0),
-            );
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| DispatchContext::with_program("while(1) 1 + 1; endwhile"))
-            .bench(
-                "dispatch_simple_add",
-                |ctx: &mut DispatchContext, _chunk_size, _chunk_num| dispatch_simple_add(ctx, 1, 0),
-            );
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| DispatchContext::with_program("while(1) 1 == 1; endwhile"))
-            .bench(
-                "dispatch_comparison",
-                |ctx: &mut DispatchContext, _chunk_size, _chunk_num| dispatch_comparison(ctx, 1, 0),
-            );
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| {
-                let cfg = FeaturesConfig {
-                    use_boolean_returns: false,
-                    ..FeaturesConfig::default()
-                };
-                DispatchContext::with_program_and_features("while(1) 1 == 1; endwhile", cfg)
-            })
-            .bench(
-            "dispatch_comparison_int_returns",
-            |ctx: &mut DispatchContext, _chunk_size, _chunk_num| dispatch_comparison(ctx, 1, 0),
-        );
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| {
-                let cfg = FeaturesConfig {
-                    use_boolean_returns: true,
-                    ..FeaturesConfig::default()
-                };
-                DispatchContext::with_program_and_features("while(1) 1 == 1; endwhile", cfg)
-            })
-            .bench(
-            "dispatch_comparison_bool_returns",
-            |ctx: &mut DispatchContext, _chunk_size, _chunk_num| dispatch_comparison(ctx, 1, 0),
-        );
-        g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
-            .factory(&|| {
-                DispatchContext::with_program("i = 1; while(1) i + 1 + 2 + 3 + 4 + 5; endwhile")
-            })
-            .bench(
-            "dispatch_binary_chain",
-            |ctx: &mut DispatchContext, _chunk_size, _chunk_num| dispatch_binary_chain(ctx, 1, 0),
-        );
-    });
+        runner.group::<DispatchContext>("dispatch", |g| {
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("while(1) 1; endwhile"))
+                .bench(
+                    "dispatch_constant_discard",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_constant_discard(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("i=0; while(1) i; endwhile"))
+                .bench(
+                    "dispatch_push_pop",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_push_pop(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("while(1) 1 + 1; endwhile"))
+                .bench(
+                    "dispatch_simple_add",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_simple_add(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("while(1) 1 == 1; endwhile"))
+                .bench(
+                    "dispatch_comparison",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_comparison(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    let cfg = FeaturesConfig {
+                        use_boolean_returns: false,
+                        ..FeaturesConfig::default()
+                    };
+                    DispatchContext::with_program_and_features("while(1) 1 == 1; endwhile", cfg)
+                })
+                .bench(
+                    "dispatch_comparison_int_returns",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_comparison(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    let cfg = FeaturesConfig {
+                        use_boolean_returns: true,
+                        ..FeaturesConfig::default()
+                    };
+                    DispatchContext::with_program_and_features("while(1) 1 == 1; endwhile", cfg)
+                })
+                .bench(
+                    "dispatch_comparison_bool_returns",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_comparison(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    DispatchContext::with_program("i = 1; while(1) i + 1 + 2 + 3 + 4 + 5; endwhile")
+                })
+                .bench(
+                    "dispatch_binary_chain",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_binary_chain(ctx, 1, 0)
+                    },
+                );
+        });
     }
 );

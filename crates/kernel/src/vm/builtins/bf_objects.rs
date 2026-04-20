@@ -1583,11 +1583,12 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
         name_map.insert(obj, names);
     }
-    let env = ListMatchEnvironment::new(bf_args.player(), location_override, name_map).map_err(|e| {
-        BfErr::ErrValue(
-            E_INVARG.with_msg(|| format!("parse_command() error creating environment: {e}")),
-        )
-    })?;
+    let env =
+        ListMatchEnvironment::new(bf_args.player(), location_override, name_map).map_err(|e| {
+            BfErr::ErrValue(
+                E_INVARG.with_msg(|| format!("parse_command() error creating environment: {e}")),
+            )
+        })?;
 
     // Use the DefaultObjectNameMatcher with our custom environment
     let matcher: Box<dyn ObjectNameMatcher> = if complex_match {

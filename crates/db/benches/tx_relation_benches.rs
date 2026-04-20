@@ -764,70 +764,87 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
-    runner.group::<CheckNoConflictCoreContext>("TX Check Benchmarks (Core No Conflict)", |g| {
-        g.throughput(Throughput::per_operation(1, "rows_checked"))
-            .bench("tx_check_no_conflict_core", check_no_conflict_core);
-    });
+        runner.group::<CheckNoConflictCoreContext>("TX Check Benchmarks (Core No Conflict)", |g| {
+            g.throughput(Throughput::per_operation(1, "rows_checked"))
+                .bench("tx_check_no_conflict_core", check_no_conflict_core);
+        });
 
-    runner.group::<CheckConflictIdenticalCoreContext>(
-        "TX Check Benchmarks (Core Identical Accept)",
-        |g| {
-            g.throughput(Throughput::per_operation(1, "rows_checked")).bench(
-                "tx_check_conflict_identical_accept_core",
-                check_conflict_identical_accept_core,
+        runner.group::<CheckConflictIdenticalCoreContext>(
+            "TX Check Benchmarks (Core Identical Accept)",
+            |g| {
+                g.throughput(Throughput::per_operation(1, "rows_checked"))
+                    .bench(
+                        "tx_check_conflict_identical_accept_core",
+                        check_conflict_identical_accept_core,
+                    );
+            },
+        );
+
+        runner.group::<CheckMergeContext>("TX Check Benchmarks (Merge, End-to-End)", |g| {
+            g.throughput(Throughput::per_operation(1, "rows_checked"))
+                .bench(
+                    "tx_check_conflict_merge_rewrite",
+                    check_conflict_merge_rewrite,
+                );
+        });
+
+        runner.group::<CheckConflictUnresolvableCoreContext>(
+            "TX Check Benchmarks (Core Fail)",
+            |g| {
+                g.throughput(Throughput::per_operation(1, "rows_checked"))
+                    .bench(
+                        "tx_check_conflict_unresolvable_fail_core",
+                        check_conflict_unresolvable_fail_core,
+                    );
+            },
+        );
+
+        runner.group::<TxOpsContext>("TX Operation Benchmarks", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "relation_ops"));
+            g.bench("tx_op_get_hit_master", tx_op_get_hit_master);
+            g.bench("tx_op_get_miss", tx_op_get_miss);
+            g.bench("tx_op_get_hit_local_update", tx_op_get_hit_local_update);
+            g.bench("tx_op_get_miss_local_delete", tx_op_get_miss_local_delete);
+            g.bench("tx_op_update_hit_master", tx_op_update_hit_master);
+            g.bench("tx_op_update_miss_none", tx_op_update_miss_none);
+            g.bench("tx_op_update_local_insert", tx_op_update_local_insert);
+            g.bench(
+                "tx_op_update_local_delete_none",
+                tx_op_update_local_delete_none,
             );
-        },
-    );
+            g.bench("tx_op_upsert_hit_master", tx_op_upsert_hit_master);
+            g.bench("tx_op_upsert_miss_insert", tx_op_upsert_miss_insert);
+            g.bench(
+                "tx_op_upsert_local_delete_to_update",
+                tx_op_upsert_local_delete_to_update,
+            );
+            g.bench(
+                "tx_op_upsert_local_delete_to_insert",
+                tx_op_upsert_local_delete_to_insert,
+            );
+            g.bench("tx_op_delete_hit_master", tx_op_delete_hit_master);
+            g.bench("tx_op_delete_miss_none", tx_op_delete_miss_none);
+            g.bench("tx_op_delete_local_insert", tx_op_delete_local_insert);
+            g.bench(
+                "tx_op_delete_local_delete_none",
+                tx_op_delete_local_delete_none,
+            );
+            g.bench("tx_op_insert_miss", tx_op_insert_miss);
+            g.bench("tx_op_insert_duplicate_err", tx_op_insert_duplicate_err);
+            g.bench(
+                "tx_op_insert_after_local_delete",
+                tx_op_insert_after_local_delete,
+            );
+            g.bench("tx_op_bulk_get_master", tx_op_bulk_get_master);
+            g.bench("tx_op_bulk_get_local_mixed", tx_op_bulk_get_local_mixed);
+        });
 
-    runner.group::<CheckMergeContext>("TX Check Benchmarks (Merge, End-to-End)", |g| {
-        g.throughput(Throughput::per_operation(1, "rows_checked"))
-            .bench("tx_check_conflict_merge_rewrite", check_conflict_merge_rewrite);
-    });
-
-    runner.group::<CheckConflictUnresolvableCoreContext>("TX Check Benchmarks (Core Fail)", |g| {
-        g.throughput(Throughput::per_operation(1, "rows_checked")).bench(
-            "tx_check_conflict_unresolvable_fail_core",
-            check_conflict_unresolvable_fail_core,
-        );
-    });
-
-    runner.group::<TxOpsContext>("TX Operation Benchmarks", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "relation_ops"));
-        g.bench("tx_op_get_hit_master", tx_op_get_hit_master);
-        g.bench("tx_op_get_miss", tx_op_get_miss);
-        g.bench("tx_op_get_hit_local_update", tx_op_get_hit_local_update);
-        g.bench("tx_op_get_miss_local_delete", tx_op_get_miss_local_delete);
-        g.bench("tx_op_update_hit_master", tx_op_update_hit_master);
-        g.bench("tx_op_update_miss_none", tx_op_update_miss_none);
-        g.bench("tx_op_update_local_insert", tx_op_update_local_insert);
-        g.bench("tx_op_update_local_delete_none", tx_op_update_local_delete_none);
-        g.bench("tx_op_upsert_hit_master", tx_op_upsert_hit_master);
-        g.bench("tx_op_upsert_miss_insert", tx_op_upsert_miss_insert);
-        g.bench(
-            "tx_op_upsert_local_delete_to_update",
-            tx_op_upsert_local_delete_to_update,
-        );
-        g.bench(
-            "tx_op_upsert_local_delete_to_insert",
-            tx_op_upsert_local_delete_to_insert,
-        );
-        g.bench("tx_op_delete_hit_master", tx_op_delete_hit_master);
-        g.bench("tx_op_delete_miss_none", tx_op_delete_miss_none);
-        g.bench("tx_op_delete_local_insert", tx_op_delete_local_insert);
-        g.bench("tx_op_delete_local_delete_none", tx_op_delete_local_delete_none);
-        g.bench("tx_op_insert_miss", tx_op_insert_miss);
-        g.bench("tx_op_insert_duplicate_err", tx_op_insert_duplicate_err);
-        g.bench("tx_op_insert_after_local_delete", tx_op_insert_after_local_delete);
-        g.bench("tx_op_bulk_get_master", tx_op_bulk_get_master);
-        g.bench("tx_op_bulk_get_local_mixed", tx_op_bulk_get_local_mixed);
-    });
-
-    runner.group::<ApplyContext>("TX Apply Benchmarks", |g| {
-        g.throughput(Throughput::per_operation(
-            APPLY_TUPLE_OPS_PER_TX,
-            "tuple_ops",
-        ))
-        .bench("tx_apply_mixed_batch", apply_mixed_batch);
-    });
+        runner.group::<ApplyContext>("TX Apply Benchmarks", |g| {
+            g.throughput(Throughput::per_operation(
+                APPLY_TUPLE_OPS_PER_TX,
+                "tuple_ops",
+            ))
+            .bench("tx_apply_mixed_batch", apply_mixed_batch);
+        });
     }
 );

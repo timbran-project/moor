@@ -14,8 +14,8 @@
 #![recursion_limit = "256"]
 
 use micromeasure::{
-    BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext,
-    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
+    BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext, ConcurrentBenchControl,
+    ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
 };
 use moor_common::model::{CommitResult, ObjFlag, ObjectKind, PropFlag, WorldStateSource};
 use moor_db::{DatabaseConfig, TxDB};
@@ -214,7 +214,11 @@ fn run_multi_object_worker(
         .with_counter("write_ops", write_ops)
 }
 
-fn make_single_object_context(num_threads: usize, ops_per_tx: usize, write_percent: u32) -> TxDbConcurrentContext {
+fn make_single_object_context(
+    num_threads: usize,
+    ops_per_tx: usize,
+    write_percent: u32,
+) -> TxDbConcurrentContext {
     let db = create_db();
     let prop_names = setup_single_object_properties(&db, 128);
     TxDbConcurrentContext {
@@ -226,7 +230,11 @@ fn make_single_object_context(num_threads: usize, ops_per_tx: usize, write_perce
     }
 }
 
-fn make_multi_object_context(num_threads: usize, ops_per_tx: usize, write_percent: u32) -> TxDbConcurrentContext {
+fn make_multi_object_context(
+    num_threads: usize,
+    ops_per_tx: usize,
+    write_percent: u32,
+) -> TxDbConcurrentContext {
     let db = create_db();
     let (objects, prop_names) = setup_multi_object(&db, num_threads.max(1), 32);
     TxDbConcurrentContext {
@@ -250,49 +258,50 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
-    let max_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1)
-        .min(16);
+        let max_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .min(16);
 
-    for &threads in &[1usize, 2, 4, 8] {
-        if threads > max_threads {
-            continue;
+        for &threads in &[1usize, 2, 4, 8] {
+            if threads > max_threads {
+                continue;
+            }
+
+            let single_object_workers = [ConcurrentWorker {
+                name: "tx_worker",
+                threads,
+                run: run_single_object_worker,
+            }];
+            let multi_object_workers = [ConcurrentWorker {
+                name: "tx_worker",
+                threads,
+                run: run_multi_object_worker,
+            }];
+
+            runner.concurrent_group::<TxDbConcurrentContext>("commit_single_object", |g| {
+                for &write_percent in &[10u32, 25u32, 50u32, 90u32] {
+                    let name = format!("threads={threads}/write={write_percent}%");
+                    let factory =
+                        |num_threads| make_single_object_context(num_threads, 64, write_percent);
+                    g.sample_duration(Duration::from_millis(100))
+                        .throughput(Throughput::per_operation(64, "property_ops"))
+                        .factory(&factory)
+                        .bench(&name, &single_object_workers);
+                }
+            });
+
+            runner.concurrent_group::<TxDbConcurrentContext>("commit_multi_object", |g| {
+                for &write_percent in &[25u32, 50u32, 90u32] {
+                    let name = format!("threads={threads}/write={write_percent}%");
+                    let factory =
+                        |num_threads| make_multi_object_context(num_threads, 16, write_percent);
+                    g.sample_duration(Duration::from_millis(100))
+                        .throughput(Throughput::per_operation(16, "property_ops"))
+                        .factory(&factory)
+                        .bench(&name, &multi_object_workers);
+                }
+            });
         }
-
-        let single_object_workers = [ConcurrentWorker {
-            name: "tx_worker",
-            threads,
-            run: run_single_object_worker,
-        }];
-        let multi_object_workers = [ConcurrentWorker {
-            name: "tx_worker",
-            threads,
-            run: run_multi_object_worker,
-        }];
-
-        runner.concurrent_group::<TxDbConcurrentContext>("commit_single_object", |g| {
-            for &write_percent in &[10u32, 25u32, 50u32, 90u32] {
-                let name = format!("threads={threads}/write={write_percent}%");
-                let factory =
-                    |num_threads| make_single_object_context(num_threads, 64, write_percent);
-                g.sample_duration(Duration::from_millis(100))
-                    .throughput(Throughput::per_operation(64, "property_ops"))
-                    .factory(&factory)
-                    .bench(&name, &single_object_workers);
-            }
-        });
-
-        runner.concurrent_group::<TxDbConcurrentContext>("commit_multi_object", |g| {
-            for &write_percent in &[25u32, 50u32, 90u32] {
-                let name = format!("threads={threads}/write={write_percent}%");
-                let factory = |num_threads| make_multi_object_context(num_threads, 16, write_percent);
-                g.sample_duration(Duration::from_millis(100))
-                    .throughput(Throughput::per_operation(16, "property_ops"))
-                    .factory(&factory)
-                    .bench(&name, &multi_object_workers);
-            }
-        });
-    }
     }
 );

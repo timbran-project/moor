@@ -175,16 +175,14 @@ impl MoorDB {
                 ancestry_cache: ancestry_cache.fork(),
             };
 
-            if let Some(rebased) =
-                checkers.try_rebase(
-                    &relation_ws,
-                    current_root.version,
-                    &winner,
-                    tx_timestamp,
-                    combined_caches,
-                    &bloom,
-                )
-            {
+            if let Some(rebased) = checkers.try_rebase(
+                &relation_ws,
+                current_root.version,
+                &winner,
+                tx_timestamp,
+                combined_caches,
+                &bloom,
+            ) {
                 // Rebase succeeded — no key overlap. Try CAS again.
                 if self
                     .snapshot_planes

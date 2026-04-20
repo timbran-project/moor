@@ -13,8 +13,8 @@
 
 use micromeasure::{
     BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext,
-    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, black_box,
-    benchmark_main,
+    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
+    black_box,
 };
 use moor_common::model::{VerbArgsSpec, VerbDef, VerbFlag};
 use moor_db::{AncestryCache, VerbResolutionCache};
@@ -641,8 +641,9 @@ fn ancestry_invalidator(
             flushes = flushes.wrapping_add(1);
             for refill in 0..ctx.test_objs.len().min(16) {
                 let obj = ctx.test_objs[(refill + control.thread_index()) % ctx.test_objs.len()];
-                let ancestors: Vec<Obj> =
-                    (0..=((refill % 4) + 1)).map(|k| Obj::mk_id(k as i32)).collect();
+                let ancestors: Vec<Obj> = (0..=((refill % 4) + 1))
+                    .map(|k| Obj::mk_id(k as i32))
+                    .collect();
                 cache.fill(&obj, &ancestors);
             }
         } else {

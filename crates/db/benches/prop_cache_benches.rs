@@ -13,8 +13,8 @@
 
 use micromeasure::{
     BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext,
-    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, black_box,
-    benchmark_main,
+    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
+    black_box,
 };
 use moor_common::model::PropDef;
 use moor_db::PropResolutionCache;

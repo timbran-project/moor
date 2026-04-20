@@ -114,15 +114,15 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
-    runner.group::<FlyweightContext>("Flyweight Operations", |g| {
-        let g = g.throughput(Throughput::per_operation(1, "flyweights"));
-        g.bench("flyweight_clone", flyweight_clone);
-        g.bench("flyweight_get_slot", flyweight_get_slot);
-        g.bench("flyweight_slots_vec", flyweight_slots_vec);
-        g.bench("flyweight_get_contents", flyweight_get_contents);
-        g.bench("flyweight_get_delegate", flyweight_get_delegate);
-        g.bench("flyweight_add_slot", flyweight_add_slot);
-        g.bench("flyweight_remove_slot", flyweight_remove_slot);
-    });
+        runner.group::<FlyweightContext>("Flyweight Operations", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "flyweights"));
+            g.bench("flyweight_clone", flyweight_clone);
+            g.bench("flyweight_get_slot", flyweight_get_slot);
+            g.bench("flyweight_slots_vec", flyweight_slots_vec);
+            g.bench("flyweight_get_contents", flyweight_get_contents);
+            g.bench("flyweight_get_delegate", flyweight_get_delegate);
+            g.bench("flyweight_add_slot", flyweight_add_slot);
+            g.bench("flyweight_remove_slot", flyweight_remove_slot);
+        });
     }
 );
