@@ -16,7 +16,7 @@
 
 use std::{cmp::max, sync::Arc};
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, benchmark_main, black_box};
+use micromeasure::{BenchContext, BenchmarkMainOptions, Throughput, benchmark_main, black_box};
 use uuid::Uuid;
 
 use moor_common::{
@@ -710,153 +710,139 @@ benchmark_main!(
     let context_factory = || ActivationBenchContext::from_fixture(Arc::clone(&fixture));
 
     runner.group::<ActivationBenchContext>("activation_inputs", |g| {
-        g.bench_with_factory("activation_verbdef_new", &context_factory, bench_verbdef_new);
-        g.bench_with_factory(
+        g.throughput(Throughput::per_operation(1, "input_ops"))
+            .factory(&context_factory)
+            .bench("activation_verbdef_new", bench_verbdef_new);
+        g.throughput(Throughput::per_operation(1, "input_ops"))
+            .factory(&context_factory)
+            .bench(
             "activation_input_clone_materialization",
-            &context_factory,
             bench_input_clone_materialization,
         );
-        g.bench_with_factory(
+        g.throughput(Throughput::per_operation(1, "input_ops"))
+            .factory(&context_factory)
+            .bench(
             "activation_input_clone_frame_top_simple",
-            &context_factory,
             bench_input_clone_frame_top_simple,
         );
-        g.bench_with_factory(
+        g.throughput(Throughput::per_operation(1, "input_ops"))
+            .factory(&context_factory)
+            .bench(
             "activation_input_clone_frame_nested_simple",
-            &context_factory,
             bench_input_clone_frame_nested_simple,
         );
-        g.bench_with_factory(
+        g.throughput(Throughput::per_operation(1, "input_ops"))
+            .factory(&context_factory)
+            .bench(
             "activation_input_clone_activation_top_simple",
-            &context_factory,
             bench_input_clone_activation_top_simple,
         );
-        g.bench_with_factory(
+        g.throughput(Throughput::per_operation(1, "input_ops"))
+            .factory(&context_factory)
+            .bench(
             "activation_input_clone_activation_nested_simple",
-            &context_factory,
             bench_input_clone_activation_nested_simple,
         );
     });
 
     runner.group::<ActivationBenchContext>("activation_primitives", |g| {
-        g.bench_with_factory(
+        let g = g.throughput(Throughput::per_operation(1, "primitive_ops"))
+            .factory(&context_factory);
+        g.bench(
             "activation_primitive_clone_verbdef",
-            &context_factory,
             bench_primitive_clone_verbdef,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_primitive_clone_args_empty",
-            &context_factory,
             bench_primitive_clone_args_empty,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_primitive_args_to_var",
-            &context_factory,
             bench_primitive_args_to_var,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_primitive_clone_this",
-            &context_factory,
             bench_primitive_clone_this,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_primitive_v_symbol_str",
-            &context_factory,
             bench_primitive_v_symbol_str,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_primitive_clone_program",
-            &context_factory,
             bench_primitive_clone_program,
         );
     });
 
     runner.group::<ActivationBenchContext>("activation_environment", |g| {
-        g.bench_with_factory(
-            "activation_environment_top_level_simple",
-            &context_factory,
-            bench_environment_top_level_simple,
-        );
-        g.bench_with_factory(
-            "activation_environment_nested_simple",
-            &context_factory,
-            bench_environment_nested_simple,
-        );
+        let g = g.throughput(Throughput::per_operation(1, "environments"))
+            .factory(&context_factory);
+        g.bench("activation_environment_top_level_simple", bench_environment_top_level_simple);
+        g.bench("activation_environment_nested_simple", bench_environment_nested_simple);
     });
 
     runner.group::<ActivationBenchContext>("activation_frame", |g| {
-        g.bench_with_factory(
-            "activation_frame_top_level_simple",
-            &context_factory,
-            bench_frame_top_level_simple,
-        );
-        g.bench_with_factory(
-            "activation_frame_nested_simple",
-            &context_factory,
-            bench_frame_nested_simple,
-        );
+        let g = g.throughput(Throughput::per_operation(1, "frames"))
+            .factory(&context_factory);
+        g.bench("activation_frame_top_level_simple", bench_frame_top_level_simple);
+        g.bench("activation_frame_nested_simple", bench_frame_nested_simple);
     });
 
     runner.group::<ActivationBenchContext>("activation_assembly", |g| {
-        g.bench_with_factory(
+        let g = g.throughput(Throughput::per_operation(1, "assemblies"))
+            .factory(&context_factory);
+        g.bench(
             "activation_assembly_top_level_simple_direct",
-            &context_factory,
             bench_activation_assembly_top_level_simple_direct,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_assembly_top_level_simple_overhead",
-            &context_factory,
             bench_activation_assembly_top_level_simple_overhead,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_assembly_nested_simple_direct",
-            &context_factory,
             bench_activation_assembly_nested_simple_direct,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_assembly_nested_simple_overhead",
-            &context_factory,
             bench_activation_assembly_nested_simple_overhead,
         );
     });
 
     runner.group::<ActivationBenchContext>("activation_for_call", |g| {
-        g.bench_with_factory(
+        let g = g.throughput(Throughput::per_operation(1, "activations"))
+            .factory(&context_factory);
+        g.bench(
             "activation_for_call_top_level_simple",
-            &context_factory,
             bench_activation_top_level_simple,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_for_call_top_level_complex",
-            &context_factory,
             bench_activation_top_level_complex,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_for_call_with_args",
-            &context_factory,
             bench_activation_with_args,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_for_call_with_argstr",
-            &context_factory,
             bench_activation_with_argstr,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_for_call_nested_simple",
-            &context_factory,
             bench_activation_nested_simple,
         );
     });
 
     runner.group::<ActivationBenchContext>("activation_command", |g| {
-        g.bench_with_factory(
+        let g = g.throughput(Throughput::per_operation(1, "commands"))
+            .factory(&context_factory);
+        g.bench(
             "activation_command_request_top_level_simple",
-            &context_factory,
             bench_command_activation_empty,
         );
-        g.bench_with_factory(
+        g.bench(
             "activation_command_request_with_args",
-            &context_factory,
             bench_command_activation_with_args,
         );
     });

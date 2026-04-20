@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, benchmark_main, black_box};
+use micromeasure::{BenchContext, Throughput, benchmark_main, black_box};
 use moor_var::{Flyweight, List, Obj, Symbol, v_int};
 
 // Context for flyweight benchmarks
@@ -100,6 +100,7 @@ fn flyweight_remove_slot(ctx: &mut FlyweightContext, chunk_size: usize, _chunk_n
 
 benchmark_main!(|runner| {
     runner.group::<FlyweightContext>("Flyweight Operations", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "flyweights"));
         g.bench("flyweight_clone", flyweight_clone);
         g.bench("flyweight_get_slot", flyweight_get_slot);
         g.bench("flyweight_slots_vec", flyweight_slots_vec);

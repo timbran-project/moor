@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, benchmark_main, black_box};
+use micromeasure::{BenchContext, Throughput, benchmark_main, black_box};
 use moor_var::Symbol;
 use std::collections::HashMap;
 
@@ -445,18 +445,22 @@ fn symbol_hot_path_compare_id(ctx: &mut HotSymbolContext, chunk_size: usize, _ch
 
 benchmark_main!(|runner| {
     runner.group::<UniqueStringsContext>("Symbol Creation (Unique)", |g| {
-        g.bench("symbol_create_unique", symbol_create_unique);
+        g.throughput(Throughput::per_operation(1, "symbols"))
+            .bench("symbol_create_unique", symbol_create_unique);
     });
 
     runner.group::<RepeatedSymbolContext>("Symbol Creation (Cached)", |g| {
-        g.bench("symbol_lookup_cached", symbol_lookup_cached);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("symbol_lookup_cached", symbol_lookup_cached);
     });
 
     runner.group::<CaseVariantContext>("Symbol Creation (Case Variants)", |g| {
-        g.bench("symbol_lookup_case_variants", symbol_lookup_case_variants);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("symbol_lookup_case_variants", symbol_lookup_case_variants);
     });
 
     runner.group::<SymbolRetrievalContext>("Symbol Retrieval", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "retrievals"));
         g.bench("symbol_as_string", symbol_as_string);
         g.bench("symbol_as_arc_str", symbol_as_arc_str);
         g.bench("symbol_display", symbol_display);
@@ -464,38 +468,46 @@ benchmark_main!(|runner| {
     });
 
     runner.group::<SymbolCompareContext>("Symbol Comparison", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "comparisons"));
         g.bench("symbol_eq_same", symbol_eq_same);
         g.bench("symbol_eq_case_variant", symbol_eq_case_variant);
         g.bench("symbol_eq_different", symbol_eq_different);
     });
 
     runner.group::<SymbolHashContext>("Symbol Hashing", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "hash_ops"));
         g.bench("symbol_hash_lookup", symbol_hash_lookup);
         g.bench("symbol_hash_insert", symbol_hash_insert);
     });
 
     runner.group::<SymbolCloneContext>("Symbol Clone", |g| {
-        g.bench("symbol_clone", symbol_clone);
+        g.throughput(Throughput::per_operation(1, "symbols"))
+            .bench("symbol_clone", symbol_clone);
     });
 
     runner.group::<SymbolSerializeContext>("Symbol Serialization", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "symbols"));
         g.bench("symbol_serialize", symbol_serialize);
         g.bench("symbol_deserialize", symbol_deserialize);
     });
 
     runner.group::<ShortStringContext>("Symbol Lookup (Short Strings)", |g| {
-        g.bench("symbol_lookup_short", symbol_lookup_short);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("symbol_lookup_short", symbol_lookup_short);
     });
 
     runner.group::<MediumStringContext>("Symbol Lookup (Medium Strings)", |g| {
-        g.bench("symbol_lookup_medium", symbol_lookup_medium);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("symbol_lookup_medium", symbol_lookup_medium);
     });
 
     runner.group::<LongStringContext>("Symbol Lookup (Long Strings)", |g| {
-        g.bench("symbol_lookup_long", symbol_lookup_long);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("symbol_lookup_long", symbol_lookup_long);
     });
 
     runner.group::<HotSymbolContext>("Symbol Hot Path", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "lookups"));
         g.bench("symbol_hot_path_lookup", symbol_hot_path_lookup);
         g.bench("symbol_hot_path_compare_id", symbol_hot_path_compare_id);
     });

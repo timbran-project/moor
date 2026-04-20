@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, NoContext, benchmark_main, black_box};
+use micromeasure::{BenchContext, BenchmarkMainOptions, NoContext, Throughput, benchmark_main, black_box};
 use moor_var::{
     IndexMode, Obj, Symbol, Var, v_arc_str, v_bool, v_float, v_int, v_list, v_none, v_obj, v_str,
     v_string, v_sym, v_symbol_str,
@@ -639,6 +639,7 @@ benchmark_main!(
     },
     |runner| {
     runner.group::<IntContext>("Integer Operations", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "integer_ops"));
         g.bench("int_add", int_add);
         g.bench("mixed_add", mixed_add);
         g.bench("int_eq", int_eq);
@@ -646,19 +647,23 @@ benchmark_main!(
     });
 
     runner.group::<FloatContext>("Float Operations", |g| {
-        g.bench("float_add", float_add);
+        g.throughput(Throughput::per_operation(1, "float_ops"))
+            .bench("float_add", float_add);
     });
 
     runner.group::<SmallListContext>("Small List Operations", |g| {
-        g.bench("list_push", list_push);
+        g.throughput(Throughput::per_operation(1, "list_ops"))
+            .bench("list_push", list_push);
     });
 
     runner.group::<LargeListContext>("Large List Operations", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "list_ops"));
         g.bench("list_index_pos", list_index_pos);
         g.bench("list_index_assign", list_index_assign);
     });
 
     runner.group::<NoContext>("Var Construction Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "vars"));
         g.bench("var_construct_ints", var_construct_ints);
         g.bench("var_construct_strings", var_construct_strings);
         g.bench("var_construct_small_lists", var_construct_small_lists);
@@ -666,6 +671,7 @@ benchmark_main!(
     });
 
     runner.group::<VarConstructInputsContext>("Var Constructor Variant Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "vars"));
         g.bench("var_construct_variant_int", var_construct_variant_int);
         g.bench("var_construct_variant_obj", var_construct_variant_obj);
         g.bench("var_construct_variant_str_ascii", var_construct_variant_str_ascii);
@@ -683,6 +689,7 @@ benchmark_main!(
     });
 
     runner.group::<VarConstructHotSetContext>("Var Constructor Hot-Set Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "vars"));
         g.bench("var_construct_variant_str_ascii_hot", var_construct_variant_str_ascii_hot);
         g.bench("var_construct_variant_str_unicode_hot", var_construct_variant_str_unicode_hot);
         g.bench(
@@ -697,6 +704,7 @@ benchmark_main!(
     });
 
     runner.group::<DropContext>("Var Drop Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "vars"));
         g.bench("var_drop_ints", var_drop_ints);
         g.bench("var_drop_strings", var_drop_strings);
         g.bench("var_drop_lists", var_drop_lists);
@@ -704,22 +712,27 @@ benchmark_main!(
     });
 
     runner.group::<IntCloneContext>("Var Clone (Int) Benchmarks", |g| {
-        g.bench("var_clone_ints", var_clone_ints);
+        g.throughput(Throughput::per_operation(1, "vars"))
+            .bench("var_clone_ints", var_clone_ints);
     });
 
     runner.group::<StringCloneContext>("Var Clone (String) Benchmarks", |g| {
-        g.bench("var_clone_strings", var_clone_strings);
+        g.throughput(Throughput::per_operation(1, "vars"))
+            .bench("var_clone_strings", var_clone_strings);
     });
 
     runner.group::<ListCloneContext>("Var Clone (List) Benchmarks", |g| {
-        g.bench("var_clone_lists", var_clone_lists);
+        g.throughput(Throughput::per_operation(1, "vars"))
+            .bench("var_clone_lists", var_clone_lists);
     });
 
     runner.group::<IntCloneContext>("Var.as_integer() Benchmarks", |g| {
-        g.bench("var_as_integer", var_as_integer);
+        g.throughput(Throughput::per_operation(1, "vars"))
+            .bench("var_as_integer", var_as_integer);
     });
 
     runner.group::<AsciiStringSearchContext>("String Search (ASCII)", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "string_ops"));
         g.bench("str_find_ascii_cs", str_find_ascii_cs);
         g.bench("str_find_ascii_ci", str_find_ascii_ci);
         g.bench("str_rfind_ascii_cs", str_rfind_ascii_cs);
@@ -729,6 +742,7 @@ benchmark_main!(
     });
 
     runner.group::<UnicodeStringSearchContext>("String Search (Unicode)", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "string_ops"));
         g.bench("str_find_unicode_ci", str_find_unicode_ci);
         g.bench("str_rfind_unicode_ci", str_rfind_unicode_ci);
         g.bench("str_replace_unicode_ci", str_replace_unicode_ci);

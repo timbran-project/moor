@@ -12,8 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl, ConcurrentWorker,
-    ConcurrentWorkerResult, black_box,
+    BenchContext, BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl,
+    ConcurrentWorker, ConcurrentWorkerResult, Throughput, black_box,
     benchmark_main,
 };
 use moor_common::model::PropDef;
@@ -609,27 +609,33 @@ benchmark_main!(
     },
     |runner| {
     runner.group::<PopulatedPropCacheContext>("Prop Cache Lookup Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "lookups"));
         g.bench("prop_cache_lookup_hits", prop_cache_lookup_hits);
         g.bench("prop_cache_lookup_misses", prop_cache_lookup_misses);
         g.bench("prop_cache_lookup_cold", prop_cache_lookup_cold);
     });
 
     runner.group::<SmallPropCacheContext>("Prop Cache Fill Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "fills"));
         g.bench("prop_cache_fill_hits", prop_cache_fill_hits);
         g.bench("prop_cache_fill_misses", prop_cache_fill_misses);
     });
 
     runner.group::<SmallPropCacheContext>("Prop Cache Flush Benchmarks", |g| {
-        g.bench("prop_cache_flush", prop_cache_flush);
+        g.throughput(Throughput::per_operation(1, "flushes"))
+            .bench("prop_cache_flush", prop_cache_flush);
     });
 
     runner.group::<SmallPropCacheContext>("Prop Cache Fork Benchmarks", |g| {
-        g.bench("prop_cache_fork", prop_cache_fork);
+        g.throughput(Throughput::per_operation(1, "forks"))
+            .bench("prop_cache_fork", prop_cache_fork);
     });
 
     runner.group::<PopulatedPropCacheContext>("Prop Parent Cache Benchmarks", |g| {
-        g.bench("prop_cache_parent_lookup", prop_cache_parent_lookup);
-        g.bench("prop_cache_parent_fill", prop_cache_parent_fill);
+        g.throughput(Throughput::per_operation(1, "parent_ops"))
+            .bench("prop_cache_parent_lookup", prop_cache_parent_lookup);
+        g.throughput(Throughput::per_operation(1, "parent_ops"))
+            .bench("prop_cache_parent_fill", prop_cache_parent_fill);
     });
 
     let max_threads = std::thread::available_parallelism()
@@ -667,25 +673,29 @@ benchmark_main!(
         ];
 
         runner.concurrent_group::<SharedPropCacheContext>("Prop Cache Concurrent Scenarios", |g| {
-            g.bench(
-                &format!("prop_cache_lookup_vs_mutation_{threads}t"),
-                Duration::from_millis(100),
-                &lookup_vs_mutation,
-            );
-            g.bench(
-                &format!("prop_cache_lookup_vs_flush_{threads}t"),
-                Duration::from_millis(100),
-                &lookup_vs_flush,
-            );
+            g.sample_duration(Duration::from_millis(100))
+                .throughput(Throughput::per_operation(1, "cache_ops"))
+                .bench(
+                    &format!("prop_cache_lookup_vs_mutation_{threads}t"),
+                    &lookup_vs_mutation,
+                );
+            g.sample_duration(Duration::from_millis(100))
+                .throughput(Throughput::per_operation(1, "cache_ops"))
+                .bench(
+                    &format!("prop_cache_lookup_vs_flush_{threads}t"),
+                    &lookup_vs_flush,
+                );
         });
     }
 
     runner.group::<LargePropCacheContext>("Mixed Workload Benchmarks", |g| {
-        g.bench("prop_cache_mixed_workload", prop_cache_mixed_workload);
+        g.throughput(Throughput::per_operation(1, "cache_ops"))
+            .bench("prop_cache_mixed_workload", prop_cache_mixed_workload);
     });
 
     runner.group::<RealisticPropCacheContext>("Realistic Workload Benchmarks", |g| {
-        g.bench("prop_cache_realistic_workload", prop_cache_realistic_workload);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("prop_cache_realistic_workload", prop_cache_realistic_workload);
     });
     }
 );

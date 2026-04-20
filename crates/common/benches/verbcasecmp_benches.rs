@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, benchmark_main, black_box};
+use micromeasure::{BenchContext, BenchmarkMainOptions, Throughput, benchmark_main, black_box};
 use moor_common::util::verbcasecmp;
 
 // Context for exact match benchmarks
@@ -278,35 +278,43 @@ benchmark_main!(
     |runner| {
 
     runner.group::<ExactMatchContext>("Exact Match Benchmarks", |g| {
-        g.bench("exact_match", exact_match_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("exact_match", exact_match_bench);
     });
 
     runner.group::<CaseMatchContext>("Case Insensitive Match Benchmarks", |g| {
-        g.bench("case_insensitive_match", case_insensitive_match_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("case_insensitive_match", case_insensitive_match_bench);
     });
 
     runner.group::<WildcardMatchContext>("Wildcard Match Benchmarks", |g| {
-        g.bench("wildcard_match", wildcard_match_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("wildcard_match", wildcard_match_bench);
     });
 
     runner.group::<PronounMatchContext>("Pronoun Pattern Benchmarks", |g| {
-        g.bench("pronoun_match", pronoun_match_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("pronoun_match", pronoun_match_bench);
     });
 
     runner.group::<MismatchContext>("Mismatch Benchmarks", |g| {
-        g.bench("mismatch", mismatch_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("mismatch", mismatch_bench);
     });
 
     runner.group::<LeadingAsteriskContext>("Leading Asterisk Benchmarks", |g| {
-        g.bench("leading_asterisk", leading_asterisk_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("leading_asterisk", leading_asterisk_bench);
     });
 
     runner.group::<LongStringContext>("Long String Benchmarks", |g| {
-        g.bench("long_string_match", long_string_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("long_string_match", long_string_bench);
     });
 
     runner.group::<MixedWorkloadContext>("Mixed Workload Benchmarks", |g| {
-        g.bench("mixed_workload", mixed_workload_bench);
+        g.throughput(Throughput::per_operation(1, "comparisons"))
+            .bench("mixed_workload", mixed_workload_bench);
     });
     }
 );

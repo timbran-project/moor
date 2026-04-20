@@ -15,7 +15,7 @@
 
 use micromeasure::{
     BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl, ConcurrentWorker,
-    ConcurrentWorkerResult, benchmark_main,
+    ConcurrentWorkerResult, Throughput, benchmark_main,
 };
 use moor_common::model::{CommitResult, ObjFlag, ObjectKind, PropFlag, WorldStateSource};
 use moor_db::{DatabaseConfig, TxDB};
@@ -268,13 +268,12 @@ benchmark_main!(
         runner.concurrent_group::<TxDbConcurrentContext>("commit_single_object", |g| {
             for &write_percent in &[10u32, 25u32, 50u32, 90u32] {
                 let name = format!("threads={threads}/write={write_percent}%");
-                let factory = |num_threads| make_single_object_context(num_threads, 64, write_percent);
-                g.bench_with_factory(
-                    &name,
-                    Duration::from_millis(100),
-                    &single_object_workers,
-                    &factory,
-                );
+                let factory =
+                    |num_threads| make_single_object_context(num_threads, 64, write_percent);
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(64, "property_ops"))
+                    .factory(&factory)
+                    .bench(&name, &single_object_workers);
             }
         });
 
@@ -282,12 +281,10 @@ benchmark_main!(
             for &write_percent in &[25u32, 50u32, 90u32] {
                 let name = format!("threads={threads}/write={write_percent}%");
                 let factory = |num_threads| make_multi_object_context(num_threads, 16, write_percent);
-                g.bench_with_factory(
-                    &name,
-                    Duration::from_millis(100),
-                    &multi_object_workers,
-                    &factory,
-                );
+                g.sample_duration(Duration::from_millis(100))
+                    .throughput(Throughput::per_operation(16, "property_ops"))
+                    .factory(&factory)
+                    .bench(&name, &multi_object_workers);
             }
         });
     }

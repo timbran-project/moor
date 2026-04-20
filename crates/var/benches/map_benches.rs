@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, benchmark_main, black_box};
+use micromeasure::{BenchContext, Throughput, benchmark_main, black_box};
 use moor_var::{IndexMode, Symbol, Var, v_int, v_sym};
 
 const BASE_MAP_SIZE: usize = 4096;
@@ -182,6 +182,7 @@ fn map_remove_case_sensitive_hit_steady(
 
 benchmark_main!(|runner| {
     runner.group::<MapContext>("Map Operations", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "map_ops"));
         g.bench("map_get_hit", map_get_hit);
         g.bench("map_get_miss", map_get_miss);
         g.bench("map_set_existing", map_set_existing);

@@ -12,8 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl, ConcurrentWorker,
-    ConcurrentWorkerResult, black_box,
+    BenchContext, BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl,
+    ConcurrentWorker, ConcurrentWorkerResult, Throughput, black_box,
     benchmark_main,
 };
 use moor_common::model::{VerbArgsSpec, VerbDef, VerbFlag};
@@ -757,31 +757,38 @@ benchmark_main!(
     },
     |runner| {
     runner.group::<PopulatedCacheContext>("Verb Cache Lookup Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "lookups"));
         g.bench("verb_cache_lookup_hits", verb_cache_lookup_hits);
         g.bench("verb_cache_lookup_misses", verb_cache_lookup_misses);
         g.bench("verb_cache_lookup_cold", verb_cache_lookup_cold);
     });
 
     runner.group::<SmallCacheContext>("Verb Cache Fill Benchmarks", |g| {
+        let g = g.throughput(Throughput::per_operation(1, "fills"));
         g.bench("verb_cache_fill_hits", verb_cache_fill_hits);
         g.bench("verb_cache_fill_misses", verb_cache_fill_misses);
     });
 
     runner.group::<SmallCacheContext>("Verb Cache Flush Benchmarks", |g| {
-        g.bench("verb_cache_flush", verb_cache_flush);
+        g.throughput(Throughput::per_operation(1, "flushes"))
+            .bench("verb_cache_flush", verb_cache_flush);
     });
 
     runner.group::<SmallCacheContext>("Verb Cache Fork Benchmarks", |g| {
-        g.bench("verb_cache_fork", verb_cache_fork);
+        g.throughput(Throughput::per_operation(1, "forks"))
+            .bench("verb_cache_fork", verb_cache_fork);
     });
 
     runner.group::<PopulatedCacheContext>("Ancestry Cache Benchmarks", |g| {
-        g.bench("ancestry_cache_lookup", ancestry_cache_lookup);
-        g.bench("ancestry_cache_fill", ancestry_cache_fill);
+        g.throughput(Throughput::per_operation(1, "ancestry_ops"))
+            .bench("ancestry_cache_lookup", ancestry_cache_lookup);
+        g.throughput(Throughput::per_operation(1, "ancestry_ops"))
+            .bench("ancestry_cache_fill", ancestry_cache_fill);
     });
 
     runner.group::<ConcurrentCacheContext>("Concurrent Cache Benchmarks", |g| {
-        g.bench("concurrent_cache_access", concurrent_cache_access);
+        g.throughput(Throughput::per_operation(1, "cache_ops"))
+            .bench("concurrent_cache_access", concurrent_cache_access);
     });
 
     let max_threads = std::thread::available_parallelism()
@@ -819,26 +826,31 @@ benchmark_main!(
         ];
 
         runner.concurrent_group::<SharedVerbCacheContext>("Verb Cache Concurrent Scenarios", |g| {
-            g.bench(
-                &format!("verb_cache_lookup_vs_mutation_{threads}t"),
-                Duration::from_millis(100),
-                &lookup_vs_mutation,
-            );
-            g.bench(
-                &format!("ancestry_lookup_vs_invalidation_{threads}t"),
-                Duration::from_millis(100),
-                &ancestry_lookup_vs_invalidation,
-            );
+            g.sample_duration(Duration::from_millis(100))
+                .throughput(Throughput::per_operation(1, "cache_ops"))
+                .bench(
+                    &format!("verb_cache_lookup_vs_mutation_{threads}t"),
+                    &lookup_vs_mutation,
+                );
+            g.sample_duration(Duration::from_millis(100))
+                .throughput(Throughput::per_operation(1, "cache_ops"))
+                .bench(
+                    &format!("ancestry_lookup_vs_invalidation_{threads}t"),
+                    &ancestry_lookup_vs_invalidation,
+                );
         });
     }
 
     runner.group::<LargeCacheContext>("Mixed Workload Benchmarks", |g| {
-        g.bench("verb_cache_mixed_workload", verb_cache_mixed_workload);
+        g.throughput(Throughput::per_operation(1, "cache_ops"))
+            .bench("verb_cache_mixed_workload", verb_cache_mixed_workload);
     });
 
     runner.group::<RealisticCacheContext>("Realistic Workload Benchmarks", |g| {
-        g.bench("verb_cache_realistic_workload", verb_cache_realistic_workload);
-        g.bench("ancestry_cache_realistic_workload", ancestry_cache_realistic_workload);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("verb_cache_realistic_workload", verb_cache_realistic_workload);
+        g.throughput(Throughput::per_operation(1, "lookups"))
+            .bench("ancestry_cache_realistic_workload", ancestry_cache_realistic_workload);
     });
     }
 );

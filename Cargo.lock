@@ -3080,9 +3080,9 @@ dependencies = [
 
 [[package]]
 name = "micromeasure"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01c02b193f42a50aacdf1dbffc6badcc9e7d837a04cc5c34d12964ff0503e00a"
+checksum = "d1d8dc4dc215d69babdb88d4ab5eaaf4a407fe90141db77bc7713d1cb599198d"
 dependencies = [
  "libc",
  "perf-event2",
