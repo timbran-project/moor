@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    black_box,
+};
 use moor_db::{
     CheckRelation, Error, Provider, Relation, RelationCodomain, RelationIndex, RelationTransaction,
     Timestamp, Tx, WorkingSet,
@@ -20,6 +23,7 @@ use moor_var::Symbol;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 const CHECK_CHUNK_SIZE: Option<usize> = None;
@@ -751,6 +755,12 @@ fn tx_op_bulk_get_local_mixed(ctx: &mut TxOpsContext, chunk_size: usize, _chunk_
 benchmark_main!(
     BenchmarkMainOptions {
         filter_help: Some("all, check, tx_ops, apply, or benchmark name substring".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
         ..BenchmarkMainOptions::default()
     },
     |runner| {

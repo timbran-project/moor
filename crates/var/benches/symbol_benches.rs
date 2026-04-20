@@ -11,9 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    black_box,
+};
 use moor_var::Symbol;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 // ============================================================================
 // SYMBOL CREATION BENCHMARKS
@@ -27,9 +30,7 @@ struct UniqueStringsContext {
 
 impl BenchContext for UniqueStringsContext {
     fn prepare(num_chunks: usize) -> Self {
-        // Pre-generate enough unique strings for all chunks
-        // Each chunk will use 10k operations, we need num_chunks * chunk_size strings
-        let total = num_chunks * 10_000;
+        let total = num_chunks.max(1) * Self::chunk_size().unwrap_or(1);
         let strings: Vec<String> = (0..total).map(|i| format!("unique_symbol_{i}")).collect();
         UniqueStringsContext { strings, index: 0 }
     }
@@ -443,7 +444,18 @@ fn symbol_hot_path_compare_id(ctx: &mut HotSymbolContext, chunk_size: usize, _ch
 // MAIN
 // ============================================================================
 
-benchmark_main!(|runner| {
+benchmark_main!(
+    BenchmarkMainOptions {
+        filter_help: Some("all or any benchmark name substring".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
+        ..BenchmarkMainOptions::default()
+    },
+    |runner| {
     runner.group::<UniqueStringsContext>("Symbol Creation (Unique)", |g| {
         g.throughput(Throughput::per_operation(1, "symbols"))
             .bench("symbol_create_unique", symbol_create_unique);
@@ -511,4 +523,5 @@ benchmark_main!(|runner| {
         g.bench("symbol_hot_path_lookup", symbol_hot_path_lookup);
         g.bench("symbol_hot_path_compare_id", symbol_hot_path_compare_id);
     });
-});
+    }
+);

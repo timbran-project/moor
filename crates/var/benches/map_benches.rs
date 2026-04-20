@@ -11,8 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    black_box,
+};
 use moor_var::{IndexMode, Symbol, Var, v_int, v_sym};
+use std::time::Duration;
 
 const BASE_MAP_SIZE: usize = 4096;
 const WORKING_KEY_SET_SIZE: usize = 4096;
@@ -180,7 +184,18 @@ fn map_remove_case_sensitive_hit_steady(
     black_box(map);
 }
 
-benchmark_main!(|runner| {
+benchmark_main!(
+    BenchmarkMainOptions {
+        filter_help: Some("all or any benchmark name substring".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
+        ..BenchmarkMainOptions::default()
+    },
+    |runner| {
     runner.group::<MapContext>("Map Operations", |g| {
         let g = g.throughput(Throughput::per_operation(1, "map_ops"));
         g.bench("map_get_hit", map_get_hit);
@@ -201,4 +216,5 @@ benchmark_main!(|runner| {
             map_remove_case_sensitive_hit_steady,
         );
     });
-});
+    }
+);

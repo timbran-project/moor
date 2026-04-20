@@ -11,11 +11,15 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, NoContext, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, NoContext, Throughput,
+    benchmark_main, black_box,
+};
 use moor_var::{
     IndexMode, Obj, Symbol, Var, v_arc_str, v_bool, v_float, v_int, v_list, v_none, v_obj, v_str,
     v_string, v_sym, v_symbol_str,
 };
+use std::time::Duration;
 
 // Context for integer benchmarks
 struct IntContext(Var);
@@ -635,6 +639,12 @@ benchmark_main!(
         filter_help: Some(
             "all, int, list, scope, construct, drop, clone, or any benchmark name substring".to_string()
         ),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
         ..BenchmarkMainOptions::default()
     },
     |runner| {

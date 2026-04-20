@@ -11,8 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use micromeasure::{BenchContext, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    black_box,
+};
 use moor_var::{Flyweight, List, Obj, Symbol, v_int};
+use std::time::Duration;
 
 // Context for flyweight benchmarks
 struct FlyweightContext {
@@ -98,7 +102,18 @@ fn flyweight_remove_slot(ctx: &mut FlyweightContext, chunk_size: usize, _chunk_n
     }
 }
 
-benchmark_main!(|runner| {
+benchmark_main!(
+    BenchmarkMainOptions {
+        filter_help: Some("all or any benchmark name substring".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
+        ..BenchmarkMainOptions::default()
+    },
+    |runner| {
     runner.group::<FlyweightContext>("Flyweight Operations", |g| {
         let g = g.throughput(Throughput::per_operation(1, "flyweights"));
         g.bench("flyweight_clone", flyweight_clone);
@@ -109,4 +124,5 @@ benchmark_main!(|runner| {
         g.bench("flyweight_add_slot", flyweight_add_slot);
         g.bench("flyweight_remove_slot", flyweight_remove_slot);
     });
-});
+    }
+);

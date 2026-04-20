@@ -14,9 +14,12 @@
 //! Activation and frame construction micro-benchmarks using bench-utils.
 //! Focuses on small, filterable pieces of the activation setup path.
 
-use std::{cmp::max, sync::Arc};
+use std::{cmp::max, sync::Arc, time::Duration};
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    black_box,
+};
 use uuid::Uuid;
 
 use moor_common::{
@@ -703,6 +706,12 @@ benchmark_main!(
         filter_help: Some(
             "all, activation, primitives, environment, frame, assembly, inputs, for_call, command, or any benchmark name substring".to_string()
         ),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
         ..BenchmarkMainOptions::default()
     },
     |runner| {

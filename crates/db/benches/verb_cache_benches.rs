@@ -12,8 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl,
-    ConcurrentWorker, ConcurrentWorkerResult, Throughput, black_box,
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext,
+    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, black_box,
     benchmark_main,
 };
 use moor_common::model::{VerbArgsSpec, VerbDef, VerbFlag};
@@ -753,6 +753,12 @@ benchmark_main!(
         filter_help: Some(
             "all, lookup, fill, flush, fork, ancestry, concurrent, mixed, realistic, or any benchmark name substring".to_string()
         ),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
         ..BenchmarkMainOptions::default()
     },
     |runner| {

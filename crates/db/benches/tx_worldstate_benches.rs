@@ -14,8 +14,8 @@
 #![recursion_limit = "256"]
 
 use micromeasure::{
-    BenchmarkMainOptions, ConcurrentBenchContext, ConcurrentBenchControl, ConcurrentWorker,
-    ConcurrentWorkerResult, Throughput, benchmark_main,
+    BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext,
+    ConcurrentBenchControl, ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
 };
 use moor_common::model::{CommitResult, ObjFlag, ObjectKind, PropFlag, WorldStateSource};
 use moor_db::{DatabaseConfig, TxDB};
@@ -241,6 +241,12 @@ fn make_multi_object_context(num_threads: usize, ops_per_tx: usize, write_percen
 benchmark_main!(
     BenchmarkMainOptions {
         filter_help: Some("all, single, multi, commit, or benchmark name substring".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
         ..BenchmarkMainOptions::default()
     },
     |runner| {
