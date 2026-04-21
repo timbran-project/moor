@@ -80,8 +80,28 @@ const CONTENT_TYPE_MARKDOWN_SLASH: &str = "text/markdown";
 enum FormattedOutput {
     /// Plain text - needs newline added via send_line
     Plain(String),
-    /// Rich formatted (markdown/djot) - djot formatter handles line endings
+    /// Rich formatted (markdown/djot) - preserve embedded line breaks for telnet output
     Rich(String),
+}
+
+fn normalize_telnet_line_endings(text: &str) -> String {
+    let mut normalized = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                normalized.push_str("\r\n");
+            }
+            '\n' => normalized.push_str("\r\n"),
+            _ => normalized.push(ch),
+        }
+    }
+
+    normalized
 }
 
 pub(crate) struct TelnetConnection {
@@ -841,8 +861,8 @@ impl TelnetConnection {
                         }
                     }
                     FormattedOutput::Rich(text) => {
-                        // Rich content (markdown/djot) already has proper line endings
-                        self.send_raw_text(&text).await
+                        self.send_raw_text(&normalize_telnet_line_endings(&text))
+                            .await
                     }
                 }
                 .with_context(|| "Unable to send message to client")?;
@@ -1567,8 +1587,8 @@ impl TelnetConnection {
                         match formatted {
                             FormattedOutput::Plain(text) => self.send_line(&text).await,
                             FormattedOutput::Rich(text) => {
-                                // Rich content (markdown/djot) already has proper line endings
-                                self.send_raw_text(&text).await
+                                self.send_raw_text(&normalize_telnet_line_endings(&text))
+                                    .await
                             }
                         }
                         .expect("Unable to send message to client");
@@ -2189,4 +2209,16 @@ fn output_str_format(
         // text/plain, None, or unknown
         _ => FormattedOutput::Plain(content.to_string()),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_telnet_line_endings;
+
+    #[test]
+    fn normalize_telnet_line_endings_coalesces_mixed_newlines() {
+        let input = "alpha\nbeta\r\ngamma\rdelta";
+        let expected = "alpha\r\nbeta\r\ngamma\r\ndelta";
+        assert_eq!(normalize_telnet_line_endings(input), expected);
+    }
 }

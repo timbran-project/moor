@@ -92,7 +92,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `kernel`:
 
 - `parse_command()` result map: `argstr` key/value types were swapped (key used `v_str`, value used
-  `use_sym_or_str`) and `prep` key used `v_str` instead of `use_sym_or_str`
+  `use_sym_or_str`) and `prep` key used `v_str` instead of `use_sym_or_str`.
 - Stale timer wheel entries no longer cause spurious task wakes; added monotonic generation counter
   to `TimerEntry` and `SuspendedTask` so that re-suspended tasks discard leftover timer entries from
   previous suspensions
@@ -107,6 +107,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `infra`:
 
 - SDK publish job fixed (missing build step, incorrect relative dirs)
+
+`telnet-host`:
+
+- Rich formatted telnet output (`text/djot` and `text/markdown`) now normalizes line endings to
+  `CRLF` before sending to clients, avoiding layout issues in less-tolerant telnet clients
 
 ## [1.0.0-rc2] - Forthcoming (`v1.0-release` branch)
 
