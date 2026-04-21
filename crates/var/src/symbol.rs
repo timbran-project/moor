@@ -23,14 +23,14 @@
 use ahash::AHasher;
 use arcstr::ArcStr;
 use boxcar::Vec as BoxcarVec;
-use papaya::HashMap;
+use papaya::{Equivalent, HashMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     cell::RefCell,
     fmt::{Debug, Display},
     hash::{BuildHasherDefault, Hash, Hasher},
     sync::{
-        LazyLock, Mutex,
+        LazyLock, Mutex, OnceLock,
         atomic::{AtomicU32, Ordering},
     },
 };
@@ -128,18 +128,56 @@ struct SymbolReprData {
     is_ascii: bool,
 }
 
+struct SymbolLookupKey<'a>(UniCase<&'a str>);
+
+impl<'a> SymbolLookupKey<'a> {
+    #[inline]
+    fn new(s: &'a str) -> Self {
+        Self(UniCase::new(s))
+    }
+}
+
+impl Hash for SymbolLookupKey<'_> {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl Equivalent<UniCase<String>> for SymbolLookupKey<'_> {
+    #[inline]
+    fn equivalent(&self, key: &UniCase<String>) -> bool {
+        self.0 == UniCase::new(key.as_ref())
+    }
+}
+
 /// Container for all case variants of a symbol.
 struct SymbolGroup {
     compare_id: u32,
-    variants: BoxcarVec<SymbolData>,
+    first_variant: OnceLock<SymbolData>,
+    overflow_variants: BoxcarVec<SymbolData>,
+    insert_lock: Mutex<()>,
 }
 
 impl SymbolGroup {
     fn new(compare_id: u32) -> Self {
         Self {
             compare_id,
-            variants: BoxcarVec::new(),
+            first_variant: OnceLock::new(),
+            overflow_variants: BoxcarVec::new(),
+            insert_lock: Mutex::new(()),
         }
+    }
+
+    #[inline]
+    fn find_overflow_variant(&self, original: &str) -> Option<&SymbolData> {
+        for (_index, variant) in self.overflow_variants.iter() {
+            if &*variant.original_string == original {
+                return Some(variant);
+            }
+        }
+
+        None
     }
 
     fn get_or_insert_variant(
@@ -147,49 +185,40 @@ impl SymbolGroup {
         original: &str,
         global_state: &GlobalInternerState,
     ) -> &SymbolData {
-        // Linear search through existing variants to find exact match
-        for (_index, variant) in self.variants.iter() {
-            if &*variant.original_string == original {
-                return variant;
+        if let Some(first_variant) = self.first_variant.get() {
+            if &*first_variant.original_string == original {
+                return first_variant;
             }
         }
 
-        // Not found, create new variant - need atomic reservation
-        let _lock = global_state.allocation_lock.lock();
+        if let Some(variant) = self.find_overflow_variant(original) {
+            return variant;
+        }
 
-        // Double-check after acquiring lock (another thread might have added it)
-        for (_index, variant) in self.variants.iter() {
-            if &*variant.original_string == original {
-                return variant;
+        // Synchronize duplicate detection only within this symbol group's overflow variants.
+        let _lock = self.insert_lock.lock();
+
+        if let Some(first_variant) = self.first_variant.get() {
+            if &*first_variant.original_string == original {
+                return first_variant;
             }
         }
 
-        // Push to global boxcar and use returned index as repr_id
-        let arc_str = ArcStr::from(original);
-        let byte_len = arc_str.len();
-        let is_ascii = arc_str.is_ascii();
-        let char_len = if is_ascii {
-            byte_len
-        } else {
-            arc_str.chars().count()
-        };
-        let repr_id = global_state.repr_id_to_symbol.push(SymbolReprData {
-            original_string: arc_str.clone(),
-            byte_len,
-            char_len,
-            is_ascii,
-        }) as u32;
+        if let Some(variant) = self.find_overflow_variant(original) {
+            return variant;
+        }
 
-        let symbol_data = SymbolData {
-            original_string: arc_str,
-            repr_id,
-            compare_id: self.compare_id,
-        };
+        let symbol_data = global_state.make_symbol_data(original, self.compare_id);
+        if self.first_variant.get().is_none() {
+            let _ = self.first_variant.set(symbol_data);
+            return self
+                .first_variant
+                .get()
+                .expect("first symbol variant must be initialized");
+        }
 
-        // Push to group's variants boxcar
-        let offset = self.variants.push(symbol_data);
-
-        &self.variants[offset]
+        let offset = self.overflow_variants.push(symbol_data);
+        &self.overflow_variants[offset]
     }
 }
 
@@ -249,8 +278,6 @@ struct GlobalInternerState {
     repr_id_to_symbol: BoxcarVec<SymbolReprData>,
     /// Atomic counter for compare_id generation
     next_compare_id: CachePadded<AtomicU32>,
-    /// Lock for atomic reservation of repr_id + boxcar slot (only used for NEW symbols)
-    allocation_lock: Mutex<()>,
 }
 
 impl GlobalInternerState {
@@ -259,28 +286,53 @@ impl GlobalInternerState {
             groups: Default::default(),
             repr_id_to_symbol: BoxcarVec::new(),
             next_compare_id: CachePadded::new(AtomicU32::new(0)),
-            allocation_lock: Mutex::new(()),
         }
     }
 
     /// Interns a string, returning (compare_id, repr_id).
     fn intern(&self, s: &str) -> (u32, u32) {
-        let case_insensitive_key = UniCase::new(s.to_string());
-
         // Pin the map to get a guard
         let guard = self.groups.pin();
 
-        // Get or create the symbol group for this case-insensitive key using get_or_insert
-        let group = guard.get_or_insert(case_insensitive_key, {
-            // If group doesn't exist, create new one
-            let compare_id = self.next_compare_id.fetch_add(1, Ordering::Relaxed);
-            std::sync::Arc::new(SymbolGroup::new(compare_id))
-        });
+        // Probe with a borrowed key to avoid allocating an owned String for existing groups.
+        let lookup_key = SymbolLookupKey::new(s);
+        let group = if let Some(group) = guard.get(&lookup_key) {
+            group
+        } else {
+            let case_insensitive_key = UniCase::new(s.to_string());
+            guard.get_or_insert(case_insensitive_key, {
+                let compare_id = self.next_compare_id.fetch_add(1, Ordering::Relaxed);
+                std::sync::Arc::new(SymbolGroup::new(compare_id))
+            })
+        };
 
         // Get or create the specific case variant within the group
         let symbol_data = group.get_or_insert_variant(s, self);
 
         (symbol_data.compare_id, symbol_data.repr_id)
+    }
+
+    fn make_symbol_data(&self, original: &str, compare_id: u32) -> SymbolData {
+        let arc_str = ArcStr::from(original);
+        let byte_len = arc_str.len();
+        let is_ascii = arc_str.is_ascii();
+        let char_len = if is_ascii {
+            byte_len
+        } else {
+            arc_str.chars().count()
+        };
+        let repr_id = self.repr_id_to_symbol.push(SymbolReprData {
+            original_string: arc_str.clone(),
+            byte_len,
+            char_len,
+            is_ascii,
+        }) as u32;
+
+        SymbolData {
+            original_string: arc_str,
+            repr_id,
+            compare_id,
+        }
     }
 
     fn get_repr_data_by_repr_id(&self, repr_id: u32) -> Option<&SymbolReprData> {
