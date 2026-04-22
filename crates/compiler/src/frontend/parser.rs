@@ -17,6 +17,7 @@ use crate::{SyntaxKind, Token, lex};
 
 use super::{
     cursor::{ParseError, TokenCursor},
+    kinds::{is_atom_token, is_expr_start, is_name_like_token},
     syntax::{CstBuilder, SyntaxNode},
 };
 
@@ -1404,69 +1405,8 @@ impl<'a> Parser<'a> {
     }
 
     fn starts_expr(&self) -> bool {
-        matches!(
-            self.cursor.current_kind(),
-            SyntaxKind::Ident
-                | SyntaxKind::IntLit
-                | SyntaxKind::FloatLit
-                | SyntaxKind::StringLit
-                | SyntaxKind::ObjectLit
-                | SyntaxKind::ErrorLit
-                | SyntaxKind::SymbolLit
-                | SyntaxKind::BinaryLit
-                | SyntaxKind::TypeConstant
-                | SyntaxKind::TrueKw
-                | SyntaxKind::FalseKw
-                | SyntaxKind::AnyKw
-                | SyntaxKind::PassKw
-                | SyntaxKind::ReturnKw
-                | SyntaxKind::FnKw
-                | SyntaxKind::GlobalKw
-                | SyntaxKind::Dollar
-                | SyntaxKind::LParen
-                | SyntaxKind::LBrace
-                | SyntaxKind::LBracket
-                | SyntaxKind::Lt
-                | SyntaxKind::Backtick
-                | SyntaxKind::Minus
-                | SyntaxKind::Bang
-                | SyntaxKind::Tilde
-        )
+        is_expr_start(self.cursor.current_kind())
     }
-}
-
-fn is_name_like_token(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::Ident
-            | SyntaxKind::IfKw
-            | SyntaxKind::ElseKw
-            | SyntaxKind::ElseIfKw
-            | SyntaxKind::EndIfKw
-            | SyntaxKind::ForKw
-            | SyntaxKind::EndForKw
-            | SyntaxKind::WhileKw
-            | SyntaxKind::EndWhileKw
-            | SyntaxKind::ForkKw
-            | SyntaxKind::EndForkKw
-            | SyntaxKind::InKw
-            | SyntaxKind::ReturnKw
-            | SyntaxKind::BreakKw
-            | SyntaxKind::ContinueKw
-            | SyntaxKind::TryKw
-            | SyntaxKind::ExceptKw
-            | SyntaxKind::FinallyKw
-            | SyntaxKind::EndTryKw
-            | SyntaxKind::FnKw
-            | SyntaxKind::EndFnKw
-            | SyntaxKind::LetKw
-            | SyntaxKind::ConstKw
-            | SyntaxKind::GlobalKw
-            | SyntaxKind::PassKw
-            | SyntaxKind::AnyKw
-            | SyntaxKind::TrueKw
-            | SyntaxKind::FalseKw
-    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1499,25 +1439,6 @@ enum BraceForm {
     ScatterAssign,
     Comprehension,
     List,
-}
-
-fn is_atom_token(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::Ident
-            | SyntaxKind::IntLit
-            | SyntaxKind::FloatLit
-            | SyntaxKind::StringLit
-            | SyntaxKind::ObjectLit
-            | SyntaxKind::ErrorLit
-            | SyntaxKind::SymbolLit
-            | SyntaxKind::BinaryLit
-            | SyntaxKind::TypeConstant
-            | SyntaxKind::TrueKw
-            | SyntaxKind::FalseKw
-            | SyntaxKind::AnyKw
-            | SyntaxKind::GlobalKw
-    )
 }
 
 #[cfg(test)]

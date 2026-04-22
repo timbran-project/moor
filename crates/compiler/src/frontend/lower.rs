@@ -37,6 +37,7 @@ use crate::{
             ForRangeStmt, ForkStmt, GlobalStmt, IfStmt, LambdaExpr, LetStmt, ParamList, Program,
             ReturnStmt, ScatterExpr, ScatterItem, Statement, TryExceptStmt, WhileStmt,
         },
+        kinds::is_name_like_token,
         parser::parse_to_syntax_node,
         syntax::{SyntaxElement, SyntaxNode, SyntaxToken},
     },
@@ -1756,40 +1757,6 @@ fn inner_scatter_pattern(expr: ScatterExpr) -> ScatterExpr {
         .children()
         .find_map(ScatterExpr::cast)
         .unwrap_or(expr)
-}
-
-fn is_name_like_token(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::Ident
-            | SyntaxKind::IfKw
-            | SyntaxKind::ElseKw
-            | SyntaxKind::ElseIfKw
-            | SyntaxKind::EndIfKw
-            | SyntaxKind::ForKw
-            | SyntaxKind::EndForKw
-            | SyntaxKind::WhileKw
-            | SyntaxKind::EndWhileKw
-            | SyntaxKind::ForkKw
-            | SyntaxKind::EndForkKw
-            | SyntaxKind::InKw
-            | SyntaxKind::ReturnKw
-            | SyntaxKind::BreakKw
-            | SyntaxKind::ContinueKw
-            | SyntaxKind::TryKw
-            | SyntaxKind::ExceptKw
-            | SyntaxKind::FinallyKw
-            | SyntaxKind::EndTryKw
-            | SyntaxKind::FnKw
-            | SyntaxKind::EndFnKw
-            | SyntaxKind::LetKw
-            | SyntaxKind::ConstKw
-            | SyntaxKind::GlobalKw
-            | SyntaxKind::PassKw
-            | SyntaxKind::AnyKw
-            | SyntaxKind::TrueKw
-            | SyntaxKind::FalseKw
-    )
 }
 
 fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
