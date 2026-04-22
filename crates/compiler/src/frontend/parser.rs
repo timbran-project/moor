@@ -168,73 +168,43 @@ impl<'a> Parser<'a> {
             self.parse_simple_decl_body();
         }
 
-        if self.cursor.bump_if(SyntaxKind::Semi) {
-            self.emit_to_cursor();
-            self.builder.finish_node();
-            return;
-        }
-
         let keyword = match stmt_kind {
             SyntaxKind::LetStmt => "let",
             SyntaxKind::ConstStmt => "const",
             SyntaxKind::GlobalStmt => "global",
             _ => "declaration",
         };
-        self.cursor
-            .push_error(format!("expected ';' after {keyword}"));
-        self.consume_statement_error_tail();
+        self.expect_statement_end(&format!("expected ';' after {keyword}"));
         self.builder.finish_node();
     }
 
     fn parse_scatter_decl_body(&mut self) {
         self.parse_scatter_pattern();
-        if !self.cursor.bump_if(SyntaxKind::Eq) {
-            self.cursor
-                .push_error("expected '=' after scatter declaration");
-        } else {
-            self.emit_to_cursor();
-        }
-
-        if self.starts_expr() {
-            self.parse_expr();
-            return;
-        }
-
-        self.cursor
-            .push_error("expected expression after scatter declaration");
-        self.consume_error_node_until(&[SyntaxKind::Semi]);
+        self.expect_and_emit(SyntaxKind::Eq, "expected '=' after scatter declaration");
+        self.parse_required_expr(
+            "expected expression after scatter declaration",
+            &[SyntaxKind::Semi],
+        );
     }
 
     fn parse_simple_decl_body(&mut self) {
-        if !self.cursor.bump_if(SyntaxKind::Ident) {
-            self.cursor.push_error("expected identifier in declaration");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::Ident, "expected identifier in declaration");
 
         if !self.cursor.bump_if(SyntaxKind::Eq) {
             return;
         }
 
         self.emit_to_cursor();
-        if self.starts_expr() {
-            self.parse_expr();
-            return;
-        }
-
-        self.cursor
-            .push_error("expected initializer expression after '='");
-        self.consume_error_node_until(&[SyntaxKind::Semi]);
+        self.parse_required_expr(
+            "expected initializer expression after '='",
+            &[SyntaxKind::Semi],
+        );
     }
 
     fn parse_fn_statement(&mut self) {
         self.builder.start_node(SyntaxKind::FnStmt);
         self.bump_significant();
-        if !self.cursor.bump_if(SyntaxKind::Ident) {
-            self.cursor.push_error("expected function name after fn");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::Ident, "expected function name after fn");
         self.parse_fn_signature_and_body();
         self.builder.finish_node();
     }
@@ -245,33 +215,20 @@ impl<'a> Parser<'a> {
         if !self.cursor.at(SyntaxKind::Semi) && self.starts_expr() {
             self.parse_expr();
         }
-        if !self.cursor.bump_if(SyntaxKind::Semi) {
-            self.cursor.push_error("expected ';' after return");
-            self.consume_statement_error_tail();
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_statement_end("expected ';' after return");
         self.builder.finish_node();
     }
 
     fn parse_jump_statement(&mut self, stmt_kind: SyntaxKind) {
         self.builder.start_node(stmt_kind);
         self.bump_significant();
-        if self.cursor.at(SyntaxKind::Ident) {
-            self.bump_significant();
-        }
-        if !self.cursor.bump_if(SyntaxKind::Semi) {
-            let keyword = match stmt_kind {
-                SyntaxKind::BreakStmt => "break",
-                SyntaxKind::ContinueStmt => "continue",
-                _ => "jump",
-            };
-            self.cursor
-                .push_error(format!("expected ';' after {keyword}"));
-            self.consume_statement_error_tail();
-        } else {
-            self.emit_to_cursor();
-        }
+        self.bump_optional_ident_label();
+        let keyword = match stmt_kind {
+            SyntaxKind::BreakStmt => "break",
+            SyntaxKind::ContinueStmt => "continue",
+            _ => "jump",
+        };
+        self.expect_statement_end(&format!("expected ';' after {keyword}"));
         self.builder.finish_node();
     }
 
@@ -321,25 +278,15 @@ impl<'a> Parser<'a> {
         self.builder.start_node(stmt_kind);
         self.bump_significant();
 
-        if !self.cursor.bump_if(SyntaxKind::Ident) {
-            self.cursor.push_error("expected loop variable after for");
-        } else {
+        if self.expect_and_emit(SyntaxKind::Ident, "expected loop variable after for")
+            && stmt_kind == SyntaxKind::ForInStmt
+            && self.cursor.bump_if(SyntaxKind::Comma)
+        {
             self.emit_to_cursor();
-            if stmt_kind == SyntaxKind::ForInStmt && self.cursor.bump_if(SyntaxKind::Comma) {
-                self.emit_to_cursor();
-                if !self.cursor.bump_if(SyntaxKind::Ident) {
-                    self.cursor.push_error("expected key variable after ','");
-                } else {
-                    self.emit_to_cursor();
-                }
-            }
+            self.expect_and_emit(SyntaxKind::Ident, "expected key variable after ','");
         }
 
-        if !self.cursor.bump_if(SyntaxKind::InKw) {
-            self.cursor.push_error("expected in");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::InKw, "expected in");
 
         if stmt_kind == SyntaxKind::ForRangeStmt {
             self.parse_range_clause("for");
@@ -348,43 +295,27 @@ impl<'a> Parser<'a> {
         }
 
         self.parse_stmt_list_until(&[SyntaxKind::EndForKw]);
-        if !self.cursor.bump_if(SyntaxKind::EndForKw) {
-            self.cursor.push_error("expected endfor");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::EndForKw, "expected endfor");
         self.builder.finish_node();
     }
 
     fn parse_while_statement(&mut self) {
         self.builder.start_node(SyntaxKind::WhileStmt);
         self.bump_significant();
-        if self.cursor.at(SyntaxKind::Ident) && self.cursor.nth_kind(1) == SyntaxKind::LParen {
-            self.bump_significant();
-        }
+        self.bump_optional_label_before_paren();
         self.parse_paren_condition("while");
         self.parse_stmt_list_until(&[SyntaxKind::EndWhileKw]);
-        if !self.cursor.bump_if(SyntaxKind::EndWhileKw) {
-            self.cursor.push_error("expected endwhile");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::EndWhileKw, "expected endwhile");
         self.builder.finish_node();
     }
 
     fn parse_fork_statement(&mut self) {
         self.builder.start_node(SyntaxKind::ForkStmt);
         self.bump_significant();
-        if self.cursor.at(SyntaxKind::Ident) && self.cursor.nth_kind(1) == SyntaxKind::LParen {
-            self.bump_significant();
-        }
+        self.bump_optional_label_before_paren();
         self.parse_paren_condition("fork");
         self.parse_stmt_list_until(&[SyntaxKind::EndForkKw]);
-        if !self.cursor.bump_if(SyntaxKind::EndForkKw) {
-            self.cursor.push_error("expected endfork");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::EndForkKw, "expected endfork");
         self.builder.finish_node();
     }
 
@@ -404,11 +335,7 @@ impl<'a> Parser<'a> {
             self.parse_try_except_clauses();
         }
 
-        if !self.cursor.bump_if(SyntaxKind::EndTryKw) {
-            self.cursor.push_error("expected endtry");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::EndTryKw, "expected endtry");
         self.builder.finish_node();
     }
 
@@ -430,9 +357,7 @@ impl<'a> Parser<'a> {
         self.builder.start_node(SyntaxKind::ExceptClause);
         self.bump_significant();
 
-        if self.cursor.at(SyntaxKind::Ident) && self.cursor.nth_kind(1) == SyntaxKind::LParen {
-            self.bump_significant();
-        }
+        self.bump_optional_label_before_paren();
 
         if !self.cursor.bump_if(SyntaxKind::LParen) {
             self.cursor.push_error("expected '(' after except");
@@ -447,11 +372,7 @@ impl<'a> Parser<'a> {
 
         self.emit_to_cursor();
         self.parse_catch_codes();
-        if !self.cursor.bump_if(SyntaxKind::RParen) {
-            self.cursor.push_error("expected ')'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::RParen, "expected ')'");
 
         self.parse_stmt_list_until(&[
             SyntaxKind::ExceptKw,
@@ -503,9 +424,10 @@ impl<'a> Parser<'a> {
         self.parse_stmt_list_until_contextual_end("end");
         if !self.at_contextual_ident("end") {
             self.cursor.push_error("expected end");
-        } else {
-            self.bump_significant();
+            self.builder.finish_node();
+            return;
         }
+        self.bump_significant();
         self.builder.finish_node();
     }
 
@@ -516,70 +438,32 @@ impl<'a> Parser<'a> {
             return;
         }
         self.emit_to_cursor();
-        if self.starts_expr() {
-            self.parse_expr();
-        } else {
-            self.cursor
-                .push_error(format!("expected condition expression after {keyword}("));
-            self.consume_error_node_until(&[SyntaxKind::RParen]);
-        }
-        if !self.cursor.bump_if(SyntaxKind::RParen) {
-            self.cursor.push_error("expected ')'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.parse_required_expr(
+            &format!("expected condition expression after {keyword}("),
+            &[SyntaxKind::RParen],
+        );
+        self.expect_and_emit(SyntaxKind::RParen, "expected ')'");
     }
 
     fn parse_fn_signature_and_body(&mut self) {
-        self.builder.start_node(SyntaxKind::ParamList);
-        if !self.cursor.bump_if(SyntaxKind::LParen) {
-            self.cursor.push_error("expected '(' after fn");
-        } else {
-            self.emit_to_cursor();
-            if !self.cursor.at(SyntaxKind::RParen) {
-                loop {
-                    self.parse_param_item();
-                    if self.cursor.bump_if(SyntaxKind::Comma) {
-                        self.emit_to_cursor();
-                        continue;
-                    }
-                    break;
-                }
-            }
-            if !self.cursor.bump_if(SyntaxKind::RParen) {
-                self.cursor.push_error("expected ')'");
-            } else {
-                self.emit_to_cursor();
-            }
-        }
-        self.builder.finish_node();
+        self.parse_param_list(
+            SyntaxKind::LParen,
+            SyntaxKind::RParen,
+            "expected '(' after fn",
+            "expected ')'",
+        );
 
         self.parse_stmt_list_until(&[SyntaxKind::EndFnKw]);
-        if !self.cursor.bump_if(SyntaxKind::EndFnKw) {
-            self.cursor.push_error("expected endfn");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::EndFnKw, "expected endfn");
     }
 
     fn parse_param_item(&mut self) {
         self.builder.start_node(SyntaxKind::ScatterItem);
-        if self.cursor.at(SyntaxKind::Question) || self.cursor.at(SyntaxKind::At) {
-            self.bump_significant();
-        }
-        if !self.bump_ident_like_name() {
-            self.cursor.push_error("expected parameter name");
-        }
-        if self.cursor.bump_if(SyntaxKind::Eq) {
-            self.emit_to_cursor();
-            if self.starts_expr() {
-                self.parse_expr();
-            } else {
-                self.cursor
-                    .push_error("expected default parameter expression");
-                self.consume_error_node_until(&[SyntaxKind::Comma, SyntaxKind::RParen]);
-            }
-        }
+        self.parse_scatter_like_item(
+            "expected parameter name",
+            "expected default parameter expression",
+            &[SyntaxKind::Comma, SyntaxKind::RParen],
+        );
         self.builder.finish_node();
     }
 
@@ -596,22 +480,11 @@ impl<'a> Parser<'a> {
         if !self.cursor.at(SyntaxKind::RBrace) {
             loop {
                 self.builder.start_node(SyntaxKind::ScatterItem);
-                if self.cursor.at(SyntaxKind::Question) || self.cursor.at(SyntaxKind::At) {
-                    self.bump_significant();
-                }
-                if !self.bump_ident_like_name() {
-                    self.cursor.push_error("expected scatter target");
-                }
-                if self.cursor.bump_if(SyntaxKind::Eq) {
-                    self.emit_to_cursor();
-                    if self.starts_expr() {
-                        self.parse_expr();
-                    } else {
-                        self.cursor
-                            .push_error("expected default expression in scatter item");
-                        self.consume_error_node_until(&[SyntaxKind::Comma, SyntaxKind::RBrace]);
-                    }
-                }
+                self.parse_scatter_like_item(
+                    "expected scatter target",
+                    "expected default expression in scatter item",
+                    &[SyntaxKind::Comma, SyntaxKind::RBrace],
+                );
                 self.builder.finish_node();
 
                 if self.cursor.bump_if(SyntaxKind::Comma) {
@@ -622,12 +495,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        if !self.cursor.bump_if(SyntaxKind::RBrace) {
-            self.cursor
-                .push_error("expected '}' to end scatter pattern");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::RBrace, "expected '}' to end scatter pattern");
         self.builder.finish_node();
     }
 
@@ -645,24 +513,11 @@ impl<'a> Parser<'a> {
             self.consume_error_node_until(&[SyntaxKind::DotDot, SyntaxKind::RBracket]);
         }
 
-        if !self.cursor.bump_if(SyntaxKind::DotDot) {
-            self.cursor.push_error("expected '..'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::DotDot, "expected '..'");
 
-        if self.starts_expr() {
-            self.parse_expr();
-        } else {
-            self.cursor.push_error("expected range end expression");
-            self.consume_error_node_until(&[SyntaxKind::RBracket]);
-        }
+        self.parse_required_expr("expected range end expression", &[SyntaxKind::RBracket]);
 
-        if !self.cursor.bump_if(SyntaxKind::RBracket) {
-            self.cursor.push_error("expected ']'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::RBracket, "expected ']'");
     }
 
     fn parse_expr(&mut self) {
@@ -744,17 +599,11 @@ impl<'a> Parser<'a> {
             SyntaxKind::LParen => {
                 self.builder.start_node(SyntaxKind::ParenExpr);
                 self.bump_significant();
-                if self.starts_expr() {
-                    self.parse_expr();
-                } else {
-                    self.cursor.push_error("expected expression after '('");
-                    self.consume_error_node_until(&[SyntaxKind::RParen, SyntaxKind::Semi]);
-                }
-                if !self.cursor.bump_if(SyntaxKind::RParen) {
-                    self.cursor.push_error("expected ')'");
-                } else {
-                    self.emit_to_cursor();
-                }
+                self.parse_required_expr(
+                    "expected expression after '('",
+                    &[SyntaxKind::RParen, SyntaxKind::Semi],
+                );
+                self.expect_and_emit(SyntaxKind::RParen, "expected ')'");
                 self.builder.finish_node();
             }
             SyntaxKind::LBrace => match self.classify_brace_form() {
@@ -829,52 +678,27 @@ impl<'a> Parser<'a> {
         self.builder
             .start_node_at(checkpoint, SyntaxKind::LambdaExpr);
         self.parse_braced_param_list();
-        if !self.cursor.bump_if(SyntaxKind::FatArrow) {
-            self.cursor.push_error("expected '=>'");
-        } else {
-            self.emit_to_cursor();
-        }
-        if self.starts_expr() {
-            self.parse_expr();
-        } else {
-            self.cursor
-                .push_error("expected expression after lambda arrow");
-            self.consume_error_node_until(&[
+        self.expect_and_emit(SyntaxKind::FatArrow, "expected '=>'");
+        self.parse_required_expr(
+            "expected expression after lambda arrow",
+            &[
                 SyntaxKind::Semi,
                 SyntaxKind::Comma,
                 SyntaxKind::RParen,
                 SyntaxKind::RBracket,
                 SyntaxKind::RBrace,
-            ]);
-        }
+            ],
+        );
         self.builder.finish_node();
     }
 
     fn parse_braced_param_list(&mut self) {
-        self.builder.start_node(SyntaxKind::ParamList);
-        if !self.cursor.bump_if(SyntaxKind::LBrace) {
-            self.cursor.push_error("expected '{' after lambda");
-            self.builder.finish_node();
-            return;
-        }
-        self.emit_to_cursor();
-        if !self.cursor.at(SyntaxKind::RBrace) {
-            loop {
-                self.parse_param_item();
-                if self.cursor.bump_if(SyntaxKind::Comma) {
-                    self.emit_to_cursor();
-                    continue;
-                }
-                break;
-            }
-        }
-        if !self.cursor.bump_if(SyntaxKind::RBrace) {
-            self.cursor
-                .push_error("expected '}' after lambda parameters");
-        } else {
-            self.emit_to_cursor();
-        }
-        self.builder.finish_node();
+        self.parse_param_list(
+            SyntaxKind::LBrace,
+            SyntaxKind::RBrace,
+            "expected '{' after lambda",
+            "expected '}' after lambda parameters",
+        );
     }
 
     fn parse_comprehension_or_list(&mut self, is_comprehension: bool) {
@@ -895,22 +719,9 @@ impl<'a> Parser<'a> {
 
         if is_comprehension {
             self.parse_expr();
-            if !self.cursor.bump_if(SyntaxKind::ForKw) {
-                self.cursor.push_error("expected for in comprehension");
-            } else {
-                self.emit_to_cursor();
-            }
-            if !self.cursor.bump_if(SyntaxKind::Ident) {
-                self.cursor
-                    .push_error("expected loop variable in comprehension");
-            } else {
-                self.emit_to_cursor();
-            }
-            if !self.cursor.bump_if(SyntaxKind::InKw) {
-                self.cursor.push_error("expected in");
-            } else {
-                self.emit_to_cursor();
-            }
+            self.expect_and_emit(SyntaxKind::ForKw, "expected for in comprehension");
+            self.expect_and_emit(SyntaxKind::Ident, "expected loop variable in comprehension");
+            self.expect_and_emit(SyntaxKind::InKw, "expected in");
             if self.cursor.at(SyntaxKind::LBracket) {
                 self.parse_range_clause("for");
             } else if self.cursor.at(SyntaxKind::LParen) {
@@ -928,11 +739,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        if !self.cursor.bump_if(SyntaxKind::RBrace) {
-            self.cursor.push_error("expected '}'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::RBrace, "expected '}'");
         self.builder.finish_node();
     }
 
@@ -970,11 +777,7 @@ impl<'a> Parser<'a> {
                 ]);
             }
 
-            if !self.cursor.bump_if(SyntaxKind::Arrow) {
-                self.cursor.push_error("expected '->' in map literal");
-            } else {
-                self.emit_to_cursor();
-            }
+            self.expect_and_emit(SyntaxKind::Arrow, "expected '->' in map literal");
 
             if self.starts_expr() {
                 self.parse_expr();
@@ -990,11 +793,7 @@ impl<'a> Parser<'a> {
             break;
         }
 
-        if !self.cursor.bump_if(SyntaxKind::RBracket) {
-            self.cursor.push_error("expected ']'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::RBracket, "expected ']'");
         self.builder.finish_node();
     }
 
@@ -1016,16 +815,8 @@ impl<'a> Parser<'a> {
             self.emit_to_cursor();
             if self.cursor.at(SyntaxKind::Dot) {
                 self.bump_significant();
-                if !self.cursor.bump_if(SyntaxKind::Ident) {
-                    self.cursor.push_error("expected flyweight slot name");
-                } else {
-                    self.emit_to_cursor();
-                }
-                if !self.cursor.bump_if(SyntaxKind::Eq) {
-                    self.cursor.push_error("expected '=' after flyweight slot");
-                } else {
-                    self.emit_to_cursor();
-                }
+                self.expect_and_emit(SyntaxKind::Ident, "expected flyweight slot name");
+                self.expect_and_emit(SyntaxKind::Eq, "expected '=' after flyweight slot");
                 if self.starts_expr() {
                     self.parse_expr_with_stops(&[SyntaxKind::Gt]);
                 } else {
@@ -1045,11 +836,7 @@ impl<'a> Parser<'a> {
             break;
         }
 
-        if !self.cursor.bump_if(SyntaxKind::Gt) {
-            self.cursor.push_error("expected '>'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::Gt, "expected '>'");
         self.builder.finish_node();
     }
 
@@ -1065,11 +852,7 @@ impl<'a> Parser<'a> {
             self.consume_error_node_until(&[SyntaxKind::Bang, SyntaxKind::Apostrophe]);
         }
 
-        if !self.cursor.bump_if(SyntaxKind::Bang) {
-            self.cursor.push_error("expected '!'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::Bang, "expected '!'");
 
         if self.cursor.at(SyntaxKind::AnyKw) {
             self.bump_significant();
@@ -1100,21 +883,16 @@ impl<'a> Parser<'a> {
 
         if self.cursor.bump_if(SyntaxKind::FatArrow) {
             self.emit_to_cursor();
-            if self.starts_expr() {
-                self.parse_expr();
-            } else {
-                self.cursor
-                    .push_error("expected fallback expression after '=>'");
-                self.consume_error_node_until(&[SyntaxKind::Apostrophe]);
-            }
+            self.parse_required_expr(
+                "expected fallback expression after '=>'",
+                &[SyntaxKind::Apostrophe],
+            );
         }
 
-        if !self.cursor.bump_if(SyntaxKind::Apostrophe) {
-            self.cursor
-                .push_error("expected closing apostrophe for try expression");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(
+            SyntaxKind::Apostrophe,
+            "expected closing apostrophe for try expression",
+        );
         self.builder.finish_node();
     }
 
@@ -1152,11 +930,7 @@ impl<'a> Parser<'a> {
                         self.consume_error_node_until(&[SyntaxKind::Pipe, SyntaxKind::Semi]);
                     }
 
-                    if !self.cursor.bump_if(SyntaxKind::Pipe) {
-                        self.cursor.push_error("expected '|'");
-                    } else {
-                        self.emit_to_cursor();
-                    }
+                    self.expect_and_emit(SyntaxKind::Pipe, "expected '|'");
 
                     if self.starts_expr() {
                         self.parse_expr_bp(right_bp);
@@ -1204,19 +978,11 @@ impl<'a> Parser<'a> {
         }
 
         self.emit_to_cursor();
-        if self.starts_expr() {
-            self.parse_expr_bp(1);
-        } else {
-            self.cursor
-                .push_error("expected property expression after '.('");
-            self.consume_error_node_until(&[SyntaxKind::RParen, SyntaxKind::Semi]);
-        }
-        if !self.cursor.bump_if(SyntaxKind::RParen) {
-            self.cursor
-                .push_error("expected ')' after property expression");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.parse_required_expr(
+            "expected property expression after '.('",
+            &[SyntaxKind::RParen, SyntaxKind::Semi],
+        );
+        self.expect_and_emit(SyntaxKind::RParen, "expected ')' after property expression");
         self.builder.finish_node();
     }
 
@@ -1227,18 +993,11 @@ impl<'a> Parser<'a> {
             // direct verb name
         } else if self.cursor.bump_if(SyntaxKind::LParen) {
             self.emit_to_cursor();
-            if self.starts_expr() {
-                self.parse_expr_bp(1);
-            } else {
-                self.cursor
-                    .push_error("expected verb expression after ':('");
-                self.consume_error_node_until(&[SyntaxKind::RParen, SyntaxKind::Semi]);
-            }
-            if !self.cursor.bump_if(SyntaxKind::RParen) {
-                self.cursor.push_error("expected ')' after verb expression");
-            } else {
-                self.emit_to_cursor();
-            }
+            self.parse_required_expr(
+                "expected verb expression after ':('",
+                &[SyntaxKind::RParen, SyntaxKind::Semi],
+            );
+            self.expect_and_emit(SyntaxKind::RParen, "expected ')' after verb expression");
         } else {
             self.cursor.push_error("expected verb name after ':'");
         }
@@ -1279,11 +1038,7 @@ impl<'a> Parser<'a> {
             SyntaxKind::IndexExpr
         };
 
-        if !self.cursor.bump_if(SyntaxKind::RBracket) {
-            self.cursor.push_error("expected ']'");
-        } else {
-            self.emit_to_cursor();
-        }
+        self.expect_and_emit(SyntaxKind::RBracket, "expected ']'");
 
         self.builder.start_node_at(checkpoint, expr_kind);
         self.builder.finish_node();
@@ -1439,6 +1194,95 @@ impl<'a> Parser<'a> {
             self.parse_statement();
         }
         self.builder.finish_node();
+    }
+
+    fn expect_and_emit(&mut self, kind: SyntaxKind, message: &str) -> bool {
+        if !self.cursor.bump_if(kind) {
+            self.cursor.push_error(message);
+            return false;
+        }
+
+        self.emit_to_cursor();
+        true
+    }
+
+    fn expect_statement_end(&mut self, message: &str) {
+        if self.expect_and_emit(SyntaxKind::Semi, message) {
+            return;
+        }
+
+        self.consume_statement_error_tail();
+    }
+
+    fn parse_required_expr(&mut self, message: &str, recovery_stops: &[SyntaxKind]) {
+        if self.starts_expr() {
+            self.parse_expr();
+            return;
+        }
+
+        self.cursor.push_error(message);
+        self.consume_error_node_until(recovery_stops);
+    }
+
+    fn bump_optional_label_before_paren(&mut self) {
+        if self.cursor.at(SyntaxKind::Ident) && self.cursor.nth_kind(1) == SyntaxKind::LParen {
+            self.bump_significant();
+        }
+    }
+
+    fn bump_optional_ident_label(&mut self) {
+        if self.cursor.at(SyntaxKind::Ident) {
+            self.bump_significant();
+        }
+    }
+
+    fn parse_param_list(
+        &mut self,
+        open: SyntaxKind,
+        close: SyntaxKind,
+        open_message: &str,
+        close_message: &str,
+    ) {
+        self.builder.start_node(SyntaxKind::ParamList);
+        if !self.expect_and_emit(open, open_message) {
+            self.builder.finish_node();
+            return;
+        }
+
+        if !self.cursor.at(close) {
+            loop {
+                self.parse_param_item();
+                if !self.cursor.bump_if(SyntaxKind::Comma) {
+                    break;
+                }
+                self.emit_to_cursor();
+            }
+        }
+
+        self.expect_and_emit(close, close_message);
+        self.builder.finish_node();
+    }
+
+    fn parse_scatter_like_item(
+        &mut self,
+        missing_name_message: &str,
+        missing_default_expr_message: &str,
+        default_expr_recovery: &[SyntaxKind],
+    ) {
+        if self.cursor.at(SyntaxKind::Question) || self.cursor.at(SyntaxKind::At) {
+            self.bump_significant();
+        }
+
+        if !self.bump_ident_like_name() {
+            self.cursor.push_error(missing_name_message);
+        }
+
+        if !self.cursor.bump_if(SyntaxKind::Eq) {
+            return;
+        }
+
+        self.emit_to_cursor();
+        self.parse_required_expr(missing_default_expr_message, default_expr_recovery);
     }
 
     fn at_contextual_ident(&self, ident: &str) -> bool {
