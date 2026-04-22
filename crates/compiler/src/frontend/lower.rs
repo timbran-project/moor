@@ -233,8 +233,11 @@ impl<'a> Lowerer<'a> {
                     Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Comma => {
                         idx += 1;
                     }
-                    Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::At => {
-                        let expr = self.lower_expr_element(expect_exprish(&elements, idx + 1)?)?;
+                    Some(NodeOrToken::Token(token))
+                        if token.kind() == SyntaxKind::At
+                            && let expr =
+                                self.lower_expr_element(expect_exprish(&elements, idx + 1)?)? =>
+                    {
                         args.push(Splice(expr));
                         idx += 2;
                     }
@@ -961,11 +964,11 @@ impl<'a> Lowerer<'a> {
                 };
                 Ok(Expr::Call { function, args })
             }
-            NodeOrToken::Node(node) if node.kind() == SyntaxKind::SysPropExpr => {
-                let callee_expr = self.lower_sysprop_expr(&node)?;
-                let Expr::Prop { location, property } = callee_expr else {
-                    return Err(self.unsupported_node(&node, "sysprop call lowering"));
-                };
+            NodeOrToken::Node(node)
+                if node.kind() == SyntaxKind::SysPropExpr
+                    && let Expr::Prop { location, property } =
+                        self.lower_sysprop_expr(&node)? =>
+            {
                 Ok(Expr::Verb {
                     location,
                     verb: property,
@@ -1015,10 +1018,13 @@ impl<'a> Lowerer<'a> {
             Some(NodeOrToken::Token(token)) if is_name_like_token(token.kind()) => {
                 (Expr::Value(v_str(token.text())), colon_idx + 2)
             }
-            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::LParen => (
-                self.lower_expr_element(expect_exprish(&elements, colon_idx + 2)?)?,
-                colon_idx + 4,
-            ),
+            Some(NodeOrToken::Token(token))
+                if token.kind() == SyntaxKind::LParen
+                    && let verb =
+                        self.lower_expr_element(expect_exprish(&elements, colon_idx + 2)?)? =>
+            {
+                (verb, colon_idx + 4)
+            }
             _ => {
                 return Err(self.make_parse_error(
                     node.text_range(),
