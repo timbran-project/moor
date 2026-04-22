@@ -253,15 +253,12 @@ impl<'a> Lowerer<'a> {
         let mut arms = Vec::new();
 
         let condition = self.if_condition(stmt.syntax())?;
-        self.enter_scope();
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering if",
-                "if body is missing",
-            )
-        })?)?;
-        let environment_width = self.exit_scope();
+        let (body, environment_width) = self.lower_scoped_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering if",
+            "if body is missing",
+        )?;
         arms.push(CondArm {
             condition,
             statements: body,
@@ -270,15 +267,12 @@ impl<'a> Lowerer<'a> {
 
         for clause in stmt.elseif_clauses() {
             let condition = self.if_condition(clause.syntax())?;
-            self.enter_scope();
-            let body = self.lower_stmt_list(clause.body().ok_or_else(|| {
-                self.make_parse_error(
-                    clause.syntax().text_range(),
-                    "frontend lowering elseif",
-                    "elseif body is missing",
-                )
-            })?)?;
-            let environment_width = self.exit_scope();
+            let (body, environment_width) = self.lower_scoped_stmt_list(
+                clause.body(),
+                clause.syntax().text_range(),
+                "frontend lowering elseif",
+                "elseif body is missing",
+            )?;
             arms.push(CondArm {
                 condition,
                 statements: body,
@@ -287,15 +281,12 @@ impl<'a> Lowerer<'a> {
         }
 
         let otherwise = if let Some(clause) = stmt.else_clause() {
-            self.enter_scope();
-            let statements = self.lower_stmt_list(clause.body().ok_or_else(|| {
-                self.make_parse_error(
-                    clause.syntax().text_range(),
-                    "frontend lowering else",
-                    "else body is missing",
-                )
-            })?)?;
-            let environment_width = self.exit_scope();
+            let (statements, environment_width) = self.lower_scoped_stmt_list(
+                clause.body(),
+                clause.syntax().text_range(),
+                "frontend lowering else",
+                "else body is missing",
+            )?;
             Some(ElseArm {
                 statements,
                 environment_width,
@@ -312,33 +303,18 @@ impl<'a> Lowerer<'a> {
 
     fn lower_while_stmt(&mut self, stmt: WhileStmt) -> Result<Stmt, CompileError> {
         let elements = significant_elements(stmt.syntax());
-        let mut idx = 1usize;
-        let id = if matches!(elements.get(1), Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Ident)
-            && matches!(elements.get(2), Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::LParen)
-        {
-            idx = 2;
-            let label = expect_token(&elements, 1)?;
-            let Some(id) = self.names.declare_name(label.text(), DeclType::WhileLabel) else {
-                return Err(CompileError::DuplicateVariable(
-                    self.compile_context(label.text_range()),
-                    Symbol::mk(label.text()),
-                ));
-            };
-            Some(id)
-        } else {
-            None
-        };
+        let (id, idx) =
+            self.lower_optional_label(&elements, DeclType::WhileLabel, |this, label| {
+                this.names.declare_name(label, DeclType::WhileLabel)
+            })?;
 
         let condition = self.lower_expr_element(expect_exprish(&elements, idx + 1)?)?;
-        self.enter_scope();
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering while",
-                "while body is missing",
-            )
-        })?)?;
-        let environment_width = self.exit_scope();
+        let (body, environment_width) = self.lower_scoped_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering while",
+            "while body is missing",
+        )?;
 
         Ok(Stmt::new(
             StmtNode::While {
@@ -353,34 +329,19 @@ impl<'a> Lowerer<'a> {
 
     fn lower_fork_stmt(&mut self, stmt: ForkStmt) -> Result<Stmt, CompileError> {
         let elements = significant_elements(stmt.syntax());
-        let mut idx = 1usize;
-        let id = if matches!(elements.get(1), Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Ident)
-            && matches!(elements.get(2), Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::LParen)
-        {
-            idx = 2;
-            let label = expect_token(&elements, 1)?;
-            let Some(id) = self
-                .names
-                .find_or_add_name_global(label.text(), DeclType::ForkLabel)
-            else {
-                return Err(CompileError::DuplicateVariable(
-                    self.compile_context(label.text_range()),
-                    Symbol::mk(label.text()),
-                ));
-            };
-            Some(id)
-        } else {
-            None
-        };
+        let (id, idx) =
+            self.lower_optional_label(&elements, DeclType::ForkLabel, |this, label| {
+                this.names
+                    .find_or_add_name_global(label, DeclType::ForkLabel)
+            })?;
 
         let time = self.lower_expr_element(expect_exprish(&elements, idx + 1)?)?;
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering fork",
-                "fork body is missing",
-            )
-        })?)?;
+        let body = self.lower_required_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering fork",
+            "fork body is missing",
+        )?;
 
         Ok(Stmt::new(
             StmtNode::Fork { id, time, body },
@@ -394,15 +355,12 @@ impl<'a> Lowerer<'a> {
         let id = self.names.declare_or_use_name(ident.text(), DeclType::For);
         let from = self.lower_expr_element(expect_exprish(&elements, 4)?)?;
         let to = self.lower_expr_element(expect_exprish(&elements, 6)?)?;
-        self.enter_scope();
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering for-range",
-                "for-range body is missing",
-            )
-        })?)?;
-        let environment_width = self.exit_scope();
+        let (body, environment_width) = self.lower_scoped_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering for-range",
+            "for-range body is missing",
+        )?;
 
         Ok(Stmt::new(
             StmtNode::ForRange {
@@ -437,15 +395,12 @@ impl<'a> Lowerer<'a> {
         };
 
         let expr = self.lower_expr_element(expect_exprish(&elements, idx + 2)?)?;
-        self.enter_scope();
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering for-in",
-                "for-in body is missing",
-            )
-        })?)?;
-        let environment_width = self.exit_scope();
+        let (body, environment_width) = self.lower_scoped_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering for-in",
+            "for-in body is missing",
+        )?;
 
         Ok(Stmt::new(
             StmtNode::ForList {
@@ -460,24 +415,20 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_try_stmt(&mut self, stmt: TryExceptStmt) -> Result<Stmt, CompileError> {
-        self.enter_scope();
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering try",
-                "try body is missing",
-            )
-        })?)?;
-        let environment_width = self.exit_scope();
+        let (body, environment_width) = self.lower_scoped_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering try",
+            "try body is missing",
+        )?;
 
         if let Some(finally_clause) = stmt.finally_clause() {
-            let handler = self.lower_stmt_list(finally_clause.body().ok_or_else(|| {
-                self.make_parse_error(
-                    finally_clause.syntax().text_range(),
-                    "frontend lowering finally",
-                    "finally body is missing",
-                )
-            })?)?;
+            let handler = self.lower_required_stmt_list(
+                finally_clause.body(),
+                finally_clause.syntax().text_range(),
+                "frontend lowering finally",
+                "finally body is missing",
+            )?;
             return Ok(Stmt::new(
                 StmtNode::TryFinally {
                     body,
@@ -491,13 +442,12 @@ impl<'a> Lowerer<'a> {
         let mut excepts = Vec::new();
         for clause in stmt.except_clauses() {
             let (id, codes) = self.lower_except_head(clause.syntax())?;
-            let statements = self.lower_stmt_list(clause.body().ok_or_else(|| {
-                self.make_parse_error(
-                    clause.syntax().text_range(),
-                    "frontend lowering except",
-                    "except body is missing",
-                )
-            })?)?;
+            let statements = self.lower_required_stmt_list(
+                clause.body(),
+                clause.syntax().text_range(),
+                "frontend lowering except",
+                "except body is missing",
+            )?;
             excepts.push(ExceptArm {
                 id,
                 codes,
@@ -532,37 +482,31 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_fn_stmt(&mut self, stmt: FnStmt) -> Result<Stmt, CompileError> {
-        let Some(name_token) = stmt.name_token() else {
-            return Err(self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering fn",
-                "missing function name",
-            ));
-        };
+        let name_token = self.require_node(
+            stmt.name_token(),
+            stmt.syntax().text_range(),
+            "frontend lowering fn",
+            "missing function name",
+        )?;
 
         self.enter_scope();
-        let params = self.lower_lambda_params(stmt.params().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering fn",
-                "missing function parameters",
-            )
-        })?)?;
+        let params = self.lower_lambda_params(self.require_node(
+            stmt.params(),
+            stmt.syntax().text_range(),
+            "frontend lowering fn",
+            "missing function parameters",
+        )?)?;
 
-        let scope_line_col = self.line_col(
-            stmt.body()
-                .map(|body| body.syntax().text_range())
-                .unwrap_or(stmt.syntax().text_range()),
-        );
+        let body = self.require_node(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering fn",
+            "missing function body",
+        )?;
+        let scope_line_col = self.line_col(body.syntax().text_range());
         self.enter_scope();
         self.lambda_body_depth += 1;
-        let statements = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering fn",
-                "missing function body",
-            )
-        })?)?;
+        let statements = self.lower_stmt_list(body)?;
         self.lambda_body_depth = self.lambda_body_depth.saturating_sub(1);
         let num_body_bindings = self.exit_scope();
         let _ = self.exit_scope();
@@ -623,10 +567,7 @@ impl<'a> Lowerer<'a> {
             },
             None => {
                 let Some(id) = self.names.declare(lhs.text(), false, false, DeclType::Let) else {
-                    return Err(CompileError::DuplicateVariable(
-                        self.compile_context(lhs.text_range()),
-                        Symbol::mk(lhs.text()),
-                    ));
+                    return Err(self.duplicate_variable_error(lhs.text(), lhs.text_range()));
                 };
                 Expr::Decl {
                     id,
@@ -643,12 +584,7 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_decl_stmt(&mut self, stmt: LetStmt, is_const: bool) -> Result<Stmt, CompileError> {
-        if !self.options.lexical_scopes {
-            return Err(CompileError::DisabledFeature(
-                self.compile_context(stmt.syntax().text_range()),
-                "lexical_scopes".to_string(),
-            ));
-        }
+        self.expect_lexical_scopes(stmt.syntax().text_range())?;
 
         if let Some(scatter) = stmt.scatter() {
             let rhs = self.scatter_rhs(stmt.syntax())?;
@@ -659,28 +595,20 @@ impl<'a> Lowerer<'a> {
             ));
         }
 
-        let Some(name_token) = stmt.name_token() else {
-            return Err(self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering let",
-                "missing declaration name",
-            ));
-        };
-
-        let context = self.compile_context(name_token.text_range());
+        let name_token = self.require_node(
+            stmt.name_token(),
+            stmt.syntax().text_range(),
+            "frontend lowering let",
+            "missing declaration name",
+        )?;
         let Some(id) = self
             .names
             .declare(name_token.text(), is_const, false, DeclType::Let)
         else {
-            return Err(CompileError::DuplicateVariable(
-                context,
-                Symbol::mk(name_token.text()),
-            ));
+            return Err(self.duplicate_variable_error(name_token.text(), name_token.text_range()));
         };
 
-        let expr = self
-            .rhs_expr_from_decl(stmt.syntax())?
-            .map(Box::new);
+        let expr = self.rhs_expr_from_decl(stmt.syntax())?.map(Box::new);
         Ok(Stmt::new(
             StmtNode::Expr(Expr::Decl { id, is_const, expr }),
             self.line_col(stmt.syntax().text_range()),
@@ -688,12 +616,7 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_const_stmt(&mut self, stmt: ConstStmt) -> Result<Stmt, CompileError> {
-        if !self.options.lexical_scopes {
-            return Err(CompileError::DisabledFeature(
-                self.compile_context(stmt.syntax().text_range()),
-                "lexical_scopes".to_string(),
-            ));
-        }
+        self.expect_lexical_scopes(stmt.syntax().text_range())?;
 
         if let Some(scatter) = stmt.scatter() {
             let rhs = self.scatter_rhs(stmt.syntax())?;
@@ -704,25 +627,17 @@ impl<'a> Lowerer<'a> {
             ));
         }
 
-        let Some(name_token) = stmt.name_token() else {
-            return Err(self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering const",
-                "missing declaration name",
-            ));
-        };
-
-        let context = self.compile_context(name_token.text_range());
+        let name_token = self.require_node(
+            stmt.name_token(),
+            stmt.syntax().text_range(),
+            "frontend lowering const",
+            "missing declaration name",
+        )?;
         let Some(id) = self.names.declare_const(name_token.text(), DeclType::Let) else {
-            return Err(CompileError::DuplicateVariable(
-                context,
-                Symbol::mk(name_token.text()),
-            ));
+            return Err(self.duplicate_variable_error(name_token.text(), name_token.text_range()));
         };
 
-        let expr = self
-            .rhs_expr_from_decl(stmt.syntax())?
-            .map(Box::new);
+        let expr = self.rhs_expr_from_decl(stmt.syntax())?.map(Box::new);
         Ok(Stmt::new(
             StmtNode::Expr(Expr::Decl {
                 id,
@@ -734,30 +649,18 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_global_stmt(&mut self, stmt: GlobalStmt) -> Result<Stmt, CompileError> {
-        if !self.options.lexical_scopes {
-            return Err(CompileError::DisabledFeature(
-                self.compile_context(stmt.syntax().text_range()),
-                "lexical_scopes".to_string(),
-            ));
-        }
-
-        let Some(name_token) = stmt.name_token() else {
-            return Err(self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering global",
-                "missing global name",
-            ));
-        };
-
-        let context = self.compile_context(name_token.text_range());
+        self.expect_lexical_scopes(stmt.syntax().text_range())?;
+        let name_token = self.require_node(
+            stmt.name_token(),
+            stmt.syntax().text_range(),
+            "frontend lowering global",
+            "missing global name",
+        )?;
         let Some(id) = self
             .names
             .find_or_add_name_global(name_token.text(), DeclType::Global)
         else {
-            return Err(CompileError::DuplicateVariable(
-                context,
-                Symbol::mk(name_token.text()),
-            ));
+            return Err(self.duplicate_variable_error(name_token.text(), name_token.text_range()));
         };
         self.names.decl_for_mut(&id).decl_type = DeclType::Global;
 
@@ -775,22 +678,13 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_begin_stmt(&mut self, stmt: BeginStmt) -> Result<Stmt, CompileError> {
-        if !self.options.lexical_scopes {
-            return Err(CompileError::DisabledFeature(
-                self.compile_context(stmt.syntax().text_range()),
-                "lexical_scopes".to_string(),
-            ));
-        }
-
-        self.enter_scope();
-        let body = self.lower_stmt_list(stmt.body().ok_or_else(|| {
-            self.make_parse_error(
-                stmt.syntax().text_range(),
-                "frontend lowering begin",
-                "begin block is missing a statement list",
-            )
-        })?)?;
-        let num_bindings = self.exit_scope();
+        self.expect_lexical_scopes(stmt.syntax().text_range())?;
+        let (body, num_bindings) = self.lower_scoped_stmt_list(
+            stmt.body(),
+            stmt.syntax().text_range(),
+            "frontend lowering begin",
+            "begin block is missing a statement list",
+        )?;
         Ok(Stmt::new(
             StmtNode::Scope { num_bindings, body },
             self.line_col(stmt.syntax().text_range()),
@@ -1375,62 +1269,24 @@ impl<'a> Lowerer<'a> {
         let mut items = Vec::new();
         let mut seen_rest = false;
         for item in scatter.items() {
-            let ast_item = self.lower_scatter_item(item, local_scope, is_const, &mut seen_rest)?;
+            let ast_item = self.lower_binding_scatter_item(
+                item,
+                &mut seen_rest,
+                "frontend lowering scatter",
+                "More than one `@' target in scattering assignment.",
+                |this, name| {
+                    let Some(id) =
+                        this.names
+                            .declare(name.text(), is_const, !local_scope, DeclType::Assign)
+                    else {
+                        return Err(this.duplicate_variable_error(name.text(), name.text_range()));
+                    };
+                    Ok(id)
+                },
+            )?;
             items.push(ast_item);
         }
         Ok(Expr::Scatter(items, Box::new(rhs)))
-    }
-
-    fn lower_scatter_item(
-        &mut self,
-        item: ScatterItem,
-        local_scope: bool,
-        is_const: bool,
-        seen_rest: &mut bool,
-    ) -> Result<AstScatterItem, CompileError> {
-        let elements = significant_elements(item.syntax());
-        let mut idx = 0;
-        let kind = match elements.first() {
-            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Question => {
-                idx += 1;
-                ScatterKind::Optional
-            }
-            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::At => {
-                if *seen_rest {
-                    return Err(self.make_parse_error(
-                        item.syntax().text_range(),
-                        "frontend lowering scatter",
-                        "More than one `@' target in scattering assignment.",
-                    ));
-                }
-                *seen_rest = true;
-                idx += 1;
-                ScatterKind::Rest
-            }
-            _ => ScatterKind::Required,
-        };
-
-        let name = expect_token(&elements, idx)?;
-        let Some(id) = self
-            .names
-            .declare(name.text(), is_const, !local_scope, DeclType::Assign)
-        else {
-            return Err(CompileError::DuplicateVariable(
-                self.compile_context(name.text_range()),
-                Symbol::mk(name.text()),
-            ));
-        };
-        idx += 1;
-
-        let expr = if idx < elements.len()
-            && matches!(elements[idx], NodeOrToken::Token(ref token) if token.kind() == SyntaxKind::Eq)
-        {
-            Some(self.lower_expr_element(expect_exprish(&elements, idx + 1)?)?)
-        } else {
-            None
-        };
-
-        Ok(AstScatterItem { kind, id, expr })
     }
 
     fn lower_lambda_params(
@@ -1440,61 +1296,24 @@ impl<'a> Lowerer<'a> {
         let mut items = Vec::new();
         let mut seen_rest = false;
         for item in params.items() {
-            let ast_item = self.lower_lambda_param_item(item, &mut seen_rest)?;
+            let ast_item = self.lower_binding_scatter_item(
+                item,
+                &mut seen_rest,
+                "frontend lowering lambda parameters",
+                "More than one `@' target in scattering assignment.",
+                |this, name| {
+                    let Some(id) = this
+                        .names
+                        .declare(name.text(), false, false, DeclType::Assign)
+                    else {
+                        return Err(this.duplicate_variable_error(name.text(), name.text_range()));
+                    };
+                    Ok(id)
+                },
+            )?;
             items.push(ast_item);
         }
         Ok(items)
-    }
-
-    fn lower_lambda_param_item(
-        &mut self,
-        item: ScatterItem,
-        seen_rest: &mut bool,
-    ) -> Result<AstScatterItem, CompileError> {
-        let elements = significant_elements(item.syntax());
-        let mut idx = 0usize;
-        let kind = match elements.first() {
-            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Question => {
-                idx += 1;
-                ScatterKind::Optional
-            }
-            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::At => {
-                if *seen_rest {
-                    return Err(self.make_parse_error(
-                        item.syntax().text_range(),
-                        "frontend lowering lambda parameters",
-                        "More than one `@' target in scattering assignment.",
-                    ));
-                }
-                *seen_rest = true;
-                idx += 1;
-                ScatterKind::Rest
-            }
-            _ => ScatterKind::Required,
-        };
-
-        let name = expect_token(&elements, idx)?;
-        let context = self.compile_context(name.text_range());
-        let Some(id) = self
-            .names
-            .declare(name.text(), false, false, DeclType::Assign)
-        else {
-            return Err(CompileError::DuplicateVariable(
-                context,
-                Symbol::mk(name.text()),
-            ));
-        };
-        idx += 1;
-
-        let expr = if idx < elements.len()
-            && matches!(elements[idx], NodeOrToken::Token(ref token) if token.kind() == SyntaxKind::Eq)
-        {
-            Some(self.lower_expr_element(expect_exprish(&elements, idx + 1)?)?)
-        } else {
-            None
-        };
-
-        Ok(AstScatterItem { kind, id, expr })
     }
 
     fn lower_args(&mut self, elements: &[SyntaxElement]) -> Result<Vec<Arg>, CompileError> {
@@ -1737,6 +1556,17 @@ impl<'a> Lowerer<'a> {
         CompileContext::new(self.line_col(range))
     }
 
+    fn expect_lexical_scopes(&self, range: TextRange) -> Result<(), CompileError> {
+        if self.options.lexical_scopes {
+            return Ok(());
+        }
+
+        Err(CompileError::DisabledFeature(
+            self.compile_context(range),
+            "lexical_scopes".to_string(),
+        ))
+    }
+
     fn line_col(&self, range: TextRange) -> (usize, usize) {
         offset_to_line_col(self.source, range.start().into())
     }
@@ -1777,6 +1607,127 @@ impl<'a> Lowerer<'a> {
             context,
             &format!("unsupported frontend token: {:?}", token.kind()),
         )
+    }
+
+    fn duplicate_variable_error(&self, name: &str, range: TextRange) -> CompileError {
+        CompileError::DuplicateVariable(self.compile_context(range), Symbol::mk(name))
+    }
+
+    fn require_node<T>(
+        &self,
+        node: Option<T>,
+        range: TextRange,
+        context: &str,
+        message: &str,
+    ) -> Result<T, CompileError> {
+        node.ok_or_else(|| self.make_parse_error(range, context, message))
+    }
+
+    fn lower_required_stmt_list(
+        &mut self,
+        stmt_list: Option<crate::frontend::cst::StmtList>,
+        range: TextRange,
+        context: &str,
+        message: &str,
+    ) -> Result<Vec<Stmt>, CompileError> {
+        let stmt_list = self.require_node(stmt_list, range, context, message)?;
+        self.lower_stmt_list(stmt_list)
+    }
+
+    fn lower_scoped_stmt_list(
+        &mut self,
+        stmt_list: Option<crate::frontend::cst::StmtList>,
+        range: TextRange,
+        context: &str,
+        message: &str,
+    ) -> Result<(Vec<Stmt>, usize), CompileError> {
+        self.enter_scope();
+        let body = self.lower_required_stmt_list(stmt_list, range, context, message)?;
+        let environment_width = self.exit_scope();
+        Ok((body, environment_width))
+    }
+
+    fn lower_scatter_kind(
+        &self,
+        item: &ScatterItem,
+        elements: &[SyntaxElement],
+        seen_rest: &mut bool,
+        context: &str,
+        repeated_rest_message: &str,
+    ) -> Result<(ScatterKind, usize), CompileError> {
+        match elements.first() {
+            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Question => {
+                Ok((ScatterKind::Optional, 1))
+            }
+            Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::At => {
+                if *seen_rest {
+                    return Err(self.make_parse_error(
+                        item.syntax().text_range(),
+                        context,
+                        repeated_rest_message,
+                    ));
+                }
+                *seen_rest = true;
+                Ok((ScatterKind::Rest, 1))
+            }
+            _ => Ok((ScatterKind::Required, 0)),
+        }
+    }
+
+    fn lower_binding_scatter_item<F>(
+        &mut self,
+        item: ScatterItem,
+        seen_rest: &mut bool,
+        context: &str,
+        repeated_rest_message: &str,
+        bind: F,
+    ) -> Result<AstScatterItem, CompileError>
+    where
+        F: FnOnce(
+            &mut Self,
+            &SyntaxToken,
+        ) -> Result<moor_var::program::names::Variable, CompileError>,
+    {
+        let elements = significant_elements(item.syntax());
+        let (kind, idx) =
+            self.lower_scatter_kind(&item, &elements, seen_rest, context, repeated_rest_message)?;
+        let name = expect_token(&elements, idx)?;
+        let expr = if idx + 1 < elements.len()
+            && matches!(elements[idx + 1], NodeOrToken::Token(ref token) if token.kind() == SyntaxKind::Eq)
+        {
+            Some(self.lower_expr_element(expect_exprish(&elements, idx + 2)?)?)
+        } else {
+            None
+        };
+
+        Ok(AstScatterItem {
+            kind,
+            id: bind(self, &name)?,
+            expr,
+        })
+    }
+
+    fn lower_optional_label<F>(
+        &mut self,
+        elements: &[SyntaxElement],
+        decl_type: DeclType,
+        bind: F,
+    ) -> Result<(Option<moor_var::program::names::Variable>, usize), CompileError>
+    where
+        F: FnOnce(&mut Self, &str) -> Option<moor_var::program::names::Variable>,
+    {
+        let has_label = matches!(elements.get(1), Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::Ident)
+            && matches!(elements.get(2), Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::LParen);
+        if !has_label {
+            return Ok((None, 1));
+        }
+
+        let label = expect_token(elements, 1)?;
+        let Some(id) = bind(self, label.text()) else {
+            return Err(self.duplicate_variable_error(label.text(), label.text_range()));
+        };
+        self.names.decl_for_mut(&id).decl_type = decl_type;
+        Ok((Some(id), 2))
     }
 }
 
