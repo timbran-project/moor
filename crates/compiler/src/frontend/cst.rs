@@ -126,6 +126,42 @@ macro_rules! define_ast_enum {
     };
 }
 
+macro_rules! define_body_accessors {
+    ($($ty:ident),+ $(,)?) => {
+        $(
+            impl $ty {
+                pub fn body(&self) -> Option<StmtList> {
+                    child(self.syntax())
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! define_name_token_accessors {
+    ($($ty:ident),+ $(,)?) => {
+        $(
+            impl $ty {
+                pub fn name_token(&self) -> Option<SyntaxToken> {
+                    token(self.syntax(), SyntaxKind::Ident)
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! define_scatter_accessors {
+    ($($ty:ident),+ $(,)?) => {
+        $(
+            impl $ty {
+                pub fn scatter(&self) -> Option<ScatterExpr> {
+                    child(self.syntax())
+                }
+            }
+        )+
+    };
+}
+
 define_ast_enum!(Statement {
     If(IfStmt),
     ForIn(ForInStmt),
@@ -208,10 +244,6 @@ impl StmtList {
 }
 
 impl IfStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-
     pub fn elseif_clauses(&self) -> AstChildren<ElseIfClause> {
         children(self.syntax())
     }
@@ -221,64 +253,12 @@ impl IfStmt {
     }
 }
 
-impl ElseIfClause {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
-impl ElseClause {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
-impl ForInStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
-impl ForRangeStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
-impl WhileStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
-impl ForkStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
 impl TryExceptStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-
     pub fn except_clauses(&self) -> AstChildren<ExceptClause> {
         children(self.syntax())
     }
 
     pub fn finally_clause(&self) -> Option<TryFinallyStmt> {
-        child(self.syntax())
-    }
-}
-
-impl TryFinallyStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
-impl ExceptClause {
-    pub fn body(&self) -> Option<StmtList> {
         child(self.syntax())
     }
 }
@@ -303,49 +283,9 @@ impl ReturnStmt {
     }
 }
 
-impl BeginStmt {
-    pub fn body(&self) -> Option<StmtList> {
-        child(self.syntax())
-    }
-}
-
 impl FnStmt {
-    pub fn name_token(&self) -> Option<SyntaxToken> {
-        token(self.syntax(), SyntaxKind::Ident)
-    }
-
     pub fn params(&self) -> Option<ParamList> {
         child(self.syntax())
-    }
-
-    pub fn body(&self) -> Option<StmtList> {
-        children(self.syntax()).next()
-    }
-}
-
-impl LetStmt {
-    pub fn name_token(&self) -> Option<SyntaxToken> {
-        token(self.syntax(), SyntaxKind::Ident)
-    }
-
-    pub fn scatter(&self) -> Option<ScatterExpr> {
-        child(self.syntax())
-    }
-}
-
-impl ConstStmt {
-    pub fn name_token(&self) -> Option<SyntaxToken> {
-        token(self.syntax(), SyntaxKind::Ident)
-    }
-
-    pub fn scatter(&self) -> Option<ScatterExpr> {
-        child(self.syntax())
-    }
-}
-
-impl GlobalStmt {
-    pub fn name_token(&self) -> Option<SyntaxToken> {
-        token(self.syntax(), SyntaxKind::Ident)
     }
 }
 
@@ -358,10 +298,6 @@ impl ScatterExpr {
 impl LambdaExpr {
     pub fn params(&self) -> Option<ParamList> {
         child(self.syntax())
-    }
-
-    pub fn body(&self) -> Option<StmtList> {
-        children(self.syntax()).next()
     }
 }
 
@@ -377,6 +313,36 @@ impl SysPropExpr {
             .children_with_tokens()
             .filter_map(|element| element.into_token())
             .find(|token| token.kind() == SyntaxKind::Ident)
+    }
+}
+
+define_body_accessors!(
+    IfStmt,
+    ElseIfClause,
+    ElseClause,
+    ForInStmt,
+    ForRangeStmt,
+    WhileStmt,
+    ForkStmt,
+    TryExceptStmt,
+    TryFinallyStmt,
+    ExceptClause,
+    BeginStmt
+);
+
+define_name_token_accessors!(FnStmt, LetStmt, ConstStmt, GlobalStmt);
+
+define_scatter_accessors!(LetStmt, ConstStmt);
+
+impl FnStmt {
+    pub fn body(&self) -> Option<StmtList> {
+        children(self.syntax()).next()
+    }
+}
+
+impl LambdaExpr {
+    pub fn body(&self) -> Option<StmtList> {
+        children(self.syntax()).next()
     }
 }
 
