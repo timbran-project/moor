@@ -136,7 +136,7 @@ impl Names {
     }
 
     pub fn symbols(&self) -> Vec<Symbol> {
-        let names = self.decls.iter().filter_map(|(_, decl)| {
+        let names = self.decls.values().filter_map(|decl| {
             if let Named(sym) = decl.identifier.nr {
                 Some(sym)
             } else {

@@ -312,7 +312,10 @@ impl CodegenState {
                 self.commit_jump_label(end_label);
             }
             StmtNode::Break { exit: None } => {
-                let l = self.control.current_loop().expect("No loop to break/continue from");
+                let l = self
+                    .control
+                    .current_loop()
+                    .expect("No loop to break/continue from");
                 self.emit(Op::Exit {
                     stack: l.bottom_stack,
                     label: l.bottom_label,
@@ -324,7 +327,10 @@ impl CodegenState {
                 self.emit(Op::ExitId(l.bottom_label));
             }
             StmtNode::Continue { exit: None } => {
-                let l = self.control.current_loop().expect("No loop to break/continue from");
+                let l = self
+                    .control
+                    .current_loop()
+                    .expect("No loop to break/continue from");
                 self.emit(Op::Exit {
                     stack: l.top_stack,
                     label: l.top_label,

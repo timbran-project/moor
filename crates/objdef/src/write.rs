@@ -119,7 +119,7 @@ pub(crate) fn generate_constants_file(
     let mut wrote_group = false;
 
     for (hierarchy_path, mut objects) in sorted_groups {
-        objects.sort_by(|a, b| a.0.as_u64().cmp(&b.0.as_u64()));
+        objects.sort_by_key(|a| a.0.as_u64());
 
         if !hierarchy_path.is_empty() {
             if wrote_group {

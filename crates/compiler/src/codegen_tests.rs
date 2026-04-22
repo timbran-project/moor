@@ -1313,7 +1313,10 @@ mod tests {
             .iter()
             .filter(|op| matches!(op, PutPropAt { .. }))
             .count();
-        assert_eq!(put_prop_count, 2, "expected inner and outer property writes");
+        assert_eq!(
+            put_prop_count, 2,
+            "expected inner and outer property writes"
+        );
 
         let put_temp_index = binary
             .main_vector()
@@ -1334,8 +1337,15 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(jump_labels.len(), 2, "expected normal-path and cleanup-path jumps");
-        assert_eq!(jump_labels[0], jump_labels[1], "cleanup should rejoin the same done label");
+        assert_eq!(
+            jump_labels.len(),
+            2,
+            "expected normal-path and cleanup-path jumps"
+        );
+        assert_eq!(
+            jump_labels[0], jump_labels[1],
+            "cleanup should rejoin the same done label"
+        );
     }
 
     #[test]

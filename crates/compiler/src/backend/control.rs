@@ -103,8 +103,14 @@ mod tests {
         control.push_loop(inner);
 
         assert_eq!(control.current_loop().unwrap().top_label, Label(3));
-        assert_eq!(control.find_loop(&outer_name).unwrap().bottom_label, Label(2));
-        assert_eq!(control.find_loop(&inner_name).unwrap().bottom_label, Label(4));
+        assert_eq!(
+            control.find_loop(&outer_name).unwrap().bottom_label,
+            Label(2)
+        );
+        assert_eq!(
+            control.find_loop(&inner_name).unwrap().bottom_label,
+            Label(4)
+        );
         assert!(control.find_loop(&Name(9, 0, 9)).is_none());
         assert_eq!(control.pop_loop().unwrap().top_label, Label(3));
         assert_eq!(control.current_loop().unwrap().top_label, Label(1));

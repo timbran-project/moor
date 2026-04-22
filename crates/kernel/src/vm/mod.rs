@@ -56,10 +56,8 @@ pub use moor_vm::TaskSuspend;
 /// Extract anonymous object references from a variable
 fn extract_anonymous_refs_from_var(var: &Var, refs: &mut std::collections::HashSet<Obj>) {
     match var.variant() {
-        moor_var::Variant::Obj(obj) => {
-            if obj.is_anonymous() {
-                refs.insert(obj);
-            }
+        moor_var::Variant::Obj(obj) if obj.is_anonymous() => {
+            refs.insert(obj);
         }
         moor_var::Variant::List(list) => {
             for item in list.iter() {

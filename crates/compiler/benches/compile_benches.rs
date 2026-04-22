@@ -101,9 +101,7 @@ fn compile_large(ctx: &mut CompileContext, chunk_size: usize, _chunk_num: usize)
 
 benchmark_main!(
     BenchmarkMainOptions {
-        filter_help: Some(
-            "all, tiny, medium, large, or any benchmark name substring".to_string(),
-        ),
+        filter_help: Some("all, tiny, medium, large, or any benchmark name substring".to_string(),),
         ..BenchmarkMainOptions::default()
     },
     |runner| {

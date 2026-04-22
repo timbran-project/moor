@@ -716,9 +716,7 @@ impl<'a> LiteralParser<'a> {
                             continue;
                         }
                         if self.source[pos..].starts_with("//") {
-                            while pos < self.source.len()
-                                && !self.source[pos..].starts_with('\n')
-                            {
+                            while pos < self.source.len() && !self.source[pos..].starts_with('\n') {
                                 pos += self.source[pos..].chars().next().unwrap().len_utf8();
                             }
                             continue;

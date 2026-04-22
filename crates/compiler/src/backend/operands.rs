@@ -231,13 +231,13 @@ impl ProgramOperandParts {
 #[cfg(test)]
 mod tests {
     use moor_var::{
-        v_int,
         program::{
             labels::{JumpLabel, Label, Offset},
             names::{Name, Names},
             opcode::Op,
             program::Program,
         },
+        v_int,
     };
 
     use super::OperandState;

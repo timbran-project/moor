@@ -371,10 +371,8 @@ impl FjallSnapshotLoader {
     /// Recursively extract anonymous object references from a Var
     fn extract_anonymous_refs_recursive(var: &Var, refs: &mut Vec<Obj>) {
         match var.variant() {
-            moor_var::Variant::Obj(obj) => {
-                if obj.is_anonymous() {
-                    refs.push(obj);
-                }
+            moor_var::Variant::Obj(obj) if obj.is_anonymous() => {
+                refs.push(obj);
             }
             moor_var::Variant::List(list) => {
                 for item in list.iter() {

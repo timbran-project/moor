@@ -312,7 +312,9 @@ fn assign_expr_lambda_source_lines(expr: &mut Expr) {
             assign_expr_lambda_source_lines(right);
         }
         Expr::ComprehendList {
-            producer_expr, list, ..
+            producer_expr,
+            list,
+            ..
         } => {
             assign_expr_lambda_source_lines(producer_expr);
             assign_expr_lambda_source_lines(list);

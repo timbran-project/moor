@@ -80,11 +80,7 @@ impl EmitterState {
 
 #[cfg(test)]
 mod tests {
-    use moor_var::program::{
-        labels::Label,
-        names::Name,
-        opcode::Op,
-    };
+    use moor_var::program::{labels::Label, names::Name, opcode::Op};
 
     use super::EmitterState;
 

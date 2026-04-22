@@ -12,7 +12,6 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use moor_common::model::{CompileContext, CompileError};
-use moor_var::{ErrorCode, Var};
 use moor_var::program::{
     labels::{Label, Offset},
     names::{Name, Names, Variable},
@@ -21,6 +20,7 @@ use moor_var::program::{
     },
     program::Program,
 };
+use moor_var::{ErrorCode, Var};
 
 use crate::{
     ast::Expr,
@@ -88,11 +88,18 @@ impl CodegenState {
         self.operands.add_scatter_table(labels, done)
     }
 
-    pub(crate) fn add_lambda_program(&mut self, program: Program, base_line_offset: usize) -> Offset {
+    pub(crate) fn add_lambda_program(
+        &mut self,
+        program: Program,
+        base_line_offset: usize,
+    ) -> Offset {
         self.operands.add_lambda_program(program, base_line_offset)
     }
 
-    pub(crate) fn add_range_comprehension(&mut self, range_comprehension: RangeComprehend) -> Offset {
+    pub(crate) fn add_range_comprehension(
+        &mut self,
+        range_comprehension: RangeComprehend,
+    ) -> Offset {
         self.operands.add_range_comprehension(range_comprehension)
     }
 
@@ -178,7 +185,11 @@ impl CodegenState {
         }
     }
 
-    pub(crate) fn generate_assign(&mut self, left: &Expr, right: &Expr) -> Result<(), CompileError> {
+    pub(crate) fn generate_assign(
+        &mut self,
+        left: &Expr,
+        right: &Expr,
+    ) -> Result<(), CompileError> {
         self.push_lvalue(left, false)?;
         self.generate_expr(right)?;
         let uses_set = matches!(

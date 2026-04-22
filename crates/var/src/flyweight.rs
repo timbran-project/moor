@@ -59,7 +59,7 @@ impl Debug for Flyweight {
 
 impl Flyweight {
     fn canonicalize_slots(mut slots: Vec<(Symbol, Var)>) -> Vec<(Symbol, Var)> {
-        slots.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        slots.sort_unstable_by_key(|(left, _)| *left);
         let mut deduped = Vec::with_capacity(slots.len());
         for (key, value) in slots {
             match deduped.last_mut() {

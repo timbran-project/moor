@@ -18,7 +18,9 @@ pub use crate::backend::state::CodegenState;
 use moor_common::model::CompileError;
 use moor_var::program::{opcode::Op, program::Program};
 
-use crate::{compile_options::CompileOptions, frontend::lower::parse_program_frontend, parse_tree::Parse};
+use crate::{
+    compile_options::CompileOptions, frontend::lower::parse_program_frontend, parse_tree::Parse,
+};
 
 fn do_compile(parse: Parse, compile_options: CompileOptions) -> Result<Program, CompileError> {
     let mut cg_state = CodegenState::new(compile_options, parse.names);

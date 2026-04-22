@@ -62,7 +62,7 @@ impl<'a> Parser<'a> {
 
         let mut errors = self.cursor.into_errors();
         let green = self.builder.finish();
-        errors.sort_by(|lhs, rhs| lhs.span.start.cmp(&rhs.span.start));
+        errors.sort_by_key(|lhs| lhs.span.start);
         (green, errors)
     }
 

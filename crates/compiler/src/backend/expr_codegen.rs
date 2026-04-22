@@ -22,8 +22,10 @@ use moor_common::{
     builtins::BUILTINS,
     model::{CompileContext, CompileError, CompileError::InvalidAssignmentTarget},
 };
+use moor_var::program::opcode::{
+    ComprehensionType, ListComprehend, Op, Op::Jump, RangeComprehend, ScatterLabel,
+};
 use moor_var::{Symbol, Variant, v_arc_str, v_int, v_sym};
-use moor_var::program::opcode::{ComprehensionType, ListComprehend, Op, Op::Jump, RangeComprehend, ScatterLabel};
 
 impl CodegenState {
     pub(crate) fn generate_codes(&mut self, codes: &CatchCodes) -> Result<usize, CompileError> {
@@ -199,7 +201,11 @@ impl CodegenState {
                     self.pop_stack(1);
                 }
             },
-            Expr::Verb { args, verb, location } => {
+            Expr::Verb {
+                args,
+                verb,
+                location,
+            } => {
                 self.generate_expr(location.as_ref())?;
                 self.generate_symbol_expr(verb.as_ref())?;
                 self.generate_arg_list(args)?;
@@ -223,7 +229,11 @@ impl CodegenState {
                 self.generate_expr(alternative.as_ref())?;
                 self.commit_jump_label(end_label);
             }
-            Expr::TryCatch { codes, except, trye } => {
+            Expr::TryCatch {
+                codes,
+                except,
+                trye,
+            } => {
                 let handler_label = self.make_jump_label(None);
                 self.generate_codes(codes)?;
                 self.emit(Op::PushCatchLabel(handler_label));
@@ -278,7 +288,11 @@ impl CodegenState {
             }
             Expr::Scatter(scatter, right) => self.generate_scatter_assign(scatter, right)?,
             Expr::Assign { left, right } => self.generate_assign(left, right)?,
-            Expr::Decl { id, is_const: _, expr } => match expr {
+            Expr::Decl {
+                id,
+                is_const: _,
+                expr,
+            } => match expr {
                 Some(rhs) => self.generate_assign(&Expr::Id(*id), rhs)?,
                 None => self.generate_assign(&Expr::Id(*id), &Expr::Value(v_int(0)))?,
             },
