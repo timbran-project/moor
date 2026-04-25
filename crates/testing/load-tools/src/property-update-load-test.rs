@@ -29,9 +29,10 @@ use std::{
 
 use clap::Parser;
 use clap_derive::Parser;
+use moor_common::model::WorldStateTimerOp;
 use moor_common::{
     model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropFlag},
-    util::BitEnum,
+    util::{BitEnum, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos},
 };
 use moor_db::{Database, TxDB, db_counters};
 use moor_model_checker::bench_common::{
@@ -399,21 +400,30 @@ fn run_benchmark(
 
         // Capture baseline counters for commit thread utilization
         let counters = db_counters();
-        let baseline_check_nanos = counters
-            .commit_check_phase
-            .cumulative_duration_nanos()
-            .sum();
-        let baseline_check_count = counters.commit_check_phase.invocations().sum();
-        let baseline_apply_nanos = counters
-            .commit_apply_phase
-            .cumulative_duration_nanos()
-            .sum();
-        let baseline_apply_count = counters.commit_apply_phase.invocations().sum();
-        let baseline_index_insert_nanos = counters
-            .apply_index_insert
-            .cumulative_duration_nanos()
-            .sum();
-        let baseline_index_insert_count = counters.apply_index_insert.invocations().sum();
+        let baseline_check_nanos = scale_hot_sample_sum_nanos(
+            counters
+                .timers_hot
+                .sample_sum_nanos(WorldStateTimerOp::CommitCheckPhase),
+        );
+        let baseline_check_count = counters
+            .timers_hot
+            .calls(WorldStateTimerOp::CommitCheckPhase);
+        let baseline_apply_nanos = scale_hot_sample_sum_nanos(
+            counters
+                .timers_hot
+                .sample_sum_nanos(WorldStateTimerOp::CommitApplyPhase),
+        );
+        let baseline_apply_count = counters
+            .timers_hot
+            .calls(WorldStateTimerOp::CommitApplyPhase);
+        let baseline_index_insert_nanos = scale_rare_sample_sum_nanos(
+            counters
+                .timers_rare
+                .sample_sum_nanos(WorldStateTimerOp::ApplyIndexInsert),
+        );
+        let baseline_index_insert_count = counters
+            .timers_rare
+            .calls(WorldStateTimerOp::ApplyIndexInsert);
 
         // Run multiple iterations and aggregate
         let mut iteration_results = Vec::new();
@@ -457,25 +467,33 @@ fn run_benchmark(
 
         // Calculate commit thread utilization (how much of wall time was spent in commit phases)
         let counters = db_counters();
-        let check_nanos = counters
-            .commit_check_phase
-            .cumulative_duration_nanos()
-            .sum()
-            - baseline_check_nanos;
-        let check_count = counters.commit_check_phase.invocations().sum() - baseline_check_count;
-        let apply_nanos = counters
-            .commit_apply_phase
-            .cumulative_duration_nanos()
-            .sum()
-            - baseline_apply_nanos;
-        let apply_count = counters.commit_apply_phase.invocations().sum() - baseline_apply_count;
-        let index_insert_nanos = counters
-            .apply_index_insert
-            .cumulative_duration_nanos()
-            .sum()
-            - baseline_index_insert_nanos;
-        let index_insert_count =
-            counters.apply_index_insert.invocations().sum() - baseline_index_insert_count;
+        let check_nanos = scale_hot_sample_sum_nanos(
+            counters
+                .timers_hot
+                .sample_sum_nanos(WorldStateTimerOp::CommitCheckPhase),
+        ) - baseline_check_nanos;
+        let check_count = counters
+            .timers_hot
+            .calls(WorldStateTimerOp::CommitCheckPhase)
+            - baseline_check_count;
+        let apply_nanos = scale_hot_sample_sum_nanos(
+            counters
+                .timers_hot
+                .sample_sum_nanos(WorldStateTimerOp::CommitApplyPhase),
+        ) - baseline_apply_nanos;
+        let apply_count = counters
+            .timers_hot
+            .calls(WorldStateTimerOp::CommitApplyPhase)
+            - baseline_apply_count;
+        let index_insert_nanos = scale_rare_sample_sum_nanos(
+            counters
+                .timers_rare
+                .sample_sum_nanos(WorldStateTimerOp::ApplyIndexInsert),
+        ) - baseline_index_insert_nanos;
+        let index_insert_count = counters
+            .timers_rare
+            .calls(WorldStateTimerOp::ApplyIndexInsert)
+            - baseline_index_insert_count;
 
         // Utilization based on check+apply (write is background, doesn't block)
         let total_commit_thread_nanos = check_nanos + apply_nanos;

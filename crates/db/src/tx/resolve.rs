@@ -16,6 +16,7 @@ use crate::{
     api::world_state::db_counters,
     tx::{Error, RelationCodomain, RelationDomain},
 };
+use moor_common::model::WorldStateCountOp;
 
 /// The result of a conflict resolution attempt.
 pub enum Resolution<Codomain> {
@@ -122,7 +123,7 @@ where
         };
 
         if identical {
-            counters.crdt_resolve_success.invocations().add(1);
+            counters.counters.inc(WorldStateCountOp::CrdtResolveSuccess);
             return Ok(Resolution::Accept);
         }
 
@@ -133,12 +134,12 @@ where
             && let Some(mine_val) = conflict.mine.value()
             && let Some(merged) = mine_val.try_merge(base_val, theirs_val)
         {
-            counters.crdt_resolve_success.invocations().add(1);
+            counters.counters.inc(WorldStateCountOp::CrdtResolveSuccess);
             return Ok(Resolution::Rewrite(merged));
         }
 
         // 3. Fail
-        counters.crdt_resolve_fail.invocations().add(1);
+        counters.counters.inc(WorldStateCountOp::CrdtResolveFail);
         Err(Error::Conflict(conflict.info.clone()))
     }
 }
@@ -211,7 +212,7 @@ mod tests {
     #[test]
     fn test_smart_merge_rewrite_increments_success_counter() {
         let counters = db_counters();
-        let success_before = counters.crdt_resolve_success.invocations().sum();
+        let success_before = counters.counters.get(WorldStateCountOp::CrdtResolveSuccess) as i64;
 
         let conflict = PotentialConflict {
             info: ConflictInfo {
@@ -230,13 +231,15 @@ mod tests {
         let mut resolver = SmartMergeResolver;
         let resolution = resolver.resolve(&conflict).unwrap();
         assert!(matches!(resolution, Resolution::Rewrite(MergeCodomain(21))));
-        assert!(counters.crdt_resolve_success.invocations().sum() > success_before);
+        assert!(
+            counters.counters.get(WorldStateCountOp::CrdtResolveSuccess) as i64 > success_before
+        );
     }
 
     #[test]
     fn test_smart_merge_fail_increments_fail_counter() {
         let counters = db_counters();
-        let fail_before = counters.crdt_resolve_fail.invocations().sum();
+        let fail_before = counters.counters.get(WorldStateCountOp::CrdtResolveFail) as i64;
 
         let conflict = PotentialConflict {
             info: ConflictInfo {
@@ -257,6 +260,6 @@ mod tests {
             resolver.resolve(&conflict),
             Err(Error::Conflict(_))
         ));
-        assert!(counters.crdt_resolve_fail.invocations().sum() > fail_before);
+        assert!(counters.counters.get(WorldStateCountOp::CrdtResolveFail) as i64 > fail_before);
     }
 }

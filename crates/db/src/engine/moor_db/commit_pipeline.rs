@@ -25,9 +25,8 @@
 
 use super::{Caches, MoorDB, WorkingSets};
 use crate::api::world_state::db_counters;
-use moor_common::model::CommitResult;
+use moor_common::model::{CommitResult, WorldStateTimerOp};
 use moor_common::util::Instant;
-use moor_common::util::PerfTimerGuard;
 use std::time::Duration;
 use tracing::warn;
 
@@ -76,7 +75,9 @@ impl MoorDB {
         _enqueued_at: Instant,
     ) -> CommitResult {
         let counters = db_counters();
-        let _process_timer = PerfTimerGuard::new(&counters.commit_process_phase);
+        let _process_timer = counters
+            .timers_hot
+            .start(WorldStateTimerOp::CommitProcessPhase);
 
         let num_tuples = ws.total_tuples();
         if num_tuples > 10_000 {
@@ -124,7 +125,9 @@ impl MoorDB {
                     .is_some_and(|snap_bloom| !tx_bloom.might_intersect(snap_bloom)));
 
         if !skip_conflict_check {
-            let _t = PerfTimerGuard::new(&counters.commit_check_phase);
+            let _t = counters
+                .timers_hot
+                .start(WorldStateTimerOp::CommitCheckPhase);
             if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
                 warn!("Transaction conflict during commit: {conflict_info}");
                 return CommitResult::ConflictRetry {
@@ -140,7 +143,9 @@ impl MoorDB {
             );
         }
 
-        let _t = PerfTimerGuard::new(&counters.commit_apply_phase);
+        let _t = counters
+            .timers_hot
+            .start(WorldStateTimerOp::CommitApplyPhase);
         let (persist_ops, bloom) = checkers.prepare_apply_all(&relation_ws);
         let combined_caches = Caches {
             verb_resolution_cache: verb_cache.fork(),

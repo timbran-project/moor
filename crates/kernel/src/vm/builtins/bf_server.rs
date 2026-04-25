@@ -43,7 +43,9 @@ use crate::{
 use moor_common::{
     build,
     model::{ObjFlag, WorldStateError},
-    util::PerfCounter,
+    util::{
+        MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
+    },
 };
 use moor_compiler::{
     ArgCount, ArgType, BUILTINS, Builtin, compile, compile_error_to_map, format_compile_error,
@@ -823,26 +825,47 @@ fn load_server_options(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(RetNil)
 }
 
-/// Helper function to convert performance counters to a MOO map.
-fn counter_map(counters: &[&PerfCounter], use_symbols: bool) -> Var {
+/// Helper function to convert performance timers and counters to a MOO map.
+fn counter_map_from_entries(entries: &[MetricEntry], use_symbols: bool) -> Var {
     let mut result = vec![];
-    for c in counters {
+    for (name_sym, count, cumulative_ns) in entries {
         let op_name = if use_symbols {
-            v_sym(c.operation)
+            v_sym(*name_sym)
         } else {
-            v_arc_str(c.operation.as_arc_str())
+            v_arc_str(name_sym.as_arc_str())
         };
 
         result.push((
             op_name,
-            v_list(&[
-                v_int(c.invocations().sum() as i64),
-                v_int(c.cumulative_duration_nanos().sum() as i64),
-            ]),
+            v_list(&[v_int(*count as i64), v_int(*cumulative_ns as i64)]),
         ));
     }
 
     v_map(&result)
+}
+
+fn db_counter_entries() -> Vec<MetricEntry> {
+    let mut visitor = MetricEntriesVisitor::new(|metric_name, sum| {
+        if metric_name == "db_timers_rare_samples" {
+            return scale_rare_sample_sum_nanos(sum);
+        }
+
+        scale_hot_sample_sum_nanos(sum)
+    });
+    db_counters().visit_metrics(&mut visitor);
+    visitor.into_entries()
+}
+
+fn sched_counter_entries() -> Vec<MetricEntry> {
+    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
+    sched_counters().visit_metrics(&mut visitor);
+    visitor.into_entries()
+}
+
+fn bf_counter_entries() -> Vec<MetricEntry> {
+    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
+    bf_perf_counters().visit_metrics(&mut visitor);
+    visitor.into_entries()
 }
 
 /// Usage: `map bf_counters()`
@@ -854,9 +877,9 @@ fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .check_wizard()
         .map_err(world_state_bf_err)?;
 
-    let counters = bf_perf_counters();
-    Ok(Ret(counter_map(
-        &counters.all_counters(),
+    let _counters = bf_perf_counters();
+    Ok(Ret(counter_map_from_entries(
+        &bf_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
     )))
 }
@@ -870,8 +893,8 @@ fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .check_wizard()
         .map_err(world_state_bf_err)?;
 
-    Ok(Ret(counter_map(
-        &db_counters().all_counters(),
+    Ok(Ret(counter_map_from_entries(
+        &db_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
     )))
 }
@@ -885,9 +908,9 @@ fn bf_sched_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .check_wizard()
         .map_err(world_state_bf_err)?;
 
-    let counters = sched_counters();
-    Ok(Ret(counter_map(
-        &counters.all_counters(),
+    let _counters = sched_counters();
+    Ok(Ret(counter_map_from_entries(
+        &sched_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
     )))
 }

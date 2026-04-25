@@ -43,7 +43,7 @@ mod verbs;
 mod world_state;
 
 use moor_var::Symbol;
-pub use world_state::{WorldStateError, WorldStatePerf};
+pub use world_state::{WorldStateCountOp, WorldStateError, WorldStatePerf, WorldStateTimerOp};
 
 /// Information about a transaction conflict.
 /// Used to help diagnose which relation and key caused a commit conflict.

@@ -76,6 +76,10 @@ moor-schema = { path = "../schema" }
 moor-textdump = { path = "../textdump" }
 moor-var = { path = "../var" }
 
+# Telemetry
+fast-telemetry.workspace = true
+log.workspace = true
+
 # Core Runtime & System
 libc.workspace = true
 

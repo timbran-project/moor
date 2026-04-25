@@ -16,6 +16,7 @@ use crate::{
     provider::Provider,
     tx::{ConflictInfo, ConflictType, Error, RelationCodomain, RelationDomain, Timestamp},
 };
+use moor_common::model::WorldStateCountOp;
 use moor_common::util::Instant;
 use moor_var::Symbol;
 use std::{sync::Arc, time::Duration};
@@ -151,7 +152,7 @@ where
         };
 
         if identical {
-            counters.crdt_resolve_success.invocations().add(1);
+            counters.counters.inc(WorldStateCountOp::CrdtResolveSuccess);
             return Ok(());
         }
 
@@ -160,12 +161,12 @@ where
             && let OpType::Insert(mine_val) | OpType::Update(mine_val) = &op.operation
             && let Some(merged) = mine_val.try_merge(base_val, theirs_val)
         {
-            counters.crdt_resolve_success.invocations().add(1);
+            counters.counters.inc(WorldStateCountOp::CrdtResolveSuccess);
             op.operation = rewrite_op(merged);
             return Ok(());
         }
 
-        counters.crdt_resolve_fail.invocations().add(1);
+        counters.counters.inc(WorldStateCountOp::CrdtResolveFail);
         Err(Error::Conflict(
             self.make_conflict_info(domain, conflict_type),
         ))

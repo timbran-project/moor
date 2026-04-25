@@ -20,11 +20,9 @@ use tracing::{debug, error, info};
 
 use crate::{
     config::Config,
-    tasks::{sched_counters, scheduler::Scheduler},
+    tasks::{SchedulerOp, sched_counters, scheduler::Scheduler},
 };
-use moor_common::{
-    tasks::SchedulerError, tasks::SchedulerError::GarbageCollectionFailed, util::PerfTimerGuard,
-};
+use moor_common::{tasks::SchedulerError, tasks::SchedulerError::GarbageCollectionFailed};
 
 /// Spawn a thread to perform concurrent GC mark phase
 pub fn spawn_gc_mark_phase(
@@ -60,7 +58,7 @@ fn run_gc_mark_phase(
 ) -> Result<HashSet<Obj>, SchedulerError> {
     let start_time = Instant::now();
     let perfc = sched_counters();
-    let _t = PerfTimerGuard::new(&perfc.gc_mark_phase);
+    let _t = perfc.timers.start(SchedulerOp::GcMarkPhase);
 
     // Get all anonymous objects
     let all_anon_objects = gc

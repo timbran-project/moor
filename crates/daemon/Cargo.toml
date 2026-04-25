@@ -40,6 +40,9 @@ name = "moor-daemon"
 path = "src/main.rs"
 
 [dependencies]
+# Telemetry
+fast-telemetry.workspace = true
+
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-compiler = { path = "../compiler" }

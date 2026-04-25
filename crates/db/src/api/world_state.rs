@@ -30,9 +30,9 @@ use moor_common::{
         CommitResult, DispatchFlagsSource, HasUuid, ObjAttrs, ObjFlag, ObjSet, ObjectKind,
         ObjectQuery, ObjectRef, Perms, PropAttrs, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
         VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbDispatch, VerbDispatchResult, VerbFlag,
-        VerbLookup, VerbProgramKey, WorldState, WorldStateError, WorldStatePerf,
+        VerbLookup, VerbProgramKey, WorldState, WorldStateError, WorldStatePerf, WorldStateTimerOp,
     },
-    util::{BitEnum, PerfTimerGuard},
+    util::BitEnum,
 };
 use moor_var::{
     NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, Variant, program::ProgramType, v_bool_int, v_list,
@@ -311,7 +311,7 @@ impl WorldState for DbWorldState {
     }
 
     fn players(&self) -> Result<ObjSet, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().players);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::Players);
         self.get_tx().get_players()
     }
 
@@ -344,7 +344,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         new_flags: BitEnum<ObjFlag>,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().set_flags_of);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::SetFlagsOf);
         // Owner or wizard only.
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.perms(perms)?
@@ -358,7 +360,9 @@ impl WorldState for DbWorldState {
     }
 
     fn object_bytes(&self, perms: &Obj, obj: &Obj) -> Result<usize, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().object_bytes);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::ObjectBytes);
         self.perms(perms)?.check_wizard()?;
         self.get_tx().get_object_size_bytes(obj)
     }
@@ -371,7 +375,9 @@ impl WorldState for DbWorldState {
         flags: BitEnum<ObjFlag>,
         id_kind: ObjectKind,
     ) -> Result<Obj, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().create_object);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::CreateObject);
         let is_wizard = self.perms(perms)?.check_is_wizard()?;
         if !self.valid(parent)? && (!parent.is_nothing() || (owner != perms && !is_wizard)) {
             return Err(WorldStateError::ObjectPermissionDenied);
@@ -405,7 +411,9 @@ impl WorldState for DbWorldState {
     }
 
     fn recycle_object(&mut self, perms: &Obj, obj: &Obj) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().recycle_object);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::RecycleObject);
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.perms(perms)?
             .check_object_allows(&owner, flags, ObjFlag::Write.into())?;
@@ -423,7 +431,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         new_loc: &Obj,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().move_object);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::MoveObject);
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.perms(perms)?
             .check_object_allows(&owner, flags, ObjFlag::Write.into())?;
@@ -447,7 +457,7 @@ impl WorldState for DbWorldState {
     }
 
     fn verbs(&self, perms: &Obj, obj: &Obj) -> Result<VerbDefs, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().verbs);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::Verbs);
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.perms(perms)?
             .check_object_allows(&owner, flags, ObjFlag::Read.into())?;
@@ -471,7 +481,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         pname: Symbol,
     ) -> Result<Var, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().retrieve_property);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::RetrieveProperty);
         if *obj == NOTHING || !self.valid(obj)? {
             return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
         }
@@ -532,7 +544,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(PropDef, PropPerms), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().get_property_info);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::GetPropertyInfo);
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
         self.perms(perms)?
             .check_property_allows(&propperms, PropFlag::Read)?;
@@ -547,7 +561,9 @@ impl WorldState for DbWorldState {
         pname: Symbol,
         attrs: PropAttrs,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().set_property_info);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::SetPropertyInfo);
         let perms_who = self.perms(perms)?;
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
         perms_who.check_property_allows(&propperms, PropFlag::Write)?;
@@ -582,7 +598,9 @@ impl WorldState for DbWorldState {
         pname: Symbol,
         value: &Var,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().update_property);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::UpdateProperty);
         self.update_property_internal(perms, obj, pname, value)
     }
 
@@ -604,7 +622,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().clear_property);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::ClearProperty);
         // This is just deleting the local *value* portion of the property.
         // First seek the property handle.
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
@@ -630,7 +650,9 @@ impl WorldState for DbWorldState {
         prop_flags: BitEnum<PropFlag>,
         initial_value: Option<Var>,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().define_property);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::DefineProperty);
 
         // Check if trying to define a builtin property name
         if pname == *NAME_SYM
@@ -676,7 +698,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().delete_property);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::DeleteProperty);
         let properties = self.get_tx().get_properties(obj)?;
         let pdef = properties
             .find_first_named(pname)
@@ -700,7 +724,7 @@ impl WorldState for DbWorldState {
         args: VerbArgsSpec,
         program: ProgramType,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().add_verb);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::AddVerb);
         let (objflags, obj_owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         let perms = self.perms(perms)?;
         perms.check_object_allows(&obj_owner, objflags, ObjFlag::Write.into())?;
@@ -713,7 +737,9 @@ impl WorldState for DbWorldState {
     }
 
     fn remove_verb(&mut self, perms: &Obj, obj: &Obj, uuid: Uuid) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().remove_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::RemoveVerb);
         let verbs = self.get_tx().get_verbs(obj)?;
         let vh = verbs
             .find(&uuid)
@@ -732,7 +758,9 @@ impl WorldState for DbWorldState {
         vname: Symbol,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().update_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::UpdateVerb);
         let vh = self.get_tx().get_verb_by_name(obj, vname)?;
         self.do_update_verb(obj, perms, &vh, verb_attrs)
     }
@@ -744,7 +772,9 @@ impl WorldState for DbWorldState {
         vidx: usize,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().update_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::UpdateVerbAtIndex);
         let vh = self.get_tx().get_verb_by_index(obj, vidx)?;
         self.do_update_verb(obj, perms, &vh, verb_attrs)
     }
@@ -756,7 +786,9 @@ impl WorldState for DbWorldState {
         uuid: Uuid,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().update_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::UpdateVerbWithId);
         let verbs = self.get_tx().get_verbs(obj)?;
         let vh = verbs
             .find(&uuid)
@@ -765,7 +797,7 @@ impl WorldState for DbWorldState {
     }
 
     fn get_verb(&self, perms: &Obj, obj: &Obj, vname: Symbol) -> Result<VerbDef, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().get_verb);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::GetVerb);
         if !self.get_tx().object_valid(obj)? {
             return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
         }
@@ -783,7 +815,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         vidx: usize,
     ) -> Result<VerbDef, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().get_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::GetVerbAtIndex);
         let vh = self.get_tx().get_verb_by_index(obj, vidx)?;
         self.perms(perms)?
             .check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
@@ -796,7 +830,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().retrieve_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::RetrieveVerb);
         let verbs = self.get_tx().get_verbs(obj)?;
         let vh = verbs
             .find(&uuid)
@@ -812,7 +848,9 @@ impl WorldState for DbWorldState {
         perms: &Obj,
         lookup: VerbLookup<'_>,
     ) -> Result<Option<VerbDef>, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().lookup_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::LookupVerb);
         if !self.valid(lookup.object)? {
             return Ok(None);
         }
@@ -837,7 +875,9 @@ impl WorldState for DbWorldState {
         perms: &Obj,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().dispatch_verb);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::DispatchVerb);
         if !self.valid(dispatch.lookup.object)? {
             return Ok(None);
         }
@@ -887,7 +927,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         new_parent: &Obj,
     ) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().change_parent);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::ChangeParent);
         {
             let mut curr = *new_parent;
             while !curr.is_nothing() {
@@ -909,12 +951,16 @@ impl WorldState for DbWorldState {
     }
 
     fn children_of(&self, _perms: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().children_of);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::ChildrenOf);
         self.get_tx().get_object_children(obj)
     }
 
     fn owned_objects(&self, _perms: &Obj, owner: &Obj) -> Result<ObjSet, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().owned_objects);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::OwnedObjects);
         self.get_tx().get_owned_objects(owner)
     }
 
@@ -928,7 +974,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().descendants_of);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::DescendantsOf);
         self.get_tx().descendants(obj, include_self)
     }
 
@@ -938,7 +986,9 @@ impl WorldState for DbWorldState {
         obj: &Obj,
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().ancestors_of);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::AncestorsOf);
         self.get_tx().ancestors(obj, include_self)
     }
 
@@ -1004,7 +1054,7 @@ impl WorldState for DbWorldState {
     }
 
     fn db_usage(&self) -> Result<usize, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().db_usage);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::DbUsage);
         self.get_tx().db_usage()
     }
 
@@ -1013,12 +1063,12 @@ impl WorldState for DbWorldState {
     }
 
     fn commit(self: Box<Self>) -> Result<CommitResult, WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().commit);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::Commit);
         self.tx.commit()
     }
 
     fn rollback(self: Box<Self>) -> Result<(), WorldStateError> {
-        let _t = PerfTimerGuard::new(&db_counters().rollback);
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::Rollback);
         self.tx.rollback()
     }
 

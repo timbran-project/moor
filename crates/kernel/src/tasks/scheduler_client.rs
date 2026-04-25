@@ -15,7 +15,6 @@ use std::sync::Arc;
 
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
 use moor_common::tasks::{SchedulerError, SchedulerError::CompilationError, Session};
-use moor_common::util::PerfTimerGuard;
 use moor_compiler::compile;
 use moor_var::{List, Obj, Symbol, Var};
 
@@ -25,7 +24,7 @@ use crate::tasks::world_state_action::{
 };
 use crate::{
     config::FeaturesConfig,
-    tasks::{TaskHandle, sched_counters},
+    tasks::{SchedulerOp, TaskHandle, sched_counters},
 };
 
 /// Garbage collection statistics
@@ -56,7 +55,9 @@ impl SchedulerClient {
         command: &str,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().submit_command_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitCommandTaskLatency);
 
         self.scheduler.submit_command_task_inner(
             *handler_object,
@@ -81,7 +82,9 @@ impl SchedulerClient {
         perms: &Obj,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().submit_verb_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitVerbTaskLatency);
 
         self.scheduler.submit_verb_task_inner(
             *player,
@@ -116,7 +119,9 @@ impl SchedulerClient {
         argstr: Var,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().submit_oob_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitOobTaskLatency);
 
         self.scheduler
             .submit_oob_task_inner(*handler_object, *player, command, argstr, session)
@@ -132,7 +137,9 @@ impl SchedulerClient {
         sessions: Arc<dyn Session>,
         config: Arc<FeaturesConfig>,
     ) -> Result<TaskHandle, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().submit_eval_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitEvalTaskLatency);
 
         // Compile the text into a verb.
         let program = match compile(code.as_str(), config.compile_options()) {
@@ -218,7 +225,9 @@ impl SchedulerClient {
     /// If `blocking` is true, waits for the textdump generation to complete.
     /// If false, returns immediately after initiating the checkpoint.
     pub fn request_checkpoint_with_blocking(&self, blocking: bool) -> Result<(), SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().checkpoint_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::CheckpointLatency);
 
         self.scheduler.handle_checkpoint_request(blocking)
     }
@@ -401,7 +410,9 @@ impl SchedulerClient {
         options: moor_objdef::ObjDefLoaderOptions,
         return_conflicts: bool,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().load_object_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::LoadObjectLatency);
 
         self.scheduler
             .handle_load_object_request(object_definition, options, return_conflicts)
@@ -417,7 +428,9 @@ impl SchedulerClient {
         args: Vec<Var>,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().submit_system_handler_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitSystemHandlerTaskLatency);
 
         self.scheduler
             .submit_system_handler_task_inner(*player, handler_type, args, session)
@@ -430,7 +443,9 @@ impl SchedulerClient {
         constants: Option<moor_objdef::Constants>,
         target_obj: Option<Obj>,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().reload_object_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::ReloadObjectLatency);
 
         self.scheduler
             .handle_reload_object_request(object_definition, constants, target_obj)

@@ -35,6 +35,9 @@ shuttle.workspace = true
 tempfile.workspace = true
 
 [dependencies]
+# Telemetry
+fast-telemetry.workspace = true
+
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-schema = { path = "../schema" }

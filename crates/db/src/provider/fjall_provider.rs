@@ -50,10 +50,9 @@ use crate::{
 use byteview::ByteView;
 use fjall::Slice;
 use flume::Sender;
+use moor_common::model::WorldStateTimerOp;
 use moor_common::threading::{set_current_thread_background_priority, spawn_efficient};
-use moor_common::util::{
-    PerfIntensity, PerfTimerGuard, Timestamp as MonoTimestamp, signal_fatal_db_error,
-};
+use moor_common::util::{Timestamp as MonoTimestamp, signal_fatal_db_error};
 use planus::{ReadAsRoot, WriteAsOffset};
 use std::{
     collections::{HashMap, HashSet},
@@ -211,9 +210,10 @@ where
         let guard = self.pending_ops.read().map_err(|_| {
             Error::StorageFailure("Failed to acquire pending ops read lock".to_string())
         })?;
-        db_counters()
-            .provider_pending_ops_read_lock_wait
-            .record_elapsed_from_with(PerfIntensity::HotPath, start.instant());
+        db_counters().timers_hot.record_elapsed(
+            WorldStateTimerOp::ProviderPendingOpsReadLockWait,
+            start.instant().elapsed(),
+        );
         Ok(guard)
     }
 
@@ -224,9 +224,10 @@ where
         let guard = self.pending_ops.write().map_err(|_| {
             Error::StorageFailure("Failed to acquire pending ops write lock".to_string())
         })?;
-        db_counters()
-            .provider_pending_ops_write_lock_wait
-            .record_elapsed_from_with(PerfIntensity::HotPath, start.instant());
+        db_counters().timers_hot.record_elapsed(
+            WorldStateTimerOp::ProviderPendingOpsWriteLockWait,
+            start.instant().elapsed(),
+        );
         Ok(guard)
     }
 }
@@ -294,7 +295,9 @@ where
     Self: EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
 {
     fn get(&self, domain: &Domain) -> Result<Option<(Timestamp, Codomain)>, Error> {
-        let _t = PerfTimerGuard::new(&db_counters().provider_tuple_check);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::ProviderTupleCheck);
 
         // 1. Check pending operations for read-your-writes consistency
         {
@@ -316,7 +319,9 @@ where
         }
 
         // 3. Hit backing store
-        let _t = PerfTimerGuard::new(&db_counters().provider_tuple_load);
+        let _t = db_counters()
+            .timers_hot
+            .start(WorldStateTimerOp::ProviderTupleLoad);
         let key_stored = <Self as EncodeFor<Domain>>::encode(self, domain)?;
         let Some(result) = self
             .fjall_keyspace

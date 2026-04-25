@@ -197,6 +197,7 @@ triomphe = "0.1"
 # Error Handling & Logging
 color-eyre = "0.6"
 eyre = "0.6"
+log = "0.4"
 thiserror = "2.0"
 tracing = "0.1"
 tracing-log = "0.2"
@@ -219,6 +220,9 @@ uuid = { version = "1.16", features = ["v4", "v7", "serde"] }
 vergen = { version = "9.1", default-features = false, features = ["cargo"] }
 vergen-gitcl = { version = "9.1", default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
+
+# Telemetry
+fast-telemetry = "0.3"
 
 # Testing & Development
 criterion = { version = "0.8", features = ["async_tokio"] }

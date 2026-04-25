@@ -302,27 +302,6 @@ pub struct RuntimeArgs {
 
     #[arg(
         long,
-        value_name = "perf-timing-enabled",
-        help = "Enable or disable perf timing duration collection globally (true/false)"
-    )]
-    pub perf_timing_enabled: Option<bool>,
-
-    #[arg(
-        long,
-        value_name = "perf-hot-shift",
-        help = "Hot-path perf timing sample shift (0=exact, 6=1/64)"
-    )]
-    pub perf_timing_hot_path_shift: Option<u32>,
-
-    #[arg(
-        long,
-        value_name = "perf-medium-shift",
-        help = "Medium-path perf timing sample shift (0=exact, 3=1/8)"
-    )]
-    pub perf_timing_medium_path_shift: Option<u32>,
-
-    #[arg(
-        long,
         value_enum,
         help = "Task worker pinning mode: auto, performance, or none"
     )]
@@ -334,6 +313,16 @@ pub struct RuntimeArgs {
         help = "Reserve detected performance cores for service/control-plane threads"
     )]
     pub service_perf_cores: Option<usize>,
+
+    #[arg(long, help = "Enable or disable perf timing (default: enabled)")]
+    pub perf_timing_enabled: Option<bool>,
+
+    #[arg(
+        long,
+        value_name = "perf-hot-shift",
+        help = "Sampling shift for hot-path timings (0 => exact, 6 => 1/64, default: 6)"
+    )]
+    pub perf_timing_hot_path_shift: Option<u32>,
 }
 
 impl RuntimeArgs {
@@ -345,25 +334,21 @@ impl RuntimeArgs {
             config.scheduler_tick_duration =
                 Some(std::time::Duration::from_millis(u64::from(args)));
         }
-        if let Some(args) = self.perf_timing_enabled {
-            config.perf_timing_enabled = Some(args);
-        }
-        if let Some(args) = self.perf_timing_hot_path_shift {
-            config.perf_timing_hot_path_shift = Some(args);
-        }
-        if let Some(args) = self.perf_timing_medium_path_shift {
-            config.perf_timing_medium_path_shift = Some(args);
-        }
         if let Some(args) = self.task_pool_pinning {
             config.task_pool_pinning = Some(args.into());
         }
         if let Some(args) = self.service_perf_cores {
             config.service_perf_cores = Some(args);
         }
+        if let Some(args) = self.perf_timing_enabled {
+            config.perf_timing_enabled = Some(args);
+        }
+        if let Some(args) = self.perf_timing_hot_path_shift {
+            config.perf_timing_hot_path_shift = Some(args);
+        }
         Ok(())
     }
 }
-
 #[allow(dead_code)]
 #[derive(Parser, Debug, Serialize, Deserialize)]
 pub struct DatabaseArgs {

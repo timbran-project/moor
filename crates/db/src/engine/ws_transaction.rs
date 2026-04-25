@@ -25,14 +25,14 @@ use crate::{
     tx::{EncodeFor, RelationTransaction},
 };
 use byteview::ByteView;
-use moor_common::util::{Instant, PerfIntensity};
+use moor_common::util::Instant;
 use moor_common::{
     model::{
         CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind, ObjectQuery,
         ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ResolvedVerb, ValSet, VerbArgsSpec,
-        VerbAttrs, VerbDef, VerbDefs, VerbFlag, WorldStateError,
+        VerbAttrs, VerbDef, VerbDefs, VerbFlag, WorldStateError, WorldStateTimerOp,
     },
-    util::{BitEnum, PerfTimerGuard},
+    util::BitEnum,
 };
 use moor_var::{
     ByteSized, NOTHING, Obj, Symbol, Var, program::ProgramType, v_empty_map, v_map, v_none,
@@ -1734,22 +1734,24 @@ impl WorldStateTransaction {
         let record_commit_result = |result: &CommitResult| match result {
             CommitResult::Success { mutations_made, .. } => {
                 counters
-                    .commit_success
-                    .record_elapsed_from_with(PerfIntensity::RarePath, commit_start);
+                    .timers_rare
+                    .record_elapsed(WorldStateTimerOp::CommitSuccess, commit_start.elapsed());
                 if *mutations_made {
-                    counters
-                        .commit_success_write
-                        .record_elapsed_from_with(PerfIntensity::RarePath, commit_start);
+                    counters.timers_rare.record_elapsed(
+                        WorldStateTimerOp::CommitSuccessWrite,
+                        commit_start.elapsed(),
+                    );
                 } else {
-                    counters
-                        .commit_success_readonly
-                        .record_elapsed_from_with(PerfIntensity::RarePath, commit_start);
+                    counters.timers_rare.record_elapsed(
+                        WorldStateTimerOp::CommitSuccessReadonly,
+                        commit_start.elapsed(),
+                    );
                 }
             }
             CommitResult::ConflictRetry { .. } => {
                 counters
-                    .commit_conflict
-                    .record_elapsed_from_with(PerfIntensity::RarePath, commit_start);
+                    .timers_rare
+                    .record_elapsed(WorldStateTimerOp::CommitConflict, commit_start.elapsed());
             }
         };
 
@@ -1777,7 +1779,9 @@ impl WorldStateTransaction {
         }
 
         // Pull out the working sets
-        let _t = PerfTimerGuard::new(&counters.commit_prepare_working_set_phase);
+        let _t = counters
+            .timers_hot
+            .start(WorldStateTimerOp::CommitPrepareWorkingSetPhase);
 
         // Extract DB handle before consuming self
         let db = self.db.clone();
@@ -1787,7 +1791,9 @@ impl WorldStateTransaction {
         drop(_t);
         let enqueued_at = Instant::now();
 
-        let _t = PerfTimerGuard::new(&counters.commit_wait_phase);
+        let _t = counters
+            .timers_hot
+            .start(WorldStateTimerOp::CommitWaitPhase);
         let result = db.commit_writes(ws, enqueued_at);
         record_commit_result(&result);
         Ok(result)

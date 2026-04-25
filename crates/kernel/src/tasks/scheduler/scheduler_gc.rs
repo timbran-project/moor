@@ -206,7 +206,7 @@ impl Scheduler {
     ) -> Result<(), SchedulerError> {
         let start_time = std::time::Instant::now();
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.gc_sweep_phase);
+        let _t = perfc.timers.start(SchedulerOp::GcSweepPhase);
         // Get a new GC interface for the sweep phase transaction
         let mut gc = self
             .database

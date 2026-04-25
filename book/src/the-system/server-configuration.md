@@ -170,7 +170,6 @@ In practice, these settings are mostly useful in three situations:
 |--------|---------|---------|-------------|
 | Perf timing enabled | `--perf-timing-enabled <BOOL>` | `true` | Enable or disable latency duration collection globally |
 | Hot-path sample shift | `--perf-timing-hot-path-shift <NUM>` | `6` | Sampling shift for hot paths. `0` means exact, `6` means 1/64 |
-| Medium-path sample shift | `--perf-timing-medium-path-shift <NUM>` | `3` | Sampling shift for medium paths. `0` means exact, `3` means 1/8 |
 
 In YAML, set these under `runtime:`:
 
@@ -180,7 +179,6 @@ runtime:
   scheduler_tick_duration: "10ms"
   perf_timing_enabled: true
   perf_timing_hot_path_shift: 6
-  perf_timing_medium_path_shift: 3
 ```
 
 For exact timing during benchmarking or profiling runs:
@@ -189,7 +187,6 @@ For exact timing during benchmarking or profiling runs:
 runtime:
   perf_timing_enabled: true
   perf_timing_hot_path_shift: 0
-  perf_timing_medium_path_shift: 0
 ```
 
 To disable duration timing entirely while keeping invocation counters:
@@ -203,12 +200,10 @@ Guidance:
 
 - Leave the defaults alone for normal deployments. They are intended to keep timing overhead low
   while still producing useful long-run aggregates.
-- Use `0` for both sample shifts during focused benchmarking or profiling runs where exact timing is
+- Use `0` for the sample shift during focused benchmarking or profiling runs where exact timing is
   more important than hot-path overhead.
 - Set `perf_timing_enabled: false` if you only care about invocation counts and do not want
   duration timing at all.
-- If you are only interested in slower, less frequent operations, you can leave hot-path sampling
-  alone and reduce only the medium-path shift.
 
 ## Task Pool Affinity Configuration
 
@@ -324,7 +319,6 @@ import_export_config:
 runtime:
   perf_timing_enabled: true
   perf_timing_hot_path_shift: 6
-  perf_timing_medium_path_shift: 3
   task_pool_pinning: auto
   service_perf_cores: 1
 ```

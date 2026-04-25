@@ -57,7 +57,7 @@ use moor_common::{
         WorldState, WorldStateError, command_verb_argspec,
     },
     tasks::{CommandError, CommandError::PermissionDenied, Exception, TaskId},
-    util::{BitEnum, Instant, PerfTimerGuard, parse_into_words},
+    util::{BitEnum, Instant, parse_into_words},
 };
 use moor_var::{
     Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Variant, v_empty_str, v_err,
@@ -67,7 +67,7 @@ use moor_var::{
 use crate::{
     config::{Config, FeaturesConfig},
     tasks::{
-        ServerOptions, TaskStart, sched_counters,
+        SchedulerOp, ServerOptions, TaskStart, sched_counters,
         task_program_cache::TaskProgramCache,
         task_scheduler_client::{TaskSchedulerClient, TimeoutHandlerInfo},
     },
@@ -384,7 +384,9 @@ impl Task {
                 // Fast path for RecvMessages(None): commit, drain messages, resume immediately
                 if matches!(delay.as_ref(), TaskSuspend::RecvMessages(None)) {
                     let perfc = sched_counters();
-                    let _t = PerfTimerGuard::new(&perfc.task_recv_immediate_resume_latency);
+                    let _t = perfc
+                        .timers
+                        .start(SchedulerOp::TaskRecvImmediateResumeLatency);
                     match with_new_transaction(|| {
                         let new_world_state =
                             task_scheduler_client.begin_new_transaction().map_err(|e| {
@@ -841,7 +843,7 @@ impl Task {
     /// Set the task up to start executing, based on the task start configuration.
     pub(crate) fn setup_task_start(&mut self, tsc: &TaskSchedulerClient, config: &Config) -> bool {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.setup_task);
+        let _t = perfc.timers.start(SchedulerOp::SetupTask);
         match self.state.task_start() {
             // We've been asked to start a command.
             // We need to set up the VM and then execute it.
@@ -1101,7 +1103,7 @@ impl Task {
         world_state: &mut dyn WorldState,
     ) -> Result<(), CommandError> {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.start_command);
+        let _t = perfc.timers.start(SchedulerOp::StartCommand);
 
         // Command execution is a multi-phase process:
         //   1. Lookup $do_command. If we have the verb, execute it.
@@ -1176,7 +1178,7 @@ impl Task {
     ) -> Result<(), CommandError> {
         let (player_location, parsed_command) = {
             let perfc = sched_counters();
-            let _t = PerfTimerGuard::new(&perfc.parse_command);
+            let _t = perfc.timers.start(SchedulerOp::ParseCommand);
 
             // We need the player's location, and we'll just die if we can't get it.
             let player_location = match world_state.location_of(player, player) {
@@ -1330,7 +1332,7 @@ fn find_verb_for_command(
     ws: &mut dyn WorldState,
 ) -> Result<Option<((ProgramType, ResolvedVerb, BitEnum<ObjFlag>), Obj)>, CommandError> {
     let perfc = sched_counters();
-    let _t = PerfTimerGuard::new(&perfc.find_verb_for_command);
+    let _t = perfc.timers.start(SchedulerOp::FindVerbForCommand);
     let targets_to_search = vec![
         *player,
         *player_location,

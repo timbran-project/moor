@@ -15,8 +15,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use ahash::AHasher;
+use fast_telemetry::{DeriveLabel, LabeledCounter};
 use moor_common::model::{VerbProgramKey, WorldState, WorldStateError};
-use moor_common::util::ConcurrentCounter;
 use moor_compiler::Program;
 use moor_var::{Obj, program::ProgramType};
 pub use moor_vm::ProgramSlot;
@@ -42,13 +42,18 @@ pub struct ProgramCacheGlobalSnapshot {
     pub live_slots: i64,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, DeriveLabel)]
+#[label_name = "op"]
+pub enum ProgramCacheOp {
+    Hits,
+    Misses,
+    Inserts,
+    Reclaimed,
+    LiveSlots,
+}
+
 pub struct ProgramCacheGlobalStats {
-    hits: ConcurrentCounter,
-    misses: ConcurrentCounter,
-    inserts: ConcurrentCounter,
-    reclaimed: ConcurrentCounter,
-    live_slots: ConcurrentCounter,
+    counters: LabeledCounter<ProgramCacheOp>,
 }
 
 impl Default for ProgramCacheGlobalStats {
@@ -60,21 +65,25 @@ impl Default for ProgramCacheGlobalStats {
 impl ProgramCacheGlobalStats {
     pub fn new() -> Self {
         Self {
-            hits: ConcurrentCounter::new(32),
-            misses: ConcurrentCounter::new(32),
-            inserts: ConcurrentCounter::new(32),
-            reclaimed: ConcurrentCounter::new(32),
-            live_slots: ConcurrentCounter::new(32),
+            counters: LabeledCounter::new(16),
         }
+    }
+
+    pub fn inc(&self, op: ProgramCacheOp) {
+        self.counters.inc(op);
+    }
+
+    pub fn add(&self, op: ProgramCacheOp, value: isize) {
+        self.counters.add(op, value);
     }
 
     fn snapshot(&self) -> ProgramCacheGlobalSnapshot {
         ProgramCacheGlobalSnapshot {
-            hits: self.hits.sum() as i64,
-            misses: self.misses.sum() as i64,
-            inserts: self.inserts.sum() as i64,
-            reclaimed: self.reclaimed.sum() as i64,
-            live_slots: self.live_slots.sum() as i64,
+            hits: self.counters.get(ProgramCacheOp::Hits) as i64,
+            misses: self.counters.get(ProgramCacheOp::Misses) as i64,
+            inserts: self.counters.get(ProgramCacheOp::Inserts) as i64,
+            reclaimed: self.counters.get(ProgramCacheOp::Reclaimed) as i64,
+            live_slots: self.counters.get(ProgramCacheOp::LiveSlots) as i64,
         }
     }
 }
@@ -112,7 +121,7 @@ impl TaskProgramCache {
             && self.program_for_slot(slot).is_some()
         {
             self.local_hits += 1;
-            PROGRAM_CACHE_GLOBAL_STATS.hits.add(1);
+            PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Hits);
             return Ok(ResolveVerbSlotResult {
                 slot: self.slot_info(slot),
                 cache_hit: true,
@@ -121,7 +130,7 @@ impl TaskProgramCache {
         }
         self.cache.remove(&key);
         self.local_misses += 1;
-        PROGRAM_CACHE_GLOBAL_STATS.misses.add(1);
+        PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Misses);
 
         let (program, _) = world_state.retrieve_verb(perms, verb_definer, verb_uuid)?;
         let ProgramType::MooR(program) = program;
@@ -137,8 +146,8 @@ impl TaskProgramCache {
         };
         self.cache.insert(key, slot);
         self.local_inserts += 1;
-        PROGRAM_CACHE_GLOBAL_STATS.inserts.add(1);
-        PROGRAM_CACHE_GLOBAL_STATS.live_slots.add(1);
+        PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Inserts);
+        PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::LiveSlots);
         Ok(ResolveVerbSlotResult {
             slot: self.slot_info(slot),
             cache_hit: false,
@@ -179,12 +188,8 @@ impl TaskProgramCache {
         if reclaimed > 0 {
             let reclaimed_i = reclaimed as i64;
             self.local_reclaimed += reclaimed_i;
-            PROGRAM_CACHE_GLOBAL_STATS
-                .reclaimed
-                .add(reclaimed_i as isize);
-            PROGRAM_CACHE_GLOBAL_STATS
-                .live_slots
-                .add(-(reclaimed_i as isize));
+            PROGRAM_CACHE_GLOBAL_STATS.add(ProgramCacheOp::Reclaimed, reclaimed_i as isize);
+            PROGRAM_CACHE_GLOBAL_STATS.add(ProgramCacheOp::LiveSlots, -(reclaimed_i as isize));
         }
 
         reclaimed

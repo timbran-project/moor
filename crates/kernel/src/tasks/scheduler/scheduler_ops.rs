@@ -171,7 +171,8 @@ impl Scheduler {
             };
             let perfc = sched_counters();
             TaskQ::record_latency(
-                &perfc.task_wake_signal_to_dispatch_start_latency,
+                &perfc.timers,
+                SchedulerOp::TaskWakeSignalToDispatchStartLatency,
                 signaled_at.instant(),
             );
 

@@ -19,10 +19,9 @@ use moor_var::{List, Obj, Symbol, Var};
 
 pub use crate::tasks::tasks_db::{NoopTasksDb, TasksDb, TasksDbError};
 use crate::vm::Fork;
-use moor_common::{
-    tasks::{Exception, SchedulerError, TaskId},
-    util::PerfCounter,
-};
+use fast_telemetry::{DeriveLabel, ExportMetrics, LabeledSampledTimer};
+use moor_common::tasks::{Exception, SchedulerError, TaskId};
+use moor_common::util::hot_stride;
 
 /// Shared sink for batch world state task results.
 /// Written by the task thread, read by the caller after the task completes.
@@ -161,50 +160,55 @@ impl ServerOptions {
     }
 }
 
+#[derive(Copy, Clone, Debug, DeriveLabel)]
+#[label_name = "op"]
+pub enum SchedulerOp {
+    ResumeTask,
+    StartTask,
+    RetryTask,
+    KillTask,
+    SetupTask,
+    StartCommand,
+    ParseCommand,
+    FindVerbForCommand,
+    TaskConflictRetry,
+    TaskAbortCancelled,
+    TaskAbortLimits,
+    ForkTask,
+    TaskException,
+    HandleSchedulerMsg,
+    HandleTaskMsg,
+    GcMarkPhase,
+    GcSweepPhase,
+    SubmitCommandTaskLatency,
+    SubmitVerbTaskLatency,
+    SubmitEvalTaskLatency,
+    SubmitOobTaskLatency,
+    SubmitSystemHandlerTaskLatency,
+    CheckpointLatency,
+    LoadObjectLatency,
+    ReloadObjectLatency,
+    TaskRequestForkLatency,
+    TaskKillTaskLatency,
+    TaskResumeTaskLatency,
+    TaskCheckpointLatency,
+    TaskActiveTasksLatency,
+    TaskBeginTransactionLatency,
+    TaskRecvImmediateResumeLatency,
+    TaskMessageDeliveryToRecvLatency,
+    TaskWakeSignalToDispatchStartLatency,
+    TaskWakeToDispatchLatency,
+    TaskThreadHandoffLatency,
+    TaskSubmitToFirstRunLatency,
+}
+
+const SCHED_SHARD_COUNT: usize = 16;
+
+#[derive(ExportMetrics)]
+#[metric_prefix = "sched"]
 pub struct SchedulerPerfCounters {
-    resume_task: PerfCounter,
-    start_task: PerfCounter,
-    retry_task: PerfCounter,
-    kill_task: PerfCounter,
-    pub setup_task: PerfCounter,
-    start_command: PerfCounter,
-    parse_command: PerfCounter,
-    find_verb_for_command: PerfCounter,
-    task_conflict_retry: PerfCounter,
-    task_abort_cancelled: PerfCounter,
-    task_abort_limits: PerfCounter,
-    fork_task: PerfCounter,
-    task_exception: PerfCounter,
-    pub handle_scheduler_msg: PerfCounter,
-    handle_task_msg: PerfCounter,
-    gc_mark_phase: PerfCounter,
-    gc_sweep_phase: PerfCounter,
-
-    // SchedulerClient latency counters (end-to-end from send to reply)
-    pub submit_command_task_latency: PerfCounter,
-    pub submit_verb_task_latency: PerfCounter,
-    pub submit_eval_task_latency: PerfCounter,
-    pub submit_oob_task_latency: PerfCounter,
-    pub submit_system_handler_task_latency: PerfCounter,
-    pub checkpoint_latency: PerfCounter,
-    pub load_object_latency: PerfCounter,
-    pub reload_object_latency: PerfCounter,
-
-    // TaskSchedulerClient latency counters (from running tasks)
-    pub task_request_fork_latency: PerfCounter,
-    pub task_kill_task_latency: PerfCounter,
-    pub task_resume_task_latency: PerfCounter,
-    pub task_checkpoint_latency: PerfCounter,
-    pub task_active_tasks_latency: PerfCounter,
-    pub task_begin_transaction_latency: PerfCounter,
-    pub task_recv_immediate_resume_latency: PerfCounter,
-    pub task_message_delivery_to_recv_latency: PerfCounter,
-
-    // Task lifecycle latency counters
-    pub task_wake_signal_to_dispatch_start_latency: PerfCounter,
-    pub task_wake_to_dispatch_latency: PerfCounter,
-    pub task_thread_handoff_latency: PerfCounter,
-    pub task_submit_to_first_run_latency: PerfCounter,
+    #[help = "Scheduler operation latency"]
+    pub timers: LabeledSampledTimer<SchedulerOp>,
 }
 
 impl Default for SchedulerPerfCounters {
@@ -216,97 +220,8 @@ impl Default for SchedulerPerfCounters {
 impl SchedulerPerfCounters {
     pub fn new() -> Self {
         Self {
-            resume_task: PerfCounter::new("resume_task"),
-            start_task: PerfCounter::new("start_task"),
-            retry_task: PerfCounter::new("retry_task"),
-            kill_task: PerfCounter::new("kill_task"),
-            setup_task: PerfCounter::new("setup_task"),
-            start_command: PerfCounter::new("start_command"),
-            parse_command: PerfCounter::new("parse_command"),
-            find_verb_for_command: PerfCounter::new("find_verb_for_command"),
-            task_conflict_retry: PerfCounter::new("task_conflict_retry"),
-            task_abort_cancelled: PerfCounter::new("task_abort_cancelled"),
-            task_abort_limits: PerfCounter::new("task_abort_limits"),
-            fork_task: PerfCounter::new("fork_task"),
-            task_exception: PerfCounter::new("task_exception"),
-            handle_scheduler_msg: PerfCounter::new("handle_scheduler_msg"),
-            handle_task_msg: PerfCounter::new("handle_task_msg"),
-            gc_mark_phase: PerfCounter::new("gc_mark_phase"),
-            gc_sweep_phase: PerfCounter::new("gc_sweep_phase"),
-
-            submit_command_task_latency: PerfCounter::new("submit_command_task_latency"),
-            submit_verb_task_latency: PerfCounter::new("submit_verb_task_latency"),
-            submit_eval_task_latency: PerfCounter::new("submit_eval_task_latency"),
-            submit_oob_task_latency: PerfCounter::new("submit_oob_task_latency"),
-            submit_system_handler_task_latency: PerfCounter::new(
-                "submit_system_handler_task_latency",
-            ),
-            checkpoint_latency: PerfCounter::new("checkpoint_latency"),
-            load_object_latency: PerfCounter::new("load_object_latency"),
-            reload_object_latency: PerfCounter::new("reload_object_latency"),
-
-            task_request_fork_latency: PerfCounter::new("task_request_fork_latency"),
-            task_kill_task_latency: PerfCounter::new("task_kill_task_latency"),
-            task_resume_task_latency: PerfCounter::new("task_resume_task_latency"),
-            task_checkpoint_latency: PerfCounter::new("task_checkpoint_latency"),
-            task_active_tasks_latency: PerfCounter::new("task_active_tasks_latency"),
-            task_begin_transaction_latency: PerfCounter::new("task_begin_transaction_latency"),
-            task_recv_immediate_resume_latency: PerfCounter::new(
-                "task_recv_immediate_resume_latency",
-            ),
-            task_message_delivery_to_recv_latency: PerfCounter::new(
-                "task_message_delivery_to_recv_latency",
-            ),
-
-            task_wake_signal_to_dispatch_start_latency: PerfCounter::new(
-                "task_wake_signal_to_dispatch_start_latency",
-            ),
-            task_wake_to_dispatch_latency: PerfCounter::new("task_wake_to_dispatch_latency"),
-            task_thread_handoff_latency: PerfCounter::new("task_thread_handoff_latency"),
-            task_submit_to_first_run_latency: PerfCounter::new("task_submit_to_first_run_latency"),
+            timers: LabeledSampledTimer::with_latency_buckets(SCHED_SHARD_COUNT, hot_stride()),
         }
-    }
-
-    pub fn all_counters(&self) -> Vec<&PerfCounter> {
-        vec![
-            &self.resume_task,
-            &self.start_task,
-            &self.retry_task,
-            &self.kill_task,
-            &self.setup_task,
-            &self.start_command,
-            &self.parse_command,
-            &self.find_verb_for_command,
-            &self.task_conflict_retry,
-            &self.task_abort_cancelled,
-            &self.task_abort_limits,
-            &self.fork_task,
-            &self.task_exception,
-            &self.handle_scheduler_msg,
-            &self.handle_task_msg,
-            &self.gc_mark_phase,
-            &self.gc_sweep_phase,
-            &self.submit_command_task_latency,
-            &self.submit_verb_task_latency,
-            &self.submit_eval_task_latency,
-            &self.submit_oob_task_latency,
-            &self.submit_system_handler_task_latency,
-            &self.checkpoint_latency,
-            &self.load_object_latency,
-            &self.reload_object_latency,
-            &self.task_request_fork_latency,
-            &self.task_kill_task_latency,
-            &self.task_resume_task_latency,
-            &self.task_checkpoint_latency,
-            &self.task_active_tasks_latency,
-            &self.task_begin_transaction_latency,
-            &self.task_recv_immediate_resume_latency,
-            &self.task_message_delivery_to_recv_latency,
-            &self.task_wake_signal_to_dispatch_start_latency,
-            &self.task_wake_to_dispatch_latency,
-            &self.task_thread_handoff_latency,
-            &self.task_submit_to_first_run_latency,
-        ]
     }
 }
 

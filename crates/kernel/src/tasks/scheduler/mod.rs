@@ -20,6 +20,7 @@ mod scheduler_task_callbacks;
 mod task_q_ops;
 
 use arc_swap::ArcSwap;
+use fast_telemetry::LabeledSampledTimer;
 
 use crate::{
     task_context::TaskGuard,
@@ -49,7 +50,7 @@ use crate::{
     tasks::{
         DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS, DEFAULT_FG_SECONDS,
         DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
-        DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, ServerOptions, TaskHandle,
+        DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle,
         TaskNotification, TaskStart,
         gc_thread::spawn_gc_mark_phase,
         sched_counters,
@@ -80,9 +81,6 @@ use moor_common::{
     threading::{
         TaskPoolAffinityConfig, set_current_thread_background_priority,
         set_task_pool_affinity_config, spawn_perf,
-    },
-    util::{
-        PerfCounter, PerfIntensity, PerfTimerGuard, perf_timing_policy, set_perf_timing_policy,
     },
 };
 use moor_objdef::{collect_object, collect_object_definitions, dump_object, extract_index_names};
@@ -158,6 +156,15 @@ impl Scheduler {
         affinity_config.service_perf_cores = config.runtime.service_perf_cores;
         set_task_pool_affinity_config(affinity_config);
 
+        let mut timing_policy = moor_common::util::perf_timing_policy();
+        if let Some(enabled) = config.runtime.perf_timing_enabled {
+            timing_policy.enabled = enabled;
+        }
+        if let Some(shift) = config.runtime.perf_timing_hot_path_shift {
+            timing_policy.hot_path_shift = shift;
+        }
+        moor_common::util::set_perf_timing_policy(timing_policy);
+
         let suspension_q = SuspensionQ::new(tasks_database);
         let task_q = TaskQ::new(suspension_q);
         let default_server_options = ServerOptions {
@@ -191,18 +198,6 @@ impl Scheduler {
             running: false,
             last_compact_time: std::time::Instant::now(),
         };
-
-        let mut timing_policy = perf_timing_policy();
-        if let Some(enabled) = config.runtime.perf_timing_enabled {
-            timing_policy.enabled = enabled;
-        }
-        if let Some(shift) = config.runtime.perf_timing_hot_path_shift {
-            timing_policy.hot_path_shift = shift;
-        }
-        if let Some(shift) = config.runtime.perf_timing_medium_path_shift {
-            timing_policy.medium_path_shift = shift;
-        }
-        set_perf_timing_policy(timing_policy);
 
         let s = Self {
             lifecycle: Arc::new(Mutex::new(lifecycle)),

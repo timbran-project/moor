@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_common::util::ConcurrentCounter;
+use fast_telemetry::{DeriveLabel, LabeledCounter};
 use std::sync::OnceLock;
 
 pub(crate) const LOCAL_STATS_BATCH_SIZE: u32 = 128;
@@ -30,13 +30,19 @@ impl LocalCacheStats {
     }
 }
 
+#[derive(Copy, Clone, Debug, DeriveLabel)]
+#[label_name = "op"]
+pub enum CacheOp {
+    Hits,
+    NegativeHits,
+    Misses,
+    Flushes,
+    NumEntries,
+}
+
 /// Unified cache statistics structure
 pub struct CacheStats {
-    hits: ConcurrentCounter,
-    negative_hits: ConcurrentCounter,
-    misses: ConcurrentCounter,
-    flushes: ConcurrentCounter,
-    num_entries: ConcurrentCounter,
+    counters: LabeledCounter<CacheOp>,
 }
 
 impl Default for CacheStats {
@@ -57,79 +63,74 @@ impl CacheStats {
     }
 
     pub fn new() -> Self {
-        let shard_count = Self::default_shard_count();
         Self {
-            hits: ConcurrentCounter::new(shard_count),
-            negative_hits: ConcurrentCounter::new(shard_count),
-            misses: ConcurrentCounter::new(shard_count),
-            flushes: ConcurrentCounter::new(shard_count),
-            num_entries: ConcurrentCounter::new(shard_count),
+            counters: LabeledCounter::new(Self::default_shard_count()),
         }
     }
 
     pub fn hit(&self) {
-        self.hits.add(1);
+        self.counters.inc(CacheOp::Hits);
     }
     pub fn negative_hit(&self) {
-        self.negative_hits.add(1);
+        self.counters.inc(CacheOp::NegativeHits);
     }
     pub fn miss(&self) {
-        self.misses.add(1);
+        self.counters.inc(CacheOp::Misses);
     }
     pub fn flush(&self) {
-        self.flushes.add(1);
+        self.counters.inc(CacheOp::Flushes);
     }
 
     pub fn add_entry(&self) {
-        self.num_entries.add(1);
+        self.counters.inc(CacheOp::NumEntries);
     }
 
     #[inline]
     pub fn add_hits(&self, count: isize) {
         if count != 0 {
-            self.hits.add(count);
+            self.counters.add(CacheOp::Hits, count);
         }
     }
 
     #[inline]
     pub fn add_negative_hits(&self, count: isize) {
         if count != 0 {
-            self.negative_hits.add(count);
+            self.counters.add(CacheOp::NegativeHits, count);
         }
     }
 
     #[inline]
     pub fn add_misses(&self, count: isize) {
         if count != 0 {
-            self.misses.add(count);
+            self.counters.add(CacheOp::Misses, count);
         }
     }
 
     pub fn remove_entries(&self, count: isize) {
-        self.num_entries.add(-count);
+        self.counters.add(CacheOp::NumEntries, -count);
     }
 
     pub fn hit_count(&self) -> isize {
-        self.hits.sum()
+        self.counters.get(CacheOp::Hits)
     }
     pub fn negative_hit_count(&self) -> isize {
-        self.negative_hits.sum()
+        self.counters.get(CacheOp::NegativeHits)
     }
     pub fn miss_count(&self) -> isize {
-        self.misses.sum()
+        self.counters.get(CacheOp::Misses)
     }
     pub fn flush_count(&self) -> isize {
-        self.flushes.sum()
+        self.counters.get(CacheOp::Flushes)
     }
 
     pub fn num_entries(&self) -> isize {
-        self.num_entries.sum()
+        self.counters.get(CacheOp::NumEntries)
     }
 
     pub fn hit_rate(&self) -> f64 {
-        let hits = self.hits.sum() as f64;
-        let negative_hits = self.negative_hits.sum() as f64;
-        let misses = self.misses.sum() as f64;
+        let hits = self.counters.get(CacheOp::Hits) as f64;
+        let negative_hits = self.counters.get(CacheOp::NegativeHits) as f64;
+        let misses = self.counters.get(CacheOp::Misses) as f64;
         let total = hits + negative_hits + misses;
         if total > 0.0 {
             ((hits + negative_hits) / total) * 100.0

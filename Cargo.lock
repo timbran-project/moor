@@ -1670,6 +1670,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "fast-telemetry"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4ad318bab93e2a2896191015d2c818140e5c42803432dabb49b0a55ef1a8093"
+dependencies = [
+ "crossbeam-utils",
+ "fast-telemetry-macros",
+ "itoa",
+ "parking_lot",
+ "ryu",
+ "uuid 1.23.1",
+]
+
+[[package]]
+name = "fast-telemetry-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00f234a512fe65a20d844278576674215fdf28535056d6a4d074e19cdeb790ee"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3177,6 +3202,7 @@ version = "1.1.0-dev"
 dependencies = [
  "byteview",
  "eyre",
+ "fast-telemetry",
  "itertools 0.14.0",
  "libc",
  "micromeasure",
@@ -3256,6 +3282,7 @@ dependencies = [
  "color-eyre",
  "ed25519-dalek",
  "eyre",
+ "fast-telemetry",
  "figment",
  "fjall",
  "flume",
@@ -3297,6 +3324,7 @@ dependencies = [
  "byteview",
  "edn-format",
  "eyre",
+ "fast-telemetry",
  "fjall",
  "flume",
  "imbl",
@@ -3362,12 +3390,14 @@ dependencies = [
  "chrono-tz",
  "criterion",
  "eyre",
+ "fast-telemetry",
  "flume",
  "hierarchical_hash_wheel_timer",
  "hmac",
  "humantime",
  "iana-time-zone",
  "libc",
+ "log",
  "md-5",
  "micromeasure",
  "moor-builtin-docs-macro",

@@ -250,7 +250,7 @@ object BENCH_CONTROLLER
       if (category == "sched")
         this:log_key_counter_deltas(category_label, delta, {"task_recv_immediate_resume_latency", "task_message_delivery_to_recv_latency", "task_wake_signal_to_dispatch_start_latency", "task_wake_to_dispatch_latency"});
       elseif (category == "db")
-        this:log_key_counter_deltas(category_label, delta, {"commit_check_phase", "commit_apply_phase", "commit_process_phase", "commit_lock_wait_phase", "commit_wait_phase", "apply_index_insert", "batch_writer_backpressure", "batch_writer_backpressure_block", "provider_pending_ops_read_lock_wait", "provider_pending_ops_write_lock_wait", "provider_tombstones_read_lock_wait", "provider_tombstones_write_lock_wait"});
+        this:log_key_counter_deltas(category_label, delta, {"commit_check_phase", "commit_apply_phase", "commit_process_phase", "commit_wait_phase", "apply_index_insert", "batch_writer_backpressure", "batch_writer_backpressure_block", "provider_pending_ops_read_lock_wait", "provider_pending_ops_write_lock_wait"});
       endif
     endfor
     this:log_top_counter_deltas(label + ":ops", all_delta, 20);

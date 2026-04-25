@@ -11,7 +11,11 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::{Arc, LazyLock};
+use std::{
+    cell::Cell,
+    sync::{Arc, LazyLock},
+    time::Instant,
+};
 use thiserror::Error;
 
 use crate::vm::builtins::bf_connection::register_bf_connection;
@@ -39,10 +43,11 @@ use crate::{
         vm_host::ExecutionResult,
     },
 };
-use moor_common::{
-    model::{Perms, WorldStateError},
-    util::PerfCounter,
+use fast_telemetry::{
+    DynamicCounter, DynamicCounterSeries, DynamicHistogram, DynamicHistogramSeries, ExportMetrics,
 };
+use moor_common::model::{Perms, WorldStateError};
+use moor_common::util::hot_stride;
 use moor_compiler::{BUILTINS, BuiltinId, DiagnosticRenderOptions, DiagnosticVerbosity};
 use moor_var::{
     E_INVARG, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant, v_bool_int,
@@ -80,9 +85,29 @@ thread_local! {
     static BF_COUNTERS_TLS: &'static BfCounters = &BF_COUNTERS;
 }
 
+#[derive(ExportMetrics)]
+#[metric_prefix = "bf"]
+pub struct BfMetrics {
+    #[help = "Builtin function calls"]
+    calls: DynamicCounter,
+    #[help = "Builtin function sampled latency in nanoseconds"]
+    samples: DynamicHistogram,
+}
+
+pub struct BfTimer {
+    calls: Option<DynamicCounterSeries>,
+    samples: Option<DynamicHistogramSeries>,
+    stride_mask: u64,
+}
+
+pub struct BfTimerGuard<'a> {
+    samples: Option<&'a DynamicHistogramSeries>,
+    start: Option<Instant>,
+}
+
 pub struct BfCounters {
-    counters: Vec<PerfCounter>,
-    exposed_ids: Vec<BuiltinId>,
+    metrics: BfMetrics,
+    timers: Vec<BfTimer>,
 }
 
 impl Default for BfCounters {
@@ -93,36 +118,110 @@ impl Default for BfCounters {
 
 impl BfCounters {
     pub fn new() -> Self {
-        let mut counters = Vec::with_capacity(BUILTINS.number_of());
-        let mut exposed_ids = Vec::new();
+        let metrics = BfMetrics::new();
+        let mut timers = Vec::with_capacity(BUILTINS.number_of());
+        let stride_mask = hot_stride().max(1).next_power_of_two() - 1;
         for index in 0..BUILTINS.number_of() {
             let id = BuiltinId(index as u16);
             let desc = BUILTINS.description_for(id).expect("Builtin not found");
-            counters.push(PerfCounter::new(desc.name));
-            if desc.exposed {
-                exposed_ids.push(id);
-            }
+            let labels = [("op", desc.name.as_str())];
+            let (calls, samples) = if desc.exposed {
+                (
+                    Some(metrics.calls.series(&labels)),
+                    Some(metrics.samples.series(&labels)),
+                )
+            } else {
+                (None, None)
+            };
+            timers.push(BfTimer {
+                calls,
+                samples,
+                stride_mask,
+            });
         }
-        Self {
-            counters,
-            exposed_ids,
-        }
+        Self { metrics, timers }
     }
 
-    pub fn counter_for(&self, id: BuiltinId) -> &PerfCounter {
-        &self.counters[id.0 as usize]
+    pub fn timer_for(&self, id: BuiltinId) -> &BfTimer {
+        &self.timers[id.0 as usize]
     }
 
-    pub fn all_counters(&self) -> Vec<&PerfCounter> {
-        self.exposed_ids
-            .iter()
-            .map(|id| &self.counters[id.0 as usize])
-            .collect()
+    pub fn visit_metrics<V: fast_telemetry::MetricVisitor + ?Sized>(&self, visitor: &mut V) {
+        self.metrics.visit_metrics(visitor);
     }
 }
 
 pub fn bf_perf_counters() -> &'static BfCounters {
     BF_COUNTERS_TLS.with(|c| *c)
+}
+
+impl BfMetrics {
+    fn new() -> Self {
+        Self {
+            calls: DynamicCounter::new(16),
+            samples: DynamicHistogram::new(
+                &[
+                    10_000,         // 10µs
+                    50_000,         // 50µs
+                    100_000,        // 100µs
+                    500_000,        // 500µs
+                    1_000_000,      // 1ms
+                    5_000_000,      // 5ms
+                    10_000_000,     // 10ms
+                    50_000_000,     // 50ms
+                    100_000_000,    // 100ms
+                    500_000_000,    // 500ms
+                    1_000_000_000,  // 1s
+                    5_000_000_000,  // 5s
+                    10_000_000_000, // 10s
+                ],
+                16,
+            ),
+        }
+    }
+}
+
+impl BfTimer {
+    #[inline]
+    pub fn start(&self) -> BfTimerGuard<'_> {
+        let Some(calls) = self.calls.as_ref() else {
+            return BfTimerGuard {
+                samples: None,
+                start: None,
+            };
+        };
+        calls.inc();
+        let start = should_sample_bf_timer(self.stride_mask).then(Instant::now);
+        BfTimerGuard {
+            samples: self.samples.as_ref(),
+            start,
+        }
+    }
+}
+
+impl Drop for BfTimerGuard<'_> {
+    #[inline]
+    fn drop(&mut self) {
+        let Some(start) = self.start.take() else {
+            return;
+        };
+        if let Some(samples) = self.samples {
+            samples.record(start.elapsed().as_nanos().min(u64::MAX as u128) as u64);
+        }
+    }
+}
+
+thread_local! {
+    static BF_TIMER_SAMPLE_TICK: Cell<u64> = const { Cell::new(0) };
+}
+
+#[inline]
+fn should_sample_bf_timer(stride_mask: u64) -> bool {
+    BF_TIMER_SAMPLE_TICK.with(|tick| {
+        let next = tick.get().wrapping_add(1);
+        tick.set(next);
+        next & stride_mask == 0
+    })
 }
 
 /// The bundle of builtins are stored here, and passed around globally.

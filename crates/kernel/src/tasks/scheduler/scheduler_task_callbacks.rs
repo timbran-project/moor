@@ -64,7 +64,7 @@ impl Scheduler {
 
     pub fn handle_task_conflict_retry(&self, task_id: TaskId, mut task: Box<Task>) {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.task_conflict_retry);
+        let _t = perfc.timers.start(SchedulerOp::TaskConflictRetry);
 
         let mut lc = self.lifecycle.lock();
 
@@ -135,7 +135,7 @@ impl Scheduler {
 
     pub fn handle_task_abort_cancelled(&self, task_id: TaskId) {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.task_abort_cancelled);
+        let _t = perfc.timers.start(SchedulerOp::TaskAbortCancelled);
 
         warn!(?task_id, "Task cancelled");
 
@@ -196,7 +196,7 @@ impl Scheduler {
         handler_info: Box<TimeoutHandlerInfo>,
     ) {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.task_abort_limits);
+        let _t = perfc.timers.start(SchedulerOp::TaskAbortLimits);
 
         // Extract task and session under lock.
         let (mut task, session, player) = {
@@ -295,7 +295,7 @@ impl Scheduler {
 
     pub fn handle_task_exception(&self, task_id: TaskId, exception: Box<Exception>) {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.task_exception);
+        let _t = perfc.timers.start(SchedulerOp::TaskException);
 
         // Extract session under lock, send traceback event.
         let session = {
@@ -333,7 +333,7 @@ impl Scheduler {
 
     pub fn handle_task_request_fork(&self, task_id: TaskId, fork_request: Box<Fork>) -> TaskId {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.fork_task);
+        let _t = perfc.timers.start(SchedulerOp::ForkTask);
 
         let mut lc = self.lifecycle.lock();
 
@@ -764,14 +764,10 @@ impl Scheduler {
             lc.task_q.drain_messages_with_wait_nanos(task_id);
         if message_count > 0 {
             let perfc = sched_counters();
-            perfc
-                .task_message_delivery_to_recv_latency
-                .invocations()
-                .add(message_count as isize);
-            perfc
-                .task_message_delivery_to_recv_latency
-                .cumulative_duration_nanos()
-                .add(total_wait_nanos as isize);
+            perfc.timers.record_elapsed(
+                SchedulerOp::TaskMessageDeliveryToRecvLatency,
+                Duration::from_nanos(total_wait_nanos as u64),
+            );
         }
         messages
     }

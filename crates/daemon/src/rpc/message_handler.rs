@@ -50,6 +50,9 @@ use moor_common::{
         CommandError, ConnectionDetails, NarrativeEvent, SchedulerError,
         SchedulerError::CommandExecutionError, SessionError,
     },
+    util::{
+        MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
+    },
 };
 use moor_db::db_counters;
 use moor_kernel::{
@@ -75,6 +78,30 @@ use rpc_common::{
 };
 use rusty_paseto::prelude::Key;
 use tracing::{debug, error, info, warn};
+
+fn db_counter_entries() -> Vec<MetricEntry> {
+    let mut visitor = MetricEntriesVisitor::new(|metric_name, sum| {
+        if metric_name == "db_timers_rare_samples" {
+            return scale_rare_sample_sum_nanos(sum);
+        }
+
+        scale_hot_sample_sum_nanos(sum)
+    });
+    db_counters().visit_metrics(&mut visitor);
+    visitor.into_entries()
+}
+
+fn sched_counter_entries() -> Vec<MetricEntry> {
+    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
+    sched_counters().visit_metrics(&mut visitor);
+    visitor.into_entries()
+}
+
+fn bf_counter_entries() -> Vec<MetricEntry> {
+    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
+    bf_perf_counters().visit_metrics(&mut visitor);
+    visitor.into_entries()
+}
 
 pub(crate) static USER_CONNECTED_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("user_connected"));
@@ -238,35 +265,12 @@ impl MessageHandler for RpcMessageHandler {
             }
             moor_rpc::HostToDaemonMessageUnionRef::RequestPerformanceCounters(_) => {
                 let mut all_counters = vec![];
-                let mut sch = vec![];
-                for c in sched_counters().all_counters() {
-                    sch.push((
-                        c.operation,
-                        c.invocations().sum(),
-                        c.cumulative_duration_nanos().sum(),
-                    ));
-                }
-                all_counters.push((*SCHED_SYM, sch));
 
-                let mut db = vec![];
-                for c in db_counters().all_counters() {
-                    db.push((
-                        c.operation,
-                        c.invocations().sum(),
-                        c.cumulative_duration_nanos().sum(),
-                    ));
-                }
-                all_counters.push((*DB_SYM, db));
+                all_counters.push((*SCHED_SYM, sched_counter_entries()));
 
-                let mut bf = vec![];
-                for c in bf_perf_counters().all_counters() {
-                    bf.push((
-                        c.operation,
-                        c.invocations().sum(),
-                        c.cumulative_duration_nanos().sum(),
-                    ));
-                }
-                all_counters.push((*BF_SYM, bf));
+                all_counters.push((*DB_SYM, db_counter_entries()));
+
+                all_counters.push((*BF_SYM, bf_counter_entries()));
 
                 let timestamp = SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)

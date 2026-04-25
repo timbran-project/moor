@@ -29,8 +29,12 @@ pub(super) enum TaskSubmission {
 
 impl TaskQ {
     #[inline]
-    pub(super) fn record_latency(counter: &PerfCounter, started_at: Instant) {
-        counter.record_elapsed_from_with(PerfIntensity::HotPath, started_at);
+    pub(super) fn record_latency(
+        timers: &LabeledSampledTimer<SchedulerOp>,
+        op: SchedulerOp,
+        started_at: Instant,
+    ) {
+        timers.record_elapsed(op, started_at.elapsed());
     }
 
     #[inline]
@@ -100,7 +104,7 @@ impl TaskQ {
         gc_in_progress: bool,
     ) -> TaskSubmission {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.start_task);
+        let _t = perfc.timers.start(SchedulerOp::StartTask);
         let (sender, receiver) = flume::unbounded();
 
         let kill_switch = Arc::new(AtomicBool::new(false));
@@ -155,7 +159,7 @@ impl TaskQ {
         config: Arc<Config>,
     ) -> Result<(), SchedulerError> {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.resume_task);
+        let _t = perfc.timers.start(SchedulerOp::ResumeTask);
 
         // Start its new transaction...
         let world_state = match database.new_world_state() {
@@ -194,14 +198,20 @@ impl TaskQ {
             let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let perfc = sched_counters();
                 Self::record_latency(
-                    &perfc.task_wake_to_dispatch_latency,
+                    &perfc.timers,
+                    SchedulerOp::TaskWakeToDispatchLatency,
                     wake_to_dispatch_started_at,
                 );
-                Self::record_latency(&perfc.task_thread_handoff_latency, dispatch_started_at);
+                Self::record_latency(
+                    &perfc.timers,
+                    SchedulerOp::TaskThreadHandoffLatency,
+                    dispatch_started_at,
+                );
 
                 if is_created {
                     Self::record_latency(
-                        &perfc.task_submit_to_first_run_latency,
+                        &perfc.timers,
+                        SchedulerOp::TaskSubmitToFirstRunLatency,
                         task.creation_time,
                     );
                 }
@@ -322,7 +332,7 @@ impl TaskQ {
         config: Arc<Config>,
     ) {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.retry_task);
+        let _t = perfc.timers.start(SchedulerOp::RetryTask);
 
         let task_id = task.task_id;
 
@@ -364,10 +374,15 @@ impl TaskQ {
             let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let perfc = sched_counters();
                 Self::record_latency(
-                    &perfc.task_wake_to_dispatch_latency,
+                    &perfc.timers,
+                    SchedulerOp::TaskWakeToDispatchLatency,
                     wake_to_dispatch_started_at,
                 );
-                Self::record_latency(&perfc.task_thread_handoff_latency, dispatch_started_at);
+                Self::record_latency(
+                    &perfc.timers,
+                    SchedulerOp::TaskThreadHandoffLatency,
+                    dispatch_started_at,
+                );
 
                 let _tx_guard = TaskGuard::new(
                     world_state,
@@ -416,7 +431,7 @@ impl TaskQ {
 
     pub(super) fn kill_task(&mut self, victim_task_id: TaskId, sender_permissions: Perms) -> Var {
         let perfc = sched_counters();
-        let _t = PerfTimerGuard::new(&perfc.kill_task);
+        let _t = perfc.timers.start(SchedulerOp::KillTask);
 
         let is_suspended = if self.suspended.tasks.contains_key(&victim_task_id) {
             let is_wizard = sender_permissions

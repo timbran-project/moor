@@ -13,25 +13,24 @@
 
 mod bitenum;
 mod cache_padded;
-mod counter;
 mod fatal;
 mod instant;
-mod perf_counter;
+mod metric_entries;
 mod time;
+mod timing_policy;
 mod trace_events;
 mod xdg;
 
 pub use bitenum::{BitEnum, BitFlag};
 pub use cache_padded::CachePadded;
-pub use counter::ConcurrentCounter;
-pub(crate) use counter::preferred_shared_shard_count;
 pub use fatal::{is_fatal_db_error_reported, signal_fatal_db_error};
 pub use instant::Instant;
-pub use perf_counter::{
-    PerfCounter, PerfIntensity, PerfTimerGuard, PerfTimingPolicy, perf_timing_policy,
-    set_perf_timing_policy,
-};
+pub use metric_entries::{MetricEntriesVisitor, MetricEntry};
 pub use time::{Deadline, Timestamp};
+pub use timing_policy::{
+    PerfTimingPolicy, hot_stride, perf_timing_policy, rare_stride, scale_hot_sample_sum_nanos,
+    scale_rare_sample_sum_nanos, set_perf_timing_policy,
+};
 pub use trace_events::*;
 pub use xdg::*;
 

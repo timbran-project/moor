@@ -16,8 +16,10 @@ use crate::{
     tx::{Error, RelationCodomain, RelationDomain, Timestamp},
 };
 use arc_swap::ArcSwap;
+use moor_common::model::WorldStateTimerOp;
 use moor_common::util::Instant;
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::{
     check::CheckRelation,
@@ -61,7 +63,6 @@ where
         }
 
         // Apply phase.
-        let counters = db_counters();
         let total_ops = working_set.len();
         let mut inserts = Vec::with_capacity(total_ops);
         let mut tombstones = Vec::new();
@@ -83,16 +84,11 @@ where
         if index_ops > 0 {
             let start = Instant::now();
             self.index.apply_batch(inserts, tombstones);
-            let elapsed_nanos = isize::try_from(start.elapsed().as_nanos()).unwrap_or(isize::MAX);
-            let invocation_count = isize::try_from(index_ops).unwrap_or(isize::MAX);
-            counters
-                .apply_index_insert
-                .invocations()
-                .add(invocation_count);
-            counters
-                .apply_index_insert
-                .cumulative_duration_nanos()
-                .add(elapsed_nanos);
+            let elapsed_nanos = start.elapsed().as_nanos() as u64;
+            db_counters().timers_rare.record_elapsed(
+                WorldStateTimerOp::ApplyIndexInsert,
+                Duration::from_nanos(elapsed_nanos),
+            );
         }
         Ok(())
     }
@@ -127,19 +123,13 @@ where
     ) {
         let index_ops = inserts.len() + tombstones.len();
         if index_ops > 0 {
-            let counters = db_counters();
             let start = Instant::now();
             index.apply_batch(inserts, tombstones);
-            let elapsed_nanos = isize::try_from(start.elapsed().as_nanos()).unwrap_or(isize::MAX);
-            let invocation_count = isize::try_from(index_ops).unwrap_or(isize::MAX);
-            counters
-                .apply_index_insert
-                .invocations()
-                .add(invocation_count);
-            counters
-                .apply_index_insert
-                .cumulative_duration_nanos()
-                .add(elapsed_nanos);
+            let elapsed_nanos = start.elapsed().as_nanos() as u64;
+            db_counters().timers_rare.record_elapsed(
+                WorldStateTimerOp::ApplyIndexInsert,
+                Duration::from_nanos(elapsed_nanos),
+            );
         }
     }
 

@@ -14,7 +14,7 @@
 use std::time::SystemTime;
 
 use crate::{
-    tasks::{TaskDescription, sched_counters, task::Task},
+    tasks::{SchedulerOp, TaskDescription, sched_counters, task::Task},
     vm::{Fork, TaskSuspend},
 };
 use moor_common::{
@@ -23,7 +23,6 @@ use moor_common::{
         AbortLimitReason, CommandError, EventLogPurgeResult, EventLogStats, Exception,
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
-    util::PerfTimerGuard,
 };
 use moor_var::{Error, Obj, Symbol, Var};
 
@@ -82,7 +81,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn request_fork(&self, fork: Box<Fork>) -> TaskId {
-        let _timer = PerfTimerGuard::new(&sched_counters().task_request_fork_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::TaskRequestForkLatency);
         self.scheduler.handle_task_request_fork(self.task_id, fork)
     }
 
@@ -127,7 +128,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn kill_task(&self, victim_task_id: TaskId, sender_permissions: Perms) -> Var {
-        let _timer = PerfTimerGuard::new(&sched_counters().task_kill_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::TaskKillTaskLatency);
         self.scheduler
             .handle_kill_task(self.task_id, victim_task_id, sender_permissions)
     }
@@ -138,7 +141,9 @@ impl TaskSchedulerClient {
         sender_permissions: Perms,
         return_value: Var,
     ) -> Var {
-        let _timer = PerfTimerGuard::new(&sched_counters().task_resume_task_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::TaskResumeTaskLatency);
         self.scheduler.handle_resume_task(
             self.task_id,
             queued_task_id,
@@ -158,7 +163,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn checkpoint_with_blocking(&self, blocking: bool) -> Result<(), SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().task_checkpoint_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::TaskCheckpointLatency);
         self.scheduler
             .handle_checkpoint_from_task(self.task_id, blocking)
     }
@@ -228,7 +235,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn active_tasks(&self) -> Result<ActiveTaskDescriptions, Error> {
-        let _timer = PerfTimerGuard::new(&sched_counters().task_active_tasks_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::TaskActiveTasksLatency);
         self.scheduler.handle_active_tasks(self.task_id)
     }
 
@@ -250,7 +259,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn begin_new_transaction(&self) -> Result<Box<dyn WorldState>, SchedulerError> {
-        let _timer = PerfTimerGuard::new(&sched_counters().task_begin_transaction_latency);
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::TaskBeginTransactionLatency);
         self.scheduler.handle_request_new_transaction(self.task_id)
     }
 

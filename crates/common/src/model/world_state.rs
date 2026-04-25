@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use fast_telemetry::{DeriveLabel, ExportMetrics, LabeledCounter, LabeledSampledTimer};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -25,7 +26,7 @@ use crate::{
         verbdef::{ResolvedVerb, VerbDef, VerbDefs},
         verbs::{VerbAttrs, VerbFlag},
     },
-    util::{BitEnum, PerfCounter},
+    util::{BitEnum, hot_stride, rare_stride},
 };
 use moor_var::{
     E_INVARG, E_INVIND, E_PERM, E_PROPNF, E_RECMOVE, E_TYPE, E_VERBNF, Error, Obj, Symbol, Var,
@@ -580,64 +581,77 @@ pub trait WorldStateSource: Send + Sync {
     fn checkpoint(&self) -> Result<(), WorldStateError>;
 }
 
+#[derive(Copy, Clone, Debug, DeriveLabel)]
+#[label_name = "op"]
+pub enum WorldStateTimerOp {
+    Players,
+    SetFlagsOf,
+    ObjectBytes,
+    CreateObject,
+    RecycleObject,
+    MoveObject,
+    Verbs,
+    RetrieveProperty,
+    GetPropertyInfo,
+    SetPropertyInfo,
+    UpdateProperty,
+    ClearProperty,
+    DefineProperty,
+    DeleteProperty,
+    AddVerb,
+    RemoveVerb,
+    UpdateVerb,
+    UpdateVerbAtIndex,
+    UpdateVerbWithId,
+    GetVerb,
+    GetVerbAtIndex,
+    RetrieveVerb,
+    LookupVerb,
+    DispatchVerb,
+    ChangeParent,
+    ChildrenOf,
+    OwnedObjects,
+    DescendantsOf,
+    AncestorsOf,
+    DbUsage,
+    Commit,
+    Rollback,
+    CommitSuccess,
+    CommitSuccessReadonly,
+    CommitSuccessWrite,
+    CommitConflict,
+    CommitCheckPhase,
+    CommitApplyPhase,
+    ApplyIndexInsert,
+    CommitPrepareWorkingSetPhase,
+    CommitWaitPhase,
+    CommitProcessPhase,
+    ProviderTupleLoad,
+    ProviderTupleCheck,
+    ProviderPendingOpsReadLockWait,
+    ProviderPendingOpsWriteLockWait,
+    BatchWriterBackpressureBlock,
+}
+
+#[derive(Copy, Clone, Debug, DeriveLabel)]
+#[label_name = "op"]
+pub enum WorldStateCountOp {
+    CrdtResolveSuccess,
+    CrdtResolveFail,
+    BatchWriterBackpressure,
+}
+
+const WS_SHARD_COUNT: usize = 16;
+
+#[derive(ExportMetrics)]
+#[metric_prefix = "db"]
 pub struct WorldStatePerf {
-    pub players: PerfCounter,
-    pub set_flags_of: PerfCounter,
-    pub object_bytes: PerfCounter,
-    pub create_object: PerfCounter,
-    pub recycle_object: PerfCounter,
-    pub move_object: PerfCounter,
-    pub verbs: PerfCounter,
-    pub retrieve_property: PerfCounter,
-    pub get_property_info: PerfCounter,
-    pub set_property_info: PerfCounter,
-    pub update_property: PerfCounter,
-    pub clear_property: PerfCounter,
-    pub define_property: PerfCounter,
-    pub delete_property: PerfCounter,
-    pub add_verb: PerfCounter,
-    pub remove_verb: PerfCounter,
-    pub update_verb: PerfCounter,
-    pub update_verb_at_index: PerfCounter,
-    pub update_verb_with_id: PerfCounter,
-    pub get_verb: PerfCounter,
-    pub get_verb_at_index: PerfCounter,
-    pub retrieve_verb: PerfCounter,
-    pub lookup_verb: PerfCounter,
-    pub dispatch_verb: PerfCounter,
-    pub change_parent: PerfCounter,
-    pub children_of: PerfCounter,
-    pub owned_objects: PerfCounter,
-    pub descendants_of: PerfCounter,
-    pub ancestors_of: PerfCounter,
-    pub db_usage: PerfCounter,
-    pub commit: PerfCounter,
-    pub rollback: PerfCounter,
-    pub commit_success: PerfCounter,
-    pub commit_success_readonly: PerfCounter,
-    pub commit_success_write: PerfCounter,
-    pub commit_conflict: PerfCounter,
-
-    pub commit_check_phase: PerfCounter,
-    pub commit_apply_phase: PerfCounter,
-
-    pub apply_index_insert: PerfCounter,
-
-    pub commit_prepare_working_set_phase: PerfCounter,
-    pub commit_wait_phase: PerfCounter,
-    pub commit_lock_wait_phase: PerfCounter,
-    pub commit_process_phase: PerfCounter,
-
-    pub provider_tuple_load: PerfCounter,
-    pub provider_tuple_check: PerfCounter,
-    pub provider_pending_ops_read_lock_wait: PerfCounter,
-    pub provider_pending_ops_write_lock_wait: PerfCounter,
-    pub provider_tombstones_read_lock_wait: PerfCounter,
-    pub provider_tombstones_write_lock_wait: PerfCounter,
-    pub batch_writer_backpressure: PerfCounter,
-    pub batch_writer_backpressure_block: PerfCounter,
-    pub crdt_resolve_success: PerfCounter,
-    pub crdt_resolve_fail: PerfCounter,
+    #[help = "Hot-path world-state operation latency"]
+    pub timers_hot: LabeledSampledTimer<WorldStateTimerOp>,
+    #[help = "Rare-path world-state operation latency"]
+    pub timers_rare: LabeledSampledTimer<WorldStateTimerOp>,
+    #[help = "World-state operation counters"]
+    pub counters: LabeledCounter<WorldStateCountOp>,
 }
 
 impl Default for WorldStatePerf {
@@ -649,126 +663,9 @@ impl Default for WorldStatePerf {
 impl WorldStatePerf {
     pub fn new() -> Self {
         Self {
-            players: PerfCounter::new("players"),
-            set_flags_of: PerfCounter::new("set_flags_of"),
-            object_bytes: PerfCounter::new("object_bytes"),
-            create_object: PerfCounter::new("create_object"),
-            recycle_object: PerfCounter::new("recycle_object"),
-            move_object: PerfCounter::new("move_object"),
-            verbs: PerfCounter::new("verbs"),
-            retrieve_property: PerfCounter::new("retrieve_property"),
-            get_property_info: PerfCounter::new("get_property_info"),
-            set_property_info: PerfCounter::new("set_property_info"),
-            update_property: PerfCounter::new("update_property"),
-            clear_property: PerfCounter::new("clear_property"),
-            define_property: PerfCounter::new("define_property"),
-            delete_property: PerfCounter::new("delete_property"),
-            add_verb: PerfCounter::new("add_verb"),
-            remove_verb: PerfCounter::new("remove_verb"),
-            update_verb: PerfCounter::new("update_verb"),
-            update_verb_at_index: PerfCounter::new("update_verb_at_index"),
-            update_verb_with_id: PerfCounter::new("update_verb_with_id"),
-            get_verb: PerfCounter::new("get_verb"),
-            get_verb_at_index: PerfCounter::new("get_verb_at_index"),
-            retrieve_verb: PerfCounter::new("retrieve_verb"),
-            lookup_verb: PerfCounter::new("lookup_verb"),
-            dispatch_verb: PerfCounter::new("dispatch_verb"),
-            change_parent: PerfCounter::new("change_parent"),
-            children_of: PerfCounter::new("children_of"),
-            owned_objects: PerfCounter::new("owned_objects"),
-            descendants_of: PerfCounter::new("descendants_of"),
-            ancestors_of: PerfCounter::new("ancestors_of"),
-            db_usage: PerfCounter::new("db_usage"),
-            commit: PerfCounter::new("commit"),
-            rollback: PerfCounter::new("rollback"),
-            commit_success: PerfCounter::new("commit_success"),
-            commit_success_readonly: PerfCounter::new("commit_success_readonly"),
-            commit_success_write: PerfCounter::new("commit_success_write"),
-            commit_conflict: PerfCounter::new("commit_conflict"),
-            commit_check_phase: PerfCounter::new("commit_check_phase"),
-            commit_apply_phase: PerfCounter::new("commit_apply_phase"),
-            apply_index_insert: PerfCounter::new("apply_index_insert"),
-            commit_prepare_working_set_phase: PerfCounter::new("commit_prepare_working_set_phase"),
-            commit_wait_phase: PerfCounter::new("commit_wait_phase"),
-            commit_lock_wait_phase: PerfCounter::new("commit_lock_wait_phase"),
-            commit_process_phase: PerfCounter::new("commit_process_phase"),
-
-            provider_tuple_load: PerfCounter::new("provider_tuple_load"),
-            provider_tuple_check: PerfCounter::new("provider_tuple_check"),
-            provider_pending_ops_read_lock_wait: PerfCounter::new(
-                "provider_pending_ops_read_lock_wait",
-            ),
-            provider_pending_ops_write_lock_wait: PerfCounter::new(
-                "provider_pending_ops_write_lock_wait",
-            ),
-            provider_tombstones_read_lock_wait: PerfCounter::new(
-                "provider_tombstones_read_lock_wait",
-            ),
-            provider_tombstones_write_lock_wait: PerfCounter::new(
-                "provider_tombstones_write_lock_wait",
-            ),
-            batch_writer_backpressure: PerfCounter::new("batch_writer_backpressure"),
-            batch_writer_backpressure_block: PerfCounter::new("batch_writer_backpressure_block"),
-            crdt_resolve_success: PerfCounter::new("crdt_resolve_success"),
-            crdt_resolve_fail: PerfCounter::new("crdt_resolve_fail"),
+            timers_hot: LabeledSampledTimer::with_latency_buckets(WS_SHARD_COUNT, hot_stride()),
+            timers_rare: LabeledSampledTimer::with_latency_buckets(WS_SHARD_COUNT, rare_stride()),
+            counters: LabeledCounter::new(WS_SHARD_COUNT),
         }
-    }
-
-    pub fn all_counters(&self) -> Vec<&PerfCounter> {
-        vec![
-            &self.players,
-            &self.set_flags_of,
-            &self.object_bytes,
-            &self.create_object,
-            &self.recycle_object,
-            &self.move_object,
-            &self.verbs,
-            &self.retrieve_property,
-            &self.get_property_info,
-            &self.set_property_info,
-            &self.update_property,
-            &self.clear_property,
-            &self.define_property,
-            &self.delete_property,
-            &self.add_verb,
-            &self.remove_verb,
-            &self.update_verb,
-            &self.update_verb_at_index,
-            &self.update_verb_with_id,
-            &self.get_verb,
-            &self.get_verb_at_index,
-            &self.retrieve_verb,
-            &self.lookup_verb,
-            &self.dispatch_verb,
-            &self.change_parent,
-            &self.children_of,
-            &self.owned_objects,
-            &self.descendants_of,
-            &self.ancestors_of,
-            &self.db_usage,
-            &self.commit,
-            &self.rollback,
-            &self.commit_success,
-            &self.commit_success_readonly,
-            &self.commit_success_write,
-            &self.commit_conflict,
-            &self.commit_check_phase,
-            &self.commit_apply_phase,
-            &self.apply_index_insert,
-            &self.commit_prepare_working_set_phase,
-            &self.commit_wait_phase,
-            &self.commit_lock_wait_phase,
-            &self.commit_process_phase,
-            &self.provider_tuple_load,
-            &self.provider_tuple_check,
-            &self.provider_pending_ops_read_lock_wait,
-            &self.provider_pending_ops_write_lock_wait,
-            &self.provider_tombstones_read_lock_wait,
-            &self.provider_tombstones_write_lock_wait,
-            &self.batch_writer_backpressure,
-            &self.batch_writer_backpressure_block,
-            &self.crdt_resolve_success,
-            &self.crdt_resolve_fail,
-        ]
     }
 }
