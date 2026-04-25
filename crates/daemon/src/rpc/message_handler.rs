@@ -15,6 +15,7 @@
 
 use ahash::AHasher;
 use eyre::Error;
+use fast_telemetry::LabelEnum;
 use flume::Sender;
 use moor_rpc::{
     ClientEvent, ClientEventUnion, DaemonToClientReply, DaemonToClientReplyUnion,
@@ -28,6 +29,7 @@ use moor_schema::{
 };
 use papaya::HashMap as PapayaHashMap;
 use std::{
+    collections::HashMap,
     hash::BuildHasherDefault,
     net::SocketAddr,
     sync::{Arc, LazyLock, RwLock},
@@ -51,6 +53,7 @@ use moor_common::{
         SchedulerError::CommandExecutionError, SessionError,
     },
 };
+use moor_compiler::BUILTINS;
 use moor_db::db_counters;
 use moor_kernel::{
     SchedulerClient,
@@ -75,6 +78,36 @@ use rpc_common::{
 };
 use rusty_paseto::prelude::Key;
 use tracing::{debug, error, info, warn};
+
+fn db_counter_entries() -> Vec<(Symbol, isize, isize)> {
+    let mut merged: HashMap<Symbol, (isize, isize)> = HashMap::new();
+
+    for (op, calls, hist) in db_counters().timers_hot.iter() {
+        let entry = merged
+            .entry(Symbol::from(op.variant_name()))
+            .or_insert((0, 0));
+        entry.0 += calls.sum();
+        entry.1 += hist.sum() as isize;
+    }
+    for (op, calls, hist) in db_counters().timers_rare.iter() {
+        let entry = merged
+            .entry(Symbol::from(op.variant_name()))
+            .or_insert((0, 0));
+        entry.0 += calls.sum();
+        entry.1 += hist.sum() as isize;
+    }
+    for (op, count) in db_counters().counters.iter() {
+        let entry = merged
+            .entry(Symbol::from(op.variant_name()))
+            .or_insert((0, 0));
+        entry.0 += count;
+    }
+
+    merged
+        .into_iter()
+        .map(|(op, (count, nanos))| (op, count, nanos))
+        .collect()
+}
 
 pub(crate) static USER_CONNECTED_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("user_connected"));
@@ -238,32 +271,28 @@ impl MessageHandler for RpcMessageHandler {
             }
             moor_rpc::HostToDaemonMessageUnionRef::RequestPerformanceCounters(_) => {
                 let mut all_counters = vec![];
+
                 let mut sch = vec![];
-                for c in sched_counters().all_counters() {
+                for (op, calls, hist) in sched_counters().timers.iter() {
                     sch.push((
-                        c.operation,
-                        c.invocations().sum(),
-                        c.cumulative_duration_nanos().sum(),
+                        Symbol::from(op.variant_name()),
+                        calls.sum(),
+                        hist.sum() as isize,
                     ));
                 }
                 all_counters.push((*SCHED_SYM, sch));
 
-                let mut db = vec![];
-                for c in db_counters().all_counters() {
-                    db.push((
-                        c.operation,
-                        c.invocations().sum(),
-                        c.cumulative_duration_nanos().sum(),
-                    ));
-                }
-                all_counters.push((*DB_SYM, db));
+                all_counters.push((*DB_SYM, db_counter_entries()));
 
                 let mut bf = vec![];
-                for c in bf_perf_counters().all_counters() {
+                let bf_counters = bf_perf_counters();
+                for id in bf_counters.exposed_ids() {
+                    let desc = BUILTINS.description_for(*id).expect("Builtin not found");
+                    let timer = &bf_counters.timers()[id.0 as usize];
                     bf.push((
-                        c.operation,
-                        c.invocations().sum(),
-                        c.cumulative_duration_nanos().sum(),
+                        desc.name,
+                        timer.calls() as isize,
+                        timer.sample_sum_nanos() as isize,
                     ));
                 }
                 all_counters.push((*BF_SYM, bf));
