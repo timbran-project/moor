@@ -14,6 +14,7 @@
 //! Built-in functions for server management, networking, tasks, and system operations.
 
 use std::{
+    collections::HashMap,
     io::Read,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -40,10 +41,10 @@ use crate::{
         vm_host::ExecutionResult,
     },
 };
+use fast_telemetry::LabelEnum;
 use moor_common::{
     build,
     model::{ObjFlag, WorldStateError},
-    util::PerfCounter,
 };
 use moor_compiler::{
     ArgCount, ArgType, BUILTINS, Builtin, compile, compile_error_to_map, format_compile_error,
@@ -51,7 +52,7 @@ use moor_compiler::{
 };
 use moor_db::{ANCESTRY_CACHE_STATS, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters};
 use moor_var::{
-    Associative, E_ARGS, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, Var,
+    Associative, E_ARGS, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, Symbol, Var,
     VarType::TYPE_NONE, v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str,
     v_string, v_sym,
 };
@@ -823,26 +824,75 @@ fn load_server_options(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(RetNil)
 }
 
-/// Helper function to convert performance counters to a MOO map.
-fn counter_map(counters: &[&PerfCounter], use_symbols: bool) -> Var {
+/// Helper function to convert performance timers and counters to a MOO map.
+fn counter_map_from_entries(entries: &[(Symbol, isize, isize)], use_symbols: bool) -> Var {
     let mut result = vec![];
-    for c in counters {
+    for (name_sym, count, cumulative_ns) in entries {
         let op_name = if use_symbols {
-            v_sym(c.operation)
+            v_sym(*name_sym)
         } else {
-            v_arc_str(c.operation.as_arc_str())
+            v_arc_str(name_sym.as_arc_str())
         };
 
         result.push((
             op_name,
             v_list(&[
-                v_int(c.invocations().sum() as i64),
-                v_int(c.cumulative_duration_nanos().sum() as i64),
+                v_int(*count as i64),
+                v_int(*cumulative_ns as i64),
             ]),
         ));
     }
 
     v_map(&result)
+}
+
+fn db_counter_entries() -> Vec<(Symbol, isize, isize)> {
+    let mut merged: HashMap<Symbol, (isize, isize)> = HashMap::new();
+
+    for (op, calls, hist) in db_counters().timers_hot.iter() {
+        let entry = merged
+            .entry(Symbol::from(op.variant_name()))
+            .or_insert((0, 0));
+        entry.0 += calls.sum();
+        entry.1 += hist.sum() as isize;
+    }
+    for (op, calls, hist) in db_counters().timers_rare.iter() {
+        let entry = merged
+            .entry(Symbol::from(op.variant_name()))
+            .or_insert((0, 0));
+        entry.0 += calls.sum();
+        entry.1 += hist.sum() as isize;
+    }
+    for (op, count) in db_counters().counters.iter() {
+        let entry = merged
+            .entry(Symbol::from(op.variant_name()))
+            .or_insert((0, 0));
+        entry.0 += count;
+    }
+
+    merged
+        .into_iter()
+        .map(|(op, (count, nanos))| (op, count, nanos))
+        .collect()
+}
+
+fn sched_counter_entries() -> Vec<(Symbol, isize, isize)> {
+    let mut entries = vec![];
+    for (op, calls, hist) in sched_counters().timers.iter() {
+        entries.push((Symbol::from(op.variant_name()), calls.sum(), hist.sum() as isize));
+    }
+    entries
+}
+
+fn bf_counter_entries() -> Vec<(Symbol, isize, isize)> {
+    let bf = bf_perf_counters();
+    let mut entries = vec![];
+    for id in bf.exposed_ids() {
+        let desc = BUILTINS.description_for(*id).expect("Builtin not found");
+        let timer = &bf.timers()[id.0 as usize];
+        entries.push((desc.name, timer.calls() as isize, timer.sample_sum_nanos() as isize));
+    }
+    entries
 }
 
 /// Usage: `map bf_counters()`
@@ -854,9 +904,9 @@ fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .check_wizard()
         .map_err(world_state_bf_err)?;
 
-    let counters = bf_perf_counters();
-    Ok(Ret(counter_map(
-        &counters.all_counters(),
+    let _counters = bf_perf_counters();
+    Ok(Ret(counter_map_from_entries(
+        &bf_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
     )))
 }
@@ -870,8 +920,8 @@ fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .check_wizard()
         .map_err(world_state_bf_err)?;
 
-    Ok(Ret(counter_map(
-        &db_counters().all_counters(),
+    Ok(Ret(counter_map_from_entries(
+        &db_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
     )))
 }
@@ -885,9 +935,9 @@ fn bf_sched_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .check_wizard()
         .map_err(world_state_bf_err)?;
 
-    let counters = sched_counters();
-    Ok(Ret(counter_map(
-        &counters.all_counters(),
+    let _counters = sched_counters();
+    Ok(Ret(counter_map_from_entries(
+        &sched_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
     )))
 }
