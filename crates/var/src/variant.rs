@@ -879,22 +879,31 @@ impl Var {
             }));
         };
 
+        // Bounds check using cached length avoids dereferencing on out-of-bounds.
+        let cached = self.cached_len();
         let idx = {
-            let i = index_mode.adjust_i64(i);
-            if i < 0 {
-                return Err(E_RANGE
-                    .with_msg(|| format!("Cannot index into sequence with negative index {i}")));
+            let adjusted = index_mode.adjust_i64(i);
+            if adjusted < 0 {
+                return Err(E_RANGE.with_msg(|| {
+                    if cached == LEN_OVERFLOW {
+                        return format!("Index {i} out of bounds for sequence");
+                    }
+                    format!(
+                        "Index {} out of bounds for {} of length {}",
+                        i,
+                        self.type_code().to_literal(),
+                        cached
+                    )
+                }));
             }
-            i as usize
+            adjusted as usize
         };
 
-        // Bounds check using cached length (avoids dereferencing on out-of-bounds)
-        let cached = self.cached_len();
         if cached != LEN_OVERFLOW && idx >= cached as usize {
             return Err(E_RANGE.with_msg(|| {
                 format!(
                     "Index {} out of bounds for {} of length {}",
-                    idx + 1,
+                    index_mode.reverse_adjust_isize(idx as isize),
                     self.type_code().to_literal(),
                     cached
                 )
@@ -963,18 +972,27 @@ impl Var {
             }));
         };
         let idx = {
-            let i = index_mode.adjust_i64(idx);
-            if i < 0 {
-                return Err(E_RANGE
-                    .with_msg(|| format!("Cannot index into sequence with negative index {i}")));
+            let adjusted = index_mode.adjust_i64(idx);
+            if adjusted < 0 {
+                return Err(E_RANGE.with_msg(|| format!("Index {idx} out of bounds for sequence")));
             }
-            i as usize
+            adjusted as usize
         };
         let TypeClass::Sequence(s) = self.type_class() else {
             return Err(E_TYPE.with_msg(|| {
                 format!("Cannot set value in type {}", self.type_code().to_literal())
             }));
         };
+        if idx >= s.len() {
+            return Err(E_RANGE.with_msg(|| {
+                format!(
+                    "Index {} out of bounds for {} of length {}",
+                    index_mode.reverse_adjust_isize(idx as isize),
+                    self.type_code().to_literal(),
+                    s.len()
+                )
+            }));
+        }
         s.index_set(idx, value)
     }
 
@@ -996,14 +1014,23 @@ impl Var {
                 }));
             };
             let idx = {
-                let i = index_mode.adjust_i64(idx);
-                if i < 0 {
-                    return Err(E_RANGE.with_msg(|| {
-                        format!("Cannot index into sequence with negative index {i}")
-                    }));
+                let adjusted = index_mode.adjust_i64(idx);
+                if adjusted < 0 {
+                    return Err(
+                        E_RANGE.with_msg(|| format!("Index {idx} out of bounds for sequence"))
+                    );
                 }
-                i as usize
+                adjusted as usize
             };
+            if idx >= list.len() {
+                return Err(E_RANGE.with_msg(|| {
+                    format!(
+                        "Index {} out of bounds for list of length {}",
+                        index_mode.reverse_adjust_isize(idx as isize),
+                        list.len()
+                    )
+                }));
+            }
             return list.index_set_owned(idx, value);
         }
         self.index_set(idx, value, index_mode)
@@ -1013,7 +1040,7 @@ impl Var {
     pub fn insert(&self, index: &Var, value: &Var, index_mode: IndexMode) -> Result<Var, Error> {
         match self.type_class() {
             TypeClass::Sequence(s) => {
-                let index = match index.variant() {
+                let adjusted_index = match index.variant() {
                     Variant::Int(i) => index_mode.adjust_i64(i),
                     _ => {
                         return Err(E_INVARG.with_msg(|| {
@@ -1024,10 +1051,10 @@ impl Var {
                         }));
                     }
                 };
-                let index = if index < 0 {
+                let index = if adjusted_index < 0 {
                     0
                 } else {
-                    min(index as usize, s.len())
+                    min(adjusted_index as usize, s.len())
                 };
 
                 if index > s.len() {
@@ -1310,8 +1337,8 @@ impl Var {
     pub fn remove_at(&self, index: &Var, index_mode: IndexMode) -> Result<Var, Error> {
         match self.type_class() {
             TypeClass::Sequence(s) => {
-                let index = match index.variant() {
-                    Variant::Int(i) => index_mode.adjust_i64(i),
+                let (index, requested_index) = match index.variant() {
+                    Variant::Int(i) => (i, index_mode.adjust_i64(i)),
                     _ => {
                         return Err(E_INVARG.with_msg(|| {
                             format!(
@@ -1322,13 +1349,24 @@ impl Var {
                     }
                 };
 
-                if index < 0 {
+                if requested_index < 0 {
+                    return Err(
+                        E_RANGE.with_msg(|| format!("Index {index} out of bounds for sequence"))
+                    );
+                }
+                let requested_index = requested_index as usize;
+                if requested_index >= s.len() {
                     return Err(E_RANGE.with_msg(|| {
-                        format!("Cannot index into sequence with negative index {index}")
+                        format!(
+                            "Index {} out of bounds for {} of length {}",
+                            index_mode.reverse_adjust_isize(requested_index as isize),
+                            self.type_code().to_literal(),
+                            s.len()
+                        )
                     }));
                 }
 
-                s.remove_at(index as usize)
+                s.remove_at(requested_index)
             }
             _ => Err(E_TYPE
                 .with_msg(|| format!("Cannot remove from type {}", self.type_code().to_literal()))),
@@ -1339,8 +1377,8 @@ impl Var {
     pub fn remove_at_owned(self, index: &Var, index_mode: IndexMode) -> Result<Var, Error> {
         if matches!(self.tag, TAG_LIST | TAG_EMPTY_LIST) {
             let list = self.into_list_owned().unwrap();
-            let index = match index.variant() {
-                Variant::Int(i) => index_mode.adjust_i64(i),
+            let (index, requested_index) = match index.variant() {
+                Variant::Int(i) => (i, index_mode.adjust_i64(i)),
                 _ => {
                     return Err(E_INVARG.with_msg(|| {
                         format!(
@@ -1350,12 +1388,22 @@ impl Var {
                     }));
                 }
             };
-            if index < 0 {
+            if requested_index < 0 {
+                return Err(
+                    E_RANGE.with_msg(|| format!("Index {index} out of bounds for sequence"))
+                );
+            }
+            let requested_index = requested_index as usize;
+            if requested_index >= list.len() {
                 return Err(E_RANGE.with_msg(|| {
-                    format!("Cannot index into sequence with negative index {index}")
+                    format!(
+                        "Index {} out of bounds for list of length {}",
+                        index_mode.reverse_adjust_isize(requested_index as isize),
+                        list.len()
+                    )
                 }));
             }
-            return list.remove_at_owned(index as usize);
+            return list.remove_at_owned(requested_index);
         }
         self.remove_at(index, index_mode)
     }
@@ -2067,5 +2115,37 @@ mod tests {
             appended,
             v_list(&[v_int(1), v_int(2), v_int(3), v_int(8), v_int(9)])
         );
+    }
+
+    #[test]
+    fn test_index_errors_report_requested_index() {
+        let value = v_str("hello");
+
+        let err = value.index(&v_int(0), IndexMode::OneBased).unwrap_err();
+        assert_eq!(err, E_RANGE);
+        assert!(err.message().contains("Index 0 out of bounds"));
+        assert!(!err.message().contains("-1"));
+
+        let err = value.index(&v_int(5), IndexMode::ZeroBased).unwrap_err();
+        assert_eq!(err, E_RANGE);
+        assert!(err.message().contains("Index 5 out of bounds"));
+
+        let err = value.index(&v_int(6), IndexMode::OneBased).unwrap_err();
+        assert_eq!(err, E_RANGE);
+        assert!(err.message().contains("Index 6 out of bounds"));
+
+        let value = v_list(&[v_int(1), v_int(2), v_int(3)]);
+
+        let err = value
+            .index_set(&v_int(3), &v_int(4), IndexMode::ZeroBased)
+            .unwrap_err();
+        assert_eq!(err, E_RANGE);
+        assert!(err.message().contains("Index 3 out of bounds"));
+
+        let err = value
+            .remove_at(&v_int(3), IndexMode::ZeroBased)
+            .unwrap_err();
+        assert_eq!(err, E_RANGE);
+        assert!(err.message().contains("Index 3 out of bounds"));
     }
 }
