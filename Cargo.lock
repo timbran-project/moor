@@ -2696,7 +2696,7 @@ dependencies = [
 
 [[package]]
 name = "lambdamoo-harness"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "cc",
  "clap",
@@ -3003,7 +3003,7 @@ dependencies = [
 
 [[package]]
 name = "moor-bench-utils"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "libc",
  "moor-common",
@@ -3014,7 +3014,7 @@ dependencies = [
 
 [[package]]
 name = "moor-builtin-docs-macro"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3023,7 +3023,7 @@ dependencies = [
 
 [[package]]
 name = "moor-common"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "byteview",
  "eyre",
@@ -3049,7 +3049,7 @@ dependencies = [
 
 [[package]]
 name = "moor-compiler"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "ariadne",
  "base64",
@@ -3075,7 +3075,7 @@ dependencies = [
 
 [[package]]
 name = "moor-curl-worker"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "clap",
  "clap_derive",
@@ -3094,7 +3094,7 @@ dependencies = [
 
 [[package]]
 name = "moor-daemon"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "age",
  "ahash",
@@ -3140,7 +3140,7 @@ dependencies = [
 
 [[package]]
 name = "moor-db"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "moor-emh"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "clap",
  "clap_derive",
@@ -3197,7 +3197,7 @@ dependencies = [
 
 [[package]]
 name = "moor-kernel"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "age",
  "ahash",
@@ -3257,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "moor-mcp-host"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "clap",
  "clap_derive",
@@ -3287,7 +3287,7 @@ dependencies = [
 
 [[package]]
 name = "moor-model-checker"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "clap",
  "clap_derive",
@@ -3318,7 +3318,7 @@ dependencies = [
 
 [[package]]
 name = "moor-moot"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "anstream 0.6.21",
  "anstyle",
@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "moor-objdef"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "moor-common",
  "moor-compiler",
@@ -3349,7 +3349,7 @@ dependencies = [
 
 [[package]]
 name = "moor-schema"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "byteview",
  "eyre",
@@ -3367,7 +3367,7 @@ dependencies = [
 
 [[package]]
 name = "moor-schema-macros"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3376,7 +3376,7 @@ dependencies = [
 
 [[package]]
 name = "moor-telnet-host"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "bytes",
  "clap",
@@ -3413,7 +3413,7 @@ dependencies = [
 
 [[package]]
 name = "moor-textdump"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "base64",
  "encoding_rs",
@@ -3430,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "moor-var"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "ahash",
  "arcstr",
@@ -3454,7 +3454,7 @@ dependencies = [
 
 [[package]]
 name = "moor-web-host"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "axum",
  "base64",
@@ -3493,7 +3493,7 @@ dependencies = [
 
 [[package]]
 name = "moorc"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "clap",
  "clap_derive",
@@ -4648,7 +4648,7 @@ checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
 name = "rpc-async-client"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "chrono",
  "eyre",
@@ -4672,7 +4672,7 @@ dependencies = [
 
 [[package]]
 name = "rpc-common"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "byteview",
  "clap",

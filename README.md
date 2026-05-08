@@ -299,8 +299,8 @@ When reporting bugs, please include:
 
 ## License
 
-mooR is licensed under the GNU Affero General Public License v3.0. See
-[LICENSE](./LICENSE) for details.
+mooR is licensed under the GNU Affero General Public License v3.0. See [LICENSE](./LICENSE) for
+details.
 
 mooR is intended to be run as a networked multi-user system, not only as a local program. For that
 reason, the project uses the AGPL rather than the GPL: if someone modifies mooR and runs that
@@ -309,8 +309,8 @@ available under the same terms.
 
 Running your own database, world, MUD, or MOO on top of mooR does not transfer ownership of that
 database or its contents to the mooR project or its author. The relevant copyleft obligation is
-about modifications to mooR itself, or reuse of mooR code in another project, not about ownership
-of the world data or creative content you host with it.
+about modifications to mooR itself, or reuse of mooR code in another project, not about ownership of
+the world data or creative content you host with it.
 
 This applies to the main mooR software in this repository. Documentation in `book/`, core database
 content in `cores/`, and separately published client and schema libraries in `clients/` and
