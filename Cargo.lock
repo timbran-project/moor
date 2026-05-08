@@ -2123,9 +2123,9 @@ dependencies = [
 
 [[package]]
 name = "hierarchical_hash_wheel_timer"
-version = "1.4.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02f98bc9db5b57a31875f14c6590bb1453930bb3c7596d180c0540b24e66d5d6"
+checksum = "bf653d57c559812a3d936bcb210700410c0d79c5e10fd222970d1b7d44b9defc"
 dependencies = [
  "rustc-hash",
 ]
