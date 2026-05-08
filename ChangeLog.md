@@ -5,6 +5,50 @@ All notable changes to mooR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-rc.2] - 2026-05-08
+
+### Changed
+
+`kernel`:
+
+- `parse_command()` now accepts an optional fifth argument for overriding the location used by
+  command matching
+- `parse_command()` and `find_command_verb()` now use string command verb values consistently while
+  still honoring symbol keys when `use_symbols_in_builtins` is enabled
+
+`deployment`:
+
+- Docker Compose examples now enable `use_symbols_in_builtins` for the Cowbell/default development
+  setup
+- Deployment Compose files now use an `ARCH` environment variable for selecting published mooR
+  images and serve the bundled web client through `nginx:alpine` instead of depending on a separate
+  Meadow image
+
+### Fixed
+
+`var`:
+
+- Sequence index, set, and remove errors now report the user-facing requested index instead of the
+  internally adjusted index
+
+`kernel`:
+
+- `parse_command()` now handles `"here"` matching correctly with custom match environments
+- `parse_command()` now returns string values consistently for `argstr` and command values, while
+  using symbol or string map keys according to builtin configuration
+
+`telnet-host`:
+
+- Rich telnet output now normalizes all line endings to CRLF before writing to the client
+
+`deployment`:
+
+- Deployment Compose files no longer mount config and local-share paths under stale nested
+  directories, fixing container permission/path issues
+- Web deployment nginx configs now proxy the versioned `/v1/` API path and drop stale pre-versioned
+  route blocks
+- `start-moor-cowbell.sh` now enables symbols in builtins to match the Cowbell core expectations
+
 ## [1.0.0-rc.1] - 2026-03-05
 
 ### Code freeze 1.0, bug fixes only
