@@ -524,20 +524,24 @@ impl MooStackFrame {
         self.pc += 1;
     }
 
+    #[inline(always)]
     pub fn pop(&mut self) -> Var {
         self.valstack
             .pop()
             .unwrap_or_else(|| panic!("stack underflow @ PC: {}", self.pc))
     }
 
+    #[inline(always)]
     pub fn push(&mut self, v: Var) {
         self.valstack.push(v)
     }
 
+    #[inline(always)]
     pub fn peek_top(&self) -> &Var {
         self.valstack.last().expect("stack underflow")
     }
 
+    #[inline(always)]
     pub fn peek_top_mut(&mut self) -> &mut Var {
         self.valstack.last_mut().expect("stack underflow")
     }
@@ -552,6 +556,7 @@ impl MooStackFrame {
         (a, b)
     }
 
+    #[inline(always)]
     pub fn poke(&mut self, amt: usize, v: Var) {
         let l = self.valstack.len();
         self.valstack[l - amt - 1] = v;
