@@ -15,7 +15,7 @@ enhancements.
 📖 **For comprehensive documentation, see our [mooR Book](https://timbran.org/book/html/).**
 
 > **⚠️ Release Status:**
-> [`1.0.0-rc1`](https://codeberg.org/timbran/moor/releases/tag/1.0.0-rc1) has been released on the
+> [`1.0.0-rc2`](https://codeberg.org/timbran/moor/releases/tag/1.0.0-rc2) has been released on the
 > `v1.0-release` branch. Use that branch, the Releases tab, or published images if you want the
 > stabilized release line. `main` now tracks `1.1.0-dev` with more aggressive feature development
 > (VM extraction, scheduler rewrite, batch APIs, WebRTC). See the [Status](#status) section below
@@ -88,13 +88,13 @@ To see a live running instance, visit our demonstrator community at
 
 ## Status
 
-mooR `1.0.0-rc1` has been released. The core runtime and database formats are stable. It
+mooR `1.0.0-rc2` has been released. The core runtime and database formats are stable. It
 successfully runs databases imported from LambdaMOO with real-world workloads and has passed
 extensive stress and performance testing. `main` now tracks `1.1.0-dev` development.
 
 **Branch policy**:
 
-- `v1.0-release` branch: stable `1.0` release line (`1.0.0-rc1` and subsequent patch releases)
+- `v1.0-release` branch: stable `1.0` release line (`1.0.0-rc2` and subsequent patch releases)
 - `main` branch: `1.1.0-dev` feature development (runtime and database optimizations, WebRTC
   extensions, compiler rework for performance, batch world state APIs, new builtins)
 - Bug fixes land on `main` first, then are cherry-picked to `v1.0-release` when safe
