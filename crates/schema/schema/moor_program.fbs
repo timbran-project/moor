@@ -234,6 +234,12 @@ table StoredMooRProgram {
 
     // Maximum runtime value-stack depth for each fork vector
     fork_max_stacks: [uint64];
+
+    // Maximum runtime scope-stack depth for the main vector
+    main_max_scope_depth: uint64;
+
+    // Maximum runtime scope-stack depth for each fork vector
+    fork_max_scope_depths: [uint64];
 }
 
 // Union for different program language implementations

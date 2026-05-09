@@ -27,7 +27,7 @@ use crate::{
     backend::control::{ControlState, LoopFrame},
     backend::emitter::EmitterState,
     backend::operands::OperandState,
-    backend::stack::StackState,
+    backend::stack::{ScopeDepthState, StackState},
     compile_options::CompileOptions,
 };
 
@@ -38,6 +38,7 @@ pub struct CodegenState {
     pub(crate) operands: OperandState,
     pub(crate) control: ControlState,
     pub(crate) stack: StackState,
+    pub(crate) scopes: ScopeDepthState,
     pub(crate) line_number_spans: Vec<(usize, usize)>,
     pub(crate) current_line_col: (usize, usize),
     pub(crate) compile_options: CompileOptions,
@@ -62,6 +63,7 @@ impl CodegenState {
             operands: OperandState::new(),
             control: ControlState::new(),
             stack: StackState::new(),
+            scopes: ScopeDepthState::new(),
             line_number_spans: vec![],
             current_line_col: (0, 0),
             compile_options,
@@ -116,7 +118,32 @@ impl CodegenState {
     }
 
     pub(crate) fn emit(&mut self, op: Op) {
+        match &op {
+            Op::If(..)
+            | Op::Eif(..)
+            | Op::BeginForSequence { .. }
+            | Op::BeginForRange { .. }
+            | Op::While { .. }
+            | Op::WhileId { .. }
+            | Op::TryCatch { .. }
+            | Op::TryExcept { .. }
+            | Op::TryFinally { .. }
+            | Op::BeginScope { .. }
+            | Op::BeginComprehension(..) => self.enter_scope(),
+            Op::EndCatch(..) | Op::EndExcept(..) | Op::EndFinally | Op::EndScope { .. } => {
+                self.exit_scope()
+            }
+            _ => {}
+        }
         self.emitter.emit(op);
+    }
+
+    pub(crate) fn enter_scope(&mut self) {
+        self.scopes.enter();
+    }
+
+    pub(crate) fn exit_scope(&mut self) {
+        self.scopes.exit();
     }
 
     pub(crate) fn is_assignable_expr(expr: &Expr) -> bool {
@@ -162,10 +189,11 @@ impl CodegenState {
         offset: usize,
         opcodes: Vec<Op>,
         max_stack: usize,
+        max_scope_depth: usize,
         line_spans: Vec<(usize, usize)>,
     ) -> Offset {
         self.operands
-            .add_fork_vector(offset, opcodes, max_stack, line_spans)
+            .add_fork_vector(offset, opcodes, max_stack, max_scope_depth, line_spans)
     }
 
     fn lvalue_stack_footprint(expr: &Expr, indexed_above: bool) -> usize {

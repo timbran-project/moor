@@ -47,8 +47,10 @@ mod tests {
             lambda_programs: vec![],
             main_vector,
             main_max_stack: 0,
+            main_max_scope_depth: 0,
             fork_vectors: vec![],
             fork_max_stacks: vec![],
+            fork_max_scope_depths: vec![],
             line_number_spans: vec![],
             fork_line_number_spans: vec![],
         }))

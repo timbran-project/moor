@@ -27,6 +27,18 @@ pub struct StackSnapshot {
     saved_stack: Option<Offset>,
 }
 
+#[derive(Debug, Default)]
+pub struct ScopeDepthState {
+    cur_depth: usize,
+    max_depth: usize,
+}
+
+#[derive(Debug)]
+pub struct ScopeDepthSnapshot {
+    cur_depth: usize,
+    max_depth: usize,
+}
+
 impl StackState {
     pub fn new() -> Self {
         Self::default()
@@ -97,6 +109,49 @@ impl StackState {
     }
 }
 
+impl ScopeDepthState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn enter(&mut self) {
+        self.cur_depth += 1;
+        if self.cur_depth > self.max_depth {
+            self.max_depth = self.cur_depth;
+        }
+    }
+
+    pub fn exit(&mut self) {
+        if self.cur_depth == 0 {
+            panic!("Scope depth underflow");
+        }
+        self.cur_depth -= 1;
+    }
+
+    pub fn depth(&self) -> usize {
+        self.cur_depth
+    }
+
+    pub fn max_depth(&self) -> usize {
+        self.max_depth
+    }
+
+    pub fn snapshot_and_reset(&mut self) -> ScopeDepthSnapshot {
+        let snapshot = ScopeDepthSnapshot {
+            cur_depth: self.cur_depth,
+            max_depth: self.max_depth,
+        };
+        self.cur_depth = 0;
+        self.max_depth = 0;
+        snapshot
+    }
+
+    pub fn restore(&mut self, snapshot: ScopeDepthSnapshot) {
+        self.cur_depth = snapshot.cur_depth;
+        self.max_depth = snapshot.max_depth;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::StackState;
@@ -126,5 +181,23 @@ mod tests {
         stack.set_depth(2);
         assert_eq!(stack.depth(), 2);
         assert_eq!(stack.max_depth(), 4);
+    }
+
+    #[test]
+    fn scope_depth_tracks_max_and_restore() {
+        let mut scopes = super::ScopeDepthState::new();
+        scopes.enter();
+        scopes.enter();
+        scopes.exit();
+        assert_eq!(scopes.depth(), 1);
+        assert_eq!(scopes.max_depth(), 2);
+
+        let snapshot = scopes.snapshot_and_reset();
+        assert_eq!(scopes.depth(), 0);
+        assert_eq!(scopes.max_depth(), 0);
+
+        scopes.restore(snapshot);
+        assert_eq!(scopes.depth(), 1);
+        assert_eq!(scopes.max_depth(), 2);
     }
 }

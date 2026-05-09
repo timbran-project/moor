@@ -94,6 +94,12 @@ fn encode_moor_program(program: &Program) -> Result<fb::StoredMooRProgram, Encod
         .iter()
         .map(|depth| *depth as u64)
         .collect();
+    let fork_max_scope_depths = program
+        .0
+        .fork_max_scope_depths
+        .iter()
+        .map(|depth| *depth as u64)
+        .collect();
 
     // 3. Encode literals as Var FlatBuffers (not bincode)
     let literals: Result<Vec<crate::var::Var>, EncodeError> = program
@@ -349,6 +355,8 @@ fn encode_moor_program(program: &Program) -> Result<fb::StoredMooRProgram, Encod
         fork_line_number_spans,
         main_max_stack: program.main_max_stack() as u64,
         fork_max_stacks: Some(fork_max_stacks),
+        main_max_scope_depth: program.main_max_scope_depth() as u64,
+        fork_max_scope_depths: Some(fork_max_scope_depths),
     })
 }
 
@@ -552,8 +560,8 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
             })
             .collect();
     let fork_vectors = fork_vectors?;
-    let (main_max_stack, fork_max_stacks) =
-        decode_stack_depths(&fb_prog_ref, version, &main_vector, &fork_vectors)?;
+    let (main_max_stack, fork_max_stacks, main_max_scope_depth, fork_max_scope_depths) =
+        decode_frame_depths(&fb_prog_ref, version, &main_vector, &fork_vectors)?;
 
     // Decode literals
     let fb_literals = fb_decode!(fb_prog_ref, literals);
@@ -735,8 +743,10 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
         lambda_programs,
         main_vector,
         main_max_stack,
+        main_max_scope_depth,
         fork_vectors,
         fork_max_stacks,
+        fork_max_scope_depths,
         line_number_spans,
         fork_line_number_spans,
     }));
@@ -753,56 +763,92 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
     Ok(program)
 }
 
-fn decode_stack_depths(
+fn decode_frame_depths(
     fb_prog_ref: &fb::StoredMooRProgramRef,
     version: u16,
     main_vector: &[Op],
     fork_vectors: &[(usize, Vec<Op>)],
-) -> Result<(usize, Vec<usize>), DecodeError> {
+) -> Result<(usize, Vec<usize>, usize, Vec<usize>), DecodeError> {
     if version < STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS {
         let fork_max_stacks = fork_vectors
             .iter()
             .map(|(_, ops)| ops.len())
             .collect::<Vec<_>>();
-        return Ok((main_vector.len(), fork_max_stacks));
+        let fork_max_scope_depths = fork_vectors
+            .iter()
+            .map(|(_, ops)| ops.len())
+            .collect::<Vec<_>>();
+        return Ok((
+            main_vector.len(),
+            fork_max_stacks,
+            main_vector.len(),
+            fork_max_scope_depths,
+        ));
     }
 
     let main_max_stack =
         usize::try_from(fb_decode!(fb_prog_ref, main_max_stack)).map_err(|_| {
             DecodeError::DecodeFailed("main_max_stack does not fit in usize".to_string())
         })?;
+    let main_max_scope_depth = usize::try_from(fb_decode!(fb_prog_ref, main_max_scope_depth))
+        .map_err(|_| {
+            DecodeError::DecodeFailed("main_max_scope_depth does not fit in usize".to_string())
+        })?;
 
-    let Some(fb_fork_max_stacks) = fb_prog_ref
-        .fork_max_stacks()
-        .map_err(|e| DecodeError::DecodeFailed(format!("Failed to read fork_max_stacks: {e}")))?
-    else {
-        if fork_vectors.is_empty() {
-            return Ok((main_max_stack, Vec::new()));
+    let fork_max_stacks = decode_fork_depths(
+        fb_prog_ref.fork_max_stacks().map_err(|e| {
+            DecodeError::DecodeFailed(format!("Failed to read fork_max_stacks: {e}"))
+        })?,
+        fork_vectors.len(),
+        "fork_max_stacks",
+    )?;
+    let fork_max_scope_depths = decode_fork_depths(
+        fb_prog_ref.fork_max_scope_depths().map_err(|e| {
+            DecodeError::DecodeFailed(format!("Failed to read fork_max_scope_depths: {e}"))
+        })?,
+        fork_vectors.len(),
+        "fork_max_scope_depths",
+    )?;
+
+    Ok((
+        main_max_stack,
+        fork_max_stacks,
+        main_max_scope_depth,
+        fork_max_scope_depths,
+    ))
+}
+
+fn decode_fork_depths(
+    depths: Option<planus::Vector<'_, u64>>,
+    expected_len: usize,
+    field_name: &str,
+) -> Result<Vec<usize>, DecodeError> {
+    let Some(depths) = depths else {
+        if expected_len == 0 {
+            return Ok(Vec::new());
         }
 
-        return Err(DecodeError::DecodeFailed(
-            "Stored program v4 missing fork_max_stacks".to_string(),
-        ));
+        return Err(DecodeError::DecodeFailed(format!(
+            "Stored program v4 missing {field_name}"
+        )));
     };
 
-    if fb_fork_max_stacks.len() != fork_vectors.len() {
+    if depths.len() != expected_len {
         return Err(DecodeError::DecodeFailed(format!(
-            "Stored program v4 fork_max_stacks length {} does not match fork_vectors length {}",
-            fb_fork_max_stacks.len(),
-            fork_vectors.len()
+            "Stored program v4 {field_name} length {} does not match fork_vectors length {}",
+            depths.len(),
+            expected_len
         )));
     }
 
-    let fork_max_stacks = fb_fork_max_stacks
+    depths
         .iter()
         .map(|depth| {
             usize::try_from(depth).map_err(|_| {
-                DecodeError::DecodeFailed("fork_max_stacks entry does not fit in usize".to_string())
+                DecodeError::DecodeFailed(format!("{field_name} entry does not fit in usize"))
             })
         })
-        .collect::<Result<Vec<_>, DecodeError>>()?;
-
-    Ok((main_max_stack, fork_max_stacks))
+        .collect::<Result<Vec<_>, DecodeError>>()
 }
 
 fn used_builtin_ids(program: &Program) -> Vec<BuiltinId> {
@@ -1034,8 +1080,10 @@ mod tests {
             lambda_programs: Vec::new(),
             main_vector: vec![Op::ImmInt(1), Op::ImmInt(2), Op::Add, Op::Return],
             main_max_stack: 2,
+            main_max_scope_depth: 1,
             fork_vectors: vec![(1, vec![Op::ImmInt(3), Op::Return])],
             fork_max_stacks: vec![1],
+            fork_max_scope_depths: vec![2],
             line_number_spans: vec![(0, 1)],
             fork_line_number_spans: vec![vec![(0, 2)]],
         }))
@@ -1049,6 +1097,8 @@ mod tests {
 
         assert_eq!(decoded.main_max_stack(), 2);
         assert_eq!(decoded.fork_vector_max_stack(Offset(0)), 1);
+        assert_eq!(decoded.main_max_scope_depth(), 1);
+        assert_eq!(decoded.fork_vector_max_scope_depth(Offset(0)), 2);
     }
 
     #[test]
@@ -1057,6 +1107,8 @@ mod tests {
         moor_program.version = 3;
         moor_program.main_max_stack = 0;
         moor_program.fork_max_stacks = None;
+        moor_program.main_max_scope_depth = 0;
+        moor_program.fork_max_scope_depths = None;
 
         let stored_program = fb::StoredProgram {
             language: fb::StoredProgramLanguage::StoredMooRProgram(Box::new(moor_program)),
@@ -1071,6 +1123,11 @@ mod tests {
         assert_eq!(decoded.main_max_stack(), decoded.main_vector().len());
         assert_eq!(
             decoded.fork_vector_max_stack(Offset(0)),
+            decoded.fork_vector(Offset(0)).len()
+        );
+        assert_eq!(decoded.main_max_scope_depth(), decoded.main_vector().len());
+        assert_eq!(
+            decoded.fork_vector_max_scope_depth(Offset(0)),
             decoded.fork_vector(Offset(0)).len()
         );
     }

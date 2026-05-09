@@ -334,6 +334,7 @@ impl CodegenState {
                     label: loop_start_label,
                 });
                 self.commit_jump_label(end_label);
+                self.exit_scope();
             }
             Expr::ComprehendList {
                 variable,
@@ -373,6 +374,7 @@ impl CodegenState {
                     label: loop_start_label,
                 });
                 self.commit_jump_label(end_label);
+                self.exit_scope();
             }
             Expr::Return(Some(expr)) => {
                 self.generate_expr(expr)?;

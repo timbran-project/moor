@@ -413,6 +413,33 @@ mod tests {
     }
 
     #[test]
+    fn test_program_tracks_scope_stack_depths() {
+        let binary = compile(
+            r#"
+            if (1)
+                while (0)
+                    1;
+                endwhile
+            endif
+            fork (5)
+                try
+                    1;
+                finally
+                    2;
+                endtry
+            endfork
+            return {x} => `x ! E_TYPE => 0';
+            "#,
+            CompileOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(binary.main_max_scope_depth(), 2);
+        assert_eq!(binary.fork_vector_max_scope_depth(Offset(0)), 1);
+        assert_eq!(binary.lambda_program(Offset(0)).main_max_scope_depth(), 1);
+    }
+
+    #[test]
     fn test_and_or() {
         let program = "a = (1 && 2 || 3);";
         let binary = compile(program, CompileOptions::default()).unwrap();

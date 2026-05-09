@@ -50,6 +50,7 @@ impl CodegenState {
         let stashed_operands = self.operands.snapshot_and_reset();
         let stashed_line_number_spans = std::mem::take(&mut self.line_number_spans);
         let stashed_stack = self.stack.snapshot_and_reset();
+        let stashed_scopes = self.scopes.snapshot_and_reset();
 
         self.emitter.reset();
         self.line_number_spans = vec![];
@@ -84,11 +85,18 @@ impl CodegenState {
 
         self.generate_stmt(&body)?;
         let lambda_max_stack = self.stack.max_depth();
+        let lambda_max_scope_depth = self.scopes.max_depth();
         if self.stack.depth() != 0 || self.stack.saved_top().is_some() {
             panic!(
                 "Lambda stack is not empty at end of compilation: cur_stack#: {} stack: {:?}",
                 self.stack.depth(),
                 self.stack.saved_top()
+            )
+        }
+        if self.scopes.depth() != 0 {
+            panic!(
+                "Lambda scope stack is not empty at end of compilation: cur_scope#: {}",
+                self.scopes.depth()
             )
         }
 
@@ -97,6 +105,7 @@ impl CodegenState {
             self.emitter.take_jumps(),
             self.emitter.take_ops(),
             lambda_max_stack,
+            lambda_max_scope_depth,
             std::mem::take(&mut self.line_number_spans),
         );
 
@@ -106,6 +115,7 @@ impl CodegenState {
         self.operands.restore(stashed_operands);
         self.line_number_spans = stashed_line_number_spans;
         self.stack.restore(stashed_stack);
+        self.scopes.restore(stashed_scopes);
 
         let program_offset = self.add_lambda_program(lambda_program, base_line_offset);
         self.control.set_lambda_scope_depth(outer_scope_depth);

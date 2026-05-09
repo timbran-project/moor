@@ -37,6 +37,7 @@ pub struct OperandState {
     lambda_programs: Vec<Program>,
     fork_vectors: Vec<(usize, Vec<Op>)>,
     fork_max_stacks: Vec<usize>,
+    fork_max_scope_depths: Vec<usize>,
     fork_line_number_spans: Vec<Vec<(usize, usize)>>,
 }
 
@@ -52,6 +53,7 @@ pub struct OperandSnapshot {
     lambda_programs: Vec<Program>,
     fork_vectors: Vec<(usize, Vec<Op>)>,
     fork_max_stacks: Vec<usize>,
+    fork_max_scope_depths: Vec<usize>,
     fork_line_number_spans: Vec<Vec<(usize, usize)>>,
 }
 
@@ -124,11 +126,13 @@ impl OperandState {
         offset: usize,
         opcodes: Vec<Op>,
         max_stack: usize,
+        max_scope_depth: usize,
         line_spans: Vec<(usize, usize)>,
     ) -> Offset {
         let fv = self.fork_vectors.len();
         self.fork_vectors.push((offset, opcodes));
         self.fork_max_stacks.push(max_stack);
+        self.fork_max_scope_depths.push(max_scope_depth);
         self.fork_line_number_spans.push(line_spans);
         Offset(fv as u16)
     }
@@ -145,6 +149,7 @@ impl OperandState {
             lambda_programs: std::mem::take(&mut self.lambda_programs),
             fork_vectors: std::mem::take(&mut self.fork_vectors),
             fork_max_stacks: std::mem::take(&mut self.fork_max_stacks),
+            fork_max_scope_depths: std::mem::take(&mut self.fork_max_scope_depths),
             fork_line_number_spans: std::mem::take(&mut self.fork_line_number_spans),
         };
         self.reset();
@@ -162,6 +167,7 @@ impl OperandState {
         self.lambda_programs = snapshot.lambda_programs;
         self.fork_vectors = snapshot.fork_vectors;
         self.fork_max_stacks = snapshot.fork_max_stacks;
+        self.fork_max_scope_depths = snapshot.fork_max_scope_depths;
         self.fork_line_number_spans = snapshot.fork_line_number_spans;
     }
 
@@ -176,6 +182,7 @@ impl OperandState {
         self.lambda_programs.clear();
         self.fork_vectors.clear();
         self.fork_max_stacks.clear();
+        self.fork_max_scope_depths.clear();
         self.fork_line_number_spans.clear();
     }
 
@@ -191,6 +198,7 @@ impl OperandState {
             lambda_programs: std::mem::take(&mut self.lambda_programs),
             fork_vectors: std::mem::take(&mut self.fork_vectors),
             fork_max_stacks: std::mem::take(&mut self.fork_max_stacks),
+            fork_max_scope_depths: std::mem::take(&mut self.fork_max_scope_depths),
             fork_line_number_spans: std::mem::take(&mut self.fork_line_number_spans),
         }
     }
@@ -207,6 +215,7 @@ pub struct ProgramOperandParts {
     pub lambda_programs: Vec<Program>,
     pub fork_vectors: Vec<(usize, Vec<Op>)>,
     pub fork_max_stacks: Vec<usize>,
+    pub fork_max_scope_depths: Vec<usize>,
     pub fork_line_number_spans: Vec<Vec<(usize, usize)>>,
 }
 
@@ -217,6 +226,7 @@ impl ProgramOperandParts {
         jump_labels: Vec<moor_var::program::labels::JumpLabel>,
         main_vector: Vec<Op>,
         main_max_stack: usize,
+        main_max_scope_depth: usize,
         line_number_spans: Vec<(usize, usize)>,
     ) -> Program {
         Program(Arc::new(PrgInner {
@@ -232,8 +242,10 @@ impl ProgramOperandParts {
             lambda_programs: self.lambda_programs,
             main_vector,
             main_max_stack,
+            main_max_scope_depth,
             fork_vectors: self.fork_vectors,
             fork_max_stacks: self.fork_max_stacks,
+            fork_max_scope_depths: self.fork_max_scope_depths,
             line_number_spans,
             fork_line_number_spans: self.fork_line_number_spans,
         }))
@@ -275,7 +287,7 @@ mod tests {
         let mut operands = OperandState::new();
         operands.add_literal(&v_int(7));
         operands.add_error_code_operand(moor_var::E_INVARG);
-        operands.add_fork_vector(4, vec![Op::ImmInt(1)], 1, vec![(0, 12)]);
+        operands.add_fork_vector(4, vec![Op::ImmInt(1)], 1, 2, vec![(0, 12)]);
 
         let snapshot = operands.snapshot_and_reset();
         assert!(operands.take_program_parts().literals.is_empty());
@@ -286,6 +298,7 @@ mod tests {
         assert_eq!(parts.error_operands, vec![moor_var::E_INVARG]);
         assert_eq!(parts.fork_vectors, vec![(4, vec![Op::ImmInt(1)])]);
         assert_eq!(parts.fork_max_stacks, vec![1]);
+        assert_eq!(parts.fork_max_scope_depths, vec![2]);
         assert_eq!(parts.fork_line_number_spans, vec![vec![(0, 12)]]);
     }
 
@@ -307,7 +320,7 @@ mod tests {
     fn build_program_preserves_vectors_and_metadata() {
         let mut operands = OperandState::new();
         operands.add_literal(&v_int(7));
-        operands.add_fork_vector(2, vec![Op::ImmInt(9)], 1, vec![(0, 5)]);
+        operands.add_fork_vector(2, vec![Op::ImmInt(9)], 1, 2, vec![(0, 5)]);
 
         let program = operands.take_program_parts().build_program(
             Names::new(0),
@@ -318,15 +331,18 @@ mod tests {
             }],
             vec![Op::ImmInt(7), Op::Done],
             1,
+            3,
             vec![(0, 1)],
         );
 
         assert_eq!(program.literals(), &[v_int(7)]);
         assert_eq!(program.main_vector(), &vec![Op::ImmInt(7), Op::Done]);
         assert_eq!(program.main_max_stack(), 1);
+        assert_eq!(program.main_max_scope_depth(), 3);
         assert_eq!(program.jump_label(Label(0)).position, Offset(1));
         assert_eq!(program.fork_vector(Offset(0)), &vec![Op::ImmInt(9)]);
         assert_eq!(program.fork_vector_max_stack(Offset(0)), 1);
+        assert_eq!(program.fork_vector_max_scope_depth(Offset(0)), 2);
         assert_eq!(program.fork_line_num_for_position(Offset(0), 0), 5);
         assert_eq!(program.line_number_spans(), &[(0, 1)]);
     }

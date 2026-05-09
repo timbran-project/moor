@@ -213,6 +213,7 @@ impl CodegenState {
                 let stashed_ops = self.emitter.take_ops();
                 let stashed_line_spans = std::mem::take(&mut self.line_number_spans);
                 let stashed_stack = self.stack.snapshot_and_reset();
+                let stashed_scopes = self.scopes.snapshot_and_reset();
 
                 for stmt in body {
                     self.generate_stmt(stmt)?;
@@ -220,6 +221,7 @@ impl CodegenState {
                 self.emit(Op::Done);
                 let forked_ops = self.emitter.take_ops();
                 let fork_max_stack = self.stack.max_depth();
+                let fork_max_scope_depth = self.scopes.max_depth();
                 if self.stack.depth() != 0 || self.stack.saved_top().is_some() {
                     panic!(
                         "Fork stack is not empty at end of compilation: cur_stack#: {} stack: {:?}",
@@ -227,16 +229,24 @@ impl CodegenState {
                         self.stack.saved_top()
                     )
                 }
+                if self.scopes.depth() != 0 {
+                    panic!(
+                        "Fork scope stack is not empty at end of compilation: cur_scope#: {}",
+                        self.scopes.depth()
+                    )
+                }
                 let fork_line_spans = std::mem::take(&mut self.line_number_spans);
 
                 self.emitter.replace_ops(stashed_ops);
                 self.line_number_spans = stashed_line_spans;
                 self.stack.restore(stashed_stack);
+                self.scopes.restore(stashed_scopes);
 
                 let fv_id = self.add_fork_vector(
                     fork_main_position,
                     forked_ops,
                     fork_max_stack,
+                    fork_max_scope_depth,
                     fork_line_spans,
                 );
                 self.emit(Op::Fork {

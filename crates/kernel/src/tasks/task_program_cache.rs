@@ -215,6 +215,7 @@ impl TaskProgramCache {
             program_ptr: program as *const Program as usize,
             global_width: program.var_names().global_width(),
             main_max_stack: program.main_max_stack(),
+            main_max_scope_depth: program.main_max_scope_depth(),
         }
     }
 }
