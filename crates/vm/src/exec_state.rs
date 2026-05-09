@@ -108,7 +108,7 @@ impl ExecState {
     pub fn new(task_id: TaskId, max_ticks: usize) -> Self {
         Self {
             task_id,
-            stack: Vec::with_capacity(32),
+            stack: Vec::with_capacity(16),
             tick_count: 0,
             start_time: None,
             start_instant: None,

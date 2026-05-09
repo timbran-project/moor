@@ -56,6 +56,10 @@ name = "activation_bench"
 harness = false
 
 [[bench]]
+name = "activation_stack_capacity_bench"
+harness = false
+
+[[bench]]
 name = "verb_dispatch_bench"
 harness = false
 
