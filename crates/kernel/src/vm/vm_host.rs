@@ -416,7 +416,9 @@ impl VmHost {
                     return match &fr {
                         FinallyReason::Abort => VMHostResponse::CompleteAbort,
                         FinallyReason::Raise(exception) => {
-                            VMHostResponse::CompleteException(exception.clone())
+                            let mut exception = exception.as_ref().clone();
+                            ExecState::materialize_exception_backtrace(&mut exception);
+                            VMHostResponse::CompleteException(Box::new(exception))
                         }
                         _ => {
                             unreachable!(

@@ -283,6 +283,14 @@ mod tests {
     }
 
     #[test]
+    fn test_builtin_error_catch_expr_fallback() {
+        assert_eq!(
+            run_moo(r#"return `verb_info(#-1, "blerg") ! ANY => 42';"#),
+            Ok(v_int(42))
+        );
+    }
+
+    #[test]
     fn test_regression_zero_body_function() {
         // A VM body that is empty should return v_bool(false) or v_int(0) and not panic.
         let binary = Program::new();
@@ -338,6 +346,38 @@ mod tests {
             List::mk_list(&[]),
         );
         assert_eq!(result, Ok(v_str("should reach here")));
+    }
+
+    #[test]
+    fn test_caught_exception_stack_starts_at_handler_activation() {
+        let top = compile(r#"return this:catcher();"#, CompileOptions::default()).unwrap();
+        let catcher = compile(
+            r#"
+            try
+                this:raise_error();
+            except e (ANY)
+                return e[4][$][2];
+            endtry
+            "#,
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let raiser = compile(r#"raise(E_ARGS);"#, CompileOptions::default()).unwrap();
+
+        let state = world_with_test_programs(&[
+            ("test", &top),
+            ("catcher", &catcher),
+            ("raise_error", &raiser),
+        ]);
+        let session = Arc::new(NoopClientSession::new());
+        let result = call_verb(
+            state,
+            session,
+            BuiltinRegistry::new(),
+            "test",
+            List::mk_list(&[]),
+        );
+        assert_eq!(result, Ok(v_str("catcher")));
     }
 
     #[test]

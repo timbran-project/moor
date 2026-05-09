@@ -562,8 +562,12 @@ impl MooStackFrame {
         self.valstack[l - amt - 1] = v;
     }
 
+    pub fn label_position(&self, label_id: Label) -> usize {
+        self.resolved_program().jump_label(label_id).position.0 as usize
+    }
+
     pub fn jump(&mut self, label_id: &Label) {
-        let position = self.resolved_program().jump_label(*label_id).position.0 as usize;
+        let position = self.label_position(*label_id);
 
         self.pc = position;
         // Pop all scopes that the jump target is outside of

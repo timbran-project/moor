@@ -20,19 +20,19 @@ use moor_common::matching::ParsedCommand;
 use moor_common::model::{
     DispatchFlagsSource, ObjFlag, ResolvedVerb, VerbDispatch, VerbFlag, VerbLookup, WorldStateError,
 };
-use moor_common::tasks::{Exception, TaskId};
+use moor_common::tasks::TaskId;
 use moor_common::util::BitEnum;
 use moor_common::util::Instant;
-use moor_compiler::{BUILTINS, to_literal};
+use moor_compiler::to_literal;
 use moor_var::{
     E_INVIND, E_PERM, E_TYPE, E_VERBNF, Error, List, NOTHING, Obj, SYSTEM_OBJECT, Sequence, Symbol,
-    Var, Variant, program::names::GlobalName, v_arc_str, v_bool, v_empty_list, v_empty_str, v_err,
-    v_error, v_int, v_list, v_none, v_obj, v_str, v_string,
+    Var, Variant, program::names::GlobalName, v_empty_list, v_empty_str, v_error, v_int, v_obj,
+    v_string,
 };
 
 use crate::activation::CallProgram;
 use crate::moo_execute::{ExecutionResult, Fork, VerbExecutionRequest};
-use crate::{Activation, CatchType, FinallyReason, Frame, PhantomUnsync, ScopeType, VmHost};
+use crate::{Activation, Frame, PhantomUnsync, VmHost};
 
 static LIST_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("list_proto"));
 static MAP_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("map_proto"));
@@ -290,92 +290,6 @@ impl ExecState {
 }
 
 impl ExecState {
-    /// Compose a list of the current stack frames, starting from `start_frame_num` and working
-    /// upwards.
-    pub fn make_stack_list(activations: &[Activation]) -> Vec<Var> {
-        let mut stack_list = Vec::with_capacity(activations.len());
-        for a in activations.iter().rev() {
-            // Produce traceback line for each activation frame and append to stack_list
-            // Should include line numbers (if possible), the name of the currently running verb,
-            // its definer, its location, and the current player, and 'this'.
-            let line_no = match a.frame.find_line_no() {
-                None => v_none(),
-                Some(l) => v_int(l as i64),
-            };
-            match &a.frame {
-                Frame::Moo(_) => stack_list.push(v_list(&[
-                    a.this.clone(),
-                    v_str(&a.verb_name.as_string()),
-                    v_obj(a.permissions),
-                    v_obj(a.verb_definer()),
-                    v_obj(a.player),
-                    line_no,
-                ])),
-                Frame::Bf(bf_frame) => {
-                    let bf_name = BUILTINS.name_of(bf_frame.bf_id).unwrap();
-                    stack_list.push(v_list(&[
-                        a.this.clone(),
-                        v_arc_str(bf_name.as_arc_str()),
-                        v_obj(a.permissions),
-                        v_obj(NOTHING),
-                        v_obj(a.player),
-                        v_int(0),
-                    ]));
-                }
-            }
-        }
-        stack_list
-    }
-
-    /// Compose a backtrace list of strings for an error, starting from the current stack frame.
-    pub fn make_backtrace(activations: &[Activation], error: &Error) -> Vec<Var> {
-        // Walk live activation frames and produce a written representation of a traceback for each
-        // frame.
-        let mut backtrace_list = Vec::with_capacity(activations.len() + 1);
-        for (i, a) in activations.iter().rev().enumerate() {
-            let mut piece = String::new();
-            if i != 0 {
-                piece.push_str("... called from ");
-            }
-            match &a.frame {
-                Frame::Moo(_) => {
-                    piece.push_str(&format!("{}:{}", a.verb_definer(), a.verb_name));
-                }
-                Frame::Bf(bf_frame) => {
-                    let bf_name = BUILTINS.name_of(bf_frame.bf_id).unwrap();
-                    piece.push_str(&format!("builtin {bf_name}"));
-                }
-            }
-            if v_obj(a.verb_definer()) != a.this {
-                piece.push_str(&format!(" (this == {})", to_literal(&a.this)));
-            }
-            if let Some(line_num) = a.frame.find_line_no() {
-                piece.push_str(&format!(" (line {line_num})"));
-            }
-            if i == 0 {
-                let raise_msg = format!("{} ({})", error.err_type(), error.message());
-                piece.push_str(&format!(": {raise_msg}"));
-            }
-            backtrace_list.push(v_str(&piece))
-        }
-        backtrace_list.push(v_str("(End of traceback)"));
-        backtrace_list
-    }
-
-    /// Explicitly raise an error.
-    /// Finds the catch handler for the given error if there is one, and unwinds the stack to it.
-    /// If there is no handler, creates an 'Uncaught' reason with backtrace, and unwinds with that.
-    pub fn throw_error(&mut self, error: Error) -> ExecutionResult {
-        let stack = Self::make_stack_list(&self.stack);
-        let backtrace = Self::make_backtrace(&self.stack, &error);
-        let exception = Box::new(Exception {
-            error,
-            stack,
-            backtrace,
-        });
-        self.unwind_stack(FinallyReason::Raise(exception))
-    }
-
     /// Push an error up the activation stack (set returned value), and raise it depending on the `d` flag
     pub fn push_error(&mut self, error: Error) -> ExecutionResult {
         self.set_return_value(v_error(error.clone()));
@@ -411,99 +325,6 @@ impl ExecState {
             return self.throw_error(error);
         }
         ExecutionResult::More
-    }
-
-    /// Unwind the stack with the given reason and return an execution result back to the VM loop
-    /// which makes its way back up to the scheduler.
-    /// Contains all the logic for handling the various reasons for exiting a verb execution:
-    ///     * Error raises of various kinds
-    ///     * Return common
-    pub fn unwind_stack(&mut self, why: FinallyReason) -> ExecutionResult {
-        // Walk activation stack from bottom to top, tossing frames as we go.
-        while let Some(a) = self.stack.last_mut() {
-            // If this is an error or exit attempt to find a handler for it.
-            match &mut a.frame {
-                Frame::Moo(frame) => {
-                    // Exit with a jump.. let's go...
-                    if let FinallyReason::Exit { label, .. } = why {
-                        frame.jump(&label);
-                        return ExecutionResult::More;
-                    }
-
-                    loop {
-                        // Check the scope stack to see if we've hit a finally or catch handler that
-                        // was registered for this position in the value stack.
-                        let Some(scope) = frame.pop_scope() else {
-                            break;
-                        };
-
-                        match scope.scope_type {
-                            ScopeType::TryFinally(finally_label) => {
-                                // Jump to the label pointed to by the finally label and then continue on
-                                // executing.
-                                frame.jump(&finally_label);
-                                frame.finally_stack.push(why);
-                                return ExecutionResult::More;
-                            }
-                            ScopeType::TryCatch(catches) => {
-                                if let FinallyReason::Raise(e) = &why {
-                                    for catch in catches {
-                                        let found = match catch.0 {
-                                            CatchType::Any => true,
-                                            CatchType::Errors(errs) => errs.contains(&e.error),
-                                        };
-                                        if found {
-                                            let value =
-                                                e.error.value().cloned().unwrap_or(v_int(0));
-                                            frame.jump(&catch.1);
-                                            frame.push(v_list(&[
-                                                v_err(e.error.err_type()),
-                                                v_string(e.error.message()),
-                                                value,
-                                                v_list(&e.stack),
-                                            ]));
-                                            return ExecutionResult::More;
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {
-                                // This is a lexical scope, so we just let it pop off the stack and
-                                // continue on.
-                            }
-                        }
-                    }
-                }
-                Frame::Bf(_) => {
-                    // TODO: unwind builtin function frames here in a way that takes their
-                    //   `return_value` (and maybe error state/) and propagates it up the stack.
-                    //   This way things like push_bf_err can be removed.
-                    //   This might involve encompassing some of the stuff below, too.
-                }
-            }
-
-            // No match in the frame, so we pop it.
-            self.stack.pop();
-
-            // No more frames to unwind, so break out and handle final exit.
-            if self.stack.is_empty() {
-                break;
-            }
-
-            // If it was an explicit return that brought us here, set the return value explicitly.
-            // (Unless we're the final activation, in which case that should have been handled
-            // above)
-            if let FinallyReason::Return(value) = &why {
-                self.set_return_value(value.clone());
-                return ExecutionResult::More;
-            }
-        }
-
-        match why {
-            FinallyReason::Return(r) => ExecutionResult::Complete(r),
-            FinallyReason::Fallthrough => ExecutionResult::Complete(v_bool(false)),
-            _ => ExecutionResult::Exception(why),
-        }
     }
 }
 
