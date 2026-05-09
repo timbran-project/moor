@@ -20,7 +20,7 @@ use moor_vm::{Activation, ExecState, FinallyReason, Frame};
 #[cfg(feature = "trace_events")]
 use crate::{trace_builtin_begin, trace_builtin_end};
 
-use moor_common::tasks::Session;
+use moor_common::{tasks::Session, util::PerfIntensity};
 use moor_compiler::{BUILTINS, BuiltinId};
 use moor_var::{List, VarType::TYPE_NONE, v_int};
 
@@ -84,9 +84,6 @@ impl ExecStateBuiltinExt for ExecState {
             return proxy_result;
         }
 
-        let bf_timer = bf_perf_counters().timer_for(bf_id);
-        let _guard = bf_timer.start();
-
         // Push an activation frame for the builtin function.
         let flags = self.top().verbdef.flags();
         self.stack.push(Activation::for_bf_call(
@@ -104,8 +101,13 @@ impl ExecStateBuiltinExt for ExecState {
             args: &args,
             config: exec_args.config,
         };
+        let bf_counters = bf_perf_counters();
+        let bf_counter = bf_counters.counter_for(bf_id);
+        bf_counter.invocations().add(1);
+        let sampled_start = bf_counter.sampled_start_with_intensity(PerfIntensity::HotPath);
 
         let bf_result = bf(&mut bf_args);
+        bf_counter.add_elapsed_sample(sampled_start);
 
         match bf_result {
             Ok(BfRet::Ret(result)) => {
@@ -135,8 +137,8 @@ impl ExecStateBuiltinExt for ExecState {
             Frame::Bf(ref frame) => frame.bf_id,
             _ => panic!("Expected a BF frame at the top of the stack"),
         };
-        let bf_timer = bf_perf_counters().timer_for(bf_id);
-        let _guard = bf_timer.start();
+        let bf_counter = bf_perf_counters().counter_for(bf_id);
+        let sampled_start = bf_counter.sampled_start_with_intensity(PerfIntensity::HotPath);
 
         // Functions that did not set a trampoline are assumed to be complete, so we just unwind.
         // Note: If there was an error that required unwinding, we'll have already done that, so
@@ -172,7 +174,7 @@ impl ExecStateBuiltinExt for ExecState {
         };
 
         let bf_result = bf(&mut bf_args);
-        // _guard dropped here, records elapsed automatically
+        bf_counter.add_elapsed_sample(sampled_start);
 
         // Emit builtin end trace event
         #[cfg(feature = "trace_events")]
