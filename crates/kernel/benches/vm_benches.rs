@@ -11,15 +11,17 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Benchmarks of various virtual machine executions
-//! In general attempting to keep isolated from the object/world-state and simply execute
-//! program code that doesn't interact with the DB, to measure opcode execution efficiency.
-#![recursion_limit = "256"]
+//! Benchmarks of virtual machine execution throughput.
+//!
+//! These keep the measured programs isolated from object/world-state mutation and run the
+//! interpreter to a tick limit so the result is mostly opcode execution cost.
 
-use std::{hint::black_box, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use criterion::{Criterion, criterion_group, criterion_main};
-
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
+    black_box,
+};
 use moor_common::{
     model::{
         CommitResult, DispatchFlagsSource, ObjFlag, ObjectKind, VerbArgsSpec, VerbDispatch,
@@ -38,6 +40,9 @@ use moor_kernel::{
 };
 use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_obj};
 
+const MAX_TICKS: usize = 100_000_000;
+const CHUNK_SIZE: usize = 1;
+
 fn create_db() -> TxDB {
     let (ws_source, _) = TxDB::open(None, DatabaseConfig::default());
     let mut tx = ws_source.new_world_state().unwrap();
@@ -54,7 +59,7 @@ fn create_db() -> TxDB {
     ws_source
 }
 
-pub fn prepare_call_verb(
+fn prepare_call_verb(
     world_state: &mut dyn WorldState,
     verb_name: &str,
     args: List,
@@ -121,7 +126,6 @@ fn prepare_vm_execution(
     vm_host
 }
 
-/// Run the vm host until it runs out of ticks
 fn execute(session: Arc<dyn Session>, vm_host: &mut VmHost) -> usize {
     vm_host.reset_ticks();
     vm_host.reset_time();
@@ -129,7 +133,6 @@ fn execute(session: Arc<dyn Session>, vm_host: &mut VmHost) -> usize {
     let config = FeaturesConfig::default();
     let mut program_cache = TaskProgramCache::default();
 
-    // Call repeatedly into exec until we ge either an error or Complete.
     loop {
         match vm_host.exec_interpreter(
             0,
@@ -175,155 +178,111 @@ fn execute(session: Arc<dyn Session>, vm_host: &mut VmHost) -> usize {
     }
 }
 
-fn do_program(
-    state_source: TxDB,
-    program: &str,
-    max_ticks: usize,
-    iters: u64,
-) -> (Duration, usize) {
-    let mut cumulative_time = Duration::new(0, 0);
-    let mut cumulative_ticks = 0;
-    let mut vm_host = prepare_vm_execution(&state_source, program, max_ticks);
-    let tx = state_source.new_world_state().unwrap();
-    let session = Arc::new(NoopClientSession::new());
-    // Set up transaction context for benchmarking
-    let _tx_guard = setup_task_context(tx);
-
-    for _ in 0..iters {
-        let start = std::time::Instant::now();
-        let t = black_box(execute(session.clone(), &mut vm_host));
-        cumulative_ticks += t;
-        cumulative_time += start.elapsed();
-    }
-
-    // Transaction will be cleaned up automatically by tx_guard drop
-
-    drop(state_source);
-    (cumulative_time, cumulative_ticks)
+struct VmBenchContext {
+    db: TxDB,
+    vm_host: VmHost,
+    session: Arc<dyn Session>,
 }
 
-fn opcode_throughput(c: &mut Criterion) {
-    let db = create_db();
+impl BenchContext for VmBenchContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        Self::with_program("while (1) endwhile")
+    }
 
-    let mut group = c.benchmark_group("opcode_throughput");
-    group.sample_size(20);
+    fn chunk_size() -> Option<usize> {
+        Some(CHUNK_SIZE)
+    }
 
-    let num_ticks = 100000000;
-    group.throughput(criterion::Throughput::Elements(num_ticks as u64));
-    group.bench_function("while_loop", |b| {
-        b.iter_custom(|iters| do_program(db.clone(), "while (1) endwhile", num_ticks, iters).0);
-    });
-    group.bench_function("while_increment_var_loop", |b| {
-        b.iter_custom(|iters| {
-            do_program(
-                db.clone(),
-                "i = 0; while(1) i=i+1; endwhile",
-                num_ticks,
-                iters,
-            )
-            .0
-        });
-    });
-    group.bench_function("for_in_range_loop", |b| {
-        b.iter_custom(|iters| {
-            do_program(
-                db.clone(),
-                "while(1) for i in [1..1000000] endfor endwhile",
-                num_ticks,
-                iters,
-            )
-            .0
-        });
-    });
-    // Measure range iteration over a static list
+    fn operations_per_chunk() -> Option<u64> {
+        Some(MAX_TICKS as u64)
+    }
+}
 
-    group.bench_function("for_in_static_list_loop", |b| {
-        b.iter_custom(|iters| {
-            do_program(db.clone(),
-                       r#"while(1)
+impl VmBenchContext {
+    fn with_program(program: &str) -> Self {
+        let db = create_db();
+        let vm_host = prepare_vm_execution(&db, program, MAX_TICKS);
+        let session = Arc::new(NoopClientSession::new());
+
+        Self {
+            db,
+            vm_host,
+            session,
+        }
+    }
+}
+
+fn run_program(ctx: &mut VmBenchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    let _tx_guard = setup_task_context(tx);
+    let _ = black_box(execute(ctx.session.clone(), &mut ctx.vm_host));
+}
+
+benchmark_main!(
+    BenchmarkMainOptions {
+        filter_help: Some("all, opcode, dispatch, or any benchmark name substring".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(500),
+            benchmark_duration: Duration::from_secs(2),
+            min_samples: 10,
+            max_samples: 20,
+        },
+        ..BenchmarkMainOptions::default()
+    },
+    |runner| {
+        runner.group::<VmBenchContext>("opcode_throughput", |g| {
+            let g = g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"));
+            g.factory(&|| VmBenchContext::with_program("while (1) endwhile"))
+                .bench("while_loop", run_program);
+            g.factory(&|| VmBenchContext::with_program("i = 0; while(1) i=i+1; endwhile"))
+                .bench("while_increment_var_loop", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program("while(1) for i in [1..1000000] endfor endwhile")
+            })
+            .bench("for_in_range_loop", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"while(1)
                             for i in ({1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10})
                             endfor
                           endwhile"#,
-                       num_ticks,
-                       iters,
-            ).0
-        });
-    });
-    // Measure how costly it is to append to a list
-    group.bench_function("list_append_loop", |b| {
-        b.iter_custom(|iters| {
-            do_program(
-                db.clone(),
-                r#"while(1)
+                )
+            })
+            .bench("for_in_static_list_loop", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"while(1)
                             base_list = {};
                             for i in [0..1000]
                                 base_list = {@base_list, i};
                             endfor
                           endwhile"#,
-                num_ticks,
-                iters,
-            )
-            .0
-        });
-    });
-    // Measure how costly it is to append to a list
-    group.bench_function("list_set", |b| {
-        b.iter_custom(|iters| {
-            do_program(
-                db.clone(),
-                r#"while(1)
+                )
+            })
+            .bench("list_append_loop", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"while(1)
                             l = {1};
-                            for i in [0..10000] 
+                            for i in [0..10000]
                                 l[1] = i;
                             endfor
                           endwhile"#,
-                num_ticks,
-                iters,
-            )
-            .0
+                )
+            })
+            .bench("list_set", run_program);
         });
-    });
-    group.finish();
-}
 
-fn dispatch_micro_benchmarks(c: &mut Criterion) {
-    let db = create_db();
-
-    let mut group = c.benchmark_group("dispatch_micro");
-    group.sample_size(20);
-
-    let num_ticks = 100000000;
-    group.throughput(criterion::Throughput::Elements(num_ticks as u64));
-
-    // Tightest possible loop: just discard constants
-    // This measures pure dispatch overhead with minimal instruction work
-    group.bench_function("dispatch_constant_discard", |b| {
-        b.iter_custom(|iters| do_program(db.clone(), "while(1) 1; endwhile", num_ticks, iters).0);
-    });
-
-    // Push/Pop only - measures stack operations dispatch
-    group.bench_function("dispatch_push_pop", |b| {
-        b.iter_custom(|iters| {
-            do_program(db.clone(), "i=0; while(1) i; endwhile", num_ticks, iters).0
+        runner.group::<VmBenchContext>("dispatch_micro", |g| {
+            let g = g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"));
+            g.factory(&|| VmBenchContext::with_program("while(1) 1; endwhile"))
+                .bench("dispatch_constant_discard", run_program);
+            g.factory(&|| VmBenchContext::with_program("i=0; while(1) i; endwhile"))
+                .bench("dispatch_push_pop", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) 1 + 1; endwhile"))
+                .bench("dispatch_simple_add", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) 1 == 1; endwhile"))
+                .bench("dispatch_comparison", run_program);
         });
-    });
-
-    // Simple arithmetic - measures dispatch + one operation
-    group.bench_function("dispatch_simple_add", |b| {
-        b.iter_custom(|iters| {
-            do_program(db.clone(), "while(1) 1 + 1; endwhile", num_ticks, iters).0
-        });
-    });
-
-    // Comparison only
-    group.bench_function("dispatch_comparison", |b| {
-        b.iter_custom(|iters| {
-            do_program(db.clone(), "while(1) 1 == 1; endwhile", num_ticks, iters).0
-        });
-    });
-
-    group.finish();
-}
-
-criterion_group!(benches, opcode_throughput, dispatch_micro_benchmarks);
-criterion_main!(benches);
+    }
+);
