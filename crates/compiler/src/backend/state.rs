@@ -14,7 +14,7 @@
 use moor_common::model::{CompileContext, CompileError};
 use moor_var::program::{
     labels::{Label, Offset},
-    names::{Name, Names, Variable},
+    names::{GlobalName, Name, Names, Variable},
     opcode::{
         ForRangeOperand, ForSequenceOperand, ListComprehend, Op, RangeComprehend, ScatterLabel,
     },
@@ -138,6 +138,33 @@ impl CodegenState {
         self.emitter.emit(op);
     }
 
+    #[inline]
+    fn scope0_local_offset(name: Name) -> Option<u16> {
+        if name.1 != 0 {
+            return None;
+        }
+
+        if GlobalName::from_repr(name.0 as usize).is_some() {
+            return None;
+        }
+
+        Some(name.0)
+    }
+
+    pub(crate) fn emit_push_name(&mut self, name: Name) {
+        match Self::scope0_local_offset(name) {
+            Some(offset) => self.emit(Op::PushScope0Local(offset)),
+            None => self.emit(Op::Push(name)),
+        }
+    }
+
+    pub(crate) fn emit_put_name(&mut self, name: Name) {
+        match Self::scope0_local_offset(name) {
+            Some(offset) => self.emit(Op::PutScope0Local(offset)),
+            None => self.emit(Op::Put(name)),
+        }
+    }
+
     pub(crate) fn enter_scope(&mut self) {
         self.scopes.enter();
     }
@@ -255,14 +282,15 @@ impl CodegenState {
                     continue;
                 }
                 Expr::Id(name) => {
+                    let name = self.find_name(name);
                     if used_set {
                         self.emit(Op::Swap);
-                        self.emit(Op::Put(self.find_name(name)));
+                        self.emit_put_name(name);
                         self.emit(Op::Pop);
                         self.pop_stack(1);
                         handled_stack = true;
                     } else {
-                        self.emit(Op::Put(self.find_name(name)));
+                        self.emit_put_name(name);
                     }
                     break;
                 }

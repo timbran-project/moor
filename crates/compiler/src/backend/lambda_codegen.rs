@@ -63,7 +63,7 @@ impl CodegenState {
                 && let Some(default_expr) = &param.expr
             {
                 let param_name = self.find_name(&param.id);
-                self.emit(Op::Push(param_name));
+                self.emit_push_name(param_name);
                 self.push_stack(1);
                 self.emit(Op::ImmInt(0));
                 self.push_stack(1);
@@ -75,7 +75,7 @@ impl CodegenState {
                 self.pop_stack(1);
 
                 self.generate_expr(default_expr)?;
-                self.emit(Op::Put(param_name));
+                self.emit_put_name(param_name);
                 self.emit(Op::Pop);
                 self.pop_stack(1);
 

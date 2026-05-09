@@ -19,9 +19,30 @@ mod tests {
         E_INVARG, E_INVIND, E_PERM, E_PROPNF, E_RANGE, Obj, SYSTEM_OBJECT, Symbol, UuObjid,
         program::{
             labels::{Label, Offset},
-            opcode::{ForRangeOperand, ForSequenceOperand, Op::*, ScatterArgs, ScatterLabel},
+            names::{GlobalName, Name},
+            opcode::{ForRangeOperand, ForSequenceOperand, Op, Op::*, ScatterArgs, ScatterLabel},
         },
     };
+
+    fn is_scope0_local(name: Name) -> bool {
+        name.1 == 0 && GlobalName::from_repr(name.0 as usize).is_none()
+    }
+
+    fn expect_push(name: Name) -> Op {
+        if is_scope0_local(name) {
+            return PushScope0Local(name.0);
+        }
+
+        Push(name)
+    }
+
+    fn expect_put_pop(name: Name) -> Op {
+        if is_scope0_local(name) {
+            return PutPopScope0Local(name.0);
+        }
+
+        PutPop(name)
+    }
 
     #[test]
     fn test_simple_add_expr() {
@@ -59,13 +80,13 @@ mod tests {
                 },
                 MakeSingletonList,
                 CallVerb,
-                PutPop(result),
+                expect_put_pop(result),
                 Done,
             ]
         );
         assert_eq!(
             binary.lambda_program(Offset(0)).main_vector().to_vec(),
-            vec![Push(x), ImmInt(2), Gt, Return, Pop]
+            vec![expect_push(x), ImmInt(2), Gt, Return, Pop]
         );
         assert_eq!(
             binary.scatter_table(Offset(0)),
@@ -146,7 +167,7 @@ mod tests {
         */
         assert_eq!(
             binary.main_vector().to_vec(),
-            vec![ImmInt(1), ImmInt(2), Add, PutPop(a), Done],
+            vec![ImmInt(1), ImmInt(2), Add, expect_put_pop(a), Done],
         );
     }
 
@@ -163,8 +184,8 @@ mod tests {
                 ImmInt(1),
                 ImmInt(2),
                 Add,
-                PutPop(a),
-                Push(a),
+                expect_put_pop(a),
+                expect_push(a),
                 Return,
                 Pop,
                 Done
@@ -197,10 +218,10 @@ mod tests {
                     jump_label: 1.into(),
                     environment_width: 0,
                 },
-                Push(x),
+                expect_push(x),
                 ImmInt(1),
                 Add,
-                PutPop(x),
+                expect_put_pop(x),
                 EndScope { num_bindings: 0 },
                 Jump { label: 0.into() },
                 Done
@@ -244,10 +265,10 @@ mod tests {
                 ListAddTail,
                 BeginForSequence { operand: Offset(0) },
                 IterateForSequence,
-                Push(x),
+                expect_push(x),
                 ImmInt(5),
                 Add,
-                PutPop(b),
+                expect_put_pop(b),
                 Jump { label: 1.into() },
                 EndScope { num_bindings: 0 },
                 Done
@@ -293,9 +314,9 @@ mod tests {
                 ImmInt(5),
                 BeginForRange { operand: Offset(0) },
                 IterateForRange,
-                Push(player),
+                expect_push(player),
                 ImmSymbol(Symbol::mk("tell")),
-                Push(a),
+                expect_push(a),
                 MakeSingletonList,
                 CallVerb,
                 Pop,
@@ -336,7 +357,7 @@ mod tests {
         assert_eq!(
             binary.fork_vector(Offset(0)).to_vec(),
             vec![
-                Push(player),                  // player
+                expect_push(player),           // player
                 ImmSymbol(Symbol::mk("tell")), // tell
                 Imm(a),                        // 'a'
                 MakeSingletonList,
@@ -369,9 +390,9 @@ mod tests {
         assert_eq!(
             binary.fork_vector(Offset(0)).to_vec(),
             vec![
-                Push(player),                  // player
+                expect_push(player),           // player
                 ImmSymbol(Symbol::mk("tell")), // tell
-                Push(fid),                     // fid
+                expect_push(fid),              // fid
                 MakeSingletonList,
                 CallVerb,
                 Pop,
@@ -458,7 +479,7 @@ mod tests {
                 ImmInt(2),
                 Or(1.into()),
                 ImmInt(3),
-                PutPop(a),
+                expect_put_pop(a),
                 Done
             ]
         );
@@ -494,7 +515,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(player), // Player
+                expect_push(player), // Player
                 MakeSingletonList,
                 Imm(test),
                 ListAddTail,
@@ -533,7 +554,7 @@ mod tests {
                 ImmInt(3),
                 Jump { label: 1.into() },
                 ImmInt(4),
-                PutPop(a),
+                expect_put_pop(a),
                 Done
             ]
         )
@@ -558,7 +579,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(player), // Player
+                expect_push(player), // Player
                 ImmSymbol(Symbol::mk("tell")),
                 Imm(test),
                 MakeSingletonList,
@@ -606,13 +627,13 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(a),
+                expect_push(a),
                 ImmInt(2),
                 Imm(0.into()),
                 Dup,
                 IndexSetAt(Offset(1)),
                 Swap,
-                PutPop(a),
+                expect_put_pop(a),
                 Pop,
                 Done
             ]
@@ -628,14 +649,14 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(a),
+                expect_push(a),
                 ImmInt(2),
                 ImmInt(4),
                 Imm(0.into()),
                 Dup,
                 RangeSetAt(Offset(1)),
                 Swap,
-                PutPop(a),
+                expect_put_pop(a),
                 Pop,
                 Done
             ]
@@ -736,12 +757,12 @@ mod tests {
                 ListAddTail,
                 ImmInt(3),
                 ListAddTail,
-                PutPop(a),
-                Push(a),
+                expect_put_pop(a),
+                expect_push(a),
                 ImmInt(2),
                 Length(0.into()),
                 RangeRef,
-                PutPop(b),
+                expect_put_pop(b),
                 Done
             ]
         );
@@ -780,7 +801,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(args),
+                expect_push(args),
                 ImmInt(1),
                 ImmInt(2),
                 RangeRef,
@@ -817,10 +838,10 @@ mod tests {
                     environment_width: 0,
                 },
                 ImmInt(1),
-                PutPop(a),
+                expect_put_pop(a),
                 EndFinally,
                 ImmInt(2),
-                PutPop(a),
+                expect_put_pop(a),
                 FinallyContinue,
                 Done
             ]
@@ -875,15 +896,15 @@ mod tests {
                     end_label: 2.into(),
                 },
                 ImmInt(1),
-                PutPop(a),
+                expect_put_pop(a),
                 EndExcept(2.into()),
-                PutPop(a),
+                expect_put_pop(a),
                 ImmInt(2),
-                PutPop(a),
+                expect_put_pop(a),
                 Jump { label: 2.into() },
-                PutPop(b),
+                expect_put_pop(b),
                 ImmInt(3),
-                PutPop(a),
+                expect_put_pop(a),
                 Done
             ]
         );
@@ -924,13 +945,13 @@ mod tests {
                     handler_label: 0.into(),
                     end_label: 1.into(),
                 },
-                Push(x),
+                expect_push(x),
                 ImmInt(1),
                 Add,
                 EndCatch(1.into()),
                 Pop,
                 ImmInt(17),
-                PutPop(x),
+                expect_put_pop(x),
                 Done
             ]
         )
@@ -998,7 +1019,7 @@ mod tests {
                 ImmSymbol(Symbol::mk("string_utils")),
                 GetProp,
                 ImmSymbol(Symbol::mk("from_list")),
-                Push(test_string),
+                expect_push(test_string),
                 MakeSingletonList,
                 CallVerb,
                 Pop,
@@ -1044,7 +1065,12 @@ mod tests {
 
         assert_eq!(
             binary.main_vector().to_vec(),
-            vec![Push(binary.find_var("args")), Scatter(Offset(0)), Pop, Done]
+            vec![
+                expect_push(binary.find_var("args")),
+                Scatter(Offset(0)),
+                Pop,
+                Done
+            ]
         );
         let sa = binary.scatter_table(Offset(0)).clone();
         assert_eq!(
@@ -1081,10 +1107,10 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(binary.find_var("args")),
+                expect_push(binary.find_var("args")),
                 Scatter(Offset(0)),
                 ImmInt(0),
-                PutPop(binary.find_var("third")),
+                expect_put_pop(binary.find_var("third")),
                 Pop,
                 Done
             ]
@@ -1126,10 +1152,10 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(binary.find_var("args")),
+                expect_push(binary.find_var("args")),
                 Scatter(Offset(0)),
                 ImmInt(8),
-                PutPop(binary.find_var("c")),
+                expect_put_pop(binary.find_var("c")),
                 Pop,
                 Done
             ]
@@ -1177,12 +1203,12 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(binary.find_var("args")),
+                expect_push(binary.find_var("args")),
                 Scatter(Offset(0)),
                 ImmInt(8),
-                PutPop(binary.find_var("c")),
+                expect_put_pop(binary.find_var("c")),
                 ImmInt(9),
-                PutPop(binary.find_var("e")),
+                expect_put_pop(binary.find_var("e")),
                 Pop,
                 Done
             ]
@@ -1247,9 +1273,9 @@ mod tests {
                 MakeSingletonList,
                 ImmInt(2),
                 ListAddTail,
-                Push(binary.find_var("player")),
+                expect_push(binary.find_var("player")),
                 ImmSymbol(Symbol::mk("kill")),
-                Push(b),
+                expect_push(b),
                 MakeSingletonList,
                 CallVerb,
                 ListAddTail,
@@ -1258,11 +1284,11 @@ mod tests {
                 Ref,
                 Scatter(Offset(0)),
                 Pop,
-                Push(a),
+                expect_push(a),
                 MakeSingletonList,
-                Push(b),
+                expect_push(b),
                 ListAddTail,
-                Push(c),
+                expect_push(c),
                 ListAddTail,
                 Return,
                 Pop,
@@ -1308,7 +1334,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(binary.find_var("this")),
+                expect_push(binary.find_var("this")),
                 ImmSymbol(Symbol::mk("stack")),
                 PushGetProp,
                 ImmInt(5),
@@ -1320,7 +1346,7 @@ mod tests {
                     jump_if_object,
                 },
                 Swap,
-                PutPop(binary.find_var("this")),
+                expect_put_pop(binary.find_var("this")),
                 Pop,
                 Done
             ]
@@ -1447,20 +1473,20 @@ mod tests {
             binary.main_vector().to_vec(),
             vec![
                 ImmInt(1),
-                PutPop(x),
+                expect_put_pop(x),
                 ImmInt(1),
                 MakeSingletonList,
                 ImmInt(2),
                 ListAddTail,
                 ImmInt(3),
                 ListAddTail,
-                PutPop(y),
-                Push(x),
-                Push(y),
+                expect_put_pop(y),
+                expect_push(x),
+                expect_push(y),
                 ImmInt(2),
                 Ref,
                 Add,
-                PutPop(x),
+                expect_put_pop(x),
                 Done
             ]
         )
@@ -1474,7 +1500,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(binary.find_var("this")),
+                expect_push(binary.find_var("this")),
                 ImmSymbol(Symbol::mk("stack")),
                 GetProp,
                 Return,
@@ -1525,13 +1551,13 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                Push(args),
+                expect_push(args),
                 CheckListForSplice,
                 Pass,
-                PutPop(result),
+                expect_put_pop(result),
                 ImmEmptyList,
                 Pass,
-                PutPop(result),
+                expect_put_pop(result),
                 ImmInt(1),
                 MakeSingletonList,
                 ImmInt(2),
@@ -1541,10 +1567,10 @@ mod tests {
                 ImmInt(4),
                 ListAddTail,
                 Pass,
-                PutPop(result),
-                Push(blop),
-                PutPop(pass),
-                Push(pass),
+                expect_put_pop(result),
+                expect_push(blop),
+                expect_put_pop(pass),
+                expect_push(pass),
                 Return,
                 Pop,
                 Done
@@ -1633,7 +1659,7 @@ mod tests {
                     handler_label: 0.into(),
                     end_label: 1.into(),
                 },
-                Push(this),
+                expect_push(this),
                 EndCatch(1.into()),
                 ImmInt(1),
                 Ref,

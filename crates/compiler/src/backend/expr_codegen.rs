@@ -14,7 +14,7 @@
 use tracing::warn;
 
 use crate::{
-    Op::{BeginComprehension, ComprehendList, ComprehendRange, ContinueComprehension, ImmInt, Put},
+    Op::{BeginComprehension, ComprehendList, ComprehendRange, ContinueComprehension, ImmInt},
     ast::{Arg, BinaryOp, CallTarget, CatchCodes, Expr, ScatterItem, ScatterKind, UnaryOp},
     codegen::CodegenState,
 };
@@ -76,7 +76,8 @@ impl CodegenState {
                 self.push_stack(1);
             }
             Expr::Id(ident) => {
-                self.emit(Op::Push(self.find_name(ident)));
+                let name = self.find_name(ident);
+                self.emit_push_name(name);
                 self.push_stack(1);
             }
             Expr::And(left, right) => {
@@ -315,10 +316,10 @@ impl CodegenState {
                     loop_start_label,
                 ));
                 self.generate_expr(from.as_ref())?;
-                self.emit(Put(index_variable));
+                self.emit_put_name(index_variable);
                 self.emit(Op::Pop);
                 self.generate_expr(to.as_ref())?;
-                self.emit(Put(end_of_range_register));
+                self.emit_put_name(end_of_range_register);
                 self.emit(Op::Pop);
                 self.pop_stack(2);
                 self.commit_jump_label(loop_start_label);
@@ -354,11 +355,11 @@ impl CodegenState {
                     loop_start_label,
                 ));
                 self.generate_expr(list.as_ref())?;
-                self.emit(Put(list_register));
+                self.emit_put_name(list_register);
                 self.emit(Op::Pop);
                 self.pop_stack(1);
                 self.emit(ImmInt(1));
-                self.emit(Put(position_register));
+                self.emit_put_name(position_register);
                 self.emit(Op::Pop);
                 self.commit_jump_label(loop_start_label);
                 let offset = self.add_list_comprehension(ListComprehend {
@@ -489,7 +490,8 @@ impl CodegenState {
         for (s, label) in optional_defaults {
             self.commit_jump_label(label);
             self.generate_expr(s.expr.as_ref().unwrap())?;
-            self.emit(Op::Put(self.find_name(&s.id)));
+            let name = self.find_name(&s.id);
+            self.emit_put_name(name);
             self.emit(Op::Pop);
             self.pop_stack(1);
         }
@@ -522,7 +524,8 @@ impl CodegenState {
             }
             Expr::Id(id) => {
                 if indexed_above {
-                    self.emit(Op::Push(self.find_name(id)));
+                    let name = self.find_name(id);
+                    self.emit_push_name(name);
                     self.push_stack(1);
                 }
             }

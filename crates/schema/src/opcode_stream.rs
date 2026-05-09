@@ -132,8 +132,11 @@ const OP_RANGE_SET_AT: u16 = 96;
 const OP_PUT_PROP_AT: u16 = 97;
 const OP_PUT_POP: u16 = 98;
 const OP_PUT_TEMP_POP: u16 = 99;
+const OP_PUSH_SCOPE0_LOCAL: u16 = 100;
+const OP_PUT_SCOPE0_LOCAL: u16 = 101;
+const OP_PUT_POP_SCOPE0_LOCAL: u16 = 102;
 
-// Reserve 100-999 for future opcodes
+// Reserve 103-999 for future opcodes
 // Reserve 1000-65535 for extensions
 
 // ============================================================================
@@ -288,15 +291,27 @@ impl OpStream {
                 self.words.push(OP_PUSH);
                 self.encode_name(name);
             }
+            Op::PushScope0Local(offset) => {
+                self.words.push(OP_PUSH_SCOPE0_LOCAL);
+                self.words.push(*offset);
+            }
 
             Op::Put(name) => {
                 self.words.push(OP_PUT);
                 self.encode_name(name);
             }
+            Op::PutScope0Local(offset) => {
+                self.words.push(OP_PUT_SCOPE0_LOCAL);
+                self.words.push(*offset);
+            }
 
             Op::PutPop(name) => {
                 self.words.push(OP_PUT_POP);
                 self.encode_name(name);
+            }
+            Op::PutPopScope0Local(offset) => {
+                self.words.push(OP_PUT_POP_SCOPE0_LOCAL);
+                self.words.push(*offset);
             }
 
             Op::Pop => self.words.push(OP_POP),
@@ -659,8 +674,11 @@ impl OpStream {
             OP_IN => Ok(Op::In),
 
             OP_PUSH => Ok(Op::Push(self.decode_name(pc)?)),
+            OP_PUSH_SCOPE0_LOCAL => Ok(Op::PushScope0Local(self.read_u16(pc)?)),
             OP_PUT => Ok(Op::Put(self.decode_name(pc)?)),
+            OP_PUT_SCOPE0_LOCAL => Ok(Op::PutScope0Local(self.read_u16(pc)?)),
             OP_PUT_POP => Ok(Op::PutPop(self.decode_name(pc)?)),
+            OP_PUT_POP_SCOPE0_LOCAL => Ok(Op::PutPopScope0Local(self.read_u16(pc)?)),
             OP_POP => Ok(Op::Pop),
             OP_DUP => Ok(Op::Dup),
             OP_SWAP => Ok(Op::Swap),
@@ -1066,6 +1084,9 @@ mod tests {
             Op::ImmInt(42),
             Op::ImmFloat(2.5),
             Op::Push(Name(1, 2, 3)),
+            Op::PushScope0Local(12),
+            Op::PutScope0Local(13),
+            Op::PutPopScope0Local(14),
             Op::Jump { label: Label(10) },
             Op::Fork {
                 fv_offset: Offset(5),

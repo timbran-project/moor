@@ -183,6 +183,12 @@ pub enum Op {
     /// Expects stack: [lambda_value, args_list]
     /// Uses existing scatter assignment for parameter binding
     CallLambda,
+    /// Push a non-global variable from scope 0 by direct slot offset.
+    PushScope0Local(u16),
+    /// Store into a non-global variable in scope 0 by direct slot offset.
+    PutScope0Local(u16),
+    /// Store and pop into a non-global variable in scope 0 by direct slot offset.
+    PutPopScope0Local(u16),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]

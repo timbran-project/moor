@@ -112,6 +112,18 @@ impl Names {
         None
     }
 
+    pub fn name_for_scope0_offset(&self, offset: u16) -> Option<Name> {
+        self.decls
+            .keys()
+            .find(|name| name.0 == offset && name.1 == 0)
+            .copied()
+    }
+
+    pub fn ident_for_scope0_offset(&self, offset: u16) -> Option<Symbol> {
+        let name = self.name_for_scope0_offset(offset)?;
+        self.ident_for_name(&name)
+    }
+
     pub fn name_for_var(&self, var: &Variable) -> Option<Name> {
         for (n, decl) in self.decls.iter() {
             if &decl.identifier == var {

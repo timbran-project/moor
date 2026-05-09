@@ -284,7 +284,8 @@ impl CodegenState {
                     self.commit_jump_label(labels[i]);
                     self.push_stack(1);
                     if let Some(id) = &ex.id {
-                        self.emit(Op::Put(self.find_name(id)));
+                        let name = self.find_name(id);
+                        self.emit_put_name(name);
                     }
                     self.emit(Op::Pop);
                     self.pop_stack(1);

@@ -566,11 +566,26 @@ impl Decompile {
                 let varname = self.decompile_name(&varname)?;
                 self.push_expr(Expr::Id(varname));
             }
+            Op::PushScope0Local(offset) => {
+                let varname = self.decompile_scope0_local(offset)?;
+                self.push_expr(Expr::Id(varname));
+            }
             Op::Put(varname) => {
                 let expr = self.decompile_put_expr(varname)?;
                 self.push_expr(expr);
             }
+            Op::PutScope0Local(offset) => {
+                let varname = self.decompile_scope0_local_name(offset)?;
+                let expr = self.decompile_put_expr(varname)?;
+                self.push_expr(expr);
+            }
             Op::PutPop(varname) => {
+                let expr = self.decompile_put_expr(varname)?;
+                self.statements
+                    .push(Stmt::new(StmtNode::Expr(expr), line_num));
+            }
+            Op::PutPopScope0Local(offset) => {
+                let varname = self.decompile_scope0_local_name(offset)?;
                 let expr = self.decompile_put_expr(varname)?;
                 self.statements
                     .push(Stmt::new(StmtNode::Expr(expr), line_num));
@@ -687,7 +702,7 @@ impl Decompile {
                                 Op::Pop => {
                                     self.position += 1;
                                 }
-                                Op::Put(_) => {
+                                Op::Put(_) | Op::PutScope0Local(_) => {
                                     self.position += 1;
                                     if self.position < opcode_vector_len
                                         && matches!(self.opcode_vector()[self.position], Op::Pop)
@@ -695,7 +710,7 @@ impl Decompile {
                                         self.position += 1;
                                     }
                                 }
-                                Op::PutPop(_) => {
+                                Op::PutPop(_) | Op::PutPopScope0Local(_) => {
                                     self.position += 1;
                                 }
                                 _ => {}
@@ -763,7 +778,7 @@ impl Decompile {
                                 Op::Pop => {
                                     self.position += 1;
                                 }
-                                Op::Put(_) => {
+                                Op::Put(_) | Op::PutScope0Local(_) => {
                                     self.position += 1;
                                     if self.position < opcode_vector_len
                                         && matches!(self.opcode_vector()[self.position], Op::Pop)
@@ -771,7 +786,7 @@ impl Decompile {
                                         self.position += 1;
                                     }
                                 }
-                                Op::PutPop(_) => {
+                                Op::PutPop(_) | Op::PutPopScope0Local(_) => {
                                     self.position += 1;
                                 }
                                 _ => {}
@@ -945,8 +960,11 @@ impl Decompile {
                             let (right, eat_assignment_pop) = match assign_expr {
                                 Expr::Assign { left: _, right } => (right, true),
                                 expr => {
-                                    if !matches!(self.opcode_vector().get(self.position), Some(Op::PutPop(varname)) if *varname == *id)
-                                    {
+                                    let is_expected_put_pop = self
+                                        .opcode_vector()
+                                        .get(self.position)
+                                        .is_some_and(|op| self.put_pop_targets_name(op, id));
+                                    if !is_expected_put_pop {
                                         return Err(MalformedProgram(
                                             format!(
                                                 "expected assign for optional scatter assignment; got {expr:?}"
@@ -1051,8 +1069,20 @@ impl Decompile {
                             }
                             next_opcode = self.next()?;
                         }
+                        Op::PutScope0Local(offset) => {
+                            if let Ok(varname) = self.decompile_scope0_local(offset) {
+                                arm.id = Some(varname);
+                            }
+                            next_opcode = self.next()?;
+                        }
                         Op::PutPop(varname) => {
                             if let Ok(varname) = self.decompile_name(&varname) {
+                                arm.id = Some(varname);
+                            }
+                            next_opcode = Op::Pop;
+                        }
+                        Op::PutPopScope0Local(offset) => {
+                            if let Ok(varname) = self.decompile_scope0_local(offset) {
                                 arm.id = Some(varname);
                             }
                             next_opcode = Op::Pop;
@@ -1249,7 +1279,7 @@ impl Decompile {
                                 Op::Pop => {
                                     self.position += 1;
                                 }
-                                Op::Put(_) => {
+                                Op::Put(_) | Op::PutScope0Local(_) => {
                                     self.position += 1;
                                     if self.position < opcode_vector_len
                                         && matches!(self.opcode_vector()[self.position], Op::Pop)
@@ -1257,7 +1287,7 @@ impl Decompile {
                                         self.position += 1;
                                     }
                                 }
-                                Op::PutPop(_) => {
+                                Op::PutPop(_) | Op::PutPopScope0Local(_) => {
                                     self.position += 1;
                                 }
                                 _ => {}
@@ -1498,6 +1528,28 @@ impl Decompile {
             .ok_or(DecompileError::NameNotFound(*name))
     }
 
+    fn decompile_scope0_local_name(&self, offset: u16) -> Result<Name, DecompileError> {
+        self.program
+            .var_names()
+            .name_for_scope0_offset(offset)
+            .ok_or(DecompileError::NameNotFound(Name(offset, 0, 0)))
+    }
+
+    fn decompile_scope0_local(&self, offset: u16) -> Result<Variable, DecompileError> {
+        let name = self.decompile_scope0_local_name(offset)?;
+        self.decompile_name(&name)
+    }
+
+    fn put_pop_targets_name(&self, op: &Op, target: &Name) -> bool {
+        match op {
+            Op::PutPop(name) => name == target,
+            Op::PutPopScope0Local(offset) => self
+                .decompile_scope0_local_name(*offset)
+                .is_ok_and(|name| &name == target),
+            _ => false,
+        }
+    }
+
     fn decompile_lambda_program(&self, lambda_program: &Program) -> Result<Stmt, DecompileError> {
         // Create separate decompiler for lambda's standalone Program
         let mut lambda_decompile = Decompile {
@@ -1736,12 +1788,17 @@ mod tests {
         let insert_at = inner
             .main_vector
             .iter()
-            .position(|op| matches!(op, Op::PutPop(name) if *name == package))
+            .position(|op| {
+                matches!(op, Op::PutPop(name) if *name == package)
+                    || matches!(op, Op::PutPopScope0Local(offset) if *offset == package.0)
+            })
             .expect("expected fused optional scatter assignment");
 
         let mut legacy_main_vector = Vec::with_capacity(inner.main_vector.len() + 1);
         for op in inner.main_vector {
-            if matches!(op, Op::PutPop(name) if name == package) {
+            if matches!(op, Op::PutPop(name) if name == package)
+                || matches!(op, Op::PutPopScope0Local(offset) if offset == package.0)
+            {
                 legacy_main_vector.push(Op::Put(package));
                 legacy_main_vector.push(Op::Pop);
                 continue;

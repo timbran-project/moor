@@ -38,6 +38,10 @@ impl EmitterState {
                     *last_op = Op::PutPop(*name);
                     return;
                 }
+                Op::PutScope0Local(offset) => {
+                    *last_op = Op::PutPopScope0Local(*offset);
+                    return;
+                }
                 Op::PutTemp => {
                     *last_op = Op::PutTempPop;
                     return;

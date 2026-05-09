@@ -1322,15 +1322,34 @@ pub fn moo_frame_execute<H: VmHost>(
                 };
                 f.push(v.clone());
             }
+            Op::PushScope0Local(offset) => {
+                let Some(v) = f.environment.get_scope0(*offset as usize) else {
+                    if let Some(var_name) = program.var_names().ident_for_scope0_offset(*offset) {
+                        return ExecutionResult::PushError(
+                            E_VARNF.with_msg(|| format!("Variable `{var_name}` not found")),
+                        );
+                    }
+                    return ExecutionResult::PushError(E_VARNF.msg("Variable not found"));
+                };
+                f.push(v.clone());
+            }
             Op::Put(ident) => {
                 let ident = *ident;
                 let v = f.peek_top();
                 f.set_variable(&ident, v.clone());
             }
+            Op::PutScope0Local(offset) => {
+                let v = f.peek_top();
+                f.environment.set_scope0(*offset as usize, v.clone());
+            }
             Op::PutPop(ident) => {
                 let ident = *ident;
                 let v = f.pop();
                 f.set_variable(&ident, v);
+            }
+            Op::PutPopScope0Local(offset) => {
+                let v = f.pop();
+                f.environment.set_scope0(*offset as usize, v);
             }
             Op::PushRef => {
                 let (key_or_index, value) = f.peek2();

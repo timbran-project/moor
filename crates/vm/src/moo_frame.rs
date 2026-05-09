@@ -448,11 +448,11 @@ impl MooStackFrame {
 
     pub fn set_gvar(&mut self, gname: GlobalName, value: Var) {
         let pos = gname as usize;
-        self.environment.set(0, pos, value);
+        self.environment.set_scope0(pos, value);
     }
 
     pub fn get_gvar(&self, gname: GlobalName) -> Option<&Var> {
-        if let Some(v) = self.environment.get(0, gname as usize) {
+        if let Some(v) = self.environment.get_scope0(gname as usize) {
             return Some(v);
         }
 
@@ -466,27 +466,33 @@ impl MooStackFrame {
         }
     }
 
+    #[inline(always)]
     pub fn set_variable(&mut self, id: &Name, v: Var) {
         // This is a "trust us we know what we're doing" use of the explicit offset without check
         // into the names list like we did before. If the compiler produces garbage, it gets what
         // it deserves.
         debug_assert_ne!(v.type_code(), TYPE_NONE, "Setting variable to TYPE_NONE");
         let offset = id.0 as usize;
-        let scope = id.1 as usize;
-        self.environment.set(scope, offset, v);
+        if id.1 == 0 {
+            self.environment.set_scope0(offset, v);
+            return;
+        }
+
+        self.environment.set(id.1 as usize, offset, v);
     }
 
     /// Return the value of a local variable.
+    #[inline(always)]
     pub fn get_env(&self, id: &Name) -> Option<&Var> {
         let scope_idx = id.1 as usize;
         let var_idx = id.0 as usize;
 
-        if let Some(v) = self.environment.get(scope_idx, var_idx) {
-            return Some(v);
-        }
-
-        if scope_idx != 0 {
-            return None;
+        if scope_idx == 0 {
+            if let Some(v) = self.environment.get_scope0(var_idx) {
+                return Some(v);
+            }
+        } else {
+            return self.environment.get(scope_idx, var_idx);
         }
 
         match GlobalName::from_repr(var_idx) {

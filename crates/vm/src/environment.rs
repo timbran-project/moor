@@ -24,6 +24,12 @@ use std::ptr;
 /// Falls back to heap for larger frames to keep MooStackFrame compact.
 const INLINE_VALUES: usize = 16;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ScopeLayout {
+    offset: u16,
+    width: u16,
+}
+
 /// Environment storage for variables in a single MOO stack frame.
 /// All scopes are stored contiguously, with metadata tracking scope boundaries.
 /// Uses SmallVec to avoid heap allocation for simple verbs.
@@ -33,10 +39,8 @@ pub struct Environment {
     /// Single contiguous storage for all variables across all scopes.
     /// v_none() values represent uninitialized slots (E_VARNF).
     values: SmallVec<[Var; INLINE_VALUES]>,
-    /// Starting offset of each scope within values
-    scope_offsets: SmallVec<[u16; 8]>,
-    /// Width (number of variables) of each scope
-    scope_widths: SmallVec<[u16; 8]>,
+    /// Logical scope layout. Zero-width scopes are retained so compiled scope indices stay stable.
+    scopes: SmallVec<[ScopeLayout; 8]>,
 }
 
 impl Environment {
@@ -75,8 +79,7 @@ impl Environment {
     pub fn new() -> Self {
         Self {
             values: SmallVec::new(),
-            scope_offsets: SmallVec::new(),
-            scope_widths: SmallVec::new(),
+            scopes: SmallVec::new(),
         }
     }
 
@@ -92,8 +95,10 @@ impl Environment {
         }
         Self {
             values,
-            scope_offsets: smallvec::smallvec![0],
-            scope_widths: smallvec::smallvec![width as u16],
+            scopes: smallvec::smallvec![ScopeLayout {
+                offset: 0,
+                width: width as u16,
+            }],
         }
     }
 
@@ -127,8 +132,10 @@ impl Environment {
 
         Self {
             values,
-            scope_offsets: smallvec::smallvec![0],
-            scope_widths: smallvec::smallvec![total_width as u16],
+            scopes: smallvec::smallvec![ScopeLayout {
+                offset: 0,
+                width: total_width as u16,
+            }],
         }
     }
 
@@ -147,7 +154,7 @@ impl Environment {
         let mut values: SmallVec<[Var; INLINE_VALUES]> = SmallVec::new();
         values.reserve(total_width);
 
-        let src_base = source.scope_offsets[0] as usize;
+        let src_base = source.scopes[0].offset as usize;
         let src_argstr = src_base + GlobalName::argstr as usize;
         let src_dobj = src_base + GlobalName::dobj as usize;
         let src_dobjstr = src_base + GlobalName::dobjstr as usize;
@@ -179,8 +186,10 @@ impl Environment {
 
         Self {
             values,
-            scope_offsets: smallvec::smallvec![0],
-            scope_widths: smallvec::smallvec![total_width as u16],
+            scopes: smallvec::smallvec![ScopeLayout {
+                offset: 0,
+                width: total_width as u16,
+            }],
         }
     }
 
@@ -188,8 +197,10 @@ impl Environment {
     #[inline]
     pub fn push_scope(&mut self, width: usize) {
         let offset = self.values.len() as u16;
-        self.scope_offsets.push(offset);
-        self.scope_widths.push(width as u16);
+        self.scopes.push(ScopeLayout {
+            offset,
+            width: width as u16,
+        });
 
         if width == 0 {
             return;
@@ -208,11 +219,9 @@ impl Environment {
     /// Pop the top scope from the stack.
     #[inline]
     pub fn pop_scope(&mut self) {
-        if let Some(offset) = self.scope_offsets.pop() {
-            self.scope_widths.pop();
-            let offset = offset as usize;
-            if offset != self.values.len() {
-                self.values.truncate(offset);
+        if let Some(scope) = self.scopes.pop() {
+            if scope.width != 0 {
+                self.values.truncate(scope.offset as usize);
             }
         }
     }
@@ -220,19 +229,19 @@ impl Environment {
     /// Get the number of scopes currently on the stack.
     #[inline]
     pub fn len(&self) -> usize {
-        self.scope_offsets.len()
+        self.scopes.len()
     }
 
     /// Returns true if no scopes have been pushed.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.scope_offsets.is_empty()
+        self.scopes.is_empty()
     }
 
     /// Compute the absolute index for a (scope_index, var_index) pair.
     #[inline]
     fn absolute_index(&self, scope_index: usize, var_index: usize) -> usize {
-        self.scope_offsets[scope_index] as usize + var_index
+        self.scopes[scope_index].offset as usize + var_index
     }
 
     /// Set a variable in the given scope.
@@ -241,6 +250,12 @@ impl Environment {
     pub fn set(&mut self, scope_index: usize, var_index: usize, value: Var) {
         let idx = self.absolute_index(scope_index, var_index);
         self.values[idx] = value;
+    }
+
+    /// Set a variable in the outermost scope.
+    #[inline(always)]
+    pub fn set_scope0(&mut self, var_index: usize, value: Var) {
+        self.values[var_index] = value;
     }
 
     /// Get a variable from the given scope.
@@ -253,15 +268,21 @@ impl Environment {
         if v.is_none() { None } else { Some(v) }
     }
 
+    /// Get a variable from the outermost scope.
+    #[inline(always)]
+    pub fn get_scope0(&self, var_index: usize) -> Option<&Var> {
+        let v = &self.values[var_index];
+        if v.is_none() { None } else { Some(v) }
+    }
+
     /// Convert the environment to nested Vecs for serialization.
     /// Uninitialized slots (v_none()) are converted to None.
     pub fn to_vec(&self) -> Vec<Vec<Option<Var>>> {
-        self.scope_offsets
+        self.scopes
             .iter()
-            .zip(self.scope_widths.iter())
-            .map(|(&offset, &width)| {
-                let start = offset as usize;
-                let end = start + width as usize;
+            .map(|scope| {
+                let start = scope.offset as usize;
+                let end = start + scope.width as usize;
                 self.values[start..end]
                     .iter()
                     .map(|v| if v.is_none() { None } else { Some(v.clone()) })
@@ -272,14 +293,11 @@ impl Environment {
 
     /// Iterate over scopes, yielding slices of variables.
     pub fn iter_scopes(&self) -> impl Iterator<Item = &[Var]> {
-        self.scope_offsets
-            .iter()
-            .zip(self.scope_widths.iter())
-            .map(move |(&offset, &width)| {
-                let start = offset as usize;
-                let end = start + width as usize;
-                &self.values[start..end]
-            })
+        self.scopes.iter().map(move |scope| {
+            let start = scope.offset as usize;
+            let end = start + scope.width as usize;
+            &self.values[start..end]
+        })
     }
 }
 
@@ -358,6 +376,28 @@ mod tests {
 
         // Outer scope still intact
         assert_eq!(env.get(0, 0), Some(&v_int(100)));
+        assert_eq!(env.len(), 1);
+    }
+
+    #[test]
+    fn test_zero_width_scope_preserves_logical_index() {
+        let mut env = Environment::new();
+        env.push_scope(1);
+        env.push_scope(0);
+        env.push_scope(1);
+
+        env.set(2, 0, v_int(42));
+
+        assert_eq!(env.len(), 3);
+        assert_eq!(env.get(2, 0), Some(&v_int(42)));
+
+        let scopes = env.to_vec();
+        assert_eq!(scopes.len(), 3);
+        assert_eq!(scopes[1], Vec::<Option<Var>>::new());
+
+        env.pop_scope();
+        assert_eq!(env.len(), 2);
+        env.pop_scope();
         assert_eq!(env.len(), 1);
     }
 
