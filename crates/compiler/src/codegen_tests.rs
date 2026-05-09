@@ -59,8 +59,7 @@ mod tests {
                 },
                 MakeSingletonList,
                 CallVerb,
-                Put(result),
-                Pop,
+                PutPop(result),
                 Done,
             ]
         );
@@ -147,7 +146,7 @@ mod tests {
         */
         assert_eq!(
             binary.main_vector().to_vec(),
-            vec![ImmInt(1), ImmInt(2), Add, Put(a), Pop, Done],
+            vec![ImmInt(1), ImmInt(2), Add, PutPop(a), Done],
         );
     }
 
@@ -164,8 +163,7 @@ mod tests {
                 ImmInt(1),
                 ImmInt(2),
                 Add,
-                Put(a),
-                Pop,
+                PutPop(a),
                 Push(a),
                 Return,
                 Pop,
@@ -202,8 +200,7 @@ mod tests {
                 Push(x),
                 ImmInt(1),
                 Add,
-                Put(x),
-                Pop,
+                PutPop(x),
                 EndScope { num_bindings: 0 },
                 Jump { label: 0.into() },
                 Done
@@ -250,8 +247,7 @@ mod tests {
                 Push(x),
                 ImmInt(5),
                 Add,
-                Put(b),
-                Pop,
+                PutPop(b),
                 Jump { label: 1.into() },
                 EndScope { num_bindings: 0 },
                 Done
@@ -266,7 +262,7 @@ mod tests {
                 environment_width: 0,
             }
         );
-        assert_eq!(binary.jump_label(Label(0)).position.0, 15);
+        assert_eq!(binary.jump_label(Label(0)).position.0, 14);
     }
 
     #[test]
@@ -462,8 +458,7 @@ mod tests {
                 ImmInt(2),
                 Or(1.into()),
                 ImmInt(3),
-                Put(a),
-                Pop,
+                PutPop(a),
                 Done
             ]
         );
@@ -538,8 +533,7 @@ mod tests {
                 ImmInt(3),
                 Jump { label: 1.into() },
                 ImmInt(4),
-                Put(a),
-                Pop,
+                PutPop(a),
                 Done
             ]
         )
@@ -618,8 +612,7 @@ mod tests {
                 Dup,
                 IndexSetAt(Offset(1)),
                 Swap,
-                Put(a),
-                Pop,
+                PutPop(a),
                 Pop,
                 Done
             ]
@@ -642,8 +635,7 @@ mod tests {
                 Dup,
                 RangeSetAt(Offset(1)),
                 Swap,
-                Put(a),
-                Pop,
+                PutPop(a),
                 Pop,
                 Done
             ]
@@ -744,14 +736,12 @@ mod tests {
                 ListAddTail,
                 ImmInt(3),
                 ListAddTail,
-                Put(a),
-                Pop,
+                PutPop(a),
                 Push(a),
                 ImmInt(2),
                 Length(0.into()),
                 RangeRef,
-                Put(b),
-                Pop,
+                PutPop(b),
                 Done
             ]
         );
@@ -827,12 +817,10 @@ mod tests {
                     environment_width: 0,
                 },
                 ImmInt(1),
-                Put(a),
-                Pop,
+                PutPop(a),
                 EndFinally,
                 ImmInt(2),
-                Put(a),
-                Pop,
+                PutPop(a),
                 FinallyContinue,
                 Done
             ]
@@ -887,20 +875,15 @@ mod tests {
                     end_label: 2.into(),
                 },
                 ImmInt(1),
-                Put(a),
-                Pop,
+                PutPop(a),
                 EndExcept(2.into()),
-                Put(a),
-                Pop,
+                PutPop(a),
                 ImmInt(2),
-                Put(a),
-                Pop,
+                PutPop(a),
                 Jump { label: 2.into() },
-                Put(b),
-                Pop,
+                PutPop(b),
                 ImmInt(3),
-                Put(a),
-                Pop,
+                PutPop(a),
                 Done
             ]
         );
@@ -947,8 +930,7 @@ mod tests {
                 EndCatch(1.into()),
                 Pop,
                 ImmInt(17),
-                Put(x),
-                Pop,
+                PutPop(x),
                 Done
             ]
         )
@@ -1102,8 +1084,7 @@ mod tests {
                 Push(binary.find_var("args")),
                 Scatter(Offset(0)),
                 ImmInt(0),
-                Put(binary.find_var("third")),
-                Pop,
+                PutPop(binary.find_var("third")),
                 Pop,
                 Done
             ]
@@ -1148,8 +1129,7 @@ mod tests {
                 Push(binary.find_var("args")),
                 Scatter(Offset(0)),
                 ImmInt(8),
-                Put(binary.find_var("c")),
-                Pop,
+                PutPop(binary.find_var("c")),
                 Pop,
                 Done
             ]
@@ -1200,11 +1180,9 @@ mod tests {
                 Push(binary.find_var("args")),
                 Scatter(Offset(0)),
                 ImmInt(8),
-                Put(binary.find_var("c")),
-                Pop,
+                PutPop(binary.find_var("c")),
                 ImmInt(9),
-                Put(binary.find_var("e")),
-                Pop,
+                PutPop(binary.find_var("e")),
                 Pop,
                 Done
             ]
@@ -1342,8 +1320,7 @@ mod tests {
                     jump_if_object,
                 },
                 Swap,
-                Put(binary.find_var("this")),
-                Pop,
+                PutPop(binary.find_var("this")),
                 Pop,
                 Done
             ]
@@ -1367,13 +1344,12 @@ mod tests {
         let put_temp_index = binary
             .main_vector()
             .iter()
-            .position(|op| matches!(op, PutTemp))
+            .position(|op| matches!(op, PutTempPop))
             .expect("expected nested property assignment cleanup block");
         assert!(matches!(binary.main_vector()[put_temp_index + 1], Pop));
         assert!(matches!(binary.main_vector()[put_temp_index + 2], Pop));
         assert!(matches!(binary.main_vector()[put_temp_index + 3], Pop));
-        assert!(matches!(binary.main_vector()[put_temp_index + 4], Pop));
-        assert!(matches!(binary.main_vector()[put_temp_index + 5], PushTemp));
+        assert!(matches!(binary.main_vector()[put_temp_index + 4], PushTemp));
 
         let jump_labels: Vec<_> = binary
             .main_vector()
@@ -1412,7 +1388,7 @@ mod tests {
             binary
                 .main_vector()
                 .iter()
-                .filter(|op| matches!(op, PutTemp))
+                .filter(|op| matches!(op, PutTempPop))
                 .count(),
             2,
             "expected one cleanup block per nested property layer"
@@ -1471,23 +1447,20 @@ mod tests {
             binary.main_vector().to_vec(),
             vec![
                 ImmInt(1),
-                Put(x),
-                Pop,
+                PutPop(x),
                 ImmInt(1),
                 MakeSingletonList,
                 ImmInt(2),
                 ListAddTail,
                 ImmInt(3),
                 ListAddTail,
-                Put(y),
-                Pop,
+                PutPop(y),
                 Push(x),
                 Push(y),
                 ImmInt(2),
                 Ref,
                 Add,
-                Put(x),
-                Pop,
+                PutPop(x),
                 Done
             ]
         )
@@ -1555,12 +1528,10 @@ mod tests {
                 Push(args),
                 CheckListForSplice,
                 Pass,
-                Put(result),
-                Pop,
+                PutPop(result),
                 ImmEmptyList,
                 Pass,
-                Put(result),
-                Pop,
+                PutPop(result),
                 ImmInt(1),
                 MakeSingletonList,
                 ImmInt(2),
@@ -1570,11 +1541,9 @@ mod tests {
                 ImmInt(4),
                 ListAddTail,
                 Pass,
-                Put(result),
-                Pop,
+                PutPop(result),
                 Push(blop),
-                Put(pass),
-                Pop,
+                PutPop(pass),
                 Push(pass),
                 Return,
                 Pop,

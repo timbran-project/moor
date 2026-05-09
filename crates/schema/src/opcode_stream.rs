@@ -130,8 +130,10 @@ const OP_SWAP: u16 = 94;
 const OP_INDEX_SET_AT: u16 = 95;
 const OP_RANGE_SET_AT: u16 = 96;
 const OP_PUT_PROP_AT: u16 = 97;
+const OP_PUT_POP: u16 = 98;
+const OP_PUT_TEMP_POP: u16 = 99;
 
-// Reserve 98-999 for future opcodes
+// Reserve 100-999 for future opcodes
 // Reserve 1000-65535 for extensions
 
 // ============================================================================
@@ -292,6 +294,11 @@ impl OpStream {
                 self.encode_name(name);
             }
 
+            Op::PutPop(name) => {
+                self.words.push(OP_PUT_POP);
+                self.encode_name(name);
+            }
+
             Op::Pop => self.words.push(OP_POP),
             Op::Dup => self.words.push(OP_DUP),
             Op::Swap => self.words.push(OP_SWAP),
@@ -299,6 +306,7 @@ impl OpStream {
             Op::PushRef => self.words.push(OP_PUSH_REF),
             Op::PushTemp => self.words.push(OP_PUSH_TEMP),
             Op::PutTemp => self.words.push(OP_PUT_TEMP),
+            Op::PutTempPop => self.words.push(OP_PUT_TEMP_POP),
 
             Op::ImmInt(v) => {
                 self.words.push(OP_IMM_INT);
@@ -652,6 +660,7 @@ impl OpStream {
 
             OP_PUSH => Ok(Op::Push(self.decode_name(pc)?)),
             OP_PUT => Ok(Op::Put(self.decode_name(pc)?)),
+            OP_PUT_POP => Ok(Op::PutPop(self.decode_name(pc)?)),
             OP_POP => Ok(Op::Pop),
             OP_DUP => Ok(Op::Dup),
             OP_SWAP => Ok(Op::Swap),
@@ -659,6 +668,7 @@ impl OpStream {
             OP_PUSH_REF => Ok(Op::PushRef),
             OP_PUSH_TEMP => Ok(Op::PushTemp),
             OP_PUT_TEMP => Ok(Op::PutTemp),
+            OP_PUT_TEMP_POP => Ok(Op::PutTempPop),
 
             OP_IMM_INT => Ok(Op::ImmInt(self.decode_i32(pc)?)),
             OP_IMM_BIG_INT => Ok(Op::ImmBigInt(self.decode_i64(pc)?)),

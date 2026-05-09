@@ -104,6 +104,57 @@ impl Decompile {
     fn push_expr(&mut self, expr: Expr) {
         self.expr_stack.push_front(expr);
     }
+
+    fn decompile_put_expr(&mut self, varname: Name) -> Result<Expr, DecompileError> {
+        let expr = self.pop_expr()?;
+        let varname = self.decompile_name(&varname)?;
+
+        // Check if this is the first assignment to this variable in this scope
+        let var_key = (varname.id, varname.scope_id);
+        let is_first_assignment = !self.assigned_vars.contains(&var_key);
+
+        // Look up the declaration info
+        let name = self.program.var_names().name_for_var(&varname);
+        let decl_info = name.and_then(|n| self.program.var_names().decls.get(&n));
+
+        // Check if this is a named function (lambda with self_name matching the variable)
+        let is_named_function = matches!(
+            &expr,
+            Expr::Lambda { self_name: Some(self_var), .. }
+            if self_var.id == varname.id && self_var.scope_id == varname.scope_id
+        );
+
+        // Check if this should be treated as a declaration:
+        // 1. It's the first assignment to this variable in this scope
+        // 2. Either:
+        //    a. The variable was declared with DeclType::Let and is a local (scope_id != 0)
+        //    b. It's a named function (lambda with self_name) - these are always declarations
+        let should_be_declaration = is_first_assignment
+            && (is_named_function
+                || (varname.scope_id != 0
+                    && decl_info
+                        .map(|d| d.decl_type == DeclType::Let)
+                        .unwrap_or(false)));
+
+        // Mark as assigned even for subsequent assignments
+        self.assigned_vars.insert(var_key);
+
+        if should_be_declaration {
+            let is_const = decl_info.map(|d| d.constant).unwrap_or(false);
+
+            Ok(Expr::Decl {
+                id: varname,
+                is_const,
+                expr: Some(Box::new(expr)),
+            })
+        } else {
+            Ok(Expr::Assign {
+                left: Box::new(Expr::Id(varname)),
+                right: Box::new(expr),
+            })
+        }
+    }
+
     fn remove_expr_at(&mut self, depth: usize) -> Result<Expr, DecompileError> {
         self.expr_stack.remove(depth).ok_or_else(|| {
             MalformedProgram(format!(
@@ -183,9 +234,12 @@ impl Decompile {
         if to > opcode_vector.len() {
             return false;
         }
-        opcode_vector[from + 1..to]
-            .iter()
-            .all(|op| matches!(op, Op::PutTemp | Op::Pop | Op::PushTemp | Op::Jump { .. }))
+        opcode_vector[from + 1..to].iter().all(|op| {
+            matches!(
+                op,
+                Op::PutTemp | Op::PutTempPop | Op::Pop | Op::PushTemp | Op::Jump { .. }
+            )
+        })
     }
 
     fn decompile_until_branch_end(
@@ -513,56 +567,13 @@ impl Decompile {
                 self.push_expr(Expr::Id(varname));
             }
             Op::Put(varname) => {
-                let expr = self.pop_expr()?;
-                let varname = self.decompile_name(&varname)?;
-
-                // Check if this is the first assignment to this variable in this scope
-                let var_key = (varname.id, varname.scope_id);
-                let is_first_assignment = !self.assigned_vars.contains(&var_key);
-
-                // Look up the declaration info
-                let name = self.program.var_names().name_for_var(&varname);
-                let decl_info = name.and_then(|n| self.program.var_names().decls.get(&n));
-
-                // Check if this is a named function (lambda with self_name matching the variable)
-                let is_named_function = matches!(
-                    &expr,
-                    Expr::Lambda { self_name: Some(self_var), .. }
-                    if self_var.id == varname.id && self_var.scope_id == varname.scope_id
-                );
-
-                // Check if this should be treated as a declaration:
-                // 1. It's the first assignment to this variable in this scope
-                // 2. Either:
-                //    a. The variable was declared with DeclType::Let and is a local (scope_id != 0)
-                //    b. It's a named function (lambda with self_name) - these are always declarations
-                let should_be_declaration = is_first_assignment
-                    && (is_named_function
-                        || (varname.scope_id != 0
-                            && decl_info
-                                .map(|d| d.decl_type == DeclType::Let)
-                                .unwrap_or(false)));
-
-                if should_be_declaration {
-                    // Mark as assigned
-                    self.assigned_vars.insert(var_key);
-
-                    let is_const = decl_info.map(|d| d.constant).unwrap_or(false);
-
-                    self.push_expr(Expr::Decl {
-                        id: varname,
-                        is_const,
-                        expr: Some(Box::new(expr)),
-                    });
-                } else {
-                    // Mark as assigned even for subsequent assignments
-                    self.assigned_vars.insert(var_key);
-
-                    self.push_expr(Expr::Assign {
-                        left: Box::new(Expr::Id(varname)),
-                        right: Box::new(expr),
-                    });
-                }
+                let expr = self.decompile_put_expr(varname)?;
+                self.push_expr(expr);
+            }
+            Op::PutPop(varname) => {
+                let expr = self.decompile_put_expr(varname)?;
+                self.statements
+                    .push(Stmt::new(StmtNode::Expr(expr), line_num));
             }
             Op::And(label) => {
                 let left = self.pop_expr()?;
@@ -635,7 +646,7 @@ impl Decompile {
                     to: Box::new(e1),
                 });
             }
-            Op::PutTemp => {}
+            Op::PutTemp | Op::PutTempPop => {}
             Op::IndexSet => {
                 let rval = self.pop_expr()?;
                 let index = self.pop_expr()?;
@@ -683,6 +694,9 @@ impl Decompile {
                                     {
                                         self.position += 1;
                                     }
+                                }
+                                Op::PutPop(_) => {
+                                    self.position += 1;
                                 }
                                 _ => {}
                             }
@@ -756,6 +770,9 @@ impl Decompile {
                                     {
                                         self.position += 1;
                                     }
+                                }
+                                Op::PutPop(_) => {
+                                    self.position += 1;
                                 }
                                 _ => {}
                             }
@@ -925,20 +942,41 @@ impl Decompile {
                             label_pos += 1;
                             let _ = self.decompile_statements_up_to(next_label)?;
                             let assign_expr = self.pop_expr()?;
-                            let Expr::Assign { left: _, right } = assign_expr else {
-                                return Err(MalformedProgram(
-                                    format!(
-                                        "expected assign for optional scatter assignment; got {assign_expr:?}"
-                                    )
-                                    .to_string(),
-                                ));
+                            let (right, eat_assignment_pop) = match assign_expr {
+                                Expr::Assign { left: _, right } => (right, true),
+                                expr => {
+                                    if !matches!(self.opcode_vector().get(self.position), Some(Op::PutPop(varname)) if *varname == *id)
+                                    {
+                                        return Err(MalformedProgram(
+                                            format!(
+                                                "expected assign for optional scatter assignment; got {expr:?}"
+                                            )
+                                            .to_string(),
+                                        ));
+                                    }
+
+                                    self.push_expr(expr);
+                                    let assign_expr = self.decompile_put_expr(*id)?;
+                                    let _ = self.next()?;
+                                    let Expr::Assign { left: _, right } = assign_expr else {
+                                        return Err(MalformedProgram(
+                                            format!(
+                                                "expected assign for optional scatter assignment; got {assign_expr:?}"
+                                            )
+                                            .to_string(),
+                                        ));
+                                    };
+                                    (right, false)
+                                }
                             };
-                            // We need to eat the 'pop' after us that is present in the program
-                            // stream.
-                            // It's not clear to me why we have to do this vs the way LambdaMOO
-                            // is decompiling this, but this is what works, otherwise we get
-                            // a hanging pop.
-                            let _ = self.next()?;
+                            if eat_assignment_pop {
+                                // We need to eat the 'pop' after us that is present in the program
+                                // stream.
+                                // It's not clear to me why we have to do this vs the way LambdaMOO
+                                // is decompiling this, but this is what works, otherwise we get
+                                // a hanging pop.
+                                let _ = self.next()?;
+                            }
 
                             let id = self.decompile_name(id)?;
                             ScatterItem {
@@ -1006,11 +1044,20 @@ impl Decompile {
                 // So first look for the Put
                 for arm in &mut except_arms {
                     let mut next_opcode = self.next()?;
-                    if let Op::Put(varname) = next_opcode
-                        && let Ok(varname) = self.decompile_name(&varname)
-                    {
-                        arm.id = Some(varname);
-                        next_opcode = self.next()?;
+                    match next_opcode {
+                        Op::Put(varname) => {
+                            if let Ok(varname) = self.decompile_name(&varname) {
+                                arm.id = Some(varname);
+                            }
+                            next_opcode = self.next()?;
+                        }
+                        Op::PutPop(varname) => {
+                            if let Ok(varname) = self.decompile_name(&varname) {
+                                arm.id = Some(varname);
+                            }
+                            next_opcode = Op::Pop;
+                        }
+                        _ => {}
                     }
                     let Op::Pop = next_opcode else {
                         return Err(MalformedProgram("expected Pop".to_string()));
@@ -1209,6 +1256,9 @@ impl Decompile {
                                     {
                                         self.position += 1;
                                     }
+                                }
+                                Op::PutPop(_) => {
+                                    self.position += 1;
                                 }
                                 _ => {}
                             }
@@ -1562,7 +1612,9 @@ mod tests {
         decompile::program_to_tree, frontend::lower::parse_program_frontend, parse_tree::Parse,
         unparse::annotate_line_numbers,
     };
+    use moor_var::program::{opcode::Op, program::Program};
     use test_case::test_case;
+    use triomphe::Arc;
 
     fn parse_decompile(program_text: &str) -> (Parse, Parse) {
         let parse_1 = parse_program_frontend(program_text, CompileOptions::default()).unwrap();
@@ -1671,6 +1723,48 @@ mod tests {
     #[test_case(r#"[ 1 -> 2, 3 -> 4 ];"#; "map")]
     fn test_case_decompile_matches(prg: &str) {
         let (parse, decompiled) = parse_decompile(prg);
+        assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
+    }
+
+    #[test]
+    fn legacy_optional_scatter_put_pop_decompiles() {
+        let program_text = r#"{?package = 5} = args;"#;
+        let parse = parse_program_frontend(program_text, CompileOptions::default()).unwrap();
+        let binary = compile(program_text, CompileOptions::default()).unwrap();
+        let package = binary.find_var("package");
+        let mut inner = binary.0.as_ref().clone();
+        let insert_at = inner
+            .main_vector
+            .iter()
+            .position(|op| matches!(op, Op::PutPop(name) if *name == package))
+            .expect("expected fused optional scatter assignment");
+
+        let mut legacy_main_vector = Vec::with_capacity(inner.main_vector.len() + 1);
+        for op in inner.main_vector {
+            if matches!(op, Op::PutPop(name) if name == package) {
+                legacy_main_vector.push(Op::Put(package));
+                legacy_main_vector.push(Op::Pop);
+                continue;
+            }
+            legacy_main_vector.push(op);
+        }
+        inner.main_vector = legacy_main_vector;
+
+        for jump_label in &mut inner.jump_labels {
+            if jump_label.position.0 as usize > insert_at {
+                jump_label.position.0 += 1;
+            }
+        }
+        for (position, _) in &mut inner.line_number_spans {
+            if *position > insert_at {
+                *position += 1;
+            }
+        }
+
+        let legacy_binary = Program(Arc::new(inner));
+        let mut decompiled = program_to_tree(&legacy_binary).unwrap();
+        annotate_line_numbers(1, &mut decompiled.stmts);
+
         assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
     }
 

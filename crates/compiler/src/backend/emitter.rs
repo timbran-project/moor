@@ -29,6 +29,22 @@ impl EmitterState {
     }
 
     pub fn emit(&mut self, op: Op) {
+        if matches!(op, Op::Pop)
+            && !self.has_label_at_current_pc()
+            && let Some(last_op) = self.ops.last_mut()
+        {
+            match last_op {
+                Op::Put(name) => {
+                    *last_op = Op::PutPop(*name);
+                    return;
+                }
+                Op::PutTemp => {
+                    *last_op = Op::PutTempPop;
+                    return;
+                }
+                _ => {}
+            }
+        }
         self.ops.push(op);
     }
 
@@ -38,6 +54,11 @@ impl EmitterState {
 
     pub fn last_op_mut(&mut self) -> Option<&mut Op> {
         self.ops.last_mut()
+    }
+
+    fn has_label_at_current_pc(&self) -> bool {
+        let pc = self.ops.len();
+        self.jumps.iter().any(|jump| jump.position.0 as usize == pc)
     }
 
     pub fn new_jump_label(&mut self, name: Option<Name>) -> Label {

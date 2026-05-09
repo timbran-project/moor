@@ -897,6 +897,9 @@ pub fn moo_frame_execute<H: VmHost>(
             Op::PutTemp => {
                 f.temp = f.peek_top().clone();
             }
+            Op::PutTempPop => {
+                f.temp = f.pop();
+            }
             Op::PushTemp => {
                 let tmp = std::mem::replace(&mut f.temp, v_none());
                 f.push(tmp);
@@ -1044,6 +1047,11 @@ pub fn moo_frame_execute<H: VmHost>(
                 let ident = *ident;
                 let v = f.peek_top();
                 f.set_variable(&ident, v.clone());
+            }
+            Op::PutPop(ident) => {
+                let ident = *ident;
+                let v = f.pop();
+                f.set_variable(&ident, v);
             }
             Op::PushRef => {
                 let (key_or_index, value) = f.peek2();

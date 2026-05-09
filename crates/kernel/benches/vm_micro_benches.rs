@@ -241,6 +241,101 @@ fn dispatch_binary_chain(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_n
     }
 }
 
+/// Dispatch dependent local integer update chain.
+fn dispatch_dependent_int_chain(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch several independent local integer update chains.
+fn dispatch_independent_int_chains(
+    ctx: &mut DispatchContext,
+    _chunk_size: usize,
+    _chunk_num: usize,
+) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch local integer arithmetic without storing the result.
+fn dispatch_local_add(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch local complex-value load/drop churn.
+fn dispatch_complex_value_clone(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch scope churn: repeated for-range scope push/pop with a stable source list.
+fn dispatch_scope_churn(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch jump-only control flow with minimal value work.
+fn dispatch_jump_only(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch expression temporary churn through nested arithmetic and comparison.
+fn dispatch_valstack_churn(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
 /// Execute VM until tick limit reached with explicit feature configuration.
 fn execute_until_ticks_with_features(
     session: Arc<dyn Session>,
@@ -342,6 +437,76 @@ benchmark_main!(
                     "dispatch_binary_chain",
                     |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
                         dispatch_binary_chain(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("i = 0; while(1) i = i + 1; endwhile"))
+                .bench(
+                    "dispatch_dependent_int_chain",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_dependent_int_chain(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    DispatchContext::with_program(
+                        "a = 0; b = 0; c = 0; d = 0; while(1) a = a + 1; b = b + 1; c = c + 1; d = d + 1; endwhile",
+                    )
+                })
+                .bench(
+                    "dispatch_independent_int_chains",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_independent_int_chains(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("i = 1; while(1) i + 1; endwhile"))
+                .bench(
+                    "dispatch_local_add",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_local_add(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    DispatchContext::with_program("values = {1, 2, 3, 4}; while(1) values; endwhile")
+                })
+                .bench(
+                    "dispatch_complex_value_clone",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_complex_value_clone(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    DispatchContext::with_program(
+                        "values = {1, 2, 3, 4}; while(1) for value in (values) value; endfor endwhile",
+                    )
+                })
+                .bench(
+                    "dispatch_scope_churn",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_scope_churn(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("while(1) if (1) 1; endif endwhile"))
+                .bench(
+                    "dispatch_jump_only",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_jump_only(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    DispatchContext::with_program(
+                        "while(1) ((1 + 2) * (3 + 4)) == ((5 + 6) * (7 + 8)); endwhile",
+                    )
+                })
+                .bench(
+                    "dispatch_valstack_churn",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_valstack_churn(ctx, 1, 0)
                     },
                 );
         });
