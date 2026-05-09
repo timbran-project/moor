@@ -773,6 +773,7 @@ impl Var {
 
     // === Type information ===
 
+    #[inline]
     pub fn type_code(&self) -> VarType {
         // Direct tag lookup avoids constructing Variant enum
         match self.tag {
@@ -806,6 +807,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn is_true(&self) -> bool {
         match self.tag {
             // Simple types - check directly without constructing Variant
@@ -828,6 +830,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn type_class(&self) -> TypeClass<'_> {
         match self.tag {
             TAG_LIST | TAG_EMPTY_LIST => TypeClass::Sequence(self.as_list().unwrap()),
@@ -838,6 +841,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn is_sequence(&self) -> bool {
         matches!(
             self.tag,
@@ -845,6 +849,7 @@ impl Var {
         )
     }
 
+    #[inline]
     pub fn is_associative(&self) -> bool {
         self.tag == TAG_MAP
     }
@@ -1579,27 +1584,10 @@ impl Var {
             _ => unreachable!("clone_complex called on simple type"),
         }
     }
-}
 
-// === Clone, Drop, and standard traits ===
-
-impl Clone for Var {
-    #[inline]
-    fn clone(&self) -> Self {
-        if self.is_simple() {
-            // SAFETY: For simple types (no heap allocation), we can just copy the bytes
-            unsafe { std::ptr::read(self) }
-        } else {
-            self.clone_complex()
-        }
-    }
-}
-
-impl Drop for Var {
-    fn drop(&mut self) {
-        if self.is_simple() {
-            return;
-        }
+    #[cold]
+    #[inline(never)]
+    fn drop_complex(&mut self) {
         match self.tag {
             // Str, List, Map, Lambda: data contains transmuted value, drop by transmuting back
             TAG_STR => {
@@ -1627,6 +1615,30 @@ impl Drop for Var {
             }
             _ => {}
         }
+    }
+}
+
+// === Clone, Drop, and standard traits ===
+
+impl Clone for Var {
+    #[inline]
+    fn clone(&self) -> Self {
+        if self.is_simple() {
+            // SAFETY: For simple types (no heap allocation), we can just copy the bytes
+            unsafe { std::ptr::read(self) }
+        } else {
+            self.clone_complex()
+        }
+    }
+}
+
+impl Drop for Var {
+    #[inline]
+    fn drop(&mut self) {
+        if self.is_simple() {
+            return;
+        }
+        self.drop_complex();
     }
 }
 
@@ -1886,19 +1898,23 @@ impl From<Vec<u8>> for Var {
 
 // === Constructor functions ===
 
+#[inline(always)]
 pub fn v_int(i: i64) -> Var {
     Var::mk_integer(i)
 }
 
 /// Produces a truthy integer, not a boolean, for LambdaMOO compatibility.
+#[inline(always)]
 pub fn v_bool_int(b: bool) -> Var {
     if b { v_int(1) } else { v_int(0) }
 }
 
+#[inline(always)]
 pub fn v_bool(b: bool) -> Var {
     Var::mk_bool(b)
 }
 
+#[inline(always)]
 pub fn v_none() -> Var {
     Var::mk_none()
 }
@@ -1936,6 +1952,7 @@ pub fn v_map_iter<'a, I: Iterator<Item = &'a (Var, Var)>>(pairs: I) -> Var {
     Var::mk_map_iter(pairs)
 }
 
+#[inline(always)]
 pub fn v_float(f: f64) -> Var {
     Var::mk_float(f)
 }
