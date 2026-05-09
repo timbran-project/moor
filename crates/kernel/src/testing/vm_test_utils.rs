@@ -293,6 +293,15 @@ impl ActivationBenchResult {
     }
 }
 
+pub fn program_slot_for_bench(program: &moor_var::program::ProgramType) -> moor_vm::ProgramSlot {
+    let moor_var::program::ProgramType::MooR(program) = program;
+    moor_vm::ProgramSlot {
+        program_ptr: program as *const moor_compiler::Program as usize,
+        global_width: program.var_names().global_width(),
+        main_max_stack: program.main_max_stack(),
+    }
+}
+
 /// Opaque wrapper for benchmarking MooStackFrame construction without exposing internals.
 /// Holds the result of creating a raw MOO frame.
 pub struct MooFrameBenchResult {
@@ -567,6 +576,35 @@ pub fn create_activation_for_bench(
     ActivationBenchResult { inner: activation }
 }
 
+/// Create an Activation backed by a cached program slot.
+#[allow(clippy::too_many_arguments)]
+pub fn create_activation_for_bench_cached_slot(
+    _permissions: Obj,
+    verbdef: moor_common::model::ResolvedVerb,
+    verb_name: Symbol,
+    this: Var,
+    player: Obj,
+    args: Var,
+    caller: Var,
+    argstr: Var,
+    program: &moor_var::program::ProgramType,
+) -> ActivationBenchResult {
+    let permissions_flags = BitEnum::new_with(ObjFlag::Wizard) | ObjFlag::Programmer;
+    let activation = moor_vm::Activation::for_call(
+        verbdef,
+        permissions_flags,
+        verb_name,
+        this,
+        player,
+        args,
+        caller,
+        argstr,
+        None,
+        moor_vm::CallProgram::CachedSlot(program_slot_for_bench(program)),
+    );
+    ActivationBenchResult { inner: activation }
+}
+
 /// Create a command activation for benchmarking purposes.
 /// Mirrors `exec_command_request` setup: args/argstr come from `ParsedCommand`.
 #[allow(clippy::too_many_arguments)]
@@ -662,6 +700,36 @@ pub fn create_nested_activation_for_bench(
         argstr,
         Some(parent.as_ref()),
         moor_vm::CallProgram::Materialized(program),
+    );
+    ActivationBenchResult { inner: activation }
+}
+
+/// Create an Activation with a parent frame and a cached program slot.
+#[allow(clippy::too_many_arguments)]
+pub fn create_nested_activation_for_bench_cached_slot(
+    _permissions: Obj,
+    verbdef: moor_common::model::ResolvedVerb,
+    verb_name: Symbol,
+    this: Var,
+    player: Obj,
+    args: Var,
+    caller: Var,
+    argstr: Var,
+    parent: &ActivationBenchResult,
+    program: &moor_var::program::ProgramType,
+) -> ActivationBenchResult {
+    let permissions_flags = BitEnum::new_with(ObjFlag::Wizard) | ObjFlag::Programmer;
+    let activation = moor_vm::Activation::for_call(
+        verbdef,
+        permissions_flags,
+        verb_name,
+        this,
+        player,
+        args,
+        caller,
+        argstr,
+        Some(parent.as_ref()),
+        moor_vm::CallProgram::CachedSlot(program_slot_for_bench(program)),
     );
     ActivationBenchResult { inner: activation }
 }

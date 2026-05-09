@@ -161,9 +161,11 @@ impl CodegenState {
         &mut self,
         offset: usize,
         opcodes: Vec<Op>,
+        max_stack: usize,
         line_spans: Vec<(usize, usize)>,
     ) -> Offset {
-        self.operands.add_fork_vector(offset, opcodes, line_spans)
+        self.operands
+            .add_fork_vector(offset, opcodes, max_stack, line_spans)
     }
 
     fn lvalue_stack_footprint(expr: &Expr, indexed_above: bool) -> usize {

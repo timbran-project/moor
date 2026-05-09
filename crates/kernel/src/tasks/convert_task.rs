@@ -1963,6 +1963,7 @@ mod tests {
         let slot = ProgramSlot {
             program_ptr: boxed_program.as_ref() as *const Program as usize,
             global_width: boxed_program.var_names().global_width(),
+            main_max_stack: boxed_program.main_max_stack(),
         };
 
         let frame = KernelMooStackFrame::new_with_all_globals_from_slot(

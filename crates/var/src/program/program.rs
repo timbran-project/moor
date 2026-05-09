@@ -57,8 +57,12 @@ pub struct PrgInner {
     pub lambda_programs: Vec<Program>,
     /// The actual program code.
     pub main_vector: Vec<Op>,
+    /// Maximum runtime value-stack depth needed by the main vector.
+    pub main_max_stack: usize,
     /// The program code for each fork as (offset_in_main_vector, fork_opcodes).
     pub fork_vectors: Vec<(usize, Vec<Op>)>,
+    /// Maximum runtime value-stack depth needed by each fork vector.
+    pub fork_max_stacks: Vec<usize>,
     /// As each statement is pushed, the line number is recorded, along with its offset in the main
     /// vector.
     pub line_number_spans: Vec<(usize, usize)>,
@@ -79,7 +83,9 @@ impl Program {
             error_operands: vec![],
             lambda_programs: vec![],
             main_vector: vec![],
+            main_max_stack: 0,
             fork_vectors: vec![],
+            fork_max_stacks: vec![],
             line_number_spans: vec![],
             fork_line_number_spans: vec![],
         }))
@@ -159,12 +165,24 @@ impl Program {
         &self.0.fork_vectors[offset.0 as usize].1
     }
 
+    pub fn fork_vector_max_stack(&self, offset: Offset) -> usize {
+        self.0
+            .fork_max_stacks
+            .get(offset.0 as usize)
+            .copied()
+            .unwrap_or(0)
+    }
+
     pub fn fork_vector_offset(&self, offset: Offset) -> usize {
         self.0.fork_vectors[offset.0 as usize].0
     }
 
     pub fn main_vector(&self) -> &Vec<Op> {
         &self.0.main_vector
+    }
+
+    pub fn main_max_stack(&self) -> usize {
+        self.0.main_max_stack
     }
 
     pub fn find_jump(&self, label: &Label) -> Option<JumpLabel> {

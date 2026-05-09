@@ -41,6 +41,7 @@ fn do_compile(parse: Parse, compile_options: CompileOptions) -> Result<Program, 
         cg_state.var_names,
         cg_state.emitter.take_jumps(),
         cg_state.emitter.take_ops(),
+        cg_state.stack.max_depth(),
         cg_state.line_number_spans,
     ))
 }

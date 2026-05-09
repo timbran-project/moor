@@ -48,7 +48,9 @@ use planus::{ReadAsRoot, WriteAsOffset};
 use std::collections::HashSet;
 use triomphe::Arc;
 
-const STORED_PROGRAM_VERSION: u16 = 3;
+const MIN_SUPPORTED_STORED_PROGRAM_VERSION: u16 = 3;
+const STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS: u16 = 4;
+const STORED_PROGRAM_VERSION: u16 = STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS;
 
 // Helper to encode a Name into FlatBuffer StoredName
 fn encode_name(name: &Name) -> fb::StoredName {
@@ -85,6 +87,12 @@ fn encode_moor_program(program: &Program) -> Result<fb::StoredMooRProgram, Encod
                 opcodes: fork_stream.into_words(),
             }
         })
+        .collect();
+    let fork_max_stacks = program
+        .0
+        .fork_max_stacks
+        .iter()
+        .map(|depth| *depth as u64)
         .collect();
 
     // 3. Encode literals as Var FlatBuffers (not bincode)
@@ -339,6 +347,8 @@ fn encode_moor_program(program: &Program) -> Result<fb::StoredMooRProgram, Encod
         lambda_programs,
         line_number_spans,
         fork_line_number_spans,
+        main_max_stack: program.main_max_stack() as u64,
+        fork_max_stacks: Some(fork_max_stacks),
     })
 }
 
@@ -480,9 +490,10 @@ fn decode_names_from_fb(
 
 pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Program, DecodeError> {
     let version = fb_decode!(fb_prog_ref, version);
-    if version != STORED_PROGRAM_VERSION {
+    if !(MIN_SUPPORTED_STORED_PROGRAM_VERSION..=STORED_PROGRAM_VERSION).contains(&version) {
         return Err(DecodeError::DecodeFailed(format!(
-            "Stored program version {version} does not match expected {STORED_PROGRAM_VERSION}"
+            "Stored program version {version} is outside supported range \
+             {MIN_SUPPORTED_STORED_PROGRAM_VERSION}..={STORED_PROGRAM_VERSION}"
         )));
     }
     let expected_builtin_signature = fb_decode!(fb_prog_ref, builtin_signature);
@@ -541,6 +552,8 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
             })
             .collect();
     let fork_vectors = fork_vectors?;
+    let (main_max_stack, fork_max_stacks) =
+        decode_stack_depths(&fb_prog_ref, version, &main_vector, &fork_vectors)?;
 
     // Decode literals
     let fb_literals = fb_decode!(fb_prog_ref, literals);
@@ -721,7 +734,9 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
         error_operands,
         lambda_programs,
         main_vector,
+        main_max_stack,
         fork_vectors,
+        fork_max_stacks,
         line_number_spans,
         fork_line_number_spans,
     }));
@@ -736,6 +751,58 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
     }
 
     Ok(program)
+}
+
+fn decode_stack_depths(
+    fb_prog_ref: &fb::StoredMooRProgramRef,
+    version: u16,
+    main_vector: &[Op],
+    fork_vectors: &[(usize, Vec<Op>)],
+) -> Result<(usize, Vec<usize>), DecodeError> {
+    if version < STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS {
+        let fork_max_stacks = fork_vectors
+            .iter()
+            .map(|(_, ops)| ops.len())
+            .collect::<Vec<_>>();
+        return Ok((main_vector.len(), fork_max_stacks));
+    }
+
+    let main_max_stack =
+        usize::try_from(fb_decode!(fb_prog_ref, main_max_stack)).map_err(|_| {
+            DecodeError::DecodeFailed("main_max_stack does not fit in usize".to_string())
+        })?;
+
+    let Some(fb_fork_max_stacks) = fb_prog_ref
+        .fork_max_stacks()
+        .map_err(|e| DecodeError::DecodeFailed(format!("Failed to read fork_max_stacks: {e}")))?
+    else {
+        if fork_vectors.is_empty() {
+            return Ok((main_max_stack, Vec::new()));
+        }
+
+        return Err(DecodeError::DecodeFailed(
+            "Stored program v4 missing fork_max_stacks".to_string(),
+        ));
+    };
+
+    if fb_fork_max_stacks.len() != fork_vectors.len() {
+        return Err(DecodeError::DecodeFailed(format!(
+            "Stored program v4 fork_max_stacks length {} does not match fork_vectors length {}",
+            fb_fork_max_stacks.len(),
+            fork_vectors.len()
+        )));
+    }
+
+    let fork_max_stacks = fb_fork_max_stacks
+        .iter()
+        .map(|depth| {
+            usize::try_from(depth).map_err(|_| {
+                DecodeError::DecodeFailed("fork_max_stacks entry does not fit in usize".to_string())
+            })
+        })
+        .collect::<Result<Vec<_>, DecodeError>>()?;
+
+    Ok((main_max_stack, fork_max_stacks))
 }
 
 fn used_builtin_ids(program: &Program) -> Vec<BuiltinId> {
@@ -946,4 +1013,65 @@ pub enum EncodeError {
 pub enum DecodeError {
     #[error("Failed to decode: {0}")]
     DecodeFailed(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_var::program::names::Names;
+
+    fn test_program() -> Program {
+        Program(Arc::new(PrgInner {
+            literals: Vec::new(),
+            jump_labels: Vec::new(),
+            var_names: Names::new(0),
+            scatter_tables: Vec::new(),
+            for_sequence_operands: Vec::new(),
+            for_range_operands: Vec::new(),
+            range_comprehensions: Vec::new(),
+            list_comprehensions: Vec::new(),
+            error_operands: Vec::new(),
+            lambda_programs: Vec::new(),
+            main_vector: vec![Op::ImmInt(1), Op::ImmInt(2), Op::Add, Op::Return],
+            main_max_stack: 2,
+            fork_vectors: vec![(1, vec![Op::ImmInt(3), Op::Return])],
+            fork_max_stacks: vec![1],
+            line_number_spans: vec![(0, 1)],
+            fork_line_number_spans: vec![vec![(0, 2)]],
+        }))
+    }
+
+    #[test]
+    fn stored_program_roundtrips_stack_depths() {
+        let program = test_program();
+        let stored = program_to_stored(&program).unwrap();
+        let decoded = stored_to_program(&stored).unwrap();
+
+        assert_eq!(decoded.main_max_stack(), 2);
+        assert_eq!(decoded.fork_vector_max_stack(Offset(0)), 1);
+    }
+
+    #[test]
+    fn stored_program_v3_migrates_stack_depths_from_opcode_counts() {
+        let mut moor_program = encode_moor_program(&test_program()).unwrap();
+        moor_program.version = 3;
+        moor_program.main_max_stack = 0;
+        moor_program.fork_max_stacks = None;
+
+        let stored_program = fb::StoredProgram {
+            language: fb::StoredProgramLanguage::StoredMooRProgram(Box::new(moor_program)),
+        };
+
+        let mut builder = planus::Builder::new();
+        let offset = stored_program.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let fb_ref = fb::StoredProgramRef::read_as_root(bytes).unwrap();
+        let decoded = decode_stored_program_ref(fb_ref).unwrap();
+
+        assert_eq!(decoded.main_max_stack(), decoded.main_vector().len());
+        assert_eq!(
+            decoded.fork_vector_max_stack(Offset(0)),
+            decoded.fork_vector(Offset(0)).len()
+        );
+    }
 }

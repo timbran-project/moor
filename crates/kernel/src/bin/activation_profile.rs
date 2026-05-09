@@ -26,7 +26,10 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_compiler::{CompileOptions, compile};
-use moor_kernel::testing::{create_activation_for_bench, create_nested_activation_for_bench};
+use moor_kernel::testing::{
+    create_activation_for_bench, create_activation_for_bench_cached_slot,
+    create_nested_activation_for_bench, create_nested_activation_for_bench_cached_slot,
+};
 use moor_var::{
     List, SYSTEM_OBJECT, Symbol, Var, program::ProgramType, v_empty_list, v_empty_str, v_int,
     v_obj, v_str,
@@ -40,6 +43,8 @@ enum Scenario {
     WithArgs,
     WithArgstr,
     NestedSimple,
+    SimpleCached,
+    NestedSimpleCached,
     Mixed,
 }
 
@@ -52,6 +57,8 @@ impl Scenario {
             "with_args" => Some(Self::WithArgs),
             "with_argstr" => Some(Self::WithArgstr),
             "nested_simple" => Some(Self::NestedSimple),
+            "simple_cached" => Some(Self::SimpleCached),
+            "nested_simple_cached" => Some(Self::NestedSimpleCached),
             "mixed" => Some(Self::Mixed),
             _ => None,
         }
@@ -128,7 +135,7 @@ USAGE:
   cargo run --release -p moor-kernel --bin activation_profile -- [OPTIONS]
 
 OPTIONS:
-  --scenario <name>  simple | medium | complex | with_args | with_argstr | nested_simple | mixed
+  --scenario <name>  simple | medium | complex | with_args | with_argstr | nested_simple | simple_cached | nested_simple_cached | mixed
   --warmup <n>       Warmup iterations (default: 100000)
   --iters <n>        Measured iterations (default: 1500000)
 "#;
@@ -223,10 +230,40 @@ impl Workload {
         )
     }
 
+    fn create_top_level_cached(
+        &self,
+        program: &ProgramType,
+        args: Var,
+        argstr: moor_var::Var,
+    ) -> moor_kernel::testing::ActivationBenchResult {
+        create_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            self.verbdef,
+            self.verb_name,
+            self.this.clone(),
+            SYSTEM_OBJECT,
+            args,
+            self.caller.clone(),
+            argstr,
+            program,
+        )
+    }
+
     #[inline]
     fn cycle_simple(&self) {
         let activation = self.create_top_level(
             self.simple_program.clone(),
+            self.empty_args.clone(),
+            self.empty_argstr.clone(),
+        );
+        black_box(&activation);
+        drop(activation);
+    }
+
+    #[inline]
+    fn cycle_simple_cached(&self) {
+        let activation = self.create_top_level_cached(
+            &self.simple_program,
             self.empty_args.clone(),
             self.empty_argstr.clone(),
         );
@@ -295,6 +332,24 @@ impl Workload {
         black_box(&activation);
         drop(activation);
     }
+
+    #[inline]
+    fn cycle_nested_simple_cached(&self, parent: &moor_kernel::testing::ActivationBenchResult) {
+        let activation = create_nested_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            self.verbdef,
+            self.verb_name,
+            self.this.clone(),
+            SYSTEM_OBJECT,
+            self.empty_args.clone(),
+            self.caller.clone(),
+            self.empty_argstr.clone(),
+            parent,
+            &self.simple_program,
+        );
+        black_box(&activation);
+        drop(activation);
+    }
 }
 
 fn run_loop(config: Config) {
@@ -351,6 +406,27 @@ fn run_loop(config: Config) {
             }
             for _ in 0..config.iters {
                 workload.cycle_nested_simple(&parent);
+            }
+        }
+        Scenario::SimpleCached => {
+            for _ in 0..config.warmup {
+                workload.cycle_simple_cached();
+            }
+            for _ in 0..config.iters {
+                workload.cycle_simple_cached();
+            }
+        }
+        Scenario::NestedSimpleCached => {
+            let parent = workload.create_top_level_cached(
+                &workload.simple_program,
+                workload.empty_args.clone(),
+                workload.empty_argstr.clone(),
+            );
+            for _ in 0..config.warmup {
+                workload.cycle_nested_simple_cached(&parent);
+            }
+            for _ in 0..config.iters {
+                workload.cycle_nested_simple_cached(&parent);
             }
         }
         Scenario::Mixed => {

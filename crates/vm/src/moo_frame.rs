@@ -19,6 +19,7 @@ use crate::environment::Environment;
 pub struct ProgramSlot {
     pub program_ptr: usize,
     pub global_width: usize,
+    pub main_max_stack: usize,
 }
 use crate::vm_unwind::FinallyReason;
 use moor_compiler::{Label, Op, Program};

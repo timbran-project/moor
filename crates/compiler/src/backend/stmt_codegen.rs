@@ -212,18 +212,33 @@ impl CodegenState {
 
                 let stashed_ops = self.emitter.take_ops();
                 let stashed_line_spans = std::mem::take(&mut self.line_number_spans);
+                let stashed_stack = self.stack.snapshot_and_reset();
 
                 for stmt in body {
                     self.generate_stmt(stmt)?;
                 }
                 self.emit(Op::Done);
                 let forked_ops = self.emitter.take_ops();
+                let fork_max_stack = self.stack.max_depth();
+                if self.stack.depth() != 0 || self.stack.saved_top().is_some() {
+                    panic!(
+                        "Fork stack is not empty at end of compilation: cur_stack#: {} stack: {:?}",
+                        self.stack.depth(),
+                        self.stack.saved_top()
+                    )
+                }
                 let fork_line_spans = std::mem::take(&mut self.line_number_spans);
 
                 self.emitter.replace_ops(stashed_ops);
                 self.line_number_spans = stashed_line_spans;
+                self.stack.restore(stashed_stack);
 
-                let fv_id = self.add_fork_vector(fork_main_position, forked_ops, fork_line_spans);
+                let fv_id = self.add_fork_vector(
+                    fork_main_position,
+                    forked_ops,
+                    fork_max_stack,
+                    fork_line_spans,
+                );
                 self.emit(Op::Fork {
                     id: id.as_ref().map(|id| self.find_name(id)),
                     fv_offset: fv_id,

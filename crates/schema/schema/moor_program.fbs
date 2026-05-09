@@ -228,6 +228,12 @@ table StoredMooRProgram {
 
     // Fork line number spans
     fork_line_number_spans: [ForkLineSpans] (required);
+
+    // Maximum runtime value-stack depth for the main vector
+    main_max_stack: uint64;
+
+    // Maximum runtime value-stack depth for each fork vector
+    fork_max_stacks: [uint64];
 }
 
 // Union for different program language implementations

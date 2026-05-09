@@ -394,6 +394,25 @@ mod tests {
     }
 
     #[test]
+    fn test_program_tracks_value_stack_depths() {
+        let binary = compile(
+            r#"
+            1 + 2;
+            fork (5)
+                a = 1;
+            endfork
+            return {x} => x + 1;
+            "#,
+            CompileOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(binary.main_max_stack(), 2);
+        assert_eq!(binary.fork_vector_max_stack(Offset(0)), 1);
+        assert_eq!(binary.lambda_program(Offset(0)).main_max_stack(), 2);
+    }
+
+    #[test]
     fn test_and_or() {
         let program = "a = (1 && 2 || 3);";
         let binary = compile(program, CompileOptions::default()).unwrap();

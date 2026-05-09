@@ -31,7 +31,8 @@ use moor_compiler::{CompileOptions, compile};
 use moor_kernel::testing::{
     ActivationAssemblyBenchState, ActivationBenchResult, MooFrameBenchResult,
     create_activation_assembly_state_for_bench, create_activation_for_bench,
-    create_command_activation_for_bench, create_nested_activation_for_bench,
+    create_activation_for_bench_cached_slot, create_command_activation_for_bench,
+    create_nested_activation_for_bench, create_nested_activation_for_bench_cached_slot,
     create_nested_environment_for_bench, create_nested_moo_frame_for_bench,
     create_top_level_environment_for_bench, create_top_level_moo_frame_for_bench,
     run_activation_assembly_cycle_for_bench, run_activation_assembly_cycle_overhead_for_bench,
@@ -578,6 +579,27 @@ fn bench_activation_top_level_simple(
     }
 }
 
+fn bench_activation_top_level_simple_cached(
+    ctx: &mut ActivationBenchContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    let fixture = &ctx.fixture;
+    for _ in 0..chunk_size {
+        black_box(create_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            fixture.base_resolved_verb,
+            fixture.verb_name,
+            fixture.this.clone(),
+            SYSTEM_OBJECT,
+            fixture.empty_args_var.clone(),
+            fixture.caller.clone(),
+            fixture.empty_argstr.clone(),
+            &fixture.simple_program,
+        ));
+    }
+}
+
 fn bench_activation_top_level_complex(
     ctx: &mut ActivationBenchContext,
     chunk_size: usize,
@@ -595,6 +617,27 @@ fn bench_activation_top_level_complex(
             fixture.caller.clone(),
             fixture.empty_argstr.clone(),
             fixture.complex_program.clone(),
+        ));
+    }
+}
+
+fn bench_activation_top_level_complex_cached(
+    ctx: &mut ActivationBenchContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    let fixture = &ctx.fixture;
+    for _ in 0..chunk_size {
+        black_box(create_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            fixture.base_resolved_verb,
+            fixture.verb_name,
+            fixture.this.clone(),
+            SYSTEM_OBJECT,
+            fixture.empty_args_var.clone(),
+            fixture.caller.clone(),
+            fixture.empty_argstr.clone(),
+            &fixture.complex_program,
         ));
     }
 }
@@ -620,6 +663,27 @@ fn bench_activation_with_args(
     }
 }
 
+fn bench_activation_with_args_cached(
+    ctx: &mut ActivationBenchContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    let fixture = &ctx.fixture;
+    for _ in 0..chunk_size {
+        black_box(create_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            fixture.base_resolved_verb,
+            fixture.verb_name,
+            fixture.this.clone(),
+            SYSTEM_OBJECT,
+            fixture.small_args.clone().into(),
+            fixture.caller.clone(),
+            fixture.empty_argstr.clone(),
+            &fixture.simple_program,
+        ));
+    }
+}
+
 fn bench_activation_with_argstr(
     ctx: &mut ActivationBenchContext,
     chunk_size: usize,
@@ -637,6 +701,27 @@ fn bench_activation_with_argstr(
             fixture.caller.clone(),
             fixture.short_argstr.clone(),
             fixture.simple_program.clone(),
+        ));
+    }
+}
+
+fn bench_activation_with_argstr_cached(
+    ctx: &mut ActivationBenchContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    let fixture = &ctx.fixture;
+    for _ in 0..chunk_size {
+        black_box(create_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            fixture.base_resolved_verb,
+            fixture.verb_name,
+            fixture.this.clone(),
+            SYSTEM_OBJECT,
+            fixture.empty_args_var.clone(),
+            fixture.caller.clone(),
+            fixture.short_argstr.clone(),
+            &fixture.simple_program,
         ));
     }
 }
@@ -659,6 +744,28 @@ fn bench_activation_nested_simple(
             fixture.empty_argstr.clone(),
             &ctx.parent_activation,
             fixture.simple_program.clone(),
+        ));
+    }
+}
+
+fn bench_activation_nested_simple_cached(
+    ctx: &mut ActivationBenchContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    let fixture = &ctx.fixture;
+    for _ in 0..chunk_size {
+        black_box(create_nested_activation_for_bench_cached_slot(
+            SYSTEM_OBJECT,
+            fixture.base_resolved_verb,
+            fixture.verb_name,
+            fixture.this.clone(),
+            SYSTEM_OBJECT,
+            fixture.empty_args_var.clone(),
+            fixture.caller.clone(),
+            fixture.empty_argstr.clone(),
+            &ctx.parent_activation,
+            &fixture.simple_program,
         ));
     }
 }
@@ -828,20 +935,40 @@ benchmark_main!(
             bench_activation_top_level_simple,
         );
         g.bench(
+            "activation_for_call_cached_top_level_simple",
+            bench_activation_top_level_simple_cached,
+        );
+        g.bench(
             "activation_for_call_top_level_complex",
             bench_activation_top_level_complex,
+        );
+        g.bench(
+            "activation_for_call_cached_top_level_complex",
+            bench_activation_top_level_complex_cached,
         );
         g.bench(
             "activation_for_call_with_args",
             bench_activation_with_args,
         );
         g.bench(
+            "activation_for_call_cached_with_args",
+            bench_activation_with_args_cached,
+        );
+        g.bench(
             "activation_for_call_with_argstr",
             bench_activation_with_argstr,
         );
         g.bench(
+            "activation_for_call_cached_with_argstr",
+            bench_activation_with_argstr_cached,
+        );
+        g.bench(
             "activation_for_call_nested_simple",
             bench_activation_nested_simple,
+        );
+        g.bench(
+            "activation_for_call_cached_nested_simple",
+            bench_activation_nested_simple_cached,
         );
     });
 
@@ -857,5 +984,6 @@ benchmark_main!(
             bench_command_activation_with_args,
         );
     });
+
     }
 );

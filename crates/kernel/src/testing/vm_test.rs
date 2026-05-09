@@ -46,7 +46,9 @@ mod tests {
             error_operands: vec![],
             lambda_programs: vec![],
             main_vector,
+            main_max_stack: 0,
             fork_vectors: vec![],
+            fork_max_stacks: vec![],
             line_number_spans: vec![],
             fork_line_number_spans: vec![],
         }))

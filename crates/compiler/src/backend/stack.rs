@@ -20,6 +20,13 @@ pub struct StackState {
     saved_stack: Option<Offset>,
 }
 
+#[derive(Debug)]
+pub struct StackSnapshot {
+    cur_stack: usize,
+    max_stack: usize,
+    saved_stack: Option<Offset>,
+}
+
 impl StackState {
     pub fn new() -> Self {
         Self::default()
@@ -53,9 +60,26 @@ impl StackState {
         }
     }
 
-    #[cfg(test)]
     pub fn max_depth(&self) -> usize {
         self.max_stack
+    }
+
+    pub fn snapshot_and_reset(&mut self) -> StackSnapshot {
+        let snapshot = StackSnapshot {
+            cur_stack: self.cur_stack,
+            max_stack: self.max_stack,
+            saved_stack: self.saved_stack,
+        };
+        self.cur_stack = 0;
+        self.max_stack = 0;
+        self.saved_stack = None;
+        snapshot
+    }
+
+    pub fn restore(&mut self, snapshot: StackSnapshot) {
+        self.cur_stack = snapshot.cur_stack;
+        self.max_stack = snapshot.max_stack;
+        self.saved_stack = snapshot.saved_stack;
     }
 
     pub fn saved_top(&self) -> Option<Offset> {
