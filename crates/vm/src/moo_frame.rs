@@ -103,10 +103,24 @@ pub enum ScopeType {
         key_bind: Option<Name>,
         end_label: Label,
     },
-    /// For-range iteration state stored in scope instead of on stack
-    ForRange {
-        current_value: Var,
-        end_value: Var,
+    /// Integer for-range iteration state stored in scope instead of on stack.
+    ForRangeInt {
+        current: i64,
+        end: i64,
+        loop_variable: Name,
+        end_label: Label,
+    },
+    /// Floating point for-range iteration state stored in scope instead of on stack.
+    ForRangeFloat {
+        current_bits: u64,
+        end_bits: u64,
+        loop_variable: Name,
+        end_label: Label,
+    },
+    /// Numeric object for-range iteration state stored in scope instead of on stack.
+    ForRangeObj {
+        current: i32,
+        end: i32,
         loop_variable: Name,
         end_label: Label,
     },
@@ -638,20 +652,18 @@ impl MooStackFrame {
     /// Enter a ForRange scope that holds iteration state
     pub fn push_for_range_scope(
         &mut self,
-        start_value: Var,
-        end_value: Var,
-        loop_variable: Name,
+        scope_type: ScopeType,
         end_label: &Label,
         environment_width: u16,
     ) {
+        debug_assert!(matches!(
+            scope_type,
+            ScopeType::ForRangeInt { .. }
+                | ScopeType::ForRangeFloat { .. }
+                | ScopeType::ForRangeObj { .. }
+        ));
         let end_pos = self.resolved_program().jump_label(*end_label).position.0 as usize;
         let start_pos = self.pc;
-        let scope_type = ScopeType::ForRange {
-            current_value: start_value,
-            end_value,
-            loop_variable,
-            end_label: *end_label,
-        };
         self.scope_stack.push(Scope {
             scope_type,
             valstack_pos: self.valstack.len(),
@@ -665,7 +677,12 @@ impl MooStackFrame {
     /// Get the current ForRange scope for iteration
     pub fn get_for_range_scope_mut(&mut self) -> Option<&mut ScopeType> {
         for scope in self.scope_stack.iter_mut().rev() {
-            if matches!(scope.scope_type, ScopeType::ForRange { .. }) {
+            if matches!(
+                scope.scope_type,
+                ScopeType::ForRangeInt { .. }
+                    | ScopeType::ForRangeFloat { .. }
+                    | ScopeType::ForRangeObj { .. }
+            ) {
                 return Some(&mut scope.scope_type);
             }
         }

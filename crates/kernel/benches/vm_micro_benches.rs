@@ -310,6 +310,32 @@ fn dispatch_scope_churn(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_nu
     }
 }
 
+/// Dispatch integer for-range loop control with an empty body.
+fn dispatch_for_range_empty(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
+/// Dispatch integer for-range loop control plus loop-variable arithmetic.
+fn dispatch_for_range_accumulate(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
+    let tx = ctx.db.new_world_state().unwrap();
+    {
+        let _tx_guard = setup_task_context(tx);
+        let _ = black_box(execute_until_ticks_with_features(
+            ctx.session.clone(),
+            &mut ctx.vm_host,
+            &ctx.features,
+        ));
+    }
+}
+
 /// Dispatch jump-only control flow with minimal value work.
 fn dispatch_jump_only(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
     let tx = ctx.db.new_world_state().unwrap();
@@ -487,6 +513,26 @@ benchmark_main!(
                     "dispatch_scope_churn",
                     |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
                         dispatch_scope_churn(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| DispatchContext::with_program("while(1) for i in [1..5] endfor endwhile"))
+                .bench(
+                    "dispatch_for_range_empty",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_for_range_empty(ctx, 1, 0)
+                    },
+                );
+            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+                .factory(&|| {
+                    DispatchContext::with_program(
+                        "z = 0; while(1) for i in [1..5] z = z + i; endfor endwhile",
+                    )
+                })
+                .bench(
+                    "dispatch_for_range_accumulate",
+                    |ctx: &mut DispatchContext, _chunk_size, _chunk_num| {
+                        dispatch_for_range_accumulate(ctx, 1, 0)
                     },
                 );
             g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))

@@ -24,7 +24,7 @@ use moor_common::{
     tasks::TaskId,
     util::BitEnum,
 };
-use moor_compiler::{BuiltinId, Offset, Op, Program, to_literal};
+use moor_compiler::{BuiltinId, Label, Offset, Op, Program, to_literal};
 use moor_var::{
     E_ARGS, E_DIV, E_INVARG, E_INVIND, E_RANGE, E_TYPE, E_VARNF, Error, IndexMode, List, Obj,
     Symbol, TypeClass, Var, VarType, program::names::Name, v_arc_str, v_bool, v_bool_int,
@@ -603,89 +603,137 @@ pub fn moo_frame_execute<H: VmHost>(
                     );
                 }
 
-                // If start > end, jump to end immediately (empty range)
-                if start_val > end_val {
-                    f.jump(&operand.end_label);
-                    continue;
-                }
-
-                // Create ForRange scope with initial state
-                f.push_for_range_scope(
-                    start_val,
-                    end_val,
-                    operand.loop_variable,
-                    &operand.end_label,
-                    operand.environment_width,
-                );
-            }
-            Op::IterateForRange => {
-                let Some(ScopeType::ForRange {
-                    current_value,
-                    end_value,
-                    loop_variable,
-                    end_label,
-                }) = f.get_for_range_scope_mut()
-                else {
-                    return ExecutionResult::RaiseError(
-                        E_INVARG.msg("IterateForRange without ForRange scope"),
-                    );
-                };
-
-                // Check bounds and handle end condition
-                if *current_value > *end_value {
-                    let end_lbl = *end_label;
-                    f.jump(&end_lbl);
-                    continue;
-                }
-
-                // Extract values we need for variable setting
-                let loop_var = *loop_variable;
-
-                // Increment for next iteration with type-specific logic and overflow protection
-                // Use direct accessors to avoid variant() overhead on the hot path
-                let next_value = if let Some(i) = current_value.as_integer() {
-                    // Integer case (most common)
-                    if i == i64::MAX {
-                        // Decrement end_value instead to avoid overflow
-                        if let Some(e) = end_value.as_integer()
-                            && e > i64::MIN
-                        {
-                            *end_value = v_int(e - 1);
-                        }
-                        v_int(i)
-                    } else {
-                        v_int(i + 1)
+                let scope_type = if let (Some(start), Some(end)) =
+                    (start_val.as_integer(), end_val.as_integer())
+                {
+                    if start > end {
+                        f.jump(&operand.end_label);
+                        continue;
                     }
-                } else if let Some(f_val) = current_value.as_float() {
-                    v_float(f_val + 1.0)
-                } else if let Some(o) = current_value.as_object() {
-                    // Only numeric object IDs can be iterated - not UUIDs or anonymous
-                    if !o.is_oid() {
-                        return ExecutionResult::RaiseError(
-                            E_TYPE.msg("cannot iterate over non-numeric object IDs"),
-                        );
+                    ScopeType::ForRangeInt {
+                        current: start,
+                        end,
+                        loop_variable: operand.loop_variable,
+                        end_label: operand.end_label,
                     }
-                    let obj_id = o.id().0;
-                    if obj_id == i32::MAX {
-                        // Decrement end_value instead to avoid overflow
-                        if let Some(e) = end_value.as_object()
-                            && e.is_oid()
-                            && e.id().0 > i32::MIN
-                        {
-                            *end_value = v_obj(Obj::mk_id(e.id().0 - 1));
-                        }
-                        v_obj(Obj::mk_id(obj_id))
-                    } else {
-                        v_obj(Obj::mk_id(obj_id + 1))
+                } else if let (Some(start), Some(end)) = (start_val.as_float(), end_val.as_float())
+                {
+                    if start.total_cmp(&end).is_gt() {
+                        f.jump(&operand.end_label);
+                        continue;
+                    }
+                    ScopeType::ForRangeFloat {
+                        current_bits: start.to_bits(),
+                        end_bits: end.to_bits(),
+                        loop_variable: operand.loop_variable,
+                        end_label: operand.end_label,
+                    }
+                } else if let (Some(start), Some(end)) =
+                    (start_val.as_object(), end_val.as_object())
+                {
+                    let start = start.id().0;
+                    let end = end.id().0;
+                    if start > end {
+                        f.jump(&operand.end_label);
+                        continue;
+                    }
+                    ScopeType::ForRangeObj {
+                        current: start,
+                        end,
+                        loop_variable: operand.loop_variable,
+                        end_label: operand.end_label,
                     }
                 } else {
-                    // This shouldn't happen due to validation in BeginForRange
                     return ExecutionResult::RaiseError(
                         E_TYPE.msg("invalid type in for-range iteration"),
                     );
                 };
-                let current_val = std::mem::replace(current_value, next_value);
-                f.set_variable(&loop_var, current_val);
+
+                f.push_for_range_scope(scope_type, &operand.end_label, operand.environment_width);
+            }
+            Op::IterateForRange => {
+                enum RangeAction {
+                    Jump(Label),
+                    Bind(Name, Var),
+                }
+
+                let Some(scope) = f.get_for_range_scope_mut() else {
+                    return ExecutionResult::RaiseError(
+                        E_INVARG.msg("IterateForRange without ForRange scope"),
+                    );
+                };
+                let action = match scope {
+                    ScopeType::ForRangeInt {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    } => {
+                        if *current > *end {
+                            RangeAction::Jump(*end_label)
+                        } else {
+                            let value = *current;
+                            if value == i64::MAX {
+                                if *end > i64::MIN {
+                                    *end -= 1;
+                                }
+                            } else {
+                                *current += 1;
+                            }
+                            RangeAction::Bind(*loop_variable, v_int(value))
+                        }
+                    }
+                    ScopeType::ForRangeFloat {
+                        current_bits,
+                        end_bits,
+                        loop_variable,
+                        end_label,
+                    } => {
+                        let current = f64::from_bits(*current_bits);
+                        let end = f64::from_bits(*end_bits);
+                        if current.total_cmp(&end).is_gt() {
+                            RangeAction::Jump(*end_label)
+                        } else {
+                            *current_bits = (current + 1.0).to_bits();
+                            RangeAction::Bind(*loop_variable, v_float(current))
+                        }
+                    }
+                    ScopeType::ForRangeObj {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    } => {
+                        if *current > *end {
+                            RangeAction::Jump(*end_label)
+                        } else {
+                            let value = *current;
+                            if value == i32::MAX {
+                                if *end > i32::MIN {
+                                    *end -= 1;
+                                }
+                            } else {
+                                *current += 1;
+                            }
+                            RangeAction::Bind(*loop_variable, v_obj(Obj::mk_id(value)))
+                        }
+                    }
+                    _ => {
+                        return ExecutionResult::RaiseError(
+                            E_INVARG.msg("IterateForRange without ForRange scope"),
+                        );
+                    }
+                };
+
+                match action {
+                    RangeAction::Jump(end_label) => {
+                        f.jump(&end_label);
+                        continue;
+                    }
+                    RangeAction::Bind(loop_var, current_val) => {
+                        f.set_variable(&loop_var, current_val);
+                    }
+                }
             }
             Op::Pop => {
                 f.pop();

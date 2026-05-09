@@ -31,8 +31,11 @@ use moor_schema::{
     convert_program::{decode_stored_program_ref, encode_program_to_fb},
     program as fb_program, task as fb,
 };
-use moor_var::program::names::{GlobalName, Name};
-use moor_var::v_str;
+use moor_var::{
+    Obj, Var,
+    program::names::{GlobalName, Name},
+    v_float, v_int, v_obj, v_str,
+};
 use moor_vm::{
     Activation as KernelActivation, BuiltinFrame as KernelBuiltinFrame,
     CatchType as KernelCatchType, ExecState as KernelExecState,
@@ -641,16 +644,68 @@ pub(crate) fn scope_type_to_flatbuffer(
                 current_key: fb_current_key.map(Box::new),
             }))
         }
-        KernelScopeType::ForRange {
-            current_value,
-            end_value,
+        KernelScopeType::ForRangeInt {
+            current,
+            end,
             loop_variable,
             end_label,
         } => {
-            let fb_current = var_to_db_flatbuffer(current_value).map_err(|e| {
+            let current_value = v_int(*current);
+            let end_value = v_int(*end);
+            let fb_current = var_to_db_flatbuffer(&current_value).map_err(|e| {
                 TaskConversionError::VarError(format!("Error encoding current_value: {e}"))
             })?;
-            let fb_end = var_to_db_flatbuffer(end_value).map_err(|e| {
+            let fb_end = var_to_db_flatbuffer(&end_value).map_err(|e| {
+                TaskConversionError::VarError(format!("Error encoding end_value: {e}"))
+            })?;
+            let fb_loop_var = name_to_stored(loop_variable).map_err(|e| {
+                TaskConversionError::ProgramError(format!("Error encoding loop_variable: {e}"))
+            })?;
+
+            ScopeTypeUnion::ScopeForRange(Box::new(ScopeForRange {
+                current_value: Box::new(fb_current),
+                end_value: Box::new(fb_end),
+                loop_variable: Box::new(fb_loop_var),
+                end_label: end_label.0,
+            }))
+        }
+        KernelScopeType::ForRangeFloat {
+            current_bits,
+            end_bits,
+            loop_variable,
+            end_label,
+        } => {
+            let current_value = v_float(f64::from_bits(*current_bits));
+            let end_value = v_float(f64::from_bits(*end_bits));
+            let fb_current = var_to_db_flatbuffer(&current_value).map_err(|e| {
+                TaskConversionError::VarError(format!("Error encoding current_value: {e}"))
+            })?;
+            let fb_end = var_to_db_flatbuffer(&end_value).map_err(|e| {
+                TaskConversionError::VarError(format!("Error encoding end_value: {e}"))
+            })?;
+            let fb_loop_var = name_to_stored(loop_variable).map_err(|e| {
+                TaskConversionError::ProgramError(format!("Error encoding loop_variable: {e}"))
+            })?;
+
+            ScopeTypeUnion::ScopeForRange(Box::new(ScopeForRange {
+                current_value: Box::new(fb_current),
+                end_value: Box::new(fb_end),
+                loop_variable: Box::new(fb_loop_var),
+                end_label: end_label.0,
+            }))
+        }
+        KernelScopeType::ForRangeObj {
+            current,
+            end,
+            loop_variable,
+            end_label,
+        } => {
+            let current_value = v_obj(Obj::mk_id(*current));
+            let end_value = v_obj(Obj::mk_id(*end));
+            let fb_current = var_to_db_flatbuffer(&current_value).map_err(|e| {
+                TaskConversionError::VarError(format!("Error encoding current_value: {e}"))
+            })?;
+            let fb_end = var_to_db_flatbuffer(&end_value).map_err(|e| {
                 TaskConversionError::VarError(format!("Error encoding end_value: {e}"))
             })?;
             let fb_loop_var = name_to_stored(loop_variable).map_err(|e| {
@@ -671,6 +726,47 @@ pub(crate) fn scope_type_to_flatbuffer(
     };
 
     Ok(ScopeType { scope_type })
+}
+
+fn decode_for_range_scope(
+    current_value: Var,
+    end_value: Var,
+    loop_variable: Name,
+    end_label: Label,
+) -> Result<KernelScopeType, TaskConversionError> {
+    if let (Some(current), Some(end)) = (current_value.as_integer(), end_value.as_integer()) {
+        return Ok(KernelScopeType::ForRangeInt {
+            current,
+            end,
+            loop_variable,
+            end_label,
+        });
+    }
+
+    if let (Some(current), Some(end)) = (current_value.as_float(), end_value.as_float()) {
+        return Ok(KernelScopeType::ForRangeFloat {
+            current_bits: current.to_bits(),
+            end_bits: end.to_bits(),
+            loop_variable,
+            end_label,
+        });
+    }
+
+    if let (Some(current), Some(end)) = (current_value.as_object(), end_value.as_object())
+        && current.is_oid()
+        && end.is_oid()
+    {
+        return Ok(KernelScopeType::ForRangeObj {
+            current: current.id().0,
+            end: end.id().0,
+            loop_variable,
+            end_label,
+        });
+    }
+
+    Err(TaskConversionError::DecodingError(
+        "for-range scope has invalid current/end values".to_string(),
+    ))
 }
 
 pub(crate) fn scope_type_from_ref(
@@ -772,12 +868,7 @@ pub(crate) fn scope_type_from_ref(
                 .end_label()
                 .map_err(|e| TaskConversionError::DecodingError(format!("end_label: {e}")))?;
 
-            Ok(KernelScopeType::ForRange {
-                current_value,
-                end_value,
-                loop_variable,
-                end_label: Label(end_label),
-            })
+            decode_for_range_scope(current_value, end_value, loop_variable, Label(end_label))
         }
         ScopeTypeUnionRef::ScopeBlock(_) => Ok(KernelScopeType::Block),
         ScopeTypeUnionRef::ScopeComprehension(_) => Ok(KernelScopeType::Comprehension),

@@ -141,15 +141,24 @@ fn extract_anonymous_refs_from_moo_frame(
                     extract_anonymous_refs_from_var(k, refs);
                 }
             }
-            ScopeType::ForRange {
-                current_value,
-                end_value,
+            ScopeType::ForRangeInt {
+                current: _,
+                end: _,
                 loop_variable: _,
                 end_label: _,
-            } => {
-                extract_anonymous_refs_from_var(current_value, refs);
-                extract_anonymous_refs_from_var(end_value, refs);
             }
+            | ScopeType::ForRangeFloat {
+                current_bits: _,
+                end_bits: _,
+                loop_variable: _,
+                end_label: _,
+            }
+            | ScopeType::ForRangeObj {
+                current: _,
+                end: _,
+                loop_variable: _,
+                end_label: _,
+            } => {}
             _ => {} // Other scope types don't store variables we can scan
         }
     }
