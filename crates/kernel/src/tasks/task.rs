@@ -570,7 +570,7 @@ impl Task {
 
                         trace_task_abort!(
                             self.task_id,
-                            &format!("Exception: {}", original_exception.error.err_type)
+                            &format!("Exception: {}", original_exception.error.err_type())
                         );
 
                         task_scheduler_client.exception(Box::new(original_exception));
@@ -647,17 +647,12 @@ impl Task {
                     if let Ok(Some(verb_result)) = verb_lookup {
                         // Handler exists - prepare to invoke it
                         // Prepare arguments: {code, msg, value, stack, traceback}
-                        let code = v_err(exception.error.err_type);
-                        let msg = match &exception.error.msg {
+                        let code = v_err(exception.error.err_type());
+                        let msg = match exception.error.msg() {
                             Some(m) => v_string(m.to_string()),
                             None => v_str(""),
                         };
-                        let value = exception
-                            .error
-                            .value
-                            .as_deref()
-                            .cloned()
-                            .unwrap_or(v_int(0));
+                        let value = exception.error.value().cloned().unwrap_or(v_int(0));
                         let stack = List::from_iter(exception.stack.clone());
                         let traceback = List::from_iter(exception.backtrace.clone());
 
@@ -744,7 +739,7 @@ impl Task {
 
                 trace_task_abort!(
                     self.task_id,
-                    &format!("Exception: {}", exception.error.err_type)
+                    &format!("Exception: {}", exception.error.err_type())
                 );
 
                 task_scheduler_client.exception(exception);
@@ -1538,7 +1533,7 @@ mod tests {
         let err = wait_result(&handle).unwrap_err();
         match err {
             SchedulerError::TaskAbortedException(ex) => {
-                assert_eq!(ex.error.err_type, E_DIV);
+                assert_eq!(ex.error.err_type(), E_DIV);
             }
             other => panic!("Expected TaskAbortedException, got {other:?}"),
         }

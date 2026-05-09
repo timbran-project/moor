@@ -858,7 +858,7 @@ fn var_to_json(var: &Var) -> Result<JsonValue, BfErr> {
                 error_obj.insert("message".to_string(), JsonValue::String(msg));
             }
 
-            if let Some(value) = &e.value {
+            if let Some(value) = e.value() {
                 error_obj.insert("value".to_string(), var_to_json(value)?);
             }
 

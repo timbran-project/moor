@@ -262,8 +262,8 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
         }
         Variant::Err(e) => {
             let err_name = e.name().to_string().to_uppercase();
-            if let Some(msg) = &e.msg {
-                write!(writer, "{}({})", err_name, quote_str(msg.as_str()))?;
+            if let Some(msg) = e.msg() {
+                write!(writer, "{}({})", err_name, quote_str(msg))?;
             } else {
                 write!(writer, "{err_name}")?;
             }

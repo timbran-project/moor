@@ -16,8 +16,8 @@ use micromeasure::{
     benchmark_main, black_box,
 };
 use moor_var::{
-    IndexMode, Obj, Symbol, Var, v_arc_str, v_bool, v_float, v_int, v_list, v_none, v_obj, v_str,
-    v_string, v_sym, v_symbol_str,
+    E_INVARG, E_TYPE, Error, IndexMode, Obj, Symbol, Var, v_arc_str, v_bool, v_float, v_int,
+    v_list, v_none, v_obj, v_str, v_string, v_sym, v_symbol_str,
 };
 use std::time::Duration;
 
@@ -49,6 +49,100 @@ fn int_add(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
     let mut v = ctx.0.clone();
     for _ in 0..chunk_size {
         v = v.add(&v_int(1)).unwrap();
+        black_box(&v);
+    }
+}
+
+fn int_add_reuse_rhs(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    let rhs = v_int(1);
+    for _ in 0..chunk_size {
+        v = v.add(&rhs).unwrap();
+        black_box(&v);
+    }
+}
+
+#[inline(always)]
+fn add_vars_result(left: &Var, right: &Var) -> Result<Var, Error> {
+    let (Some(left), Some(right)) = (left.as_integer(), right.as_integer()) else {
+        return Err(E_TYPE.msg("not an integer"));
+    };
+    left.checked_add(right)
+        .map(v_int)
+        .ok_or_else(|| E_INVARG.msg("Integer overflow"))
+}
+
+fn int_add_vars_result_helper(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    let rhs = v_int(1);
+    for _ in 0..chunk_size {
+        v = add_vars_result(&v, &rhs).unwrap();
+        black_box(&v);
+    }
+}
+
+#[inline(always)]
+fn add_vars_option(left: &Var, right: &Var) -> Option<Var> {
+    left.as_integer()?
+        .checked_add(right.as_integer()?)
+        .map(v_int)
+}
+
+fn int_add_vars_option_helper(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    let rhs = v_int(1);
+    for _ in 0..chunk_size {
+        v = add_vars_option(&v, &rhs).unwrap();
+        black_box(&v);
+    }
+}
+
+#[inline(always)]
+fn add_one_result(v: &Var) -> Result<Var, Error> {
+    let Some(i) = v.as_integer() else {
+        return Err(E_TYPE.msg("not an integer"));
+    };
+    i.checked_add(1)
+        .map(v_int)
+        .ok_or_else(|| E_INVARG.msg("Integer overflow"))
+}
+
+fn int_add_result_helper(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    for _ in 0..chunk_size {
+        v = add_one_result(&v).unwrap();
+        black_box(&v);
+    }
+}
+
+#[inline(always)]
+fn add_one_option(v: &Var) -> Option<Var> {
+    v.as_integer()?.checked_add(1).map(v_int)
+}
+
+fn int_add_option_helper(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    for _ in 0..chunk_size {
+        v = add_one_option(&v).unwrap();
+        black_box(&v);
+    }
+}
+
+fn int_add_direct_checked(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    for _ in 0..chunk_size {
+        let i = v.as_integer().unwrap();
+        v = v_int(i.checked_add(1).unwrap());
+        black_box(&v);
+    }
+}
+
+fn int_add_direct_wrapping(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let mut v = ctx.0.clone();
+    for _ in 0..chunk_size {
+        let i = v.as_integer().unwrap();
+        v = v_int(i.wrapping_add(1));
+        black_box(&v);
     }
 }
 
@@ -652,6 +746,13 @@ benchmark_main!(
         runner.group::<IntContext>("Integer Operations", |g| {
             let g = g.throughput(Throughput::per_operation(1, "integer_ops"));
             g.bench("int_add", int_add);
+            g.bench("int_add_reuse_rhs", int_add_reuse_rhs);
+            g.bench("int_add_vars_result_helper", int_add_vars_result_helper);
+            g.bench("int_add_vars_option_helper", int_add_vars_option_helper);
+            g.bench("int_add_result_helper", int_add_result_helper);
+            g.bench("int_add_option_helper", int_add_option_helper);
+            g.bench("int_add_direct_checked", int_add_direct_checked);
+            g.bench("int_add_direct_wrapping", int_add_direct_wrapping);
             g.bench("mixed_add", mixed_add);
             g.bench("int_eq", int_eq);
             g.bench("int_cmp", int_cmp);

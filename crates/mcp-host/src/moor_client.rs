@@ -1584,9 +1584,9 @@ fn format_exception(exception: &Exception) -> String {
 
     // Format the error itself
     let err = &exception.error;
-    output.push_str(&format!("{}", err.err_type));
-    if let Some(msg) = &err.msg {
-        output.push_str(&format!(": {}", msg));
+    output.push_str(&format!("{}", err.err_type()));
+    if let Some(msg) = err.msg() {
+        output.push_str(&format!(": {msg}"));
     }
 
     // Add backtrace if available

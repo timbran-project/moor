@@ -404,7 +404,7 @@ impl FjallSnapshotLoader {
             }
             moor_var::Variant::Err(error) => {
                 // Check the error's optional value field
-                if let Some(error_value) = &error.value {
+                if let Some(error_value) = error.value() {
                     Self::extract_anonymous_refs_recursive(error_value, refs);
                 }
             }

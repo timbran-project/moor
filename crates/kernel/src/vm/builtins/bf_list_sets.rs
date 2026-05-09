@@ -1785,7 +1785,7 @@ mod tests {
         let regex = "(a|b|ab)*bc";
         let target = "ababababababababababababababababababababababababababababacbc";
         let err = perform_pcre_match(false, false, regex, target, false).unwrap_err();
-        assert_eq!(err.err_type, E_MAXREC);
+        assert_eq!(err.err_type(), E_MAXREC);
         assert!(err.message().contains("retry-limit-in-match"));
     }
 

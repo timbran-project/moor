@@ -16,28 +16,70 @@ use ErrorCode::*;
 use std::{
     fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
-    ops::Deref,
 };
 
 #[derive(Clone, Eq, Ord, PartialOrd)]
 pub struct Error {
-    pub err_type: ErrorCode,
-    pub msg: Option<Box<String>>,
-    pub value: Option<Box<Var>>,
+    repr: ErrorRepr,
+}
+
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+enum ErrorRepr {
+    Code(ErrorCode),
+    Rich(Box<ErrorData>),
+}
+
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+struct ErrorData {
+    err_type: ErrorCode,
+    msg: Option<String>,
+    value: Option<Var>,
 }
 
 impl Hash for Error {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.err_type.hash(state);
+        self.err_type().hash(state);
     }
 }
 
 impl Error {
     pub fn new(err_type: ErrorCode, msg: Option<String>, value: Option<Var>) -> Self {
+        if msg.is_none() && value.is_none() {
+            return Self {
+                repr: ErrorRepr::Code(err_type),
+            };
+        }
+
         Self {
-            err_type,
-            msg: msg.map(Box::new),
-            value: value.map(Box::new),
+            repr: ErrorRepr::Rich(Box::new(ErrorData {
+                err_type,
+                msg,
+                value,
+            })),
+        }
+    }
+
+    #[inline(always)]
+    pub fn err_type(&self) -> ErrorCode {
+        match &self.repr {
+            ErrorRepr::Code(err_type) => *err_type,
+            ErrorRepr::Rich(data) => data.err_type,
+        }
+    }
+
+    #[inline(always)]
+    pub fn msg(&self) -> Option<&str> {
+        match &self.repr {
+            ErrorRepr::Code(_) => None,
+            ErrorRepr::Rich(data) => data.msg.as_deref(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn value(&self) -> Option<&Var> {
+        match &self.repr {
+            ErrorRepr::Code(_) => None,
+            ErrorRepr::Rich(data) => data.value.as_ref(),
         }
     }
 }
@@ -48,16 +90,16 @@ impl Error {
 //   better, and then we can make this more informative again.
 impl Debug for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.err_type)
+        write!(f, "{}", self.err_type())
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.msg.is_some() {
-            write!(f, "{} ({})", self.err_type, self.message())
+        if self.msg().is_some() {
+            write!(f, "{} ({})", self.err_type(), self.message())
         } else {
-            write!(f, "{}", self.err_type)
+            write!(f, "{}", self.err_type())
         }
     }
 }
@@ -172,13 +214,13 @@ impl ErrorCode {
 // TODO: this presents difficulties/confusions for Hash, Clippy warns about it.
 impl PartialEq<ErrorCode> for Error {
     fn eq(&self, other: &ErrorCode) -> bool {
-        self.err_type == *other
+        self.err_type() == *other
     }
 }
 
 impl PartialEq<Error> for Error {
     fn eq(&self, other: &Error) -> bool {
-        *self == other.err_type && self.value == other.value
+        self.err_type() == other.err_type() && self.value() == other.value()
     }
 }
 
@@ -216,7 +258,7 @@ impl Error {
     }
 
     pub fn to_int(&self) -> Option<u8> {
-        match self.err_type {
+        match self.err_type() {
             E_NONE => Some(0),
             E_TYPE => Some(1),
             E_DIV => Some(2),
@@ -246,11 +288,11 @@ impl std::error::Error for Error {}
 impl Error {
     #[must_use]
     pub fn message(&self) -> String {
-        if let Some(msg) = &self.msg {
-            return msg.deref().clone();
+        if let Some(msg) = self.msg() {
+            return msg.to_string();
         }
         // Default message if one not provided.
-        match self.err_type {
+        match self.err_type() {
             E_NONE => "No error".into(),
             E_TYPE => "Type mismatch".into(),
             E_DIV => "Division by zero".into(),
@@ -276,7 +318,7 @@ impl Error {
 
     #[must_use]
     pub fn name(&self) -> Symbol {
-        Symbol::mk(&format!("{}", self.err_type))
+        Symbol::mk(&format!("{}", self.err_type()))
     }
 }
 
@@ -287,6 +329,6 @@ mod tests {
 
     #[test]
     fn test_error_size() {
-        assert_eq!(size_of::<Error>(), 32);
+        assert_eq!(size_of::<Error>(), 16);
     }
 }

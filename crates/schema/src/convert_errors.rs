@@ -112,14 +112,15 @@ fn error_code_from_flatbuffer(
 pub fn error_to_flatbuffer_struct(
     error: &moor_var::Error,
 ) -> Result<common::Error, Box<dyn std::error::Error>> {
-    let err_code = error_code_to_flatbuffer(&error.err_type);
-    let msg = error.msg.as_ref().map(|m| m.as_str().to_string());
-    let value = match &error.value {
+    let err_type = error.err_type();
+    let err_code = error_code_to_flatbuffer(&err_type);
+    let msg = error.msg().map(str::to_string);
+    let value = match error.value() {
         Some(v) => Some(Box::new(var_to_flatbuffer(v).str_err()?)),
         None => None,
     };
-    let custom_symbol = match &error.err_type {
-        moor_var::ErrorCode::ErrCustom(sym) => Some(Box::new(symbol_to_flatbuffer_struct(sym))),
+    let custom_symbol = match err_type {
+        moor_var::ErrorCode::ErrCustom(sym) => Some(Box::new(symbol_to_flatbuffer_struct(&sym))),
         _ => None,
     };
 
@@ -146,26 +147,18 @@ pub fn error_from_ref(error_ref: common::ErrorRef<'_>) -> Result<moor_var::Error
     };
     let err_type = error_code_from_flatbuffer(error_code, custom_symbol);
 
-    let msg = error_ref
-        .msg()
-        .ok()
-        .flatten()
-        .map(|s| Box::new(s.to_string()));
+    let msg = error_ref.msg().ok().flatten().map(str::to_string);
 
     let value = if let Ok(Some(value_var_ref)) = error_ref.value() {
-        Some(Box::new(
+        Some(
             var_from_flatbuffer_ref(value_var_ref)
                 .map_err(|e| format!("Failed to decode error value: {e}"))?,
-        ))
+        )
     } else {
         None
     };
 
-    Ok(moor_var::Error {
-        err_type,
-        msg,
-        value,
-    })
+    Ok(moor_var::Error::new(err_type, msg, value))
 }
 
 /// Convert from FlatBuffer ExceptionRef to Exception

@@ -89,7 +89,7 @@ fn extract_anonymous_refs_from_var(var: &Var, refs: &mut std::collections::HashS
         }
         moor_var::Variant::Err(error) => {
             // Check the error's optional value field
-            if let Some(error_value) = &error.value {
+            if let Some(error_value) = error.value() {
                 extract_anonymous_refs_from_var(error_value, refs);
             }
         }

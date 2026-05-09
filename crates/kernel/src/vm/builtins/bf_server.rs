@@ -265,16 +265,16 @@ fn bf_raise(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         };
         Some(msg.to_string())
     } else {
-        err.msg.as_deref().cloned()
+        err.msg().map(str::to_string)
     };
 
     let value = if bf_args.args.len() > 2 {
         Some(bf_args.args[2].clone())
     } else {
-        err.value.as_deref().cloned()
+        err.value().cloned()
     };
 
-    Err(BfErr::Raise(Error::new(err.err_type, msg, value)))
+    Err(BfErr::Raise(Error::new(err.err_type(), msg, value)))
 }
 
 /// Usage: `str server_version()`

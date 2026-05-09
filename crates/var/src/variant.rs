@@ -1839,8 +1839,8 @@ impl ByteSized for Var {
                 .map(|(k, v)| k.size_bytes() + v.size_bytes())
                 .sum::<usize>(),
             Variant::Err(e) => {
-                e.msg.as_ref().map(|s| s.len()).unwrap_or(0)
-                    + e.value.as_ref().map(|s| s.size_bytes()).unwrap_or(0)
+                e.msg().map(str::len).unwrap_or(0)
+                    + e.value().map(ByteSized::size_bytes).unwrap_or(0)
                     + size_of::<crate::ErrorCode>()
             }
             Variant::Flyweight(f) => {

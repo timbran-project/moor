@@ -373,7 +373,7 @@ fn bf_error_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_INVARG.msg("error_code() takes an error object"),
         ));
     };
-    let code = e.err_type;
+    let code = e.err_type();
     Ok(Ret(v_err(code)))
 }
 

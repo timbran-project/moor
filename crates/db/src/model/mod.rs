@@ -53,7 +53,7 @@ fn extract_anonymous_refs_recursive(var: &Var, refs: &mut HashSet<Obj>) {
             }
         }
         moor_var::Variant::Err(error) => {
-            if let Some(error_value) = &error.value {
+            if let Some(error_value) = error.value() {
                 extract_anonymous_refs_recursive(error_value, refs);
             }
         }

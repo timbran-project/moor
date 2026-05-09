@@ -353,7 +353,7 @@ impl ExecState {
                 piece.push_str(&format!(" (line {line_num})"));
             }
             if i == 0 {
-                let raise_msg = format!("{} ({})", error.err_type, error.message());
+                let raise_msg = format!("{} ({})", error.err_type(), error.message());
                 piece.push_str(&format!(": {raise_msg}"));
             }
             backtrace_list.push(v_str(&piece))
@@ -453,15 +453,11 @@ impl ExecState {
                                             CatchType::Errors(errs) => errs.contains(&e.error),
                                         };
                                         if found {
-                                            let value = e
-                                                .error
-                                                .value
-                                                .as_deref()
-                                                .cloned()
-                                                .unwrap_or(v_int(0));
+                                            let value =
+                                                e.error.value().cloned().unwrap_or(v_int(0));
                                             frame.jump(&catch.1);
                                             frame.push(v_list(&[
-                                                v_err(e.error.err_type),
+                                                v_err(e.error.err_type()),
                                                 v_string(e.error.message()),
                                                 value,
                                                 v_list(&e.stack),
