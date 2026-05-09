@@ -268,10 +268,7 @@ fn bf_setremove(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn translate_pattern(pattern: &str) -> Option<String> {
     let mut s = String::with_capacity(pattern.len());
     let mut c_iter = pattern.chars();
-    loop {
-        let Some(mut c) = c_iter.next() else {
-            break;
-        };
+    while let Some(mut c) = c_iter.next() {
         if c == '%' {
             let escape = c_iter.next()?;
             if ".*+?[^$|()123456789bB<>wW".contains(escape) {

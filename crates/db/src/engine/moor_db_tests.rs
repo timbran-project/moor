@@ -4593,7 +4593,7 @@ mod tests {
 
         // Get initial max_object (should be -1 since no numbered objects exist)
         let initial_max = tx.get_max_object().unwrap();
-        assert_eq!(initial_max.id().0 as i32, -1);
+        assert_eq!(initial_max.id().0, -1);
 
         // Renumber UUID to a high numbered object
         let high_numbered = Obj::mk_id(500);

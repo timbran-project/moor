@@ -1005,7 +1005,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
                 .scheduler_client
                 .get_gc_stats()
                 .expect("Should be able to get GC stats after GC");
-            if stats.cycle_count >= initial_count + 1 {
+            if stats.cycle_count > initial_count {
                 break;
             }
             if gc_start.elapsed() > Duration::from_secs(10) {
@@ -1161,7 +1161,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
                 .scheduler_client
                 .get_gc_stats()
                 .expect("Should be able to get GC stats after direct GC");
-            if stats.cycle_count >= current_count + 1 {
+            if stats.cycle_count > current_count {
                 break;
             }
             if gc_start.elapsed() > Duration::from_secs(10) {
@@ -1191,7 +1191,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
                 .scheduler_client
                 .get_gc_stats()
                 .expect("Should be able to get final GC stats");
-            if stats.cycle_count >= count_after_direct + 1 {
+            if stats.cycle_count > count_after_direct {
                 break;
             }
             if gc_start.elapsed() > Duration::from_secs(10) {

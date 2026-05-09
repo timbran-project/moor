@@ -580,7 +580,7 @@ fn shared_prop_flush_invalidator(
     let mut flushes = 0_u64;
     while !control.should_stop() {
         let mut cache = ctx.prop_cache.write().expect("prop cache rwlock poisoned");
-        if operations % 32 == 0 {
+        if operations.is_multiple_of(32) {
             cache.flush();
             flushes = flushes.wrapping_add(1);
             for refill in 0..ctx.test_objs.len().min(16) {

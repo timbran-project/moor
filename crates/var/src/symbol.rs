@@ -185,10 +185,10 @@ impl SymbolGroup {
         original: &str,
         global_state: &GlobalInternerState,
     ) -> &SymbolData {
-        if let Some(first_variant) = self.first_variant.get() {
-            if &*first_variant.original_string == original {
-                return first_variant;
-            }
+        if let Some(first_variant) = self.first_variant.get()
+            && &*first_variant.original_string == original
+        {
+            return first_variant;
         }
 
         if let Some(variant) = self.find_overflow_variant(original) {
@@ -198,10 +198,10 @@ impl SymbolGroup {
         // Synchronize duplicate detection only within this symbol group's overflow variants.
         let _lock = self.insert_lock.lock();
 
-        if let Some(first_variant) = self.first_variant.get() {
-            if &*first_variant.original_string == original {
-                return first_variant;
-            }
+        if let Some(first_variant) = self.first_variant.get()
+            && &*first_variant.original_string == original
+        {
+            return first_variant;
         }
 
         if let Some(variant) = self.find_overflow_variant(original) {

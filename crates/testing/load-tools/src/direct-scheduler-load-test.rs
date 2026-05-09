@@ -446,6 +446,10 @@ struct Results {
     throughput: f64,
 }
 
+fn avg_u64(total: u64, count: u64) -> u64 {
+    total.checked_div(count).unwrap_or(0)
+}
+
 async fn swamp_mode_workload(
     args: &Args,
     scheduler_client: &SchedulerClient,
@@ -503,23 +507,14 @@ async fn swamp_mode_workload(
     // Get scheduler metrics
     let counters = sched_counters();
     let submit_count = counters.timers.calls(SchedulerOp::SubmitVerbTaskLatency);
-    let submit_avg_micros = if submit_count > 0 {
-        let total_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::SubmitVerbTaskLatency),
-        );
-        (total_nanos / submit_count) / 1000
-    } else {
-        0
-    };
-
-    // Calculate submit overhead relative to total execution
     let total_submit_nanos = scale_hot_sample_sum_nanos(
         counters
             .timers
             .sample_sum_nanos(SchedulerOp::SubmitVerbTaskLatency),
     );
+    let submit_avg_micros = avg_u64(total_submit_nanos, submit_count) / 1000;
+
+    // Calculate submit overhead relative to total execution
     let cumulative_time_nanos = result.cumulative_time.as_nanos() as u64;
 
     let submit_overhead_pct = if cumulative_time_nanos > 0 {
@@ -529,11 +524,7 @@ async fn swamp_mode_workload(
     };
 
     // Amortize submit overhead across all verb calls (including interior calls)
-    let amortized_submit_nanos = if result.total_verb_calls > 0 {
-        (total_submit_nanos as u64) / (result.total_verb_calls as u64)
-    } else {
-        0
-    };
+    let amortized_submit_nanos = avg_u64(total_submit_nanos, result.total_verb_calls as u64);
 
     // Calculate histogram percentiles from collected latencies
     let (p50, p95, p99, max) = calculate_percentiles(all_submit_latencies);
@@ -558,25 +549,22 @@ async fn swamp_mode_workload(
 
     // Report additional per-operation metrics
     let setup_task_count = counters.timers.calls(SchedulerOp::SetupTask);
-    let setup_task_avg_nanos = if setup_task_count > 0 {
-        scale_hot_sample_sum_nanos(counters.timers.sample_sum_nanos(SchedulerOp::SetupTask))
-            / setup_task_count
-    } else {
-        0
-    };
+    let setup_task_avg_nanos = avg_u64(
+        scale_hot_sample_sum_nanos(counters.timers.sample_sum_nanos(SchedulerOp::SetupTask)),
+        setup_task_count,
+    );
 
     let find_verb_count = db_counters()
         .timers_hot
         .calls(WorldStateTimerOp::DispatchVerb);
-    let find_verb_avg_nanos = if find_verb_count > 0 {
+    let find_verb_avg_nanos = avg_u64(
         scale_hot_sample_sum_nanos(
             db_counters()
                 .timers_hot
                 .sample_sum_nanos(WorldStateTimerOp::DispatchVerb),
-        ) / find_verb_count
-    } else {
-        0
-    };
+        ),
+        find_verb_count,
+    );
 
     info!(
         "  setup_task: {} calls, avg {}ns | dispatch_verb: {} calls, avg {}ns",
@@ -735,11 +723,7 @@ async fn load_test_workload(
         let setup_task_total_nanos =
             scale_hot_sample_sum_nanos(counters.timers.sample_sum_nanos(SchedulerOp::SetupTask))
                 - baseline_setup_task_nanos;
-        let setup_task_avg_nanos = if setup_task_count > 0 {
-            (setup_task_total_nanos / setup_task_count) as u64
-        } else {
-            0
-        };
+        let setup_task_avg_nanos = avg_u64(setup_task_total_nanos, setup_task_count);
 
         let find_verb_count = db_counters()
             .timers_hot
@@ -750,11 +734,7 @@ async fn load_test_workload(
                 .timers_hot
                 .sample_sum_nanos(WorldStateTimerOp::DispatchVerb),
         ) - baseline_find_verb_nanos;
-        let find_verb_avg_nanos = if find_verb_count > 0 {
-            (find_verb_total_nanos / find_verb_count) as u64
-        } else {
-            0
-        };
+        let find_verb_avg_nanos = avg_u64(find_verb_total_nanos, find_verb_count);
         let sched_msg_count =
             counters.timers.calls(SchedulerOp::HandleSchedulerMsg) - baseline_sched_msg_count;
         let sched_msg_total_nanos = scale_hot_sample_sum_nanos(
@@ -762,11 +742,7 @@ async fn load_test_workload(
                 .timers
                 .sample_sum_nanos(SchedulerOp::HandleSchedulerMsg),
         ) - baseline_sched_msg_nanos;
-        let sched_msg_avg_nanos = if sched_msg_count > 0 {
-            (sched_msg_total_nanos / sched_msg_count) as u64
-        } else {
-            0
-        };
+        let sched_msg_avg_nanos = avg_u64(sched_msg_total_nanos, sched_msg_count);
 
         let resume_queue_count = counters
             .timers
@@ -777,11 +753,7 @@ async fn load_test_workload(
                 .timers
                 .sample_sum_nanos(SchedulerOp::TaskWakeSignalToDispatchStartLatency),
         ) - baseline_resume_queue_nanos;
-        let resume_queue_avg_nanos = if resume_queue_count > 0 {
-            (resume_queue_total_nanos / resume_queue_count) as u64
-        } else {
-            0
-        };
+        let resume_queue_avg_nanos = avg_u64(resume_queue_total_nanos, resume_queue_count);
 
         let thread_handoff_count = counters.timers.calls(SchedulerOp::TaskThreadHandoffLatency)
             - baseline_thread_handoff_count;
@@ -790,11 +762,7 @@ async fn load_test_workload(
                 .timers
                 .sample_sum_nanos(SchedulerOp::TaskThreadHandoffLatency),
         ) - baseline_thread_handoff_nanos;
-        let thread_handoff_avg_nanos = if thread_handoff_count > 0 {
-            (thread_handoff_total_nanos / thread_handoff_count) as u64
-        } else {
-            0
-        };
+        let thread_handoff_avg_nanos = avg_u64(thread_handoff_total_nanos, thread_handoff_count);
 
         let submit_to_first_run_count = counters
             .timers
@@ -805,11 +773,8 @@ async fn load_test_workload(
                 .timers
                 .sample_sum_nanos(SchedulerOp::TaskSubmitToFirstRunLatency),
         ) - baseline_submit_to_first_run_nanos;
-        let submit_to_first_run_avg_nanos = if submit_to_first_run_count > 0 {
-            (submit_to_first_run_total_nanos / submit_to_first_run_count) as u64
-        } else {
-            0
-        };
+        let submit_to_first_run_avg_nanos =
+            avg_u64(submit_to_first_run_total_nanos, submit_to_first_run_count);
 
         let per_thread_throughput = r.throughput / r.concurrency as f64;
         // Per-Verb = cumulative CPU time / verb calls (actual processing time)

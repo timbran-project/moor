@@ -636,7 +636,7 @@ fn ancestry_invalidator(
             .ancestry_cache
             .write()
             .expect("ancestry cache rwlock poisoned");
-        if operations % 32 == 0 {
+        if operations.is_multiple_of(32) {
             cache.flush();
             flushes = flushes.wrapping_add(1);
             for refill in 0..ctx.test_objs.len().min(16) {

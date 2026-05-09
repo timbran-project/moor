@@ -304,6 +304,10 @@ struct Results {
     commit_latencies: Vec<Duration>,
 }
 
+fn avg_u64(total: u64, count: u64) -> u64 {
+    total.checked_div(count).unwrap_or(0)
+}
+
 fn run_workload(
     database: &TxDB,
     setup: &TestSetup,
@@ -501,21 +505,9 @@ fn run_benchmark(
             (total_commit_thread_nanos as f64 / total_wall_time.as_nanos() as f64) * 100.0;
 
         // Average times per phase (only for commits that went through each phase)
-        let avg_check_nanos = if check_count > 0 {
-            (check_nanos / check_count) as u64
-        } else {
-            0
-        };
-        let avg_apply_nanos = if apply_count > 0 {
-            (apply_nanos / apply_count) as u64
-        } else {
-            0
-        };
-        let avg_index_insert_nanos = if index_insert_count > 0 {
-            (index_insert_nanos / index_insert_count) as u64
-        } else {
-            0
-        };
+        let avg_check_nanos = avg_u64(check_nanos, check_count);
+        let avg_apply_nanos = avg_u64(apply_nanos, apply_count);
+        let avg_index_insert_nanos = avg_u64(index_insert_nanos, index_insert_count);
 
         table_rows.push(BenchmarkRow {
             concurrency: num_concurrent,

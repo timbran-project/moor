@@ -264,13 +264,11 @@ impl MessageHandler for RpcMessageHandler {
                 mk_daemon_to_host_ack()
             }
             moor_rpc::HostToDaemonMessageUnionRef::RequestPerformanceCounters(_) => {
-                let mut all_counters = vec![];
-
-                all_counters.push((*SCHED_SYM, sched_counter_entries()));
-
-                all_counters.push((*DB_SYM, db_counter_entries()));
-
-                all_counters.push((*BF_SYM, bf_counter_entries()));
+                let all_counters = [
+                    (*SCHED_SYM, sched_counter_entries()),
+                    (*DB_SYM, db_counter_entries()),
+                    (*BF_SYM, bf_counter_entries()),
+                ];
 
                 let timestamp = SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)

@@ -235,7 +235,7 @@ mod tests {
         let mut transactions = HashMap::new();
 
         // workload *must* be sorted by index
-        workload.sort_by(|a, b| a.index.cmp(&b.index));
+        workload.sort_by_key(|entry| entry.index);
 
         let mut tx_counter = 0;
         for entry in &workload {

@@ -41,6 +41,13 @@ pub enum PersistOp<Domain, Codomain> {
     },
 }
 
+type IndexInsert<Domain, Codomain> = (Timestamp, Domain, Codomain);
+type IndexTombstone<Domain> = (Timestamp, Domain);
+type IndexOps<Domain, Codomain> = (
+    Vec<IndexInsert<Domain, Codomain>>,
+    Vec<IndexTombstone<Domain>>,
+);
+
 impl<Domain, Codomain, P> CheckRelation<Domain, Codomain, P>
 where
     Domain: RelationDomain,
@@ -94,9 +101,7 @@ where
     }
 
     /// Partition a working set into insert and tombstone vectors for apply_batch.
-    fn collect_index_ops(
-        working_set: &WorkingSet<Domain, Codomain>,
-    ) -> (Vec<(Timestamp, Domain, Codomain)>, Vec<(Timestamp, Domain)>) {
+    fn collect_index_ops(working_set: &WorkingSet<Domain, Codomain>) -> IndexOps<Domain, Codomain> {
         let total_ops = working_set.len();
         let mut inserts = Vec::with_capacity(total_ops);
         let mut tombstones = Vec::new();
@@ -118,8 +123,8 @@ where
     /// Apply index ops with perf counters.
     fn apply_batch_instrumented(
         index: &mut Box<dyn RelationIndex<Domain, Codomain>>,
-        inserts: Vec<(Timestamp, Domain, Codomain)>,
-        tombstones: Vec<(Timestamp, Domain)>,
+        inserts: Vec<IndexInsert<Domain, Codomain>>,
+        tombstones: Vec<IndexTombstone<Domain>>,
     ) {
         let index_ops = inserts.len() + tombstones.len();
         if index_ops > 0 {
