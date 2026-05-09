@@ -132,6 +132,16 @@ static PARSE_NOTHING: LazyLock<Var> = LazyLock::new(v_nothing);
 
 impl MooStackFrame {
     #[inline]
+    fn valstack_for_max_depth(max_depth: usize) -> Vec<Var> {
+        Vec::with_capacity(max_depth)
+    }
+
+    #[inline]
+    fn main_valstack_for_program(program: &Program) -> Vec<Var> {
+        Self::valstack_for_max_depth(program.main_max_stack())
+    }
+
+    #[inline]
     fn debug_assert_resolvable_program(&self) {
         debug_assert!(
             self.program.is_some() || self.program_ptr.is_some(),
@@ -143,6 +153,7 @@ impl MooStackFrame {
     #[allow(dead_code)]
     pub fn new(program: Program) -> Self {
         let width = max(program.var_names().global_width(), GlobalName::COUNT);
+        let valstack = Self::main_valstack_for_program(&program);
         Self {
             program: Some(program),
             program_ptr: None,
@@ -150,7 +161,7 @@ impl MooStackFrame {
             pc: 0,
             pc_type: PcType::Main,
             temp: v_none(),
-            valstack: Vec::new(),
+            valstack,
             scope_stack: Vec::new(),
             catch_stack: Vec::new(),
             finally_stack: Vec::new(),
@@ -170,6 +181,7 @@ impl MooStackFrame {
         argstr: Var,
     ) -> Self {
         let width = max(program.var_names().global_width(), GlobalName::COUNT);
+        let valstack = Self::main_valstack_for_program(&program);
         Self {
             program: Some(program),
             program_ptr: None,
@@ -179,7 +191,7 @@ impl MooStackFrame {
             pc: 0,
             pc_type: PcType::Main,
             temp: v_none(),
-            valstack: Vec::new(),
+            valstack,
             scope_stack: Vec::new(),
             catch_stack: Vec::new(),
             finally_stack: Vec::new(),
@@ -199,6 +211,7 @@ impl MooStackFrame {
         source_frame: &MooStackFrame,
     ) -> Self {
         let width = max(program.var_names().global_width(), GlobalName::COUNT);
+        let valstack = Self::main_valstack_for_program(&program);
         Self {
             program: Some(program),
             program_ptr: None,
@@ -214,7 +227,7 @@ impl MooStackFrame {
             pc: 0,
             pc_type: PcType::Main,
             temp: v_none(),
-            valstack: Vec::new(),
+            valstack,
             scope_stack: Vec::new(),
             catch_stack: Vec::new(),
             finally_stack: Vec::new(),
@@ -227,6 +240,7 @@ impl MooStackFrame {
     pub fn with_environment(program: Program, environment: Vec<Vec<Var>>) -> Self {
         // Ensure global scope exists with proper width for global variables
         let global_width = max(program.var_names().global_width(), GlobalName::COUNT);
+        let valstack = Self::main_valstack_for_program(&program);
         let env = if environment.is_empty() {
             // No captured environment - just create global scope
             Environment::with_initial_scope(global_width)
@@ -249,7 +263,6 @@ impl MooStackFrame {
             env
         };
 
-        let valstack = Vec::new();
         let scope_stack = Vec::new();
         Self {
             program: Some(program),
@@ -330,6 +343,7 @@ impl MooStackFrame {
         argstr: Var,
     ) -> Self {
         let width = max(program_slot.global_width, GlobalName::COUNT);
+        let valstack = Self::valstack_for_max_depth(program_slot.main_max_stack);
         Self {
             program: None,
             program_ptr: Some(program_slot.program_ptr),
@@ -339,7 +353,7 @@ impl MooStackFrame {
             pc: 0,
             pc_type: PcType::Main,
             temp: v_none(),
-            valstack: Vec::new(),
+            valstack,
             scope_stack: Vec::new(),
             catch_stack: Vec::new(),
             finally_stack: Vec::new(),
@@ -357,6 +371,7 @@ impl MooStackFrame {
         source_frame: &MooStackFrame,
     ) -> Self {
         let width = max(program_slot.global_width, GlobalName::COUNT);
+        let valstack = Self::valstack_for_max_depth(program_slot.main_max_stack);
         Self {
             program: None,
             program_ptr: Some(program_slot.program_ptr),
@@ -372,7 +387,7 @@ impl MooStackFrame {
             pc: 0,
             pc_type: PcType::Main,
             temp: v_none(),
-            valstack: Vec::new(),
+            valstack,
             scope_stack: Vec::new(),
             catch_stack: Vec::new(),
             finally_stack: Vec::new(),
@@ -455,8 +470,10 @@ impl MooStackFrame {
     }
 
     pub fn switch_to_fork_vector(&mut self, fork_vector: Offset) {
+        let max_stack = self.program_ref().fork_vector_max_stack(fork_vector);
         self.pc_type = PcType::ForkVector(fork_vector);
         self.pc = 0;
+        self.valstack.reserve(max_stack);
     }
 
     pub fn lookahead_ref(&self) -> Option<&Op> {
@@ -635,5 +652,78 @@ impl MooStackFrame {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_compiler::{CompileOptions, compile};
+    use moor_var::{Obj, v_empty_list, v_empty_str, v_none, v_obj};
+
+    fn call_frame(program: Program) -> MooStackFrame {
+        MooStackFrame::new_with_all_globals(
+            program,
+            v_obj(Obj::mk_id(1)),
+            v_none(),
+            v_none(),
+            v_none(),
+            v_empty_list(),
+            v_empty_str(),
+        )
+    }
+
+    #[test]
+    fn call_frame_presizes_valstack_from_program_depth() {
+        let program = compile("1 + 2;", CompileOptions::default()).unwrap();
+        let expected = program.main_max_stack();
+        let frame = call_frame(program);
+
+        assert!(expected > 0);
+        assert!(frame.valstack.capacity() >= expected);
+    }
+
+    #[test]
+    fn cached_slot_frame_presizes_valstack_from_program_slot() {
+        let program = compile("1 + 2;", CompileOptions::default()).unwrap();
+        let expected = program.main_max_stack();
+        let slot = ProgramSlot {
+            program_ptr: &program as *const Program as usize,
+            global_width: program.var_names().global_width(),
+            main_max_stack: expected,
+        };
+
+        let frame = MooStackFrame::new_with_all_globals_from_slot(
+            slot,
+            v_obj(Obj::mk_id(1)),
+            v_none(),
+            v_none(),
+            v_none(),
+            v_empty_list(),
+            v_empty_str(),
+        );
+
+        assert!(expected > 0);
+        assert!(frame.valstack.capacity() >= expected);
+    }
+
+    #[test]
+    fn fork_switch_reserves_valstack_for_fork_depth() {
+        let program = compile(
+            r#"
+            fork (0)
+                {1, 2, 3, 4};
+            endfork
+            "#,
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let fork_offset = Offset(0);
+        let fork_depth = program.fork_vector_max_stack(fork_offset);
+        let mut frame = call_frame(program);
+
+        assert!(fork_depth > frame.valstack.capacity());
+        frame.switch_to_fork_vector(fork_offset);
+        assert!(frame.valstack.capacity() >= fork_depth);
     }
 }
