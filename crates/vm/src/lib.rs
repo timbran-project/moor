@@ -30,8 +30,8 @@ pub use activation::{Activation, BuiltinFrame, CallProgram, Frame};
 pub use config::FeaturesConfig;
 pub use environment::Environment;
 pub use moo_execute::{
-    CommandVerbExecutionRequest, ExecutionResult, Fork, TaskSuspend, VerbExecutionRequest,
-    moo_frame_execute,
+    CommandVerbExecutionRequest, ExecutionResult, Fork, FrameExecutionContext, TaskSuspend,
+    VerbExecutionRequest, moo_frame_execute,
 };
 pub use moo_frame::{CatchType, MooStackFrame, PcType, ProgramSlot, Scope, ScopeType};
 pub use scatter_assign::{ScatterResult, scatter_assign};

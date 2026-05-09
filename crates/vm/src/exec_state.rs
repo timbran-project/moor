@@ -804,64 +804,6 @@ impl ExecState {
         }))
     }
 
-    /// Setup the VM to execute the verb of the same current name, but using the parent's
-    /// version.
-    /// TODO this should be done up in task.rs instead. let's add a new ExecutionResult for it.
-    pub fn prepare_pass_verb(&mut self, host: &mut impl VmHost, args: &List) -> ExecutionResult {
-        // get parent of verb definer object & current verb name.
-        let definer = self.top().verb_definer();
-        let permissions = self.top().permissions;
-        let verb = self.top().verb_name;
-
-        let parent = match host.parent_of(&permissions, &definer) {
-            Ok(p) => p,
-            Err(WorldStateError::RollbackRetry) => {
-                return ExecutionResult::TaskRollbackRestart;
-            }
-            Err(e) => return self.raise_error(e.to_error()),
-        };
-
-        if !host.valid(&parent).unwrap_or_default() {
-            return self.push_error(E_INVIND.msg("Invalid object for pass() verb dispatch"));
-        }
-
-        let verb_result = host.dispatch_verb(
-            &permissions,
-            VerbDispatch::new(
-                VerbLookup::method(&parent, verb),
-                DispatchFlagsSource::Permissions,
-            ),
-        );
-
-        let (program_key, resolved_verb, permissions_flags) = match verb_result {
-            Ok(Some(vi)) => (vi.program_key, vi.verbdef, vi.permissions_flags),
-            Ok(None) => {
-                return self.push_error(E_VERBNF.msg("Verb not found for pass() dispatch"));
-            }
-            Err(WorldStateError::RollbackRetry) => {
-                return ExecutionResult::TaskRollbackRestart;
-            }
-            Err(e) => return self.raise_error(e.to_error()),
-        };
-
-        let caller = self.caller();
-        let this = self.top().this.clone();
-        let player = self.top().player;
-        let args_list = args.clone();
-        ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-            permissions,
-            permissions_flags,
-            resolved_verb,
-            verb_name: verb,
-            this,
-            player,
-            args: args_list,
-            caller,
-            argstr: v_empty_str(),
-            program_key,
-        }))
-    }
-
     pub fn exec_eval_request(
         &mut self,
         host: &mut impl VmHost,

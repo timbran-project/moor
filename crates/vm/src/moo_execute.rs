@@ -20,16 +20,20 @@ use crate::{
 };
 use moor_common::{
     matching::ParsedCommand,
-    model::{ObjFlag, ResolvedVerb, VerbProgramKey},
+    model::{
+        DispatchFlagsSource, ObjFlag, ResolvedVerb, VerbDispatch, VerbLookup, VerbProgramKey,
+        WorldStateError,
+    },
     tasks::TaskId,
     util::BitEnum,
 };
 use moor_compiler::{BuiltinId, Label, Offset, Op, Program, to_literal};
 use moor_var::{
-    E_ARGS, E_DIV, E_INVARG, E_INVIND, E_RANGE, E_TYPE, E_VARNF, Error, IndexMode, List, Obj,
-    Symbol, TypeClass, Var, VarType, program::names::Name, v_arc_str, v_bool, v_bool_int,
-    v_empty_list, v_empty_map, v_err, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_none,
-    v_obj, v_sym,
+    E_ARGS, E_DIV, E_INVARG, E_INVIND, E_PERM, E_RANGE, E_TYPE, E_VARNF, E_VERBNF, Error,
+    IndexMode, List, Obj, SYSTEM_OBJECT, Sequence, Symbol, TypeClass, Var, VarType, Variant,
+    program::names::{GlobalName, Name},
+    v_arc_str, v_bool, v_bool_int, v_empty_list, v_empty_map, v_empty_str, v_err, v_error, v_float,
+    v_flyweight, v_int, v_list, v_map, v_none, v_obj, v_sym,
 };
 use std::{sync::LazyLock, time::Duration};
 
@@ -79,6 +83,30 @@ pub struct CommandVerbExecutionRequest {
     pub command: ParsedCommand,
     /// Stable key for the dispatched verb program.
     pub program_key: VerbProgramKey,
+}
+
+/// Activation data needed by opcodes that prepare host-level execution requests.
+#[derive(Debug, Clone)]
+pub struct FrameExecutionContext<'a> {
+    pub permissions: Obj,
+    pub task_permissions_flags: BitEnum<ObjFlag>,
+    pub activation_player: Obj,
+    pub this: &'a Var,
+    pub verb_name: Symbol,
+    pub verb_definer: Obj,
+}
+
+impl FrameExecutionContext<'_> {
+    fn player_for_frame(&self, frame: &MooStackFrame) -> Obj {
+        frame
+            .get_gvar(GlobalName::player)
+            .and_then(|v| v.as_object())
+            .filter(|fp| fp != &self.activation_player)
+            .map_or(self.activation_player, |fp| {
+                let is_wiz = self.task_permissions_flags.contains(ObjFlag::Wizard);
+                if is_wiz { fp } else { self.activation_player }
+            })
+    }
 }
 
 /// Flavours of task suspension.
@@ -142,14 +170,6 @@ pub enum ExecutionResult {
     Return(Var),
     /// An exception was raised during execution.
     Exception(FinallyReason),
-    /// Create the frames necessary to perform a `pass` up the inheritance chain.
-    DispatchVerbPass(List),
-    /// Begin preparing to call a verb, by looking up the verb and preparing the dispatch.
-    PrepareVerbDispatch {
-        this: Var,
-        verb_name: Symbol,
-        args: List,
-    },
     /// Perform the verb dispatch, building the stack frame and executing it.
     DispatchVerb(Box<VerbExecutionRequest>),
     /// Perform command verb dispatch with full command environment (dobj, iobj, prep, etc).
@@ -196,6 +216,14 @@ pub enum ExecutionResult {
 
 static DELEGATE_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("delegate"));
 static SLOTS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("slots"));
+static LIST_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("list_proto"));
+static MAP_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("map_proto"));
+static STRING_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("str_proto"));
+static INTEGER_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("int_proto"));
+static FLOAT_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("float_proto"));
+static ERROR_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("err_proto"));
+static BOOL_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bool_proto"));
+static SYM_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("sym_proto"));
 
 /// Build a captured environment from a list of captured variables
 /// This recreates the environment structure needed by lambda execution
@@ -351,12 +379,215 @@ fn remove_stack_indices(stack: &mut Vec<Var>, indices: &mut [usize]) {
     }
 }
 
+fn prepare_verb_dispatch<H: VmHost>(
+    host: &mut H,
+    context: &FrameExecutionContext<'_>,
+    frame: &MooStackFrame,
+    type_dispatch: bool,
+    target: Var,
+    verb: Symbol,
+    args: List,
+) -> Result<ExecutionResult, Error> {
+    if let Some(o) = target.as_object() {
+        return Ok(prepare_call_verb(
+            host, context, frame, o, target, verb, args,
+        ));
+    }
+
+    if let Some(f) = target.as_flyweight() {
+        return Ok(prepare_call_verb(
+            host,
+            context,
+            frame,
+            *f.delegate(),
+            target,
+            verb,
+            args,
+        ));
+    }
+
+    if !type_dispatch {
+        return Err(E_TYPE
+            .with_msg(|| format!("Invalid target {:?} for verb dispatch", target.type_code())));
+    }
+
+    let sysprop_sym = if target.is_int() {
+        *INTEGER_PROTO_SYM
+    } else if target.is_string() {
+        *STRING_PROTO_SYM
+    } else if target.is_float() {
+        *FLOAT_PROTO_SYM
+    } else if target.is_list() {
+        *LIST_PROTO_SYM
+    } else {
+        match target.variant() {
+            Variant::Map(_) => *MAP_PROTO_SYM,
+            Variant::Err(_) => *ERROR_PROTO_SYM,
+            Variant::Sym(_) => *SYM_PROTO_SYM,
+            Variant::Bool(_) => *BOOL_PROTO_SYM,
+            _ => {
+                return Err(E_TYPE.with_msg(|| {
+                    format!(
+                        "Invalid target for verb dispatch: {}",
+                        target.type_code().to_literal()
+                    )
+                }));
+            }
+        }
+    };
+    let prop_val = host
+        .retrieve_property(&context.permissions, &SYSTEM_OBJECT, sysprop_sym)
+        .map_err(|e| e.to_error())?;
+    let Some(prop_val) = prop_val.as_object() else {
+        return Err(E_TYPE.with_msg(|| {
+            format!(
+                "Invalid target for verb dispatch: {}",
+                prop_val.type_code().to_literal()
+            )
+        }));
+    };
+    let arguments = args
+        .insert(0, &target)
+        .expect("Failed to insert object for dispatch");
+    let Some(arguments) = arguments.as_list() else {
+        return Err(E_TYPE.with_msg(|| {
+            format!(
+                "Invalid arguments for verb dispatch: {}",
+                arguments.type_code().to_literal()
+            )
+        }));
+    };
+    Ok(prepare_call_verb(
+        host,
+        context,
+        frame,
+        prop_val,
+        v_obj(prop_val),
+        verb,
+        arguments.clone(),
+    ))
+}
+
+fn prepare_pass_verb<H: VmHost>(
+    host: &mut H,
+    context: &FrameExecutionContext<'_>,
+    args: List,
+) -> ExecutionResult {
+    let parent = match host.parent_of(&context.permissions, &context.verb_definer) {
+        Ok(p) => p,
+        Err(WorldStateError::RollbackRetry) => {
+            return ExecutionResult::TaskRollbackRestart;
+        }
+        Err(e) => return ExecutionResult::RaiseError(e.to_error()),
+    };
+
+    if !host.valid(&parent).unwrap_or_default() {
+        return ExecutionResult::PushError(E_INVIND.msg("Invalid object for pass() verb dispatch"));
+    }
+
+    let verb_result = host.dispatch_verb(
+        &context.permissions,
+        VerbDispatch::new(
+            VerbLookup::method(&parent, context.verb_name),
+            DispatchFlagsSource::Permissions,
+        ),
+    );
+
+    let (program_key, resolved_verb, permissions_flags) = match verb_result {
+        Ok(Some(vi)) => (vi.program_key, vi.verbdef, vi.permissions_flags),
+        Ok(None) => {
+            return ExecutionResult::PushError(E_VERBNF.msg("Verb not found for pass() dispatch"));
+        }
+        Err(WorldStateError::RollbackRetry) => {
+            return ExecutionResult::TaskRollbackRestart;
+        }
+        Err(e) => return ExecutionResult::RaiseError(e.to_error()),
+    };
+
+    ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
+        permissions: context.permissions,
+        permissions_flags,
+        resolved_verb,
+        verb_name: context.verb_name,
+        this: (*context.this).clone(),
+        player: context.activation_player,
+        args,
+        caller: (*context.this).clone(),
+        argstr: v_empty_str(),
+        program_key,
+    }))
+}
+
+fn prepare_call_verb<H: VmHost>(
+    host: &mut H,
+    context: &FrameExecutionContext<'_>,
+    frame: &MooStackFrame,
+    location: Obj,
+    this: Var,
+    verb_name: Symbol,
+    args: List,
+) -> ExecutionResult {
+    let player = context.player_for_frame(frame);
+
+    if !host.valid(&location).unwrap_or_default() {
+        return ExecutionResult::PushError(
+            E_INVIND.with_msg(|| format!("Invalid object ({location}) for verb dispatch")),
+        );
+    }
+
+    let verb_result = host.dispatch_verb(
+        &context.permissions,
+        VerbDispatch::new(
+            VerbLookup::method(&location, verb_name),
+            DispatchFlagsSource::VerbOwner,
+        ),
+    );
+
+    let (program_key, resolved_verb, permissions_flags) = match verb_result {
+        Ok(Some(vi)) => (vi.program_key, vi.verbdef, vi.permissions_flags),
+        Ok(None) => {
+            return ExecutionResult::PushError(E_VERBNF.with_msg(|| {
+                format!(
+                    "Verb {}:{} not found",
+                    to_literal(&v_obj(location)),
+                    verb_name,
+                )
+            }));
+        }
+        Err(WorldStateError::ObjectPermissionDenied | WorldStateError::VerbPermissionDenied) => {
+            return ExecutionResult::PushError(E_PERM.into());
+        }
+        Err(WorldStateError::RollbackRetry) => {
+            return ExecutionResult::TaskRollbackRestart;
+        }
+        Err(WorldStateError::VerbNotFound(_, _)) => {
+            panic!("dispatch_verb() should return Ok(None), not VerbNotFound");
+        }
+        Err(e) => {
+            panic!("Unexpected error from dispatch_verb: {e:?}")
+        }
+    };
+
+    ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
+        permissions: context.permissions,
+        permissions_flags,
+        resolved_verb,
+        verb_name,
+        this,
+        player,
+        args,
+        caller: (*context.this).clone(),
+        argstr: v_empty_str(),
+        program_key,
+    }))
+}
+
 /// Main VM opcode execution for MOO stack frames. The actual meat of the MOO virtual machine.
 pub fn moo_frame_execute<H: VmHost>(
     host: &mut H,
     tick_slice: usize,
     tick_count: &mut usize,
-    permissions: Obj,
+    context: &FrameExecutionContext,
     f: &mut MooStackFrame,
     features_config: &FeaturesConfig,
 ) -> ExecutionResult {
@@ -1188,7 +1419,8 @@ pub fn moo_frame_execute<H: VmHost>(
                     return push_error_cold(invalid_property_name_error(&propname));
                 };
 
-                let value = get_property(host, &permissions, &obj, propname, features_config);
+                let value =
+                    get_property(host, &context.permissions, &obj, propname, features_config);
                 match value {
                     Ok(v) => {
                         f.poke(0, v);
@@ -1205,7 +1437,8 @@ pub fn moo_frame_execute<H: VmHost>(
                     return push_error_cold(invalid_property_name_error(propname));
                 };
 
-                let value = get_property(host, &permissions, obj, propname, features_config);
+                let value =
+                    get_property(host, &context.permissions, obj, propname, features_config);
                 match value {
                     Ok(v) => {
                         f.push(v);
@@ -1224,7 +1457,8 @@ pub fn moo_frame_execute<H: VmHost>(
                 let Ok(propname) = propname.as_symbol() else {
                     return push_error_cold(invalid_property_name_error(&propname));
                 };
-                let update_result = host.update_property(&permissions, &obj, propname, &rhs);
+                let update_result =
+                    host.update_property(&context.permissions, &obj, propname, &rhs);
 
                 match update_result {
                     Ok(()) => {
@@ -1261,7 +1495,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 };
 
                 let update_result = if let Some(obj) = base.as_object() {
-                    host.update_property(&permissions, &obj, propname, &rhs)
+                    host.update_property(&context.permissions, &obj, propname, &rhs)
                         .map(|()| base)
                         .map_err(|e| e.to_error())
                 } else if let Some(flyweight) = base.as_flyweight() {
@@ -1329,7 +1563,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 let Some(args) = args.as_list() else {
                     return push_error_cold(invalid_verb_target_error(&args));
                 };
-                return ExecutionResult::DispatchVerbPass(args.clone());
+                return prepare_pass_verb(host, context, args.clone());
             }
             Op::CallVerb => {
                 let (args, verb, obj) = (f.pop(), f.pop(), f.pop());
@@ -1339,11 +1573,16 @@ pub fn moo_frame_execute<H: VmHost>(
                 let Ok(verb) = verb.as_symbol() else {
                     return push_error_cold(invalid_verb_name_error(&verb));
                 };
-                return ExecutionResult::PrepareVerbDispatch {
-                    this: obj,
-                    verb_name: verb,
-                    args: l.clone(),
-                };
+                return prepare_verb_dispatch(
+                    host,
+                    context,
+                    f,
+                    features_config.type_dispatch,
+                    obj,
+                    verb,
+                    l.clone(),
+                )
+                .unwrap_or_else(ExecutionResult::PushError);
             }
             Op::Return => {
                 let ret_val = f.pop();

@@ -41,7 +41,9 @@ use crate::{
 };
 use moor_common::{matching::ParsedCommand, tasks::Session};
 use moor_var::program::{ProgramType, names::Name};
-use moor_vm::{CallProgram, Frame, PhantomUnsync, VmHost as _, moo_frame_execute};
+use moor_vm::{
+    CallProgram, Frame, FrameExecutionContext, PhantomUnsync, VmHost as _, moo_frame_execute,
+};
 
 pub(crate) use moor_vm::ExecutionResult;
 
@@ -259,29 +261,6 @@ impl VmHost {
                     result = self.vm_exec_state.unwind_stack(fr);
                     continue;
                 }
-                ExecutionResult::DispatchVerbPass(pass_args) => {
-                    let mut host = KernelHost;
-                    result = self.vm_exec_state.prepare_pass_verb(&mut host, &pass_args);
-                    continue;
-                }
-                ExecutionResult::PrepareVerbDispatch {
-                    this,
-                    verb_name,
-                    args,
-                } => {
-                    let mut host = KernelHost;
-                    result = self
-                        .vm_exec_state
-                        .verb_dispatch(
-                            &mut host,
-                            exec_params.config.type_dispatch,
-                            this,
-                            verb_name,
-                            args,
-                        )
-                        .unwrap_or_else(ExecutionResult::PushError);
-                    continue;
-                }
                 ExecutionResult::DispatchVerb(exec_request) => {
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
@@ -483,15 +462,25 @@ impl VmHost {
         let mut tick_count = self.vm_exec_state.tick_count;
         let tick_slice = self.vm_exec_state.tick_slice;
         let activation = self.vm_exec_state.top_mut();
+        let verb_name = activation.verb_name;
+        let verb_definer = activation.verb_definer();
 
         let (result, new_tick_count) = match &mut activation.frame {
             Frame::Moo(fr) => {
                 let mut host = KernelHost;
+                let frame_context = FrameExecutionContext {
+                    permissions: activation.permissions,
+                    task_permissions_flags: activation.permissions_flags,
+                    activation_player: activation.player,
+                    this: &activation.this,
+                    verb_name,
+                    verb_definer,
+                };
                 let result = moo_frame_execute(
                     &mut host,
                     tick_slice,
                     &mut tick_count,
-                    activation.permissions,
+                    &frame_context,
                     fr,
                     vm_exec_params.config,
                 );
