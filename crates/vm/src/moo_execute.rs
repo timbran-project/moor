@@ -1072,7 +1072,7 @@ pub fn moo_frame_execute<H: VmHost>(
             Op::IndexSet => {
                 let (rhs, index) = (f.pop(), f.pop());
                 let lhs = std::mem::replace(f.peek_top_mut(), v_none());
-                let result = lhs.set_owned(&index, &rhs, IndexMode::OneBased);
+                let result = lhs.set_owned_vars(index, rhs, IndexMode::OneBased);
                 match result {
                     Ok(v) => {
                         f.poke(0, v);
@@ -1094,7 +1094,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 let index = std::mem::replace(&mut f.valstack[index_idx], v_none());
                 let base = std::mem::replace(&mut f.valstack[base_idx], v_none());
 
-                let result = base.set_owned(&index, &rhs, IndexMode::OneBased);
+                let result = base.set_owned_vars(index, rhs, IndexMode::OneBased);
                 match result {
                     Ok(v) => {
                         f.valstack[base_idx] = v;
@@ -1131,7 +1131,7 @@ pub fn moo_frame_execute<H: VmHost>(
             Op::MapInsert => {
                 let (value, key) = (f.pop(), f.pop());
                 let map = std::mem::replace(f.peek_top_mut(), v_none());
-                let result = map.set_owned(&key, &value, IndexMode::OneBased);
+                let result = map.set_owned_vars(key, value, IndexMode::OneBased);
                 match result {
                     Ok(v) => {
                         f.poke(0, v);

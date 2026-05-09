@@ -44,7 +44,7 @@ impl Map {
         self.0.iter()
     }
 
-    pub fn set_owned(self, key: &Var, value: &Var) -> Result<Var, Error> {
+    fn validate_key(key: &Var) -> Result<(), Error> {
         // Toast/ToastStunt has a restriction that non-scalars cannot be keys (unless they're strings).
         // So we enforce that here, even though it's not strictly necessary.
         if !key.is_scalar() && !key.is_string() {
@@ -55,10 +55,19 @@ impl Map {
                 )
             }));
         }
+        Ok(())
+    }
+
+    pub fn set_owned(self, key: &Var, value: &Var) -> Result<Var, Error> {
+        self.set_owned_vars(key.clone(), value.clone())
+    }
+
+    pub fn set_owned_vars(self, key: Var, value: Var) -> Result<Var, Error> {
+        Self::validate_key(&key)?;
 
         let old_len = self.0.len();
         let mut map = *self.0;
-        map.insert(key.clone(), value.clone());
+        map.insert(key, value);
         let new_len = map.len();
         let hint = if new_len > old_len {
             OP_HINT_MAP_INSERT
@@ -136,16 +145,7 @@ impl Associative for Map {
     }
 
     fn set(&self, key: &Var, value: &Var) -> Result<Var, Error> {
-        // Toast/ToastStunt has a restriction that non-scalars cannot be keys (unless they're strings).
-        // So we enforce that here, even though it's not strictly necessary.
-        if !key.is_scalar() && !key.is_string() {
-            return Err(E_TYPE.with_msg(|| {
-                format!(
-                    "Key must be a string or scalar, was {}",
-                    key.type_code().to_literal()
-                )
-            }));
-        }
+        Self::validate_key(key)?;
 
         // With OrdMap, this is an efficient O(log n) structural operation
         let old_len = self.0.len();

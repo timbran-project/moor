@@ -957,9 +957,25 @@ impl Var {
             return self.index_set_owned(key, value, index_mode);
         }
         if self.tag == TAG_MAP {
-            return self.into_map_owned().unwrap().set_owned(key, value);
+            return self
+                .into_map_owned()
+                .unwrap()
+                .set_owned_vars(key.clone(), value.clone());
         }
         self.set(key, value, index_mode)
+    }
+
+    /// Like `set_owned`, but can consume map keys and values that are already owned by the VM.
+    pub fn set_owned_vars(
+        self,
+        key: Var,
+        value: Var,
+        index_mode: IndexMode,
+    ) -> Result<Self, Error> {
+        if self.tag == TAG_MAP {
+            return self.into_map_owned().unwrap().set_owned_vars(key, value);
+        }
+        self.set_owned(&key, &value, index_mode)
     }
 
     /// Assign a new value to `index`nth element of the sequence, or to a key in an associative type.
