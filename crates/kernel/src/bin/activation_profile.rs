@@ -28,7 +28,8 @@ use moor_common::{
 use moor_compiler::{CompileOptions, compile};
 use moor_kernel::testing::{create_activation_for_bench, create_nested_activation_for_bench};
 use moor_var::{
-    List, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_int, v_obj, v_str,
+    List, SYSTEM_OBJECT, Symbol, Var, program::ProgramType, v_empty_list, v_empty_str, v_int,
+    v_obj, v_str,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,7 +150,7 @@ struct Workload {
     verbdef: ResolvedVerb,
     this: moor_var::Var,
     caller: moor_var::Var,
-    empty_args: List,
+    empty_args: Var,
     small_args: List,
     empty_argstr: moor_var::Var,
     short_argstr: moor_var::Var,
@@ -193,7 +194,7 @@ impl Workload {
             verbdef: make_verbdef(Symbol::mk("test")),
             this: v_obj(SYSTEM_OBJECT),
             caller: v_obj(SYSTEM_OBJECT),
-            empty_args: List::mk_list(&[]),
+            empty_args: v_empty_list(),
             small_args: List::mk_list(&[v_int(1), v_int(2), v_str("hello")]),
             empty_argstr: v_empty_str(),
             short_argstr: v_str("some argument string"),
@@ -206,7 +207,7 @@ impl Workload {
     fn create_top_level(
         &self,
         program: ProgramType,
-        args: List,
+        args: Var,
         argstr: moor_var::Var,
     ) -> moor_kernel::testing::ActivationBenchResult {
         create_activation_for_bench(
@@ -259,7 +260,7 @@ impl Workload {
     fn cycle_with_args(&self) {
         let activation = self.create_top_level(
             self.simple_program.clone(),
-            self.small_args.clone(),
+            self.small_args.clone().into(),
             self.empty_argstr.clone(),
         );
         black_box(&activation);

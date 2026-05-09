@@ -229,21 +229,12 @@ impl Activation {
         verb_name: Symbol,
         this: Var,
         player: Obj,
-        args: List,
+        args: Var,
         caller: Var,
         argstr: Var,
         current_activation: Option<&Activation>,
         program: CallProgram,
     ) -> Self {
-        #[inline]
-        fn args_to_global_var(args: List) -> Var {
-            if args.is_empty() {
-                v_empty_list()
-            } else {
-                args.into()
-            }
-        }
-
         let verb_owner = resolved_verb.owner();
 
         // Check if we have a Moo frame to inherit parsing globals from
@@ -253,7 +244,7 @@ impl Activation {
         });
         let player_var = v_obj(player);
         let verb_var = v_symbol_str(verb_name);
-        let args_var = args_to_global_var(args);
+        debug_assert!(args.as_list().is_some(), "call args must be a list");
 
         let moo_frame = match (program, source_frame) {
             (CallProgram::Materialized(program), Some(source)) => {
@@ -266,7 +257,7 @@ impl Activation {
                     this.clone(),
                     caller,
                     verb_var,
-                    args_var,
+                    args,
                     source,
                 )
             }
@@ -280,7 +271,7 @@ impl Activation {
                     this.clone(),
                     caller,
                     verb_var,
-                    args_var,
+                    args,
                     argstr,
                 )
             }
@@ -291,7 +282,7 @@ impl Activation {
                     this.clone(),
                     caller,
                     verb_var,
-                    args_var,
+                    args,
                     source,
                 )
             }
@@ -302,7 +293,7 @@ impl Activation {
                     this.clone(),
                     caller,
                     verb_var,
-                    args_var,
+                    args,
                     argstr,
                 )
             }

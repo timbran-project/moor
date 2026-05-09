@@ -20,8 +20,8 @@ use moor_common::model::{DispatchFlagsSource, ObjFlag, VerbDispatch, VerbLookup,
 use moor_common::util::BitEnum;
 use moor_compiler::Program;
 use moor_var::{
-    List, Obj, SYSTEM_OBJECT, Symbol, Var, program::names::GlobalName, v_empty_str, v_obj,
-    v_symbol_str,
+    List, Obj, SYSTEM_OBJECT, Symbol, Var, program::names::GlobalName, v_empty_list, v_empty_str,
+    v_obj, v_symbol_str,
 };
 use strum::EnumCount;
 
@@ -545,7 +545,7 @@ pub fn create_activation_for_bench(
     verb_name: Symbol,
     this: Var,
     player: Obj,
-    args: List,
+    args: Var,
     caller: Var,
     argstr: Var,
     program: moor_var::program::ProgramType,
@@ -581,7 +581,11 @@ pub fn create_command_activation_for_bench(
     program: moor_var::program::ProgramType,
 ) -> ActivationBenchResult {
     let permissions_flags = BitEnum::new_with(ObjFlag::Wizard) | ObjFlag::Programmer;
-    let args: List = std::mem::take(&mut command.args).into_iter().collect();
+    let args = if command.args.is_empty() {
+        v_empty_list()
+    } else {
+        std::mem::take(&mut command.args).into_iter().collect()
+    };
     let argstr = moor_var::v_string(std::mem::take(&mut command.argstr));
 
     let mut activation = moor_vm::Activation::for_call(
@@ -639,7 +643,7 @@ pub fn create_nested_activation_for_bench(
     verb_name: Symbol,
     this: Var,
     player: Obj,
-    args: List,
+    args: Var,
     caller: Var,
     argstr: Var,
     parent: &ActivationBenchResult,

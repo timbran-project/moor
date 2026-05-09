@@ -26,8 +26,8 @@ use moor_common::util::Instant;
 use moor_compiler::{BUILTINS, to_literal};
 use moor_var::{
     E_INVIND, E_PERM, E_TYPE, E_VERBNF, Error, List, NOTHING, Obj, SYSTEM_OBJECT, Sequence, Symbol,
-    Var, Variant, program::names::GlobalName, v_arc_str, v_bool, v_empty_str, v_err, v_error,
-    v_int, v_list, v_none, v_obj, v_str, v_string,
+    Var, Variant, program::names::GlobalName, v_arc_str, v_bool, v_empty_list, v_empty_str, v_err,
+    v_error, v_int, v_list, v_none, v_obj, v_str, v_string,
 };
 
 use crate::activation::CallProgram;
@@ -95,6 +95,15 @@ pub struct ExecState {
 }
 
 impl ExecState {
+    #[inline]
+    fn args_list_to_var(args: List) -> Var {
+        if args.is_empty() {
+            v_empty_list()
+        } else {
+            args.into()
+        }
+    }
+
     pub fn new(task_id: TaskId, max_ticks: usize) -> Self {
         Self {
             task_id,
@@ -521,6 +530,7 @@ impl ExecState {
         // Get current activation to inherit global variables from, if any.
         let current_activation = self.stack.last();
 
+        let args = Self::args_list_to_var(args);
         let a = Activation::for_call(
             resolved_verb,
             permissions_flags,
@@ -550,7 +560,11 @@ impl ExecState {
         mut command: ParsedCommand,
         program: CallProgram,
     ) {
-        let args: List = std::mem::take(&mut command.args).into_iter().collect();
+        let args = if command.args.is_empty() {
+            v_empty_list()
+        } else {
+            std::mem::take(&mut command.args).into_iter().collect()
+        };
         let argstr = v_string(std::mem::take(&mut command.argstr));
 
         // Initial command activation - no parent to inherit from
