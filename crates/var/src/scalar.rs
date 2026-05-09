@@ -20,6 +20,7 @@ use crate::{
 use std::ops::Neg;
 
 impl Var {
+    #[inline]
     pub fn add(&self, v: &Self) -> Result<Self, Error> {
         // Fast path: int + int (most common in MOO code)
         if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
@@ -52,6 +53,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn sub(&self, v: &Self) -> Result<Self, Error> {
         if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
             return l
@@ -81,6 +83,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn mul(&self, v: &Self) -> Result<Self, Error> {
         if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
             return l
@@ -110,6 +113,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn div(&self, v: &Self) -> Result<Self, Error> {
         if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
             return l
@@ -139,6 +143,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn modulus(&self, v: &Self) -> Result<Self, Error> {
         if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
             return l
@@ -168,6 +173,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn pow(&self, v: &Self) -> Result<Self, Error> {
         if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
             let r = u32::try_from(r).map_err(|_| E_INVARG.msg("Invalid argument for pow"))?;
@@ -192,6 +198,7 @@ impl Var {
         }
     }
 
+    #[inline]
     pub fn negative(&self) -> Result<Self, Error> {
         if let Some(i) = self.as_integer() {
             return i
@@ -209,6 +216,7 @@ impl Var {
 
     // === Integer-only operations (use direct accessors) ===
 
+    #[inline]
     pub fn bitand(&self, v: &Self) -> Result<Self, Error> {
         let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) else {
             return Ok(v_error(E_TYPE.with_msg(|| {
@@ -222,6 +230,7 @@ impl Var {
         Ok(v_int(l & r))
     }
 
+    #[inline]
     pub fn bitor(&self, v: &Self) -> Result<Self, Error> {
         let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) else {
             return Ok(v_error(E_TYPE.with_msg(|| {
@@ -235,6 +244,7 @@ impl Var {
         Ok(v_int(l | r))
     }
 
+    #[inline]
     pub fn bitxor(&self, v: &Self) -> Result<Self, Error> {
         let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) else {
             return Ok(v_error(E_TYPE.with_msg(|| {
@@ -252,6 +262,7 @@ impl Var {
         self.as_object().map(|o| o.is_sysobj()).unwrap_or(false)
     }
 
+    #[inline]
     pub fn bitshl(&self, v: &Self) -> Result<Self, Error> {
         let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) else {
             return Ok(v_error(E_TYPE.with_msg(|| {
@@ -270,6 +281,7 @@ impl Var {
             .ok_or_else(|| E_INVARG.msg("Integer overflow in left shift"))
     }
 
+    #[inline]
     pub fn bitshr(&self, v: &Self) -> Result<Self, Error> {
         let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) else {
             return Ok(v_error(E_TYPE.with_msg(|| {
@@ -288,6 +300,7 @@ impl Var {
             .ok_or_else(|| E_INVARG.msg("Integer overflow in right shift"))
     }
 
+    #[inline]
     pub fn bitlshr(&self, v: &Self) -> Result<Self, Error> {
         let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) else {
             return Ok(v_error(E_TYPE.with_msg(|| {
@@ -305,6 +318,7 @@ impl Var {
         Ok(v_int(((l as u64) >> (r as u32)) as i64))
     }
 
+    #[inline]
     pub fn bitnot(&self) -> Result<Self, Error> {
         let Some(l) = self.as_integer() else {
             return Ok(v_error(E_TYPE.with_msg(|| {

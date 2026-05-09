@@ -94,10 +94,34 @@ pub struct Var {
     data: u64,
 }
 
+const _: () = {
+    assert!(std::mem::size_of::<Var>() == std::mem::size_of::<[u64; 2]>());
+    assert!(std::mem::align_of::<Var>() == std::mem::align_of::<[u64; 2]>());
+};
+
 /// Sentinel value indicating the cached length overflowed and real length must be checked.
 const LEN_OVERFLOW: u16 = 0xFFFF;
 
 impl Var {
+    #[inline(always)]
+    const fn header_with_meta(tag: u8, meta: [u8; 7]) -> u64 {
+        u64::from_ne_bytes([
+            tag, meta[0], meta[1], meta[2], meta[3], meta[4], meta[5], meta[6],
+        ])
+    }
+
+    #[inline(always)]
+    const fn header(tag: u8) -> u64 {
+        Self::header_with_meta(tag, [0; 7])
+    }
+
+    #[inline(always)]
+    const fn from_header_and_data(header: u64, data: u64) -> Self {
+        // SAFETY: `Var` is `repr(C)` as an 8-byte tag/meta header followed by
+        // an 8-byte payload. All bit patterns are valid for these fields.
+        unsafe { std::mem::transmute([header, data]) }
+    }
+
     /// Get cached length from meta bytes (for List/Map/String).
     #[inline(always)]
     fn cached_len(&self) -> u16 {
@@ -242,58 +266,35 @@ impl Var {
 
     #[inline(always)]
     pub const fn mk_none() -> Self {
-        Self {
-            tag: TAG_NONE,
-            meta: [0; 7],
-            data: 0,
-        }
+        Self::from_header_and_data(Self::header(TAG_NONE), 0)
     }
 
     #[inline(always)]
     pub const fn mk_bool(b: bool) -> Self {
-        Self {
-            tag: if b { TAG_BOOL_TRUE } else { TAG_BOOL_FALSE },
-            meta: [0; 7],
-            data: 0,
-        }
+        let tag = if b { TAG_BOOL_TRUE } else { TAG_BOOL_FALSE };
+        Self::from_header_and_data(Self::header(tag), 0)
     }
 
     #[inline(always)]
     pub const fn mk_integer(i: i64) -> Self {
-        Self {
-            tag: TAG_INT,
-            meta: [0; 7],
-            data: i as u64,
-        }
+        Self::from_header_and_data(Self::header(TAG_INT), i as u64)
     }
 
     #[inline(always)]
     pub fn mk_float(f: f64) -> Self {
-        Self {
-            tag: TAG_FLOAT,
-            meta: [0; 7],
-            data: f.to_bits(),
-        }
+        Self::from_header_and_data(Self::header(TAG_FLOAT), f.to_bits())
     }
 
     #[inline(always)]
     pub fn mk_object(o: Obj) -> Self {
-        Self {
-            tag: TAG_OBJ,
-            meta: [0; 7],
-            data: o.as_u64(),
-        }
+        Self::from_header_and_data(Self::header(TAG_OBJ), o.as_u64())
     }
 
     #[inline(always)]
     pub fn mk_symbol(s: Symbol) -> Self {
         // SAFETY: Symbol is repr(C) with two u32s = 8 bytes = u64
         let data: u64 = unsafe { std::mem::transmute(s) };
-        Self {
-            tag: TAG_SYM,
-            meta: [0; 7],
-            data,
-        }
+        Self::from_header_and_data(Self::header(TAG_SYM), data)
     }
 
     // === Constructors for complex types ===
