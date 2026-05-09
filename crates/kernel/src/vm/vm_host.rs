@@ -641,6 +641,6 @@ impl VmHost {
         self.vm_exec_state.mark_started_now();
     }
     pub fn args(&self) -> &List {
-        &self.vm_exec_state.top().args
+        self.vm_exec_state.top().args()
     }
 }

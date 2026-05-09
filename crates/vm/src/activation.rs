@@ -103,8 +103,6 @@ pub struct Activation {
     pub this: Var,
     /// The object that is the 'player' role; that is, the active user of this task.
     pub player: Obj,
-    /// The arguments to the verb or bf being called.
-    pub args: List,
     /// The name of the verb that is currently being executed.
     pub verb_name: Symbol,
     /// Compact resolved metadata for the running verb.
@@ -190,6 +188,8 @@ impl Frame {
 pub struct BuiltinFrame {
     /// The index of the built-in function being called.
     pub bf_id: BuiltinId,
+    /// The arguments to the builtin function.
+    pub args: List,
     /// If the activation is a call to a built-in function, the per-bf unique # trampoline passed
     /// in, which can be used by the bf to figure out how to resume where it left off.
     pub bf_trampoline: Option<usize>,
@@ -211,6 +211,16 @@ impl Activation {
         matches!(self.frame, Frame::Bf(_))
     }
 
+    pub fn args(&self) -> &List {
+        match &self.frame {
+            Frame::Moo(frame) => frame
+                .get_gvar(GlobalName::args)
+                .and_then(Var::as_list)
+                .expect("MOO activation missing list-valued args global"),
+            Frame::Bf(frame) => &frame.args,
+        }
+    }
+
     #[allow(irrefutable_let_patterns)] // We know this is a Moo frame
     #[allow(clippy::too_many_arguments)]
     pub fn for_call(
@@ -226,11 +236,11 @@ impl Activation {
         program: CallProgram,
     ) -> Self {
         #[inline]
-        fn args_to_global_var(args: &List) -> Var {
+        fn args_to_global_var(args: List) -> Var {
             if args.is_empty() {
                 v_empty_list()
             } else {
-                args.clone().into()
+                args.into()
             }
         }
 
@@ -243,7 +253,7 @@ impl Activation {
         });
         let player_var = v_obj(player);
         let verb_var = v_symbol_str(verb_name);
-        let args_var = args_to_global_var(&args);
+        let args_var = args_to_global_var(args);
 
         let moo_frame = match (program, source_frame) {
             (CallProgram::Materialized(program), Some(source)) => {
@@ -305,7 +315,6 @@ impl Activation {
             player,
             verbdef: resolved_verb,
             verb_name,
-            args,
             permissions: verb_owner,
             permissions_flags,
         }
@@ -501,7 +510,6 @@ impl Activation {
             player: current_activation.player,
             verbdef: current_activation.verbdef,
             verb_name: Symbol::mk(&lambda_name),
-            args: args.iter().cloned().collect(),
             permissions: current_activation.permissions,
             permissions_flags: current_activation.permissions_flags,
         })
@@ -550,7 +558,6 @@ impl Activation {
             player: *player,
             verbdef,
             verb_name: *EVAL_SYMBOL,
-            args: List::mk_list(&[]),
             permissions,
             permissions_flags,
         }
@@ -576,6 +583,7 @@ impl Activation {
 
         let bf_frame = BuiltinFrame {
             bf_id,
+            args,
             bf_trampoline: None,
             bf_trampoline_arg: None,
             return_value: None,
@@ -588,7 +596,6 @@ impl Activation {
             player,
             verbdef,
             verb_name: bf_name,
-            args,
             permissions: NOTHING,
             // NOTHING has no flags
             permissions_flags: BitEnum::new(),

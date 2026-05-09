@@ -406,7 +406,7 @@ pub fn create_activation_assembly_state_for_bench(
 /// Execute one direct activation assembly cycle using prebuilt state.
 /// This isolates struct assembly/disassembly with a prebuilt `MooStackFrame`.
 pub fn run_activation_assembly_cycle_for_bench(state: &mut ActivationAssemblyBenchState) {
-    let frame = state
+    let mut frame = state
         .frame
         .take()
         .expect("activation assembly bench state missing frame");
@@ -423,24 +423,26 @@ pub fn run_activation_assembly_cycle_for_bench(state: &mut ActivationAssemblyBen
         .take()
         .expect("activation assembly bench state missing verbdef");
 
+    frame.set_gvar(GlobalName::args, args.into());
+
     let activation = moor_vm::Activation {
         frame: moor_vm::Frame::Moo(frame),
         this,
         player: state.player,
-        args,
         verb_name: state.verb_name,
         permissions: verbdef.owner(),
         verbdef,
         permissions_flags: state.permissions_flags,
     };
     let activation = std::hint::black_box(activation);
+    let args = activation.args().clone();
 
     let moor_vm::Frame::Moo(frame) = activation.frame else {
         unreachable!("activation assembly bench uses only MOO frames")
     };
     state.frame = Some(frame);
     state.this = Some(activation.this);
-    state.args = Some(activation.args);
+    state.args = Some(args);
     state.verbdef = Some(activation.verbdef);
 }
 

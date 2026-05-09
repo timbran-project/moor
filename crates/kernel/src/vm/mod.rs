@@ -197,7 +197,7 @@ fn extract_anonymous_refs_from_activation(
     }
 
     // Scan arguments
-    for arg in activation.args.iter() {
+    for arg in activation.args().iter() {
         extract_anonymous_refs_from_var(&arg, refs);
     }
 

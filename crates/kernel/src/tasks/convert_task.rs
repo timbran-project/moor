@@ -31,7 +31,7 @@ use moor_schema::{
     convert_program::{decode_stored_program_ref, encode_program_to_fb},
     program as fb_program, task as fb,
 };
-use moor_var::program::names::Name;
+use moor_var::program::names::{GlobalName, Name};
 use moor_var::v_str;
 use moor_vm::{
     Activation as KernelActivation, BuiltinFrame as KernelBuiltinFrame,
@@ -1129,6 +1129,7 @@ pub(crate) fn bf_frame_from_ref(
 
     Ok(KernelBuiltinFrame {
         bf_id: moor_compiler::BuiltinId(bf_id),
+        args: moor_var::List::mk_list(&[]),
         bf_trampoline,
         bf_trampoline_arg,
         return_value,
@@ -1196,7 +1197,7 @@ pub(crate) fn activation_to_flatbuffer(
     let fb_player = convert_schema::obj_to_flatbuffer_struct(&activation.player);
 
     let fb_args: Result<Vec<_>, _> = activation
-        .args
+        .args()
         .iter()
         .map(|v| var_to_db_flatbuffer(&v))
         .collect();
@@ -1229,7 +1230,7 @@ pub(crate) fn activation_from_ref(
     let frame_ref = fb
         .frame()
         .map_err(|e| TaskConversionError::DecodingError(format!("frame: {e}")))?;
-    let frame = frame_from_ref(frame_ref)?;
+    let mut frame = frame_from_ref(frame_ref)?;
 
     let this_ref = fb
         .this()
@@ -1256,6 +1257,16 @@ pub(crate) fn activation_from_ref(
         })
         .collect();
     let args = moor_var::List::mk_list(&args?);
+    match &mut frame {
+        KernelFrame::Moo(moo_frame) => {
+            if moo_frame.get_gvar(GlobalName::args).is_none() {
+                moo_frame.set_gvar(GlobalName::args, args.into());
+            }
+        }
+        KernelFrame::Bf(bf_frame) => {
+            bf_frame.args = args;
+        }
+    }
 
     let verb_name_ref = fb
         .verb_name()
@@ -1284,7 +1295,6 @@ pub(crate) fn activation_from_ref(
         frame,
         this,
         player,
-        args,
         verb_name,
         verbdef: verbdef.as_resolved(),
         permissions,

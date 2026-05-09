@@ -387,7 +387,7 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 let perms = v_obj(fork_request.progr);
                 let verb_loc = v_obj(fork_request.activation.verbdef.location());
                 let verb_name = v_str(&fork_request.activation.verb_name.as_string());
-                let args = v_list_iter(fork_request.activation.args.iter());
+                let args = v_list_iter(fork_request.activation.args().iter());
                 v_list(&[
                     sym_or_str(Symbol::mk("fork")),
                     player,

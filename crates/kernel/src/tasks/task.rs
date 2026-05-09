@@ -1300,7 +1300,7 @@ impl Drop for Task {
             })
             .collect::<Vec<_>>();
         let args = activation
-            .args
+            .args()
             .iter()
             .map(|arg| to_literal(&arg))
             .collect::<Vec<_>>();

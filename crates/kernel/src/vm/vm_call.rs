@@ -161,7 +161,7 @@ impl ExecStateBuiltinExt for ExecState {
 
         let bf = exec_args.builtin_registry.builtin_for(&bf_id);
         let verb_name = self.top().verb_name;
-        let args = self.top().args.clone();
+        let args = self.top().args().clone();
 
         let mut bf_args = BfCallState {
             exec_state: self,
