@@ -14,8 +14,8 @@
 use crate::cache::VERB_CACHE_STATS;
 use crate::cache::stats::{CacheStats, LocalCacheStats};
 use ahash::AHasher;
-use moor_common::model::ResolvedVerb;
-use moor_var::{Obj, Symbol};
+use moor_common::model::{BUILTIN_PROXY_CACHE_WORDS, BuiltinProxyCacheBits, ResolvedVerb};
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, program::opcode::BuiltinId};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -106,6 +106,8 @@ pub struct VerbResolutionCache {
     stats: &'static CacheStats,
 }
 
+const BITS_PER_WORD: usize = u64::BITS as usize;
+
 impl Default for VerbResolutionCache {
     fn default() -> Self {
         Self::new()
@@ -122,6 +124,7 @@ impl VerbResolutionCache {
                 flushed: false,
                 entries: Arc::new(HashMap::default()),
                 first_parent_with_verbs_cache: Arc::new(HashMap::default()),
+                builtin_proxy_absent: [0; BUILTIN_PROXY_CACHE_WORDS],
             },
             stats: &VERB_CACHE_STATS,
         }
@@ -137,6 +140,7 @@ struct Inner {
 
     entries: Arc<HashMap<u128, Option<ResolvedVerb>, BuildHasherDefault<AHasher>>>,
     first_parent_with_verbs_cache: Arc<HashMap<Obj, Option<Obj>, BuildHasherDefault<AHasher>>>,
+    builtin_proxy_absent: BuiltinProxyCacheBits,
 }
 
 impl Inner {
@@ -202,8 +206,42 @@ impl VerbResolutionCache {
         result
     }
 
+    pub fn builtin_proxy_cache_snapshot(&self) -> BuiltinProxyCacheBits {
+        self.inner.builtin_proxy_absent
+    }
+
+    pub fn mark_builtin_proxy_absent(&mut self, builtin: BuiltinId) {
+        let bit = usize::from(builtin.0);
+        let word = bit / BITS_PER_WORD;
+        if word >= self.inner.builtin_proxy_absent.len() {
+            return;
+        }
+
+        let mask = 1 << (bit % BITS_PER_WORD);
+        if self.inner.builtin_proxy_absent[word] & mask != 0 {
+            return;
+        }
+
+        self.inner.builtin_proxy_absent[word] |= mask;
+        self.inner.version += 1;
+    }
+
+    fn clear_builtin_proxy_absences(&mut self) -> bool {
+        if self
+            .inner
+            .builtin_proxy_absent
+            .iter()
+            .all(|word| *word == 0)
+        {
+            return false;
+        }
+        self.inner.builtin_proxy_absent = [0; BUILTIN_PROXY_CACHE_WORDS];
+        true
+    }
+
     pub fn flush(&mut self) {
         let entries_count = self.inner.entries.len() as isize;
+        self.clear_builtin_proxy_absences();
         self.inner.flushed = true;
         self.inner.version += 1;
         self.inner.guard_version += 1;
@@ -264,6 +302,10 @@ impl VerbResolutionCache {
         let before = first_parent_cache.len();
         first_parent_cache.retain(|obj, _| !obj_ids.contains(&obj.as_u64()));
         if before != first_parent_cache.len() {
+            changed = true;
+        }
+
+        if objects.contains(&SYSTEM_OBJECT) && self.clear_builtin_proxy_absences() {
             changed = true;
         }
 

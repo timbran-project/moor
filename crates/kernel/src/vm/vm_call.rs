@@ -13,6 +13,7 @@
 
 use crate::{
     config::FeaturesConfig,
+    task_context::{builtin_proxy_absent_cached, mark_builtin_proxy_absent},
     vm::builtins::{BfCallState, BfErr, BfRet, BuiltinRegistry, bf_perf_counters},
 };
 use moor_vm::{Activation, ExecState, FinallyReason, Frame};
@@ -22,7 +23,7 @@ use crate::{trace_builtin_begin, trace_builtin_end};
 
 use moor_common::tasks::Session;
 use moor_compiler::{BUILTINS, BuiltinId};
-use moor_var::{List, VarType::TYPE_NONE, v_int};
+use moor_var::{List, SYSTEM_OBJECT, VarType::TYPE_NONE, v_int, v_obj};
 
 use crate::vm::vm_host::ExecutionResult;
 
@@ -77,11 +78,19 @@ impl ExecStateBuiltinExt for ExecState {
 
         // TODO: check for $server_options.protect_[func]
         // Check for builtin override at #0.
-        let mut host = crate::vm::kernel_host::KernelHost;
-        if let Some(proxy_result) =
-            self.maybe_invoke_bf_proxy(&mut host, bf_desc.bf_override_name, &args)
-        {
-            return proxy_result;
+        let caller = self.caller();
+        if caller != v_obj(SYSTEM_OBJECT) && !builtin_proxy_absent_cached(bf_id) {
+            let mut host = crate::vm::kernel_host::KernelHost;
+            match self.invoke_bf_proxy_for_caller(
+                &mut host,
+                bf_desc.bf_override_name,
+                &args,
+                caller,
+            ) {
+                Ok(Some(proxy_result)) => return proxy_result,
+                Ok(None) => mark_builtin_proxy_absent(bf_id),
+                Err(_) => {}
+            }
         }
 
         let bf_timer = bf_perf_counters().timer_for(bf_id);

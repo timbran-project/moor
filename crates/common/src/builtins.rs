@@ -85,6 +85,7 @@ fn mk_reserved_builtin() -> Builtin {
 // Builtin IDs are embedded in compiled programs and persisted in the database, so reordering
 // breaks existing binaries and forces a full recompile/import.
 const BUILTIN_GROUP_SIZE: usize = 256;
+pub const BUILTIN_ID_SPACE: usize = BUILTIN_GROUP_SIZE * 16;
 
 fn pad_group(builtins: &mut Vec<Builtin>, start_len: usize, label: &str) {
     let used = builtins.len() - start_len;
@@ -1020,6 +1021,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "spatial");
 
+    assert_eq!(builtins.len(), BUILTIN_ID_SPACE);
     builtins
 }
 // BuiltinId is now defined in moor_var::program::opcode and re-exported

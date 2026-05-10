@@ -27,16 +27,18 @@ use crate::{
 };
 use moor_common::{
     model::{
-        CommitResult, DispatchFlagsSource, HasUuid, ObjAttrs, ObjFlag, ObjSet, ObjectKind,
-        ObjectQuery, ObjectRef, Perms, PropAttrs, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
-        VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbDispatch, VerbDispatchResult, VerbFlag,
-        VerbLookup, VerbProgramKey, WorldState, WorldStateError, WorldStatePerf, WorldStateTimerOp,
+        BuiltinProxyCacheBits, CommitResult, DispatchFlagsSource, HasUuid, ObjAttrs, ObjFlag,
+        ObjSet, ObjectKind, ObjectQuery, ObjectRef, Perms, PropAttrs, PropDef, PropDefs, PropFlag,
+        PropPerms, ValSet, VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbDispatch,
+        VerbDispatchResult, VerbFlag, VerbLookup, VerbProgramKey, WorldState, WorldStateError,
+        WorldStatePerf, WorldStateTimerOp,
     },
     util::BitEnum,
 };
 use moor_var::{
-    NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, Variant, program::ProgramType, v_bool_int, v_list,
-    v_obj,
+    NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, Variant,
+    program::{ProgramType, opcode::BuiltinId},
+    v_bool_int, v_list, v_obj,
 };
 
 static NAME_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("name"));
@@ -915,6 +917,18 @@ impl WorldState for DbWorldState {
             verbdef: vh,
             permissions_flags,
         }))
+    }
+
+    fn builtin_proxy_cache_snapshot(&self) -> BuiltinProxyCacheBits {
+        self.get_tx().builtin_proxy_cache_snapshot()
+    }
+
+    fn builtin_proxy_cache_guard_version(&self) -> i64 {
+        self.get_tx().builtin_proxy_cache_guard_version()
+    }
+
+    fn mark_builtin_proxy_absent(&mut self, builtin: BuiltinId) {
+        self.get_tx_mut().mark_builtin_proxy_absent(builtin);
     }
 
     fn parent_of(&self, _perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {

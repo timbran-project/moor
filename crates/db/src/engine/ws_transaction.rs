@@ -28,14 +28,16 @@ use byteview::ByteView;
 use moor_common::util::Instant;
 use moor_common::{
     model::{
-        CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind, ObjectQuery,
-        ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ResolvedVerb, ValSet, VerbArgsSpec,
-        VerbAttrs, VerbDef, VerbDefs, VerbFlag, WorldStateError, WorldStateTimerOp,
+        BuiltinProxyCacheBits, CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind,
+        ObjectQuery, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ResolvedVerb, ValSet,
+        VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbFlag, WorldStateError, WorldStateTimerOp,
     },
     util::BitEnum,
 };
 use moor_var::{
-    ByteSized, NOTHING, Obj, Symbol, Var, program::ProgramType, v_empty_map, v_map, v_none,
+    ByteSized, NOTHING, Obj, Symbol, Var,
+    program::{ProgramType, opcode::BuiltinId},
+    v_empty_map, v_map, v_none,
 };
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
@@ -981,6 +983,22 @@ impl WorldStateTransaction {
             .map_err(|e| WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}")))?
             .flatten()
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, format!("{index}")))
+    }
+
+    pub fn builtin_proxy_cache_snapshot(&self) -> BuiltinProxyCacheBits {
+        self.verb_resolution_cache
+            .borrow()
+            .builtin_proxy_cache_snapshot()
+    }
+
+    pub fn builtin_proxy_cache_guard_version(&self) -> i64 {
+        self.verb_resolution_cache.borrow().guard_version()
+    }
+
+    pub fn mark_builtin_proxy_absent(&self, builtin: BuiltinId) {
+        self.verb_resolution_cache
+            .borrow_mut()
+            .mark_builtin_proxy_absent(builtin);
     }
 
     pub fn resolve_verb(

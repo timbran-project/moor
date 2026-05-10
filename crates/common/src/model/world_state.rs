@@ -16,6 +16,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
+    builtins::BUILTIN_ID_SPACE,
     model::{
         CommitResult, ObjectRef, PropPerms, Vid,
         r#match::{ArgSpec, PrepSpec, VerbArgsSpec},
@@ -30,8 +31,12 @@ use crate::{
 };
 use moor_var::{
     E_INVARG, E_INVIND, E_PERM, E_PROPNF, E_RECMOVE, E_TYPE, E_VERBNF, Error, Obj, Symbol, Var,
-    program::ProgramType,
+    program::{ProgramType, opcode::BuiltinId},
 };
+
+pub const BUILTIN_PROXY_CACHE_WORDS: usize =
+    (BUILTIN_ID_SPACE + u64::BITS as usize - 1) / u64::BITS as usize;
+pub type BuiltinProxyCacheBits = [u64; BUILTIN_PROXY_CACHE_WORDS];
 
 /// Specifies the way the object ID should be allocated when creating a new object.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -472,6 +477,19 @@ pub trait WorldState: Send {
         perms: &Obj,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError>;
+
+    /// Snapshot of builtins known to have no #0 bf_* proxy in this transaction.
+    fn builtin_proxy_cache_snapshot(&self) -> BuiltinProxyCacheBits {
+        [0; BUILTIN_PROXY_CACHE_WORDS]
+    }
+
+    /// Invalidation guard for the builtin proxy cache snapshot.
+    fn builtin_proxy_cache_guard_version(&self) -> i64 {
+        0
+    }
+
+    /// Remember that this builtin has no #0 bf_* proxy in this transaction.
+    fn mark_builtin_proxy_absent(&mut self, _builtin: BuiltinId) {}
 
     /// Get the object that is the parent of the given object.
     fn parent_of(&self, perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;

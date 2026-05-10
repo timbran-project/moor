@@ -653,30 +653,45 @@ impl ExecState {
     ) -> Option<ExecutionResult> {
         // Reject invocations of maybe-wrapper functions if the caller is #0.
         // This prevents recursion through them.
-        if self.caller() == v_obj(SYSTEM_OBJECT) {
+        let caller = self.caller();
+        if caller == v_obj(SYSTEM_OBJECT) {
             return None;
         }
 
-        // Look for it...
-        let verb_result = host
-            .dispatch_verb(
-                &self.top().permissions,
-                VerbDispatch::new(
-                    VerbLookup::method(&SYSTEM_OBJECT, bf_override_name),
-                    DispatchFlagsSource::Permissions,
-                ),
-            )
-            .ok()?;
-        let verb_result = verb_result?;
+        self.invoke_bf_proxy_for_caller(host, bf_override_name, args, caller)
+            .ok()
+            .flatten()
+    }
+
+    /// If a bf_<xxx> wrapper function is present on #0, prepare to invoke it.
+    ///
+    /// Unlike `maybe_invoke_bf_proxy`, this preserves lookup errors for callers that need to
+    /// distinguish a true missing proxy from a failed lookup.
+    pub fn invoke_bf_proxy_for_caller(
+        &mut self,
+        host: &mut impl VmHost,
+        bf_override_name: Symbol,
+        args: &List,
+        caller: Var,
+    ) -> Result<Option<ExecutionResult>, WorldStateError> {
+        let Some(verb_result) = host.dispatch_verb(
+            &self.top().permissions,
+            VerbDispatch::new(
+                VerbLookup::method(&SYSTEM_OBJECT, bf_override_name),
+                DispatchFlagsSource::Permissions,
+            ),
+        )?
+        else {
+            return Ok(None);
+        };
         let program_key = verb_result.program_key;
         let resolved_verb = verb_result.verbdef;
         let permissions_flags = verb_result.permissions_flags;
 
         let player = self.top().player;
-        let caller = self.caller();
         let args_list = args.clone();
         let permissions = self.top().permissions;
-        Some(ExecutionResult::DispatchVerb(Box::new(
+        Ok(Some(ExecutionResult::DispatchVerb(Box::new(
             VerbExecutionRequest {
                 permissions,
                 permissions_flags,
@@ -689,7 +704,7 @@ impl ExecState {
                 argstr: v_empty_str(),
                 program_key,
             },
-        )))
+        ))))
     }
 }
 

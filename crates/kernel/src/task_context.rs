@@ -23,12 +23,70 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use moor_common::{
-    model::{CommitResult, WorldState, WorldStateError, loader::LoaderInterface},
+    model::{
+        BuiltinProxyCacheBits, CommitResult, WorldState, WorldStateError, loader::LoaderInterface,
+    },
     tasks::{Session, TaskId},
 };
+use moor_compiler::BuiltinId;
 use moor_var::Obj;
 
 use crate::tasks::task_scheduler_client::TaskSchedulerClient;
+
+const BITS_PER_WORD: usize = u64::BITS as usize;
+
+#[derive(Clone)]
+struct BuiltinProxyCache {
+    absent: BuiltinProxyCacheBits,
+    guard_version: i64,
+}
+
+impl BuiltinProxyCache {
+    fn new(absent: BuiltinProxyCacheBits, guard_version: i64) -> Self {
+        Self {
+            absent,
+            guard_version,
+        }
+    }
+
+    fn is_absent(&self, builtin: BuiltinId) -> bool {
+        let bit = usize::from(builtin.0);
+        let word = bit / BITS_PER_WORD;
+        if word >= self.absent.len() {
+            return false;
+        }
+        self.absent[word] & (1 << (bit % BITS_PER_WORD)) != 0
+    }
+
+    fn mark_absent(&mut self, builtin: BuiltinId) {
+        let bit = usize::from(builtin.0);
+        let word = bit / BITS_PER_WORD;
+        if word >= self.absent.len() {
+            return;
+        }
+        self.absent[word] |= 1 << (bit % BITS_PER_WORD);
+    }
+}
+
+impl TaskContext {
+    fn builtin_proxy_cache_from_world_state(world_state: &dyn WorldState) -> BuiltinProxyCache {
+        BuiltinProxyCache::new(
+            world_state.builtin_proxy_cache_snapshot(),
+            world_state.builtin_proxy_cache_guard_version(),
+        )
+    }
+
+    fn refresh_builtin_proxy_cache_if_changed(&mut self) {
+        let guard_version = self.world_state.builtin_proxy_cache_guard_version();
+        if guard_version == self.builtin_proxy_cache.guard_version {
+            return;
+        }
+        self.builtin_proxy_cache = BuiltinProxyCache::new(
+            self.world_state.builtin_proxy_cache_snapshot(),
+            guard_version,
+        );
+    }
+}
 
 /// Complete current task execution context containing all necessary state.
 /// There is one of these per-thread, and no more, and each running task *must* have one, and this
@@ -39,6 +97,7 @@ pub struct TaskContext {
     pub task_id: TaskId,
     pub player: Obj,
     pub session: Arc<dyn Session>,
+    builtin_proxy_cache: BuiltinProxyCache,
 }
 
 thread_local! {
@@ -65,12 +124,15 @@ impl TaskGuard {
                 current.is_none(),
                 "Task context already active on this thread"
             );
+            let builtin_proxy_cache =
+                TaskContext::builtin_proxy_cache_from_world_state(world_state.as_ref());
             *current = Some(TaskContext {
                 world_state,
                 task_scheduler_client,
                 task_id,
                 player,
                 session,
+                builtin_proxy_cache,
             });
         });
 
@@ -150,8 +212,33 @@ pub fn with_current_transaction_mut<R>(f: impl FnOnce(&mut dyn WorldState) -> R)
         let task_ctx = ctx_ref
             .as_mut()
             .expect("No active task context on this thread");
-        f(task_ctx.world_state.as_mut())
+        let result = f(task_ctx.world_state.as_mut());
+        task_ctx.refresh_builtin_proxy_cache_if_changed();
+        result
     })
+}
+
+/// Return true if the current transaction has already proven this builtin has no #0 proxy.
+pub fn builtin_proxy_absent_cached(builtin: BuiltinId) -> bool {
+    CURRENT_CONTEXT.with(|ctx| {
+        let ctx_ref = ctx.borrow();
+        let task_ctx = ctx_ref
+            .as_ref()
+            .expect("No active task context on this thread");
+        task_ctx.builtin_proxy_cache.is_absent(builtin)
+    })
+}
+
+/// Remember that this builtin has no #0 proxy in the current transaction.
+pub fn mark_builtin_proxy_absent(builtin: BuiltinId) {
+    CURRENT_CONTEXT.with(|ctx| {
+        let mut ctx_ref = ctx.borrow_mut();
+        let task_ctx = ctx_ref
+            .as_mut()
+            .expect("No active task context on this thread");
+        task_ctx.builtin_proxy_cache.mark_absent(builtin);
+        task_ctx.world_state.mark_builtin_proxy_absent(builtin);
+    });
 }
 
 /// Get a clone of the current task scheduler client.
@@ -340,12 +427,15 @@ where
                     current.is_none(),
                     "Task context unexpectedly active after commit"
                 );
+                let builtin_proxy_cache =
+                    TaskContext::builtin_proxy_cache_from_world_state(new_world_state.as_ref());
                 *current = Some(TaskContext {
                     world_state: new_world_state,
                     task_scheduler_client,
                     task_id,
                     player,
                     session,
+                    builtin_proxy_cache,
                 });
             });
 
@@ -395,12 +485,15 @@ where
     // Restore the context
     CURRENT_CONTEXT.with(|ctx| {
         let mut current = ctx.borrow_mut();
+        let builtin_proxy_cache =
+            TaskContext::builtin_proxy_cache_from_world_state(world_state.as_ref());
         *current = Some(TaskContext {
             world_state,
             task_scheduler_client,
             task_id,
             player,
             session,
+            builtin_proxy_cache,
         });
     });
 
