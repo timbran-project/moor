@@ -39,7 +39,7 @@ fn bf_mapdelete(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    let (nm, Some(_)) = m.remove(&bf_args.args[1], false) else {
+    let (nm, Some(_)) = m.remove_key(&bf_args.args[1]) else {
         return Err(BfErr::ErrValue(E_RANGE.msg("mapdelete key not found")));
     };
 

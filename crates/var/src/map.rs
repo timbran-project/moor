@@ -77,11 +77,22 @@ impl Map {
         Ok(Var::from_map_with_hint(Map(Box::new(map)), hint))
     }
 
-    pub fn remove_owned(self, key: &Var, case_sensitive: bool) -> (Var, Option<Var>) {
-        let mut map = *self.0;
+    #[inline]
+    pub fn remove_key(&self, key: &Var) -> (Var, Option<Var>) {
+        self.clone().remove_owned_key(key)
+    }
 
+    #[inline]
+    pub fn remove_owned_key(self, key: &Var) -> (Var, Option<Var>) {
+        let mut map = *self.0;
+        let removed_value = map.remove(key);
+        (Var::from_map(Map(Box::new(map))), removed_value)
+    }
+
+    pub fn remove_owned(self, key: &Var, case_sensitive: bool) -> (Var, Option<Var>) {
         if case_sensitive {
             // For case-sensitive removal, find the exact key first.
+            let mut map = *self.0;
             let found_key = map
                 .keys()
                 .find(|existing_key| existing_key.cmp_case_sensitive(key) == Ordering::Equal)
@@ -93,8 +104,7 @@ impl Map {
             return (Var::from_map(Map(Box::new(map))), None);
         }
 
-        let removed_value = map.remove(key);
-        (Var::from_map(Map(Box::new(map))), removed_value)
+        self.remove_owned_key(key)
     }
 }
 
