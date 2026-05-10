@@ -223,11 +223,10 @@ impl Environment {
     /// Pop the top scope from the stack.
     #[inline]
     pub fn pop_scope(&mut self) {
-        if let Some(scope) = self.scopes.pop() {
-            if scope.width != 0 {
+        if let Some(scope) = self.scopes.pop()
+            && scope.width != 0 {
                 self.values.truncate(scope.offset as usize);
             }
-        }
     }
 
     /// Get the number of scopes currently on the stack.
