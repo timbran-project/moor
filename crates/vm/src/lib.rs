@@ -33,7 +33,10 @@ pub use moo_execute::{
     CommandVerbExecutionRequest, ExecutionResult, Fork, FrameExecutionContext, TaskSuspend,
     VerbExecutionRequest, moo_frame_execute,
 };
-pub use moo_frame::{CatchType, MooStackFrame, PcType, ProgramSlot, Scope, ScopeType};
+pub use moo_frame::{
+    CatchType, ForRangeScope, ForSequenceScope, MooStackFrame, PcType, ProgramSlot, Scope,
+    ScopeKind, ScopePayload, ScopeType,
+};
 pub use scatter_assign::{ScatterResult, scatter_assign};
 pub use vm_unwind::FinallyReason;
 

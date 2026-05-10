@@ -879,9 +879,20 @@ pub(crate) fn scope_type_from_ref(
 // Scope Conversion
 // ============================================================================
 
-pub(crate) fn scope_to_flatbuffer(scope: &KernelScope) -> Result<fb::Scope, TaskConversionError> {
+struct DecodedScope {
+    scope_type: KernelScopeType,
+    valstack_pos: u16,
+    start_pos: u16,
+    end_pos: u16,
+    environment: bool,
+}
+
+pub(crate) fn frame_scope_to_flatbuffer(
+    frame: &KernelMooStackFrame,
+    scope: &KernelScope,
+) -> Result<fb::Scope, TaskConversionError> {
     Ok(fb::Scope {
-        scope_type: Box::new(scope_type_to_flatbuffer(&scope.scope_type)?),
+        scope_type: Box::new(scope_type_to_flatbuffer(&frame.scope_type(scope))?),
         valstack_pos: scope.valstack_pos as u64,
         start_pos: scope.start_pos as u64,
         end_pos: scope.end_pos as u64,
@@ -889,7 +900,7 @@ pub(crate) fn scope_to_flatbuffer(scope: &KernelScope) -> Result<fb::Scope, Task
     })
 }
 
-pub(crate) fn scope_from_ref(fb: fb::ScopeRef<'_>) -> Result<KernelScope, TaskConversionError> {
+fn scope_from_ref(fb: fb::ScopeRef<'_>) -> Result<DecodedScope, TaskConversionError> {
     let scope_type_ref = fb
         .scope_type()
         .map_err(|e| TaskConversionError::DecodingError(format!("scope_type: {e}")))?;
@@ -906,11 +917,17 @@ pub(crate) fn scope_from_ref(fb: fb::ScopeRef<'_>) -> Result<KernelScope, TaskCo
         .has_environment()
         .map_err(|e| TaskConversionError::DecodingError(format!("has_environment: {e}")))?;
 
-    Ok(KernelScope {
+    Ok(DecodedScope {
         scope_type: scope_type_from_ref(scope_type_ref)?,
-        valstack_pos: valstack_pos as usize,
-        start_pos: start_pos as usize,
-        end_pos: end_pos as usize,
+        valstack_pos: u16::try_from(valstack_pos).map_err(|_| {
+            TaskConversionError::DecodingError(format!("valstack_pos out of range: {valstack_pos}"))
+        })?,
+        start_pos: u16::try_from(start_pos).map_err(|_| {
+            TaskConversionError::DecodingError(format!("start_pos out of range: {start_pos}"))
+        })?,
+        end_pos: u16::try_from(end_pos).map_err(|_| {
+            TaskConversionError::DecodingError(format!("end_pos out of range: {end_pos}"))
+        })?,
         environment: has_environment,
     })
 }
@@ -927,7 +944,7 @@ pub(crate) fn moo_stack_frame_to_flatbuffer(
     } else if let Some(program_ptr) = frame.program_ptr {
         // SAFETY: program_ptr is set from task-owned program cache and is valid
         // for the lifetime of this task while serializing.
-        unsafe { &*(program_ptr as *const moor_compiler::Program) }
+        unsafe { &*(program_ptr.get() as *const moor_compiler::Program) }
     } else {
         return Err(TaskConversionError::ProgramError(
             "MooStackFrame missing both materialized program and program_ptr".to_string(),
@@ -966,29 +983,32 @@ pub(crate) fn moo_stack_frame_to_flatbuffer(
     let fb_valstack = fb_valstack
         .map_err(|e| TaskConversionError::VarError(format!("Error encoding valstack: {e}")))?;
 
-    let fb_scope_stack: Result<Vec<_>, _> =
-        frame.scope_stack.iter().map(scope_to_flatbuffer).collect();
+    let fb_scope_stack: Result<Vec<_>, _> = frame
+        .scope_stack
+        .iter()
+        .map(|scope| frame_scope_to_flatbuffer(frame, scope))
+        .collect();
     let fb_scope_stack = fb_scope_stack?;
 
     let fb_temp = var_to_db_flatbuffer(&frame.temp)
         .map_err(|e| TaskConversionError::VarError(format!("Error encoding temp: {e}")))?;
 
     let fb_catch_stack: Result<Vec<_>, _> = frame
-        .catch_stack
+        .catch_stack()
         .iter()
         .map(|(ct, l)| catch_handler_to_flatbuffer(ct, l))
         .collect();
     let fb_catch_stack = fb_catch_stack?;
 
     let fb_finally_stack: Result<Vec<_>, _> = frame
-        .finally_stack
+        .finally_stack()
         .iter()
         .map(finally_reason_to_flatbuffer)
         .collect();
     let fb_finally_stack = fb_finally_stack?;
 
     let fb_capture_stack: Result<Vec<_>, TaskConversionError> = frame
-        .capture_stack
+        .capture_stack()
         .iter()
         .map(|(name, var)| {
             Ok(fb::CapturedVar {
@@ -1141,14 +1161,21 @@ pub(crate) fn moo_stack_frame_from_ref(
     let capture_stack = capture_stack?;
 
     let mut frame = KernelMooStackFrame::with_environment(program, environment);
-    frame.pc = pc as usize;
+    frame.pc = u16::try_from(pc)
+        .map_err(|_| TaskConversionError::DecodingError(format!("pc out of range: {pc}")))?;
     frame.pc_type = pc_type;
     frame.valstack = valstack;
-    frame.scope_stack = scope_stack;
+    for scope in scope_stack {
+        frame.restore_scope(
+            scope.scope_type,
+            scope.valstack_pos,
+            scope.start_pos,
+            scope.end_pos,
+            scope.environment,
+        );
+    }
     frame.temp = temp;
-    frame.catch_stack = catch_stack;
-    frame.finally_stack = finally_stack;
-    frame.capture_stack = capture_stack;
+    frame.set_scratch_stacks(catch_stack, finally_stack, capture_stack);
 
     Ok(frame)
 }
@@ -2052,7 +2079,10 @@ mod tests {
         let program = compile("return 1;", CompileOptions::default()).unwrap();
         let boxed_program = Box::new(program);
         let slot = ProgramSlot {
-            program_ptr: boxed_program.as_ref() as *const Program as usize,
+            program_ptr: std::num::NonZeroUsize::new(
+                boxed_program.as_ref() as *const Program as usize
+            )
+            .unwrap(),
             global_width: boxed_program.var_names().global_width(),
             main_max_stack: boxed_program.main_max_stack(),
             main_max_scope_depth: boxed_program.main_max_scope_depth(),

@@ -17,7 +17,7 @@ use crate::environment::Environment;
 /// The pointer is valid for the duration of the owning task's transaction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ProgramSlot {
-    pub program_ptr: usize,
+    pub program_ptr: NonZeroUsize,
     pub global_width: usize,
     pub main_max_stack: usize,
     pub main_max_scope_depth: usize,
@@ -33,8 +33,8 @@ use moor_var::{
     },
     v_empty_str, v_none, v_nothing,
 };
-use std::cmp::max;
 use std::sync::LazyLock;
+use std::{cmp::max, num::NonZeroUsize};
 use strum::EnumCount;
 
 /// The MOO stack-frame specific portions of the activation:
@@ -43,9 +43,9 @@ use strum::EnumCount;
 pub struct MooStackFrame {
     /// The program of the verb that is currently being executed.
     pub program: Option<Program>,
-    pub program_ptr: Option<usize>,
+    pub program_ptr: Option<NonZeroUsize>,
     /// The program counter.
-    pub pc: usize,
+    pub pc: u16,
     /// Where is the PC pointing to?
     pub pc_type: PcType,
     /// The values of the variables currently in scope, by their offset.
@@ -55,15 +55,12 @@ pub struct MooStackFrame {
     /// A stack of active scopes. Used for catch and finally blocks and in the future for lexical
     /// scoping as well.
     pub scope_stack: Vec<Scope>,
+    /// Payloads for active scopes that carry extra runtime state, indexed by `Scope::payload`.
+    pub scope_payloads: Vec<ScopePayload>,
     /// Scratch space for PushTemp and PutTemp opcodes.
     pub temp: Var,
-    /// Scratch space for constructing the catch handlers for a forthcoming try scope.
-    pub catch_stack: Vec<(CatchType, Label)>,
-    /// Scratch space for holding finally-reasons to be popped off the stack when a finally block
-    /// is ended.
-    pub finally_stack: Vec<FinallyReason>,
-    /// Stack for captured variables during lambda creation
-    pub capture_stack: Vec<(Name, Var)>,
+    /// Cold scratch stacks used by exception handling and lambda capture opcodes.
+    pub scratch: Option<Box<FrameScratch>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,6 +74,17 @@ pub enum PcType {
 pub enum CatchType {
     Any,
     Errors(Vec<Error>),
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FrameScratch {
+    /// Scratch space for constructing the catch handlers for a forthcoming try scope.
+    pub catch_stack: Vec<(CatchType, Label)>,
+    /// Scratch space for holding finally-reasons to be popped off the stack when a finally block
+    /// is ended.
+    pub finally_stack: Vec<FinallyReason>,
+    /// Stack for captured variables during lambda creation.
+    pub capture_stack: Vec<(Name, Var)>,
 }
 
 /// The kinds of block scopes that can be entered and exited, which far now are just catch and
@@ -128,16 +136,71 @@ pub enum ScopeType {
     Comprehension,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForSequenceScope {
+    pub sequence: Var,
+    pub current_index: usize,
+    pub current_key: Option<Var>,
+    pub value_bind: Name,
+    pub key_bind: Option<Name>,
+    pub end_label: Label,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ForRangeScope {
+    Int {
+        current: i64,
+        end: i64,
+        loop_variable: Name,
+        end_label: Label,
+    },
+    Float {
+        current_bits: u64,
+        end_bits: u64,
+        loop_variable: Name,
+        end_label: Label,
+    },
+    Obj {
+        current: i32,
+        end: i32,
+        loop_variable: Name,
+        end_label: Label,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopePayload {
+    TryCatch(Vec<(CatchType, Label)>),
+    ForSequence(ForSequenceScope),
+    ForRange(ForRangeScope),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ScopeKind {
+    TryFinally,
+    TryCatch,
+    If,
+    Eif,
+    While,
+    For,
+    ForSequence,
+    ForRange,
+    Block,
+    Comprehension,
+}
+
 /// A scope is a record of the current size of the valstack when it was created, and are
 /// enter and exit scopes.
 /// On entry, the current size of the valstack is stored in `valstack_pos`.
 /// On exit, the valstack is eaten back to that size.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
-    pub scope_type: ScopeType,
-    pub valstack_pos: usize,
-    pub start_pos: usize,
-    pub end_pos: usize,
+    pub kind: ScopeKind,
+    pub payload: u16,
+    pub valstack_pos: u16,
+    pub start_pos: u16,
+    pub end_pos: u16,
     /// True if this scope has a variable environment.
     pub environment: bool,
 }
@@ -146,6 +209,12 @@ static PARSE_EMPTY_STR: LazyLock<Var> = LazyLock::new(v_empty_str);
 static PARSE_NOTHING: LazyLock<Var> = LazyLock::new(v_nothing);
 
 impl MooStackFrame {
+    #[inline(always)]
+    fn narrow_u16(value: usize) -> u16 {
+        debug_assert!(u16::try_from(value).is_ok());
+        value as u16
+    }
+
     #[inline]
     fn valstack_for_max_depth(max_depth: usize) -> Vec<Var> {
         Vec::with_capacity(max_depth)
@@ -189,9 +258,8 @@ impl MooStackFrame {
             temp: v_none(),
             valstack,
             scope_stack,
-            catch_stack: Vec::new(),
-            finally_stack: Vec::new(),
-            capture_stack: Vec::new(),
+            scope_payloads: Vec::new(),
+            scratch: None,
         }
     }
 
@@ -220,9 +288,8 @@ impl MooStackFrame {
             temp: v_none(),
             valstack,
             scope_stack,
-            catch_stack: Vec::new(),
-            finally_stack: Vec::new(),
-            capture_stack: Vec::new(),
+            scope_payloads: Vec::new(),
+            scratch: None,
         }
     }
 
@@ -257,9 +324,8 @@ impl MooStackFrame {
             temp: v_none(),
             valstack,
             scope_stack,
-            catch_stack: Vec::new(),
-            finally_stack: Vec::new(),
-            capture_stack: Vec::new(),
+            scope_payloads: Vec::new(),
+            scratch: None,
         }
     }
 
@@ -301,9 +367,8 @@ impl MooStackFrame {
             temp: v_none(),
             valstack,
             scope_stack,
-            catch_stack: Default::default(),
-            finally_stack: Default::default(),
-            capture_stack: Default::default(),
+            scope_payloads: Vec::new(),
+            scratch: None,
         }
     }
 
@@ -313,7 +378,7 @@ impl MooStackFrame {
             return program as *const Program;
         }
         self.program_ptr
-            .map(|ptr| ptr as *const Program)
+            .map(|ptr| ptr.get() as *const Program)
             .expect("MooStackFrame missing both program and program_ptr")
     }
 
@@ -329,7 +394,7 @@ impl MooStackFrame {
         if let Some(program) = &self.program {
             return Some(program);
         }
-        let ptr = self.program_ptr? as *const Program;
+        let ptr = self.program_ptr?.get() as *const Program;
         // SAFETY: pointer refers to the task-owned program cache or frame-owned program.
         Some(unsafe { &*ptr })
     }
@@ -349,7 +414,7 @@ impl MooStackFrame {
             return;
         };
         // SAFETY: program_ptr points to a stable allocation in task-owned program cache.
-        self.program = Some(unsafe { (&*(ptr as *const Program)).clone() });
+        self.program = Some(unsafe { (&*(ptr.get() as *const Program)).clone() });
         self.program_ptr = None;
     }
 
@@ -384,9 +449,8 @@ impl MooStackFrame {
             temp: v_none(),
             valstack,
             scope_stack,
-            catch_stack: Vec::new(),
-            finally_stack: Vec::new(),
-            capture_stack: Vec::new(),
+            scope_payloads: Vec::new(),
+            scratch: None,
         }
     }
 
@@ -419,9 +483,8 @@ impl MooStackFrame {
             temp: v_none(),
             valstack,
             scope_stack,
-            catch_stack: Vec::new(),
-            finally_stack: Vec::new(),
-            capture_stack: Vec::new(),
+            scope_payloads: Vec::new(),
+            scratch: None,
         }
     }
 
@@ -434,16 +497,109 @@ impl MooStackFrame {
         }
     }
 
-    pub fn find_line_no(&self, pc: usize) -> Option<usize> {
+    pub fn find_line_no(&self, pc: u16) -> Option<usize> {
         let program = self.try_resolved_program()?;
         match self.pc_type {
-            PcType::Main => Some(program.line_num_for_position(pc, 0)),
-            PcType::ForkVector(fv) => Some(program.fork_line_num_for_position(fv, pc)),
+            PcType::Main => Some(program.line_num_for_position(pc as usize, 0)),
+            PcType::ForkVector(fv) => Some(program.fork_line_num_for_position(fv, pc as usize)),
             PcType::Lambda(lambda_offset) => {
                 let lambda_program = program.lambda_program(lambda_offset);
-                Some(lambda_program.line_num_for_position(pc, 0))
+                Some(lambda_program.line_num_for_position(pc as usize, 0))
             }
         }
+    }
+
+    #[inline]
+    fn scratch_mut(&mut self) -> &mut FrameScratch {
+        self.scratch
+            .get_or_insert_with(|| Box::new(FrameScratch::default()))
+    }
+
+    #[inline]
+    pub fn catch_stack(&self) -> &[(CatchType, Label)] {
+        self.scratch
+            .as_ref()
+            .map(|scratch| scratch.catch_stack.as_slice())
+            .unwrap_or(&[])
+    }
+
+    #[inline]
+    pub fn push_catch(&mut self, catch: CatchType, label: Label) {
+        self.scratch_mut().catch_stack.push((catch, label));
+    }
+
+    #[inline]
+    pub fn take_catch_stack(&mut self) -> Vec<(CatchType, Label)> {
+        self.scratch
+            .as_mut()
+            .map(|scratch| std::mem::take(&mut scratch.catch_stack))
+            .unwrap_or_default()
+    }
+
+    #[inline]
+    pub fn finally_stack(&self) -> &[FinallyReason] {
+        self.scratch
+            .as_ref()
+            .map(|scratch| scratch.finally_stack.as_slice())
+            .unwrap_or(&[])
+    }
+
+    #[inline]
+    pub fn push_finally_reason(&mut self, why: FinallyReason) {
+        self.scratch_mut().finally_stack.push(why);
+    }
+
+    #[inline]
+    pub fn pop_finally_reason(&mut self) -> Option<FinallyReason> {
+        self.scratch
+            .as_mut()
+            .and_then(|scratch| scratch.finally_stack.pop())
+    }
+
+    #[inline]
+    pub fn capture_stack(&self) -> &[(Name, Var)] {
+        self.scratch
+            .as_ref()
+            .map(|scratch| scratch.capture_stack.as_slice())
+            .unwrap_or(&[])
+    }
+
+    #[inline]
+    pub fn push_capture(&mut self, name: Name, value: Var) {
+        self.scratch_mut().capture_stack.push((name, value));
+    }
+
+    #[inline]
+    pub fn capture_stack_len(&self) -> usize {
+        self.scratch
+            .as_ref()
+            .map(|scratch| scratch.capture_stack.len())
+            .unwrap_or(0)
+    }
+
+    pub fn drain_captures_from(&mut self, start: usize) -> Vec<(Name, Var)> {
+        self.scratch
+            .as_mut()
+            .map(|scratch| scratch.capture_stack.drain(start..).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn set_scratch_stacks(
+        &mut self,
+        catch_stack: Vec<(CatchType, Label)>,
+        finally_stack: Vec<FinallyReason>,
+        capture_stack: Vec<(Name, Var)>,
+    ) {
+        if catch_stack.is_empty() && finally_stack.is_empty() && capture_stack.is_empty() {
+            self.scratch = None;
+            return;
+        }
+
+        self.scratch = Some(Box::new(FrameScratch {
+            catch_stack,
+            finally_stack,
+            capture_stack,
+        }));
     }
 
     pub fn set_gvar(&mut self, gname: GlobalName, value: Var) {
@@ -517,12 +673,14 @@ impl MooStackFrame {
     pub fn lookahead_ref(&self) -> Option<&Op> {
         let program = self.resolved_program();
         match self.pc_type {
-            PcType::Main => program.main_vector().get(self.pc),
-            PcType::ForkVector(fork_vector) => program.fork_vector(fork_vector).get(self.pc),
+            PcType::Main => program.main_vector().get(self.pc as usize),
+            PcType::ForkVector(fork_vector) => {
+                program.fork_vector(fork_vector).get(self.pc as usize)
+            }
             PcType::Lambda(lambda_offset) => program
                 .lambda_program(lambda_offset)
                 .main_vector()
-                .get(self.pc),
+                .get(self.pc as usize),
         }
     }
 
@@ -568,8 +726,8 @@ impl MooStackFrame {
         self.valstack[l - amt - 1] = v;
     }
 
-    pub fn label_position(&self, label_id: Label) -> usize {
-        self.resolved_program().jump_label(label_id).position.0 as usize
+    pub fn label_position(&self, label_id: Label) -> u16 {
+        self.resolved_program().jump_label(label_id).position.0
     }
 
     pub fn jump(&mut self, label_id: &Label) {
@@ -588,41 +746,421 @@ impl MooStackFrame {
         }
     }
 
-    /// Enter a new lexical scope and/or try/catch handling block.
-    pub fn push_scope(&mut self, scope: ScopeType, scope_width: u16, end_label: &Label) {
-        let end_pos = self.resolved_program().jump_label(*end_label).position.0 as usize;
-        let start_pos = self.pc;
+    #[inline]
+    fn push_scope_record(
+        &mut self,
+        kind: ScopeKind,
+        payload: u16,
+        valstack_pos: u16,
+        start_pos: u16,
+        end_pos: u16,
+        environment: bool,
+    ) {
         self.scope_stack.push(Scope {
-            scope_type: scope,
-            valstack_pos: self.valstack.len(),
+            kind,
+            payload,
+            valstack_pos,
             start_pos,
             end_pos,
-            environment: true,
+            environment,
         });
+    }
+
+    fn push_scope_type_record(
+        &mut self,
+        scope: ScopeType,
+        valstack_pos: u16,
+        start_pos: u16,
+        end_pos: u16,
+        environment: bool,
+    ) {
+        match scope {
+            ScopeType::TryFinally(label) => {
+                self.push_scope_record(
+                    ScopeKind::TryFinally,
+                    label.0,
+                    valstack_pos,
+                    start_pos,
+                    end_pos,
+                    environment,
+                );
+            }
+            ScopeType::TryCatch(catches) => {
+                let payload = Self::narrow_u16(self.scope_payloads.len());
+                self.scope_payloads.push(ScopePayload::TryCatch(catches));
+                self.push_scope_record(
+                    ScopeKind::TryCatch,
+                    payload,
+                    valstack_pos,
+                    start_pos,
+                    end_pos,
+                    environment,
+                );
+            }
+            ScopeType::If => self.push_scope_record(
+                ScopeKind::If,
+                0,
+                valstack_pos,
+                start_pos,
+                end_pos,
+                environment,
+            ),
+            ScopeType::Eif => self.push_scope_record(
+                ScopeKind::Eif,
+                0,
+                valstack_pos,
+                start_pos,
+                end_pos,
+                environment,
+            ),
+            ScopeType::While => self.push_scope_record(
+                ScopeKind::While,
+                0,
+                valstack_pos,
+                start_pos,
+                end_pos,
+                environment,
+            ),
+            ScopeType::For => self.push_scope_record(
+                ScopeKind::For,
+                0,
+                valstack_pos,
+                start_pos,
+                end_pos,
+                environment,
+            ),
+            ScopeType::ForSequence {
+                sequence,
+                current_index,
+                current_key,
+                value_bind,
+                key_bind,
+                end_label,
+            } => {
+                let payload = Self::narrow_u16(self.scope_payloads.len());
+                self.scope_payloads
+                    .push(ScopePayload::ForSequence(ForSequenceScope {
+                        sequence,
+                        current_index,
+                        current_key,
+                        value_bind,
+                        key_bind,
+                        end_label,
+                    }));
+                self.push_scope_record(
+                    ScopeKind::ForSequence,
+                    payload,
+                    valstack_pos,
+                    start_pos,
+                    end_pos,
+                    environment,
+                );
+            }
+            ScopeType::ForRangeInt {
+                current,
+                end,
+                loop_variable,
+                end_label,
+            } => {
+                let payload = Self::narrow_u16(self.scope_payloads.len());
+                self.scope_payloads
+                    .push(ScopePayload::ForRange(ForRangeScope::Int {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    }));
+                self.push_scope_record(
+                    ScopeKind::ForRange,
+                    payload,
+                    valstack_pos,
+                    start_pos,
+                    end_pos,
+                    environment,
+                );
+            }
+            ScopeType::ForRangeFloat {
+                current_bits,
+                end_bits,
+                loop_variable,
+                end_label,
+            } => {
+                let payload = Self::narrow_u16(self.scope_payloads.len());
+                self.scope_payloads
+                    .push(ScopePayload::ForRange(ForRangeScope::Float {
+                        current_bits,
+                        end_bits,
+                        loop_variable,
+                        end_label,
+                    }));
+                self.push_scope_record(
+                    ScopeKind::ForRange,
+                    payload,
+                    valstack_pos,
+                    start_pos,
+                    end_pos,
+                    environment,
+                );
+            }
+            ScopeType::ForRangeObj {
+                current,
+                end,
+                loop_variable,
+                end_label,
+            } => {
+                let payload = Self::narrow_u16(self.scope_payloads.len());
+                self.scope_payloads
+                    .push(ScopePayload::ForRange(ForRangeScope::Obj {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    }));
+                self.push_scope_record(
+                    ScopeKind::ForRange,
+                    payload,
+                    valstack_pos,
+                    start_pos,
+                    end_pos,
+                    environment,
+                );
+            }
+            ScopeType::Block => self.push_scope_record(
+                ScopeKind::Block,
+                0,
+                valstack_pos,
+                start_pos,
+                end_pos,
+                environment,
+            ),
+            ScopeType::Comprehension => self.push_scope_record(
+                ScopeKind::Comprehension,
+                0,
+                valstack_pos,
+                start_pos,
+                end_pos,
+                environment,
+            ),
+        }
+    }
+
+    fn take_scope_type(&mut self, scope: Scope) -> ScopeType {
+        match scope.kind {
+            ScopeKind::TryFinally => ScopeType::TryFinally(Label(scope.payload)),
+            ScopeKind::TryCatch => {
+                let payload = scope.payload as usize;
+                debug_assert_eq!(payload + 1, self.scope_payloads.len());
+                let ScopePayload::TryCatch(catches) = self
+                    .scope_payloads
+                    .pop()
+                    .expect("missing try/catch payload")
+                else {
+                    panic!("try/catch scope referenced non-catch payload");
+                };
+                ScopeType::TryCatch(catches)
+            }
+            ScopeKind::If => ScopeType::If,
+            ScopeKind::Eif => ScopeType::Eif,
+            ScopeKind::While => ScopeType::While,
+            ScopeKind::For => ScopeType::For,
+            ScopeKind::ForSequence => {
+                let payload = scope.payload as usize;
+                debug_assert_eq!(payload + 1, self.scope_payloads.len());
+                let ScopePayload::ForSequence(payload) = self
+                    .scope_payloads
+                    .pop()
+                    .expect("missing for-sequence payload")
+                else {
+                    panic!("for-sequence scope referenced non-sequence payload");
+                };
+                ScopeType::ForSequence {
+                    sequence: payload.sequence,
+                    current_index: payload.current_index,
+                    current_key: payload.current_key,
+                    value_bind: payload.value_bind,
+                    key_bind: payload.key_bind,
+                    end_label: payload.end_label,
+                }
+            }
+            ScopeKind::ForRange => {
+                let payload = scope.payload as usize;
+                debug_assert_eq!(payload + 1, self.scope_payloads.len());
+                let ScopePayload::ForRange(payload) = self
+                    .scope_payloads
+                    .pop()
+                    .expect("missing for-range payload")
+                else {
+                    panic!("for-range scope referenced non-range payload");
+                };
+                match payload {
+                    ForRangeScope::Int {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    } => ScopeType::ForRangeInt {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    },
+                    ForRangeScope::Float {
+                        current_bits,
+                        end_bits,
+                        loop_variable,
+                        end_label,
+                    } => ScopeType::ForRangeFloat {
+                        current_bits,
+                        end_bits,
+                        loop_variable,
+                        end_label,
+                    },
+                    ForRangeScope::Obj {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    } => ScopeType::ForRangeObj {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    },
+                }
+            }
+            ScopeKind::Block => ScopeType::Block,
+            ScopeKind::Comprehension => ScopeType::Comprehension,
+        }
+    }
+
+    pub fn scope_type(&self, scope: &Scope) -> ScopeType {
+        match scope.kind {
+            ScopeKind::TryFinally => ScopeType::TryFinally(Label(scope.payload)),
+            ScopeKind::TryCatch => match &self.scope_payloads[scope.payload as usize] {
+                ScopePayload::TryCatch(catches) => ScopeType::TryCatch(catches.clone()),
+                _ => panic!("try/catch scope referenced non-catch payload"),
+            },
+            ScopeKind::If => ScopeType::If,
+            ScopeKind::Eif => ScopeType::Eif,
+            ScopeKind::While => ScopeType::While,
+            ScopeKind::For => ScopeType::For,
+            ScopeKind::ForSequence => {
+                let ScopePayload::ForSequence(payload) =
+                    &self.scope_payloads[scope.payload as usize]
+                else {
+                    panic!("for-sequence scope referenced non-sequence payload");
+                };
+                ScopeType::ForSequence {
+                    sequence: payload.sequence.clone(),
+                    current_index: payload.current_index,
+                    current_key: payload.current_key.clone(),
+                    value_bind: payload.value_bind,
+                    key_bind: payload.key_bind,
+                    end_label: payload.end_label,
+                }
+            }
+            ScopeKind::ForRange => {
+                let ScopePayload::ForRange(payload) = &self.scope_payloads[scope.payload as usize]
+                else {
+                    panic!("for-range scope referenced non-range payload");
+                };
+                match payload {
+                    ForRangeScope::Int {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    } => ScopeType::ForRangeInt {
+                        current: *current,
+                        end: *end,
+                        loop_variable: *loop_variable,
+                        end_label: *end_label,
+                    },
+                    ForRangeScope::Float {
+                        current_bits,
+                        end_bits,
+                        loop_variable,
+                        end_label,
+                    } => ScopeType::ForRangeFloat {
+                        current_bits: *current_bits,
+                        end_bits: *end_bits,
+                        loop_variable: *loop_variable,
+                        end_label: *end_label,
+                    },
+                    ForRangeScope::Obj {
+                        current,
+                        end,
+                        loop_variable,
+                        end_label,
+                    } => ScopeType::ForRangeObj {
+                        current: *current,
+                        end: *end,
+                        loop_variable: *loop_variable,
+                        end_label: *end_label,
+                    },
+                }
+            }
+            ScopeKind::Block => ScopeType::Block,
+            ScopeKind::Comprehension => ScopeType::Comprehension,
+        }
+    }
+
+    pub fn try_catches_for_scope(&self, scope: &Scope) -> Option<&[(CatchType, Label)]> {
+        if scope.kind != ScopeKind::TryCatch {
+            return None;
+        }
+        let ScopePayload::TryCatch(catches) = &self.scope_payloads[scope.payload as usize] else {
+            panic!("try/catch scope referenced non-catch payload");
+        };
+        Some(catches)
+    }
+
+    pub fn restore_scope(
+        &mut self,
+        scope: ScopeType,
+        valstack_pos: u16,
+        start_pos: u16,
+        end_pos: u16,
+        environment: bool,
+    ) {
+        self.push_scope_type_record(scope, valstack_pos, start_pos, end_pos, environment);
+    }
+
+    /// Enter a new lexical scope and/or try/catch handling block.
+    pub fn push_scope(&mut self, scope: ScopeType, scope_width: u16, end_label: &Label) {
+        let end_pos = self.resolved_program().jump_label(*end_label).position.0;
+        let start_pos = self.pc;
+        self.push_scope_type_record(
+            scope,
+            Self::narrow_u16(self.valstack.len()),
+            start_pos,
+            end_pos,
+            true,
+        );
         self.environment.push_scope(scope_width as usize);
     }
 
     /// Enter a scope which does not restrict stack of environment size, purely for catch expressions
     /// The scope is just used for unwinding to the catch handler purposes.
     pub fn push_non_var_scope(&mut self, scope: ScopeType, end_label: &Label) {
-        let end_pos = self.resolved_program().jump_label(*end_label).position.0 as usize;
+        let end_pos = self.resolved_program().jump_label(*end_label).position.0;
         let start_pos = self.pc;
-        self.scope_stack.push(Scope {
-            scope_type: scope,
-            valstack_pos: self.valstack.len(),
+        self.push_scope_type_record(
+            scope,
+            Self::narrow_u16(self.valstack.len()),
             start_pos,
             end_pos,
-            environment: false,
-        });
+            false,
+        );
     }
 
-    pub fn pop_scope(&mut self) -> Option<Scope> {
+    pub fn pop_scope(&mut self) -> Option<ScopeType> {
         let scope = self.scope_stack.pop()?;
         if scope.environment {
             self.environment.pop_scope();
         }
-        self.valstack.truncate(scope.valstack_pos);
-        Some(scope)
+        self.valstack.truncate(scope.valstack_pos as usize);
+        Some(self.take_scope_type(scope))
     }
 
     /// Enter a ForSequence scope that holds iteration state
@@ -634,19 +1172,22 @@ impl MooStackFrame {
         end_label: &Label,
         environment_width: u16,
     ) {
-        let end_pos = self.resolved_program().jump_label(*end_label).position.0 as usize;
+        let end_pos = self.resolved_program().jump_label(*end_label).position.0;
         let start_pos = self.pc;
-        let scope_type = ScopeType::ForSequence {
-            sequence,
-            current_index: 0,
-            current_key: None,
-            value_bind,
-            key_bind,
-            end_label: *end_label,
-        };
+        let payload = Self::narrow_u16(self.scope_payloads.len());
+        self.scope_payloads
+            .push(ScopePayload::ForSequence(ForSequenceScope {
+                sequence,
+                current_index: 0,
+                current_key: None,
+                value_bind,
+                key_bind,
+                end_label: *end_label,
+            }));
         self.scope_stack.push(Scope {
-            scope_type,
-            valstack_pos: self.valstack.len(),
+            kind: ScopeKind::ForSequence,
+            payload,
+            valstack_pos: Self::narrow_u16(self.valstack.len()),
             start_pos,
             end_pos,
             environment: true,
@@ -655,13 +1196,18 @@ impl MooStackFrame {
     }
 
     /// Get the current ForSequence scope for iteration
-    pub fn get_for_sequence_scope_mut(&mut self) -> Option<&mut ScopeType> {
-        for scope in self.scope_stack.iter_mut().rev() {
-            if matches!(scope.scope_type, ScopeType::ForSequence { .. }) {
-                return Some(&mut scope.scope_type);
-            }
-        }
-        None
+    pub fn get_for_sequence_scope_mut(&mut self) -> Option<&mut ForSequenceScope> {
+        let payload = self
+            .scope_stack
+            .iter()
+            .rev()
+            .find(|scope| scope.kind == ScopeKind::ForSequence)?
+            .payload;
+        let ScopePayload::ForSequence(scope) = self.scope_payloads.get_mut(payload as usize)?
+        else {
+            panic!("for-sequence scope referenced non-sequence payload");
+        };
+        Some(scope)
     }
 
     /// Enter a ForRange scope that holds iteration state
@@ -671,17 +1217,51 @@ impl MooStackFrame {
         end_label: &Label,
         environment_width: u16,
     ) {
-        debug_assert!(matches!(
-            scope_type,
-            ScopeType::ForRangeInt { .. }
-                | ScopeType::ForRangeFloat { .. }
-                | ScopeType::ForRangeObj { .. }
-        ));
-        let end_pos = self.resolved_program().jump_label(*end_label).position.0 as usize;
+        let range_scope = match scope_type {
+            ScopeType::ForRangeInt {
+                current,
+                end,
+                loop_variable,
+                end_label,
+            } => ForRangeScope::Int {
+                current,
+                end,
+                loop_variable,
+                end_label,
+            },
+            ScopeType::ForRangeFloat {
+                current_bits,
+                end_bits,
+                loop_variable,
+                end_label,
+            } => ForRangeScope::Float {
+                current_bits,
+                end_bits,
+                loop_variable,
+                end_label,
+            },
+            ScopeType::ForRangeObj {
+                current,
+                end,
+                loop_variable,
+                end_label,
+            } => ForRangeScope::Obj {
+                current,
+                end,
+                loop_variable,
+                end_label,
+            },
+            _ => panic!("push_for_range_scope called with non-range scope"),
+        };
+        let end_pos = self.resolved_program().jump_label(*end_label).position.0;
         let start_pos = self.pc;
+        let payload = Self::narrow_u16(self.scope_payloads.len());
+        self.scope_payloads
+            .push(ScopePayload::ForRange(range_scope));
         self.scope_stack.push(Scope {
-            scope_type,
-            valstack_pos: self.valstack.len(),
+            kind: ScopeKind::ForRange,
+            payload,
+            valstack_pos: Self::narrow_u16(self.valstack.len()),
             start_pos,
             end_pos,
             environment: true,
@@ -690,18 +1270,17 @@ impl MooStackFrame {
     }
 
     /// Get the current ForRange scope for iteration
-    pub fn get_for_range_scope_mut(&mut self) -> Option<&mut ScopeType> {
-        for scope in self.scope_stack.iter_mut().rev() {
-            if matches!(
-                scope.scope_type,
-                ScopeType::ForRangeInt { .. }
-                    | ScopeType::ForRangeFloat { .. }
-                    | ScopeType::ForRangeObj { .. }
-            ) {
-                return Some(&mut scope.scope_type);
-            }
-        }
-        None
+    pub fn get_for_range_scope_mut(&mut self) -> Option<&mut ForRangeScope> {
+        let payload = self
+            .scope_stack
+            .iter()
+            .rev()
+            .find(|scope| scope.kind == ScopeKind::ForRange)?
+            .payload;
+        let ScopePayload::ForRange(scope) = self.scope_payloads.get_mut(payload as usize)? else {
+            panic!("for-range scope referenced non-range payload");
+        };
+        Some(scope)
     }
 }
 
@@ -738,7 +1317,7 @@ mod tests {
         let program = compile("1 + 2;", CompileOptions::default()).unwrap();
         let expected = program.main_max_stack();
         let slot = ProgramSlot {
-            program_ptr: &program as *const Program as usize,
+            program_ptr: NonZeroUsize::new(&program as *const Program as usize).unwrap(),
             global_width: program.var_names().global_width(),
             main_max_stack: expected,
             main_max_scope_depth: program.main_max_scope_depth(),

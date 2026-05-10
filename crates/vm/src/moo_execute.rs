@@ -14,7 +14,7 @@
 use crate::{
     VmHost,
     config::FeaturesConfig,
-    moo_frame::{CatchType, MooStackFrame, PcType, ScopeType},
+    moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeType},
     scatter_assign::scatter_assign,
     vm_unwind::FinallyReason,
 };
@@ -367,7 +367,7 @@ macro_rules! binary_var_op {
     };
 }
 
-fn stack_index(len: usize, depth: usize, pc: usize) -> usize {
+fn stack_index(len: usize, depth: usize, pc: u16) -> usize {
     len.checked_sub(depth + 1)
         .unwrap_or_else(|| panic!("stack underflow @ PC: {pc}"))
 }
@@ -641,10 +641,13 @@ pub fn moo_frame_execute<H: VmHost>(
         debug_assert_eq!(f.pc_type, pc_type, "pc_type changed mid-frame execution");
         let pc = f.pc;
         f.pc += 1;
-        debug_assert!(pc < opcodes_len, "PC out of range for opcode stream");
+        debug_assert!(
+            (pc as usize) < opcodes_len,
+            "PC out of range for opcode stream"
+        );
         // SAFETY: `opcodes_ptr` comes from `f.program` selected above and remains valid for this
         // execution call because we do not mutate/replace `f.program` here. `pc` is bounds-checked.
-        let op = unsafe { &*opcodes_ptr.add(pc) };
+        let op = unsafe { &*opcodes_ptr.add(pc as usize) };
 
         match op {
             Op::If(label, environment_width) => {
@@ -740,37 +743,29 @@ pub fn moo_frame_execute<H: VmHost>(
             }
             Op::IterateForSequence => {
                 // Get ForSequence scope or error early
-                let Some(ScopeType::ForSequence {
-                    sequence,
-                    current_index,
-                    current_key,
-                    value_bind,
-                    key_bind,
-                    end_label,
-                }) = f.get_for_sequence_scope_mut()
-                else {
+                let Some(scope) = f.get_for_sequence_scope_mut() else {
                     return ExecutionResult::RaiseError(
                         E_ARGS.msg("IterateForSequence without ForSequence scope"),
                     );
                 };
-                let value_bind = *value_bind;
-                let key_bind = *key_bind;
-                let is_associative = sequence.is_associative();
+                let value_bind = scope.value_bind;
+                let key_bind = scope.key_bind;
+                let is_associative = scope.sequence.is_associative();
 
                 // Bounds check using cached length (avoids dereferencing on loop end)
-                let len = sequence.len().expect("already validated as sequence");
-                if *current_index >= len {
-                    let end_lbl = *end_label;
+                let len = scope.sequence.len().expect("already validated as sequence");
+                if scope.current_index >= len {
+                    let end_lbl = scope.end_label;
                     f.jump(&end_lbl);
                     continue;
                 }
 
                 // Get next element - maps need special key iteration, sequences use direct indexing.
                 if is_associative {
-                    let TypeClass::Associative(a) = sequence.type_class() else {
+                    let TypeClass::Associative(a) = scope.sequence.type_class() else {
                         unreachable!()
                     };
-                    let next = match current_key {
+                    let next = match &scope.current_key {
                         Some(current_key) => a.next_after(current_key, false),
                         None => a.first(),
                     };
@@ -780,28 +775,29 @@ pub fn moo_frame_execute<H: VmHost>(
                     };
 
                     // Increment index for next iteration.
-                    *current_index += 1;
+                    scope.current_index += 1;
 
                     if let Some(key_bind) = key_bind {
-                        *current_key = Some(key.clone());
+                        scope.current_key = Some(key.clone());
                         f.set_variable(&value_bind, value);
                         f.set_variable(&key_bind, key);
                     } else {
-                        *current_key = Some(key);
+                        scope.current_key = Some(key);
                         f.set_variable(&value_bind, value);
                     }
                 } else {
-                    let TypeClass::Sequence(s) = sequence.type_class() else {
+                    let TypeClass::Sequence(s) = scope.sequence.type_class() else {
                         unreachable!()
                     };
-                    let value = match s.index(*current_index) {
+                    let value = match s.index(scope.current_index) {
                         Ok(v) => v,
                         Err(e) => return ExecutionResult::RaiseError(e),
                     };
 
                     // Increment index for next iteration.
-                    *current_index += 1;
-                    let key_var = key_bind.map(|key_bind| (key_bind, v_int(*current_index as i64)));
+                    scope.current_index += 1;
+                    let key_var =
+                        key_bind.map(|key_bind| (key_bind, v_int(scope.current_index as i64)));
 
                     f.set_variable(&value_bind, value);
                     if let Some((key_bind, key_value)) = key_var {
@@ -894,7 +890,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     );
                 };
                 let action = match scope {
-                    ScopeType::ForRangeInt {
+                    ForRangeScope::Int {
                         current,
                         end,
                         loop_variable,
@@ -914,7 +910,7 @@ pub fn moo_frame_execute<H: VmHost>(
                             RangeAction::Bind(*loop_variable, v_int(value))
                         }
                     }
-                    ScopeType::ForRangeFloat {
+                    ForRangeScope::Float {
                         current_bits,
                         end_bits,
                         loop_variable,
@@ -929,7 +925,7 @@ pub fn moo_frame_execute<H: VmHost>(
                             RangeAction::Bind(*loop_variable, v_float(current))
                         }
                     }
-                    ScopeType::ForRangeObj {
+                    ForRangeScope::Obj {
                         current,
                         end,
                         loop_variable,
@@ -948,11 +944,6 @@ pub fn moo_frame_execute<H: VmHost>(
                             }
                             RangeAction::Bind(*loop_variable, v_obj(Obj::mk_id(value)))
                         }
-                    }
-                    _ => {
-                        return ExecutionResult::RaiseError(
-                            E_INVARG.msg("IterateForRange without ForRange scope"),
-                        );
                     }
                 };
 
@@ -1641,10 +1632,9 @@ pub fn moo_frame_execute<H: VmHost>(
                         };
                         e.clone()
                     });
-                    f.catch_stack
-                        .push((CatchType::Errors(error_codes.into_iter().collect()), label));
+                    f.push_catch(CatchType::Errors(error_codes.into_iter().collect()), label);
                 } else if error_codes.as_integer() == Some(0) {
-                    f.catch_stack.push((CatchType::Any, label));
+                    f.push_catch(CatchType::Any, label);
                 } else {
                     panic!("Invalid error codes list");
                 }
@@ -1661,7 +1651,7 @@ pub fn moo_frame_execute<H: VmHost>(
             }
             Op::TryCatch { end_label, .. } => {
                 let end_label = *end_label;
-                let catches = std::mem::take(&mut f.catch_stack);
+                let catches = f.take_catch_stack();
                 f.push_non_var_scope(ScopeType::TryCatch(catches), &end_label);
             }
             Op::TryExcept {
@@ -1669,13 +1659,13 @@ pub fn moo_frame_execute<H: VmHost>(
                 end_label,
                 ..
             } => {
-                let catches = std::mem::take(&mut f.catch_stack);
+                let catches = f.take_catch_stack();
                 f.push_scope(ScopeType::TryCatch(catches), *environment_width, end_label);
             }
             Op::EndExcept(label) => {
                 let label = *label;
                 let handler = f.pop_scope().expect("Missing handler for try/catch/except");
-                let ScopeType::TryCatch(..) = handler.scope_type else {
+                let ScopeType::TryCatch(..) = handler else {
                     panic!("Handler is not a catch handler",);
                 };
                 f.jump(&label);
@@ -1685,7 +1675,7 @@ pub fn moo_frame_execute<H: VmHost>(
 
                 let stack_top = f.pop();
                 let handler = f.pop_scope().expect("Missing handler for try/catch/except");
-                let ScopeType::TryCatch(_) = handler.scope_type else {
+                let ScopeType::TryCatch(_) = handler else {
                     panic!("Handler is not a catch handler",);
                 };
                 f.jump(&label);
@@ -1696,14 +1686,14 @@ pub fn moo_frame_execute<H: VmHost>(
                 // fall-through into the FinallyContinue block
                 // Pop the scope that was pushed by TryFinally
                 let scope = f.pop_scope().expect("Missing scope for try/finally");
-                if !matches!(scope.scope_type, ScopeType::TryFinally(_)) {
+                if !matches!(scope, ScopeType::TryFinally(_)) {
                     panic!("EndFinally without TryFinally scope");
                 }
-                f.finally_stack.push(FinallyReason::Fallthrough);
+                f.push_finally_reason(FinallyReason::Fallthrough);
             }
             //
             Op::FinallyContinue => {
-                let why = f.finally_stack.pop().expect("Missing finally reason");
+                let why = f.pop_finally_reason().expect("Missing finally reason");
                 match why {
                     FinallyReason::Fallthrough => continue,
                     FinallyReason::Abort => {
@@ -1863,10 +1853,10 @@ pub fn moo_frame_execute<H: VmHost>(
                 let var_name = *var_name;
                 // Capture a variable from the current environment for lambda closure
                 if let Some(value) = f.get_env(&var_name) {
-                    f.capture_stack.push((var_name, value.clone()));
+                    f.push_capture(var_name, value.clone());
                 } else {
                     // Variable not found - capture None/v_none
-                    f.capture_stack.push((var_name, moor_var::v_none()));
+                    f.push_capture(var_name, moor_var::v_none());
                 }
             }
             Op::MakeLambda {
@@ -1888,7 +1878,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     vec![]
                 } else {
                     // Take the last num_captured items from the capture stack
-                    let stack_len = f.capture_stack.len();
+                    let stack_len = f.capture_stack_len();
                     if stack_len < num_captured as usize {
                         return push_error_cold(
                             E_ARGS.msg("insufficient captured variables on stack"),
@@ -1896,10 +1886,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     }
 
                     // Extract captured variables and convert to environment format
-                    let captured_vars: Vec<(Name, Var)> = f
-                        .capture_stack
-                        .drain(stack_len - num_captured as usize..)
-                        .collect();
+                    let captured_vars = f.drain_captures_from(stack_len - num_captured as usize);
 
                     build_captured_environment(&captured_vars, &lambda_program)
                 };

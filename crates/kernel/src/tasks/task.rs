@@ -270,7 +270,7 @@ impl Task {
                 continue;
             };
             if let Some(ptr) = frame.program_ptr {
-                live_ptrs.insert(ptr);
+                live_ptrs.insert(ptr.get());
             }
         }
     }
@@ -286,7 +286,7 @@ impl Task {
             && let Frame::Moo(frame) = &fork_request.activation.frame
             && let Some(ptr) = frame.program_ptr
         {
-            live_ptrs.insert(ptr);
+            live_ptrs.insert(ptr.get());
         }
 
         let reclaimed = self.program_cache.reclaim_unreferenced(&live_ptrs);

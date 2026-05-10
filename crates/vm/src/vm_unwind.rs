@@ -22,7 +22,7 @@ use moor_var::{
 
 use crate::exec_state::ExecState;
 use crate::moo_execute::ExecutionResult;
-use crate::{Activation, CatchType, Frame, MooStackFrame, ScopeType};
+use crate::{Activation, CatchType, Frame, MooStackFrame, ScopeKind, ScopeType};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum FinallyReason {
@@ -219,7 +219,7 @@ impl ExecState {
         };
 
         for scope in frame.scope_stack.iter().rev() {
-            if let ScopeType::TryCatch(catches) = &scope.scope_type
+            if let Some(catches) = frame.try_catches_for_scope(scope)
                 && catches
                     .iter()
                     .any(|catch| Self::catch_matches(&catch.0, error))
@@ -253,9 +253,12 @@ impl ExecState {
         };
 
         for scope in frame.scope_stack.iter().rev() {
-            match &scope.scope_type {
-                ScopeType::TryFinally(_) => return None,
-                ScopeType::TryCatch(catches) => {
+            match scope.kind {
+                ScopeKind::TryFinally => return None,
+                ScopeKind::TryCatch => {
+                    let catches = frame
+                        .try_catches_for_scope(scope)
+                        .expect("try/catch scope without payload");
                     for catch in catches {
                         let found = Self::catch_matches(&catch.0, error);
                         if found {
@@ -278,7 +281,7 @@ impl ExecState {
         };
 
         let handler_pc = frame.label_position(catch_label);
-        matches!(frame.opcodes().get(handler_pc), Some(Op::Pop))
+        matches!(frame.opcodes().get(handler_pc as usize), Some(Op::Pop))
     }
 
     fn catch_error_in_current_activation(&mut self, error: &Error) -> bool {
@@ -307,7 +310,7 @@ impl ExecState {
         };
 
         while let Some(scope) = frame.pop_scope() {
-            let ScopeType::TryCatch(catches) = scope.scope_type else {
+            let ScopeType::TryCatch(catches) = scope else {
                 continue;
             };
             for catch in catches {
@@ -342,10 +345,10 @@ impl ExecState {
         }
 
         while let Some(scope) = frame.pop_scope() {
-            match scope.scope_type {
+            match scope {
                 ScopeType::TryFinally(finally_label) => {
                     frame.jump(&finally_label);
-                    frame.finally_stack.push(why.clone());
+                    frame.push_finally_reason(why.clone());
                     return ActivationUnwind::Handled;
                 }
                 ScopeType::TryCatch(catches) => {

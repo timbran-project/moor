@@ -296,7 +296,8 @@ impl ActivationBenchResult {
 pub fn program_slot_for_bench(program: &moor_var::program::ProgramType) -> moor_vm::ProgramSlot {
     let moor_var::program::ProgramType::MooR(program) = program;
     moor_vm::ProgramSlot {
-        program_ptr: program as *const moor_compiler::Program as usize,
+        program_ptr: std::num::NonZeroUsize::new(program as *const moor_compiler::Program as usize)
+            .expect("program pointer must be non-null"),
         global_width: program.var_names().global_width(),
         main_max_stack: program.main_max_stack(),
         main_max_scope_depth: program.main_max_scope_depth(),

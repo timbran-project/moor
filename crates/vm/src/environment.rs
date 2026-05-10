@@ -12,7 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Contiguous environment storage for MOO stack frames.
-//! Uses a single Vec for all scopes to reduce allocations and improve cache locality.
+//! Uses a single Vec for all values and one Vec for scope layouts to reduce allocations and improve
+//! cache locality.
 //! Uninitialized slots use v_none() (all zeros) as a sentinel, enabling fast zero-fill.
 
 use moor_var::{Var, program::names::GlobalName};
@@ -20,9 +21,13 @@ use smallvec::SmallVec;
 use std::ptr;
 
 /// Inline capacity for environment values.
-/// Covers all 11 globals plus a small local working set without heap allocation.
-/// Falls back to heap for larger frames to keep MooStackFrame compact.
-const INLINE_VALUES: usize = 16;
+/// Covers the 11 global variables without carrying extra local-working-set slack in every frame.
+const INLINE_VALUES: usize = 15;
+
+/// Inline capacity for scope layouts.
+/// Covers the initial scope plus common shallow lexical nesting without keeping the older
+/// eight-scope inline footprint in every frame.
+const INLINE_SCOPES: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ScopeLayout {
@@ -32,7 +37,6 @@ struct ScopeLayout {
 
 /// Environment storage for variables in a single MOO stack frame.
 /// All scopes are stored contiguously, with metadata tracking scope boundaries.
-/// Uses SmallVec to avoid heap allocation for simple verbs.
 /// Uninitialized slots contain v_none() which is all zeros.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
@@ -40,7 +44,7 @@ pub struct Environment {
     /// v_none() values represent uninitialized slots (E_VARNF).
     values: SmallVec<[Var; INLINE_VALUES]>,
     /// Logical scope layout. Zero-width scopes are retained so compiled scope indices stay stable.
-    scopes: SmallVec<[ScopeLayout; 8]>,
+    scopes: SmallVec<[ScopeLayout; INLINE_SCOPES]>,
 }
 
 impl Environment {

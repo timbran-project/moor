@@ -17,7 +17,7 @@ use moor_var::{Obj, Symbol, Var};
 // Re-export types from moor-vm that kernel code uses.
 pub use moor_vm::FinallyReason;
 pub use moor_vm::Fork;
-pub(crate) use moor_vm::{Activation, Frame, MooStackFrame, ScopeType};
+pub(crate) use moor_vm::{Activation, Frame, MooStackFrame};
 pub use moor_vm::{CommandVerbExecutionRequest, VerbExecutionRequest};
 
 pub(crate) mod kernel_host;
@@ -125,46 +125,18 @@ fn extract_anonymous_refs_from_moo_frame(
     // 3. Scan temp variable
     extract_anonymous_refs_from_var(&frame.temp, refs);
 
-    // 4. Scan scope stack for any stored variables
-    for scope in &frame.scope_stack {
-        match &scope.scope_type {
-            ScopeType::ForSequence {
-                sequence,
-                value_bind: _,
-                key_bind: _,
-                current_index: _,
-                current_key,
-                end_label: _,
-            } => {
-                extract_anonymous_refs_from_var(sequence, refs);
-                if let Some(k) = current_key {
-                    extract_anonymous_refs_from_var(k, refs);
-                }
+    // 4. Scan scope payloads for any stored variables
+    for payload in &frame.scope_payloads {
+        if let moor_vm::ScopePayload::ForSequence(scope) = payload {
+            extract_anonymous_refs_from_var(&scope.sequence, refs);
+            if let Some(k) = &scope.current_key {
+                extract_anonymous_refs_from_var(k, refs);
             }
-            ScopeType::ForRangeInt {
-                current: _,
-                end: _,
-                loop_variable: _,
-                end_label: _,
-            }
-            | ScopeType::ForRangeFloat {
-                current_bits: _,
-                end_bits: _,
-                loop_variable: _,
-                end_label: _,
-            }
-            | ScopeType::ForRangeObj {
-                current: _,
-                end: _,
-                loop_variable: _,
-                end_label: _,
-            } => {}
-            _ => {} // Other scope types don't store variables we can scan
         }
     }
 
     // 5. Scan capture stack
-    for (_name, var) in &frame.capture_stack {
+    for (_name, var) in frame.capture_stack() {
         extract_anonymous_refs_from_var(var, refs);
     }
 }

@@ -212,7 +212,8 @@ impl TaskProgramCache {
             .program_for_slot(slot)
             .expect("Invalid program slot in task program cache");
         ProgramSlot {
-            program_ptr: program as *const Program as usize,
+            program_ptr: std::num::NonZeroUsize::new(program as *const Program as usize)
+                .expect("cached program pointer must be non-null"),
             global_width: program.var_names().global_width(),
             main_max_stack: program.main_max_stack(),
             main_max_scope_depth: program.main_max_scope_depth(),
