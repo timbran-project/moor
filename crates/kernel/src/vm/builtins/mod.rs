@@ -43,9 +43,7 @@ use crate::{
         vm_host::ExecutionResult,
     },
 };
-use fast_telemetry::{
-    DynamicCounter, DynamicCounterSeries, DynamicHistogram, DynamicHistogramSeries, ExportMetrics,
-};
+use fast_telemetry::{Counter, Histogram, MetricKind, MetricLabel, MetricLabels, MetricMeta};
 use moor_common::model::{Perms, WorldStateError};
 use moor_common::util::hot_stride;
 use moor_compiler::{BUILTINS, BuiltinId, DiagnosticRenderOptions, DiagnosticVerbosity};
@@ -85,28 +83,18 @@ thread_local! {
     static BF_COUNTERS_TLS: &'static BfCounters = &BF_COUNTERS;
 }
 
-#[derive(ExportMetrics)]
-#[metric_prefix = "bf"]
-pub struct BfMetrics {
-    #[help = "Builtin function calls"]
-    calls: DynamicCounter,
-    #[help = "Builtin function sampled latency in nanoseconds"]
-    samples: DynamicHistogram,
-}
-
 pub struct BfTimer {
-    calls: Option<DynamicCounterSeries>,
-    samples: Option<DynamicHistogramSeries>,
+    calls: Option<Counter>,
+    samples: Option<Histogram>,
     stride_mask: u64,
 }
 
 pub struct BfTimerGuard<'a> {
-    samples: Option<&'a DynamicHistogramSeries>,
+    samples: Option<&'a Histogram>,
     start: Option<Instant>,
 }
 
 pub struct BfCounters {
-    metrics: BfMetrics,
     timers: Vec<BfTimer>,
 }
 
@@ -118,17 +106,15 @@ impl Default for BfCounters {
 
 impl BfCounters {
     pub fn new() -> Self {
-        let metrics = BfMetrics::new();
         let mut timers = Vec::with_capacity(BUILTINS.number_of());
         let stride_mask = hot_stride().max(1).next_power_of_two() - 1;
         for index in 0..BUILTINS.number_of() {
             let id = BuiltinId(index as u16);
             let desc = BUILTINS.description_for(id).expect("Builtin not found");
-            let labels = [("op", desc.name.as_str())];
             let (calls, samples) = if desc.exposed {
                 (
-                    Some(metrics.calls.series(&labels)),
-                    Some(metrics.samples.series(&labels)),
+                    Some(Counter::new(16)),
+                    Some(Histogram::new(BF_SAMPLE_BOUNDS_NANOS, 16)),
                 )
             } else {
                 (None, None)
@@ -139,7 +125,7 @@ impl BfCounters {
                 stride_mask,
             });
         }
-        Self { metrics, timers }
+        Self { timers }
     }
 
     pub fn timer_for(&self, id: BuiltinId) -> &BfTimer {
@@ -147,7 +133,34 @@ impl BfCounters {
     }
 
     pub fn visit_metrics<V: fast_telemetry::MetricVisitor + ?Sized>(&self, visitor: &mut V) {
-        self.metrics.visit_metrics(visitor);
+        let call_meta = MetricMeta {
+            name: "bf_calls",
+            help: "Builtin function calls",
+            kind: MetricKind::Counter,
+            unit: None,
+        };
+        let sample_meta = MetricMeta {
+            name: "bf_samples",
+            help: "Builtin function sampled latency in nanoseconds",
+            kind: MetricKind::Histogram,
+            unit: Some("ns"),
+        };
+
+        for (index, timer) in self.timers.iter().enumerate() {
+            let Some(calls) = timer.calls.as_ref() else {
+                continue;
+            };
+            let id = BuiltinId(index as u16);
+            let desc = BUILTINS.description_for(id).expect("Builtin not found");
+            let labels = MetricLabels::one(MetricLabel {
+                name: "op",
+                value: desc.name.as_str(),
+            });
+            visitor.counter(call_meta, labels, calls.sum() as i64);
+            if let Some(samples) = timer.samples.as_ref() {
+                visitor.histogram(sample_meta, labels, samples);
+            }
+        }
     }
 }
 
@@ -155,31 +168,21 @@ pub fn bf_perf_counters() -> &'static BfCounters {
     BF_COUNTERS_TLS.with(|c| *c)
 }
 
-impl BfMetrics {
-    fn new() -> Self {
-        Self {
-            calls: DynamicCounter::new(16),
-            samples: DynamicHistogram::new(
-                &[
-                    10_000,         // 10µs
-                    50_000,         // 50µs
-                    100_000,        // 100µs
-                    500_000,        // 500µs
-                    1_000_000,      // 1ms
-                    5_000_000,      // 5ms
-                    10_000_000,     // 10ms
-                    50_000_000,     // 50ms
-                    100_000_000,    // 100ms
-                    500_000_000,    // 500ms
-                    1_000_000_000,  // 1s
-                    5_000_000_000,  // 5s
-                    10_000_000_000, // 10s
-                ],
-                16,
-            ),
-        }
-    }
-}
+const BF_SAMPLE_BOUNDS_NANOS: &[u64] = &[
+    10_000,         // 10µs
+    50_000,         // 50µs
+    100_000,        // 100µs
+    500_000,        // 500µs
+    1_000_000,      // 1ms
+    5_000_000,      // 5ms
+    10_000_000,     // 10ms
+    50_000_000,     // 50ms
+    100_000_000,    // 100ms
+    500_000_000,    // 500ms
+    1_000_000_000,  // 1s
+    5_000_000_000,  // 5s
+    10_000_000_000, // 10s
+];
 
 impl BfTimer {
     #[inline]
