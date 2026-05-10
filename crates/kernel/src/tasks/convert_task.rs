@@ -939,17 +939,7 @@ fn scope_from_ref(fb: fb::ScopeRef<'_>) -> Result<DecodedScope, TaskConversionEr
 pub(crate) fn moo_stack_frame_to_flatbuffer(
     frame: &KernelMooStackFrame,
 ) -> Result<fb::MooStackFrame, TaskConversionError> {
-    let program = if let Some(program) = frame.program.as_ref() {
-        program
-    } else if let Some(program_ptr) = frame.program_ptr {
-        // SAFETY: program_ptr is set from task-owned program cache and is valid
-        // for the lifetime of this task while serializing.
-        unsafe { &*(program_ptr.get() as *const moor_compiler::Program) }
-    } else {
-        return Err(TaskConversionError::ProgramError(
-            "MooStackFrame missing both materialized program and program_ptr".to_string(),
-        ));
-    };
+    let program = frame.program_ref();
     let fb_program = encode_program_to_fb(program)
         .map_err(|e| TaskConversionError::ProgramError(format!("Error encoding program: {e}")))?;
 
@@ -2071,7 +2061,7 @@ pub fn suspended_task_from_ref(
 mod tests {
     use super::*;
     use crate::tasks::task_program_cache::ProgramSlot;
-    use moor_compiler::{CompileOptions, Program, compile};
+    use moor_compiler::{CompileOptions, compile};
     use moor_var::{NOTHING, SYSTEM_OBJECT, v_empty_list, v_empty_str, v_obj, v_symbol_str};
 
     #[test]
@@ -2079,10 +2069,8 @@ mod tests {
         let program = compile("return 1;", CompileOptions::default()).unwrap();
         let boxed_program = Box::new(program);
         let slot = ProgramSlot {
-            program_ptr: std::num::NonZeroUsize::new(
-                boxed_program.as_ref() as *const Program as usize
-            )
-            .unwrap(),
+            // SAFETY: boxed_program remains alive until after the slot-backed frame serializes.
+            program_ptr: unsafe { moor_vm::CachedProgramPtr::from_program(boxed_program.as_ref()) },
             global_width: boxed_program.var_names().global_width(),
             main_max_stack: boxed_program.main_max_stack(),
             main_max_scope_depth: boxed_program.main_max_scope_depth(),

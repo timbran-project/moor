@@ -19,7 +19,7 @@ use fast_telemetry::{DeriveLabel, LabeledCounter};
 use moor_common::model::{VerbProgramKey, WorldState, WorldStateError};
 use moor_compiler::Program;
 use moor_var::{Obj, program::ProgramType};
-pub use moor_vm::ProgramSlot;
+pub use moor_vm::{CachedProgramPtr, ProgramSlot};
 
 #[derive(Debug)]
 struct CachedProgramSlot {
@@ -212,8 +212,9 @@ impl TaskProgramCache {
             .program_for_slot(slot)
             .expect("Invalid program slot in task program cache");
         ProgramSlot {
-            program_ptr: std::num::NonZeroUsize::new(program as *const Program as usize)
-                .expect("cached program pointer must be non-null"),
+            // SAFETY: the program lives in a boxed cache slot and the cache keeps that allocation
+            // stable while frames can hold the pointer.
+            program_ptr: unsafe { CachedProgramPtr::from_program(program) },
             global_width: program.var_names().global_width(),
             main_max_stack: program.main_max_stack(),
             main_max_scope_depth: program.main_max_scope_depth(),

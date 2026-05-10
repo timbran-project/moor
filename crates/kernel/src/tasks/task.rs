@@ -269,8 +269,8 @@ impl Task {
             let Frame::Moo(frame) = &activation.frame else {
                 continue;
             };
-            if let Some(ptr) = frame.program_ptr {
-                live_ptrs.insert(ptr.get());
+            if let Some(ptr) = frame.cached_program_ptr() {
+                live_ptrs.insert(ptr.addr());
             }
         }
     }
@@ -284,9 +284,9 @@ impl Task {
 
         if let TaskStart::StartFork { fork_request, .. } = self.state.task_start()
             && let Frame::Moo(frame) = &fork_request.activation.frame
-            && let Some(ptr) = frame.program_ptr
+            && let Some(ptr) = frame.cached_program_ptr()
         {
-            live_ptrs.insert(ptr.get());
+            live_ptrs.insert(ptr.addr());
         }
 
         let reclaimed = self.program_cache.reclaim_unreferenced(&live_ptrs);

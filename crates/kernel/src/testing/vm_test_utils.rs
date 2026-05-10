@@ -296,8 +296,8 @@ impl ActivationBenchResult {
 pub fn program_slot_for_bench(program: &moor_var::program::ProgramType) -> moor_vm::ProgramSlot {
     let moor_var::program::ProgramType::MooR(program) = program;
     moor_vm::ProgramSlot {
-        program_ptr: std::num::NonZeroUsize::new(program as *const moor_compiler::Program as usize)
-            .expect("program pointer must be non-null"),
+        // SAFETY: the benchmark keeps the compiled program alive for the duration of the frame.
+        program_ptr: unsafe { moor_vm::CachedProgramPtr::from_program(program) },
         global_width: program.var_names().global_width(),
         main_max_stack: program.main_max_stack(),
         main_max_scope_depth: program.main_max_scope_depth(),

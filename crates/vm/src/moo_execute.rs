@@ -591,11 +591,6 @@ pub fn moo_frame_execute<H: VmHost>(
     f: &mut MooStackFrame,
     features_config: &FeaturesConfig,
 ) -> ExecutionResult {
-    debug_assert!(
-        f.program.is_some() || f.program_ptr.is_some(),
-        "MooStackFrame missing both materialized program and program_ptr before execute"
-    );
-
     // Unprogrammed verbs have empty opcodes - return 0/false to caller (LambdaMOO compat).
     if f.opcodes().is_empty() {
         let ret_val = if features_config.use_boolean_returns {
@@ -645,8 +640,8 @@ pub fn moo_frame_execute<H: VmHost>(
             (pc as usize) < opcodes_len,
             "PC out of range for opcode stream"
         );
-        // SAFETY: `opcodes_ptr` comes from `f.program` selected above and remains valid for this
-        // execution call because we do not mutate/replace `f.program` here. `pc` is bounds-checked.
+        // SAFETY: `opcodes_ptr` comes from the frame program selected above and remains valid for
+        // this execution call because we do not mutate/replace it here. `pc` is bounds-checked.
         let op = unsafe { &*opcodes_ptr.add(pc as usize) };
 
         match op {

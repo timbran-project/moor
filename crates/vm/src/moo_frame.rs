@@ -12,16 +12,6 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::environment::Environment;
-
-/// Stable handle to a program residing in a task-local program cache.
-/// The pointer is valid for the duration of the owning task's transaction.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ProgramSlot {
-    pub program_ptr: NonZeroUsize,
-    pub global_width: usize,
-    pub main_max_stack: usize,
-    pub main_max_scope_depth: usize,
-}
 use crate::vm_unwind::FinallyReason;
 use moor_compiler::{Label, Op, Program};
 use moor_var::{
@@ -37,13 +27,62 @@ use std::sync::LazyLock;
 use std::{cmp::max, num::NonZeroUsize};
 use strum::EnumCount;
 
+/// Stable pointer to a program held by a task-local program cache.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CachedProgramPtr(NonZeroUsize);
+
+impl CachedProgramPtr {
+    /// Build a cached-program pointer from a program reference.
+    ///
+    /// # Safety
+    ///
+    /// The referenced program must remain at the same address for as long as any frame can hold
+    /// this pointer.
+    #[inline]
+    pub unsafe fn from_program(program: &Program) -> Self {
+        let ptr = program as *const Program as usize;
+        Self(NonZeroUsize::new(ptr).expect("Program pointers are non-null"))
+    }
+
+    #[inline]
+    pub fn addr(self) -> usize {
+        self.0.get()
+    }
+
+    #[inline]
+    fn program_ref(self) -> &'static Program {
+        // SAFETY: CachedProgramPtr is only constructed from a Program reference stored in the
+        // task-local program cache. The cache keeps that allocation stable while a frame can hold
+        // the pointer.
+        unsafe { &*(self.0.get() as *const Program) }
+    }
+}
+
+/// Stable handle to a program residing in a task-local program cache.
+/// The pointer is valid for the duration of the owning task's transaction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProgramSlot {
+    pub program_ptr: CachedProgramPtr,
+    pub global_width: usize,
+    pub main_max_stack: usize,
+    pub main_max_scope_depth: usize,
+}
+
+/// Program backing for a frame.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FrameProgram {
+    /// Program owned by the frame, used for serialized/suspended frames and direct construction.
+    Materialized(Program),
+    /// Pointer into a task-local program cache.
+    Cached(CachedProgramPtr),
+}
+
 /// The MOO stack-frame specific portions of the activation:
 ///   the value stack, local variables, program, program counter, handler stack, etc.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MooStackFrame {
     /// The program of the verb that is currently being executed.
-    pub program: Option<Program>,
-    pub program_ptr: Option<NonZeroUsize>,
+    pub program: FrameProgram,
     /// The program counter.
     pub pc: u16,
     /// Where is the PC pointing to?
@@ -235,14 +274,6 @@ impl MooStackFrame {
         Self::scope_stack_for_max_depth(program.main_max_scope_depth())
     }
 
-    #[inline]
-    fn debug_assert_resolvable_program(&self) {
-        debug_assert!(
-            self.program.is_some() || self.program_ptr.is_some(),
-            "MooStackFrame missing both materialized program and program_ptr"
-        );
-    }
-
     /// Create a new MOO stack frame with default environment.
     #[allow(dead_code)]
     pub fn new(program: Program) -> Self {
@@ -250,8 +281,7 @@ impl MooStackFrame {
         let valstack = Self::main_valstack_for_program(&program);
         let scope_stack = Self::main_scope_stack_for_program(&program);
         Self {
-            program: Some(program),
-            program_ptr: None,
+            program: FrameProgram::Materialized(program),
             environment: Environment::with_initial_scope(width),
             pc: 0,
             pc_type: PcType::Main,
@@ -278,8 +308,7 @@ impl MooStackFrame {
         let valstack = Self::main_valstack_for_program(&program);
         let scope_stack = Self::main_scope_stack_for_program(&program);
         Self {
-            program: Some(program),
-            program_ptr: None,
+            program: FrameProgram::Materialized(program),
             environment: Environment::with_call_globals(
                 player, this, caller, verb, args, argstr, width,
             ),
@@ -308,8 +337,7 @@ impl MooStackFrame {
         let valstack = Self::main_valstack_for_program(&program);
         let scope_stack = Self::main_scope_stack_for_program(&program);
         Self {
-            program: Some(program),
-            program_ptr: None,
+            program: FrameProgram::Materialized(program),
             environment: Environment::with_call_globals_copy_parsing(
                 player,
                 this,
@@ -359,8 +387,7 @@ impl MooStackFrame {
         };
 
         Self {
-            program: Some(program),
-            program_ptr: None,
+            program: FrameProgram::Materialized(program),
             environment: env,
             pc: 0,
             pc_type: PcType::Main,
@@ -374,12 +401,10 @@ impl MooStackFrame {
 
     #[inline]
     fn resolved_program_ptr(&self) -> *const Program {
-        if let Some(program) = &self.program {
-            return program as *const Program;
+        match &self.program {
+            FrameProgram::Materialized(program) => program as *const Program,
+            FrameProgram::Cached(ptr) => ptr.addr() as *const Program,
         }
-        self.program_ptr
-            .map(|ptr| ptr.get() as *const Program)
-            .expect("MooStackFrame missing both program and program_ptr")
     }
 
     #[inline]
@@ -391,39 +416,31 @@ impl MooStackFrame {
 
     #[inline]
     fn try_resolved_program(&self) -> Option<&Program> {
-        if let Some(program) = &self.program {
-            return Some(program);
-        }
-        let ptr = self.program_ptr?.get() as *const Program;
-        // SAFETY: pointer refers to the task-owned program cache or frame-owned program.
-        Some(unsafe { &*ptr })
+        Some(self.resolved_program())
     }
 
     pub fn program_ref(&self) -> &Program {
-        self.debug_assert_resolvable_program();
         self.resolved_program()
     }
 
-    pub fn materialize_program_from_slot(&mut self) {
-        self.debug_assert_resolvable_program();
-        if self.program.is_some() {
-            self.program_ptr = None;
-            return;
+    #[inline]
+    pub fn cached_program_ptr(&self) -> Option<CachedProgramPtr> {
+        match &self.program {
+            FrameProgram::Materialized(_) => None,
+            FrameProgram::Cached(ptr) => Some(*ptr),
         }
-        let Some(ptr) = self.program_ptr else {
+    }
+
+    pub fn materialize_program_from_slot(&mut self) {
+        let FrameProgram::Cached(ptr) = &self.program else {
             return;
         };
-        // SAFETY: program_ptr points to a stable allocation in task-owned program cache.
-        self.program = Some(unsafe { (&*(ptr.get() as *const Program)).clone() });
-        self.program_ptr = None;
+        let program = ptr.program_ref().clone();
+        self.program = FrameProgram::Materialized(program);
     }
 
     pub fn materialize_program_for_handoff(&mut self) {
-        self.debug_assert_resolvable_program();
-        if self.program.is_none() {
-            self.program = Some(self.program_ref().clone());
-        }
-        self.program_ptr = None;
+        self.materialize_program_from_slot();
     }
 
     pub fn new_with_all_globals_from_slot(
@@ -439,8 +456,7 @@ impl MooStackFrame {
         let valstack = Self::valstack_for_max_depth(program_slot.main_max_stack);
         let scope_stack = Self::scope_stack_for_max_depth(program_slot.main_max_scope_depth);
         Self {
-            program: None,
-            program_ptr: Some(program_slot.program_ptr),
+            program: FrameProgram::Cached(program_slot.program_ptr),
             environment: Environment::with_call_globals(
                 player, this, caller, verb, args, argstr, width,
             ),
@@ -467,8 +483,7 @@ impl MooStackFrame {
         let valstack = Self::valstack_for_max_depth(program_slot.main_max_stack);
         let scope_stack = Self::scope_stack_for_max_depth(program_slot.main_max_scope_depth);
         Self {
-            program: None,
-            program_ptr: Some(program_slot.program_ptr),
+            program: FrameProgram::Cached(program_slot.program_ptr),
             environment: Environment::with_call_globals_copy_parsing(
                 player,
                 this,
@@ -1317,7 +1332,8 @@ mod tests {
         let program = compile("1 + 2;", CompileOptions::default()).unwrap();
         let expected = program.main_max_stack();
         let slot = ProgramSlot {
-            program_ptr: NonZeroUsize::new(&program as *const Program as usize).unwrap(),
+            // SAFETY: program remains alive until after the slot-backed frame is constructed.
+            program_ptr: unsafe { CachedProgramPtr::from_program(&program) },
             global_width: program.var_names().global_width(),
             main_max_stack: expected,
             main_max_scope_depth: program.main_max_scope_depth(),
