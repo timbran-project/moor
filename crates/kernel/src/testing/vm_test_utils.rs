@@ -21,7 +21,7 @@ use moor_common::util::BitEnum;
 use moor_compiler::Program;
 use moor_var::{
     List, Obj, SYSTEM_OBJECT, Symbol, Var, program::names::GlobalName, v_empty_list, v_empty_str,
-    v_obj, v_symbol_str,
+    v_int, v_obj, v_symbol_str,
 };
 use strum::EnumCount;
 
@@ -32,12 +32,102 @@ use crate::{
         NoopTasksDb, scheduler::Scheduler, task_program_cache::TaskProgramCache,
         task_scheduler_client::TaskSchedulerClient,
     },
-    vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
+    vm::{
+        VMHostResponse,
+        builtins::{BfCallState, BfErr, BfRet, BuiltinRegistry},
+        vm_call::{ExecStateBuiltinExt, VmExecParams},
+        vm_host::VmHost,
+    },
 };
 
 use moor_common::tasks::{Exception, NoopSystemControl, Session};
+use moor_compiler::BUILTINS;
+use moor_vm::{ExecutionResult, FinallyReason, Frame};
 
 pub type ExecResult = Result<Var, Exception>;
+
+fn pop_benchmark_builtin_return(vm_host: &mut VmHost) {
+    let exec_state = vm_host.vm_exec_state_mut();
+    let Frame::Moo(frame) = &mut exec_state.top_mut().frame else {
+        panic!("benchmark builtin dispatch left a non-MOO frame on top");
+    };
+    let _ = frame.pop();
+}
+
+pub fn benchmark_builtin_call_function(
+    vm_host: &mut VmHost,
+    builtins: &BuiltinRegistry,
+    config: &FeaturesConfig,
+    session: &dyn Session,
+    builtin: moor_compiler::BuiltinId,
+    args: &List,
+    iterations: usize,
+) -> usize {
+    let exec_params = VmExecParams {
+        builtin_registry: builtins,
+        max_stack_depth: 20,
+        config,
+    };
+
+    for _ in 0..iterations {
+        let result = vm_host.vm_exec_state_mut().call_builtin_function(
+            builtin,
+            args.clone(),
+            &exec_params,
+            session,
+        );
+        match result {
+            ExecutionResult::More => pop_benchmark_builtin_return(vm_host),
+            other => panic!("unexpected builtin dispatch result: {other:?}"),
+        }
+    }
+
+    iterations
+}
+
+pub fn benchmark_builtin_direct_function(
+    vm_host: &mut VmHost,
+    builtins: &BuiltinRegistry,
+    config: &FeaturesConfig,
+    builtin: moor_compiler::BuiltinId,
+    args: &List,
+    iterations: usize,
+) -> usize {
+    let bf = builtins.builtin_for(&builtin);
+    let bf_name = BUILTINS
+        .description_for(builtin)
+        .expect("builtin not found")
+        .name;
+
+    for _ in 0..iterations {
+        let result = {
+            let mut bf_args = BfCallState {
+                exec_state: vm_host.vm_exec_state_mut(),
+                name: bf_name,
+                args,
+                config,
+            };
+            bf(&mut bf_args)
+        };
+
+        let return_value = match result {
+            Ok(BfRet::Ret(value)) => value,
+            Ok(BfRet::RetNil) => v_int(0),
+            Err(BfErr::ErrValue(error)) | Err(BfErr::Raise(error)) => {
+                panic!("unexpected builtin error: {error:?}")
+            }
+            Err(BfErr::Code(code)) => panic!("unexpected builtin error code: {code:?}"),
+            Err(BfErr::Rollback) => panic!("unexpected builtin rollback"),
+            Ok(BfRet::VmInstr(ExecutionResult::Unwind(FinallyReason::Return(value)))) => value,
+            Ok(_) => panic!("unexpected builtin result"),
+        };
+
+        vm_host.vm_exec_state_mut().set_return_value(return_value);
+        pop_benchmark_builtin_return(vm_host);
+    }
+
+    iterations
+}
 
 /// Create a minimal Scheduler for test contexts where scheduler methods are
 /// never (or rarely) called — e.g. VM-level tests that drive VmHost directly.

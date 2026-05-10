@@ -67,6 +67,10 @@ harness = false
 name = "property_dispatch_bench"
 harness = false
 
+[[bench]]
+name = "builtin_dispatch_bench"
+harness = false
+
 [dependencies]
 # Internal Dependencies
 moor-builtin-docs-macro = { path = "../builtin-docs-macro" }
