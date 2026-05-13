@@ -728,7 +728,7 @@ object STR_PROTO
     verbname = s[colon + 1..$];
     object && verbname || return false;
     if (object[1] == "$")
-      pname = object[2..$];
+      pname = tosym(object[2..$]);
       if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != TYPE_OBJ)
         return false;
       endif
