@@ -64,23 +64,22 @@ by many reasons, which I need not go into here. But I feel that it is
 has overall served the project well, and allowed me to develop with
 confidence.
 
-It is now the winter of 2025, and the project that I began over two
-years ago is in its 1.0-beta phase, with the 1.0 stable release coming
-soon. Many hundreds of hours have gone into development -- not just
-by myself, but by others who have put immense effort into developing and
-testing and suggesting. The core runtime and database formats are now
-stable, and we've entered a feature-freeze period focused on bug fixes,
-documentation, and performance optimization. Thanks goes not just to
-those contributors, but to the original authors and users of LambdaMOO,
-Stunt, ToastStunt, and to the adjacent projects and communities I (and
-others) was a part of over the years, in particular Stephen White's
-CoolMUD and Greg Hudson's ColdMUD -- ideas from those systems have made
-their way into mooR as well.
+It is now June 2026, and the project that I began over three years ago
+has reached its first stable 1.0 release. Many hundreds of hours have
+gone into development -- not just by myself, but by others who have put
+immense effort into developing and testing and suggesting. The core
+runtime and database formats are stable for the 1.0 release line, and
+active next-version development now continues separately on `main`.
+Thanks goes not just to those contributors, but to the original authors
+and users of LambdaMOO, Stunt, ToastStunt, and to the adjacent projects
+and communities I (and others) was a part of over the years, in
+particular Stephen White's CoolMUD and Greg Hudson's ColdMUD -- ideas
+from those systems have made their way into mooR as well.
 
 I hope you, the reader, enjoy the system we've put together. Even more
 so I welcome your contributions and suggestions. If you find value in
 mooR and would like to support its ongoing development, please consider
 [sponsoring the project](https://github.com/sponsors/rdaum).
 
-Ryan Daum (written on an airplane flying over the Canadian prairies,
-Feb 5, 2025)
+Ryan Daum (originally written on an airplane flying over the Canadian
+prairies, Feb 5, 2025; updated for the 1.0 release, June 2026)

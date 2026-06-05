@@ -40,7 +40,8 @@ sudo apt install moor-daemon moor-telnet-host moor-web-host moor-web-client
 
 **Option 2: Download from Releases**
 
-Download pre-built `.deb` packages from the [mooR Codeberg releases page](https://codeberg.org/timbran/moor/releases):
+Download pre-built `.deb` packages from the
+[mooR 1.0.0 Codeberg release](https://codeberg.org/timbran/moor/releases/tag/1.0.0):
 
 ```bash
 sudo dpkg -i moor-*.deb
@@ -61,7 +62,7 @@ sudo dpkg -i ../../target/debian/moor-*.deb
 
 For detailed installation, configuration, service management, testing, and troubleshooting:
 
-**→ See [`deploy/debian-packages/README.md`](https://codeberg.org/timbran/moor/src/branch/main/deploy/debian-packages/README.md)**
+**→ See [`deploy/debian-packages/README.md`](https://codeberg.org/timbran/moor/src/branch/v1.0-release/deploy/debian-packages/README.md)**
 
 This includes:
 - Complete installation and post-installation configuration

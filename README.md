@@ -12,17 +12,15 @@ mooR is a modern, from-scratch rewrite of [LambdaMOO](https://en.wikipedia.org/w
 maintaining full compatibility with existing LambdaMOO 1.8.x databases while adding significant
 enhancements.
 
-📖 **For comprehensive documentation, see our [mooR Book](https://timbran.org/book/html/).**
-
-> **⚠️ Release Status:**
-> [`1.0.0-rc2`](https://codeberg.org/timbran/moor/releases/tag/1.0.0-rc2) has been released on the
-> `v1.0-release` branch. Use that branch, the Releases tab, or published images if you want the
-> stabilized release line. `main` now tracks `1.1.0-dev` with more aggressive feature development
-> (VM extraction, scheduler rewrite, batch APIs, WebRTC). See the [Status](#status) section below
-> for details.
+> **Which version should I use?**
 >
-> See the
-> [full announcement blog post for more...](https://timbran.org/announcing-moor-1-0-beta1.html)
+> Use the stable [`1.0.0` release](https://codeberg.org/timbran/moor/releases/tag/1.0.0), the
+> `v1.0-release` branch, or published `1.0.0` images/packages for running worlds and evaluating
+> mooR. `main` tracks `1.1.0-dev` and contains active next-version development work.
+>
+> See the [Status](#status) section below for the branch policy.
+
+📖 **For comprehensive documentation, see our [mooR Book](https://timbran.org/book/html/).**
 
 > **📦 Repository Migration Notice (August 2025):** We've recently moved our primary repository from
 > GitHub to [Codeberg](https://codeberg.org/timbran/moor). If you're viewing this on GitHub, please
@@ -88,18 +86,18 @@ To see a live running instance, visit our demonstrator community at
 
 ## Status
 
-mooR `1.0.0-rc2` has been released. The core runtime and database formats are stable. It
-successfully runs databases imported from LambdaMOO with real-world workloads and has passed
-extensive stress and performance testing. `main` now tracks `1.1.0-dev` development.
+mooR [`1.0.0`](https://codeberg.org/timbran/moor/releases/tag/1.0.0) is the current stable release.
+The core runtime and database formats are stable for the 1.0 series. It successfully runs databases
+imported from LambdaMOO with real-world workloads and has passed extensive stress and performance
+testing.
 
 **Branch policy**:
 
-- `v1.0-release` branch: stable `1.0` release line (`1.0.0-rc2` and subsequent patch releases)
-- `main` branch: `1.1.0-dev` feature development (runtime and database optimizations, WebRTC
-  extensions, compiler rework for performance, batch world state APIs, new builtins)
+- `v1.0-release` branch: stable `1.0` release line for bug fixes, stability work, and patch releases
+- `main` branch: `1.1.0-dev` feature development
 - Bug fixes land on `main` first, then are cherry-picked to `v1.0-release` when safe
-- Release tags and published images are cut from `v1.0-release`
-- Database formats and APIs are stable on the release branch
+- Stable release tags, packages, and published images are cut from `v1.0-release`
+- Database formats and APIs are stable on the 1.0 release branch
 
 **Repository**: The primary mooR repository is hosted on
 [Codeberg](https://codeberg.org/timbran/moor) with a mirror on GitHub. All issues filed and pull
@@ -277,7 +275,9 @@ mooR offers several opportunities for contribution. For detailed contribution gu
 
 Found a bug or have a feature request? Please file an issue on our
 [Codeberg issue tracker](https://codeberg.org/timbran/moor/issues). Bug reports from `main` are
-welcome, but if you're looking for stability, use the `v1.0-release` branch.
+welcome, but if you're running a world or evaluating mooR for stability, use the
+[`1.0.0` release](https://codeberg.org/timbran/moor/releases/tag/1.0.0) or the `v1.0-release`
+branch.
 
 When reporting bugs, please include:
 
@@ -300,8 +300,8 @@ When reporting bugs, please include:
 
 ## License
 
-mooR is licensed under the GNU Affero General Public License v3.0. See
-[LICENSE](./LICENSE) for details.
+mooR is licensed under the GNU Affero General Public License v3.0. See [LICENSE](./LICENSE) for
+details.
 
 mooR is intended to be run as a networked multi-user system, not only as a local program. For that
 reason, the project uses the AGPL rather than the GPL: if someone modifies mooR and runs that
@@ -310,8 +310,8 @@ available under the same terms.
 
 Running your own database, world, MUD, or MOO on top of mooR does not transfer ownership of that
 database or its contents to the mooR project or its author. The relevant copyleft obligation is
-about modifications to mooR itself, or reuse of mooR code in another project, not about ownership
-of the world data or creative content you host with it.
+about modifications to mooR itself, or reuse of mooR code in another project, not about ownership of
+the world data or creative content you host with it.
 
 This applies to the main mooR software in this repository. Documentation in `book/`, core database
 content in `cores/`, and separately published client and schema libraries in `clients/` and
