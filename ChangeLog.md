@@ -5,6 +5,23 @@ All notable changes to mooR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-06-04
+
+### Stable 1.0 release
+
+This is the first stable 1.0 release of mooR. It promotes the 1.0 release candidate line after a
+month of soak time following `1.0.0-rc.2`, with no reported regressions requiring code changes.
+
+The major 1.0 changes are documented in the release candidate sections below, especially
+`1.0.0-rc.1` for the database migration and `1.0.0-rc.2` for the final release-branch fixes.
+
+### Changed
+
+`infra`:
+
+- Refreshed Cargo dependencies after a month of release candidate soak time with no reported
+  regressions
+
 ## [1.0.0-rc.2] - 2026-05-08
 
 ### Changed

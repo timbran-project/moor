@@ -12,15 +12,11 @@ mooR is a modern, from-scratch rewrite of [LambdaMOO](https://en.wikipedia.org/w
 maintaining full compatibility with existing LambdaMOO 1.8.x databases while adding significant
 enhancements.
 
-📖 **For comprehensive documentation, see our [mooR Book](https://timbran.org/book/html/).**
+📖 **For documentation, see our [mooR Book](https://timbran.org/book/html/).**
 
-> **⚠️ 1.0-Beta Release:** mooR is in the 1.0-beta series, with stable database formats and APIs. If
-> you are reading `main`, you're looking at pre-release/next-version work; stable releases live on
-> the `1.0` release branch (with beta tags cut from it) and in the Releases tab / published images.
-> See the [Status](#status) section below for details.
->
-> See the
-> [full announcement blog post for more...](https://timbran.org/announcing-moor-1-0-beta1.html)
+> **mooR 1.0.0:** mooR has reached its first stable 1.0 release. Stable releases live on the `1.0`
+> release branch and in the Releases tab / published images. If you are reading `main`, you are
+> looking at next-version development work. See the [Status](#status) section below for details.
 
 > **📦 Repository Migration Notice (August 2025):** We've recently moved our primary repository from
 > GitHub to [Codeberg](https://codeberg.org/timbran/moor). If you're viewing this on GitHub, please
@@ -86,19 +82,17 @@ To see a live running instance, visit our demonstrator community at
 
 ## Status
 
-mooR is in the **1.0-beta** series, focusing on stability, bug fixes, and documentation. The core
-runtime and database formats are considered "stable" but churn may still happen. It successfully
-runs databases imported from LambdaMOO with real-world workloads and has passed extensive stress and
-performance testing.
+mooR is in the **1.0 stable** series. The core runtime and database formats are stable for this
+release line, and it successfully runs databases imported from LambdaMOO with real-world workloads
+and extensive stress and performance testing.
 
-**Beta series policy**:
+**Release branch policy**:
 
-- `main` branch: pre-release/next-version development (new features land here first)
+- `main` branch: next-version development (new features land here first)
 - `1.0` branch: stable release line (bug fixes, stability improvements, documentation)
 - Bug fixes land on `main` first, then are cherry-picked to `1.0` when safe
-- Beta tags are cut from the `1.0` branch; releases and images publish from there
-- Database formats and APIs are now stable
-- Ready for testing and feedback from users
+- Stable tags are cut from the `1.0` branch; releases and images publish from there
+- Database formats and APIs are stable for the 1.0 series
 
 **Repository**: The primary mooR repository is hosted on
 [Codeberg](https://codeberg.org/timbran/moor) with a mirror on GitHub. All issues filed and pull
