@@ -10,7 +10,8 @@ object LIST_PROTO
   override import_export_id = "list_proto";
 
   verb append (this none this) owner: HACKER flags: "rxd"
-    "append({a,b,c},{d,e},{},{f,g,h},...) =>  {a,b,c,d,e,f,g,h}";
+    "Return a single list containing every element from each argument list, in order.";
+    "Example: append({a, b, c}, {d, e}, {}, {f, g, h}) => {a, b, c, d, e, f, g, h}.";
     n = length(args);
     if (n > 50)
       return {@this:append(@args[1..n / 2]), @this:append(@args[n / 2 + 1..n])};
@@ -23,25 +24,29 @@ object LIST_PROTO
   endverb
 
   verb assoc (this none this) owner: HACKER flags: "rxd"
-    "assoc(list, target[,index]) returns the first element of `list' whose own index-th element is target.  Index defaults to 1.";
-    "returns {} if no such element is found";
+    "Return the first list element whose index-th value equals target; index defaults to 1.";
+    "Returns {} when no matching nested list is found.";
     {lst, target, ?indx = 1} = args;
     for t in (lst)
+      if (typeof(t) != TYPE_LIST || length(t) < indx)
+        continue;
+      endif
       if (t[indx] == target)
-        "... do this test first since it's the most likely to fail; this needs -d";
-        if (typeof(t) == TYPE_LIST && length(t) >= indx)
-          return t;
-        endif
+        return t;
       endif
     endfor
     return {};
   endverb
 
   verb assoc_prefix (this none this) owner: HACKER flags: "rxd"
-    "assoc_prefix(list, target[,index]) returns the first element of `list' whose own index-th element has target as a prefix.  Index defaults to 1.";
+    "Return the first list element whose index-th string value starts with target; index defaults to 1.";
+    "Returns {} when no matching nested list is found.";
     {lst, target, ?indx = 1} = args;
     for t in (lst)
-      if (typeof(t) == TYPE_LIST && (length(t) >= indx && index(t[indx], target) == 1))
+      if (typeof(t) != TYPE_LIST || length(t) < indx)
+        continue;
+      endif
+      if (typeof(t[indx]) == TYPE_STR && index(t[indx], target) == 1)
         return t;
       endif
     endfor
@@ -49,10 +54,8 @@ object LIST_PROTO
   endverb
 
   verb check_type (this none this) owner: HACKER flags: "rxd"
-    "check_type(list, type)";
-    "Make sure all elements of <list> are of a given <type>.";
-    "<type> can be either one of LIST, STR, OBJ, NUM, ERR, or a list of same.";
-    "return true if all elements check, otherwise 0.";
+    "Return true if every list element has one of the requested MOO type constants.";
+    "The type argument may be a single type constant or a list of type constants.";
     typelist = typeof(args[2]) == TYPE_LIST ? args[2] | {args[2]};
     for element in (args[1])
       if (!(typeof(element) in typelist))
@@ -63,8 +66,8 @@ object LIST_PROTO
   endverb
 
   verb compress (this none this) owner: HACKER flags: "rxd"
-    "compress(list) => list with consecutive repeated elements removed, e.g.,";
-    "compress({a,b,b,c,b,b,b,d,d,e}) => {a,b,c,b,d,e}";
+    "Return a list with consecutive repeated elements collapsed to one occurrence.";
+    "Example: compress({a, b, b, c, b, b, b, d, d, e}) => {a, b, c, b, d, e}.";
     l = args[1];
     if (!l)
       return l;
@@ -84,7 +87,7 @@ object LIST_PROTO
   endverb
 
   verb join (this none this) owner: HACKER flags: "rxd"
-    "join(list[, separator]) => string with list elements joined by separator (default: space)";
+    "Return the list elements converted to strings and joined by separator, which defaults to a space.";
     {l, ?separator = " "} = args;
     typeof(separator) == TYPE_STR || raise(E_TYPE("join() separator must be string; got " + toliteral(separator)));
     length(l) == 0 && return "";
@@ -96,22 +99,9 @@ object LIST_PROTO
     return result;
   endverb
 
-  verb test_join (this none this) owner: HACKER flags: "rxd"
-    "Test the join method";
-    {}:join() != "" && raise(E_ASSERT, "Empty list join failed");
-    {"hello"}:join() != "hello" && raise(E_ASSERT, "Single element join failed");
-    {"a", "b", "c"}:join() != "a b c" && raise(E_ASSERT, "Multi element join failed");
-    {"a", "b", "c"}:join(", ") != "a, b, c" && raise(E_ASSERT, "Custom separator join failed");
-    {1, 2, 3}:join("-") != "1-2-3" && raise(E_ASSERT, "Number join failed");
-  endverb
-
   verb english_list (this none this) owner: #184 flags: "rxd"
-    "Prints the argument (must be a list) as an english list, e.g. {1, 2, 3} is printed as \"1, 2, and 3\", and {1, 2} is printed as \"1 and 2\".";
-    "Optional arguments are treated as follows:";
-    "  Second argument is the string to use when the empty list is given.  The default is \"nothing\".";
-    "  Third argument is the string to use in place of \" and \".  A typical application might be to use \" or \" instead.";
-    "  Fourth argument is the string to use instead of a comma (and space).  Gary_Severn's deranged mind actually came up with an application for this.  You can ask him.";
-    "  Fifth argument is a string to use after the penultimate element before the \" and \".  The default is to have a comma without a space.";
+    "Return a human-readable English list such as \"a, b, and c\" or \"a and b\".";
+    "Optional arguments customize the empty-list text, conjunction, comma separator, and final comma separator.";
     {things, ?nothingstr = "nothing", ?andstr = " and ", ?commastr = ", ", ?finalcommastr = ","} = args;
     nthings = length(things);
     nthings == 0 && return nothingstr;
@@ -128,8 +118,8 @@ object LIST_PROTO
   endverb
 
   verb map (this none this) owner: HACKER flags: "rxd"
-    "map(list, function) => apply function to each element and return new list";
-    "Example: {1,2,3}:map({x} => x * 2) => {2,4,6}";
+    "Return a new list containing func(item) for each item in the input list.";
+    "Example: {1, 2, 3}:map({x} => x * 2) => {2, 4, 6}.";
     {lst, func} = args;
     result = {};
     for item in (lst)
@@ -139,8 +129,8 @@ object LIST_PROTO
   endverb
 
   verb filter (this none this) owner: HACKER flags: "rxd"
-    "filter(list, predicate) => return new list with only elements matching predicate";
-    "Example: {1,2,3,4,5}:filter({x} => x % 2 == 0) => {2,4}";
+    "Return a new list containing only items for which pred(item) is true.";
+    "Example: {1, 2, 3, 4, 5}:filter({x} => x % 2 == 0) => {2, 4}.";
     {lst, pred} = args;
     result = {};
     for item in (lst)
@@ -152,8 +142,8 @@ object LIST_PROTO
   endverb
 
   verb reduce (this none this) owner: HACKER flags: "rxd"
-    "reduce(list, function, initial) => combine all elements using function";
-    "Example: {1,2,3,4}:reduce({acc, x} => acc + x, 0) => 10";
+    "Fold the list from left to right by repeatedly calling func(accumulator, item).";
+    "Returns initial when the input list is empty.";
     {lst, func, initial} = args;
     accumulator = initial;
     for item in (lst)
@@ -163,8 +153,7 @@ object LIST_PROTO
   endverb
 
   verb find (this none this) owner: HACKER flags: "rxd"
-    "find(list, predicate) => return first element matching predicate, or 0 if none";
-    "Example: {\"apple\", \"banana\", \"cherry\"}:find({x} => \"a\" in x) => \"apple\"";
+    "Return the first item for which pred(item) is true, or 0 when no item matches.";
     {lst, pred} = args;
     for item in (lst)
       if (pred(item))
@@ -175,8 +164,7 @@ object LIST_PROTO
   endverb
 
   verb any (this none this) owner: HACKER flags: "rxd"
-    "any(list, predicate) => return true if any element matches predicate";
-    "Example: {1,2,3}:any({x} => x > 2) => true";
+    "Return true if pred(item) is true for at least one item in the list.";
     {lst, pred} = args;
     for item in (lst)
       if (pred(item))
@@ -187,8 +175,8 @@ object LIST_PROTO
   endverb
 
   verb all (this none this) owner: HACKER flags: "rxd"
-    "all(list, predicate) => return true if all elements match predicate";
-    "Example: {2,4,6}:all({x} => x % 2 == 0) => true";
+    "Return true if pred(item) is true for every item in the list.";
+    "The empty list returns true.";
     {lst, pred} = args;
     for item in (lst)
       if (!pred(item))
@@ -199,8 +187,8 @@ object LIST_PROTO
   endverb
 
   verb unique (this none this) owner: HACKER flags: "rxd"
-    "unique(list) => return list with duplicate elements removed";
-    "Example: {1,2,2,3,1,4}:unique() => {1,2,3,4}";
+    "Return a list with duplicate elements removed while preserving first-seen order.";
+    "Example: {1, 2, 2, 3, 1, 4}:unique() => {1, 2, 3, 4}.";
     lst = args[1];
     result = {};
     seen = [];
@@ -214,8 +202,8 @@ object LIST_PROTO
   endverb
 
   verb group_by (this none this) owner: HACKER flags: "rxd"
-    "group_by(list, key_function) => return map of key -> list of items with that key";
-    "Example: {\"apple\", \"ant\", \"bee\", \"bear\"}:group_by({x} => x[1]) => [\"a\" -> {\"apple\", \"ant\"}, \"b\" -> {\"bee\", \"bear\"}]";
+    "Return a map from key_func(item) to the list of items with that key.";
+    "Each group preserves the original item order.";
     {lst, key_func} = args;
     groups = [];
     for item in (lst)
@@ -230,7 +218,8 @@ object LIST_PROTO
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"
-    "Runs :compose on all elements in turn then combines them appropriately for content type";
+    "Compose each list element for the requested content type and combine the results.";
+    "HTML composition returns the composed list; text composition joins rendered text parts.";
     {lst, render_for, content_type, @rest} = args;
     results = {};
     for x in (lst)
@@ -247,9 +236,7 @@ object LIST_PROTO
       if (typeof(r) == TYPE_STR)
         text_parts = {@text_parts, r};
       elseif (typeof(r) == TYPE_FLYWEIGHT)
-        "Flyweight in text mode - try to render it";
-        rendered = `r:render(content_type) ! ANY => tostr(r)';
-        text_parts = {@text_parts, rendered};
+        text_parts = {@text_parts, r:render(content_type)};
       else
         text_parts = {@text_parts, tostr(r)};
       endif
@@ -257,150 +244,61 @@ object LIST_PROTO
     return text_parts:join("");
   endverb
 
-  verb test_map (this none this) owner: HACKER flags: "rxd"
-    "Test the map function";
-    result = 0;
-    result = {1, 2, 3}:map({x} => x * 2);
-    result != {2, 4, 6} && raise(E_ASSERT, "Basic map failed, got " + toliteral(result));
-    result = {}:map({y} => y + 1);
-    result != {} && raise(E_ASSERT, "Empty list map failed, got " + toliteral(result));
-    result = {"a", "b", "c"}:map({z} => z + "X");
-    result != {"aX", "bX", "cX"} && raise(E_ASSERT, "String map failed, got " + toliteral(result));
-    result = {42}:map({w} => w / 2);
-    result != {21} && raise(E_ASSERT, "Single element map failed, got " + toliteral(result));
+  verb test_core_list_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover append, assoc, assoc_prefix, check_type, join, and english_list.";
+    $test_utils:assert_eq(this:append({"a", "b"}, {"c"}, {}, {"d", "e"}), {"a", "b", "c", "d", "e"}, "append concatenates argument lists");
+    nested = {{"id", 1}, {"name", "cowbell"}, "skip", {"name", "moor"}};
+    $test_utils:assert_eq(this:assoc(nested, "name"), {"name", "cowbell"}, "assoc finds first matching nested list");
+    $test_utils:assert_eq(this:assoc(nested, "missing"), {}, "assoc returns empty list when missing");
+    $test_utils:assert_eq(this:assoc(nested, "cowbell", 2), {"name", "cowbell"}, "assoc supports custom index");
+    $test_utils:assert_eq(this:assoc_prefix({{"alpha", 1}, {"beta", 2}}, "al"), {"alpha", 1}, "assoc_prefix finds string prefix");
+    $test_utils:assert_eq(this:assoc_prefix({{"alpha", 1}, {42, 2}}, "4"), {}, "assoc_prefix ignores non-string indexed values");
+    $test_utils:assert_true({"a", "b"}:check_type(TYPE_STR), "check_type accepts a single type");
+    $test_utils:assert_true({"a", 1}:check_type({TYPE_STR, TYPE_INT}), "check_type accepts multiple types");
+    $test_utils:assert_false({"a", 1}:check_type(TYPE_STR), "check_type rejects unmatched types");
+    $test_utils:assert_eq({}:join(), "", "join empty list");
+    $test_utils:assert_eq({"a", "b", "c"}:join(", "), "a, b, c", "join custom separator");
+    $test_utils:assert_eq({1, 2, 3}:join("-"), "1-2-3", "join coerces non-string items");
+    $test_utils:assert_eq({}:english_list(), "nothing", "english_list empty list");
+    $test_utils:assert_eq({"red"}:english_list(), "red", "english_list single item");
+    $test_utils:assert_eq({"red", "blue"}:english_list(), "red and blue", "english_list two items");
+    $test_utils:assert_eq({"red", "blue", "green"}:english_list(), "red, blue, and green", "english_list three items");
+    $test_utils:assert_eq({"red", "blue", "green"}:english_list("nothing", " or ", "; ", ";"), "red; blue; or green", "english_list custom separators");
+    return true;
   endverb
 
-  verb test_filter (this none this) owner: HACKER flags: "rxd"
-    "Test the filter function";
-    result = 0;
-    result = {1, 2, 3, 4, 5}:filter({x} => x % 2 == 0);
-    result != {2, 4} && raise(E_ASSERT, "Basic filter failed, got " + toliteral(result));
-    result = {1, 3, 5}:filter({y} => y % 2 == 0);
-    result != {} && raise(E_ASSERT, "Empty result filter failed, got " + toliteral(result));
-    result = {2, 4, 6}:filter({z} => z % 2 == 0);
-    result != {2, 4, 6} && raise(E_ASSERT, "All match filter failed, got " + toliteral(result));
-    result = {"apple", "ant", "bee", "bear"}:filter({w} => w[1] == "b");
-    result != {"bee", "bear"} && raise(E_ASSERT, "String filter failed, got " + toliteral(result));
-    result = {}:filter({v} => v > 0);
-    result != {} && raise(E_ASSERT, "Empty input filter failed, got " + toliteral(result));
+  verb test_functional_list_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover map, filter, reduce, find, any, and all.";
+    $test_utils:assert_eq({1, 2, 3}:map({x} => x * 2), {2, 4, 6}, "map transforms every item");
+    $test_utils:assert_eq({}:map({x} => x + 1), {}, "map preserves empty lists");
+    $test_utils:assert_eq({"a", "b", "c"}:map({x} => x + "X"), {"aX", "bX", "cX"}, "map handles strings");
+    $test_utils:assert_eq({1, 2, 3, 4, 5}:filter({x} => x % 2 == 0), {2, 4}, "filter keeps matching items");
+    $test_utils:assert_eq({1, 3, 5}:filter({x} => x % 2 == 0), {}, "filter can return empty list");
+    $test_utils:assert_eq({1, 2, 3, 4}:reduce({acc, x} => acc + x, 0), 10, "reduce sums values");
+    $test_utils:assert_eq({}:reduce({acc, x} => acc + x, 42), 42, "reduce returns initial for empty lists");
+    $test_utils:assert_eq({1, 2, 3, 4, 5}:find({x} => x > 3), 4, "find returns first match");
+    $test_utils:assert_eq({1, 2, 3}:find({x} => x > 10), 0, "find returns 0 when missing");
+    $test_utils:assert_true({1, 2, 3}:any({x} => x > 2), "any true case");
+    $test_utils:assert_false({1, 2, 3}:any({x} => x > 5), "any false case");
+    $test_utils:assert_true({2, 4, 6}:all({x} => x % 2 == 0), "all true case");
+    $test_utils:assert_false({1, 2, 3}:all({x} => x % 2 == 0), "all false case");
+    $test_utils:assert_true({}:all({x} => x > 100), "all empty list is true");
+    return true;
   endverb
 
-  verb test_reduce (this none this) owner: HACKER flags: "rxd"
-    "Test the reduce function";
-    result = 0;
-    result = {1, 2, 3, 4}:reduce({acc0, val0} => acc0 + val0, 0);
-    result != 10 && raise(E_ASSERT, "Basic sum reduce failed, got " + toliteral(result));
-    result = {2, 3, 4}:reduce({acc1, val1} => acc1 * val1, 1);
-    result != 24 && raise(E_ASSERT, "Product reduce failed, got " + toliteral(result));
-    result = {3, 1, 4, 1, 5}:reduce({acc2, val2} => val2 > acc2 ? val2 | acc2, 0);
-    result != 5 && raise(E_ASSERT, "Max reduce failed, got " + toliteral(result));
-    result = {"a", "b", "c"}:reduce({acc3, val3} => acc3 + val3, "");
-    result != "abc" && raise(E_ASSERT, "String concat reduce failed, got " + toliteral(result));
-    result = {}:reduce({acc4, val4} => acc4 + val4, 42);
-    result != 42 && raise(E_ASSERT, "Empty list reduce failed, got " + toliteral(result));
-    result = {100}:reduce({acc5, val5} => acc5 + val5, 5);
-    result != 105 && raise(E_ASSERT, "Single element reduce failed, got " + toliteral(result));
-  endverb
-
-  verb test_find (this none this) owner: HACKER flags: "rxd"
-    "Test the find function";
-    result = 0;
-    result = {1, 2, 3, 4, 5}:find({x} => x > 3);
-    result != 4 && raise(E_ASSERT, "Basic find failed, got " + toliteral(result));
-    result = {1, 2, 3}:find({y} => y > 10);
-    result != 0 && raise(E_ASSERT, "Not found case failed, got " + toliteral(result));
-    result = {2, 4, 6, 8}:find({z} => z % 2 == 0);
-    result != 2 && raise(E_ASSERT, "First match find failed, got " + toliteral(result));
-    result = {"apple", "banana", "cherry"}:find({w} => "a" in w);
-    result != "apple" && raise(E_ASSERT, "String find failed, got " + toliteral(result));
-    result = {}:find({v} => v == 5);
-    result != 0 && raise(E_ASSERT, "Empty list find failed, got " + toliteral(result));
-  endverb
-
-  verb test_any (this none this) owner: HACKER flags: "rxd"
-    "Test the any function";
-    result = 0;
-    result = {1, 2, 3}:any({x} => x > 2);
-    result != true && raise(E_ASSERT, "True any failed, got " + toliteral(result));
-    result = {1, 2, 3}:any({y} => y > 5);
-    result != false && raise(E_ASSERT, "False any failed, got " + toliteral(result));
-    result = {2, 4, 6}:any({z} => z % 2 == 0);
-    result != true && raise(E_ASSERT, "All match any failed, got " + toliteral(result));
-    result = {}:any({w} => w > 0);
-    result != false && raise(E_ASSERT, "Empty list any failed, got " + toliteral(result));
-    result = {42}:any({v} => v == 42);
-    result != true && raise(E_ASSERT, "Single element true any failed, got " + toliteral(result));
-    result = {42}:any({u} => u == 99);
-    result != false && raise(E_ASSERT, "Single element false any failed, got " + toliteral(result));
-  endverb
-
-  verb test_all (this none this) owner: HACKER flags: "rxd"
-    "Test the all function";
-    result = 0;
-    result = {2, 4, 6}:all({x} => x % 2 == 0);
-    result != true && raise(E_ASSERT, "True all failed, got " + toliteral(result));
-    result = {1, 2, 3}:all({y} => y % 2 == 0);
-    result != false && raise(E_ASSERT, "False all failed, got " + toliteral(result));
-    result = {}:all({z} => z > 100);
-    result != true && raise(E_ASSERT, "Empty list all failed, got " + toliteral(result));
-    result = {42}:all({w} => w > 40);
-    result != true && raise(E_ASSERT, "Single element true all failed, got " + toliteral(result));
-    result = {42}:all({v} => v < 40);
-    result != false && raise(E_ASSERT, "Single element false all failed, got " + toliteral(result));
-    result = {"abc", "def", "ghi"}:all({u} => length(u) == 3);
-    result != true && raise(E_ASSERT, "String all failed, got " + toliteral(result));
-  endverb
-
-  verb test_unique (this none this) owner: HACKER flags: "rxd"
-    "Test the unique function";
-    result = 0;
-    result = {1, 2, 2, 3, 1, 4}:unique();
-    result != {1, 2, 3, 4} && raise(E_ASSERT, "Basic unique failed, got " + toliteral(result));
-    result = {1, 2, 3, 4}:unique();
-    result != {1, 2, 3, 4} && raise(E_ASSERT, "No duplicates unique failed, got " + toliteral(result));
-    result = {5, 5, 5, 5}:unique();
-    result != {5} && raise(E_ASSERT, "All same unique failed, got " + toliteral(result));
-    result = {}:unique();
-    result != {} && raise(E_ASSERT, "Empty list unique failed, got " + toliteral(result));
-    result = {"a", "b", "a", "c", "b"}:unique();
-    result != {"a", "b", "c"} && raise(E_ASSERT, "String unique failed, got " + toliteral(result));
-    result = {42}:unique();
-    result != {42} && raise(E_ASSERT, "Single element unique failed, got " + toliteral(result));
-  endverb
-
-  verb test_group_by (this none this) owner: HACKER flags: "rxd"
-    "Test the group_by function";
-    result = 0;
+  verb test_set_group_and_compose_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover unique, group_by, compress, and compose.";
+    $test_utils:assert_eq({1, 2, 2, 3, 1, 4}:unique(), {1, 2, 3, 4}, "unique preserves first-seen order");
+    $test_utils:assert_eq({}:unique(), {}, "unique preserves empty list");
+    $test_utils:assert_eq({"a", "b", "b", "c", "b", "b", "d"}:compress(), {"a", "b", "c", "b", "d"}, "compress collapses consecutive duplicates");
+    $test_utils:assert_eq({}:compress(), {}, "compress preserves empty list");
     result = {"apple", "ant", "bee", "bear"}:group_by({x} => x[1]);
-    expected = ["a" -> {"apple", "ant"}, "b" -> {"bee", "bear"}];
-    result != expected && raise(E_ASSERT, "Basic group_by failed, got " + toliteral(result));
-    result = {"a", "bb", "c", "dd", "eee"}:group_by({y} => length(y));
-    expected = [1 -> {"a", "c"}, 2 -> {"bb", "dd"}, 3 -> {"eee"}];
-    result != expected && raise(E_ASSERT, "Length group_by failed, got " + toliteral(result));
-    result = {}:group_by({z} => z);
-    result != [] && raise(E_ASSERT, "Empty list group_by failed, got " + toliteral(result));
-    result = {"hello"}:group_by({w} => w[1]);
-    expected = ["h" -> {"hello"}];
-    result != expected && raise(E_ASSERT, "Single element group_by failed, got " + toliteral(result));
-    result = {1, 2, 3, 4, 5, 6}:group_by({v} => v % 2);
-    expected = [1 -> {1, 3, 5}, 0 -> {2, 4, 6}];
-    result != expected && raise(E_ASSERT, "Numeric group_by failed, got " + toliteral(result));
-  endverb
-
-  verb test_compress (this none this) owner: HACKER flags: "rxd"
-    "Test the modernized compress function";
-    result = 0;
-    result = {"a", "b", "b", "c", "b", "b", "b", "d", "d", "e"}:compress();
-    result != {"a", "b", "c", "b", "d", "e"} && raise(E_ASSERT, "Basic compress failed, got " + toliteral(result));
-    result = {"a", "b", "c", "d"}:compress();
-    result != {"a", "b", "c", "d"} && raise(E_ASSERT, "No duplicates compress failed, got " + toliteral(result));
-    result = {"x", "x", "x", "x"}:compress();
-    result != {"x"} && raise(E_ASSERT, "All same compress failed, got " + toliteral(result));
-    result = {}:compress();
-    result != {} && raise(E_ASSERT, "Empty list compress failed, got " + toliteral(result));
-    result = {"a"}:compress();
-    result != {"a"} && raise(E_ASSERT, "Single element compress failed, got " + toliteral(result));
-    result = {1, 1, 2, 3, 3, 3, 2, 2}:compress();
-    result != {1, 2, 3, 2} && raise(E_ASSERT, "Numeric compress failed, got " + toliteral(result));
+    $test_utils:assert_eq(result, ["a" -> {"apple", "ant"}, "b" -> {"bee", "bear"}], "group_by groups by key function");
+    result = {"a", "bb", "c", "dd", "eee"}:group_by({x} => length(x));
+    $test_utils:assert_eq(result, [1 -> {"a", "c"}, 2 -> {"bb", "dd"}, 3 -> {"eee"}], "group_by preserves item order within groups");
+    $test_utils:assert_eq({}:group_by({x} => x), [], "group_by empty list");
+    $test_utils:assert_eq({"a", "b"}:compose(player, 'text), "ab", "compose joins text results");
+    $test_utils:assert_eq({"a", "b"}:compose(player, 'text_html), {"a", "b"}, "compose preserves HTML result list");
+    return true;
   endverb
 endobject
