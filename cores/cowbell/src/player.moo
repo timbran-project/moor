@@ -440,22 +440,34 @@ object PLAYER
     "Return objects whose verbs can trigger as primary / ambient commands.";
     "This is typically just the player and their location, as in the builtin-parser, but can be extended to add e.g. feature objects or ambient environmental things that require direct interaction.";
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
+    env = {this, @this:_feature_environment()};
     location = this.location;
-    env = {this};
-    features = this.features;
-    if (typeof(features) != TYPE_LIST)
-      features = {};
-    endif
-    env = {@env, @features};
-    valid(this.authoring_features) && (env = {@env, this.authoring_features});
+    valid(location) && (env = {@env, location});
+    return env;
+  endverb
+
+  verb _feature_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return feature objects that extend this player's command/help surface.";
+    caller != this && caller != #0 && caller_perms() != this && !caller_perms().wizard && return E_PERM;
+    env = {};
+    seen = [];
+    features = typeof(this.features) == TYPE_LIST ? this.features | {};
+    candidates = {@features, this.authoring_features};
     admin_features = `this.admin_features ! ANY => {}';
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
-    for feat in (admin_features)
-      if (valid(feat))
-        env = {@env, feat};
+    candidates = {@candidates, @admin_features};
+    (this.wizard || this:has_admin_elevation()) && (candidates = {@candidates, $wiz_features});
+    this.is_builder && (candidates = {@candidates, $builder_features});
+    for feat in (candidates)
+      if (!valid(feat))
+        continue;
       endif
+      if (maphaskey(seen, feat))
+        continue;
+      endif
+      env = {@env, feat};
+      seen[feat] = true;
     endfor
-    valid(location) && (env = {@env, location});
     return env;
   endverb
 
@@ -1189,33 +1201,13 @@ object PLAYER
 
   verb help_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return list of objects to search for help topics.";
-    "Order: global, features (including authoring/admin/builder/wizard), room, inventory, room contents";
+    "Order: global, player, features (including authoring/admin/builder/wizard), room, inventory, room contents";
     env = {};
     gh = `$sysobj.help_topics ! E_PROPNF => $nothing';
     if (valid(gh))
       env = {@env, gh};
     endif
-    for feat in (this.features)
-      if (valid(feat))
-        env = {@env, feat};
-      endif
-    endfor
-    if (valid(this.authoring_features))
-      env = {@env, this.authoring_features};
-    endif
-    admin_features = `this.admin_features ! ANY => {}';
-    typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
-    for feat in (admin_features)
-      if (valid(feat))
-        env = {@env, feat};
-      endif
-    endfor
-    if (this.wizard || this:has_admin_elevation() && valid($wiz_features))
-      env = {@env, $wiz_features};
-    endif
-    if (this.is_builder && valid($builder_features))
-      env = {@env, $builder_features};
-    endif
+    env = {@env, this, @this:_feature_environment()};
     if (valid(this.location))
       env = {@env, this.location};
     endif
@@ -3375,5 +3367,28 @@ object PLAYER
       return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + "."):with_audience('utility));
     endif
     player:inform_current(dm_obj:sender_echo_event());
+  endverb
+
+  verb test_help_environment_includes_global_player_and_features (this none this) owner: HACKER flags: "rxd"
+    "Help lookup should cover global topics, the player surface, and feature-generated topics.";
+    help_env = this:help_environment();
+    command_env = this:command_environment();
+    $test_utils:assert_true(is_member(this, help_env), "help environment should include player");
+    $test_utils:assert_true(is_member(this, command_env), "command environment should include player");
+    is_builder = `this.is_builder ! ANY => false';
+    if (is_builder)
+      $test_utils:assert_true(is_member($builder_features, help_env), "builder help should include builder features");
+      $test_utils:assert_true(is_member($builder_features, command_env), "builder command environment should include builder features");
+    endif
+    say_topic = this:find_help_topic("say");
+    $test_utils:assert_type(say_topic, TYPE_FLYWEIGHT, "global help topic 'say' should resolve");
+    $test_utils:assert_eq(say_topic.name, "say", "global help topic name");
+    emote_topic = this:find_help_topic("emote");
+    $test_utils:assert_type(emote_topic, TYPE_FLYWEIGHT, "global help topic 'emote' should resolve");
+    $test_utils:assert_eq(emote_topic.name, "emote", "global emote help topic name");
+    bonk_topic = this:find_help_topic("bonk");
+    $test_utils:assert_type(bonk_topic, TYPE_FLYWEIGHT, "feature-generated help topic 'bonk' should resolve");
+    $test_utils:assert_eq(bonk_topic.name, "bonk", "feature-generated help topic name");
+    return true;
   endverb
 endobject

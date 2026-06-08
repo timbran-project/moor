@@ -4,6 +4,41 @@ object HELP_TOPICS
   owner: ARCH_WIZARD
   readable: true
 
+  property topic_order (owner: ARCH_WIZARD, flags: "rc") = {
+    'topic_basics,
+    'topic_bite,
+    'topic_close,
+    'topic_communicating,
+    'topic_describe,
+    'topic_doors,
+    'topic_drink,
+    'topic_drop,
+    'topic_eat,
+    'topic_emote,
+    'topic_examine,
+    'topic_exits,
+    'topic_gag,
+    'topic_gagging,
+    'topic_get,
+    'topic_give,
+    'topic_inventory,
+    'topic_join,
+    'topic_listgag,
+    'topic_lock,
+    'topic_look,
+    'topic_movement,
+    'topic_open,
+    'topic_privacy,
+    'topic_quit,
+    'topic_refill,
+    'topic_say,
+    'topic_sip,
+    'topic_ungag,
+    'topic_unlock,
+    'topic_walk,
+    'topic_who
+  };
+
   property topic_basics (owner: ARCH_WIZARD, flags: "rc") = {
     "basics",
     "Getting started",
@@ -269,17 +304,47 @@ object HELP_TOPICS
     "Return global help topics for players.";
     "Topics are stored as topic_* properties: {name, summary, content, aliases, category, see_also}";
     {for_player, ?topic = ""} = args;
+    props = properties(this);
+    order = `this.topic_order ! ANY => {}';
+    if (typeof(order) != TYPE_LIST)
+      order = {};
+    endif
+    seen = [];
+    names = {};
+    for p in (order)
+      if (typeof(p) == TYPE_SYM && p in props)
+        names = {@names, p};
+        seen[p] = true;
+      endif
+    endfor
+    for p in (props)
+      if (typeof(p) == TYPE_SYM && p:starts_with('topic_) && !maphaskey(seen, p))
+        names = {@names, p};
+      endif
+    endfor
     my_topics = {};
-    for prop in (properties(this))
-      if (index(prop, "topic_") == 1)
-        data = this.(prop);
-        {name, summary, content, aliases, category, see_also} = data;
-        t = $help:mk(name, summary, content, aliases, tosym(category), see_also);
-        if (topic == "")
-          my_topics = {@my_topics, t};
-        elseif (t:matches(topic))
-          return t;
-        endif
+    for prop in (names)
+      data = this.(prop);
+      if (typeof(data) != TYPE_LIST || length(data) < 3)
+        continue;
+      endif
+      {name, summary, content, ?aliases = {}, ?category = "general", ?see_also = {}} = data;
+      if (typeof(name) != TYPE_STR || !name)
+        continue;
+      endif
+      if (typeof(summary) != TYPE_STR)
+        summary = tostr(summary);
+      endif
+      if (typeof(content) != TYPE_STR)
+        content = tostr(content);
+      endif
+      typeof(aliases) == TYPE_LIST || (aliases = {});
+      typeof(see_also) == TYPE_LIST || (see_also = {});
+      t = $help:mk(name, summary, content, aliases, tosym(category), see_also);
+      if (topic == "")
+        my_topics = {@my_topics, t};
+      elseif (t:matches(topic))
+        return t;
       endif
     endfor
     return topic == "" ? my_topics | 0;

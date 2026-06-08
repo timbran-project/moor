@@ -130,6 +130,7 @@ define SCHEDULED_TASK = #28;
 define STR_PROTO = #13;
 define LIST_PROTO = #14;
 define INT_PROTO = #15;
+define SYM_PROTO = #133;
 define VERB = #54;
 define PROPERTY = #55;
 

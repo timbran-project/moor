@@ -39,14 +39,14 @@ object ADMIN_HELP_TOPICS
   override import_export_hierarchy = {"help"};
   override import_export_id = "admin_help_topics";
   override topic_order = {
-    "topic_administration_overview",
-    "topic_administration_sudo",
-    "topic_administration_sudo_grant",
-    "topic_administration_sudo_allow",
-    "topic_administration_sudo_revoke",
-    "topic_administration_sudo_show",
-    "topic_administration_sudo_who",
-    "topic_administration_sudo_log",
-    "topic_administration_dump_database"
+    'topic_administration_overview,
+    'topic_administration_sudo,
+    'topic_administration_sudo_grant,
+    'topic_administration_sudo_allow,
+    'topic_administration_sudo_revoke,
+    'topic_administration_sudo_show,
+    'topic_administration_sudo_who,
+    'topic_administration_sudo_log,
+    'topic_administration_dump_database
   };
 endobject

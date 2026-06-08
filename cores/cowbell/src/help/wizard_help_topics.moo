@@ -22,18 +22,18 @@ object WIZARD_HELP_TOPICS
   override import_export_hierarchy = {"help"};
   override import_export_id = "wizard_help_topics";
   override topic_order = {
-    "topic_wizard_overview",
-    "topic_wizard_announce",
-    "topic_wizard_programmer",
-    "topic_wizard_builder",
-    "topic_wizard_chown",
-    "topic_wizard_shutdown",
-    "topic_wizard_reconfigure_tools",
-    "topic_wizard_reissue_tools",
-    "topic_wizard_llm_budget",
-    "topic_wizard_llm_set_budget",
-    "topic_wizard_llm_reset_usage",
-    "topic_wizard_llm_config",
-    "topic_wizard_llm_reset_agents"
+    'topic_wizard_overview,
+    'topic_wizard_announce,
+    'topic_wizard_programmer,
+    'topic_wizard_builder,
+    'topic_wizard_chown,
+    'topic_wizard_shutdown,
+    'topic_wizard_reconfigure_tools,
+    'topic_wizard_reissue_tools,
+    'topic_wizard_llm_budget,
+    'topic_wizard_llm_set_budget,
+    'topic_wizard_llm_reset_usage,
+    'topic_wizard_llm_config,
+    'topic_wizard_llm_reset_agents
   };
 endobject

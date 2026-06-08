@@ -15,11 +15,11 @@ object BUILDER_HELP_TOPICS
   override import_export_hierarchy = {"help"};
   override import_export_id = "builder_help_topics";
   override topic_order = {
-    "topic_building_overview",
-    "topic_hash_lookup",
-    "topic_building_dig",
-    "topic_building_undig",
-    "topic_building_passage",
-    "topic_building_set_passage"
+    'topic_building_overview,
+    'topic_hash_lookup,
+    'topic_building_dig,
+    'topic_building_undig,
+    'topic_building_passage,
+    'topic_building_set_passage
   };
 endobject

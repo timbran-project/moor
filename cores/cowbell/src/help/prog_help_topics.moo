@@ -65,12 +65,12 @@ object PROG_HELP_TOPICS
   override import_export_hierarchy = {"help"};
   override import_export_id = "prog_help_topics";
   override topic_order = {
-    "topic_programming_overview",
-    "topic_programming_show",
-    "topic_programming_program",
-    "topic_programming_grep",
-    "topic_programming_chmod",
-    "topic_programming_move",
-    "topic_programming_which"
+    'topic_programming_overview,
+    'topic_programming_show,
+    'topic_programming_program,
+    'topic_programming_grep,
+    'topic_programming_chmod,
+    'topic_programming_move,
+    'topic_programming_which
   };
 endobject

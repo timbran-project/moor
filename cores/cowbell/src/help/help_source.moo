@@ -12,7 +12,7 @@ object HELP_SOURCE
 
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Generic property-backed help topic provider.";
-    "Reads topic_* properties as either $help flyweights or tuple data.";
+    "Reads ordered topic properties as either $help flyweights or tuple data.";
     {for_player, ?topic = ""} = args;
     props = properties(this);
     order = `this.topic_order ! ANY => {}';
@@ -22,13 +22,13 @@ object HELP_SOURCE
     seen = [];
     names = {};
     for p in (order)
-      if (typeof(p) == TYPE_STR && index(p, "topic_") == 1 && p in props)
+      if (typeof(p) == TYPE_SYM && p in props)
         names = {@names, p};
         seen[p] = 1;
       endif
     endfor
     for p in (props)
-      if (index(p, "topic_") == 1 && !maphaskey(seen, p))
+      if (typeof(p) == TYPE_SYM && p:starts_with('topic_) && !maphaskey(seen, p))
         names = {@names, p};
       endif
     endfor
@@ -66,5 +66,34 @@ object HELP_SOURCE
       endif
     endfor
     return topic == "" ? my_topics | 0;
+  endverb
+
+  verb test_help_source_symbol_topic_discovery (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Property-backed help should use symbol keys while keeping fallback discovery under topic_*.";
+    src = this:create(true);
+    add_property(src, 'metadata, {"metadata", "Not help", "This should not become a topic."}, {src.owner, "r"});
+    add_property(src, 'ordered_metadata, {"ordered", "Ordered help", "Explicitly ordered non-topic symbol."}, {src.owner, "r"});
+    add_property(src, 'topic_short, {"short", "Short tuple", "Tuple with default aliases/category/see_also."}, {src.owner, "r"});
+    add_property(src, 'topic_full, {"full", "Full tuple", "Tuple with all fields.", {"complete"}, "testing", {"short"}}, {src.owner, "r"});
+    src.topic_order = {'ordered_metadata};
+
+    ordered = src:help_topics($test_player, "ordered");
+    $test_utils:assert_type(ordered, TYPE_FLYWEIGHT, "topic_order should allow explicit non-topic symbol properties");
+    $test_utils:assert_eq(ordered.name, "ordered", "ordered topic name");
+
+    metadata = src:help_topics($test_player, "metadata");
+    $test_utils:assert_eq(metadata, 0, "fallback discovery should ignore non-topic symbol properties");
+
+    short = src:help_topics($test_player, "short");
+    $test_utils:assert_type(short, TYPE_FLYWEIGHT, "fallback topic_ symbol property should resolve");
+    $test_utils:assert_eq(short.name, "short", "short tuple topic name");
+    $test_utils:assert_eq(short.aliases, {}, "short tuple should default aliases");
+    $test_utils:assert_eq(short.category, 'general, "short tuple should default category");
+    $test_utils:assert_eq(short.see_also, {}, "short tuple should default see_also");
+
+    full = src:help_topics($test_player, "complete");
+    $test_utils:assert_type(full, TYPE_FLYWEIGHT, "aliases should match full tuple topic");
+    $test_utils:assert_eq(full.name, "full", "full tuple topic name");
+    return true;
   endverb
 endobject

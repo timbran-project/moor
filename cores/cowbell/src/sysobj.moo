@@ -102,6 +102,7 @@ object SYSOBJ
   property sittable (owner: HACKER, flags: "r") = SITTABLE;
   property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
   property str_proto (owner: HACKER, flags: "r") = STR_PROTO;
+  property sym_proto (owner: HACKER, flags: "r") = SYM_PROTO;
   property sub (owner: HACKER, flags: "r") = SUB;
   property sub_utils (owner: HACKER, flags: "r") = SUB_UTILS;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
