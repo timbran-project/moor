@@ -1,6 +1,9 @@
 # MOORC binary selection via environment variable MOORC_TYPE
 # Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
+HEADLESS_FILTERS ?= "\#128" "\#129" "\#130" "\#131" "\#132"
+HEADLESS_TIMEOUT ?= 10
+HEADLESS_SRC_DIRECTORY ?= .runtime-headless-src
 
 # DEBUG controls whether to run moorc under gdb
 # Set DEBUG=1 to enable gdb debugging
@@ -57,8 +60,22 @@ test:  $(wildcard src/*.moo)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true
 
+runtime-headless: $(wildcard src/*.moo src/*/*.moo tests/headless/*.moo)
+	rm -rf $(HEADLESS_SRC_DIRECTORY)
+	mkdir -p $(HEADLESS_SRC_DIRECTORY)
+	rsync -a src/ $(HEADLESS_SRC_DIRECTORY)/
+	rsync -a tests/headless/ $(HEADLESS_SRC_DIRECTORY)/
+	cat tests/headless/headless_constants.moo >> $(HEADLESS_SRC_DIRECTORY)/constants.moo
+	rm -f $(HEADLESS_SRC_DIRECTORY)/headless_constants.moo
+	set -e; for filter in $(HEADLESS_FILTERS); do \
+		$(MOORC) --src-objdef-dir $(HEADLESS_SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+		--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true \
+		--test-filter "$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
+	done
+
 clean:
 	rm -f gen.moo-textdump
 	rm -rf gen.objdir
+	rm -rf $(HEADLESS_SRC_DIRECTORY)
 
 output: gen.moo-textdump
