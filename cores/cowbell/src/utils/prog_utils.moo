@@ -158,6 +158,9 @@ object PROG_UTILS
     try
       verb_list = verbs(verb_obj);
       verb_index = verb_name in verb_list;
+      if (!verb_index && typeof(verb_name) == TYPE_STR)
+        verb_index = verb_name:to_symbol() in verb_list;
+      endif
     except e (E_PERM)
       "Can't list verbs due to permissions - use 0 as unknown index";
       verb_index = 0;
@@ -393,6 +396,23 @@ object PROG_UTILS
     result['selectors][1]['kind] == 'property || raise(E_ASSERT, "me. should select properties");
     result['selectors][1]['inherited] == false || raise(E_ASSERT, "me. should select local properties");
     result['selectors][1]['item_name] == "" || raise(E_ASSERT, "me. should have empty item name");
+    return true;
+  endverb
+
+  verb test_get_verb_metadata_accepts_string_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Regression test: string verb names still resolve against symbol-returning verbs().";
+    target = #-1;
+    try
+      target = $thing:create();
+      add_verb(target, {player, "rxd", "hit"}, {"this", "none", "none"});
+      metadata = this:get_verb_metadata(target, "hit");
+      $test_utils:assert_type(metadata, TYPE_FLYWEIGHT, "verb metadata should be a flyweight");
+      $test_utils:assert_true(metadata:index() > 0, "string verb name should resolve to a direct local verb index");
+      $test_utils:assert_eq(metadata:name(), "hit", "metadata should preserve requested verb name");
+      $test_utils:assert_eq(metadata:verb_owner(), player, "metadata should read the direct verb owner");
+    finally
+      valid(target) && target:destroy();
+    endtry
     return true;
   endverb
 

@@ -554,9 +554,22 @@ object WIZ_FEATURES
       player:inform_current($event:mk_error(player, "Invalid target reference. Use 'object', 'object.property', or 'object:verb'"));
       return;
     endif
-    type = parsed['type];
     object_str = parsed['object_str];
-    item_name = maphaskey(parsed, 'item_name) ? parsed['item_name] | "";
+    if (parsed['type] == 'object)
+      type = 'object;
+      item_name = "";
+    else
+      selector = parsed['selectors][1];
+      type = selector['kind];
+      item_name = selector['item_name];
+      if (!item_name)
+        type = 'object;
+      endif
+      if (selector['inherited])
+        player:inform_current($event:mk_error(player, "@chown only works on direct object properties and verbs, not inherited ones."));
+        return;
+      endif
+    endif
     "Match the target object";
     try
       target_obj = $match:match_object(object_str, player);
