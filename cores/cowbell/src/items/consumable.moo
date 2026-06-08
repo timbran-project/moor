@@ -186,7 +186,7 @@ object CONSUMABLE
     return this:do_consume(who, amount);
   endverb
 
-  verb test_consume (this none this) owner: ARCH_WIZARD flags: "rxd"
+  verb consume_for_test (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test verb for consumption - bypasses caller check for testing.";
     {who, amount} = args;
     "Check first";

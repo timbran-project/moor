@@ -116,7 +116,6 @@ object LLM_TASK
     "Test basic task creation and status tracking.";
     kb = create($relation);
     agent = create($llm_agent);
-    agent.owner = $hacker;
     task = this:create(true);
     task:mk(1, "Test task", agent, kb, 0);
     "Check initial state";
@@ -144,7 +143,6 @@ object LLM_TASK
     "Test adding and retrieving findings with provenance.";
     kb = create($relation);
     agent = create($llm_agent);
-    agent.owner = $hacker;
     task = this:create(true);
     task:mk(1, "Test task", agent, kb, 0);
     "Add some findings";

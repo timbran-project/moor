@@ -747,8 +747,8 @@ object STR_PROTO
       result != should && raise(E_ASSERT, ": should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
-      let {result, should} = {"$string:look_self":parse_verbref(), {"$string", "look_self"}};
-      result != should && raise(E_ASSERT, "$string:look_self should be " + toliteral(should) + " was: " + toliteral(result));
+      let {result, should} = {"$str_proto:look_self":parse_verbref(), {tostr($str_proto), "look_self"}};
+      result != should && raise(E_ASSERT, "$str_proto:look_self should be " + toliteral(should) + " was: " + toliteral(result));
     end
     begin
       let {result, should} = {"#1:look_self":parse_verbref(), {"#1", "look_self"}};

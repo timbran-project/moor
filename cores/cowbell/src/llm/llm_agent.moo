@@ -499,7 +499,6 @@ object LLM_AGENT
   verb test_todo_lifecycle (this none this) owner: HACKER flags: "rxd"
     "Test basic todo operations.";
     agent = create($llm_agent);
-    agent.owner = $hacker;
     "Add todos";
     id1 = agent:add_todo("First task");
     id2 = agent:add_todo("Second task");
@@ -527,7 +526,6 @@ object LLM_AGENT
   verb test_todo_filter (this none this) owner: HACKER flags: "rxd"
     "Test todo filtering by status.";
     agent = create($llm_agent);
-    agent.owner = $hacker;
     agent:add_todo("Pending 1");
     id2 = agent:add_todo("In progress");
     agent:add_todo("Pending 2");
@@ -543,7 +541,6 @@ object LLM_AGENT
   verb test_set_todos (this none this) owner: HACKER flags: "rxd"
     "Test replacing entire todo list.";
     agent = create($llm_agent);
-    agent.owner = $hacker;
     agent:set_todos({["content" -> "Task A", "status" -> 'pending], ["content" -> "Task B", "status" -> 'in_progress], ["content" -> "Task C", "status" -> 'completed]});
     todos = agent:get_todos();
     length(todos) != 3 && raise(E_ASSERT, "Should have 3 todos");
