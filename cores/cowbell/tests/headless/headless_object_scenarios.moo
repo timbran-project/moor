@@ -120,6 +120,154 @@ object HEADLESS_OBJECT_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_hostile_set_description_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not set another object's description through the wizard-owned wrapper.";
+    target = #-1;
+    try
+      target = $thing:create();
+      target:set_description("unchanged");
+      denied = false;
+      try
+        this:_call_set_description_as_player(target, "hostile change");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner set_description wrapper call should be denied");
+      $test_utils:assert_eq(target.description, "unchanged", "denied set_description should preserve description");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_hostile_set_name_aliases_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not rename another object through the wizard-owned wrapper.";
+    target = #-1;
+    try
+      target = $thing:create();
+      target:set_name_aliases("original name", {"original-alias"});
+      denied = false;
+      try
+        this:_call_set_name_aliases_as_player(target, "hostile name", {"hostile-alias"});
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner set_name_aliases wrapper call should be denied");
+      $test_utils:assert_eq(target.name, "original name", "denied rename should preserve name");
+      $test_utils:assert_eq(target.aliases, {"original-alias"}, "denied rename should preserve aliases");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_hostile_set_owner_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not retitle another object through the wizard-owned wrapper.";
+    target = #-1;
+    try
+      target = $thing:create();
+      original_owner = target.owner;
+      denied = false;
+      try
+        this:_call_set_owner_as_player(target, player);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner set_owner wrapper call should be denied");
+      $test_utils:assert_eq(target.owner, original_owner, "denied owner change should preserve owner");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_hostile_moveto_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not move another object through the wizard-owned wrapper.";
+    source = #-1;
+    old_room = #-1;
+    new_room = #-1;
+    try
+      source = $thing:create();
+      old_room = $room:create();
+      new_room = $room:create();
+      source:moveto(old_room);
+      denied = false;
+      try
+        this:_call_moveto_as_player(source, new_room);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner moveto wrapper call should be denied");
+      $test_utils:assert_eq(source.location, old_room, "denied moveto should preserve location");
+    finally
+      valid(source) && source:destroy();
+      valid(new_room) && new_room:destroy();
+      valid(old_room) && old_room:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_hostile_player_set_home_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not set another player's home through the wizard-owned wrapper.";
+    target = #-1;
+    new_home = #-1;
+    try
+      target = create($player);
+      new_home = $room:create();
+      original_home = target.home;
+      denied = false;
+      try
+        this:_call_set_home_as_player(target, new_home);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner set_home wrapper call should be denied");
+      $test_utils:assert_eq(target.home, original_home, "denied set_home should preserve home");
+    finally
+      valid(target) && target:destroy();
+      valid(new_home) && new_home:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_hostile_room_dig_check_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: room dig permission checks downgrade before delegation and deny non-owner helpers.";
+    target = #-1;
+    try
+      target = $room:create();
+      denied = false;
+      try
+        this:_call_check_can_dig_from_as_player(target);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner check_can_dig_from call should be denied");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_hostile_make_room_in_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: area room creation downgrades before delegation and denies non-owner helpers.";
+    area = #-1;
+    created = #-1;
+    try
+      area = create($area);
+      denied = false;
+      try
+        created = this:_call_make_room_in_as_player(area, $room);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner make_room_in call should be denied");
+    finally
+      valid(created) && created:destroy();
+      valid(area) && area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_destroy_cleans_containment (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: destroying a container detaches its contents from the recycled location.";
     room = #-1;
@@ -148,5 +296,52 @@ object HEADLESS_OBJECT_SCENARIOS
     {target, description} = args;
     target.description = description;
     return true;
+  endverb
+
+  verb _call_set_description_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt set_description() through a non-owner player-owned helper.";
+    {target, description} = args;
+    target:set_description(description);
+    return true;
+  endverb
+
+  verb _call_set_name_aliases_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt set_name_aliases() through a non-owner player-owned helper.";
+    {target, name, aliases} = args;
+    target:set_name_aliases(name, aliases);
+    return true;
+  endverb
+
+  verb _call_set_owner_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt set_owner() through a non-owner player-owned helper.";
+    {target, new_owner} = args;
+    target:set_owner(new_owner);
+    return true;
+  endverb
+
+  verb _call_moveto_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt moveto() through a non-owner player-owned helper.";
+    {target, destination} = args;
+    target:moveto(destination);
+    return true;
+  endverb
+
+  verb _call_set_home_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt set_home() through a non-owner player-owned helper.";
+    {target, home} = args;
+    target:set_home(home);
+    return true;
+  endverb
+
+  verb _call_check_can_dig_from_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt check_can_dig_from() through a non-owner player-owned helper.";
+    {target} = args;
+    return target:check_can_dig_from();
+  endverb
+
+  verb _call_make_room_in_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt make_room_in() through a non-owner player-owned helper.";
+    {target, room_parent} = args;
+    return target:make_room_in(room_parent);
   endverb
 endobject

@@ -79,6 +79,98 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_grant_allows_non_owner_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: a non-owner with a stored area capability can exercise the granted operation.";
+    key = this:_test_key();
+    test_area = #-1;
+    new_room = #-1;
+    try
+      test_area = create($area);
+      $root:grant_capability(test_area, {'add_room}, $player, 'area, key);
+      new_room = this:_make_room_with_area_grant_as_player(test_area);
+      $test_utils:assert_true(valid(new_room), "granted non-owner operation should create a room");
+      $test_utils:assert_eq(new_room.location, test_area, "granted room should be added to the target area");
+      $test_utils:assert_eq(new_room.owner, $player, "granted room should be owned by the grantee");
+    finally
+      valid(new_room) && new_room:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_revoke_denies_stored_grant_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: revoking a stored grant prevents later lookup-mediated use by the grantee.";
+    key = this:_test_key();
+    test_area = #-1;
+    created = #-1;
+    try
+      test_area = create($area);
+      $root:grant_capability(test_area, {'add_room}, $player, 'area, key);
+      $test_utils:assert_true($root:revoke_capability(test_area, $player, 'area), "revoke should remove the stored area grant");
+      denied = false;
+      try
+        created = this:_make_room_with_area_grant_as_player(test_area);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "revoked stored grant should not authorize area room creation");
+      $test_utils:assert_false($player:find_capability_for(test_area, 'area), "revoked grant should not be discoverable");
+    finally
+      valid(created) && created:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_revoke_denies_copied_bearer_token (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a revoked grant should not leave a copied bearer token usable.";
+    key = this:_test_key();
+    test_area = #-1;
+    try
+      test_area = create($area);
+      copied_cap = $root:grant_capability(test_area, {'add_room}, $player, 'area, key);
+      $test_utils:assert_true($root:revoke_capability(test_area, $player, 'area), "revoke should remove the stored area grant");
+      denied = false;
+      try
+        copied_cap:challenge_for_with_key({'add_room}, key);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "revoked copied bearer token should be denied");
+    finally
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_make_player_requires_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not create players through the wizard-owned make_player wrapper.";
+    created = #-1;
+    denied = false;
+    wrong_error = 0;
+    before_players = players();
+    try
+      try
+        created = this:_call_make_player_as_player();
+      except e (ANY)
+        if (e[1] == E_PERM)
+          denied = true;
+        else
+          wrong_error = e[1];
+        endif
+      endtry
+      $test_utils:assert_true(denied, "non-owner make_player wrapper call should be denied without capability");
+      $test_utils:assert_false(wrong_error, "non-owner make_player should deny before reaching setup work, got " + toliteral(wrong_error));
+      $test_utils:assert_eq(players(), before_players, "denied make_player should not add a player");
+    finally
+      if (valid(created))
+        set_player_flag(created, 0);
+        recycle(created);
+      endif
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_merge_rejects_wrong_target (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: merging capabilities for different targets is denied.";
     key = this:_test_key();
@@ -101,5 +193,19 @@ object HEADLESS_CAPABILITY_SCENARIOS
       valid(target_a) && target_a:destroy();
     endtry
     return true;
+  endverb
+
+  verb _make_room_with_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use PLAYER's stored area grant to create a room in target_area.";
+    {target_area} = args;
+    cap = $player:find_capability_for(target_area, 'area);
+    typeof(cap) == TYPE_FLYWEIGHT || raise(E_PERM);
+    return cap:make_room_in($room);
+  endverb
+
+  verb _call_make_player_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt player creation through a non-owner player-owned helper.";
+    cap = $player:make_player();
+    return cap.delegate;
   endverb
 endobject
