@@ -150,7 +150,7 @@ runtime-headless:
 	done
 ```
 
-The default filters are the headless-only scenario objects from `tests/headless/`: `#90000` for boot, `#90001` for scheduler, `#90002` for objects, `#90003` for relations, `#90004` for rules, and `#90005` for capabilities. Longer term, more headless runtime scenarios should stay in dedicated scenario objects or scenario directories so public prototypes do not accumulate hundreds of test verbs.
+The default filters are the headless-only scenario objects from `tests/headless/`: `#90000` for boot, `#90001` for scheduler, `#90002` for objects, `#90003` for relations, `#90004` for rules, `#90005` for capabilities, and `#90006` for event rendering. Longer term, more headless runtime scenarios should stay in dedicated scenario objects or scenario directories so public prototypes do not accumulate hundreds of test verbs.
 
 ### Session Runner
 

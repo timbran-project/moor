@@ -59,7 +59,7 @@ object MSG_BAG
     entries = typeof(this) == TYPE_FLYWEIGHT ? flycontents(this) | this.entries;
     idx < 1 || idx > length(entries) && raise(E_RANGE);
     if (typeof(this) == TYPE_FLYWEIGHT)
-      new_entries = listset(entries, idx, text);
+      new_entries = listset(entries, text, idx);
       return toflyweight($msg_bag, flyslots(this), new_entries);
     endif
     this.entries[idx] = text;
