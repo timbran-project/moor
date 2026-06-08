@@ -314,7 +314,8 @@ object PLAYER
 
   verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Update the profile picture of the given player.";
-    {target, perms} = this:check_permissions('set_profile_picture);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'set_profile_picture);
     set_task_perms(perms);
     {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 23) && raise(E_INVARG("Profile picture too large"));
@@ -325,7 +326,8 @@ object PLAYER
 
   verb set_password (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Change this player's password. Permission: wizard, owner, or 'set_password capability.";
-    {this, perms} = this:check_permissions('set_password);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_password);
     set_task_perms(perms);
     {new_password} = args;
     this.password = $password:mk(new_password);
@@ -358,14 +360,16 @@ object PLAYER
   verb set_player_flag (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Mark this object as a player. Permission: wizard or 'set_player_flag capability.";
     {flag_value} = args;
-    {this, perms} = this:check_permissions('set_player_flag);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_player_flag);
     set_task_perms(perms);
     set_player_flag(this, flag_value);
   endverb
 
   verb set_programmer (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this player's programmer flag. Permission: wizard, owner, or 'set_programmer capability.";
-    {this, perms} = this:check_permissions('set_programmer);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_programmer);
     set_task_perms(perms);
     {flag_value} = args;
     this.programmer = flag_value;
@@ -373,7 +377,8 @@ object PLAYER
 
   verb set_email_address (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this player's email address. Permission: wizard, owner, or 'set_email_address capability.";
-    {this, perms} = this:check_permissions('set_email_address);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_email_address);
     set_task_perms(perms);
     {email} = args;
     this.email_address = email;
@@ -381,7 +386,8 @@ object PLAYER
 
   verb set_oauth2_identities (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this player's OAuth2 identities. Permission: wizard, owner, or 'set_oauth2_identities capability.";
-    {this, perms} = this:check_permissions('set_oauth2_identities);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_oauth2_identities);
     set_task_perms(perms);
     {identities} = args;
     this.oauth2_identities = identities;
@@ -662,7 +668,8 @@ object PLAYER
 
   verb make_player (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a player and return a setup capability for initial configuration.";
-    {_, perms} = this:check_permissions('make_player);
+    actor = caller_perms();
+    {_, perms} = this:check_permissions_as(actor, 'make_player);
     set_task_perms(perms);
     new_player = this:create(@args);
     setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
@@ -1896,14 +1903,16 @@ object PLAYER
 
   verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return the display string for the player's pronouns (e.g. 'they/them').";
-    {target, perms} = this:check_permissions('pronouns_display);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'pronouns_display);
     set_task_perms(perms);
     return $pronouns:display(target.pronouns);
   endverb
 
   verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Programmatically set pronouns from a string like 'they/them'.";
-    {target, perms} = this:check_permissions('set_pronouns);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'set_pronouns);
     set_task_perms(perms);
     {pronouns_str} = args;
     typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
@@ -1916,7 +1925,8 @@ object PLAYER
 
   verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
-    {this, perms} = this:check_permissions('set_home);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_home);
     set_task_perms(perms);
     {room} = args;
     this.home = room;

@@ -30,7 +30,7 @@ object ROOT
     endif
     is_fertile = target.f;
     if (!is_fertile)
-      {_, perms} = this:check_permissions('create_child);
+      {_, perms} = this:check_permissions_as(caller_perms(), 'create_child);
     endif
     {?otype = 2} = args;
     if (typeof(otype) == TYPE_INT)
@@ -46,7 +46,7 @@ object ROOT
 
   verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Destroy this object. Permission: wizard, owner, or capability.";
-    this:check_permissions('recycle);
+    this:check_permissions_as(caller_perms(), 'recycle);
     recycle(this);
   endverb
 
@@ -64,14 +64,16 @@ object ROOT
   verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Move this object to destination. Permission: wizard, owner, or capability.";
     {destination} = args;
-    {this, perms} = this:check_permissions('move);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'move);
     set_task_perms(perms);
     return `move(this, destination) ! ANY';
   endverb
 
   verb set_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this object's owner and retitle any `c` properties on the object.";
-    {target, perms} = this:check_permissions('set_owner);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'set_owner);
     set_task_perms(perms);
     {new_owner, ?suspendok = 0} = args;
     valid(new_owner) || raise(E_INVARG);
@@ -92,7 +94,8 @@ object ROOT
 
   verb set_name_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set this object's name and aliases. Permission: wizard, owner, or 'set_name_aliases capability.";
-    {target, perms} = this:check_permissions('set_name_aliases);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'set_name_aliases);
     set_task_perms(perms);
     {new_name, new_aliases} = args;
     target.name = new_name;
@@ -128,8 +131,9 @@ object ROOT
 
   verb set_thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set the thumbnail image for this object. Permission: owner or wizard.";
-    {target, perms} = this:check_permissions('set_thumbnail);
-    set_task_perms(this.owner);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'set_thumbnail);
+    set_task_perms(perms);
     {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 20) && raise(E_INVARG, "Thumbnail too large (5MB max)");
     typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
@@ -138,7 +142,9 @@ object ROOT
   endverb
 
   verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
-    {target, perms} = this:check_permissions('set_description);
+    "Set this object's description. Permission: wizard, owner, or 'set_description capability.";
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'set_description);
     set_task_perms(perms);
     {description} = args;
     "If description is a string with { } tokens, compile it into $sub content so substitutions can render in looks";
@@ -150,9 +156,9 @@ object ROOT
         "Fall back to raw string if compilation fails";
         compiled = description;
       endtry
-      this.description = compiled;
+      target.description = compiled;
     else
-      this.description = description;
+      target.description = description;
     endif
   endverb
 
@@ -485,22 +491,25 @@ object ROOT
     raise(E_PERM);
   endverb
 
-  verb check_permissions (this none this) owner: HACKER flags: "rxd"
-    "Check wizard, owner, or capability permission. Returns {target, perms_object}.";
-    "Anyone can call this - authorization is checked internally based on caller_perms()";
+  verb check_permissions_as (this none this) owner: HACKER flags: "rxd"
+    "Check wizard, owner, or capability permission for an explicit actor. Returns {target, perms_object}.";
+    {actor, @required_caps} = args;
     target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
-    if (caller_perms().wizard)
-      return {target, caller_perms()};
+    if (valid(actor) && actor.wizard)
+      return {target, actor};
     endif
-    if (caller_perms() == target.owner)
-      return {target, caller_perms()};
+    if (valid(actor) && actor == target.owner)
+      return {target, actor};
     endif
-    return this:challenge_for(@args);
+    if (typeof(this) == TYPE_FLYWEIGHT)
+      return this:challenge_for(@required_caps);
+    endif
+    raise(E_PERM);
   endverb
 
   verb _capability_challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Internal: Validate capability with optional custom signing key.";
-    if (!(caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate)))
+    if (caller != $root && !(caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate)))
       raise(E_PERM);
     endif
     {required_caps, key} = args;

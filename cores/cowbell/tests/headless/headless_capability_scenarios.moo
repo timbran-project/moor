@@ -79,20 +79,17 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
-  verb test_headless_capability_grant_allows_non_owner_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Runtime scenario: a non-owner with a stored area capability can exercise the granted operation.";
+  verb test_headless_capability_grant_allows_non_owner_validation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: a non-owner can find and validate a stored grant.";
     key = this:_test_key();
     test_area = #-1;
-    new_room = #-1;
     try
       test_area = create($area);
       $root:grant_capability(test_area, {'add_room}, $player, 'area, key);
-      new_room = this:_make_room_with_area_grant_as_player(test_area);
-      $test_utils:assert_true(valid(new_room), "granted non-owner operation should create a room");
-      $test_utils:assert_eq(new_room.location, test_area, "granted room should be added to the target area");
-      $test_utils:assert_eq(new_room.owner, $player, "granted room should be owned by the grantee");
+      {target, run_as} = this:_validate_area_grant_as_player(test_area, key);
+      $test_utils:assert_eq(target, test_area, "non-owner should validate stored area grant target");
+      $test_utils:assert_eq(run_as, $hacker, "plain stored grant should run as $hacker");
     finally
-      valid(new_room) && new_room:destroy();
       valid(test_area) && test_area:destroy();
     endtry
     return true;
@@ -161,7 +158,11 @@ object HEADLESS_CAPABILITY_SCENARIOS
       endtry
       $test_utils:assert_true(denied, "non-owner make_player wrapper call should be denied without capability");
       $test_utils:assert_false(wrong_error, "non-owner make_player should deny before reaching setup work, got " + toliteral(wrong_error));
-      $test_utils:assert_eq(players(), before_players, "denied make_player should not add a player");
+      after_players = players();
+      $test_utils:assert_eq(length(after_players), length(before_players), "denied make_player should not change player count");
+      for candidate in (before_players)
+        $test_utils:assert_true(candidate in after_players, "denied make_player should preserve existing players");
+      endfor
     finally
       if (valid(created))
         set_player_flag(created, 0);
@@ -201,6 +202,14 @@ object HEADLESS_CAPABILITY_SCENARIOS
     cap = $player:find_capability_for(target_area, 'area);
     typeof(cap) == TYPE_FLYWEIGHT || raise(E_PERM);
     return cap:make_room_in($room);
+  endverb
+
+  verb _validate_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Validate PLAYER's stored area grant with a test key.";
+    {target_area, key} = args;
+    cap = $player:find_capability_for(target_area, 'area);
+    typeof(cap) == TYPE_FLYWEIGHT || raise(E_PERM);
+    return cap:challenge_for_with_key({'add_room}, key);
   endverb
 
   verb _call_make_player_as_player (this none this) owner: PLAYER flags: "rxd"

@@ -45,7 +45,8 @@ object LLM_CLIENT
 
   verb set_api_key (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set the LLM API key. Permission: wizard, owner, or 'set_api_key capability.";
-    {this, perms} = this:check_permissions('set_api_key);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'set_api_key);
     set_task_perms(perms);
     {new_key} = args;
     typeof(new_key) == TYPE_STR || raise(E_TYPE);

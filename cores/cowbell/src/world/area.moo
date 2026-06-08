@@ -278,8 +278,9 @@ object AREA
 
   verb make_room_in (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a new room in this area. Requires 'add_room capability on area.";
-    set_task_perms(caller_perms());
-    {target, perms} = this:check_permissions('add_room);
+    actor = caller_perms();
+    set_task_perms(actor);
+    {target, perms} = this:check_permissions_as(actor, 'add_room);
     {parent_obj} = args;
     "Create room with caller's ownership";
     new_room = parent_obj:create();
@@ -289,7 +290,8 @@ object AREA
 
   verb add_room (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Add a room to this area. Requires 'add_room capability on area.";
-    {this, perms} = this:check_permissions('add_room);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'add_room);
     {room} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
     set_task_perms(perms);
@@ -301,20 +303,21 @@ object AREA
     "Create passage between two rooms. Requires 'create_passage on area, 'dig_from on room_a, 'dig_into on room_b.";
     "For bidirectional passages, also requires 'dig_from on room_b and 'dig_into on room_a.";
     "room_a and room_b should be capability flyweights or raw room objects that caller has permission for.";
-    {this, perms} = this:check_permissions('create_passage);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'create_passage);
     {room_a, room_b, passage} = args;
     "Extract actual room objects from capabilities if needed";
     actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
     actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
     "Check room_a allows digging from it and room_b allows digging into it";
     try
-      room_a:check_permissions('dig_from);
+      room_a:check_permissions_as(actor, 'dig_from);
     except (E_PERM)
       message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_from});
       raise(E_PERM, message);
     endtry
     try
-      room_b:check_permissions('dig_into);
+      room_b:check_permissions_as(actor, 'dig_into);
     except (E_PERM)
       message = $grant_utils:format_denial(actual_room_b, 'room, {'dig_into});
       raise(E_PERM, message);
@@ -323,13 +326,13 @@ object AREA
     is_bidirectional = passage.side_b_label != "" || length(passage.side_b_aliases) > 0;
     if (is_bidirectional)
       try
-        room_b:check_permissions('dig_from);
+        room_b:check_permissions_as(actor, 'dig_from);
       except (E_PERM)
         message = $grant_utils:format_denial(actual_room_b, 'room, {'dig_from});
         raise(E_PERM, message);
       endtry
       try
-        room_a:check_permissions('dig_into);
+        room_a:check_permissions_as(actor, 'dig_into);
       except (E_PERM)
         message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_into});
         raise(E_PERM, message);
@@ -370,14 +373,15 @@ object AREA
 
   verb remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Remove passage between two rooms. Requires 'remove_passage on area and 'dig_from on source room.";
-    {this, perms} = this:check_permissions('remove_passage);
+    actor = caller_perms();
+    {this, perms} = this:check_permissions_as(actor, 'remove_passage);
     {room_a, room_b} = args;
     "Extract actual room objects from capabilities if needed";
     actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
     actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
     "Check that source room allows digging from it (implies permission to remove passages)";
     try
-      room_a:check_permissions('dig_from);
+      room_a:check_permissions_as(actor, 'dig_from);
     except (E_PERM)
       message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_from});
       raise(E_PERM, message);

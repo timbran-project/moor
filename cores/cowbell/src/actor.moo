@@ -317,7 +317,8 @@ object ACTOR
 
   verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return the display string for the player's pronouns (e.g. 'they/them').";
-    {target, perms} = this:check_permissions('pronouns_display);
+    actor = caller_perms();
+    {target, perms} = this:check_permissions_as(actor, 'pronouns_display);
     set_task_perms(perms);
     return $pronouns:display(target.pronouns);
   endverb
