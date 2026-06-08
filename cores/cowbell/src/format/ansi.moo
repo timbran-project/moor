@@ -319,4 +319,36 @@ object ANSI
     endwhile
     return result;
   endverb
+
+  verb test_basic_sequences (this none this) owner: HACKER flags: "rxd"
+    this:red() + "red text" + this:reset() == "\x1B[31mred text\x1B[0m" || raise(E_ASSERT, "red color sequence mismatch");
+    this:blue() + "blue text" + this:reset() == "\x1B[34mblue text\x1B[0m" || raise(E_ASSERT, "blue color sequence mismatch");
+    this:bold() + "bold" + this:reset() == "\x1B[1mbold\x1B[0m" || raise(E_ASSERT, "bold sequence mismatch");
+    this:italic() + "italic" + this:reset() == "\x1B[3mitalic\x1B[0m" || raise(E_ASSERT, "italic sequence mismatch");
+    return true;
+  endverb
+
+  verb test_extended_color_sequences (this none this) owner: HACKER flags: "rxd"
+    this:color_256(196) == "\x1B[38;5;196m" || raise(E_ASSERT, "256-color foreground sequence mismatch");
+    this:bg_color_256(27) == "\x1B[48;5;27m" || raise(E_ASSERT, "256-color background sequence mismatch");
+    this:rgb(255, 0, 128) == "\x1B[38;2;255;0;128m" || raise(E_ASSERT, "RGB foreground sequence mismatch");
+    this:bg_rgb(0, 128, 255) == "\x1B[48;2;0;128;255m" || raise(E_ASSERT, "RGB background sequence mismatch");
+    return true;
+  endverb
+
+  verb test_wrapping_and_stripping (this none this) owner: HACKER flags: "rxd"
+    this:colorize("hello", 'red) == "\x1B[31mhello\x1B[0m" || raise(E_ASSERT, "symbol colorize mismatch");
+    this:colorize("world", 196) == "\x1B[38;5;196mworld\x1B[0m" || raise(E_ASSERT, "integer colorize mismatch");
+    this:wrap("text", 'bold, 'red) == "\x1B[1m\x1B[31mtext\x1B[0m" || raise(E_ASSERT, "wrap sequence mismatch");
+    this:strip("\x1B[31mred\x1B[0m text") == "red text" || raise(E_ASSERT, "simple strip mismatch");
+    this:strip("\x1B[1m\x1B[31mbold red\x1B[0m") == "bold red" || raise(E_ASSERT, "complex strip mismatch");
+    return true;
+  endverb
+
+  verb test_british_aliases (this none this) owner: HACKER flags: "rxd"
+    this:colour_256(196) == "\x1B[38;5;196m" || raise(E_ASSERT, "British 256-colour foreground sequence mismatch");
+    this:bg_colour_256(27) == "\x1B[48;5;27m" || raise(E_ASSERT, "British 256-colour background sequence mismatch");
+    this:colourize("hello", 'red) == "\x1B[31mhello\x1B[0m" || raise(E_ASSERT, "British colourize mismatch");
+    return true;
+  endverb
 endobject

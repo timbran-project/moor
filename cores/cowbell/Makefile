@@ -17,7 +17,6 @@ OPTIONS = --use-boolean-returns true \
 
 ifeq ($(MOORC_TYPE),cargo)
 SRC_DIRECTORY = src
-TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 ifeq ($(DEBUG),1)
 MOORC = gdb --batch --ex "handle SIGUSR1 nostop noprint pass" --ex run --ex bt --ex quit --args cargo run -p moorc -- \
@@ -27,12 +26,10 @@ MOORC = cargo run -p moorc -- $(OPTIONS)
 endif
 else ifeq ($(MOORC_TYPE),direct)
 SRC_DIRECTORY = src
-TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 MOORC = ../moor/target/debug/moorc $(OPTIONS)
 else ifeq ($(MOORC_TYPE),docker)
 SRC_DIRECTORY = /work/src
-TEST_DIRECTORY = /work/tests
 OUTPUT_DIRECTORY = /work
 MOORC = docker run --rm -v $(CURDIR):/work -w /work $(MOORC_IMAGE) /moor/moorc $(OPTIONS)
 endif
@@ -58,11 +55,10 @@ rebuild: gen.objdir
 
 test:  $(wildcard src/*.moo)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
-	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true
+	--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true
 
 clean:
 	rm -f gen.moo-textdump
 	rm -rf gen.objdir
 
 output: gen.moo-textdump
-

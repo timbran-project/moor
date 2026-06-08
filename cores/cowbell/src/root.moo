@@ -609,6 +609,28 @@ object ROOT
     return true;
   endverb
 
+  verb test_can_create_unrooted_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Creating with no parent and no owner should make the object own itself.";
+    scratch = create($nothing, $nothing);
+    try
+      scratch.owner == scratch || raise(E_ASSERT, "unrooted object should own itself");
+    finally
+      valid(scratch) && recycle(scratch);
+    endtry
+    return true;
+  endverb
+
+  verb test_programmer_can_create_child_of_root (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Creating a direct child of $root should make the current task perms its owner.";
+    scratch = create($root);
+    try
+      scratch.owner == $arch_wizard || raise(E_ASSERT, "root child should be owned by arch wizard");
+    finally
+      valid(scratch) && recycle(scratch);
+    endtry
+    return true;
+  endverb
+
   verb test_capabilities (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test capability issuance and challenge with custom test key";
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
