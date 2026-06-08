@@ -236,6 +236,8 @@ object STR_PROTO
   endverb
 
   verb "centre center" (this none this) owner: HACKER flags: "rxd"
+    "Return text centered in a field of length len, using optional left and right fill strings.";
+    "If len is negative and text is too long, truncate text to abs(len).";
     {text, len, ?lfill = " ", ?rfill = lfill} = args;
     out = tostr(text);
     abslen = abs(len);
@@ -254,6 +256,8 @@ object STR_PROTO
   endverb
 
   verb literal_object (this none this) owner: HACKER flags: "rxd"
+    "Resolve a literal object string into an object reference.";
+    "Supports #object ids, @player names, and $sysobj property paths; returns $failed_match when resolution fails.";
     string = args[1];
     if (!string)
       return $nothing;
@@ -927,6 +931,7 @@ object STR_PROTO
   endverb
 
   verb compose (this none this) owner: HACKER flags: "rxd"
+    "Return the given string unchanged for compatibility with composable content APIs.";
     return args[1];
   endverb
 
