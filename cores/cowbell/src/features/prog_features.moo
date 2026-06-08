@@ -936,17 +936,18 @@ object PROG_FEATURES
           endif
           seen = {@seen, prop_name};
           prop_display = tostr(prop_name);
-          "Skip properties we can't access";
-          metadata = `$prog_utils:get_property_metadata(current, prop_name) ! E_PERM => 0';
-          if (typeof(metadata) != TYPE_FLYWEIGHT)
+          "Format definer as Name (#num)";
+          definer_str = `current.name ! ANY => "???"' + " (" + tostr(current) + ")";
+          try
+            metadata = $prog_utils:get_property_metadata(current, prop_name);
+          except (E_PERM)
+            rows = {@rows, {"." + prop_display, definer_str, "(no access)", "", ""}};
             continue;
-          endif
+          endtry
           prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(current, prop_name) ! E_PERM => "(no access)"');
           if (length(prop_value) > 50)
             prop_value = prop_value[1..47] + "...";
           endif
-          "Format definer as Name (#num)";
-          definer_str = `current.name ! ANY => "???"' + " (" + tostr(current) + ")";
           "Format owner as Name (#num)";
           prop_owner = metadata:owner();
           owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
@@ -960,11 +961,12 @@ object PROG_FEATURES
       props = this:_do_get_properties(target_obj);
       for prop_name in (props)
         prop_display = tostr(prop_name);
-        "Skip properties we can't access";
-        metadata = `$prog_utils:get_property_metadata(target_obj, prop_name) ! E_PERM => 0';
-        if (typeof(metadata) != TYPE_FLYWEIGHT)
+        try
+          metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
+        except (E_PERM)
+          rows = {@rows, {"." + prop_display, "(no access)", "", ""}};
           continue;
-        endif
+        endtry
         prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(target_obj, prop_name) ! E_PERM => "(no access)"');
         if (length(prop_value) > 50)
           prop_value = prop_value[1..47] + "...";
