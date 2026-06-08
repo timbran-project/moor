@@ -194,182 +194,10 @@ object REACTION
     "```"
   };
 
-  verb test_mk_event_trigger (this none this) owner: HACKER flags: "rxd"
-    "Test creating a reaction with a simple event trigger.";
-    reaction = this:mk('on_unlock, 0, {});
-    typeof(reaction) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    reaction.delegate == this || raise(E_ASSERT, "Delegate should be $reaction");
-    reaction.trigger == 'on_unlock || raise(E_ASSERT, "Trigger should be 'on_unlock");
-    reaction.when == 0 || raise(E_ASSERT, "When should be 0 (no condition)");
-    reaction.effects == {} || raise(E_ASSERT, "Effects should be empty list");
-    reaction.enabled == true || raise(E_ASSERT, "Should be enabled by default");
-    return true;
-  endverb
-
-  verb test_mk_threshold_trigger (this none this) owner: HACKER flags: "rxd"
-    "Test creating a reaction with a threshold trigger.";
-    reaction = this:mk({'when, 'pets_received, 'ge, 10}, 0, {});
-    typeof(reaction) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    typeof(reaction.trigger) == TYPE_LIST || raise(E_ASSERT, "Trigger should be list");
-    reaction.trigger[1] == 'when || raise(E_ASSERT, "Trigger[1] should be 'when");
-    reaction.trigger[2] == 'pets_received || raise(E_ASSERT, "Trigger[2] should be property");
-    reaction.trigger[3] == 'ge || raise(E_ASSERT, "Trigger[3] should be operator");
-    reaction.trigger[4] == 10 || raise(E_ASSERT, "Trigger[4] should be threshold value");
-    return true;
-  endverb
-
-  verb test_mk_with_condition (this none this) owner: HACKER flags: "rxd"
-    "Test creating a reaction with a when condition.";
-    reaction = this:mk('on_pet, "NOT This is_grouchy?", {});
-    typeof(reaction) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    reaction.when != 0 || raise(E_ASSERT, "When should be parsed rule");
-    typeof(reaction.when) == TYPE_FLYWEIGHT || raise(E_ASSERT, "When should be rule flyweight");
-    return true;
-  endverb
-
-  verb test_mk_invalid_trigger (this none this) owner: HACKER flags: "rxd"
-    "Test that invalid triggers raise errors.";
-    caught = false;
-    try
-      this:mk("not_a_symbol", 0, {});
-    except (E_INVARG)
-      caught = true;
-    endtry
-    caught || raise(E_ASSERT, "Should reject non-symbol trigger");
-    caught = false;
-    try
-      this:mk({'wrong, 'prop}, 0, {});
-    except (E_INVARG)
-      caught = true;
-    endtry
-    caught || raise(E_ASSERT, "Should reject malformed threshold trigger");
-    return true;
-  endverb
-
-  verb test_parse_effect_set (this none this) owner: HACKER flags: "rxd"
-    "Test parsing a 'set' effect.";
-    effect = this:parse_effect({'set, 'locked, false});
-    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    effect.type == 'set || raise(E_ASSERT, "Type should be 'set");
-    effect.prop == 'locked || raise(E_ASSERT, "Prop should be 'locked");
-    effect.value == false || raise(E_ASSERT, "Value should be false");
-    return true;
-  endverb
-
-  verb test_parse_effect_increment (this none this) owner: HACKER flags: "rxd"
-    "Test parsing an 'increment' effect.";
-    effect = this:parse_effect({'increment, 'counter});
-    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    effect.type == 'increment || raise(E_ASSERT, "Type should be 'increment");
-    effect.prop == 'counter || raise(E_ASSERT, "Prop should be 'counter");
-    effect.by == 1 || raise(E_ASSERT, "Default increment should be 1");
-    "Test with explicit amount";
-    effect2 = this:parse_effect({'increment, 'counter, 5});
-    (effect2).by == 5 || raise(E_ASSERT, "Explicit increment should be 5");
-    return true;
-  endverb
-
-  verb test_parse_effect_announce (this none this) owner: HACKER flags: "rxd"
-    "Test parsing an 'announce' effect with template compilation.";
-    effect = this:parse_effect({'announce, "{nc} hears a click."});
-    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    effect.type == 'announce || raise(E_ASSERT, "Type should be 'announce");
-    typeof(effect.msg) == TYPE_LIST || raise(E_ASSERT, "Msg should be compiled to list");
-    length(effect.msg) > 0 || raise(E_ASSERT, "Msg should have content");
-    return true;
-  endverb
-
-  verb test_parse_effect_emote (this none this) owner: HACKER flags: "rxd"
-    "Test parsing an 'emote' effect.";
-    effect = this:parse_effect({'emote, "purrs contentedly."});
-    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    effect.type == 'emote || raise(E_ASSERT, "Type should be 'emote");
-    typeof(effect.msg) == TYPE_LIST || raise(E_ASSERT, "Msg should be compiled to list");
-    return true;
-  endverb
-
-  verb test_parse_effect_trigger (this none this) owner: HACKER flags: "rxd"
-    "Test parsing a 'trigger' effect.";
-    effect = this:parse_effect({'trigger, $root, 'on_activate});
-    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    effect.type == 'trigger || raise(E_ASSERT, "Type should be 'trigger");
-    effect.target == $root || raise(E_ASSERT, "Target should be $root");
-    effect.event == 'on_activate || raise(E_ASSERT, "Event should be 'on_activate");
-    return true;
-  endverb
-
-  verb test_parse_effect_delay (this none this) owner: HACKER flags: "rxd"
-    "Test parsing a 'delay' effect with nested effect.";
-    effect = this:parse_effect({'delay, 5, {'announce, "Boom!"}});
-    typeof(effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
-    effect.type == 'delay || raise(E_ASSERT, "Type should be 'delay");
-    effect.seconds == 5 || raise(E_ASSERT, "Seconds should be 5");
-    typeof(effect.effect) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Nested effect should be flyweight");
-    effect.effect.type == 'announce || raise(E_ASSERT, "Nested effect should be announce");
-    return true;
-  endverb
-
-  verb test_parse_effect_invalid (this none this) owner: HACKER flags: "rxd"
-    "Test that invalid effects raise errors.";
-    caught = false;
-    try
-      this:parse_effect({'unknown_type, "foo"});
-    except (E_INVARG)
-      caught = true;
-    endtry
-    caught || raise(E_ASSERT, "Should reject unknown effect type");
-    caught = false;
-    try
-      this:parse_effect("not a list");
-    except (E_INVARG)
-      caught = true;
-    endtry
-    caught || raise(E_ASSERT, "Should reject non-list effect");
-    return true;
-  endverb
-
-  verb test_mk_compiles_effects (this none this) owner: HACKER flags: "rxd"
-    "Test that mk() parses all effects.";
-    reaction = this:mk('on_unlock, 0, {{'announce, "Click!"}, {'set, 'locked, false}, {'increment, 'times_unlocked}});
-    length(reaction.effects) == 3 || raise(E_ASSERT, "Should have 3 effects");
-    reaction.effects[1].type == 'announce || raise(E_ASSERT, "First effect should be announce");
-    reaction.effects[2].type == 'set || raise(E_ASSERT, "Second effect should be set");
-    reaction.effects[3].type == 'increment || raise(E_ASSERT, "Third effect should be increment");
-    return true;
-  endverb
-
-  verb test_compare (this none this) owner: HACKER flags: "rxd"
-    "Test comparison operators.";
-    this:compare(5, 'eq, 5) || raise(E_ASSERT, "5 == 5");
-    !this:compare(5, 'eq, 3) || raise(E_ASSERT, "5 != 3");
-    this:compare(5, 'ne, 3) || raise(E_ASSERT, "5 != 3");
-    this:compare(5, 'gt, 3) || raise(E_ASSERT, "5 > 3");
-    !this:compare(3, 'gt, 5) || raise(E_ASSERT, "3 not > 5");
-    this:compare(3, 'lt, 5) || raise(E_ASSERT, "3 < 5");
-    this:compare(5, 'ge, 5) || raise(E_ASSERT, "5 >= 5");
-    this:compare(5, 'ge, 3) || raise(E_ASSERT, "5 >= 3");
-    this:compare(5, 'le, 5) || raise(E_ASSERT, "5 <= 5");
-    this:compare(3, 'le, 5) || raise(E_ASSERT, "3 <= 5");
-    return true;
-  endverb
-
-  verb test_threshold_crossed (this none this) owner: HACKER flags: "rxd"
-    "Test threshold crossing detection.";
-    "Crossing from below to at/above";
-    this:threshold_crossed(9, 10, 'ge, 10) || raise(E_ASSERT, "9->10 crosses >=10");
-    this:threshold_crossed(5, 15, 'ge, 10) || raise(E_ASSERT, "5->15 crosses >=10");
-    !this:threshold_crossed(10, 11, 'ge, 10) || raise(E_ASSERT, "10->11 already met >=10");
-    !this:threshold_crossed(8, 9, 'ge, 10) || raise(E_ASSERT, "8->9 doesn't cross >=10");
-    "Crossing equality";
-    this:threshold_crossed(9, 10, 'eq, 10) || raise(E_ASSERT, "9->10 crosses ==10");
-    !this:threshold_crossed(10, 10, 'eq, 10) || raise(E_ASSERT, "10->10 already met");
-    this:threshold_crossed(11, 10, 'eq, 10) || raise(E_ASSERT, "11->10 crosses ==10");
-    return true;
-  endverb
-
   verb mk (this none this) owner: HACKER flags: "rxd"
-    "Create a reaction flyweight. Parses and validates at creation time.";
+    "Create an enabled reaction flyweight from a trigger, optional when clause, and effect specs.";
     "Args: trigger, when_clause (0 or rule string), effects (list of effect specs)";
+    "Returns: <REACTION, .trigger, .when, .effects, .enabled, .fired_at>.";
     {trigger, ?when_clause = 0, ?effects = {}} = args;
     "Validate trigger";
     this:validate_trigger(trigger);
@@ -387,7 +215,8 @@ object REACTION
   endverb
 
   verb validate_trigger (this none this) owner: HACKER flags: "rxd"
-    "Validate a trigger specification.";
+    "Validate an event-symbol trigger or threshold trigger list.";
+    "Threshold form is {'when, property_symbol, comparison_op, threshold_value}.";
     {trigger} = args;
     "Event trigger - just a symbol";
     if (typeof(trigger) == TYPE_SYM)
@@ -406,7 +235,8 @@ object REACTION
   endverb
 
   verb parse_effect (this none this) owner: HACKER flags: "rxd"
-    "Parse an effect spec into a validated flyweight.";
+    "Parse one effect spec into a validated reaction-effect flyweight.";
+    "String message effects are compiled through $sub_utils; list messages are preserved.";
     {spec} = args;
     typeof(spec) == TYPE_LIST || raise(E_INVARG, "Effect must be list");
     length(spec) >= 2 || raise(E_INVARG, "Effect must have at least type and one argument");
@@ -453,7 +283,7 @@ object REACTION
   endverb
 
   verb compare (this none this) owner: HACKER flags: "rxd"
-    "Compare two values with an operator symbol.";
+    "Compare two values using one of the configured comparison operator symbols.";
     {left, op, right} = args;
     if (op == 'eq)
       return left == right;
@@ -472,7 +302,7 @@ object REACTION
   endverb
 
   verb threshold_crossed (this none this) owner: HACKER flags: "rxd"
-    "Check if a threshold was crossed (wasn't met before, is met now).";
+    "Return true when a value transition newly satisfies a threshold comparison.";
     {old_value, new_value, op, threshold} = args;
     was_met = this:compare(old_value, op, threshold);
     now_met = this:compare(new_value, op, threshold);
@@ -480,8 +310,9 @@ object REACTION
   endverb
 
   verb execute (this none this) owner: HACKER flags: "rxd"
-    "Execute this reaction in the given context.";
+    "Execute this reaction in the given context if its when clause succeeds.";
     "Context is map: ['Actor -> player, 'This -> object, 'Key -> iobj, ...]";
+    "Returns false when a when clause fails, otherwise true after all effects run.";
     {context} = args;
     "Check when clause if present (flyweights are falsy, so check != 0)";
     if (this.when != 0)
@@ -529,7 +360,8 @@ object REACTION
   endverb
 
   verb execute_effect (this none this) owner: HACKER flags: "rxd"
-    "Execute a single effect in context. Effect can be flyweight or raw list.";
+    "Execute a single parsed or raw effect against target using context bindings.";
+    "Mutation effects also check threshold reactions on the same target.";
     {effect, context, target} = args;
     "Parse list effects on the fly for convenience";
     if (typeof(effect) == TYPE_LIST)
@@ -600,5 +432,223 @@ object REACTION
         `action_target:(verb_name)(target, context) ! E_VERBNF';
       endif
     endif
+  endverb
+
+  verb test_mk_event_trigger (this none this) owner: HACKER flags: "rxd"
+    "Test creating a reaction with a simple event trigger.";
+    reaction = this:mk('on_unlock, 0, {});
+    $test_utils:assert_type(reaction, TYPE_FLYWEIGHT, "mk() should return a flyweight");
+    $test_utils:assert_eq(reaction.delegate, this, "delegate should be $reaction");
+    $test_utils:assert_eq(reaction.trigger, 'on_unlock, "trigger should be stored");
+    $test_utils:assert_eq(reaction.when, 0, "default when clause should be disabled");
+    $test_utils:assert_eq(reaction.effects, {}, "empty effects should be preserved");
+    $test_utils:assert_true(reaction.enabled, "reactions should be enabled by default");
+    return true;
+  endverb
+
+  verb test_mk_threshold_trigger (this none this) owner: HACKER flags: "rxd"
+    "Test creating a reaction with a threshold trigger.";
+    reaction = this:mk({'when, 'pets_received, 'ge, 10}, 0, {});
+    $test_utils:assert_type(reaction, TYPE_FLYWEIGHT, "mk() should return a flyweight");
+    $test_utils:assert_type(reaction.trigger, TYPE_LIST, "threshold trigger should be a list");
+    $test_utils:assert_eq(reaction.trigger[1], 'when, "threshold trigger kind");
+    $test_utils:assert_eq(reaction.trigger[2], 'pets_received, "threshold trigger property");
+    $test_utils:assert_eq(reaction.trigger[3], 'ge, "threshold trigger operator");
+    $test_utils:assert_eq(reaction.trigger[4], 10, "threshold trigger value");
+    return true;
+  endverb
+
+  verb test_mk_with_condition (this none this) owner: HACKER flags: "rxd"
+    "Test creating a reaction with a when condition.";
+    reaction = this:mk('on_pet, "NOT This is_grouchy?", {});
+    $test_utils:assert_type(reaction, TYPE_FLYWEIGHT, "mk() should return a flyweight");
+    $test_utils:assert_true(reaction.when != 0, "string when clause should be parsed");
+    $test_utils:assert_type(reaction.when, TYPE_FLYWEIGHT, "when clause should be a rule flyweight");
+    return true;
+  endverb
+
+  verb test_mk_invalid_trigger (this none this) owner: HACKER flags: "rxd"
+    "Test that invalid triggers raise errors.";
+    $test_utils:assert_raises(E_INVARG, this, "mk", {"not_a_symbol", 0, {}}, "string triggers should be rejected");
+    $test_utils:assert_raises(E_INVARG, this, "mk", {{'wrong, 'prop}, 0, {}}, "malformed threshold triggers should be rejected");
+    return true;
+  endverb
+
+  verb test_parse_effect_set (this none this) owner: HACKER flags: "rxd"
+    "Test parsing a 'set' effect.";
+    effect = this:parse_effect({'set, 'locked, false});
+    $test_utils:assert_type(effect, TYPE_FLYWEIGHT, "parse_effect() should return a flyweight");
+    $test_utils:assert_eq(effect.type, 'set, "effect type");
+    $test_utils:assert_eq(effect.prop, 'locked, "set property");
+    $test_utils:assert_false(effect.value, "set value");
+    return true;
+  endverb
+
+  verb test_parse_effect_increment (this none this) owner: HACKER flags: "rxd"
+    "Test parsing an 'increment' effect.";
+    effect = this:parse_effect({'increment, 'counter});
+    $test_utils:assert_type(effect, TYPE_FLYWEIGHT, "parse_effect() should return a flyweight");
+    $test_utils:assert_eq(effect.type, 'increment, "effect type");
+    $test_utils:assert_eq(effect.prop, 'counter, "increment property");
+    $test_utils:assert_eq(effect.by, 1, "default increment amount");
+    effect2 = this:parse_effect({'increment, 'counter, 5});
+    $test_utils:assert_eq(effect2.by, 5, "explicit increment amount");
+    return true;
+  endverb
+
+  verb test_parse_effect_announce (this none this) owner: HACKER flags: "rxd"
+    "Test parsing an 'announce' effect with template compilation.";
+    effect = this:parse_effect({'announce, "{nc} hears a click."});
+    $test_utils:assert_type(effect, TYPE_FLYWEIGHT, "parse_effect() should return a flyweight");
+    $test_utils:assert_eq(effect.type, 'announce, "effect type");
+    $test_utils:assert_type(effect.msg, TYPE_LIST, "string messages should compile to template lists");
+    $test_utils:assert_true(length(effect.msg) > 0, "compiled message should have content");
+    return true;
+  endverb
+
+  verb test_parse_effect_emote (this none this) owner: HACKER flags: "rxd"
+    "Test parsing an 'emote' effect.";
+    effect = this:parse_effect({'emote, "purrs contentedly."});
+    $test_utils:assert_type(effect, TYPE_FLYWEIGHT, "parse_effect() should return a flyweight");
+    $test_utils:assert_eq(effect.type, 'emote, "effect type");
+    $test_utils:assert_type(effect.msg, TYPE_LIST, "string messages should compile to template lists");
+    return true;
+  endverb
+
+  verb test_parse_effect_trigger (this none this) owner: HACKER flags: "rxd"
+    "Test parsing a 'trigger' effect.";
+    effect = this:parse_effect({'trigger, $root, 'on_activate});
+    $test_utils:assert_type(effect, TYPE_FLYWEIGHT, "parse_effect() should return a flyweight");
+    $test_utils:assert_eq(effect.type, 'trigger, "effect type");
+    $test_utils:assert_eq(effect.target, $root, "trigger target");
+    $test_utils:assert_eq(effect.event, 'on_activate, "trigger event");
+    return true;
+  endverb
+
+  verb test_parse_effect_delay (this none this) owner: HACKER flags: "rxd"
+    "Test parsing a 'delay' effect with nested effect.";
+    effect = this:parse_effect({'delay, 5, {'announce, "Boom!"}});
+    $test_utils:assert_type(effect, TYPE_FLYWEIGHT, "parse_effect() should return a flyweight");
+    $test_utils:assert_eq(effect.type, 'delay, "effect type");
+    $test_utils:assert_eq(effect.seconds, 5, "delay seconds");
+    $test_utils:assert_type(effect.effect, TYPE_FLYWEIGHT, "nested effect should be parsed");
+    $test_utils:assert_eq(effect.effect.type, 'announce, "nested effect type");
+    return true;
+  endverb
+
+  verb test_parse_effect_invalid (this none this) owner: HACKER flags: "rxd"
+    "Test that invalid effects raise errors.";
+    $test_utils:assert_raises(E_INVARG, this, "parse_effect", {{'unknown_type, "foo"}}, "unknown effect type should be rejected");
+    $test_utils:assert_raises(E_INVARG, this, "parse_effect", {"not a list"}, "non-list effect should be rejected");
+    return true;
+  endverb
+
+  verb test_mk_compiles_effects (this none this) owner: HACKER flags: "rxd"
+    "Test that mk() parses all effects.";
+    reaction = this:mk('on_unlock, 0, {{'announce, "Click!"}, {'set, 'locked, false}, {'increment, 'times_unlocked}});
+    $test_utils:assert_eq(length(reaction.effects), 3, "mk() should parse every effect");
+    $test_utils:assert_eq(reaction.effects[1].type, 'announce, "first effect type");
+    $test_utils:assert_eq(reaction.effects[2].type, 'set, "second effect type");
+    $test_utils:assert_eq(reaction.effects[3].type, 'increment, "third effect type");
+    return true;
+  endverb
+
+  verb test_compare (this none this) owner: HACKER flags: "rxd"
+    "Test comparison operators.";
+    $test_utils:assert_true(this:compare(5, 'eq, 5), "eq should match equal values");
+    $test_utils:assert_false(this:compare(5, 'eq, 3), "eq should reject unequal values");
+    $test_utils:assert_true(this:compare(5, 'ne, 3), "ne should match unequal values");
+    $test_utils:assert_true(this:compare(5, 'gt, 3), "gt should compare greater values");
+    $test_utils:assert_false(this:compare(3, 'gt, 5), "gt should reject smaller values");
+    $test_utils:assert_true(this:compare(3, 'lt, 5), "lt should compare smaller values");
+    $test_utils:assert_true(this:compare(5, 'ge, 5), "ge should accept equality");
+    $test_utils:assert_true(this:compare(5, 'ge, 3), "ge should accept greater values");
+    $test_utils:assert_true(this:compare(5, 'le, 5), "le should accept equality");
+    $test_utils:assert_true(this:compare(3, 'le, 5), "le should accept smaller values");
+    return true;
+  endverb
+
+  verb test_threshold_crossed (this none this) owner: HACKER flags: "rxd"
+    "Test threshold crossing detection.";
+    $test_utils:assert_true(this:threshold_crossed(9, 10, 'ge, 10), "9->10 crosses >=10");
+    $test_utils:assert_true(this:threshold_crossed(5, 15, 'ge, 10), "5->15 crosses >=10");
+    $test_utils:assert_false(this:threshold_crossed(10, 11, 'ge, 10), "10->11 already met >=10");
+    $test_utils:assert_false(this:threshold_crossed(8, 9, 'ge, 10), "8->9 does not cross >=10");
+    $test_utils:assert_true(this:threshold_crossed(9, 10, 'eq, 10), "9->10 crosses ==10");
+    $test_utils:assert_false(this:threshold_crossed(10, 10, 'eq, 10), "10->10 already met ==10");
+    $test_utils:assert_true(this:threshold_crossed(11, 10, 'eq, 10), "11->10 crosses ==10");
+    return true;
+  endverb
+
+  verb test_execute_mutation_effects_and_thresholds (this none this) owner: HACKER flags: "rxd"
+    "Test mutation effects and threshold reactions during execution.";
+    target = $test_utils:anonymous($root);
+    add_property(target, "score", 1, {this.owner, "r"});
+    add_property(target, "state", "idle", {this.owner, "r"});
+    add_property(target, "threshold_hit", false, {this.owner, "r"});
+    threshold = this:mk({'when, 'score, 'ge, 5}, 0, {{'set, 'threshold_hit, true}});
+    add_property(target, "score_threshold_reaction", threshold, {this.owner, "r"});
+    reaction = this:mk('on_score, 0, {{'increment, 'score, 4}, {'decrement, 'score, 2}, {'set, 'state, "done"}});
+    $test_utils:assert_true(reaction:execute(['Actor -> player, 'This -> target]), "mutation reaction should execute");
+    $test_utils:assert_eq(target.score, 3, "increment and decrement effects should mutate numeric properties");
+    $test_utils:assert_eq(target.state, "done", "set effect should update target property");
+    $test_utils:assert_true(target.threshold_hit, "threshold reaction should fire when score crosses threshold");
+    return true;
+  endverb
+
+  verb test_fire_trigger_enabled_filtering (this none this) owner: HACKER flags: "rxd"
+    "Test root fire_trigger dispatches matching enabled reactions only.";
+    target = $test_utils:anonymous($root);
+    add_property(target, "count", 0, {this.owner, "r"});
+    enabled_reaction = this:mk('on_ping, 0, {{'increment, 'count, 1}});
+    disabled_reaction = this:mk('on_ping, 0, {{'increment, 'count, 100}});
+    disabled_reaction.enabled = false;
+    add_property(target, "enabled_ping_reaction", enabled_reaction, {this.owner, "r"});
+    add_property(target, "disabled_ping_reaction", disabled_reaction, {this.owner, "r"});
+    target:fire_trigger('on_ping, ['Actor -> player]);
+    $test_utils:assert_eq(target.count, 1, "fire_trigger should skip disabled reactions");
+    return true;
+  endverb
+
+  verb test_execute_when_clause_gates_effects (this none this) owner: HACKER flags: "rxd"
+    "Test that when clauses block or allow reaction effects.";
+    target = $test_utils:anonymous($root);
+    add_property(target, "ready", false, {this.owner, "r"});
+    add_property(target, "fired", false, {this.owner, "r"});
+    add_verb(target, {this.owner, "rxd", "fact_ready"}, {"this", "none", "this"});
+    set_verb_code(target, "fact_ready", {"return this.ready;"});
+    reaction = this:mk('on_ready, "This ready?", {{'set, 'fired, true}});
+    add_property(target, "ready_reaction", reaction, {this.owner, "r"});
+    target:fire_trigger('on_ready, ['Actor -> player]);
+    $test_utils:assert_false(target.fired, "failed when clause should block effects");
+    target.ready = true;
+    target:fire_trigger('on_ready, ['Actor -> player]);
+    $test_utils:assert_true(target.fired, "successful when clause should allow effects");
+    return true;
+  endverb
+
+  verb test_trigger_and_action_effects (this none this) owner: HACKER flags: "rxd"
+    "Test trigger effects chaining into action effects with context bindings.";
+    source = $test_utils:anonymous($root);
+    receiver = $test_utils:anonymous($root);
+    handler = $test_utils:anonymous($root);
+    add_property(receiver, "action_seen", false, {this.owner, "r"});
+    add_property(receiver, "action_this", #-1, {this.owner, "r"});
+    add_property(receiver, "action_actor", #-1, {this.owner, "r"});
+    add_verb(handler, {this.owner, "rxd", "action_mark"}, {"this", "none", "this"});
+    set_verb_code(handler, "action_mark", {
+      "{target, context} = args;",
+      "target.action_seen = true;",
+      "target.action_this = context['This];",
+      "target.action_actor = context['Actor];",
+      "return true;"
+    });
+    add_property(source, "chain_reaction", this:mk('on_first, 0, {{'trigger, receiver, 'on_second}}), {this.owner, "r"});
+    add_property(receiver, "mark_reaction", this:mk('on_second, 0, {{'action, 'mark, handler}}), {this.owner, "r"});
+    source:fire_trigger('on_first, ['Actor -> player]);
+    $test_utils:assert_true(receiver.action_seen, "triggered action should run");
+    $test_utils:assert_eq(receiver.action_this, receiver, "chained trigger should update This binding");
+    $test_utils:assert_eq(receiver.action_actor, player, "chained trigger should preserve Actor binding");
+    return true;
   endverb
 endobject
