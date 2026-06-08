@@ -42,7 +42,13 @@ object PLAYER
       target = player.location;
     else
       "Try matching as object first";
-      match_result = `$match:match_object(dobjstr, player) ! ANY => E_NONE';
+      try
+        match_result = $match:match_object(dobjstr, player);
+      except e (E_INVARG)
+        match_result = E_NONE;
+      except e (ANY)
+        return this:inform_current($event:mk_error(player, "Object lookup failed: " + toliteral(e[2])):with_audience('utility));
+      endtry
       if (match_result == $ambiguous_match)
         candidates = {};
         search_space = {player};
