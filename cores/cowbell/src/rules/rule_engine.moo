@@ -1352,17 +1352,21 @@ object RULE_ENGINE
   verb test_object_literals_in_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test that object literals (both #num and UUID formats) work in rule expressions";
     "Create test container and item";
-    chest = $container:create();
-    sword = $thing:create();
-    sword:moveto(chest);
-    "Test with object literal (tostr already includes #)";
-    obj_str = tostr(sword);
-    chest.take_rule = this:parse_expression("This contains(" + obj_str + ")?", 'obj_literal);
-    result = $rule_engine:evaluate(chest.take_rule, ['This -> chest]);
-    result['success] || raise(E_ASSERT, "Object literal should work: " + obj_str);
-    "Cleanup";
-    sword:destroy();
-    chest:destroy();
+    chest = #-1;
+    sword = #-1;
+    try
+      chest = $container:create();
+      sword = $thing:create();
+      sword:moveto(chest);
+      "Test with object literal (tostr already includes #)";
+      obj_str = tostr(sword);
+      chest.take_rule = this:parse_expression("This contains(" + obj_str + ")?", 'obj_literal);
+      result = $rule_engine:evaluate(chest.take_rule, ['This -> chest]);
+      result['success] || raise(E_ASSERT, "Object literal should work: " + obj_str);
+    finally
+      valid(sword) && sword:destroy();
+      valid(chest) && chest:destroy();
+    endtry
     return true;
   endverb
 endobject

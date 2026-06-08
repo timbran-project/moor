@@ -702,7 +702,7 @@ object ROOT
     maphaskey(claims, "exp") || raise(E_ASSERT("Merged should have expiration from cap6"));
     claims["exp"] == future || raise(E_ASSERT("Merged expiration should be later time"));
     "Test 5: Cannot merge capabilities for different targets";
-    other_obj = create(this);
+    other_obj = this:create(true);
     cap7 = this:issue_capability(this, {'read}, 0, 0, test_key);
     cap8 = other_obj:issue_capability(other_obj, {'write}, 0, 0, test_key);
     merge_failed = false;
@@ -711,7 +711,6 @@ object ROOT
       merge_failed = true;
     except (E_INVARG)
     endtry
-    other_obj:destroy();
     !merge_failed || raise(E_ASSERT("Should not be able to merge caps for different targets"));
     return true;
   endverb
@@ -720,38 +719,43 @@ object ROOT
     "Test granting capabilities to players with auto-merge";
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Create test objects";
-    test_area = create($area);
-    test_player = create($player);
-    "Test 1: Grant initial capability";
-    cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area, test_key);
-    typeof(cap1) == TYPE_FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
-    (cap1).delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
-    "Test 2: Verify capability was stored in grants_area";
-    typeof(test_player.grants_area) == TYPE_MAP || raise(E_ASSERT("grants_area should be a map"));
-    maphaskey(test_player.grants_area, test_area) || raise(E_ASSERT("Should have grant for test_area"));
-    stored_cap = test_player.grants_area[test_area];
-    stored_cap == cap1 || raise(E_ASSERT("Stored capability should match returned one"));
-    "Test 3: Grant additional capability - should auto-merge";
-    cap2 = $root:grant_capability(test_area, {'create_passage}, test_player, 'area, test_key);
-    typeof(cap2) == TYPE_FLYWEIGHT || raise(E_ASSERT("Second grant should return flyweight"));
-    "Test 4: Verify merged capability has both permissions";
-    merged_cap = test_player.grants_area[test_area];
-    {target, perms} = merged_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
-    target == test_area || raise(E_ASSERT("Merged cap should grant both permissions"));
-    "Test 5: find_capability_for retrieves the grant";
-    found_cap = test_player:find_capability_for(test_area, 'area);
-    found_cap == merged_cap || raise(E_ASSERT("find_capability_for should return stored grant"));
-    "Test 6: Different category (room grants)";
-    test_room = create($room);
-    room_cap = $root:grant_capability(test_room, {'dig_from}, test_player, 'room, test_key);
-    typeof(test_player.grants_room) == TYPE_MAP || raise(E_ASSERT("grants_room should be created"));
-    maphaskey(test_player.grants_room, test_room) || raise(E_ASSERT("Should have grant for test_room"));
-    found_room_cap = test_player:find_capability_for(test_room, 'room);
-    found_room_cap == room_cap || raise(E_ASSERT("Should find room grant"));
-    "Cleanup";
-    test_area:destroy();
-    test_player:destroy();
-    test_room:destroy();
+    test_area = #-1;
+    test_player = #-1;
+    test_room = #-1;
+    try
+      test_area = create($area);
+      test_player = create($player);
+      "Test 1: Grant initial capability";
+      cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area, test_key);
+      typeof(cap1) == TYPE_FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
+      (cap1).delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
+      "Test 2: Verify capability was stored in grants_area";
+      typeof(test_player.grants_area) == TYPE_MAP || raise(E_ASSERT("grants_area should be a map"));
+      maphaskey(test_player.grants_area, test_area) || raise(E_ASSERT("Should have grant for test_area"));
+      stored_cap = test_player.grants_area[test_area];
+      stored_cap == cap1 || raise(E_ASSERT("Stored capability should match returned one"));
+      "Test 3: Grant additional capability - should auto-merge";
+      cap2 = $root:grant_capability(test_area, {'create_passage}, test_player, 'area, test_key);
+      typeof(cap2) == TYPE_FLYWEIGHT || raise(E_ASSERT("Second grant should return flyweight"));
+      "Test 4: Verify merged capability has both permissions";
+      merged_cap = test_player.grants_area[test_area];
+      {target, perms} = merged_cap:challenge_for_with_key({'add_room, 'create_passage}, test_key);
+      target == test_area || raise(E_ASSERT("Merged cap should grant both permissions"));
+      "Test 5: find_capability_for retrieves the grant";
+      found_cap = test_player:find_capability_for(test_area, 'area);
+      found_cap == merged_cap || raise(E_ASSERT("find_capability_for should return stored grant"));
+      "Test 6: Different category (room grants)";
+      test_room = create($room);
+      room_cap = $root:grant_capability(test_room, {'dig_from}, test_player, 'room, test_key);
+      typeof(test_player.grants_room) == TYPE_MAP || raise(E_ASSERT("grants_room should be created"));
+      maphaskey(test_player.grants_room, test_room) || raise(E_ASSERT("Should have grant for test_room"));
+      found_room_cap = test_player:find_capability_for(test_room, 'room);
+      found_room_cap == room_cap || raise(E_ASSERT("Should find room grant"));
+    finally
+      valid(test_room) && test_room:destroy();
+      valid(test_player) && test_player:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
     return true;
   endverb
 

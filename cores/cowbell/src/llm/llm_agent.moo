@@ -498,7 +498,7 @@ object LLM_AGENT
 
   verb test_todo_lifecycle (this none this) owner: HACKER flags: "rxd"
     "Test basic todo operations.";
-    agent = create($llm_agent);
+    agent = $llm_agent:create(true);
     "Add todos";
     id1 = agent:add_todo("First task");
     id2 = agent:add_todo("Second task");
@@ -519,13 +519,12 @@ object LLM_AGENT
     agent:remove_todo(id2);
     todos = agent:get_todos();
     length(todos) != 0 && raise(E_ASSERT, "Should have 0 todos");
-    agent:destroy();
     return true;
   endverb
 
   verb test_todo_filter (this none this) owner: HACKER flags: "rxd"
     "Test todo filtering by status.";
-    agent = create($llm_agent);
+    agent = $llm_agent:create(true);
     agent:add_todo("Pending 1");
     id2 = agent:add_todo("In progress");
     agent:add_todo("Pending 2");
@@ -534,18 +533,16 @@ object LLM_AGENT
     length(pending) != 2 && raise(E_ASSERT, "Should have 2 pending");
     in_prog = agent:get_todos('in_progress);
     length(in_prog) != 1 && raise(E_ASSERT, "Should have 1 in_progress");
-    agent:destroy();
     return true;
   endverb
 
   verb test_set_todos (this none this) owner: HACKER flags: "rxd"
     "Test replacing entire todo list.";
-    agent = create($llm_agent);
+    agent = $llm_agent:create(true);
     agent:set_todos({["content" -> "Task A", "status" -> 'pending], ["content" -> "Task B", "status" -> 'in_progress], ["content" -> "Task C", "status" -> 'completed]});
     todos = agent:get_todos();
     length(todos) != 3 && raise(E_ASSERT, "Should have 3 todos");
     todos[2]["status"] != 'in_progress && raise(E_ASSERT, "Second should be in_progress");
-    agent:destroy();
     return true;
   endverb
 

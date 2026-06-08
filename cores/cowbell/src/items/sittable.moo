@@ -337,7 +337,7 @@ object SITTABLE
 
   verb test_sitting (none none none) owner: HACKER flags: "rxd"
     "Test basic sitting functionality.";
-    test_obj = this:create(false);
+    test_obj = this:create(true);
     test_obj.name = "test bench";
     test_obj.seats = 2;
     test_obj.squeeze = 0;
@@ -352,8 +352,6 @@ object SITTABLE
     "Remove sitter";
     test_obj.sitting = {};
     test_obj:sitters_string() == "" || raise(E_ASSERT, "Should be empty string");
-    "Clean up";
-    test_obj:destroy();
     return true;
   endverb
 

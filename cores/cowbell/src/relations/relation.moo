@@ -173,7 +173,7 @@ object RELATION
 
   verb test_assert_and_member (this none this) owner: HACKER flags: "rxd"
     "Test basic assertion and membership checking";
-    rel = create($relation);
+    rel = $relation:create(true);
     "Test binary relation";
     rel:assert({#1, #2});
     !rel:member({#1, #2}) && raise(E_ASSERT, "Binary tuple not found after assert");
@@ -185,12 +185,11 @@ object RELATION
     "Test different arities in same relation";
     rel:assert({#5, #6, #7, #8});
     !rel:member({#5, #6, #7, #8}) && raise(E_ASSERT, "Quaternary tuple not found");
-    rel:destroy();
   endverb
 
   verb test_retract (this none this) owner: HACKER flags: "rxd"
     "Test tuple removal";
-    rel = create($relation);
+    rel = $relation:create(true);
     rel:assert({#1, #2, "edge1"});
     rel:assert({#1, #3, "edge2"});
     rel:assert({#2, #3, "edge3"});
@@ -204,12 +203,11 @@ object RELATION
     !rel:member({#2, #3, "edge3"}) && raise(E_ASSERT, "Other tuple incorrectly removed");
     "Retracting non-existent tuple should return false";
     rel:retract({#99, #100, "none"}) && raise(E_ASSERT, "Retract of missing tuple should be false");
-    rel:destroy();
   endverb
 
   verb test_select (this none this) owner: HACKER flags: "rxd"
     "Test position-based selection";
-    rel = create($relation);
+    rel = $relation:create(true);
     "Setup passage-like data";
     rel:assert({#12, #39, "north"});
     rel:assert({#12, #40, "east"});
@@ -230,12 +228,11 @@ object RELATION
     "Select non-existent value";
     results = rel:select(1, #99);
     length(results) != 0 && raise(E_ASSERT, "Expected empty results for non-existent value");
-    rel:destroy();
   endverb
 
   verb test_tuples (this none this) owner: HACKER flags: "rxd"
     "Test retrieving all tuples";
-    rel = create($relation);
+    rel = $relation:create(true);
     "Empty relation";
     length(rel:tuples()) != 0 && raise(E_ASSERT, "Empty relation should have no tuples");
     "Add some tuples";
@@ -247,12 +244,11 @@ object RELATION
     {#1, #2} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#3, #4} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#5, #6, #7} in all_tuples || raise(E_ASSERT, "Missing tuple");
-    rel:destroy();
   endverb
 
   verb test_clear (this none this) owner: HACKER flags: "rxd"
     "Test clearing all tuples";
-    rel = create($relation);
+    rel = $relation:create(true);
     "Add several tuples";
     rel:assert({#1, #2, "a"});
     rel:assert({#3, #4, "b"});
@@ -263,24 +259,22 @@ object RELATION
     "Verify empty";
     length(rel:tuples()) != 0 && raise(E_ASSERT, "Relation should be empty after clear");
     rel:member({#1, #2, "a"}) && raise(E_ASSERT, "Tuple still present after clear");
-    rel:destroy();
   endverb
 
   verb test_duplicate_assert (this none this) owner: HACKER flags: "rxd"
     "Test that asserting the same tuple twice doesn't create duplicates";
-    rel = create($relation);
+    rel = $relation:create(true);
     rel:assert({#1, #2, "edge"});
     rel:assert({#1, #2, "edge"});
     results = rel:tuples();
     length(results) != 2 && raise(E_ASSERT, "Duplicate assert should create new tuple (UUIDs differ)");
     "Both should be present as member check is equality based";
     !rel:member({#1, #2, "edge"}) && raise(E_ASSERT, "Tuple should be present");
-    rel:destroy();
   endverb
 
   verb test_bidirectional_indexing (this none this) owner: HACKER flags: "rxd"
     "Test that a single tuple is indexed under all its values.";
-    rel = create($relation);
+    rel = $relation:create(true);
     "Assert a passage-like tuple";
     rel:assert({#12, #39, "north"});
     "Find tuples containing #12";
@@ -316,7 +310,6 @@ object RELATION
     length(from_39) != 2 && raise(E_ASSERT, "Room #39 should have 2 passages");
     {#12, #39, "north"} in from_39 || raise(E_ASSERT, "Missing north passage (pos 2)");
     {#39, #40, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
-    rel:destroy();
   endverb
 
   verb query (this none this) owner: HACKER flags: "rxd"
@@ -378,7 +371,7 @@ object RELATION
 
   verb test_query_basic (this none this) owner: HACKER flags: "rxd"
     "Test basic pattern matching with variables";
-    rel = create($relation);
+    rel = $relation:create(true);
     rel:assert({#12, #39, "north"});
     rel:assert({#12, #40, "east"});
     rel:assert({#39, #40, "south"});
@@ -394,12 +387,11 @@ object RELATION
     "Query all tuples";
     results = rel:query({$dvar:mk_a(), $dvar:mk_b(), $dvar:mk_c()});
     length(results) != 3 && raise(E_ASSERT, "Expected 3 results for all tuples");
-    rel:destroy();
   endverb
 
   verb test_reachable (this none this) owner: HACKER flags: "rxd"
     "Test transitive closure - note: relation is bidirectional";
-    rel = create($relation);
+    rel = $relation:create(true);
     "Build a chain: 1 <-> 2 <-> 3 <-> 4";
     rel:assert({#1, #2});
     rel:assert({#2, #3});
@@ -420,7 +412,6 @@ object RELATION
     #2 in reachable || raise(E_ASSERT, "Should reach #2");
     #4 in reachable || raise(E_ASSERT, "Should reach #4");
     #5 in reachable || raise(E_ASSERT, "Should reach #5 via #2");
-    rel:destroy();
   endverb
 
   verb count (this none this) owner: ARCH_WIZARD flags: "rxd"

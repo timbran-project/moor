@@ -114,8 +114,8 @@ object LLM_TASK
 
   verb test_task_lifecycle (this none this) owner: HACKER flags: "rxd"
     "Test basic task creation and status tracking.";
-    kb = create($relation);
-    agent = create($llm_agent);
+    kb = $relation:create(true);
+    agent = $llm_agent:create(true);
     task = this:create(true);
     task:mk(1, "Test task", agent, kb, 0);
     "Check initial state";
@@ -133,16 +133,14 @@ object LLM_TASK
     status["status"] != 'completed && raise(E_ASSERT, "Should be completed");
     status["result"] != "Success!" && raise(E_ASSERT, "Result mismatch");
     task.completed_at == 0 && raise(E_ASSERT, "completed_at should be set");
-    kb:destroy();
-    agent:destroy();
     "Task will auto-garbage-collect as it's anonymous";
     return true;
   endverb
 
   verb test_findings (this none this) owner: HACKER flags: "rxd"
     "Test adding and retrieving findings with provenance.";
-    kb = create($relation);
-    agent = create($llm_agent);
+    kb = $relation:create(true);
+    agent = $llm_agent:create(true);
     task = this:create(true);
     task:mk(1, "Test task", agent, kb, 0);
     "Add some findings";
@@ -157,8 +155,6 @@ object LLM_TASK
     db_tuple = db_findings[1];
     db_tuple[1] != task.task_id && raise(E_ASSERT, "Provenance task_id mismatch");
     db_tuple[2] != "database" && raise(E_ASSERT, "Subject mismatch");
-    kb:destroy();
-    agent:destroy();
     "Task will auto-garbage-collect as it's anonymous";
     return true;
   endverb
