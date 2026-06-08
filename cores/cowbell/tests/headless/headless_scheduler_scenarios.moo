@@ -4,6 +4,7 @@ object HEADLESS_SCHEDULER_SCENARIOS
   owner: HACKER
   readable: true
 
+  property scheduler_cancel_value (owner: HACKER, flags: "r") = 0;
   property scheduler_callback_value (owner: HACKER, flags: "r") = 0;
   property scheduler_error_value (owner: HACKER, flags: "r") = 0;
 
@@ -53,18 +54,18 @@ object HEADLESS_SCHEDULER_SCENARIOS
 
   verb test_headless_scheduler_cancel_before_run (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: cancelling a pending callback prevents execution and clears its task record.";
-    this.scheduler_callback_value = 0;
+    this.scheduler_cancel_value = 0;
     $scheduler:stop();
-    schedule_id = $scheduler:schedule_after(2, this, "scheduler_callback");
+    schedule_id = $scheduler:schedule_after(2, this, "scheduler_cancel_callback");
     try
       $test_utils:assert_true($scheduler:cancel(schedule_id), "cancel should remove pending callback");
-      $test_utils:assert_false($scheduler:is_scheduled(this, "scheduler_callback"), "cancelled callback should not be scheduled");
+      $test_utils:assert_false($scheduler:is_scheduled(this, "scheduler_cancel_callback"), "cancelled callback should not be scheduled");
       $test_utils:assert_eq($scheduler:when_scheduled(schedule_id), 0, "cancelled callback should not have a run time");
       suspend(3);
-      $test_utils:assert_eq(this.scheduler_callback_value, 0, "cancelled callback should not run");
+      $test_utils:assert_eq(this.scheduler_cancel_value, 0, "cancelled callback should not run");
     finally
       $scheduler:cancel(schedule_id);
-      this.scheduler_callback_value = 0;
+      this.scheduler_cancel_value = 0;
     endtry
     return true;
   endverb
@@ -114,6 +115,12 @@ object HEADLESS_SCHEDULER_SCENARIOS
   verb scheduler_callback (this none this) owner: HACKER flags: "rxd"
     "Callback used by the one-shot scheduler runtime scenario.";
     this.scheduler_callback_value = 1;
+    return true;
+  endverb
+
+  verb scheduler_cancel_callback (this none this) owner: HACKER flags: "rxd"
+    "Callback used by the cancellation-before-run scheduler runtime scenario.";
+    this.scheduler_cancel_value = 1;
     return true;
   endverb
 
