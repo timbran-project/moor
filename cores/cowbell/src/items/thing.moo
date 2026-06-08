@@ -483,4 +483,55 @@ object THING
   verb fact_is_portable (this none this) owner: ARCH_WIZARD flags: "rxd"
     return this.portable;
   endverb
+
+  verb test_grammar_and_description_defaults (this none this) owner: HACKER flags: "rxd"
+    "Cover default thing grammar helpers and integrated descriptions.";
+    thing = this:create(true);
+    thing.name = "test pebble";
+    $test_utils:assert_eq(thing:pronouns(), this.pronouns, "things should inherit default pronouns");
+    $test_utils:assert_false(thing:is_plural(), "things should be singular by default");
+    $test_utils:assert_true(thing:is_countable(), "things should be countable by default");
+    $test_utils:assert_false(thing:is_proper_noun(), "things should not be proper nouns by default");
+    $test_utils:assert_eq(thing:pronoun_subject(), "it", "default subject pronoun");
+    $test_utils:assert_eq(thing:pronoun_object(), "it", "default object pronoun");
+    $test_utils:assert_eq(thing:pronoun_possessive('adj, 0), "its", "default possessive adjective");
+    $test_utils:assert_eq(thing:pronoun_possessive(0, 'noun), "its", "default possessive noun");
+    $test_utils:assert_eq(thing:pronoun_reflexive(), "itself", "default reflexive pronoun");
+    $test_utils:assert_false(thing:integrate_description(), "empty integrated description should be false");
+    thing.integrated_description = "a test pebble rests here";
+    $test_utils:assert_eq(thing:integrate_description(), "a test pebble rests here", "integrated description should return text");
+    return true;
+  endverb
+
+  verb test_portability_and_rule_defaults (this none this) owner: HACKER flags: "rxd"
+    "Cover default get/drop permission helpers and portability facts.";
+    thing = this:create(true);
+    thing.name = "test token";
+    $test_utils:assert_true(thing:can_get(player), "portable things should be gettable by default");
+    $test_utils:assert_true(thing:can_drop(player), "things should be droppable by default");
+    $test_utils:assert_true(thing:fact_is_portable(), "fact_is_portable should reflect default portability");
+    thing.portable = false;
+    $test_utils:assert_false(thing:can_get(player), "non-portable things should not be gettable");
+    $test_utils:assert_false(thing:fact_is_portable(), "fact_is_portable should reflect changed portability");
+    $test_utils:assert_true(thing:can_drop(player), "portable flag should not block can_drop");
+    $test_utils:assert_false(thing:acceptable(thing), "plain things should not accept contents");
+    return true;
+  endverb
+
+  verb test_unlock_fact_and_inspection (this none this) owner: HACKER flags: "rxd"
+    "Cover unlock facts and basic inspection metadata.";
+    key = this:create(true);
+    target = this:create(true);
+    key.name = "test key";
+    key.description = "A key used by the unit tests.";
+    target.name = "test lock";
+    key.unlocks = target;
+    $test_utils:assert_eq(key:fact_unlocks(key, target), target, "fact_unlocks should return matching target");
+    $test_utils:assert_eq(key:fact_unlocks(key, this), 0, "fact_unlocks should return falsey for non-matching targets");
+    data = key:inspection(player);
+    $test_utils:assert_eq(data["title"], "test key", "inspection should include title");
+    $test_utils:assert_eq(data["description"], "A key used by the unit tests.", "inspection should include description");
+    $test_utils:assert_type(data["actions"], TYPE_LIST, "inspection should include actions list");
+    return true;
+  endverb
 endobject
