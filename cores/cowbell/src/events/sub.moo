@@ -363,25 +363,25 @@ object SUB
     this.type == 'pos_adj && return event.actor == render_for ? "your" | event.actor:pronoun_possessive('adj);
     this.type == 'pos_noun && return event.actor == render_for ? "yours" | event.actor:pronoun_possessive('noun);
     this.type == 'reflexive && return event.actor == render_for ? "yourself" | event.actor:pronoun_reflexive();
-    this.type == 'dobj_subject && return valid(event.dobj) ? event.dobj == render_for ? "you" | event.dobj:pronoun_subject() | "<no-dobj>";
-    this.type == 'dobj_object && return valid(event.dobj) ? event.dobj == render_for ? "you" | event.dobj:pronoun_object() | "<no-dobj>";
-    this.type == 'dobj_pos_adj && return valid(event.dobj) ? event.dobj == render_for ? "your" | event.dobj:pronoun_possessive('adj) | "<no-dobj>";
-    this.type == 'dobj_pos_noun && return valid(event.dobj) ? event.dobj == render_for ? "yours" | event.dobj:pronoun_possessive('noun) | "<no-dobj>";
-    this.type == 'dobj_reflexive && return valid(event.dobj) ? event.dobj == render_for ? "yourself" | event.dobj:pronoun_reflexive() | "<no-dobj>";
-    this.type == 'iobj_subject && return valid(event.iobj) ? event.iobj == render_for ? "you" | event.iobj:pronoun_subject() | "<no-iobj>";
-    this.type == 'iobj_object && return valid(event.iobj) ? event.iobj == render_for ? "you" | event.iobj:pronoun_object() | "<no-iobj>";
-    this.type == 'iobj_pos_adj && return valid(event.iobj) ? event.iobj == render_for ? "your" | event.iobj:pronoun_possessive('adj) | "<no-iobj>";
-    this.type == 'iobj_pos_noun && return valid(event.iobj) ? event.iobj == render_for ? "yours" | event.iobj:pronoun_possessive('noun) | "<no-iobj>";
-    this.type == 'iobj_reflexive && return valid(event.iobj) ? event.iobj == render_for ? "yourself" | event.iobj:pronoun_reflexive() | "<no-iobj>";
+    this.type == 'dobj_subject && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "you" | event.dobj:pronoun_subject() | "<no-dobj>";
+    this.type == 'dobj_object && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "you" | event.dobj:pronoun_object() | "<no-dobj>";
+    this.type == 'dobj_pos_adj && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "your" | event.dobj:pronoun_possessive('adj) | "<no-dobj>";
+    this.type == 'dobj_pos_noun && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "yours" | event.dobj:pronoun_possessive('noun) | "<no-dobj>";
+    this.type == 'dobj_reflexive && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "yourself" | event.dobj:pronoun_reflexive() | "<no-dobj>";
+    this.type == 'iobj_subject && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "you" | event.iobj:pronoun_subject() | "<no-iobj>";
+    this.type == 'iobj_object && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "you" | event.iobj:pronoun_object() | "<no-iobj>";
+    this.type == 'iobj_pos_adj && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "your" | event.iobj:pronoun_possessive('adj) | "<no-iobj>";
+    this.type == 'iobj_pos_noun && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "yours" | event.iobj:pronoun_possessive('noun) | "<no-iobj>";
+    this.type == 'iobj_reflexive && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "yourself" | event.iobj:pronoun_reflexive() | "<no-iobj>";
     this.type == 'verb_be && return event.actor == render_for ? "are" | event.actor:pronouns().verb_be;
     this.type == 'verb_have && return event.actor == render_for ? "have" | event.actor:pronouns().verb_have;
     this.type == 'verb_look && return event.actor == render_for ? "look" | (event.actor:pronouns().is_plural ? "look" | "looks");
-    this.type == 'dobj_verb_be && return valid(event.dobj) ? event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be | "<no-dobj>";
-    this.type == 'dobj_verb_have && return valid(event.dobj) ? event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have | "<no-dobj>";
-    this.type == 'dobj_verb_look && return valid(event.dobj) ? event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks") | "<no-dobj>";
-    this.type == 'iobj_verb_be && return valid(event.iobj) ? event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be | "<no-iobj>";
-    this.type == 'iobj_verb_have && return valid(event.iobj) ? event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have | "<no-iobj>";
-    this.type == 'iobj_verb_look && return valid(event.iobj) ? event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
+    this.type == 'dobj_verb_be && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be | "<no-dobj>";
+    this.type == 'dobj_verb_have && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have | "<no-dobj>";
+    this.type == 'dobj_verb_look && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks") | "<no-dobj>";
+    this.type == 'iobj_verb_be && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be | "<no-iobj>";
+    this.type == 'iobj_verb_have && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have | "<no-iobj>";
+    this.type == 'iobj_verb_look && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
     if (this.type == 'self_alt)
       value = event.actor == render_for ? this.for_self | this.for_others;
       typeof(value) == TYPE_FLYWEIGHT && `value.type ! E_PROPNF => false' && return value:eval_sub(event, render_for);
@@ -788,6 +788,47 @@ object SUB
     $test_utils:assert_eq(fw_look_d.type, 'dobj_verb_look, "verb_look_dobj() type");
     fw_look_i = this:verb_look_iobj();
     $test_utils:assert_eq(fw_look_i.type, 'iobj_verb_look, "verb_look_iobj() type");
+    return true;
+  endverb
+
+  verb test_render_actor_perspective (this none this) owner: HACKER flags: "rxd"
+    "Test rendering adapts actor names and self-alternation to perspective.";
+    event = $event:mk_social(player, this:nc(), " ", this:self_alt("wave", "waves"), " to ", this:the('d), "."):with_dobj(this);
+    actor_view = event:transform_for(player);
+    observer_view = event:transform_for(#0);
+    $test_utils:assert_eq(actor_view, {"You wave to the " + this.name + "."}, "actor should see second-person rendering");
+    $test_utils:assert_eq(observer_view, {player:name() + " waves to the " + this.name + "."}, "observer should see third-person rendering");
+    return true;
+  endverb
+
+  verb test_eval_missing_object_bindings (this none this) owner: HACKER flags: "rxd"
+    "Test missing direct and indirect object substitutions render placeholders.";
+    event = $event:mk_test(player);
+    $test_utils:assert_eq(this:s_dobj():eval_sub(event, player), "<no-dobj>", "missing dobj subject");
+    $test_utils:assert_eq(this:o_iobj():eval_sub(event, player), "<no-iobj>", "missing iobj object");
+    $test_utils:assert_eq(this:verb_have_dobj():eval_sub(event, player), "<no-dobj>", "missing dobj verb");
+    $test_utils:assert_eq(this:verb_look_iobj():eval_sub(event, player), "<no-iobj>", "missing iobj verb");
+    return true;
+  endverb
+
+  verb test_binding_eval_and_missing_binding (this none this) owner: HACKER flags: "rxd"
+    "Test generic binding evaluation for self, object, scalar, and missing values.";
+    event = $event:mk_test(player):with_dobj(this);
+    $test_utils:assert_eq(this:binding('actor):eval_sub(event, player), "you", "actor binding should render as you to actor");
+    $test_utils:assert_eq(this:binding('d):eval_sub(event, player), this:name(), "object binding should render object name");
+    $test_utils:assert_eq(this:binding('missing):eval_sub(event, player), "<no-binding>", "missing binding should render placeholder");
+    return true;
+  endverb
+
+  verb test_article_eval_self_and_proper_noun (this none this) owner: HACKER flags: "rxd"
+    "Test articles suppress article text for self and proper nouns.";
+    target = $test_utils:anonymous($thing);
+    target.name = "test relic";
+    event = $event:mk_test(player):with_dobj(target);
+    $test_utils:assert_eq(this:a('d):eval_sub(event, target), "you", "self article should render as you");
+    target.is_proper_noun_name = true;
+    $test_utils:assert_eq(this:the('d):eval_sub(event, player), "test relic", "proper noun should suppress definite article");
+    $test_utils:assert_eq(this:a('d):eval_sub(event, player), "test relic", "proper noun should suppress indefinite article");
     return true;
   endverb
 

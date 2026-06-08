@@ -334,43 +334,43 @@ object SUB_UTILS
   verb test_compile_simple_binding (this none this) owner: HACKER flags: "rxd"
     "Test compile with simple binding.";
     result = this:compile("You see {actor}.");
-    length(result) != 3 && raise(E_ASSERT);
-    result[1] != "You see " && raise(E_ASSERT);
-    typeof(result[2]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
-    result[2].type != 'binding && raise(E_ASSERT);
-    result[3] != "." && raise(E_ASSERT);
+    $test_utils:assert_eq(length(result), 3, "simple binding should compile to three parts");
+    $test_utils:assert_eq(result[1], "You see ", "simple binding prefix");
+    $test_utils:assert_type(result[2], TYPE_FLYWEIGHT, "simple binding token should be a flyweight");
+    $test_utils:assert_eq(result[2].type, 'binding, "simple binding token type");
+    $test_utils:assert_eq(result[3], ".", "simple binding suffix");
     return true;
   endverb
 
   verb test_compile_article (this none this) owner: HACKER flags: "rxd"
     "Test compile with article.";
     result = this:compile("{the direction}");
-    length(result) != 1 && raise(E_ASSERT);
-    typeof(result[1]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
-    result[1].type != 'article_the && raise(E_ASSERT);
-    result[1].binding_name != 'direction && raise(E_ASSERT);
+    $test_utils:assert_eq(length(result), 1, "article should compile to one token");
+    $test_utils:assert_type(result[1], TYPE_FLYWEIGHT, "article token should be a flyweight");
+    $test_utils:assert_eq(result[1].type, 'article_the, "article token type");
+    $test_utils:assert_eq(result[1].binding_name, 'direction, "article binding name");
     return true;
   endverb
 
   verb test_compile_self_alt (this none this) owner: HACKER flags: "rxd"
     "Test compile with self-alternation.";
     result = this:compile("{tired|exhausted}");
-    length(result) != 1 && raise(E_ASSERT);
-    typeof(result[1]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
-    result[1].type != 'self_alt && raise(E_ASSERT);
-    result[1].for_self != "tired" && raise(E_ASSERT);
-    result[1].for_others != "exhausted" && raise(E_ASSERT);
+    $test_utils:assert_eq(length(result), 1, "self-alt should compile to one token");
+    $test_utils:assert_type(result[1], TYPE_FLYWEIGHT, "self-alt token should be a flyweight");
+    $test_utils:assert_eq(result[1].type, 'self_alt, "self-alt token type");
+    $test_utils:assert_eq(result[1].for_self, "tired", "self-alt self text");
+    $test_utils:assert_eq(result[1].for_others, "exhausted", "self-alt other text");
     return true;
   endverb
 
   verb test_compile_mixed (this none this) owner: HACKER flags: "rxd"
     "Test compile with mixed content.";
     result = this:compile("{nc} heads {the direction}.");
-    length(result) != 4 && raise(E_ASSERT);
-    typeof(result[1]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
-    result[2] != " heads " && raise(E_ASSERT);
-    typeof(result[3]) != TYPE_FLYWEIGHT && raise(E_ASSERT);
-    result[4] != "." && raise(E_ASSERT);
+    $test_utils:assert_eq(length(result), 4, "mixed template should compile to four parts");
+    $test_utils:assert_type(result[1], TYPE_FLYWEIGHT, "actor token should be a flyweight");
+    $test_utils:assert_eq(result[2], " heads ", "mixed template infix");
+    $test_utils:assert_type(result[3], TYPE_FLYWEIGHT, "article token should be a flyweight");
+    $test_utils:assert_eq(result[4], ".", "mixed template suffix");
     return true;
   endverb
 
@@ -379,7 +379,7 @@ object SUB_UTILS
     original = "You see {actor}.";
     compiled = this:compile(original);
     decompiled = this:decompile(compiled);
-    decompiled != original && raise(E_ASSERT);
+    $test_utils:assert_eq(decompiled, original, "decompile should reconstruct simple binding template");
     return true;
   endverb
 
@@ -388,7 +388,7 @@ object SUB_UTILS
     original = "{nc} dropped {d}.";
     compiled = this:compile(original);
     decompiled = this:decompile(compiled);
-    decompiled != original && raise(E_ASSERT, "Decompilation failed: " + decompiled);
+    $test_utils:assert_eq(decompiled, original, "decompile should reconstruct name and dobj substitutions");
     return true;
   endverb
 
@@ -399,13 +399,13 @@ object SUB_UTILS
     "Expected: 'Look at ', FW(article_the, binding='{adj} key'), '.'";
     "Note: The current parser treats the inner content as a raw string binding name because _parse_token doesnt recursively compile.";
     "However, the key improvement is that it DOESNT choke on the inner braces.";
-    length(result) != 3 && raise(E_ASSERT, "Result length mismatch: " + tostr(length(result)));
-    result[1] != "Look at " && raise(E_ASSERT, "Prefix mismatch");
-    typeof(result[2]) != TYPE_FLYWEIGHT && raise(E_ASSERT, "Middle token not flyweight");
+    $test_utils:assert_eq(length(result), 3, "nested template should compile to three parts");
+    $test_utils:assert_eq(result[1], "Look at ", "nested template prefix");
+    $test_utils:assert_type(result[2], TYPE_FLYWEIGHT, "nested article token should be a flyweight");
     "The binding name should capture the full inner content including braces";
     "If the parser stopped at the first }, it would be '{adj'";
     binding = tostr(result[2].binding_name);
-    binding != "{adj} key" && raise(E_ASSERT, "Binding content mismatch. Got: " + binding);
+    $test_utils:assert_eq(binding, "{adj} key", "nested binding should preserve inner braces");
     return true;
   endverb
 
@@ -413,14 +413,32 @@ object SUB_UTILS
     "Test property-based map lookups.";
     "Test direct token map";
     res1 = this:compile("You are {n}.");
-    res1[2].type != 'actor && raise(E_ASSERT, "Failed to map {n} to actor");
+    $test_utils:assert_eq(res1[2].type, 'actor, "{n} should map to actor substitution");
     "Test verb map lookup via _parse_token logic";
     res2 = this:compile("Use {be}.");
-    res2[2].type != 'verb_be && raise(E_ASSERT, "Failed to map {be} to verb_be");
+    $test_utils:assert_eq(res2[2].type, 'verb_be, "{be} should map to verb_be substitution");
     "Test specific object suffix logic (dobj_*)";
     res3 = this:compile("It is {be_dobj}.");
     "Note: $sub:verb_be returns 'dobj_verb_be' when called as verb_be_dobj";
-    res3[2].type != 'dobj_verb_be && raise(E_ASSERT, "Failed to map {be_dobj}. Got: " + tostr(res3[2].type));
+    $test_utils:assert_eq(res3[2].type, 'dobj_verb_be, "{be_dobj} should map to dobj verb substitution");
+    return true;
+  endverb
+
+  verb test_compile_and_decompile_errors (this none this) owner: HACKER flags: "rxd"
+    "Test compiler and decompiler input validation.";
+    $test_utils:assert_raises(E_TYPE, this, "compile", {123}, "compile should reject non-string templates");
+    $test_utils:assert_raises(E_INVARG, this, "compile", {"Broken {template"}, "compile should reject unclosed braces");
+    $test_utils:assert_raises(E_TYPE, this, "decompile", {"not a list"}, "decompile should reject non-list content");
+    $test_utils:assert_raises(E_INVARG, this, "_parse_token", {"a|b|c"}, "self alternation should have exactly two parts");
+    return true;
+  endverb
+
+  verb test_decompile_object_specific_tokens (this none this) owner: HACKER flags: "rxd"
+    "Test decompile reconstructs object-specific pronoun and verb tokens.";
+    $test_utils:assert_eq(this:decompile({$sub:sc_dobj()}), "{sc_dobj}", "dobj subject pronoun should decompile");
+    $test_utils:assert_eq(this:decompile({$sub:pc_iobj()}), "{pc_iobj}", "iobj possessive pronoun should decompile");
+    $test_utils:assert_eq(this:decompile({$sub:verb_have_iobj()}), "{have_iobj}", "iobj verb token should decompile");
+    $test_utils:assert_eq(this:decompile({$sub:thec('d)}), "{The d}", "capitalized article should decompile");
     return true;
   endverb
 endobject
