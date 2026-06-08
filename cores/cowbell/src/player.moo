@@ -2346,9 +2346,20 @@ object PLAYER
     endif
     area = current_room.location;
     if (valid(area) && respond_to(area, 'find_passage_by_direction))
-      passage = `area:find_passage_by_direction(current_room, dest_str) ! ANY => false';
+      try
+        passage = area:find_passage_by_direction(current_room, dest_str);
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error checking passage: " + tostr(e[2])));
+        return;
+      endtry
       if (passage)
-        if (`passage:travel_from(this, current_room, ["verb" -> "go", "dobjstr" -> dest_str]) ! ANY => false')
+        try
+          traveled = passage:travel_from(this, current_room, ["verb" -> "go", "dobjstr" -> dest_str]);
+        except e (ANY)
+          player:inform_current($event:mk_error(player, "Error using passage: " + tostr(e[2])));
+          return;
+        endtry
+        if (traveled)
           return;
         endif
       endif
@@ -2476,7 +2487,13 @@ object PLAYER
         return;
       endif
       "Move via the passage";
-      success = `connector:travel_from(this, from_room, {}) ! ANY => false';
+      try
+        success = connector:travel_from(this, from_room, {});
+      except e (ANY)
+        this:inform_current($event:mk_error(this, "Walking failed: " + tostr(e[2]) + " - stopping."));
+        this:action_clear_activity_task(this, current_task);
+        return;
+      endtry
       if (!success)
         this:inform_current($event:mk_error(this, "Something blocked your path - stopping."));
         this:action_clear_activity_task(this, current_task);

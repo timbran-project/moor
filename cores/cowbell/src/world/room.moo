@@ -400,10 +400,10 @@ object ROOM
     area = this.location;
     !valid(area) && return false;
     !respond_to(area, 'find_passage_by_direction) && return false;
-    passage = `area:find_passage_by_direction(this, direction) ! ANY => false';
+    passage = area:find_passage_by_direction(this, direction);
     !passage && return false;
     "Traverse the passage";
-    return `passage:travel_from(who, this, []) ! ANY => false';
+    return passage:travel_from(who, this, []);
   endverb
 
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"

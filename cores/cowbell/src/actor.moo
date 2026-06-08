@@ -297,7 +297,7 @@ object ACTOR
     who != this && return false;
     !valid(this.location) && return false;
     "Delegate to room's action_go";
-    return `this.location:action_go(this, context, direction) ! ANY => false';
+    return this.location:action_go(this, context, direction);
   endverb
 
   verb mk_stagetalk (this none this) owner: ARCH_WIZARD flags: "rxd"
