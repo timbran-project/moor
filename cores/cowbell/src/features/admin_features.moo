@@ -115,7 +115,7 @@ object ADMIN_FEATURES
       endif
     endfor
     target.admin_features = filtered;
-    `this:_append_log(["kind" -> "revoke", "actor" -> player, "subject" -> target, "delegate" -> old_delegate, "allow" -> old_allow]) ! ANY => 0';
+    this:_append_log(["kind" -> "revoke", "actor" -> player, "subject" -> target, "delegate" -> old_delegate, "allow" -> old_allow]);
     player:inform_current($event:mk_info(player, "Revoked sudo delegation for " + target:name() + "."));
     if (target != player)
       target:tell($event:mk_info(target, player:name() + " revoked your sudo access."));
@@ -192,7 +192,7 @@ object ADMIN_FEATURES
     typeof(allowed_map) == TYPE_MAP || (allowed_map = []);
     allowed_map[target] = verbs;
     this.sudo_allowed = allowed_map;
-    `this:_append_log(["kind" -> "allow", "actor" -> player, "subject" -> target, "allow" -> verbs]) ! ANY => 0';
+    this:_append_log(["kind" -> "allow", "actor" -> player, "subject" -> target, "allow" -> verbs]);
     player:inform_current($event:mk_info(player, "Updated sudo allowlist for " + target:name() + ": " + verbs:join(", ") + "."));
   endverb
 
@@ -235,7 +235,7 @@ object ADMIN_FEATURES
       admin_features = {@admin_features, this};
       target.admin_features = admin_features;
     endif
-    `this:_append_log(["kind" -> "grant", "actor" -> player, "subject" -> target, "delegate" -> delegate, "allow" -> allowed_map[target]]) ! ANY => 0';
+    this:_append_log(["kind" -> "grant", "actor" -> player, "subject" -> target, "delegate" -> delegate, "allow" -> allowed_map[target]]);
     player:inform_current($event:mk_info(player, "Granted sudo delegation for " + target:name() + " as " + delegate:name() + "."));
     if (target != player)
       target:tell($event:mk_info(target, player:name() + " granted you sudo access as " + delegate:name() + ". Use `@sudo <command>` with an allowlisted command."));
@@ -252,7 +252,7 @@ object ADMIN_FEATURES
     endif
     delegate = this:_resolve_delegate(player);
     if (!valid(delegate))
-      `this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "no_delegate", "subject" -> player, "command" -> command]) ! ANY => 0';
+      this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "no_delegate", "subject" -> player, "command" -> command]);
       player:inform_current($event:mk_error(player, "No sudo delegation configured for you."));
       return false;
     endif
@@ -284,7 +284,7 @@ object ADMIN_FEATURES
       pc = parse_command(command, match_env, true, 0.3);
     except e (ANY)
       set_task_perms(player);
-      `this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "parse_failed", "subject" -> player, "delegate" -> delegate, "command" -> command, "error" -> toliteral(e[2])]) ! ANY => 0';
+      this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "parse_failed", "subject" -> player, "delegate" -> delegate, "command" -> command, "error" -> toliteral(e[2])]);
       player:inform_current($event:mk_error(player, "Could not parse sudo command: `" + command + "`."));
       return false;
     endtry
@@ -348,7 +348,7 @@ object ADMIN_FEATURES
             response = response:trim():lowercase();
             if (!(response == "yes" || response == "y"))
               set_task_perms(player);
-              `this:_append_log(["kind" -> "sudo", "status" -> "cancelled", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name]) ! ANY => 0';
+              this:_append_log(["kind" -> "sudo", "status" -> "cancelled", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name]);
               player:inform_current($event:mk_error(player, "Sudo cancelled."));
               return false;
             endif
@@ -360,20 +360,20 @@ object ADMIN_FEATURES
           except e (ANY)
             this:_clear_elevated();
             set_task_perms(player);
-            `this:_append_log(["kind" -> "sudo", "status" -> "error", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name, "error" -> toliteral(e[2])]) ! ANY => 0';
+            this:_append_log(["kind" -> "sudo", "status" -> "error", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name, "error" -> toliteral(e[2])]);
             player:inform_current($event:mk_error(player, "Sudo command failed: " + toliteral(e[2])));
             return false;
           endtry
           this:_clear_elevated();
           set_task_perms(player);
-          `this:_append_log(["kind" -> "sudo", "status" -> "ok", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name]) ! ANY => 0';
+          this:_append_log(["kind" -> "sudo", "status" -> "ok", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name]);
           return result;
         endfor
       endfor
     endfor
     set_task_perms(player);
     if (!any_match)
-      `this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "no_match", "subject" -> player, "delegate" -> delegate, "command" -> command]) ! ANY => 0';
+      this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "no_match", "subject" -> player, "delegate" -> delegate, "command" -> command]);
       player:inform_current($event:mk_error(player, "No command verb matched `" + command + "` here."));
       return false;
     endif
@@ -388,11 +388,11 @@ object ADMIN_FEATURES
     blocked_list = mapkeys(blocked);
     if (blocked_list)
       allowed_str = allowed ? allowed:join(", ") | "(none)";
-      `this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "allowlist", "subject" -> player, "delegate" -> delegate, "command" -> command, "blocked" -> blocked_list]) ! ANY => 0';
+      this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "allowlist", "subject" -> player, "delegate" -> delegate, "command" -> command, "blocked" -> blocked_list]);
       player:inform_current($event:mk_error(player, "Command matched " + blocked_list:join(", ") + " but is not in your sudo allowlist. Allowed: " + allowed_str + "."));
       return false;
     endif
-    `this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "allowlist", "subject" -> player, "delegate" -> delegate, "command" -> command]) ! ANY => 0';
+    this:_append_log(["kind" -> "sudo", "status" -> "denied", "reason" -> "allowlist", "subject" -> player, "delegate" -> delegate, "command" -> command]);
     player:inform_current($event:mk_error(player, "Command is not permitted by your sudo allowlist."));
     return false;
   endverb
