@@ -43,6 +43,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
+use tabled::{Table, Tabled, settings::Style};
 use tracing::{error, info, warn};
 
 static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
@@ -255,13 +256,30 @@ fn collect_moot_files(input: &str) -> Result<Vec<PathBuf>, eyre::Report> {
     Ok(files)
 }
 
+#[derive(Tabled)]
+struct TestFailure {
+    #[tabled(rename = "Test")]
+    test: String,
+    #[tabled(rename = "Failure")]
+    failure: String,
+}
+
+fn print_test_failure_summary(failures: &[TestFailure]) {
+    if failures.is_empty() {
+        return;
+    }
+
+    error!("Test failure summary ({}):", failures.len());
+    eprintln!("\n{}", Table::new(failures).with(Style::sharp()));
+}
+
 fn run_tests(
     test_input: &str,
     player: Obj,
     programmer: Obj,
     wizard: Obj,
     scheduler_client: SchedulerClient,
-) -> Result<(), eyre::Report> {
+) -> Result<Vec<TestFailure>, eyre::Report> {
     let moot_options = MootOptions::default()
         .wizard_object(wizard)
         .nonprogrammer_object(player)
@@ -272,7 +290,7 @@ fn run_tests(
 
     if test_files.is_empty() {
         warn!("No .moot test files found matching: {}", test_input);
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     warn!(
@@ -281,11 +299,17 @@ fn run_tests(
         test_input
     );
 
+    let mut failures = Vec::new();
     for path in test_files {
-        run_test(&moot_options, scheduler_client.clone(), &path);
+        if let Err(err) = run_test(&moot_options, scheduler_client.clone(), &path) {
+            failures.push(TestFailure {
+                test: path.display().to_string(),
+                failure: err.to_string(),
+            });
+        }
     }
 
-    Ok(())
+    Ok(failures)
 }
 
 fn main() -> Result<(), eyre::Report> {
@@ -582,9 +606,12 @@ fn main() -> Result<(), eyre::Report> {
         List::mk_list(&[])
     };
 
+    let mut test_failures = Vec::new();
+
     // Run unit tests
     if args.run_tests == Some(true) && !unit_tests.is_empty() {
         'outer: for (o, verb) in unit_tests {
+            let test_name = format!("{o}:{verb}");
             info!("Running {}:{}....", o, verb);
             let session = test_session_factory
                 .clone()
@@ -602,26 +629,47 @@ fn main() -> Result<(), eyre::Report> {
                 )
                 .expect("Failed to submit task");
             let result_value = loop {
-                let result = handle
+                let result = match handle
                     .receiver()
                     .recv_timeout(Duration::from_secs(args.test_timeout))
-                    .expect("Test timed out: Timeout");
+                {
+                    Ok(result) => result,
+                    Err(e) => {
+                        let failure = format!("timed out after {}s: {e}", args.test_timeout);
+                        error!("Test {test_name} {failure}");
+                        test_failures.push(TestFailure {
+                            test: test_name,
+                            failure,
+                        });
+                        continue 'outer;
+                    }
+                };
                 match result {
                     (_, Ok(TaskNotification::Result(rv))) => break rv,
                     (_, Ok(TaskNotification::Suspended)) => continue,
                     (_, Err(e)) => match e {
                         SchedulerError::TaskAbortedException(e) => {
-                            error!("Test {}:{} aborted: {}", o, verb, e.error);
+                            let failure = format!("aborted: {}", e.error);
+                            error!("Test {test_name} {failure}");
                             for l in e.backtrace {
                                 let Some(s) = l.as_string() else {
                                     continue;
                                 };
                                 error!("{s}");
                             }
+                            test_failures.push(TestFailure {
+                                test: test_name,
+                                failure,
+                            });
                             continue 'outer;
                         }
                         _ => {
-                            error!("Test {}:{} failed: {:?}", o, verb, e);
+                            let failure = format!("failed: {e:?}");
+                            error!("Test {test_name} {failure}");
+                            test_failures.push(TestFailure {
+                                test: test_name,
+                                failure,
+                            });
                             continue 'outer;
                         }
                     },
@@ -629,7 +677,12 @@ fn main() -> Result<(), eyre::Report> {
             };
             // Result must be non-Error
             if let Some(e) = result_value.as_error() {
-                error!("Test {}:{} failed: {:?}", o, verb, e);
+                let failure = format!("returned error: {e:?}");
+                error!("Test {test_name} {failure}");
+                test_failures.push(TestFailure {
+                    test: test_name,
+                    failure,
+                });
                 continue;
             }
             info!("Test {}:{} passed", o, verb);
@@ -649,7 +702,9 @@ fn main() -> Result<(), eyre::Report> {
             programmer,
             wizard,
             scheduler_client.clone(),
-        )?;
+        )?
+        .into_iter()
+        .for_each(|failure| test_failures.push(failure));
     }
 
     scheduler_client
@@ -658,6 +713,11 @@ fn main() -> Result<(), eyre::Report> {
     scheduler_loop_jh
         .join()
         .expect("Failed to join() scheduler");
+
+    if !test_failures.is_empty() {
+        print_test_failure_summary(&test_failures);
+        std::process::exit(1);
+    }
 
     Ok(())
 }

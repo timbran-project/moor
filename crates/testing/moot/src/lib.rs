@@ -28,7 +28,6 @@ use eyre::{ContextCompat, WrapErr, eyre};
 use moor_var::Obj;
 
 use parser::{MootBlock, MootBlockTest, MootBlockTestExpectedOutput, MootBlockTestKind};
-use pretty_assertions::assert_eq;
 
 #[allow(dead_code)]
 pub const WIZARD: Obj = Obj::mk_id(3);
@@ -127,6 +126,16 @@ pub fn execute_moot_test<R: MootRunner, F: Fn() -> eyre::Result<()>>(
     path: &Path,
     validate_state: F,
 ) {
+    execute_moot_test_checked(&mut runner, options, path, validate_state)
+        .unwrap_or_else(|err| panic!("{err}"));
+}
+
+pub fn execute_moot_test_checked<R: MootRunner, F: Fn() -> eyre::Result<()>>(
+    runner: &mut R,
+    options: &MootOptions,
+    path: &Path,
+    validate_state: F,
+) -> eyre::Result<()> {
     init_logging(options);
     eprintln!(
         "{}Test definition: {}{:#}",
@@ -135,14 +144,12 @@ pub fn execute_moot_test<R: MootRunner, F: Fn() -> eyre::Result<()>>(
         MOOT_STYLESHEET.test_header
     );
 
-    let test = std::fs::read_to_string(path)
-        .wrap_err(format!("{}", path.display()))
-        .unwrap();
+    let test = std::fs::read_to_string(path).wrap_err(format!("{}", path.display()))?;
 
     let mut player = options.wizard_object;
     let mut failures = Vec::new();
 
-    for span in parser::parse(&test).context("parse").unwrap() {
+    for span in parser::parse(&test).context("parse")? {
         eprintln!(
             "{}{:?}{:#}",
             MOOT_STYLESHEET.block_header, span, MOOT_STYLESHEET.block_header
@@ -158,15 +165,9 @@ pub fn execute_moot_test<R: MootRunner, F: Fn() -> eyre::Result<()>>(
                 }
             }
             MootBlock::Test(test) => {
-                if let Err(e) = handle_test(
-                    &mut runner,
-                    &player,
-                    span.line_no,
-                    test,
-                    &validate_state,
-                    path,
-                )
-                .context("handle_test")
+                if let Err(e) =
+                    handle_test(runner, &player, span.line_no, test, &validate_state, path)
+                        .context("handle_test")
                 {
                     failures.push(format!("Line {}: {}", span.line_no, e));
                 }
@@ -185,8 +186,10 @@ pub fn execute_moot_test<R: MootRunner, F: Fn() -> eyre::Result<()>>(
         for failure in &failures {
             eprintln!("  {}", failure);
         }
-        panic!("Test failed with {} failure(s)", failures.len());
+        return Err(eyre!("Test failed with {} failure(s)", failures.len()));
     }
+
+    Ok(())
 }
 
 fn handle_change_player(options: &MootOptions, name: &str) -> eyre::Result<Obj> {
@@ -328,14 +331,15 @@ fn assert_result<R: MootRunner>(
         runner.none()
     };
 
-    // Send the MOO values through the debug formatter, because MOO string comparison
-    // is case-insensitive, but we want case-sensitive comparison in tests.
-    assert_eq!(
-        format!("{actual:?}"),
-        format!("{expected:?}"),
-        "{}:{line_no}",
-        path.display()
-    );
+    let actual = format!("{actual:?}");
+    let expected = format!("{expected:?}");
+    if actual != expected {
+        return Err(eyre!(
+            "{}:{line_no}: expected {expected}, got {actual}",
+            path.display()
+        ));
+    }
+
     Ok(())
 }
 
@@ -347,11 +351,13 @@ fn assert_raw_line<R: MootRunner>(
     line_no: usize,
 ) -> eyre::Result<()> {
     let actual = runner.read_line(player)?;
-    assert_eq!(
-        actual.as_deref(),
-        expectation,
-        "{}:{line_no}",
-        path.display()
-    );
+    if actual.as_deref() != expectation {
+        return Err(eyre!(
+            "{}:{line_no}: expected raw line {expectation:?}, got {:?}",
+            path.display(),
+            actual.as_deref()
+        ));
+    }
+
     Ok(())
 }

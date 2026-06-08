@@ -15,7 +15,7 @@ use eyre::Context;
 use moor_common::tasks::{NoopClientSession, Session, SessionError, SessionFactory};
 use moor_compiler::to_literal;
 use moor_kernel::{SchedulerClient, testing::scheduler_test_utils};
-use moor_moot::{MootOptions, MootRunner, execute_moot_test};
+use moor_moot::{MootOptions, MootRunner, execute_moot_test_checked};
 use moor_var::{Obj, Var, v_bool};
 use std::{path::Path, sync::Arc};
 // TODO: consolidate with what's in kernel/testsuite/moo_suite.rs?
@@ -100,11 +100,15 @@ impl SessionFactory for NoopSessionFactory {
     }
 }
 
-pub(crate) fn run_test(options: &MootOptions, scheduler_client: SchedulerClient, path: &Path) {
-    execute_moot_test(
-        SchedulerMootRunner::new(scheduler_client.clone(), Arc::new(NoopClientSession::new())),
+pub(crate) fn run_test(
+    options: &MootOptions,
+    scheduler_client: SchedulerClient,
+    path: &Path,
+) -> eyre::Result<()> {
+    execute_moot_test_checked(
+        &mut SchedulerMootRunner::new(scheduler_client.clone(), Arc::new(NoopClientSession::new())),
         options,
         path,
         || Ok(()),
-    );
+    )
 }

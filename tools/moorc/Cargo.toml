@@ -48,6 +48,7 @@ tracing-subscriber.workspace = true
 
 # Utilities & Helpers
 semver.workspace = true
+tabled.workspace = true
 
 # Testing & Development
 glob.workspace = true

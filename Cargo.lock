@@ -3682,6 +3682,7 @@ dependencies = [
  "moor-textdump",
  "moor-var",
  "semver",
+ "tabled",
  "tempfile",
  "tracing",
  "tracing-subscriber",
