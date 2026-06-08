@@ -139,6 +139,7 @@ define GRANT_UTILS = #25;
 define PROG_UTILS = #53;
 define OBJ_UTILS = #57;
 define URL_UTILS = #96;
+define TEST_UTILS = #127;
 
 // world
 define ROOM = #7;

@@ -106,6 +106,7 @@ object SYSOBJ
   property sub_utils (owner: HACKER, flags: "r") = SUB_UTILS;
   property sysobj (owner: HACKER, flags: "r") = SYSOBJ;
   property test_player (owner: HACKER, flags: "r") = TEST_PLAYER;
+  property test_utils (owner: HACKER, flags: "r") = TEST_UTILS;
   property thing (owner: HACKER, flags: "r") = THING;
   property url_utils (owner: HACKER, flags: "r") = URL_UTILS;
   property verb (owner: HACKER, flags: "r") = VERB;
