@@ -540,7 +540,7 @@ object ROOT
     "Usage: $root:check_property_exists(target_obj, prop_name)";
     {prop_name} = args;
     set_task_perms(caller_perms());
-    return `property_info(this, prop_name) ! ANY => false' || true;
+    return `property_info(this, prop_name) ! ANY => false' ? true | false;
   endverb
 
   verb usable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -601,6 +601,135 @@ object ROOT
     "Get contents";
     obj_contents = `this:contents() ! E_PROPNF => {}';
     return <$examination, .object_ref = this, .name = obj_name, .aliases = obj_aliases, .description = obj_description, .owner = obj_owner, .parent = obj_parent, .location = obj_location, .verbs = usable, .contents = obj_contents>;
+  endverb
+
+  verb object_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return formatted help for this object. Returns a $format flyweight or 0 if no help available.";
+    "Checks for .object_help property and formats it if found.";
+    set_task_perms(caller_perms());
+    help_text = `this.object_help ! ANY => 0';
+    if (!help_text || help_text == 0)
+      return 0;
+    endif
+    "Format as djot content";
+    if (typeof(help_text) == TYPE_LIST)
+      return $format.block:mk(this:display_name(), @help_text);
+    else
+      return $format.block:mk(this:display_name(), {help_text});
+    endif
+  endverb
+
+  verb fact_owner_is (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Does player_obj own this object?";
+    {thing, player_obj} = args;
+    return thing.owner == player_obj;
+  endverb
+
+  verb fact_location_is (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is this object at location loc?";
+    {thing, loc} = args;
+    return thing.location == loc;
+  endverb
+
+  verb fact_contains (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Does this object contain thing?";
+    {container, thing} = args;
+    return thing.location == container;
+  endverb
+
+  verb fact_is (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is obj1 the same object as obj2?";
+    {obj1, obj2} = args;
+    return obj1 == obj2;
+  endverb
+
+  verb fact_isa (this none this) owner: HACKER flags: "rxd"
+    "Rule predicate: Is target a descendant of proto?";
+    {target, proto} = args;
+    return typeof(target) == TYPE_OBJ && valid(target) && isa(target, proto);
+  endverb
+
+  verb get_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Gather all reactions from this object (properties ending with _reaction).";
+    set_task_perms(caller_perms());
+    result = {};
+    all_props = this:all_properties();
+    for prop_name in (all_props)
+      if (!tostr(prop_name):ends_with("_reaction"))
+        continue;
+      endif
+      try
+        val = this.(prop_name);
+        if (typeof(val) == TYPE_FLYWEIGHT && val.delegate == $reaction)
+          result = {@result, val};
+        endif
+      except (E_PROPNF, E_PERM)
+        continue;
+      endtry
+    endfor
+    return result;
+  endverb
+
+  verb fire_trigger (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Fire a trigger on this object, executing all matching reactions.";
+    "Context is a map with bindings like ['Actor -> player, 'Key -> key_obj]";
+    {trigger_name, ?context = []} = args;
+    "Add standard context";
+    context['This] = this;
+    context['Location] = this.location;
+    "Find and execute matching reactions";
+    for reaction in (this:get_reactions())
+      if (reaction.enabled && reaction.trigger == trigger_name)
+        reaction:execute(context);
+      endif
+    endfor
+  endverb
+
+  verb _check_thresholds (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Check if any threshold reactions should fire after a property change.";
+    "Called by $reaction:execute_effect after set/increment/decrement effects.";
+    {prop, old_value, new_value, context} = args;
+    "Add standard context";
+    context['This] = this;
+    context['Location] = this.location;
+    for reaction in (this:get_reactions())
+      if (!reaction.enabled)
+        continue;
+      endif
+      trigger = reaction.trigger;
+      "Skip non-threshold triggers";
+      if (typeof(trigger) != TYPE_LIST || length(trigger) < 4 || trigger[1] != 'when)
+        continue;
+      endif
+      {_, trigger_prop, op, threshold} = trigger;
+      "Skip if different property";
+      if (trigger_prop != prop)
+        continue;
+      endif
+      "Check if threshold was crossed";
+      if ($reaction:threshold_crossed(old_value, new_value, op, threshold))
+        reaction:execute(context);
+      endif
+    endfor
+  endverb
+
+  verb enterfunc (this none this) owner: HACKER flags: "rxd"
+    "Called when something enters this object. Fire 'on_enter trigger.";
+    {who} = args;
+    this:fire_trigger('on_enter, ['Who -> who]);
+  endverb
+
+  verb exitfunc (this none this) owner: HACKER flags: "rxd"
+    "Called when something exits this object. Fire 'on_exit trigger.";
+    {who} = args;
+    this:fire_trigger('on_exit, ['Who -> who]);
+  endverb
+
+  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Called after object creation. Clears inherited export properties.";
+    "Subclasses should call pass() to ensure this runs.";
+    this.import_export_id = 0;
+    this.import_export_hierarchy = 0;
   endverb
 
   verb test_all_verbs (this none this) owner: HACKER flags: "rxd"
@@ -759,132 +888,96 @@ object ROOT
     return true;
   endverb
 
-  verb object_help (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Return formatted help for this object. Returns a $format flyweight or 0 if no help available.";
-    "Checks for .object_help property and formats it if found.";
-    set_task_perms(caller_perms());
-    help_text = `this.object_help ! ANY => 0';
-    if (!help_text || help_text == 0)
-      return 0;
-    endif
-    "Format as djot content";
-    if (typeof(help_text) == TYPE_LIST)
-      return $format.block:mk(this:display_name(), @help_text);
-    else
-      return $format.block:mk(this:display_name(), {help_text});
-    endif
+  verb test_presentation_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test default root presentation and grammar helpers on a scratch child.";
+    scratch = create($root);
+    try
+      scratch.name = "Root Test Object";
+      scratch.aliases = {"root-test", "rto"};
+      $test_utils:assert_eq(scratch:name(), "Root Test Object", "name() should return .name");
+      $test_utils:assert_eq(scratch:display_name(), "Root Test Object", "display_name() should default to name()");
+      $test_utils:assert_eq(scratch:aliases(), {"root-test", "rto"}, "aliases() should return .aliases");
+      $test_utils:assert_false(scratch:is_actor(), "root descendants should not be actors by default");
+      $test_utils:assert_false(scratch:is_plural(), "root descendants should be singular by default");
+      $test_utils:assert_false(scratch:is_countable(), "root descendants should be uncountable by default");
+      $test_utils:assert_true(scratch:is_proper_noun(), "root descendants should be proper nouns by default");
+    finally
+      valid(scratch) && recycle(scratch);
+    endtry
+    return true;
   endverb
 
-  verb fact_owner_is (this none this) owner: HACKER flags: "rxd"
-    "Rule predicate: Does player_obj own this object?";
-    {thing, player_obj} = args;
-    return thing.owner == player_obj;
+  verb test_mutators_and_help_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test root metadata mutators and default help behavior.";
+    scratch = create($root);
+    try
+      scratch:set_name_aliases("Renamed Root Test", {"renamed-root", "rrt"});
+      $test_utils:assert_eq(scratch.name, "Renamed Root Test", "set_name_aliases() should update name");
+      $test_utils:assert_eq(scratch.aliases, {"renamed-root", "rrt"}, "set_name_aliases() should update aliases");
+      scratch:set_description("Plain root test description.");
+      $test_utils:assert_eq(scratch.description, "Plain root test description.", "set_description() should store plain strings");
+      scratch:set_description("This is {n}.");
+      $test_utils:assert_type(scratch.description, TYPE_LIST, "set_description() should compile substitution strings");
+      scratch:set_thumbnail("text/plain", "not binary");
+      raise(E_ASSERT, "set_thumbnail() should reject non-image content types");
+    except (E_TYPE)
+      "Expected for text/plain thumbnail content type.";
+    endtry
+    try
+      $test_utils:assert_eq(scratch:object_help(), 0, "object_help() should default to no help");
+    finally
+      valid(scratch) && recycle(scratch);
+    endtry
+    return true;
   endverb
 
-  verb fact_location_is (this none this) owner: HACKER flags: "rxd"
-    "Rule predicate: Is this object at location loc?";
-    {thing, loc} = args;
-    return thing.location == loc;
+  verb test_introspection_helpers (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test root inheritance, property, verb, and branch introspection helpers.";
+    scratch = create($root);
+    child = create(scratch);
+    grandchild = create(child);
+    try
+      all_verbs = child:all_verbs();
+      $test_utils:assert_true("find_verb_definer" in all_verbs, "all_verbs() should include inherited root verbs");
+      all_props = child:all_properties();
+      $test_utils:assert_true('aliases in all_props, "all_properties() should include inherited root properties");
+      $test_utils:assert_eq(child:find_verb_definer("display_name"), $root, "find_verb_definer() should find inherited root verbs");
+      $test_utils:assert_eq(child:find_verb_definer("definitely_missing_root_test_verb"), #-1, "find_verb_definer() should return #-1 when absent");
+      $test_utils:assert_true(child:check_property_exists("aliases"), "check_property_exists() should find inherited properties");
+      $test_utils:assert_false(child:check_property_exists("definitely_missing_root_test_property"), "check_property_exists() should reject missing properties");
+      branches = scratch:branches();
+      $test_utils:assert_true(scratch in branches, "branches() should include the receiver when it has children");
+      $test_utils:assert_true(child in branches, "branches() should include descendant branches");
+      $test_utils:assert_false(grandchild in branches, "branches() should skip leaf descendants");
+    finally
+      valid(grandchild) && recycle(grandchild);
+      valid(child) && recycle(child);
+      valid(scratch) && recycle(scratch);
+    endtry
+    return true;
   endverb
 
-  verb fact_contains (this none this) owner: HACKER flags: "rxd"
-    "Rule predicate: Does this object contain thing?";
-    {container, thing} = args;
-    return thing.location == container;
-  endverb
-
-  verb fact_is (this none this) owner: HACKER flags: "rxd"
-    "Rule predicate: Is obj1 the same object as obj2?";
-    {obj1, obj2} = args;
-    return obj1 == obj2;
-  endverb
-
-  verb fact_isa (this none this) owner: HACKER flags: "rxd"
-    "Rule predicate: Is target a descendant of proto?";
-    {target, proto} = args;
-    return typeof(target) == TYPE_OBJ && valid(target) && isa(target, proto);
-  endverb
-
-  verb get_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Gather all reactions from this object (properties ending with _reaction).";
-    set_task_perms(caller_perms());
-    result = {};
-    all_props = this:all_properties();
-    for prop_name in (all_props)
-      if (!tostr(prop_name):ends_with("_reaction"))
-        continue;
-      endif
-      try
-        val = this.(prop_name);
-        if (typeof(val) == TYPE_FLYWEIGHT && val.delegate == $reaction)
-          result = {@result, val};
-        endif
-      except (E_PROPNF, E_PERM)
-        continue;
-      endtry
-    endfor
-    return result;
-  endverb
-
-  verb fire_trigger (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Fire a trigger on this object, executing all matching reactions.";
-    "Context is a map with bindings like ['Actor -> player, 'Key -> key_obj]";
-    {trigger_name, ?context = []} = args;
-    "Add standard context";
-    context['This] = this;
-    context['Location] = this.location;
-    "Find and execute matching reactions";
-    for reaction in (this:get_reactions())
-      if (reaction.enabled && reaction.trigger == trigger_name)
-        reaction:execute(context);
-      endif
-    endfor
-  endverb
-
-  verb _check_thresholds (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Check if any threshold reactions should fire after a property change.";
-    "Called by $reaction:execute_effect after set/increment/decrement effects.";
-    {prop, old_value, new_value, context} = args;
-    "Add standard context";
-    context['This] = this;
-    context['Location] = this.location;
-    for reaction in (this:get_reactions())
-      if (!reaction.enabled)
-        continue;
-      endif
-      trigger = reaction.trigger;
-      "Skip non-threshold triggers";
-      if (typeof(trigger) != TYPE_LIST || length(trigger) < 4 || trigger[1] != 'when)
-        continue;
-      endif
-      {_, trigger_prop, op, threshold} = trigger;
-      "Skip if different property";
-      if (trigger_prop != prop)
-        continue;
-      endif
-      "Check if threshold was crossed";
-      if ($reaction:threshold_crossed(old_value, new_value, op, threshold))
-        reaction:execute(context);
-      endif
-    endfor
-  endverb
-
-  verb enterfunc (this none this) owner: HACKER flags: "rxd"
-    "Called when something enters this object. Fire 'on_enter trigger.";
-    {who} = args;
-    this:fire_trigger('on_enter, ['Who -> who]);
-  endverb
-
-  verb exitfunc (this none this) owner: HACKER flags: "rxd"
-    "Called when something exits this object. Fire 'on_exit trigger.";
-    {who} = args;
-    this:fire_trigger('on_exit, ['Who -> who]);
-  endverb
-
-  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Called after object creation. Clears inherited export properties.";
-    "Subclasses should call pass() to ensure this runs.";
-    this.import_export_id = 0;
-    this.import_export_hierarchy = 0;
+  verb test_examination_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Test default examination flyweight shape for root descendants.";
+    scratch = create($root);
+    try
+      scratch.name = "Examined Root Test";
+      scratch.aliases = {"examined-root"};
+      scratch.description = "Examined description.";
+      exam = scratch:examination();
+      $test_utils:assert_type(exam, TYPE_FLYWEIGHT, "examination() should return a flyweight");
+      $test_utils:assert_eq(exam.object_ref, scratch, "examination() should include object_ref");
+      $test_utils:assert_eq(exam.name, "Examined Root Test", "examination() should include name");
+      $test_utils:assert_eq(exam.aliases, {"examined-root"}, "examination() should include aliases");
+      $test_utils:assert_eq(exam.description, "Examined description.", "examination() should include description");
+      $test_utils:assert_eq(exam.owner, scratch.owner, "examination() should include owner");
+      $test_utils:assert_eq(exam.parent, $root, "examination() should include parent");
+      $test_utils:assert_eq(exam.location, scratch.location, "examination() should include location");
+      $test_utils:assert_type(exam.verbs, TYPE_LIST, "examination() should include usable verbs list");
+      $test_utils:assert_type(exam.contents, TYPE_LIST, "examination() should include contents list");
+    finally
+      valid(scratch) && recycle(scratch);
+    endtry
+    return true;
   endverb
 endobject
