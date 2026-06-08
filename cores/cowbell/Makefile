@@ -1,7 +1,7 @@
 # MOORC binary selection via environment variable MOORC_TYPE
 # Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
-HEADLESS_FILTERS ?= "\#128" "\#129" "\#130" "\#131" "\#132"
+HEADLESS_FILTERS ?= "\#90000" "\#90001" "\#90002" "\#90003" "\#90004"
 HEADLESS_TIMEOUT ?= 10
 HEADLESS_SRC_DIRECTORY ?= .runtime-headless-src
 

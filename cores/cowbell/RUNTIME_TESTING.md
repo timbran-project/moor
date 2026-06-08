@@ -150,7 +150,7 @@ runtime-headless:
 	done
 ```
 
-The default filters are the headless-only scenario objects from `tests/headless/`: `#128` for boot, `#129` for scheduler, `#130` for objects, `#131` for relations, and `#132` for rules. Longer term, more headless runtime scenarios should stay in dedicated scenario objects or scenario directories so public prototypes do not accumulate hundreds of test verbs.
+The default filters are the headless-only scenario objects from `tests/headless/`: `#90000` for boot, `#90001` for scheduler, `#90002` for objects, `#90003` for relations, and `#90004` for rules. Longer term, more headless runtime scenarios should stay in dedicated scenario objects or scenario directories so public prototypes do not accumulate hundreds of test verbs.
 
 ### Session Runner
 
@@ -243,7 +243,7 @@ Steps:
 3. Invoke a scenario verb that asserts `$sysobj`, `$root`, `$player`, `$room`, `$event`, `$sub`, `$match`, `$scheduler`, `$relation`, and `$rule_engine` are valid objects.
 4. Assert no unexpected persistent object growth unless the scenario deliberately creates fixtures.
 
-Implemented as `#128:test_headless_boot_smoke` in `tests/headless/headless_boot_scenarios.moo`.
+Implemented as `#90000:test_headless_boot_smoke` in `tests/headless/headless_boot_scenarios.moo`.
 
 ### 2. Headless Scheduler Smoke
 
@@ -257,7 +257,7 @@ Steps:
 4. Assert the callback mutated only fixture state.
 5. Clean up fixture state.
 
-Implemented as `#129:test_headless_scheduler_callback` in `tests/headless/headless_scheduler_scenarios.moo`.
+Implemented as `#90001:test_headless_scheduler_callback` in `tests/headless/headless_scheduler_scenarios.moo`.
 
 ### 3. Session Look/Movement Smoke
 
