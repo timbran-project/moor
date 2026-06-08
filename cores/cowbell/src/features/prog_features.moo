@@ -1280,39 +1280,65 @@ object PROG_FEATURES
   endverb
 
   verb _do_grep_object (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "UI wrapper around prog_utils:grep_object - adds owner metadata for display";
-    "Returns matches with owner information added for formatting";
+    "Search one object's verbs for @grep and report inaccessible verb skips.";
+    "Returns a map with matches and skipped_verb_count.";
     caller == this || raise(E_PERM);
-    {pattern, search_obj, casematters} = args;
-    "Get base matches from prog_utils (returns {obj, verb_name, line_num, matching_line})";
-    base_matches = $prog_utils:grep_object(pattern, search_obj, casematters);
-    "Add owner metadata to each match for display";
-    display_matches = {};
-    "Build lookup map of verb metadata for efficient access";
-    verb_metadata_map = [];
-    for match in (base_matches)
-      {o, verb_name, line_num, matching_line} = match;
-      obj_key = tostr(o);
-      if (!(obj_key in mapkeys(verb_metadata_map)))
-        "First time seeing this object - build metadata map for it";
-        verbs_metadata = $prog_utils:get_verbs_metadata(o);
-        obj_metadata_map = [];
-        for metadata in (verbs_metadata)
-          obj_metadata_map[metadata:name()] = metadata;
-        endfor
-        verb_metadata_map[obj_key] = obj_metadata_map;
+    {pattern, search_obj, casematters, use_regex, owner_filter} = args;
+    matches = {};
+    skipped_verb_count = 0;
+    metadata_list = $prog_utils:get_verbs_metadata(search_obj);
+    pattern_cmp = casematters ? pattern | pattern:lowercase();
+    for md in (metadata_list)
+      vname = md:name();
+      vowner = md:verb_owner();
+      if (owner_filter != 0 && vowner != owner_filter)
+        continue;
       endif
-      "Look up verb metadata by name";
-      obj_metadata_map = verb_metadata_map[obj_key];
-      if (verb_name in mapkeys(obj_metadata_map))
-        metadata = obj_metadata_map[verb_name];
-        verb_owner = metadata:verb_owner();
-        owner_name = valid(verb_owner) ? verb_owner.name | "Recycled";
-        "Append owner info to match for display";
-        display_matches = {@display_matches, {o, verb_name, owner_name, tostr(verb_owner), line_num, matching_line}};
-      endif
+      try
+        lines = verb_code(search_obj, vname, 1, 1);
+      except (E_PERM)
+        skipped_verb_count = skipped_verb_count + 1;
+        continue;
+      endtry
+      for line_num in [1..length(lines)]
+        line = lines[line_num];
+        hay = casematters ? line | line:lowercase();
+        if (use_regex)
+          ok = match(hay, pattern_cmp);
+          if (!ok)
+            continue;
+          endif
+          matching_line = line;
+        else
+          match_pos = index(hay, pattern_cmp, 1);
+          if (!match_pos)
+            continue;
+          endif
+          max_len = 50;
+          line_len = length(line);
+          if (line_len <= max_len)
+            matching_line = line;
+          else
+            pattern_len = length(pattern);
+            start_pos = max(1, match_pos - (max_len - pattern_len) / 2);
+            end_pos = min(line_len, start_pos + max_len - 1);
+            if (end_pos == line_len && end_pos - start_pos < max_len - 1)
+              start_pos = max(1, end_pos - max_len + 1);
+            endif
+            matching_line = line[start_pos..end_pos];
+            if (start_pos > 1)
+              matching_line = "..." + matching_line;
+            endif
+            if (end_pos < line_len)
+              matching_line = matching_line + "...";
+            endif
+          endif
+        endif
+        owner_name = valid(vowner) ? vowner.name | "Recycled";
+        matches = {@matches, {search_obj, vname, owner_name, tostr(vowner), line_num, matching_line}};
+      endfor
     endfor
-    return display_matches;
+    return ['matches -> matches, 'skipped_verb_count -> skipped_verb_count];
   endverb
 
   verb _do_get_available_objects (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -1404,6 +1430,14 @@ object PROG_FEATURES
       return;
     endif
     pattern = tokens[idx..$]:join(" "):trim();
+    if (use_regex)
+      try
+        match("", casematters ? pattern | pattern:lowercase());
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Invalid regular expression: " + tostr(e[2])));
+        return;
+      endtry
+    endif
     search_objects = this:_do_get_available_objects();
     if (length(tokens[idx..$]) >= 2)
       possible_target = tokens[$];
@@ -1422,72 +1456,27 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, "Searching for \"" + pattern + "\" in " + tostr(length(search_objects)) + " objects..."));
     all_matches = {};
     obj_count = 0;
-    if (!use_regex)
-      for o in (search_objects)
-        obj_count = obj_count + 1;
-        if (obj_count % 3 == 0)
-          suspend_if_needed();
-        endif
-        matches = this:_do_grep_object(pattern, o, casematters);
-        if (owner_filter)
-          filtered = {};
-          for m in (matches)
-            if (toobj(m[4]) == owner_filter)
-              filtered = {@filtered, m};
-            endif
-          endfor
-          matches = filtered;
-        endif
-        all_matches = {@all_matches, @matches};
-        if (limit && length(all_matches) >= limit)
-          all_matches = all_matches[1..limit];
-          break;
-        endif
-      endfor
-    else
-      if (!casematters)
-        pattern_cmp = pattern:lowercase();
-      else
-        pattern_cmp = pattern;
+    skipped_verb_count = 0;
+    for o in (search_objects)
+      obj_count = obj_count + 1;
+      if (obj_count % 3 == 0)
+        suspend_if_needed();
       endif
-      for o in (search_objects)
-        obj_count = obj_count + 1;
-        if (obj_count % 2 == 0)
-          suspend_if_needed();
-        endif
-        metadata_list = $prog_utils:get_verbs_metadata(o);
-        for md in (metadata_list)
-          vname = md:name();
-          vowner = md:verb_owner();
-          if (owner_filter && vowner != owner_filter)
-            continue;
-          endif
-          lines = `verb_code(o, vname, 1, 1) ! ANY => {}';
-          for line_num in [1..length(lines)]
-            line = lines[line_num];
-            hay = casematters ? line | line:lowercase();
-            ok = `match(hay, pattern_cmp) ! ANY => 0';
-            if (!ok)
-              continue;
-            endif
-            owner_name = valid(vowner) ? vowner.name | "Recycled";
-            all_matches = {@all_matches, {o, vname, owner_name, tostr(vowner), line_num, line}};
-            if (limit && length(all_matches) >= limit)
-              break;
-            endif
-          endfor
-          if (limit && length(all_matches) >= limit)
-            break;
-          endif
-        endfor
-        if (limit && length(all_matches) >= limit)
-          break;
-        endif
-      endfor
-    endif
+      grep_result = this:_do_grep_object(pattern, o, casematters, use_regex, owner_filter);
+      all_matches = {@all_matches, @grep_result['matches]};
+      skipped_verb_count = skipped_verb_count + grep_result['skipped_verb_count];
+      if (limit && length(all_matches) >= limit)
+        all_matches = all_matches[1..limit];
+        break;
+      endif
+    endfor
     if (!all_matches)
       elapsed = ftime() - start_time;
-      player:inform_current($event:mk_info(player, "No matches found."));
+      no_match_msg = "No matches found.";
+      if (skipped_verb_count)
+        no_match_msg = no_match_msg + " Skipped " + tostr(skipped_verb_count) + " inaccessible verb" + (skipped_verb_count == 1 ? "" | "s") + ".";
+      endif
+      player:inform_current($event:mk_info(player, no_match_msg));
       player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
       return;
     endif
@@ -1508,11 +1497,14 @@ object PROG_FEATURES
     suspend_if_needed();
     result_table = $format.table:mk(headers, rows);
     summary = tostr("Found ", length(all_matches), " match", length(all_matches) != 1 ? "es" | "", " for \"", pattern, "\"");
-    if (owner_filter)
+    if (owner_filter != 0)
       summary = summary + " owner=" + tostr(owner_filter);
     endif
     if (limit)
       summary = summary + " (limit " + tostr(limit) + ")";
+    endif
+    if (skipped_verb_count)
+      summary = summary + "; skipped " + tostr(skipped_verb_count) + " inaccessible verb" + (skipped_verb_count == 1 ? "" | "s");
     endif
     content = $format.block:mk(summary, result_table);
     elapsed = ftime() - start_time;
@@ -2712,5 +2704,53 @@ object PROG_FEATURES
       endif
     endfor
     return candidates;
+  endverb
+
+  verb test_grep_object_literal_owner_filter (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Unit test: @grep helper finds literal matches and applies owner filtering.";
+    fixture = #-1;
+    try
+      fixture = create($root);
+      add_verb(fixture, {$hacker, "rxd", "grep_hacker_match"}, {"this", "none", "this"});
+      errors = set_verb_code(fixture, "grep_hacker_match", {"return \"phase_two_grep_token from hacker\";"}, 2, 1);
+      $test_utils:assert_false(errors, "hacker-owned grep fixture verb should compile");
+      add_verb(fixture, {$arch_wizard, "rxd", "grep_wizard_match"}, {"this", "none", "this"});
+      errors = set_verb_code(fixture, "grep_wizard_match", {"return \"phase_two_grep_token from wizard\";"}, 2, 1);
+      $test_utils:assert_false(errors, "wizard-owned grep fixture verb should compile");
+      result = this:_do_grep_object("phase_two_grep_token", fixture, false, false, $hacker);
+      matches = result['matches];
+      $test_utils:assert_eq(length(matches), 1, "owner filter should keep only hacker-owned match");
+      $test_utils:assert_eq(matches[1][2], "grep_hacker_match", "literal grep should return the hacker-owned verb");
+      $test_utils:assert_eq(result['skipped_verb_count], 0, "readable fixture verbs should not be skipped");
+    finally
+      if (valid(fixture))
+        `delete_verb(fixture, "grep_hacker_match") ! E_VERBNF => 0';
+        `delete_verb(fixture, "grep_wizard_match") ! E_VERBNF => 0';
+        recycle(fixture);
+      endif
+    endtry
+    return true;
+  endverb
+
+  verb test_grep_object_regex (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Unit test: @grep helper finds regex matches through the same result path.";
+    fixture = #-1;
+    try
+      fixture = create($root);
+      add_verb(fixture, {$hacker, "rxd", "grep_regex_match"}, {"this", "none", "this"});
+      errors = set_verb_code(fixture, "grep_regex_match", {"return \"phase_two_grep_token regex\";"}, 2, 1);
+      $test_utils:assert_false(errors, "regex grep fixture verb should compile");
+      result = this:_do_grep_object("phase_[a-z]+_grep_token", fixture, false, true, 0);
+      matches = result['matches];
+      $test_utils:assert_eq(length(matches), 1, "regex grep should find the matching verb");
+      $test_utils:assert_eq(matches[1][2], "grep_regex_match", "regex grep should identify the matching verb");
+      $test_utils:assert_eq(result['skipped_verb_count], 0, "readable regex fixture verb should not be skipped");
+    finally
+      if (valid(fixture))
+        `delete_verb(fixture, "grep_regex_match") ! E_VERBNF => 0';
+        recycle(fixture);
+      endif
+    endtry
+    return true;
   endverb
 endobject
