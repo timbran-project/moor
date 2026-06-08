@@ -258,7 +258,7 @@ object STR_PROTO
     if (!string)
       return $nothing;
     elseif (string[1] == "#")
-      let object = this:toobj();
+      let object = this:toobj(string);
       if (E_TYPE != object)
         return object;
       endif
@@ -293,7 +293,7 @@ object STR_PROTO
 
   verb render_as (this none this) owner: HACKER flags: "rxd"
     "Render the given string part down into a proper string for the given content-type. For now this just returns it back, unmodified. Future versions could do escaping etc for HTML";
-    return this;
+    return args[1];
   endverb
 
   verb space (this none this) owner: HACKER flags: "rxd"
@@ -554,37 +554,6 @@ object STR_PROTO
     return {primary, aliases};
   endverb
 
-  verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
-    "Test colon-separated format (name:alias,alias)";
-    {primary, aliases} = this:parse_name_aliases("lamp:light, lamp,shiny");
-    primary != "lamp" && raise(E_ASSERT, "Primary should be 'lamp': " + toliteral(primary));
-    aliases != {"light", "shiny"} && raise(E_ASSERT, "Aliases dedupe/trim failed: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases(":alpha,beta");
-    primary != "alpha" && raise(E_ASSERT, "First alias should become primary when name missing: " + toliteral(primary));
-    aliases != {"beta"} && raise(E_ASSERT, "Remaining alias list incorrect: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("Porcupine:\"Karl Porcupine\",\"You can pet this Porcupine, I bet!\"");
-    primary != "Porcupine" && raise(E_ASSERT, "Quoted name parsing wrong: " + toliteral(primary));
-    aliases != {"Karl Porcupine", "You can pet this Porcupine, I bet!"} && raise(E_ASSERT, "Quoted alias handling failed: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("\"Standalone Thing\"");
-    primary != "Standalone Thing" && raise(E_ASSERT, "Standalone quoted name parsing failed: " + toliteral(primary));
-    aliases != {} && raise(E_ASSERT, "Standalone quoted name should not record aliases: " + toliteral(aliases));
-    "Test comma-only format (name,alias,alias) - LambdaCore style";
-    {primary, aliases} = this:parse_name_aliases("test,bonk");
-    primary != "test" && raise(E_ASSERT, "Comma format: primary should be 'test': " + toliteral(primary));
-    aliases != {"bonk"} && raise(E_ASSERT, "Comma format: aliases should be {\"bonk\"}: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("lamp,light,shiny");
-    primary != "lamp" && raise(E_ASSERT, "Comma format: primary should be 'lamp': " + toliteral(primary));
-    aliases != {"light", "shiny"} && raise(E_ASSERT, "Comma format: aliases failed: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("\"Quoted Thing\",alias1,alias2");
-    primary != "Quoted Thing" && raise(E_ASSERT, "Comma format: quoted primary failed: " + toliteral(primary));
-    aliases != {"alias1", "alias2"} && raise(E_ASSERT, "Comma format: quoted with aliases failed: " + toliteral(aliases));
-    "Empty/whitespace tests";
-    {primary, aliases} = this:parse_name_aliases("  ");
-    primary != "" && raise(E_ASSERT, "Blank spec should return empty primary: " + toliteral(primary));
-    aliases != {} && raise(E_ASSERT, "Blank spec should have empty alias list: " + toliteral(aliases));
-    return true;
-  endverb
-
   verb trim (this none this) owner: HACKER flags: "rxd"
     ":trim (string [, chars]) -- remove leading and trailing whitespace";
     "";
@@ -711,14 +680,6 @@ object STR_PROTO
     return {@head, tail};
   endverb
 
-  verb test_append_to_paragraph (this none this) owner: HACKER flags: "rxd"
-    "":append_to_paragraph() != {""} && raise(E_ASSERT, "Failed empty append");
-    "dog":append_to_paragraph("") != {"dog"} && raise(E_ASSERT, "Failed empty append");
-    (a = "dog":append_to_paragraph("cats and ")) != {"cats and dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
-    (a = "dog":append_to_paragraph("cats and, also...", "a ")) != {"cats and, also...", "a dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
-    (a = "dog":append_to_paragraph("cats and, also...", "a ", "")) != {"cats and, also...", "a ", "dog"} && raise(E_ASSERT, "Failed single line append; got " + toliteral(a));
-  endverb
-
   verb parse_verbref (this none this) owner: HACKER flags: "rxd"
     "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
     s = args[1];
@@ -735,29 +696,6 @@ object STR_PROTO
       object = tostr(object);
     endif
     return {object, verbname};
-  endverb
-
-  verb test_parse_verbref (this none this) owner: HACKER flags: "rxd"
-    begin
-      let {result, should} = {"#1":parse_verbref(), false};
-      result != should && raise(E_ASSERT, "#1 should be " + toliteral(should) + " was: " + toliteral(result));
-    end
-    begin
-      let {result, should} = {":":parse_verbref(), false};
-      result != should && raise(E_ASSERT, ": should be " + toliteral(should) + " was: " + toliteral(result));
-    end
-    begin
-      let {result, should} = {"$str_proto:look_self":parse_verbref(), {tostr($str_proto), "look_self"}};
-      result != should && raise(E_ASSERT, "$str_proto:look_self should be " + toliteral(should) + " was: " + toliteral(result));
-    end
-    begin
-      let {result, should} = {"#1:look_self":parse_verbref(), {"#1", "look_self"}};
-      result != should && raise(E_ASSERT, "#1:look_self should be " + toliteral(should) + " was: " + toliteral(result));
-    end
-    begin
-      let {result, should} = {"honk:look_self":parse_verbref(), {"honk", "look_self"}};
-      result != should && raise(E_ASSERT, "honk:look_self should be " + toliteral(should) + " was: " + toliteral(result));
-    end
   endverb
 
   verb split (this none this) owner: HACKER flags: "rxd"
@@ -925,24 +863,6 @@ object STR_PROTO
     return result:join(" ");
   endverb
 
-  verb parse_verbref (this none this) owner: HACKER flags: "rxd"
-    "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
-    s = args[1];
-    colon = index(s, ":");
-    colon || return false;
-    object = s[1..colon - 1];
-    verbname = s[colon + 1..$];
-    object && verbname || return false;
-    if (object[1] == "$")
-      pname = object[2..$];
-      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != TYPE_OBJ)
-        return false;
-      endif
-      object = tostr(object);
-    endif
-    return {object, verbname};
-  endverb
-
   verb from_seconds (this none this) owner: HACKER flags: "rxd"
     ":from_seconds(number of seconds) => returns a string containing the rough increment of days, or hours if less than a day, or minutes if less than an hour, or lastly in seconds.";
     ":from_seconds(86400) => \"a day\"";
@@ -951,15 +871,15 @@ object STR_PROTO
     hour = 60 * minute;
     day = 24 * hour;
     secs = args[1];
-    if (secs > day)
+    if (secs >= day)
       count = secs / day;
       unit = "day";
       article = "a";
-    elseif (secs > hour)
+    elseif (secs >= hour)
       count = secs / hour;
       unit = "hour";
       article = "an";
-    elseif (secs > minute)
+    elseif (secs >= minute)
       count = secs / minute;
       unit = "minute";
       article = "a";
@@ -1006,276 +926,8 @@ object STR_PROTO
     endif
   endverb
 
-  verb test_parse_time_of_day (this none this) owner: HACKER flags: "rxd"
-    "Test parsing daily time strings.";
-    "Test valid time";
-    next_run = "14:30:00":parse_time_of_day();
-    typeof(next_run) == TYPE_INT || raise(E_ASSERT, "Should return timestamp");
-    next_run > time() || raise(E_ASSERT, "Should be in future");
-    "Test invalid formats";
-    caught = `"25:00:00":parse_time_of_day() ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject invalid hours");
-    caught = `"12:60:00":parse_time_of_day() ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject invalid minutes");
-    caught = `"12:30":parse_time_of_day() ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject missing seconds");
-    "Test midnight";
-    next_run = "00:00:00":parse_time_of_day();
-    typeof(next_run) == TYPE_INT || raise(E_ASSERT, "Midnight should return timestamp");
-  endverb
-
   verb compose (this none this) owner: HACKER flags: "rxd"
     return args[1];
-  endverb
-
-  verb test_split (this none this) owner: HACKER flags: "rxd"
-    "Test the split function";
-    result = 0;
-    result = "a,b,c":split(",");
-    result != {"a", "b", "c"} && raise(E_ASSERT, "Basic split failed, got " + toliteral(result));
-    result = "a,,c":split(",");
-    result != {"a", "", "c"} && raise(E_ASSERT, "Empty parts split failed, got " + toliteral(result));
-    result = "hello":split(",");
-    result != {"hello"} && raise(E_ASSERT, "No delimiter split failed, got " + toliteral(result));
-    result = "":split(",");
-    result != {""} && raise(E_ASSERT, "Empty string split failed, got " + toliteral(result));
-    result = "a::b::c":split("::");
-    result != {"a", "b", "c"} && raise(E_ASSERT, "Multi-char delimiter split failed, got " + toliteral(result));
-  endverb
-
-  verb test_starts_with (this none this) owner: HACKER flags: "rxd"
-    "Test the starts_with function";
-    result = 0;
-    result = "hello world":starts_with("hello");
-    result != true && raise(E_ASSERT, "Positive starts_with failed, got " + toliteral(result));
-    result = "hello world":starts_with("world");
-    result != false && raise(E_ASSERT, "Negative starts_with failed, got " + toliteral(result));
-    result = "hello":starts_with("");
-    result != true && raise(E_ASSERT, "Empty prefix starts_with failed, got " + toliteral(result));
-    result = "hi":starts_with("hello");
-    result != false && raise(E_ASSERT, "Long prefix starts_with failed, got " + toliteral(result));
-    result = "hello":starts_with("hello");
-    result != true && raise(E_ASSERT, "Exact match starts_with failed, got " + toliteral(result));
-  endverb
-
-  verb test_ends_with (this none this) owner: HACKER flags: "rxd"
-    "Test the ends_with function";
-    result = 0;
-    result = "hello world":ends_with("world");
-    result != true && raise(E_ASSERT, "Positive ends_with failed, got " + toliteral(result));
-    result = "hello world":ends_with("hello");
-    result != false && raise(E_ASSERT, "Negative ends_with failed, got " + toliteral(result));
-    result = "hello":ends_with("");
-    result != true && raise(E_ASSERT, "Empty suffix ends_with failed, got " + toliteral(result));
-    result = "hi":ends_with("hello");
-    result != false && raise(E_ASSERT, "Long suffix ends_with failed, got " + toliteral(result));
-    result = "hello":ends_with("hello");
-    result != true && raise(E_ASSERT, "Exact match ends_with failed, got " + toliteral(result));
-  endverb
-
-  verb test_contains (this none this) owner: HACKER flags: "rxd"
-    "Test the contains function";
-    result = 0;
-    result = "hello world":contains("lo wo");
-    result != true && raise(E_ASSERT, "Positive contains failed, got " + toliteral(result));
-    result = "hello world":contains("xyz");
-    result != false && raise(E_ASSERT, "Negative contains failed, got " + toliteral(result));
-    result = "hello":contains("");
-    result != true && raise(E_ASSERT, "Empty substring contains failed, got " + toliteral(result));
-    result = "hello":contains("hello");
-    result != true && raise(E_ASSERT, "Exact match contains failed, got " + toliteral(result));
-  endverb
-
-  verb test_replace_all (this none this) owner: HACKER flags: "rxd"
-    "Test the replace_all function";
-    result = 0;
-    result = "hello world":replace_all("l", "x");
-    result != "hexxo worxd" && raise(E_ASSERT, "Basic replace_all failed, got " + toliteral(result));
-    result = "hello":replace_all("z", "x");
-    result != "hello" && raise(E_ASSERT, "No matches replace_all failed, got " + toliteral(result));
-    result = "hello":replace_all("l", "");
-    result != "heo" && raise(E_ASSERT, "Empty replacement replace_all failed, got " + toliteral(result));
-    result = "hello":replace_all("", "x");
-    result != "hello" && raise(E_ASSERT, "Empty old string replace_all failed, got " + toliteral(result));
-    result = "hello world":replace_all("llo", "y");
-    result != "hey world" && raise(E_ASSERT, "Multi-char replace_all failed, got " + toliteral(result));
-  endverb
-
-  verb test_reverse (this none this) owner: HACKER flags: "rxd"
-    "Test the reverse function";
-    result = 0;
-    result = "hello":reverse();
-    result != "olleh" && raise(E_ASSERT, "Basic reverse failed, got " + toliteral(result));
-    result = "":reverse();
-    result != "" && raise(E_ASSERT, "Empty string reverse failed, got " + toliteral(result));
-    result = "a":reverse();
-    result != "a" && raise(E_ASSERT, "Single char reverse failed, got " + toliteral(result));
-    result = "aba":reverse();
-    result != "aba" && raise(E_ASSERT, "Palindrome reverse failed, got " + toliteral(result));
-  endverb
-
-  verb test_repeat (this none this) owner: HACKER flags: "rxd"
-    "Test the repeat function";
-    result = 0;
-    result = "ab":repeat(3);
-    result != "ababab" && raise(E_ASSERT, "Basic repeat failed, got " + toliteral(result));
-    result = "hello":repeat(0);
-    result != "" && raise(E_ASSERT, "Zero repeat failed, got " + toliteral(result));
-    result = "hello":repeat(-1);
-    result != "" && raise(E_ASSERT, "Negative repeat failed, got " + toliteral(result));
-    result = "hello":repeat(1);
-    result != "hello" && raise(E_ASSERT, "One repeat failed, got " + toliteral(result));
-    result = "":repeat(5);
-    result != "" && raise(E_ASSERT, "Empty string repeat failed, got " + toliteral(result));
-  endverb
-
-  verb test_char_count (this none this) owner: HACKER flags: "rxd"
-    "Test the char_count function";
-    result = 0;
-    result = "hello":char_count("l");
-    result != 2 && raise(E_ASSERT, "Basic char_count failed, got " + toliteral(result));
-    result = "hello":char_count("z");
-    result != 0 && raise(E_ASSERT, "No matches char_count failed, got " + toliteral(result));
-    result = "aaa":char_count("a");
-    result != 3 && raise(E_ASSERT, "All matches char_count failed, got " + toliteral(result));
-    result = "":char_count("a");
-    result != 0 && raise(E_ASSERT, "Empty string char_count failed, got " + toliteral(result));
-  endverb
-
-  verb test_substring (this none this) owner: HACKER flags: "rxd"
-    "Test the substring function";
-    result = 0;
-    result = "hello world":substring(7, 5);
-    result != "world" && raise(E_ASSERT, "Basic substring failed, got " + toliteral(result));
-    result = "hello":substring(1, 3);
-    result != "hel" && raise(E_ASSERT, "From beginning substring failed, got " + toliteral(result));
-    result = "hello":substring(2, 1);
-    result != "e" && raise(E_ASSERT, "Single char substring failed, got " + toliteral(result));
-    result = "hello":substring(1, 5);
-    result != "hello" && raise(E_ASSERT, "Whole string substring failed, got " + toliteral(result));
-  endverb
-
-  verb test_pad_left (this none this) owner: HACKER flags: "rxd"
-    "Test the pad_left function";
-    result = 0;
-    result = "hello":pad_left(10, "*");
-    result != "*****hello" && raise(E_ASSERT, "Basic pad_left failed, got " + toliteral(result));
-    result = "hello":pad_left(3, "*");
-    result != "hello" && raise(E_ASSERT, "No padding pad_left failed, got " + toliteral(result));
-    result = "hi":pad_left(5);
-    result != "   hi" && raise(E_ASSERT, "Default padding pad_left failed, got " + toliteral(result));
-    result = "hello":pad_left(5, "*");
-    result != "hello" && raise(E_ASSERT, "Exact width pad_left failed, got " + toliteral(result));
-  endverb
-
-  verb test_pad_right (this none this) owner: HACKER flags: "rxd"
-    "Test the pad_right function";
-    result = 0;
-    result = "hello":pad_right(10, "*");
-    result != "hello*****" && raise(E_ASSERT, "Basic pad_right failed, got " + toliteral(result));
-    result = "hello":pad_right(3, "*");
-    result != "hello" && raise(E_ASSERT, "No padding pad_right failed, got " + toliteral(result));
-    result = "hi":pad_right(5);
-    result != "hi   " && raise(E_ASSERT, "Default padding pad_right failed, got " + toliteral(result));
-    result = "hello":pad_right(5, "*");
-    result != "hello" && raise(E_ASSERT, "Exact width pad_right failed, got " + toliteral(result));
-  endverb
-
-  verb test_title_case (this none this) owner: HACKER flags: "rxd"
-    "Test the title_case function";
-    result = 0;
-    result = "hello world":title_case();
-    result != "Hello World" && raise(E_ASSERT, "Basic title_case failed, got " + toliteral(result));
-    result = "hello":title_case();
-    result != "Hello" && raise(E_ASSERT, "Single word title_case failed, got " + toliteral(result));
-    result = "Hello World":title_case();
-    result != "Hello World" && raise(E_ASSERT, "Already capitalized title_case failed, got " + toliteral(result));
-    result = "hELLo WoRLd":title_case();
-    result != "Hello World" && raise(E_ASSERT, "Mixed case title_case failed, got " + toliteral(result));
-  endverb
-
-  verb test_map_chars (this none this) owner: HACKER flags: "rxd"
-    "Test the map_chars function";
-    result = 0;
-    result = "hello":map_chars({c0} => this:uppercase(c0));
-    result != "HELLO" && raise(E_ASSERT, "Uppercase map_chars failed, got " + toliteral(result));
-    result = "abc":map_chars({c1} => c1 == "b" ? "X" | c1);
-    result != "aXc" && raise(E_ASSERT, "Character replacement map_chars failed, got " + toliteral(result));
-    result = "":map_chars({c2} => c2);
-    result != "" && raise(E_ASSERT, "Empty string map_chars failed, got " + toliteral(result));
-  endverb
-
-  verb test_filter_chars (this none this) owner: HACKER flags: "rxd"
-    "Test the filter_chars function";
-    result = 0;
-    result = "abc123def":filter_chars({c3} => c3 in "abcdefghijklmnopqrstuvwxyz");
-    result != "abcdef" && raise(E_ASSERT, "Letter filtering failed, got " + toliteral(result));
-    result = "abc123def":filter_chars({c4} => c4 in "0123456789");
-    result != "123" && raise(E_ASSERT, "Digit filtering failed, got " + toliteral(result));
-    result = "abc":filter_chars({c5} => c5 in "123");
-    result != "" && raise(E_ASSERT, "No matches filter_chars failed, got " + toliteral(result));
-    result = "abc":filter_chars({c6} => c6 in "abcdef");
-    result != "abc" && raise(E_ASSERT, "All matches filter_chars failed, got " + toliteral(result));
-  endverb
-
-  verb test_match_objid_numeric (this none this) owner: HACKER flags: "rxd"
-    "Ensure match_objid identifies numeric object identifiers.";
-    result = this:match_objid("#42");
-    if (!result)
-      raise(E_ASSERT("no numeric match: " + toliteral(result)));
-    endif
-    result['type] != 'numbered || result['text] != "#42" || result['start] != 1 || result['end] != 3 && raise(E_ASSERT("numeric mismatch: " + toliteral(result)));
-    result = this:match_objid("Before #123 after");
-    !result || result['type] != 'numbered || result['text] != "#123" || result['start] != 8 || result['end] != 11 && raise(E_ASSERT("context mismatch: " + toliteral(result)));
-    result = this:match_objid("   #77   ", true);
-    !result || result['type] != 'numbered || result['start] != 4 || result['end] != 6 && raise(E_ASSERT("anchored mismatch: " + toliteral(result)));
-    this:match_objid("no ids here") && raise(E_ASSERT);
-    this:match_objid("#notanumber") && raise(E_ASSERT);
-    return true;
-  endverb
-
-  verb test_match_objid_uuid (this none this) owner: HACKER flags: "rxd"
-    "Ensure match_objid identifies UUID-style object identifiers.";
-    uuid_str = "#00007D-99E53ABE55";
-    result = this:match_objid(uuid_str);
-    !result || result['type] != 'uuid || result['text] != uuid_str || result['start] != 1 || result['end] != 18 && raise(E_ASSERT("uuid mismatch: " + toliteral(result)));
-    mixed = "prefix " + uuid_str + " suffix";
-    result = this:match_objid(mixed);
-    !result || result['start] != 8 || result['end] != 25 && raise(E_ASSERT);
-    result = this:match_objid(uuid_str[2..$]);
-    result && raise(E_ASSERT);
-    return true;
-  endverb
-
-  verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
-    "Test colon-separated format (name:alias,alias)";
-    {primary, aliases} = this:parse_name_aliases("lamp:light, lamp,shiny");
-    primary != "lamp" && raise(E_ASSERT, "Primary should be 'lamp': " + toliteral(primary));
-    aliases != {"light", "shiny"} && raise(E_ASSERT, "Aliases dedupe/trim failed: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases(":alpha,beta");
-    primary != "alpha" && raise(E_ASSERT, "First alias should become primary when name missing: " + toliteral(primary));
-    aliases != {"beta"} && raise(E_ASSERT, "Remaining alias list incorrect: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("Porcupine:\"Karl Porcupine\",\"You can pet this Porcupine, I bet!\"");
-    primary != "Porcupine" && raise(E_ASSERT, "Quoted name parsing wrong: " + toliteral(primary));
-    aliases != {"Karl Porcupine", "You can pet this Porcupine, I bet!"} && raise(E_ASSERT, "Quoted alias handling failed: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("\"Standalone Thing\"");
-    primary != "Standalone Thing" && raise(E_ASSERT, "Standalone quoted name parsing failed: " + toliteral(primary));
-    aliases != {} && raise(E_ASSERT, "Standalone quoted name should not record aliases: " + toliteral(aliases));
-    "Test comma-only format (name,alias,alias) - LambdaCore style";
-    {primary, aliases} = this:parse_name_aliases("test,bonk");
-    primary != "test" && raise(E_ASSERT, "Comma format: primary should be 'test': " + toliteral(primary));
-    aliases != {"bonk"} && raise(E_ASSERT, "Comma format: aliases should be {\"bonk\"}: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("lamp,light,shiny");
-    primary != "lamp" && raise(E_ASSERT, "Comma format: primary should be 'lamp': " + toliteral(primary));
-    aliases != {"light", "shiny"} && raise(E_ASSERT, "Comma format: aliases failed: " + toliteral(aliases));
-    {primary, aliases} = this:parse_name_aliases("\"Quoted Thing\",alias1,alias2");
-    primary != "Quoted Thing" && raise(E_ASSERT, "Comma format: quoted primary failed: " + toliteral(primary));
-    aliases != {"alias1", "alias2"} && raise(E_ASSERT, "Comma format: quoted with aliases failed: " + toliteral(aliases));
-    "Empty/whitespace tests";
-    {primary, aliases} = this:parse_name_aliases("  ");
-    primary != "" && raise(E_ASSERT, "Blank spec should return empty primary: " + toliteral(primary));
-    aliases != {} && raise(E_ASSERT, "Blank spec should have empty alias list: " + toliteral(aliases));
-    return true;
   endverb
 
   verb indefinite_article (this none this) owner: HACKER flags: "rxd"
@@ -1352,48 +1004,156 @@ object STR_PROTO
     return false;
   endverb
 
-  verb test_parse_curie (this none this) owner: HACKER flags: "rxd"
-    "Test parse_curie function with all supported formats";
-    result = 0;
-    "Test oid: format";
-    result = "oid:1":parse_curie();
-    result != #1 && raise(E_ASSERT, "oid:1 parsing failed, got " + toliteral(result));
-    result = "oid:42":parse_curie();
-    typeof(result) != TYPE_OBJ && raise(E_ASSERT, "oid:42 should return object type, got " + toliteral(result));
-    result = "oid:0":parse_curie();
-    result != #0 && raise(E_ASSERT, "oid:0 parsing failed, got " + toliteral(result));
-    "Test invalid oid format";
-    result = "oid:abc":parse_curie();
-    result != false && raise(E_ASSERT, "oid:abc should fail parsing, got " + toliteral(result));
-    result = "oid:":parse_curie();
-    result != false && raise(E_ASSERT, "oid: with no number should fail, got " + toliteral(result));
-    "Test sysobj: format";
-    result = "sysobj:root":parse_curie();
-    result != #1 && raise(E_ASSERT, "sysobj:root should resolve to #1, got " + toliteral(result));
-    result = "sysobj:str_proto":parse_curie();
-    result != #13 && raise(E_ASSERT, "sysobj:str_proto should resolve to #13, got " + toliteral(result));
-    "Test invalid sysobj format";
-    result = "sysobj:nonexistent_property":parse_curie();
-    result != false && raise(E_ASSERT, "sysobj with nonexistent property should fail, got " + toliteral(result));
-    result = "sysobj:":parse_curie();
-    result != false && raise(E_ASSERT, "sysobj: with no path should fail, got " + toliteral(result));
-    "Test match() format with valid context";
-    result = "match(\"here\")":parse_curie(#49);
-    typeof(result) == TYPE_OBJ || result == false || raise(E_ASSERT, "match() should return object or false, got " + toliteral(result));
-    "Test match() format with invalid context";
-    result = "match(\"anything\")":parse_curie(#-1);
-    result != false && raise(E_ASSERT, "match() with invalid context should fail, got " + toliteral(result));
-    "Test invalid formats";
-    result = "invalid":parse_curie();
-    result != false && raise(E_ASSERT, "Invalid format should return false, got " + toliteral(result));
-    result = "":parse_curie();
-    result != false && raise(E_ASSERT, "Empty string should return false, got " + toliteral(result));
-    result = "oid":parse_curie();
-    result != false && raise(E_ASSERT, "Incomplete prefix should return false, got " + toliteral(result));
-    result = "match(incomplete":parse_curie();
-    result != false && raise(E_ASSERT, "Incomplete match() format should return false, got " + toliteral(result));
-    "Test type checking";
-    caught = `(123):parse_curie() ! E_VERBNF => true';
-    caught || raise(E_ASSERT, "Should raise E_VERBNF for non-string input");
+  verb test_case_whitespace_and_padding (this none this) owner: HACKER flags: "rxd"
+    "Cover case, trimming, spacing, and padding helpers.";
+    $test_utils:assert_eq("cowbell":capitalize(), "Cowbell", "capitalize lowercase word");
+    $test_utils:assert_eq("Cowbell":initial_lowercase(), "cowbell", "initial_lowercase uppercase word");
+    $test_utils:assert_eq("hELLo":lowercase(), "hello", "lowercase mixed word");
+    $test_utils:assert_eq("hELLo":uppercase(), "HELLO", "uppercase mixed word");
+    $test_utils:assert_eq("  cowbell  ":trim(), "cowbell", "trim default whitespace");
+    $test_utils:assert_eq("***cowbell***":trim("*"), "cowbell", "trim custom character");
+    $test_utils:assert_eq("***cowbell***":triml("*"), "cowbell***", "triml custom character");
+    $test_utils:assert_eq("***cowbell***":trimr("*"), "***cowbell", "trimr custom character");
+    $test_utils:assert_eq("moo":center(7), "  moo  ", "center default fill");
+    $test_utils:assert_eq("moo":centre(-2), "mo", "centre negative length truncates");
+    $test_utils:assert_eq(this:space(5, "*"), "*****", "space custom fill");
+    $test_utils:assert_eq("hi":pad_left(5), "   hi", "pad_left default fill");
+    $test_utils:assert_eq("hi":pad_right(5, "."), "hi...", "pad_right custom fill");
+    $test_utils:assert_eq("hello world":title_case(), "Hello World", "title_case basic words");
+    return true;
   endverb
+
+  verb test_list_word_and_paragraph_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover list conversion, word parsing, and paragraph append helpers.";
+    $test_utils:assert_eq("a::b::":to_list("::"), {"a", "b", ""}, "to_list preserves trailing empty part");
+    $test_utils:assert_eq(this:join_list({"a", "b", "c"}, "|"), "a|b|c", "join_list joins with separator");
+    $test_utils:assert_eq("  alpha beta  ":words(), {"alpha", "beta"}, "words trims and splits");
+    $test_utils:assert_eq("alpha \"big dog\"":words(), {"alpha", "big dog"}, "words respects quotes");
+    $test_utils:assert_eq("  alpha beta":word_start(), {{3, 7}, {9, 12}}, "word_start reports source offsets");
+    $test_utils:assert_eq(" hello   world test ":words_list(), {"hello", "world", "test"}, "words_list drops empty fields");
+    $test_utils:assert_eq("":append_to_paragraph(), {""}, "append_to_paragraph empty receiver");
+    $test_utils:assert_eq("dog":append_to_paragraph("cats and "), {"cats and dog"}, "append_to_paragraph appends to last line");
+    $test_utils:assert_eq("dog":append_to_paragraph("cats and, also...", "a ", ""), {"cats and, also...", "a ", "dog"}, "append_to_paragraph preserves intermediate lines");
+    return true;
+  endverb
+
+  verb test_object_reference_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover object-reference parsing helpers.";
+    $test_utils:assert_eq("#1":toobj(), #1, "toobj numbered object");
+    $test_utils:assert_eq("not an object":toobj(), E_TYPE, "toobj rejects non-object strings");
+    $test_utils:assert_eq("#1":literal_object(), #1, "literal_object numbered object");
+    $test_utils:assert_eq("$root":literal_object(), $root, "literal_object sysobj property");
+    $test_utils:assert_eq("$str_proto":literal_object(), $str_proto, "literal_object str_proto sysobj property");
+    $test_utils:assert_eq("missing":literal_object(), $failed_match, "literal_object rejects bare strings");
+    $test_utils:assert_eq("raw":render_as('text), "raw", "render_as returns strings unchanged");
+    $test_utils:assert_eq("raw":compose(), "raw", "compose returns strings unchanged");
+    return true;
+  endverb
+
+  verb test_parse_verbref (this none this) owner: HACKER flags: "rxd"
+    "Cover MOO verb-reference parsing.";
+    $test_utils:assert_eq("#1":parse_verbref(), false, "missing colon should fail");
+    $test_utils:assert_eq(":":parse_verbref(), false, "empty object and verb should fail");
+    $test_utils:assert_eq("$str_proto:look_self":parse_verbref(), {tostr($str_proto), "look_self"}, "sysobj verbref should resolve object");
+    $test_utils:assert_eq("#1:look_self":parse_verbref(), {"#1", "look_self"}, "numbered verbref should preserve object string");
+    $test_utils:assert_eq("honk:look_self":parse_verbref(), {"honk", "look_self"}, "named verbref should preserve object string");
+    return true;
+  endverb
+
+  verb test_split_search_and_transform_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover split/search/replace and string transforms.";
+    $test_utils:assert_eq("a,b,c":split(","), {"a", "b", "c"}, "split basic delimiter");
+    $test_utils:assert_eq("a,,c":split(","), {"a", "", "c"}, "split preserves empty parts");
+    $test_utils:assert_eq("hello":split(","), {"hello"}, "split without delimiter match");
+    $test_utils:assert_eq("a::b::c":split("::"), {"a", "b", "c"}, "split multi-character delimiter");
+    $test_utils:assert_true("hello world":starts_with("hello"), "starts_with positive");
+    $test_utils:assert_false("hello world":starts_with("world"), "starts_with negative");
+    $test_utils:assert_true("hello world":ends_with("world"), "ends_with positive");
+    $test_utils:assert_false("hello world":ends_with("hello"), "ends_with negative");
+    $test_utils:assert_true("hello world":contains("lo wo"), "contains positive");
+    $test_utils:assert_false("hello world":contains("xyz"), "contains negative");
+    $test_utils:assert_eq("hello world":replace_all("l", "x"), "hexxo worxd", "replace_all basic replacement");
+    $test_utils:assert_eq("hello":replace_all("", "x"), "hello", "replace_all empty old string");
+    $test_utils:assert_eq("hello":reverse(), "olleh", "reverse basic string");
+    $test_utils:assert_eq("ab":repeat(3), "ababab", "repeat positive count");
+    $test_utils:assert_eq("hello":repeat(0), "", "repeat zero count");
+    $test_utils:assert_eq("hello":char_count("l"), 2, "char_count repeated character");
+    $test_utils:assert_eq("hello world":substring(7, 5), "world", "substring range");
+    $test_utils:assert_eq("hello":map_chars({c0} => this:uppercase(c0)), "HELLO", "map_chars uppercase function");
+    $test_utils:assert_eq("abc123def":filter_chars({c1} => c1 in "abcdefghijklmnopqrstuvwxyz"), "abcdef", "filter_chars letters");
+    return true;
+  endverb
+
+  verb test_match_objid_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover numeric and UUID object-id matching helpers.";
+    result = this:match_objid("#42");
+    $test_utils:assert_true(result, "match_objid should find bare numbered object ids");
+    $test_utils:assert_eq(result['type], 'numbered, "numbered object-id type");
+    $test_utils:assert_eq(result['text], "#42", "numbered object-id text");
+    $test_utils:assert_eq(result['start], 1, "numbered object-id start");
+    $test_utils:assert_eq(result['end], 3, "numbered object-id end");
+    result = this:match_objid("Before #123 after");
+    $test_utils:assert_true(result, "match_objid should find numbered object ids in text");
+    $test_utils:assert_eq(result['start], 8, "embedded object-id start");
+    $test_utils:assert_eq(result['end], 11, "embedded object-id end");
+    result = this:match_objid("   #77   ", true);
+    $test_utils:assert_true(result, "anchored match_objid should ignore surrounding whitespace");
+    $test_utils:assert_eq(result['text], "#77", "anchored object-id text");
+    $test_utils:assert_false(this:match_objid("x#77"), "match_objid should reject alphanumeric left boundary");
+    $test_utils:assert_false(this:match_objid("#77x"), "match_objid should reject alphanumeric right boundary");
+    $test_utils:assert_false(this:match_objid("#notanumber"), "match_objid should reject non-numeric numbered ids");
+    uuid_str = "#00007D-99E53ABE55";
+    result = this:match_objid(uuid_str);
+    $test_utils:assert_true(result, "match_objid should find UUID object ids");
+    $test_utils:assert_eq(result['type], 'uuid, "UUID object-id type");
+    $test_utils:assert_eq(result['text], uuid_str, "UUID object-id text");
+    $test_utils:assert_eq(result['start], 1, "UUID object-id start");
+    $test_utils:assert_eq(result['end], 18, "UUID object-id end");
+    $test_utils:assert_eq(this:match_uuobjid_at(uuid_str, 1), {1, 18}, "match_uuobjid_at bare UUID");
+    $test_utils:assert_false(this:match_uuobjid_at("x" + uuid_str, 2), "match_uuobjid_at should reject alphanumeric left boundary");
+    return true;
+  endverb
+
+  verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+    "Cover colon and comma name/alias specifications.";
+    $test_utils:assert_eq(this:parse_name_aliases("lamp:light, lamp,shiny"), {"lamp", {"light", "shiny"}}, "colon aliases trim and dedupe");
+    $test_utils:assert_eq(this:parse_name_aliases(":alpha,beta"), {"alpha", {"beta"}}, "missing colon primary promotes first alias");
+    $test_utils:assert_eq(this:parse_name_aliases("Porcupine:\"Karl Porcupine\",\"You can pet this Porcupine, I bet!\""), {"Porcupine", {"Karl Porcupine", "You can pet this Porcupine, I bet!"}}, "quoted colon aliases");
+    $test_utils:assert_eq(this:parse_name_aliases("\"Standalone Thing\""), {"Standalone Thing", {}}, "standalone quoted name");
+    $test_utils:assert_eq(this:parse_name_aliases("test,bonk"), {"test", {"bonk"}}, "comma aliases");
+    $test_utils:assert_eq(this:parse_name_aliases("\"Quoted Thing\",alias1,alias2"), {"Quoted Thing", {"alias1", "alias2"}}, "quoted comma primary");
+    $test_utils:assert_eq(this:parse_name_aliases("  "), {"", {}}, "blank spec");
+    return true;
+  endverb
+
+  verb test_time_article_and_curie_helpers (this none this) owner: HACKER flags: "rxd"
+    "Cover numeric, time, article, and CURIE helpers.";
+    $test_utils:assert_true("  -42 ":is_numeric(), "is_numeric accepts signed integers with whitespace");
+    $test_utils:assert_false("4.2":is_numeric(), "is_numeric rejects decimals");
+    $test_utils:assert_false("abc":is_numeric(), "is_numeric rejects text");
+    $test_utils:assert_eq(this:from_seconds(59), "59 seconds", "from_seconds seconds");
+    $test_utils:assert_eq(this:from_seconds(60), "a minute", "from_seconds minute boundary");
+    $test_utils:assert_eq(this:from_seconds(120), "2 minutes", "from_seconds plural minutes");
+    $test_utils:assert_eq(this:from_seconds(3600), "an hour", "from_seconds hour boundary");
+    $test_utils:assert_eq(this:from_seconds(7200), "2 hours", "from_seconds plural hours");
+    $test_utils:assert_eq(this:from_seconds(86400), "a day", "from_seconds day boundary");
+    next_run = "00:00:00":parse_time_of_day();
+    $test_utils:assert_type(next_run, TYPE_INT, "parse_time_of_day returns a timestamp");
+    $test_utils:assert_true(next_run > time(), "parse_time_of_day returns a future timestamp");
+    $test_utils:assert_raises(E_INVARG, "25:00:00", "parse_time_of_day", {}, "parse_time_of_day rejects invalid hours");
+    $test_utils:assert_raises(E_INVARG, "12:60:00", "parse_time_of_day", {}, "parse_time_of_day rejects invalid minutes");
+    $test_utils:assert_raises(E_INVARG, "12:30", "parse_time_of_day", {}, "parse_time_of_day rejects missing seconds");
+    $test_utils:assert_eq("apple":indefinite_article(), "an", "indefinite_article vowel");
+    $test_utils:assert_eq("cowbell":indefinite_article(), "a", "indefinite_article consonant");
+    $test_utils:assert_eq("apple":with_indefinite_article(), "an apple", "with_indefinite_article vowel");
+    $test_utils:assert_eq("cowbell":with_indefinite_article(), "a cowbell", "with_indefinite_article consonant");
+    $test_utils:assert_eq("oid:1":parse_curie(), #1, "parse_curie oid");
+    $test_utils:assert_eq("oid:abc":parse_curie(), false, "parse_curie rejects invalid oid");
+    $test_utils:assert_eq("sysobj:root":parse_curie(), $root, "parse_curie sysobj");
+    $test_utils:assert_eq("sysobj:nonexistent_property":parse_curie(), false, "parse_curie rejects invalid sysobj");
+    $test_utils:assert_eq("match(\"anything\")":parse_curie(#-1), false, "parse_curie rejects invalid match context");
+    $test_utils:assert_eq("invalid":parse_curie(), false, "parse_curie rejects unknown prefix");
+    return true;
+  endverb
+
 endobject
