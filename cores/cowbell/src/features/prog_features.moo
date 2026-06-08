@@ -935,6 +935,7 @@ object PROG_FEATURES
             continue;
           endif
           seen = {@seen, prop_name};
+          prop_display = tostr(prop_name);
           "Skip properties we can't access";
           metadata = `$prog_utils:get_property_metadata(current, prop_name) ! E_PERM => 0';
           if (typeof(metadata) != TYPE_FLYWEIGHT)
@@ -949,7 +950,7 @@ object PROG_FEATURES
           "Format owner as Name (#num)";
           prop_owner = metadata:owner();
           owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
-          rows = {@rows, {"." + prop_name, definer_str, owner_str, metadata:perms(), prop_value}};
+          rows = {@rows, {"." + prop_display, definer_str, owner_str, metadata:perms(), prop_value}};
         endfor
         current = `parent(current) ! ANY => #-1';
       endwhile
@@ -958,6 +959,7 @@ object PROG_FEATURES
       headers = {"Property", "Owner", "Flags", "Value"};
       props = this:_do_get_properties(target_obj);
       for prop_name in (props)
+        prop_display = tostr(prop_name);
         "Skip properties we can't access";
         metadata = `$prog_utils:get_property_metadata(target_obj, prop_name) ! E_PERM => 0';
         if (typeof(metadata) != TYPE_FLYWEIGHT)
@@ -970,7 +972,7 @@ object PROG_FEATURES
         "Format owner as Name (#num)";
         prop_owner = metadata:owner();
         owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
-        rows = {@rows, {"." + prop_name, owner_str, metadata:perms(), prop_value}};
+        rows = {@rows, {"." + prop_display, owner_str, metadata:perms(), prop_value}};
       endfor
     endif
     if (!rows)
@@ -1026,6 +1028,7 @@ object PROG_FEATURES
         verbs_metadata = $prog_utils:get_verbs_metadata(current);
         for metadata in (verbs_metadata)
           verb_name = metadata:name();
+          verb_display = tostr(verb_name);
           if (verb_name in seen)
             continue;
           endif
@@ -1036,7 +1039,7 @@ object PROG_FEATURES
           "Format owner as Name (#num)";
           verb_owner = metadata:verb_owner();
           owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
-          rows = {@rows, {":" + verb_name, definer_str, owner_str, metadata:flags(), args_spec}};
+          rows = {@rows, {":" + verb_display, definer_str, owner_str, metadata:flags(), args_spec}};
         endfor
         current = `parent(current) ! ANY => #-1';
       endwhile
@@ -1046,11 +1049,12 @@ object PROG_FEATURES
       verbs_metadata = $prog_utils:get_verbs_metadata(target_obj);
       for metadata in (verbs_metadata)
         verb_name = metadata:name();
+        verb_display = tostr(verb_name);
         args_spec = metadata:args_spec();
         "Format owner as Name (#num)";
         verb_owner = metadata:verb_owner();
         owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
-        rows = {@rows, {":" + verb_name, owner_str, metadata:flags(), args_spec}};
+        rows = {@rows, {":" + verb_display, owner_str, metadata:flags(), args_spec}};
       endfor
     endif
     if (!rows)

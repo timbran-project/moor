@@ -396,6 +396,24 @@ object PROG_UTILS
     result['selectors][1]['kind] == 'property || raise(E_ASSERT, "me. should select properties");
     result['selectors][1]['inherited] == false || raise(E_ASSERT, "me. should select local properties");
     result['selectors][1]['item_name] == "" || raise(E_ASSERT, "me. should have empty item name");
+    "Test inherited property-list selector";
+    result = this:parse_target_spec("me..");
+    result['type] == 'compound || raise(E_ASSERT, "me.. should parse as compound selector");
+    result['selectors][1]['kind] == 'property || raise(E_ASSERT, "me.. should select properties");
+    result['selectors][1]['inherited] == true || raise(E_ASSERT, "me.. should select inherited properties");
+    result['selectors][1]['item_name] == "" || raise(E_ASSERT, "me.. should have empty item name");
+    "Test local verb-list selector";
+    result = this:parse_target_spec("me:");
+    result['type] == 'compound || raise(E_ASSERT, "me: should parse as compound selector");
+    result['selectors][1]['kind] == 'verb || raise(E_ASSERT, "me: should select verbs");
+    result['selectors][1]['inherited] == false || raise(E_ASSERT, "me: should select local verbs");
+    result['selectors][1]['item_name] == "" || raise(E_ASSERT, "me: should have empty item name");
+    "Test inherited verb-list selector";
+    result = this:parse_target_spec("me::");
+    result['type] == 'compound || raise(E_ASSERT, "me:: should parse as compound selector");
+    result['selectors][1]['kind] == 'verb || raise(E_ASSERT, "me:: should select verbs");
+    result['selectors][1]['inherited] == true || raise(E_ASSERT, "me:: should select inherited verbs");
+    result['selectors][1]['item_name] == "" || raise(E_ASSERT, "me:: should have empty item name");
     return true;
   endverb
 
