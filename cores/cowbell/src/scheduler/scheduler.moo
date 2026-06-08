@@ -411,7 +411,7 @@ object SCHEDULER
     endfor
     "Schedule a test task";
     start_time = time();
-    schedule_id = this:schedule_after(2, this, "test_executed");
+    schedule_id = this:schedule_after(2, this, "scheduler_test_executed");
     schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
     "Verify task property exists";
     prop_name = "scheduled_task_" + tostr(schedule_id);
@@ -421,7 +421,7 @@ object SCHEDULER
       raise(E_ASSERT, "Task property not found");
     endtry
     task.target == this || raise(E_ASSERT, "Wrong target");
-    task.verb == "test_executed" || raise(E_ASSERT, "Wrong verb");
+    task.verb == "scheduler_test_executed" || raise(E_ASSERT, "Wrong verb");
     task.recurring == false || raise(E_ASSERT, "Should not be recurring");
     "Verify scheduler is running";
     this.running || raise(E_ASSERT, "Scheduler should be running");
@@ -439,7 +439,7 @@ object SCHEDULER
       endif
     endfor
     future_time = time() + 10;
-    schedule_id = this:schedule_at(future_time, this, "test_executed");
+    schedule_id = this:schedule_at(future_time, this, "scheduler_test_executed");
     schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
     "Verify run time";
     run_at = this:when_scheduled(schedule_id);
@@ -457,7 +457,7 @@ object SCHEDULER
         delete_property(this, prop);
       endif
     endfor
-    schedule_id = this:schedule_after(10, this, "test_executed");
+    schedule_id = this:schedule_after(10, this, "scheduler_test_executed");
     schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
     "Cancel should return true";
     result = this:cancel(schedule_id);
@@ -509,7 +509,7 @@ object SCHEDULER
     result = this:sweep();
     result == 0 || raise(E_ASSERT, "Sweep should return 0 with no tasks");
     "Schedule a task and sweep again";
-    schedule_id = this:schedule_after(10, this, "test_executed");
+    schedule_id = this:schedule_after(10, this, "scheduler_test_executed");
     result = this:sweep();
     result == 0 || raise(E_ASSERT, "Sweep should return 0 for scheduled tasks without task_ids");
     "Clean up";
@@ -559,7 +559,7 @@ object SCHEDULER
       "Expected - invalid object rejected";
     endtry
     "Test symbol verb name acceptance";
-    schedule_id = this:schedule_after(10, this, 'test_executed);
+    schedule_id = this:schedule_after(10, this, 'scheduler_test_executed);
     schedule_id > 0 || raise(E_ASSERT, "Should accept symbol verb name");
     "Verify task was created with string verb name";
     prop_name = "scheduled_task_" + tostr(schedule_id);
@@ -573,7 +573,7 @@ object SCHEDULER
     this:cancel(schedule_id);
   endverb
 
-  verb test_executed (this none this) owner: HACKER flags: "rxd"
+  verb scheduler_test_executed (this none this) owner: HACKER flags: "rxd"
     "Placeholder verb for testing execution.";
     return true;
   endverb
