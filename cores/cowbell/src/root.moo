@@ -411,6 +411,23 @@ object ROOT
     return new_cap;
   endverb
 
+  verb revoke_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Revoke a stored capability grant for target_obj from grantee in category.";
+    {target_obj, grantee, category} = args;
+    caller_perms().wizard || caller_perms() == target_obj.owner || raise(E_PERM);
+    typeof(category) == TYPE_SYM || raise(E_TYPE);
+    prop_name = "grants_" + tostr(category);
+    try
+      grants_map = grantee.(prop_name);
+    except (E_PROPNF)
+      raise(E_INVARG, tostr(grantee) + " cannot accept grants of category " + tostr(category) + " (missing property: " + prop_name + ")");
+    endtry
+    typeof(grants_map) == TYPE_MAP || raise(E_INVARG, tostr(grantee) + "." + prop_name + " must be a map");
+    maphaskey(grants_map, target_obj) || return false;
+    grantee.(prop_name) = mapdelete(grants_map, target_obj);
+    return true;
+  endverb
+
   verb challenge_for (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Validate a capability and verify it grants the required permissions.";
     "";
