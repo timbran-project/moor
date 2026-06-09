@@ -656,7 +656,7 @@ object ADMIN_FEATURES
     endif
     n = 20;
     if (argstr)
-      parsed = `toint(argstr:trim()) ! ANY => 0';
+      parsed = toint(argstr:trim());
       if (typeof(parsed) != TYPE_INT || parsed < 1)
         raise(E_INVARG, "Usage: @sudo-log [N], where N is a positive integer.");
       endif
