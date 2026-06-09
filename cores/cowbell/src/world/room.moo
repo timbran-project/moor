@@ -947,7 +947,7 @@ object ROOM
     if (valid(current) && current != object)
       "Disengage from current object first.";
       if (respond_to(current, 'remove_occupant))
-        `current:remove_occupant(actor) ! ANY';
+        current:remove_occupant(actor);
       endif
     endif
     "Record new engagement.";
