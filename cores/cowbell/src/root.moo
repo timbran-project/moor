@@ -147,14 +147,13 @@ object ROOT
     {target, perms} = this:check_permissions_as(actor, 'set_description);
     set_task_perms(perms);
     {description} = args;
-    "If description is a string with { } tokens, compile it into $sub content so substitutions can render in looks";
-    if (typeof(description) == TYPE_STR && "{" in description && "}" in description)
-      compiled = description;
+    "If description is a string with substitution tokens, compile it into $sub content so substitutions can render in looks.";
+    if (typeof(description) == TYPE_STR && ("{" in description || "}" in description))
       try
         compiled = $sub_utils:compile(description);
       except e (ANY)
-        "Fall back to raw string if compilation fails";
-        compiled = description;
+        message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+        raise(E_INVARG, "Description template compilation failed: " + message);
       endtry
       target.description = compiled;
     else
@@ -945,6 +944,13 @@ object ROOT
       $test_utils:assert_eq(scratch.description, "Plain root test description.", "set_description() should store plain strings");
       scratch:set_description("This is {n}.");
       $test_utils:assert_type(scratch.description, TYPE_LIST, "set_description() should compile substitution strings");
+      rejected = false;
+      try
+        scratch:set_description("Broken {template");
+      except (E_INVARG)
+        rejected = true;
+      endtry
+      $test_utils:assert_true(rejected, "set_description() should reject malformed substitution strings");
       new_owner = create($root);
       add_property(scratch, "root_test_owned_prop", "owned", {this.owner, "rc"});
       scratch:set_owner(new_owner);

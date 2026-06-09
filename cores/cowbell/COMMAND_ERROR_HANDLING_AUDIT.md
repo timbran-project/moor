@@ -288,7 +288,7 @@ inline fallbacks while inspecting world state.
 | `@dig @tunnel` | Creates a passage between rooms. | Destination candidate and conflict-name reads now report invalid/unreadable rooms; passage conflict scans still rely on broad command-boundary catch. | Medium to high. |
 | `@undig @remove-exit @delete-passage` | Removes a matching passage. | Command body reads passage metadata directly and reports failures at the boundary; underlying `$passage` matching defaults remain lower-level behavior. | Low to medium. |
 | `@rename` | Renames an object. | Broad catch; old-name display fallback. | Medium. |
-| `@describe` | Sets object or passage description. | Broad catch; compiles/decompiles substitution content with fallback. | Medium. |
+| `@describe` | Sets object or passage description. | Object and passage description template compilation failures are reported; broad command-boundary catch remains. | Low to medium. |
 | `@edit-description @edit-d` | Starts editor flow for description. | Broad catch; target/name display fallback. | Medium. |
 | `@parent` | Displays/changes parent relationship. | Display fallbacks and broad catch. | Medium. |
 | `@children @kids @descendants` | Displays child/descendant tree. | Skips invalid entries; display fallbacks; broad catch. | Medium. |
