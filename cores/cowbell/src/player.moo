@@ -543,7 +543,7 @@ object PLAYER
       this:inform_current(event);
     endif
     "Check for unread mail.";
-    mailbox = `this:find_mailbox() ! ANY => #-1';
+    mailbox = this:find_mailbox();
     if (valid(mailbox))
       unread = mailbox:unread_count();
       if (unread > 0)
@@ -1664,7 +1664,7 @@ object PLAYER
       msgs = {@msgs, {t, dm_obj}};
     endfor
     "Add letters from mailbox";
-    mailbox = `this:find_mailbox() ! ANY => #-1';
+    mailbox = this:find_mailbox();
     if (valid(mailbox))
       for letter in (mailbox.contents)
         if (isa(letter, $letter))
