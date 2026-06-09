@@ -2216,8 +2216,18 @@ object BUILDER_FEATURES
         {thing, passage_side} = match_result;
       else
         "Default: try room objects, then players, then exits";
-        thing = `$match:match_object(obj_string, player) ! ANY => $failed_match';
-        thing == $failed_match && (thing = `$match:match_player(obj_string, player) ! ANY => $failed_match');
+        try
+          thing = $match:match_object(obj_string, player);
+        except e (E_INVARG)
+          thing = $failed_match;
+        endtry
+        if (thing == $failed_match)
+          try
+            thing = $match:match_player(obj_string, player);
+          except e (E_INVARG)
+            thing = $failed_match;
+          endtry
+        endif
         if (thing == $failed_match)
           match_result = match_exit(obj_string);
           if (match_result != $failed_match)
