@@ -126,16 +126,16 @@ object PLAYER
     endif
     "Search for passage matching the direction";
     for p in (passages)
-      side_a_room = `p.side_a_room ! ANY => #-1';
-      side_b_room = `p.side_b_room ! ANY => #-1';
+      side_a_room = p.side_a_room;
+      side_b_room = p.side_b_room;
       if (current_room == side_a_room)
-        label = `p.side_a_label ! ANY => ""';
-        aliases = `p.side_a_aliases ! ANY => {}';
-        description = `p.side_a_description ! ANY => ""';
+        label = p.side_a_label;
+        aliases = p.side_a_aliases;
+        description = p.side_a_description;
       elseif (current_room == side_b_room)
-        label = `p.side_b_label ! ANY => ""';
-        aliases = `p.side_b_aliases ! ANY => {}';
-        description = `p.side_b_description ! ANY => ""';
+        label = p.side_b_label;
+        aliases = p.side_b_aliases;
+        description = p.side_b_description;
       else
         continue;
       endif
