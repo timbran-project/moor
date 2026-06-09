@@ -268,15 +268,17 @@ object ADMIN_FEATURES
         match_env = {@match_env, item};
       endif
     endfor
-    mailbox = `player:find_mailbox() ! ANY => $nothing';
+    mailbox = player:find_mailbox();
     if (valid(mailbox))
       match_env = {@match_env, mailbox};
     endif
     location = player.location;
     if (valid(location))
-      ambient = `location:match_scope_for(player) ! ANY => {}';
-      if (typeof(ambient) == TYPE_LIST)
-        match_env = {@match_env, @ambient};
+      if (respond_to(location, 'match_scope_for))
+        ambient = location:match_scope_for(player);
+        if (typeof(ambient) == TYPE_LIST)
+          match_env = {@match_env, @ambient};
+        endif
       endif
       match_env = {@match_env, location};
     endif
@@ -289,16 +291,14 @@ object ADMIN_FEATURES
       return false;
     endtry
     command_env = {player};
-    features = `player.features ! ANY => {}';
-    if (typeof(features) != TYPE_LIST)
-      features = {};
-    endif
+    features = player.features;
+    typeof(features) == TYPE_LIST || raise(E_TYPE, "player.features must be a list");
     command_env = {@command_env, @features};
-    authoring_features = `player.authoring_features ! ANY => $nothing';
+    authoring_features = player.authoring_features;
     if (valid(authoring_features))
       command_env = {@command_env, authoring_features};
     endif
-    admin_features = `player.admin_features ! ANY => {}';
+    admin_features = player.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
     for feat in (admin_features)
       if (valid(feat))
