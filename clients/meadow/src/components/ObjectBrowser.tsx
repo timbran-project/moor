@@ -123,6 +123,9 @@ interface TestResult {
 
 const isTestVerb = (name: string): boolean => name.startsWith("test_");
 
+const isMethodVerb = (verb: VerbData): boolean =>
+    verb.dobj === "this" && verb.prep === "none" && verb.iobj === "this";
+
 // Helper to decode object flags to readable string
 function formatObjectFlags(flags: number): string {
     const parts: string[] = [];
@@ -361,6 +364,14 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     );
     const [showTests, setShowTests] = usePersistentState(
         "moor-object-browser-show-tests",
+        true,
+    );
+    const [showCommands, setShowCommands] = usePersistentState(
+        "moor-object-browser-show-commands",
+        true,
+    );
+    const [showMethods, setShowMethods] = usePersistentState(
+        "moor-object-browser-show-methods",
         true,
     );
     const [serverFeatures, setServerFeatures] = useState<ServerFeatureSet | null>(null);
@@ -1580,6 +1591,12 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         if (!showTests) {
             filteredVerbs = filteredVerbs.filter(verb => !verb.names.some(name => isTestVerb(name)));
         }
+        if (!showCommands) {
+            filteredVerbs = filteredVerbs.filter(verb => isMethodVerb(verb));
+        }
+        if (!showMethods) {
+            filteredVerbs = filteredVerbs.filter(verb => !isMethodVerb(verb));
+        }
 
         // Track the order locations appear in the original array (API order = ancestor order)
         const locationOrder = new Map<string, number>();
@@ -1612,7 +1629,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
             entries = entries.filter(([location]) => location === currentId);
         }
         return entries;
-    }, [verbs, selectedObject, verbFilter, showInheritedVerbs, showTests]);
+    }, [verbs, selectedObject, verbFilter, showInheritedVerbs, showTests, showCommands, showMethods]);
 
     // Track which verbs are overridden or have duplicate names
     const verbLabels = React.useMemo(() => {
@@ -1837,7 +1854,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 <h3 id="object-browser-title" className="editor-title">
                     Object Browser
                 </h3>
-                <div className="flex gap-sm">
+                <div className="object-browser-title-controls">
                     <div className="font-size-control" onClick={(e) => e.stopPropagation()}>
                         <button
                             onClick={decreaseFontSize}
@@ -1898,16 +1915,6 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                             title={showInheritedVerbs ? "Hide inherited verbs" : "Show inherited verbs"}
                         >
                             V
-                        </button>
-                        <button
-                            type="button"
-                            className={`browser-inherited-toggle ${showTests ? "active" : ""}`}
-                            onClick={() => setShowTests(prev => !prev)}
-                            aria-label="Show test verbs"
-                            aria-pressed={showTests}
-                            title={showTests ? "Hide test verbs" : "Show test verbs"}
-                        >
-                            T
                         </button>
                     </div>
                     {/* Split/Float toggle button - only on non-touch devices */}
@@ -2299,7 +2306,39 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                     Verbs
                                 </span>
                                 {selectedObject && (
-                                    <div className="flex gap-xs">
+                                    <div className="browser-pane-actions">
+                                        <div className="browser-filter-controls" onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                type="button"
+                                                className={`browser-filter-toggle ${showCommands ? "active" : ""}`}
+                                                onClick={() => setShowCommands(prev => !prev)}
+                                                aria-label="Show command verbs"
+                                                aria-pressed={showCommands}
+                                                title={showCommands ? "Hide command verbs" : "Show command verbs"}
+                                            >
+                                                C
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`browser-filter-toggle ${showMethods ? "active" : ""}`}
+                                                onClick={() => setShowMethods(prev => !prev)}
+                                                aria-label="Show method verbs"
+                                                aria-pressed={showMethods}
+                                                title={showMethods ? "Hide method verbs" : "Show method verbs"}
+                                            >
+                                                M
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`browser-filter-toggle ${showTests ? "active" : ""}`}
+                                                onClick={() => setShowTests(prev => !prev)}
+                                                aria-label="Show test verbs"
+                                                aria-pressed={showTests}
+                                                title={showTests ? "Hide test verbs" : "Show test verbs"}
+                                            >
+                                                T
+                                            </button>
+                                        </div>
                                         <button
                                             type="button"
                                             className="btn btn-sm"

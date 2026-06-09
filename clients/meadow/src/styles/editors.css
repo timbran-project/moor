@@ -745,6 +745,15 @@
   transform: none;
 }
 
+.browser-pane-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 .browser-pane-title {
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -878,18 +887,30 @@
   padding: var(--space-sm);
 }
 
+.object-browser-title-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 /* Inherited toggle controls */
-.browser-inherited-controls {
+.browser-inherited-controls,
+.browser-filter-controls {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
   background-color: color-mix(in srgb, var(--color-bg-secondary) 78%, var(--color-bg-base));
   border: 1px solid color-mix(in srgb, var(--color-border-medium) 68%, transparent);
   border-radius: 999px;
   padding: 3px 7px;
 }
 
-.browser-inherited-label-text {
+.browser-inherited-label-text,
+.browser-filter-label-text {
   font-size: 10px;
   color: var(--color-text-secondary);
   text-transform: uppercase;
@@ -899,7 +920,8 @@
   opacity: 0.8;
 }
 
-.browser-inherited-toggle {
+.browser-inherited-toggle,
+.browser-filter-toggle {
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -914,7 +936,8 @@
   transition: background-color 0.2s ease;
 }
 
-.browser-inherited-toggle.active {
+.browser-inherited-toggle.active,
+.browser-filter-toggle.active {
   background-color: color-mix(in srgb, var(--color-text-accent) 84%, white 16%);
   border-color: color-mix(in srgb, var(--color-text-accent) 84%, white 16%);
   color: var(--color-bg-base);
