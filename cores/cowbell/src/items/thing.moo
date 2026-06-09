@@ -334,7 +334,7 @@ object THING
     !this:can_drop(who) && return false;
     "Delegate to container's action_put_into if available";
     if (respond_to(dest, 'action_put_into))
-      return `dest:action_put_into(who, context, this) ! ANY => false';
+      return dest:action_put_into(who, context, this);
     endif
     "Fallback for non-container destinations: check acceptable and move";
     !dest:acceptable(this) && return false;
