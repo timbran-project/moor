@@ -28,9 +28,9 @@ object AGENTIC_CODING_ROOM
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
     name = `obj.name ! ANY => tostr(obj)';
-    parent_obj = `parent(obj) ! ANY => #-1';
-    props = `properties(obj) ! ANY => {}';
-    verbs_list = `verbs(obj) ! ANY => {}';
+    parent_obj = parent(obj);
+    props = properties(obj);
+    verbs_list = verbs(obj);
     lines = {"Object: " + tostr(obj) + " (" + name + ")", "Parent: " + tostr(parent_obj), "Properties (" + tostr(length(props)) + "): " + (length(props) > 0 ? props:join(", ") | "(none)"), "Verbs (" + tostr(length(verbs_list)) + "): " + (length(verbs_list) > 0 ? verbs_list:join(", ") | "(none)")};
     return lines:join("\n");
   endverb
@@ -42,7 +42,7 @@ object AGENTIC_CODING_ROOM
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
-    verbs_list = `verbs(obj) ! ANY => {}';
+    verbs_list = verbs(obj);
     !verbs_list && return "No verbs on " + tostr(obj) + ".";
     return "Verbs on " + tostr(obj) + ":\n- " + verbs_list:join("\n- ");
   endverb
@@ -70,9 +70,23 @@ object AGENTIC_CODING_ROOM
     typeof(prop_name) == TYPE_STR || raise(E_TYPE, "property must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
-    value = `obj.(prop_name) ! ANY => E_PROPNF';
+    value = `obj.(prop_name) ! E_PROPNF => E_PROPNF';
     value == E_PROPNF && raise(E_PROPNF, "Property not found: " + prop_name);
     return toliteral(value);
+  endverb
+
+  verb test_agentic_inspection_tools (this none this) owner: HACKER flags: "rxd"
+    "Agentic inspection tools should return real metadata and surface missing properties.";
+    verbs_out = this:_tool_list_verbs(["object" -> "$agentic.agent"], player);
+    $test_utils:assert_type(verbs_out, TYPE_STR, "list_verbs should return formatted output");
+    $test_utils:assert_true(index(verbs_out, "send_message") > 0, "list_verbs should include readable agent verbs");
+    prop_out = this:_tool_read_property(["object" -> "$agentic.agent", "property" -> "max_iterations"], player);
+    $test_utils:assert_type(prop_out, TYPE_STR, "read_property should return literal property value");
+    dump_out = this:_tool_dump_object(["object" -> "$agentic.agent"], player);
+    $test_utils:assert_true(index(dump_out, "Properties (") > 0, "dump_object should include property count");
+    $test_utils:assert_true(index(dump_out, "Verbs (") > 0, "dump_object should include verb count");
+    $test_utils:assert_raises(E_PROPNF, this, "_tool_read_property", {["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player}, "read_property should surface missing property");
+    return true;
   endverb
 
   verb _get_agentic_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
