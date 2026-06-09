@@ -455,13 +455,13 @@ object WIZ_FEATURES
     endfor
     compass_recipients = {};
     for p in (players())
-      if (valid(p) && `p.is_builder ! ANY => false' && p != $hacker)
+      if (valid(p) && p.is_builder && p != $hacker)
         compass_recipients = {@compass_recipients, p};
       endif
     endfor
     visor_recipients = {};
     for p in (players())
-      if (valid(p) && `p.programmer ! ANY => false' && p != $hacker)
+      if (valid(p) && p.programmer && p != $hacker)
         visor_recipients = {@visor_recipients, p};
       endif
     endfor
