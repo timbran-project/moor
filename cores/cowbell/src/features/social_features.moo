@@ -315,7 +315,7 @@ object SOCIAL_FEATURES
     if (!query)
       raise(E_INVARG, "missing_target");
     endif
-    target = `$match:match_object(query, player) ! ANY => $failed_match';
+    target = $match:match_object(query, player);
     if (target == $ambiguous_match)
       cands = {};
       space = {};
@@ -327,7 +327,7 @@ object SOCIAL_FEATURES
         if (!valid(o))
           continue;
         endif
-        n = `o:name() ! ANY => ""';
+        n = o:name();
         if (!n)
           continue;
         endif
@@ -338,7 +338,7 @@ object SOCIAL_FEATURES
           endif
           continue;
         endif
-        al = `o:aliases() ! ANY => {}';
+        al = o:aliases();
         for a in (al)
           if (typeof(a) == TYPE_STR && a && (index(a, query) || index(query, a)))
             item = n + " (" + tostr(o) + ")";
