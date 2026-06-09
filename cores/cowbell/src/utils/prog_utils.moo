@@ -15,9 +15,9 @@ object PROG_UTILS
     "Args: {pattern, object, verb_num, casematters}";
     set_task_perms(caller_perms());
     {pattern, object, vnum, casematters} = args;
-    "Try to get verb code - may fail due to permissions or non-existent verb";
-    vc = `verb_code(object, vnum) ! ANY => false';
-    if (typeof(vc) == TYPE_ERR || !vc)
+    "A missing verb is not a match; other failures should surface to the caller.";
+    vc = `verb_code(object, vnum) ! E_VERBNF => false';
+    if (!vc)
       return 0;
     endif
     "Quick check: does pattern exist anywhere in the verb code?";
