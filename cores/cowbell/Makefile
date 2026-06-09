@@ -1,10 +1,12 @@
 # MOORC binary selection via environment variable MOORC_TYPE
 # Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
-HEADLESS_FILTERS ?= "\#90000" "\#90001" "\#90002" "\#90003" "\#90004" "\#90005" "\#90006" "\#90007"
+HEADLESS_FILTERS ?= 90000 90001 90002 90003 90004 90005 90006 90007
 HEADLESS_TIMEOUT ?= 10
 HEADLESS_SRC_DIRECTORY ?= .runtime-headless-src
 HEADLESS_SRC_STAMP = $(HEADLESS_SRC_DIRECTORY)/.prepared
+HASH := \#
+HEADLESS_FILTER_IDS = $(patsubst $(HASH)%,%,$(HEADLESS_FILTERS))
 
 # DEBUG controls whether to run moorc under gdb
 # Set DEBUG=1 to enable gdb debugging
@@ -75,10 +77,10 @@ $(HEADLESS_SRC_STAMP): $(wildcard src/*.moo src/*/*.moo tests/headless/*.moo)
 runtime-headless-src: $(HEADLESS_SRC_STAMP)
 
 runtime-headless: runtime-headless-src
-	set -e; for filter in $(HEADLESS_FILTERS); do \
+	set -e; for filter in $(HEADLESS_FILTER_IDS); do \
 		$(MOORC) --src-objdef-dir $(HEADLESS_SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true \
-		--test-filter "$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
+		--test-filter "#$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
 	done
 
 clean:
