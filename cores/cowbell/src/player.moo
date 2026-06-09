@@ -433,14 +433,14 @@ object PLAYER
       valid(item) && (env = {@env, item});
     endfor
     "Add player's mailbox if they have one.";
-    mailbox = `this:find_mailbox() ! ANY => #-1';
+    mailbox = this:find_mailbox();
     valid(mailbox) && (env = {@env, mailbox});
     "Add location and its contents.";
     if (valid(location))
       "Let the room/location contribute additional objects (e.g., its contents, and passages).";
       "Add contents BEFORE the room so items match before room name.";
       if (respond_to(location, 'match_scope_for))
-        ambient = `location:match_scope_for(this) ! ANY => {}';
+        ambient = location:match_scope_for(this);
         typeof(ambient) == TYPE_LIST && (env = {@env, @ambient});
       endif
       env = {@env, location};
