@@ -318,7 +318,7 @@ object HELP_TOPICS
       endif
     endfor
     for p in (props)
-      if (typeof(p) == TYPE_SYM && p:starts_with('topic_) && !maphaskey(seen, p))
+      if (typeof(p) == TYPE_SYM && p != 'topic_order && p:starts_with('topic_) && !maphaskey(seen, p))
         names = {@names, p};
       endif
     endfor
@@ -328,7 +328,13 @@ object HELP_TOPICS
       if (typeof(data) != TYPE_LIST || length(data) < 3)
         continue;
       endif
-      {name, summary, content, ?aliases = {}, ?category = "general", ?see_also = {}} = data;
+      length(data) > 6 && raise(E_TYPE, "Malformed help topic " + tostr(prop) + ": expected at most 6 fields, got " + tostr(length(data)));
+      name = data[1];
+      summary = data[2];
+      content = data[3];
+      aliases = length(data) >= 4 ? data[4] | {};
+      category = length(data) >= 5 ? data[5] | "general";
+      see_also = length(data) >= 6 ? data[6] | {};
       if (typeof(name) != TYPE_STR || !name)
         continue;
       endif

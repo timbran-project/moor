@@ -962,7 +962,11 @@ object PLAYER
       cat_query = words[1];
       rest_query = words[2..$]:join(" "):trim();
       if (cat_query && rest_query)
-        base = this:find_help_topic(rest_query);
+        try
+          base = this:find_help_topic(rest_query);
+        except e (ANY)
+          return this:inform_current($event:mk_error(this, "Help topic lookup failed: " + toliteral(e)):with_audience('utility));
+        endtry
         if (typeof(base) == TYPE_LIST)
           filtered = {};
           cat_sym = 0;
@@ -1030,7 +1034,11 @@ object PLAYER
         endif
         return this:inform_current($event:mk_error(this, "No help found for '" + query + "' from " + src.name + "."):with_audience('utility));
       endif
-      topic_result = this:find_help_topic(query);
+      try
+        topic_result = this:find_help_topic(query);
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "Help topic lookup failed: " + toliteral(e)):with_audience('utility));
+      endtry
       if (typeof(topic_result) == TYPE_LIST)
         return this:_display_ambiguous_topic_matches(query, topic_result);
       elseif (typeof(topic_result) != TYPE_INT)
@@ -1283,7 +1291,11 @@ object PLAYER
       if (!respond_to(o, 'help_topics))
         continue;
       endif
-      result = `o:help_topics(this, topic) ! ANY => 0';
+      try
+        result = o:help_topics(this, topic);
+      except e (ANY)
+        raise(e[1], "Help topic provider failed on " + tostr(o) + ": " + toliteral(e));
+      endtry
       if (typeof(result) != TYPE_INT)
         matches = {@matches, {o, result}};
       endif

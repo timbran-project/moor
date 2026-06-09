@@ -35,6 +35,7 @@ object BUILDER_FEATURES
   ];
 
   override description = "Provides building commands (@create, @build, @dig, etc.) for builders.";
+  property help_source (owner: ARCH_WIZARD, flags: "rc") = BUILDER_HELP_TOPICS;
   override import_export_hierarchy = {"features"};
   override import_export_id = "builder_features";
 
