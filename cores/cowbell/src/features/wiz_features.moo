@@ -267,7 +267,7 @@ object WIZ_FEATURES
     delay_minutes = 2;
     parts = msg:split(" ");
     if (length(parts) >= 2 && parts[1] == "in")
-      possible_delay = `toint(parts[2]) ! ANY => -1';
+      possible_delay = toint(parts[2]);
       if (typeof(possible_delay) == TYPE_INT && possible_delay > 0)
         delay_minutes = possible_delay;
         remaining = length(parts) >= 3 ? parts[3..$] | {};
