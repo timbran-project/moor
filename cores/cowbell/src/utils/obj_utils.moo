@@ -84,7 +84,7 @@ object OBJ_UTILS
       endif
       seen_objects[tostr(o)] = true;
       "Get examination data";
-      exam = `o:examination() ! ANY => false';
+      exam = o:examination();
       if (typeof(exam) != TYPE_FLYWEIGHT || !exam.verbs)
         continue;
       endif
