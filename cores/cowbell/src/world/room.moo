@@ -130,7 +130,7 @@ object ROOM
         `$event_receiver:emit_room_snapshot_state(viewer, this) ! ANY => 0';
       endfor
     endfork
-    `pass(@args) ! ANY => 0';
+    `pass(@args) ! E_TYPE, E_VERBNF => 0';
   endverb
 
   verb exitfunc (this none this) owner: HACKER flags: "rxd"
@@ -152,7 +152,7 @@ object ROOM
         `$event_receiver:emit_room_snapshot_state(viewer, this) ! ANY => 0';
       endfor
     endfork
-    `pass(@args) ! ANY => 0';
+    `pass(@args) ! E_TYPE, E_VERBNF => 0';
   endverb
 
   verb acceptable (this none this) owner: HACKER flags: "rxd"
