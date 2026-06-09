@@ -300,7 +300,7 @@ object LOOK
     "Return panel-ready look payload with title separated from content.";
     "Args: ?content_type (default 'text_html).";
     {?content_type = 'text_html} = args;
-    title = `this.what:name() ! ANY => "Room"';
+    title = this.what:name();
     event = this:into_event();
     transformed = event:transform_for(player, content_type);
     output = {};
