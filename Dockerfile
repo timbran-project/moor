@@ -11,7 +11,7 @@ RUN npm ci
 RUN npm run build --prefix clients/meadow
 
 # Backend build stage
-FROM rust:1.92-bookworm AS backend-build
+FROM rust:1.95-bookworm AS backend-build
 
 WORKDIR /moor-build
 RUN apt update
