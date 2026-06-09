@@ -645,26 +645,26 @@ object BUILDER_FEATURES
         raise(E_INVARG, "No passage found between here and " + tostr(target_room) + ".");
       endif
       labels = {};
-      side_a_room = `passage.side_a_room ! ANY => #-1';
-      side_b_room = `passage.side_b_room ! ANY => #-1';
+      side_a_room = passage.side_a_room;
+      side_b_room = passage.side_b_room;
       if (current_room == side_a_room)
-        label = `passage.side_a_label ! ANY => ""';
+        label = passage.side_a_label;
         if (label != "")
           labels = {@labels, label};
         endif
       elseif (current_room == side_b_room)
-        label = `passage.side_b_label ! ANY => ""';
+        label = passage.side_b_label;
         if (label != "")
           labels = {@labels, label};
         endif
       endif
       if (target_room == side_a_room)
-        label = `passage.side_a_label ! ANY => ""';
+        label = passage.side_a_label;
         if (label != "" && !(label in labels))
           labels = {@labels, label};
         endif
       elseif (target_room == side_b_room)
-        label = `passage.side_b_label ! ANY => ""';
+        label = passage.side_b_label;
         if (label != "" && !(label in labels))
           labels = {@labels, label};
         endif
