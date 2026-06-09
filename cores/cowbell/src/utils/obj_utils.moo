@@ -61,9 +61,10 @@ object OBJ_UTILS
   endverb
 
   verb collect_targetable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Collect targetable verbs from a list of objects.";
+    "Best-effort scanner for targetable verbs used by help and command suggestions.";
     "Returns list of maps: {object_ref, object_name, verbs}";
     "Args: {objects_list}";
+    "Do not use this for authoritative command, permission, or metadata decisions; use strict metadata helpers instead.";
     set_task_perms(caller_perms());
     {obj_list} = args;
     typeof(obj_list) != TYPE_LIST && return {};
@@ -106,9 +107,10 @@ object OBJ_UTILS
   endverb
 
   verb collect_ambient_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Collect ambient verbs from a list of objects.";
+    "Best-effort scanner for ambient verbs used by help and command suggestions.";
     "Ambient verbs don't target specific objects. Returns list of maps: {verb, from_object, from_name}";
     "Args: {objects_list}";
+    "Do not use this for authoritative command, permission, or metadata decisions; use strict metadata helpers instead.";
     set_task_perms(caller_perms());
     {obj_list} = args;
     typeof(obj_list) != TYPE_LIST && return {};
