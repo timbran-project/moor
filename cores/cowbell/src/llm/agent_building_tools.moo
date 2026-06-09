@@ -199,12 +199,12 @@ object AGENT_BUILDING_TOOLS
     passage = area:passage_for(source_room, target_room);
     typeof(passage) != TYPE_FLYWEIGHT && return "No passage found between " + tostr(source_room) + " and " + tostr(target_room) + ".";
     "Collect labels for reporting";
-    {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
+    {side_a_room, side_b_room} = {passage.side_a_room, passage.side_b_room};
     labels = {};
-    source_room == side_a_room && `passage.side_a_label ! ANY => ""' != "" && (labels = {@labels, passage.side_a_label});
-    source_room == side_b_room && `passage.side_b_label ! ANY => ""' != "" && (labels = {@labels, passage.side_b_label});
-    target_room == side_a_room && `passage.side_a_label ! ANY => ""' != "" && !(passage.side_a_label in labels) && (labels = {@labels, passage.side_a_label});
-    target_room == side_b_room && `passage.side_b_label ! ANY => ""' != "" && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
+    source_room == side_a_room && passage.side_a_label != "" && (labels = {@labels, passage.side_a_label});
+    source_room == side_b_room && passage.side_b_label != "" && (labels = {@labels, passage.side_b_label});
+    target_room == side_a_room && passage.side_a_label != "" && !(passage.side_a_label in labels) && (labels = {@labels, passage.side_a_label});
+    target_room == side_b_room && passage.side_b_label != "" && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
     "Check permissions";
     from_cap = actor:find_capability_for(source_room, 'room);
     from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
@@ -468,17 +468,17 @@ object AGENT_BUILDING_TOOLS
       result = {@result, "Type: Actor/Player"};
     elseif ($room in ancestors(target))
       result = {@result, "Type: Room"};
-      area = `target.location ! ANY => #-1';
+      area = target.location;
       if (valid(area) && respond_to(area, 'passages_from))
         passages = area:passages_from(target);
         if (passages && length(passages) > 0)
           exits = {};
           for passage in (passages)
-            {side_a_room, side_b_room} = {`passage.side_a_room ! ANY => #-1', `passage.side_b_room ! ANY => #-1'};
+            {side_a_room, side_b_room} = {passage.side_a_room, passage.side_b_room};
             if (target == side_a_room)
-              label = `passage.side_a_label ! ANY => "passage"';
+              label = passage.side_a_label;
             elseif (target == side_b_room)
-              label = `passage.side_b_label ! ANY => "passage"';
+              label = passage.side_b_label;
             else
               continue;
             endif
@@ -1231,6 +1231,8 @@ object AGENT_BUILDING_TOOLS
       route = this:find_route(["from_room" -> r1, "to_room" -> r2], actor);
       $test_utils:assert_true(index(route, "Route from Tool Test Start") > 0, "find_route should include start room name");
       $test_utils:assert_true(index(route, "Go east to Tool Test End") > 0, "find_route should include passage label and destination");
+      details = this:inspect_object(["object" -> r1], actor);
+      $test_utils:assert_true(index(details, "Exits: east") > 0, "inspect_object should include real passage labels");
     finally
       $test_utils:destroy_if_valid(actor);
       $test_utils:destroy_if_valid(r2);
