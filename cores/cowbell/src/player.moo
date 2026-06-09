@@ -871,7 +871,11 @@ object PLAYER
         this:inform_current(event);
         return;
       endif
-      topics = `src:help_topics(this, "") ! ANY => {}';
+      try
+        topics = src:help_topics(this, "");
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "Help topic provider failed: " + toliteral(e)):with_audience('utility));
+      endtry
       lines = {"Help topics from " + src.name + ":", ""};
       if (!topics || typeof(topics) != TYPE_LIST)
         lines = {@lines, "(No topics)"};
@@ -908,7 +912,11 @@ object PLAYER
           return this:inform_current($event:mk_error(this, "Help source lookup failed: " + toliteral(e[2])):with_audience('utility));
         endtry
         if (valid(src) && respond_to(src, 'help_topics))
-          topic_result = `src:help_topics(this, topic_query) ! ANY => 0';
+          try
+            topic_result = src:help_topics(this, topic_query);
+          except e (ANY)
+            return this:inform_current($event:mk_error(this, "Help topic provider failed: " + toliteral(e)):with_audience('utility));
+          endtry
           if (typeof(topic_result) != TYPE_INT)
             prose_lines = topic_result:render_prose();
             content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
@@ -1008,7 +1016,11 @@ object PLAYER
         if (src == $failed_match)
           return this:inform_current($event:mk_error(this, "No help source matches '" + source_scope + "'. Try: `help source <source>`"):with_audience('utility));
         endif
-        topic_result = `src:help_topics(this, query) ! ANY => 0';
+        try
+          topic_result = src:help_topics(this, query);
+        except e (ANY)
+          return this:inform_current($event:mk_error(this, "Help topic provider failed: " + toliteral(e)):with_audience('utility));
+        endtry
         if (typeof(topic_result) != TYPE_INT)
           prose_lines = topic_result:render_prose();
           content = $format.block:mk($format.title:mk(topic_result.name), @prose_lines);
