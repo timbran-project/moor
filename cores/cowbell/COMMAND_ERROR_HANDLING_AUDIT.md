@@ -282,7 +282,7 @@ inline fallbacks while inspecting world state.
 | `@del-message` | Removes a message property/spec. | Parses target and catches broad failures. | Medium. |
 | `@create` | Creates child object from a prototype and names it. | Broad catch; prototype/name display fallback. | Medium. |
 | `@recycle @destroy` | Recycles a matched object. | Broad catch around destroy. | Medium. |
-| `@grant` | Parses grant target/grantee/capability list and stores grant. | Broad catch; grant parsing/formatting delegated to `$grant_utils`. | Medium to high. |
+| `@grant` | Parses grant target/grantee/capability list and stores grant. | Grant parsing/formatting delegated to `$grant_utils`; success display is prepared before mutation; broad command-boundary catch remains. | Medium. |
 | `@audit @owned` | Lists objects owned by a target. | Skips invalid/malformed object entries; display fallbacks. | Medium. |
 | `@build` | Creates a room in an area. | Duplicate room-name scan reports invalid/unreadable existing entries; broad command-boundary catch remains. | Low to medium. |
 | `@dig @tunnel` | Creates a passage between rooms. | Destination candidate and conflict-name reads now report invalid/unreadable rooms; passage conflict scans still rely on broad command-boundary catch. | Medium to high. |

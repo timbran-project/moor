@@ -234,11 +234,12 @@ object BUILDER_FEATURES
       if (!valid(grantee))
         raise(E_INVARG, "Grantee no longer exists.");
       endif
+      "Prepare success display before mutating grant state.";
+      grant_display = $grant_utils:format_grant_with_name(target_obj, category, cap_list);
+      grantee_str = grantee:name() + " (" + tostr(grantee) + ")";
       "Grant the capability";
       cap = $root:grant_capability(target_obj, cap_list, grantee, category);
       "Report success using formatted grant spec";
-      grant_display = $grant_utils:format_grant_with_name(target_obj, category, cap_list);
-      grantee_str = grantee:name() + " (" + tostr(grantee) + ")";
       message = "Granted " + grant_display + " to " + grantee_str + ".";
       player:inform_current($event:mk_info(player, message));
       return cap;
