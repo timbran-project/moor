@@ -560,7 +560,7 @@ object PLAYER
     "Check if player is wearing the specified item.";
     set_task_perms(caller_perms());
     {item} = args;
-    wearing_list = `this.wearing ! ANY => {}';
+    wearing_list = this.wearing;
     return typeof(wearing_list) == TYPE_LIST && is_member(item, wearing_list);
   endverb
 

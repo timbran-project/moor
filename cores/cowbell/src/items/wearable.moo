@@ -214,7 +214,7 @@ object WEARABLE
     "Return who is wearing this item, or #-1 if not worn";
     set_task_perms(caller_perms());
     if (valid(this.location) && respond_to(this.location, 'is_wearing))
-      if (`this.location:is_wearing(this) ! ANY => false')
+      if (this.location:is_wearing(this))
         return this.location;
       endif
     endif

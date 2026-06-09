@@ -242,7 +242,7 @@ object SITTABLE
     this.sitting = listdelete(this.sitting, pos);
     "Clear engagement record from room.";
     if (valid(this.location) && respond_to(this.location, 'disengage_actor))
-      `this.location:disengage_actor(who) ! ANY';
+      this.location:disengage_actor(who);
     endif
     this:fire_trigger('on_stand, ['Actor -> who]);
     if (!silent && valid(this.location))
