@@ -75,7 +75,7 @@ object ADMIN_FEATURES
     if (!dobjstr)
       raise(E_INVARG, "Usage: @sudo-revoke <player>");
     endif
-    target = `dobj ! ANY => $nothing';
+    target = `dobj ! E_INVIND => $nothing';
     if (!valid(target))
       target = $match:match_player(dobjstr, player);
     endif
@@ -150,7 +150,7 @@ object ADMIN_FEATURES
     if (!dobjstr || !iobjstr)
       raise(E_INVARG, "Usage: @sudo-allow <player> to <verb|obj::verb,...>");
     endif
-    target = `dobj ! ANY => $nothing';
+    target = `dobj ! E_INVIND => $nothing';
     if (!valid(target))
       target = $match:match_player(dobjstr, player);
     endif
@@ -174,7 +174,7 @@ object ADMIN_FEATURES
         if (!obj_part || !verb_part)
           raise(E_INVARG, "Malformed allowlist token: " + raw);
         endif
-        resolved_obj = `toobj(obj_part) ! ANY => $nothing';
+        resolved_obj = `toobj(obj_part) ! E_INVARG => $nothing';
         if (valid(resolved_obj))
           obj_part = tostr(resolved_obj):lowercase();
         endif
@@ -208,11 +208,11 @@ object ADMIN_FEATURES
       raise(E_INVARG, "Usage: @sudo-grant <player> as <wizard_player>");
     endif
     prepstr == "as" || raise(E_INVARG, "Use `as`: @sudo-grant <player> as <wizard_player>");
-    target = `dobj ! ANY => $nothing';
+    target = `dobj ! E_INVIND => $nothing';
     if (!valid(target))
       target = $match:match_player(dobjstr, player);
     endif
-    delegate = `iobj ! ANY => $nothing';
+    delegate = `iobj ! E_INVIND => $nothing';
     if (!valid(delegate))
       delegate = $match:match_player(iobjstr, player);
     endif
@@ -512,7 +512,7 @@ object ADMIN_FEATURES
       set_task_perms(player);
     endif
     if (dobjstr)
-      target = `dobj ! ANY => $nothing';
+      target = `dobj ! E_INVIND => $nothing';
       if (!valid(target))
         target = $match:match_player(dobjstr, player);
       endif
