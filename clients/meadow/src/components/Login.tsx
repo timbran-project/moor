@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthContext } from "../context/AuthContext";
 import { OAuth2UserInfo } from "../lib/oauth2";
 import { ContentRenderer } from "./ContentRenderer";
@@ -182,7 +182,13 @@ export const Login: React.FC<LoginProps> = (
     const [helpContentType, setHelpContentType] = useState<"text/plain" | "text/djot" | "text/html" | "text/traceback">(
         "text/plain",
     );
+    const [hasOAuth2Providers, setHasOAuth2Providers] = useState(false);
     const { authState } = useAuthContext();
+    const showCredentialEntry = mode === "connect" || (mode === "create" && createStep === "credentials");
+    const showOAuth2Options = showCredentialEntry && hasOAuth2Providers;
+    const handleOAuth2AvailabilityChange = useCallback((available: boolean) => {
+        setHasOAuth2Providers(available);
+    }, []);
 
     const usernameRef = useRef<HTMLInputElement>(null);
     const passwordRef = useRef<HTMLInputElement>(null);
@@ -1075,22 +1081,26 @@ export const Login: React.FC<LoginProps> = (
                     </div>
                 )}
 
-                {/* OAuth2 login options at top - hide during wizard steps */}
-                {!(mode === "create" && createStep !== "credentials") && (
-                    <div className="login_oauth_section">
-                        <OAuth2Buttons disabled={authState.isConnecting} mode={mode} />
+                {/* OAuth2 login options at top - hide during wizard steps or when no providers are configured */}
+                {showCredentialEntry && (
+                    <div className="login_oauth_section" hidden={!hasOAuth2Providers}>
+                        <OAuth2Buttons
+                            disabled={authState.isConnecting}
+                            mode={mode}
+                            onAvailabilityChange={handleOAuth2AvailabilityChange}
+                        />
                     </div>
                 )}
 
-                {/* Divider - hide during wizard steps */}
-                {!(mode === "create" && createStep !== "credentials") && (
+                {/* Divider - only show when OAuth2 options are available */}
+                {showOAuth2Options && (
                     <div className="login_divider">
                         <span>{mode === "connect" ? "or continue with username" : "or create with username"}</span>
                     </div>
                 )}
 
                 {/* Connect form OR Create wizard step 1 (credentials) */}
-                {(mode === "connect" || (mode === "create" && createStep === "credentials")) && (
+                {showCredentialEntry && (
                     <form
                         id="login-form-panel"
                         className="login_form"

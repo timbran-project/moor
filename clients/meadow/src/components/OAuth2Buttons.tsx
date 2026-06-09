@@ -17,12 +17,13 @@ import { getOAuth2Config, startOAuth2Login } from "../lib/oauth2";
 interface OAuth2ButtonsProps {
     disabled?: boolean;
     mode: "connect" | "create";
+    onAvailabilityChange?: (available: boolean) => void;
 }
 
 /**
  * OAuth2 provider login buttons
  */
-export const OAuth2Buttons: React.FC<OAuth2ButtonsProps> = ({ disabled = false, mode }) => {
+export const OAuth2Buttons: React.FC<OAuth2ButtonsProps> = ({ disabled = false, mode, onAvailabilityChange }) => {
     const [availableProviders, setAvailableProviders] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -32,16 +33,20 @@ export const OAuth2Buttons: React.FC<OAuth2ButtonsProps> = ({ disabled = false, 
                 const config = await getOAuth2Config();
                 if (config.enabled) {
                     setAvailableProviders(config.providers);
+                    onAvailabilityChange?.(config.providers.length > 0);
+                } else {
+                    onAvailabilityChange?.(false);
                 }
             } catch (error) {
                 console.error("Failed to fetch OAuth2 config:", error);
+                onAvailabilityChange?.(false);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchConfig();
-    }, []);
+    }, [onAvailabilityChange]);
 
     const handleOAuth2Login = async (provider: string) => {
         try {

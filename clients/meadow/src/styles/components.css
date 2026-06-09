@@ -1080,8 +1080,8 @@
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  margin: var(--space-md);
+  padding: var(--space-md);
+  margin: var(--space-sm);
   font-family: var(--font-ui);
   flex-shrink: 0;
 }
@@ -1091,7 +1091,7 @@
   max-height: 60vh;
   font-size: 1.1em;
   line-height: 1.4;
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-md);
 }
 
 /* Modern login card */
@@ -1099,7 +1099,7 @@
   background-color: transparent;
   color: var(--color-text-primary);
   border-radius: 0;
-  padding: var(--space-xl) var(--space-lg);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
   margin: 0;
   font-family: var(--font-ui);
   max-width: 480px;
@@ -1111,7 +1111,7 @@
 .login_tabs {
   display: flex;
   gap: 0;
-  margin-bottom: calc(var(--space-xl) * 1.5);
+  margin-bottom: var(--space-lg);
   border-bottom: 2px solid var(--color-border-medium);
 }
 
@@ -1169,8 +1169,8 @@
 
 /* OAuth section */
 .login_oauth_section {
-  margin-top: calc(var(--space-xl) * 2);
-  margin-bottom: calc(var(--space-xl) * 2);
+  margin-top: 0;
+  margin-bottom: var(--space-md);
 }
 
 /* OAuth2 complete screen header */
@@ -1211,8 +1211,8 @@
   gap: calc(var(--space-md) * 1.25);
   max-width: 360px;
   margin: 0 auto;
-  padding-top: var(--space-md);
-  padding-bottom: var(--space-md);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .oauth2_button {
@@ -1290,7 +1290,7 @@
   display: flex;
   align-items: center;
   text-align: center;
-  margin: calc(var(--space-xl) * 1.5) 0;
+  margin: var(--space-lg) 0;
   color: var(--color-text-secondary);
   font-size: 0.9em;
 }

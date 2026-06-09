@@ -105,11 +105,11 @@
 }
 
 .fresh-theme .login_card {
-  padding: 1.25rem 1rem;
+  padding: 1rem 1rem 1.15rem;
 }
 
 .fresh-theme .login_tabs {
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
 }
 
 .fresh-theme .login_tab {
@@ -131,8 +131,12 @@
 
 .fresh-theme .oauth2_buttons_container {
   gap: 0.75rem;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.fresh-theme .login_oauth_section {
+  margin-bottom: 0.85rem;
 }
 
 .fresh-theme .oauth2_button {
@@ -140,5 +144,5 @@
 }
 
 .fresh-theme .login_divider {
-  margin: 1rem 0;
+  margin: 0.85rem 0;
 }
