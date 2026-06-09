@@ -293,7 +293,7 @@ inline fallbacks while inspecting world state.
 | `@parent` | Displays/changes parent relationship. | Display fallbacks and broad catch. | Medium. |
 | `@children @kids @descendants` | Displays child/descendant tree. | Skips invalid entries; display fallbacks; broad catch. | Medium. |
 | `@integrate` | Integrates generated/temporary description into object. | Broad catch and display fallback. | Medium. |
-| `@move` | Moves object to destination. | Broad catch; object/player/location defaults. | Medium. |
+| `@move` | Moves object to destination. | Success display is prepared before mutation; broad catch and best-effort display fallbacks remain. | Low to medium. |
 | `@edit` | Opens property/object editor. | Broad catch; delegates editor setup. | Medium. |
 | `@set-message @setm` | Sets a message template property. | Broad catch; `$sub_utils` compile/decompile fallback. | Medium. |
 | `@get-message @getm` | Reads a message template property. | Decompile fallback to literal; broad catch. | Medium. |

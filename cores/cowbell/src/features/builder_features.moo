@@ -1273,6 +1273,8 @@ object BUILDER_FEATURES
       old_loc = target_obj.location;
       is_player = target_obj.player;
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      dest_name = `dest_loc.name ! ANY => tostr(dest_loc)';
+      success_message = "Moved " + obj_name + " (" + tostr(target_obj) + ") to " + dest_name + " (" + tostr(dest_loc) + ").";
       "If it's a player, notify the old location";
       if (is_player && valid(old_loc))
         old_loc:announce_all_but({target_obj}, obj_name + " disappears suddenly for parts unknown.");
@@ -1284,9 +1286,7 @@ object BUILDER_FEATURES
         dest_loc:announce_all_but({target_obj}, obj_name + " materializes out of thin air.");
       endif
       "Report success to the builder";
-      dest_name = `dest_loc.name ! ANY => tostr(dest_loc)';
-      message = "Moved " + obj_name + " (" + tostr(target_obj) + ") to " + dest_name + " (" + tostr(dest_loc) + ").";
-      player:inform_current($event:mk_info(player, message));
+      player:inform_current($event:mk_info(player, success_message));
       return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
