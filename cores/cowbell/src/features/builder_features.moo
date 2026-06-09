@@ -949,9 +949,9 @@ object BUILDER_FEATURES
         raise(E_PERM, "You don't own that.");
       endif
       current_desc = `target_obj.description ! E_PROPNF => ""';
+      editor_title = "Edit Description: " + target_obj.name;
       conn = connection();
       session_id = player:start_edit_session(target_obj, "set_description", {conn});
-      editor_title = "Edit Description: " + target_obj.name;
       present(player, session_id, "text/djot", "text-editor", current_desc, {{"object", $url_utils:to_curie_str($builder_features)}, {"verb", "receive_description_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);

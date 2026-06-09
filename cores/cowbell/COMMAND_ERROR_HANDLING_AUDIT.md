@@ -289,7 +289,7 @@ inline fallbacks while inspecting world state.
 | `@undig @remove-exit @delete-passage` | Removes a matching passage. | Command body reads passage metadata directly and reports failures at the boundary; underlying `$passage` matching defaults remain lower-level behavior. | Low to medium. |
 | `@rename` | Renames an object. | Broad catch; old-name display fallback. | Medium. |
 | `@describe` | Sets object or passage description. | Object and passage description template compilation failures are reported; broad command-boundary catch remains. | Low to medium. |
-| `@edit-description @edit-d` | Starts editor flow for description. | Broad catch; target/name display fallback. | Medium. |
+| `@edit-description @edit-d` | Starts editor flow for description. | Editor title/display is prepared before starting the edit session; broad command-boundary catch remains. | Low to medium. |
 | `@parent` | Displays/changes parent relationship. | Display fallbacks and broad catch. | Medium. |
 | `@children @kids @descendants` | Displays child/descendant tree. | Skips invalid entries; display fallbacks; broad catch. | Medium. |
 | `@integrate` | Integrates generated/temporary description into object. | Broad catch and display fallback. | Medium. |
