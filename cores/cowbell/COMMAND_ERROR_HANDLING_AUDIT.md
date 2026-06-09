@@ -278,8 +278,8 @@ inline fallbacks while inspecting world state.
 
 | Command | Current formulation | Defensive patterns | Risk |
 | --- | --- | --- | --- |
-| `@add-message` | Adds a message property/spec to an object. | Parses target via `$prog_utils`; broad catches; property existence and value handling are command-local. | Medium. |
-| `@del-message` | Removes a message property/spec. | Parses target and catches broad failures. | Medium. |
+| `@add-message` | Adds a message property/spec to an object. | Template compilation failures are reported before mutation; no local broad catch. | Low to medium. |
+| `@del-message` | Removes a message property/spec. | Message bag lookup/removal failures propagate directly; no local broad catch. | Low to medium. |
 | `@create` | Creates child object from a prototype and names it. | Inventory placement result is checked and failed creations are cleaned up; broad command-boundary catch remains. | Low to medium. |
 | `@recycle @destroy` | Recycles a matched object. | Broad catch around destroy. | Medium. |
 | `@grant` | Parses grant target/grantee/capability list and stores grant. | Grant parsing/formatting delegated to `$grant_utils`; success display is prepared before mutation; broad command-boundary catch remains. | Medium. |
@@ -287,7 +287,7 @@ inline fallbacks while inspecting world state.
 | `@build` | Creates a room in an area. | Duplicate room-name scan reports invalid/unreadable existing entries; broad command-boundary catch remains. | Low to medium. |
 | `@dig @tunnel` | Creates a passage between rooms. | Destination candidate and conflict-name reads now report invalid/unreadable rooms; passage conflict scans still rely on broad command-boundary catch. | Medium to high. |
 | `@undig @remove-exit @delete-passage` | Removes a matching passage. | Command body reads passage metadata directly and reports failures at the boundary; underlying `$passage` matching defaults remain lower-level behavior. | Low to medium. |
-| `@rename` | Renames an object. | Broad catch; old-name display fallback. | Medium. |
+| `@rename` | Renames an object. | Old-name display fallback happens before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@describe` | Sets object or passage description. | Object and passage description template compilation failures are reported; broad command-boundary catch remains. | Low to medium. |
 | `@edit-description @edit-d` | Starts editor flow for description. | Editor title/display is prepared before starting the edit session; broad command-boundary catch remains. | Low to medium. |
 | `@parent` | Displays/changes parent relationship. | Display fallbacks and broad catch. | Medium. |
@@ -297,15 +297,15 @@ inline fallbacks while inspecting world state.
 | `@edit` | Opens property/object editor. | Broad catch; delegates editor setup. | Medium. |
 | `@set-message @setm` | Sets a message template property. | Template compile failures are reported and success display is prepared before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@get-message @getm` | Reads a message template property. | Decompile fallback to literal; broad catch. | Medium. |
-| `@set-rule` | Sets rule property. | Broad catch; rule parsing delegated. | Medium. |
-| `@clear-rule` | Clears rule property. | Broad catch. | Medium. |
+| `@set-rule` | Sets rule property. | Rule parsing/validation completes before mutation; broad command-boundary catch remains. | Low to medium. |
+| `@clear-rule` | Clears rule property. | Target/property/permission checks complete before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@show-rule` | Displays one rule property. | Broad catch and display fallback. | Medium. |
 | `@messages @msg` | Lists message properties. | Property list helpers and decompile fallback; broad catch. | Medium. |
 | `@rules` | Lists rule properties. | Broad catch and display fallback. | Medium. |
 | `@reactions` | Lists reactions. | Broad catch; skips invalid reaction entries. | Medium. |
 | `@add-reaction @set-reaction` | Adds or replaces a reaction. | Trigger/effects eval failures report detail before mutation; reaction parsing/shape validation remains delegated. | Low to medium. |
-| `@enable-reaction` | Enables reaction. | Broad catch and reaction list shape handling. | Medium. |
-| `@disable-reaction` | Disables reaction. | Broad catch and reaction list shape handling. | Medium. |
+| `@enable-reaction` | Enables reaction. | Target/property/reaction shape checks complete before mutation; broad command-boundary catch remains. | Low to medium. |
+| `@disable-reaction` | Disables reaction. | Target/property/reaction shape checks complete before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@parents @ancestors` | Displays ancestor chain. | Display fallbacks and broad catch. | Low to medium. |
 | `@set-thumbnail @thumbnail` | Uploads/sets thumbnail. | Prompt/upload defaults; broad catch. | Medium. |
 | `@passage @passage-info @pinfo` | Displays passage info. | Passage slot defaults. | Medium. |
