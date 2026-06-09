@@ -1426,14 +1426,14 @@ object PLAYER
       if (!valid(o))
         continue;
       endif
-      ancestor_chain = `ancestors(o) ! ANY => {}';
+      ancestor_chain = ancestors(o);
       for definer in ({o, @ancestor_chain})
         if (!valid(definer))
           continue;
         endif
-        all_verb_names = `verbs(definer) ! ANY => {}';
+        all_verb_names = verbs(definer);
         for verb_name in (all_verb_names)
-          verb_sig = `verb_args(definer, verb_name) ! ANY => false';
+          verb_sig = verb_args(definer, verb_name);
           if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
             continue;
           endif
