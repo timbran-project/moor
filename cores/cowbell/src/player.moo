@@ -1111,7 +1111,11 @@ object PLAYER
         endif
       endif
       if (valid(target_obj))
-        result = this:_show_targeted_help(target_obj);
+        try
+          result = this:_show_targeted_help(target_obj);
+        except e (ANY)
+          return this:inform_current($event:mk_error(this, "Object help lookup failed: " + toliteral(e)):with_audience('utility));
+        endtry
         lines = result[1];
         if (this.programmer)
           lines = {@lines, "", $format.title:mk("Try programmer documentation with:")};
@@ -1156,7 +1160,6 @@ object PLAYER
   verb _show_targeted_help (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Show help for a targeted object. Returns {lines_list, has_documentation_flag}.";
     {target_obj} = args;
-    target_obj = #-1;
     has_doc = false;
     cmd_env = this:command_environment();
     lines = {};
@@ -1177,7 +1180,11 @@ object PLAYER
       return {lines, has_doc};
     endif
     "Show help for target object";
-    help_content = `target_obj:object_help() ! ANY => 0';
+    try
+      help_content = target_obj:object_help();
+    except e (ANY)
+      raise(e[1], "Object help provider failed on " + tostr(target_obj) + ": " + toliteral(e));
+    endtry
     if (help_content && help_content != 0)
       has_doc = true;
       if (typeof(help_content) == TYPE_LIST)
@@ -3497,6 +3504,18 @@ object PLAYER
     bonk_topic = this:find_help_topic("bonk");
     $test_utils:assert_type(bonk_topic, TYPE_FLYWEIGHT, "feature-generated help topic 'bonk' should resolve");
     $test_utils:assert_eq(bonk_topic.name, "bonk", "feature-generated help topic name");
+    return true;
+  endverb
+
+  verb test_targeted_help_uses_requested_object (this none this) owner: HACKER flags: "rxd"
+    "Targeted object help should inspect the requested object instead of dropping it.";
+    scratch = $test_utils:anonymous($thing);
+    add_property(scratch, 'object_help, "Targeted help body.", {scratch.owner, "r"});
+    result = this:_show_targeted_help(scratch);
+    $test_utils:assert_type(result, TYPE_LIST, "targeted help should return a result tuple");
+    $test_utils:assert_eq(length(result), 2, "targeted help should return {lines, has_doc}");
+    $test_utils:assert_true(result[2], "targeted help should report object documentation");
+    $test_utils:assert_true(length(result[1]) > 0, "targeted help should include display lines");
     return true;
   endverb
 
