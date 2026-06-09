@@ -2263,13 +2263,13 @@ object PLAYER
         continue;
       endif
       "Check all verbs on this object and ancestors";
-      for definer in ({item, @`ancestors(item) ! ANY => {}'})
+      for definer in ({item, @ancestors(item)})
         if (!valid(definer))
           continue;
         endif
-        for vname in (`verbs(definer) ! ANY => {}')
+        for vname in (verbs(definer))
           "Get verb signature";
-          vsig = `verb_args(definer, vname) ! ANY => {}';
+          vsig = verb_args(definer, vname);
           if (typeof(vsig) != TYPE_LIST || length(vsig) < 3)
             continue;
           endif
@@ -2279,7 +2279,7 @@ object PLAYER
             continue;
           endif
           "Get full verb names string";
-          vinfo = `verb_info(definer, vname) ! ANY => {}';
+          vinfo = verb_info(definer, vname);
           if (typeof(vinfo) != TYPE_LIST || length(vinfo) < 3)
             continue;
           endif
@@ -2906,7 +2906,7 @@ object PLAYER
     attempted_verb = `pc['verb] ! ANY => ""';
     if (typeof(attempted_verb) == TYPE_STR && length(attempted_verb) > 0)
       scope_objects = this:match_environment("", ['complex -> true]);
-      {exact_verb_matches, near_verb_matches} = `this:_find_verb_matches(attempted_verb, scope_objects) ! ANY => {{}, {}}';
+      {exact_verb_matches, near_verb_matches} = this:_find_verb_matches(attempted_verb, scope_objects);
       for entry in (exact_verb_matches)
         if (typeof(entry) == TYPE_MAP && maphaskey(entry, "command"))
           hint = entry["command"];
@@ -2963,12 +2963,12 @@ object PLAYER
         if (!valid(o))
           continue;
         endif
-        for definer in ({o, @`ancestors(o) ! ANY => {}'})
+        for definer in ({o, @ancestors(o)})
           if (!valid(definer))
             continue;
           endif
-          for verb_name in (`verbs(definer) ! ANY => {}')
-            verb_sig = `verb_args(definer, verb_name) ! ANY => false';
+          for verb_name in (verbs(definer))
+            verb_sig = verb_args(definer, verb_name);
             if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
               continue;
             endif
