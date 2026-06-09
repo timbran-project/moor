@@ -17,13 +17,13 @@ object PLAYER_ACTIVITY
   verb task_id_of (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Extract task id from an activity entry.";
     {entry} = args;
-    return `entry['task_id] ! ANY => 0';
+    return `entry['task_id] ! E_RANGE, E_TYPE => 0';
   endverb
 
   verb kind_of (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Extract kind from an activity entry.";
     {entry} = args;
-    return `entry['kind] ! ANY => ""';
+    return `entry['kind] ! E_RANGE, E_TYPE => ""';
   endverb
 
   verb cancel_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -33,14 +33,14 @@ object PLAYER_ACTIVITY
     if (!(typeof(task_id) == TYPE_INT && task_id > 0))
       return 0;
     endif
-    `kill_task(task_id) ! ANY';
+    `kill_task(task_id) ! E_INVARG';
     return 1;
   endverb
 
   verb description_of (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return display description for an activity entry.";
     {entry} = args;
-    label = `entry['label] ! ANY => ""';
+    label = `entry['label] ! E_RANGE, E_TYPE => ""';
     if (typeof(label) == TYPE_STR && label != "")
       return label;
     endif

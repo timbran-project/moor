@@ -361,7 +361,7 @@ object ACTOR
     endif
     kept = {};
     for entry in (this.performing)
-      entry_task = `$player_activity:task_id_of(entry) ! ANY => 0';
+      entry_task = $player_activity:task_id_of(entry);
       if (entry_task != task_id)
         kept = {@kept, entry};
       endif
@@ -382,12 +382,12 @@ object ACTOR
     kept = {};
     canceled = {};
     for entry in (this.performing)
-      entry_kind = `$player_activity:kind_of(entry) ! ANY => $nothing';
+      entry_kind = $player_activity:kind_of(entry);
       if (kind != $nothing && entry_kind != kind)
         kept = {@kept, entry};
         continue;
       endif
-      if (`$player_activity:cancel_entry(entry) ! ANY => 0')
+      if ($player_activity:cancel_entry(entry))
         canceled = {@canceled, entry};
       endif
     endfor
@@ -405,7 +405,7 @@ object ACTOR
     endif
     descriptions = {};
     for entry in (this.performing)
-      description = `$player_activity:description_of(entry) ! ANY => ""';
+      description = $player_activity:description_of(entry);
       if (typeof(description) == TYPE_STR && description != "" && !(description in descriptions))
         descriptions = {@descriptions, description};
       endif

@@ -3328,7 +3328,7 @@ object PLAYER
       return;
     endif
     if (count == 1)
-      description = `$player_activity:description_of(canceled[1]) ! ANY => "that"';
+      description = $player_activity:description_of(canceled[1]);
       if (index(description, "walking") == 1)
         player:inform_current($event:mk_info(player, "You stop walking."));
       else
@@ -3338,7 +3338,7 @@ object PLAYER
     endif
     descriptions = {};
     for entry in (canceled)
-      description = `$player_activity:description_of(entry) ! ANY => "that"';
+      description = $player_activity:description_of(entry);
       if (!(description in descriptions))
         descriptions = {@descriptions, description};
       endif
