@@ -699,8 +699,10 @@ object PLAYER
       "Try to match the object from dobjstr";
       try
         target = $match:match_object(dobjstr, player);
-      except e (ANY)
+      except e (E_INVARG)
         return this:inform_current($event:mk_not_found(player, "Could not find '" + dobjstr + "' to examine."):with_audience('utility));
+      except e (ANY)
+        return this:inform_current($event:mk_error(player, "Object lookup failed: " + toliteral(e)):with_audience('utility));
       endtry
       if (typeof(target) == TYPE_ERR)
         return this:inform_current($event:mk_not_found(player, "No object found matching '" + dobjstr + "'."):with_audience('utility));
