@@ -1150,6 +1150,6 @@ object ROOM
         things = {@things, ["object" -> o, "name" -> name]};
       endif
     endfor
-    return ["room" -> this, "title" -> `this:name() ! ANY => "Room"', "description" -> `this:description() ! ANY => ""', "exits" -> all_exits, "ambient_passages" -> ambient_passages, "actions" -> available_actions, "actors" -> actors, "things" -> things];
+    return ["room" -> this, "title" -> this:name(), "description" -> this:description(), "exits" -> all_exits, "ambient_passages" -> ambient_passages, "actions" -> available_actions, "actors" -> actors, "things" -> things];
   endverb
 endobject
