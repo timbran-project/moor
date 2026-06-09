@@ -361,18 +361,39 @@ object SYSOBJ
         continue;
       endif
       seen[proto] = 1;
-      proto_name = `proto.name ! ANY => tostr(proto)';
+      proto_name = proto.name;
       for prop in (properties(this))
-        value = `this.(prop) ! ANY => 0';
+        value = this.(prop);
         if (typeof(value) == TYPE_OBJ && value == proto)
-          proto_name = "$" + prop;
+          proto_name = "$" + tostr(prop);
           break;
         endif
       endfor
-      desc = `proto.description ! ANY => "(no description)"';
+      desc = proto.description;
       result = {@result, ["object" -> toliteral(proto), "name" -> proto_name, "description" -> desc]};
     endfor
     return result;
+  endverb
+
+  verb test_list_builder_prototypes (this none this) owner: HACKER flags: "rxd"
+    "Builder prototype catalog should expose sysobj names and descriptions.";
+    prototypes = this:list_builder_prototypes();
+    found_room = false;
+    found_thing = false;
+    for proto_info in (prototypes)
+      if (proto_info["name"] == "$room")
+        found_room = true;
+        $test_utils:assert_eq(proto_info["object"], toliteral($room), "room prototype should include object literal");
+        $test_utils:assert_eq(proto_info["description"], $room.description, "room prototype should include real description");
+      elseif (proto_info["name"] == "$thing")
+        found_thing = true;
+        $test_utils:assert_eq(proto_info["object"], toliteral($thing), "thing prototype should include object literal");
+        $test_utils:assert_eq(proto_info["description"], $thing.description, "thing prototype should include real description");
+      endif
+    endfor
+    $test_utils:assert_true(found_room, "builder prototypes should include $room: " + toliteral(prototypes));
+    $test_utils:assert_true(found_thing, "builder prototypes should include $thing: " + toliteral(prototypes));
+    return true;
   endverb
 
   verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"
