@@ -11,6 +11,12 @@ object AREA
   override import_export_hierarchy = {"world"};
   override import_export_id = "area";
 
+  verb acceptable (this none this) owner: HACKER flags: "rxd"
+    "Areas accept rooms as spatial contents.";
+    {what} = args;
+    return typeof(what) == TYPE_OBJ && valid(what) && isa(what, $room);
+  endverb
+
   verb initialize (this none this) owner: HACKER flags: "rxd"
     "Called after creation to set up the passages relation.";
     pass();
@@ -557,6 +563,28 @@ object AREA
     length(reachable) != 2 && raise(E_ASSERT, "Should only reach 2 rooms with closed passage");
     reachable = area:rooms_from(r1, false);
     length(reachable) != 3 && raise(E_ASSERT, "Should reach all 3 rooms when ignoring closed");
+  endverb
+
+  verb test_accepts_rooms (this none this) owner: HACKER flags: "rxd"
+    "Test that areas accept rooms as spatial contents and reject non-rooms.";
+    area = $area:create(true);
+    room = $room:create(true);
+    thing = $thing:create(true);
+    try
+      move(room, area);
+      room.location != area && raise(E_ASSERT, "Area should accept room contents.");
+      accepted_thing = true;
+      try
+        move(thing, area);
+      except (E_NACC)
+        accepted_thing = false;
+      endtry
+      accepted_thing && raise(E_ASSERT, "Area should reject non-room contents.");
+    finally
+      $test_utils:destroy_if_valid(thing);
+      $test_utils:destroy_if_valid(room);
+      $test_utils:destroy_if_valid(area);
+    endtry
   endverb
 
   verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"

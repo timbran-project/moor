@@ -381,10 +381,10 @@ object AGENT_BUILDING_TOOLS
     !valid(current_room) && return "Error: You are not in a room.";
     area = current_room.location;
     !valid(area) && return "Error: Current room is not in an area.";
-    result = {"Current Location: " + `current_room:name() ! ANY => tostr(current_room)' + " (" + tostr(current_room) + ")", "Area: " + `area:name() ! ANY => tostr(area)' + " (" + tostr(area) + ")", "", "Rooms in this area:"};
+    result = {"Current Location: " + current_room:name() + " (" + tostr(current_room) + ")", "Area: " + area:name() + " (" + tostr(area) + ")", "", "Rooms in this area:"};
     for o in (area.contents)
       if (valid(o))
-        result = {@result, "  * " + `o:name() ! ANY => tostr(o)' + " (" + tostr(o) + ")" + (o == current_room ? " (you are here)" | "")};
+        result = {@result, "  * " + o:name() + " (" + tostr(o) + ")" + (o == current_room ? " (you are here)" | "")};
       endif
     endfor
     return result:join("\n");
@@ -415,7 +415,7 @@ object AGENT_BUILDING_TOOLS
     endif
     typeof(to_room) == TYPE_OBJ || return "Error: Could not find destination room '" + tostr(to_spec) + "'.";
     !valid(to_room) && return "Error: Destination room does not exist.";
-    {from_name, to_name} = {`from_room:name() ! ANY => tostr(from_room)', `to_room:name() ! ANY => tostr(to_room)'};
+    {from_name, to_name} = {from_room:name(), to_room:name()};
     to_room == from_room && return "You are already at " + to_name + "!";
     path = area:find_path(from_room, to_room);
     !path && return "No route found from " + from_name + " to " + to_name + ".";
@@ -423,7 +423,7 @@ object AGENT_BUILDING_TOOLS
     for i in [1..length(path) - 1]
       {room, connector} = path[i];
       next_room = path[i + 1][1];
-      next_name = `next_room:name() ! ANY => tostr(next_room)';
+      next_name = next_room:name();
       "Check if this is a transport connection or a passage";
       if (typeof(connector) == TYPE_LIST && length(connector) >= 1 && connector[1] == 'transport)
         "Transport connection: {'transport, label, transport_obj}";
@@ -431,8 +431,8 @@ object AGENT_BUILDING_TOOLS
         result = {@result, "  " + tostr(i) + ". Take the " + label};
       else
         "Passage flyweight - extract direction label";
-        {side_a_room, side_b_room} = {`connector.side_a_room ! ANY => #-1', `connector.side_b_room ! ANY => #-1'};
-        direction = room == side_a_room ? `connector.side_a_label ! ANY => "passage"' | (room == side_b_room ? `connector.side_b_label ! ANY => "passage"' | "passage");
+        {side_a_room, side_b_room} = {connector.side_a_room, connector.side_b_room};
+        direction = room == side_a_room ? connector.side_a_label | (room == side_b_room ? connector.side_b_label | "passage");
         result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + next_name + " (" + tostr(next_room) + ")"};
       endif
     endfor
@@ -1204,6 +1204,38 @@ object AGENT_BUILDING_TOOLS
       $test_utils:assert_true(index(messages, "probe_msg: \"Probe message.\"") > 0, "list_messages should read real message property values");
     finally
       $test_utils:destroy_if_valid(created);
+    endtry
+    return true;
+  endverb
+
+  verb test_navigation_tool_metadata (this none this) owner: HACKER flags: "rxd"
+    "Navigation tools should expose real room, area, and passage metadata.";
+    area = $area:create(true);
+    r1 = $room:create(true);
+    r2 = $room:create(true);
+    actor = $root:create(true);
+    try
+      actor.name = "Tool Test Actor";
+      area.name = "Tool Test Area";
+      r1.name = "Tool Test Start";
+      r2.name = "Tool Test End";
+      move(r1, area);
+      move(r2, area);
+      move(actor, r1);
+      passage = <$passage, .side_a_room = r1, .side_a_label = "east", .side_b_room = r2, .side_b_label = "west", .is_open = true>;
+      area:set_passage(r1, r2, passage);
+      map = this:area_map([], actor);
+      $test_utils:assert_true(index(map, "Current Location: Tool Test Start") > 0, "area_map should include current room name: " + toliteral(map));
+      $test_utils:assert_true(index(map, "Area: Tool Test Area") > 0, "area_map should include area name");
+      $test_utils:assert_true(index(map, "Tool Test End") > 0, "area_map should include rooms in area");
+      route = this:find_route(["from_room" -> r1, "to_room" -> r2], actor);
+      $test_utils:assert_true(index(route, "Route from Tool Test Start") > 0, "find_route should include start room name");
+      $test_utils:assert_true(index(route, "Go east to Tool Test End") > 0, "find_route should include passage label and destination");
+    finally
+      $test_utils:destroy_if_valid(actor);
+      $test_utils:destroy_if_valid(r2);
+      $test_utils:destroy_if_valid(r1);
+      $test_utils:destroy_if_valid(area);
     endtry
     return true;
   endverb
