@@ -985,7 +985,10 @@ object ROOM
       if (!valid(item))
         continue;
       endif
-      connections = `item:transport_connections() ! ANY => {}';
+      if (!respond_to(item, 'transport_connections))
+        continue;
+      endif
+      connections = item:transport_connections();
       if (typeof(connections) == TYPE_LIST)
         for conn in (connections)
           results = {@results, conn};

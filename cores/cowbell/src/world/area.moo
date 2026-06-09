@@ -132,7 +132,7 @@ object AREA
     passages = this:passages_from(room);
     passages || return false;
     verb_name = tostr(parsed['verb]);
-    `length(verb_name) ! ANY => false' || return false;
+    length(verb_name) || return false;
     dobj_name = parsed['dobjstr];
     for passage in (passages)
       if (passage:matches_command(room, verb_name))
@@ -255,7 +255,7 @@ object AREA
       endif
       "Try transport connections from this room";
       if (include_transports)
-        transports = `current:transport_destinations() ! ANY => {}';
+        transports = current:transport_destinations();
         if (typeof(transports) == TYPE_LIST)
           for conn in (transports)
             {next, label, transport_obj} = conn;
