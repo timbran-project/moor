@@ -282,16 +282,33 @@ object AREA
     return false;
   endverb
 
+  verb _move_room_here (this none this) owner: HACKER flags: "rxd"
+    "Move a room into this area, raising if containment fails.";
+    {room} = args;
+    typeof(room) == TYPE_OBJ && valid(room) && isa(room, $room) || raise(E_TYPE);
+    result = room:moveto(this);
+    if (typeof(result) == TYPE_ERR)
+      raise(error_code(result), "Could not move room into area.");
+    endif
+    room.location == this || raise(E_INVARG, "Could not move room into area.");
+    return room;
+  endverb
+
   verb make_room_in (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Create a new room in this area. Requires 'add_room capability on area.";
     actor = caller_perms();
     set_task_perms(actor);
     {target, perms} = this:check_permissions_as(actor, 'add_room);
     {parent_obj} = args;
+    typeof(parent_obj) == TYPE_OBJ && valid(parent_obj) && isa(parent_obj, $room) || raise(E_TYPE);
     "Create room with caller's ownership";
     new_room = parent_obj:create();
-    new_room:moveto(target);
-    return new_room;
+    try
+      return target:_move_room_here(new_room);
+    except e (ANY)
+      valid(new_room) && new_room:destroy();
+      raise(e[1], length(e) >= 2 ? e[2] | "Could not create room in area.");
+    endtry
   endverb
 
   verb add_room (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -301,8 +318,7 @@ object AREA
     {room} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
     set_task_perms(perms);
-    room:moveto(this);
-    return room;
+    return this:_move_room_here(room);
   endverb
 
   verb create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -566,22 +582,37 @@ object AREA
   endverb
 
   verb test_accepts_rooms (this none this) owner: HACKER flags: "rxd"
-    "Test that areas accept rooms as spatial contents and reject non-rooms.";
+    "Test that areas accept and add rooms as spatial contents, while rejecting non-rooms.";
     area = $area:create(true);
     room = $room:create(true);
+    added = $room:create(true);
+    made = #-1;
     thing = $thing:create(true);
     try
       move(room, area);
-      room.location != area && raise(E_ASSERT, "Area should accept room contents.");
+      $test_utils:assert_eq(room.location, area, "raw move should put rooms in area");
+      $test_utils:assert_true(room in area:contents(), "raw move should add room to area contents");
+      area:add_room(added);
+      $test_utils:assert_eq(added.location, area, "add_room should put rooms in area");
+      $test_utils:assert_true(added in area:contents(), "add_room should add room to area contents");
+      made = area:make_room_in($room);
+      $test_utils:assert_true(valid(made), "make_room_in should create a room");
+      $test_utils:assert_eq(parent(made), $room, "make_room_in should use the requested room parent");
+      $test_utils:assert_eq(made.location, area, "make_room_in should put created room in area");
+      $test_utils:assert_true(made in area:contents(), "make_room_in should add created room to area contents");
       accepted_thing = true;
       try
         move(thing, area);
       except (E_NACC)
         accepted_thing = false;
       endtry
-      accepted_thing && raise(E_ASSERT, "Area should reject non-room contents.");
+      $test_utils:assert_false(accepted_thing, "raw move should reject non-room contents");
+      $test_utils:assert_raises(E_TYPE, area, "add_room", {thing}, "add_room should reject non-room contents");
+      $test_utils:assert_raises(E_TYPE, area, "make_room_in", {$thing}, "make_room_in should reject non-room parents");
     finally
+      $test_utils:destroy_if_valid(made);
       $test_utils:destroy_if_valid(thing);
+      $test_utils:destroy_if_valid(added);
       $test_utils:destroy_if_valid(room);
       $test_utils:destroy_if_valid(area);
     endtry
