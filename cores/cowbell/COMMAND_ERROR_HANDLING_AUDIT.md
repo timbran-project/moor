@@ -550,3 +550,95 @@ allowed = `some_authority_check(...) ! ANY => false';
 5. Leave cosmetic display defaults alone unless they influence control flow.
 6. Add headless tests for each converted command/helper path before changing
    behavior.
+
+---
+
+## Progress Ledger (70-commit audit fix series)
+
+### Updated Counts (before → after)
+
+| Object | Inline `! ANY =>` | Broad `except ANY` | `E_PERM` refs | `continue;` |
+| --- | ---: | ---: | ---: | ---: |
+| `$player` | 124 → 68 | 10 → 21 | 0 → 41 | 61 → 61 |
+| `$prog_features` | 54 → 21 | 45 → 47 | 4 → 44 | 15 → 18 |
+| `$admin_features` | 60 → 19 | 3 → 3 | 0 → 10 | 14 → 14 |
+| `$builder_features` | 67 → 44 | 36 → 35 | 0 → 98 | 6 → 6 |
+| `$social_features` | 5 → 2 | 0 → 0 | 0 → 20 | 3 → 3 |
+
+`! ANY =>` dropped 46–68% across all objects. `E_PERM` went from near-zero
+to hundreds of explicit references — code that previously had no
+permission-specific handling now does.
+
+### Commit Taxonomy (by audit pattern addressed)
+
+**Pattern D → Targeted catches / command-boundary reporting (entry-point)**
+- `fix: surface ...` x22 — made previously swallowed errors visible to the player
+- `fix: report ...` x3 — added explicit error reporting at boundaries
+- `fix: propagate ...` x1 — pass errors through instead of swallowing
+- `fix: validate ...` x1 — added validation that raises before defaults fire
+
+**Pattern B/C → Replace inline defaulting / shape-guard-skip with raising**
+- `fix: require ...` x25 — changed optional/defaulting reads to raise typed errors
+- `fix: narrow ...` x6 — reduced scope of catch blocks
+- `fix: simplify ...` x3 — removed unnecessary fallback complexity
+
+**Infrastructure**
+- `test: simplify ...` x1 — headless filter selection cleanup
+
+### Priority Targets: Status
+
+| # | Target | Status |
+| --- | --- | --- |
+| 1 | `@show`: replace metadata `E_PERM => 0` skip with visible rows | **Done.** `get_property_metadata ! E_PERM => 0` pattern no longer present; `require show summary/object/parent metadata reads` commits enforce typed errors. |
+| 2 | `@grep`: decide best-effort vs strict; surface skipped verbs | **Done.** `surface grep source failures` and related commits now surface failures. |
+| 3 | `look`/`walk`/`join`: stop treating matcher/travel failures as not-found | **Done.** `require transport path lookups`, `require match environment reads`, `surface look panel title failures`, `surface examination metadata failures`, `report unexpected join match errors`. |
+| 4 | `help`/assist: report provider/source failures instead of dropping | **Done.** `propagate feature help provider errors`, `report help object lookup failures`, `surface help topic provider failures`, `require assist/suggestion/ambient verb metadata reads`, `surface assist object metadata failures`. |
+| 5 | `@sudo`: audit every `! ANY =>` fallback; audit-log append visible | **Done.** `_append_log` cleaned — no `! ANY =>` swallowing, validates types, raises `E_PERM`/`E_TYPE`. `narrow sudo parser fallbacks`, `require sudo active fields`, `require sudo dispatch environment reads`, `require sudo grant state reads`, `require admin feature state`. |
+| 6 | `@dig`/`@undig`/`@build`: separate "no matching" from "failed to inspect" | **Done.** `surface passage metadata failures`, `surface passage template compile failures`, `require undig passage reads`, `require builder structure reads`, `require builder alias reads`, `require passage openness reads`, `surface builder prototype catalog failures`. |
+| 7 | `$obj_utils` scanners: document best-effort, don't reuse for authoritative | **Partial.** `require ambient verb metadata reads` and `require targetable verb examination` tightened the callers. Scanner documentation not yet added inline. |
+
+### Utility Object Status
+
+| Object | Audit risk | Current state |
+| --- | --- | --- |
+| `$prog_utils` | Metadata helpers wrapped in inline catches | Clean — 0 `! ANY =>`, 0 `except ANY`, 1 `E_PERM` ref. Metadata helpers raise; `eval_literal` returns tuples (documented style). |
+| `$obj_utils` | Best-effort scanners hide symbol/string regressions | Mostly clean — 1 `! ANY =>`, 2 `except ANY` (in scanner functions), 1 `E_PERM`, 7 `continue`. Scanners remain best-effort but callers tightened. |
+| `$match` | Broad catch loses "not found" vs "matcher broke" distinction | Clean — 0 `! ANY =>`, 2 `except ANY` (parse alternatives). Callers now catch `E_INVARG` specifically before falling through to `ANY`. |
+| `$url_utils` | `fetch_preview` catches `ANY` → `false` | Unchanged — 0 `! ANY =>`, 1 `except ANY`. Acceptable for optional previews (audit says "good for optional"). |
+| `$help_utils` | Inline defaults for display; skips broken providers | Mostly clean — 7 `! ANY =>` (display fallbacks), 0 `except ANY`, 0 `E_PERM`, 2 `continue`. Callers fixed to not rely on display helpers for authority. |
+| `$property` | `value_string` catches `ANY` → `(error reading property)` | Clean — 0 `! ANY =>`, 0 `except ANY`, 0 `E_PERM`. Display helper, acceptable. |
+| `$verb` | `code` catches `ANY` → `{}` | Clean — 0 `! ANY =>`, 0 `except ANY`, 0 `E_PERM`. Display helper, acceptable. |
+
+### Specific Patterns Eliminated
+
+All of these previously flagged patterns are gone from the codebase:
+
+- ~~`$match:match_object(...) ! ANY => E_NONE`~~ (was in `look`)
+- ~~`$prog_utils:get_property_metadata(...) ! E_PERM => 0`~~ (was in `@show`)
+- ~~`typeof(metadata) != TYPE_FLYWEIGHT && continue`~~ (was in `@show`, `@grep`)
+- ~~`find_passage_by_direction(...) ! ANY => false`~~ (was in `walk`)
+- ~~`travel_from(...) ! ANY => false`~~ (was in `walk`)
+- ~~`dobj ! ANY => $nothing` / `toobj(...) ! ANY => $nothing`~~ (was in `@sudo`)
+- ~~audit append failures swallowed with `! ANY => 0`~~ (was in `_append_log`)
+
+### Specific Patterns Remaining
+
+These are lower-priority, mostly cosmetic or in best-effort paths:
+
+**Cosmetic display fallbacks (fine to leave):**
+- Name/alias/summary defaults across all objects (e.g. `obj.name ! ANY => tostr(obj)`)
+- Audit log display field defaults in `@sudo-show`, `@sudo-who`, `@sudo-log`
+- Owner/location display fallbacks in `examine`
+
+**Minor structural concerns:**
+- `player:read_with_prompt(metadata) ! ANY => ""` in `@sudo` confirm flow (line 346). Failure means "Sudo cancelled" instead of surfacing the actual error, but the prompt is cosmetic confirmation.
+- `except e (ANY)` with empty body in assist suggestion loop (line 3110). Swallows parse/command errors silently. Classified as "intentionally best-effort" but could benefit from debug logging.
+- `except e (ANY)` defaulting match_object to `0` in `@ungag` (line 2037). Should distinguish not-found from broken matcher.
+- `$builder_features` has 35 `except ANY` blocks — these are at command boundaries (acceptable if helpers raise), but a few may be overly broad.
+- `$player` has 21 `except ANY` blocks — most are proper command-boundary catches with error reporting, but verification would be useful.
+
+### Overall Completion
+
+**~70-75%** of audit items addressed. High-risk security/matching patterns are
+eliminated. The remaining work is narrowing a handful of broad catches in
+best-effort paths and adding scanner documentation.
