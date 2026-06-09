@@ -321,12 +321,7 @@ object BUILDER_FEATURES
       parent_obj = result['parent];
       "Reject duplicate room names in the target area";
       if (valid(target_area))
-        for existing_room in (target_area.contents)
-          existing_name = `existing_room.name ! ANY => ""';
-          if (existing_name == room_name)
-            raise(E_INVARG, "A room named \"" + room_name + "\" already exists in " + tostr(target_area) + ".");
-          endif
-        endfor
+        this:_require_unique_room_name(target_area, room_name);
       endif
       "Create and place the room";
       if (valid(target_area))
@@ -356,6 +351,26 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
+  endverb
+
+  verb _require_unique_room_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Raise if target_area already contains a room with room_name.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {target_area, room_name} = args;
+    for existing_room in (target_area.contents)
+      if (!valid(existing_room))
+        raise(E_INVARG, "Invalid object in area contents while checking duplicate room names: " + toliteral(existing_room));
+      endif
+      try
+        existing_name = existing_room:name();
+      except e (ANY)
+        raise(E_INVARG, "Could not read room name for " + tostr(existing_room) + ": " + toliteral(e));
+      endtry
+      if (existing_name == room_name)
+        raise(E_INVARG, "A room named \"" + room_name + "\" already exists in " + tostr(target_area) + ".");
+      endif
+    endfor
+    return true;
   endverb
 
   verb _parse_build_command (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2490,5 +2505,27 @@ object BUILDER_FEATURES
       raise(E_INVARG, msg);
     endif
     return result;
+  endverb
+
+  verb test_require_unique_room_name_detects_duplicate (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Unit test: duplicate room-name checks reject existing rooms in an area.";
+    area = $area:create(true);
+    room = $room:create(true);
+    try
+      room:set_name_aliases("duplicate build room", {});
+      move(room, area);
+      raised = false;
+      try
+        this:_require_unique_room_name(area, "duplicate build room");
+      except (E_INVARG)
+        raised = true;
+      endtry
+      $test_utils:assert_true(raised, "duplicate room name should be rejected");
+      $test_utils:assert_true(this:_require_unique_room_name(area, "unique build room"), "unique room name should pass");
+    finally
+      $test_utils:destroy_if_valid(room);
+      $test_utils:destroy_if_valid(area);
+    endtry
+    return true;
   endverb
 endobject
