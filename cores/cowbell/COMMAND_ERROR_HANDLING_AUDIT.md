@@ -303,7 +303,7 @@ inline fallbacks while inspecting world state.
 | `@messages @msg` | Lists message properties. | Property list helpers and decompile fallback; broad catch. | Medium. |
 | `@rules` | Lists rule properties. | Broad catch and display fallback. | Medium. |
 | `@reactions` | Lists reactions. | Broad catch; skips invalid reaction entries. | Medium. |
-| `@add-reaction @set-reaction` | Adds or replaces a reaction. | Broad catch; reaction parsing/shape handling. | Medium. |
+| `@add-reaction @set-reaction` | Adds or replaces a reaction. | Trigger/effects eval failures report detail before mutation; reaction parsing/shape validation remains delegated. | Low to medium. |
 | `@enable-reaction` | Enables reaction. | Broad catch and reaction list shape handling. | Medium. |
 | `@disable-reaction` | Disables reaction. | Broad catch and reaction list shape handling. | Medium. |
 | `@parents @ancestors` | Displays ancestor chain. | Display fallbacks and broad catch. | Low to medium. |

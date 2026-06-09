@@ -1825,7 +1825,10 @@ object BUILDER_FEATURES
       "Parse trigger expression";
       trigger_str = args[2];
       trigger_eval = eval("return " + trigger_str + ";");
-      !trigger_eval[1] && raise(E_INVARG, "Invalid trigger expression.");
+      if (!trigger_eval[1])
+        detail = length(trigger_eval) >= 2 ? toliteral(trigger_eval[2]) | toliteral(trigger_eval);
+        raise(E_INVARG, "Invalid trigger expression: " + detail);
+      endif
       trigger = trigger_eval[2];
       "Parse when clause";
       when_str = args[3];
@@ -1834,7 +1837,10 @@ object BUILDER_FEATURES
       effects_parts = args[4..length(args)];
       effects_str = $list_proto:join(effects_parts, " ");
       effects_eval = eval("return " + effects_str + ";");
-      !effects_eval[1] && raise(E_INVARG, "Invalid effects expression.");
+      if (!effects_eval[1])
+        detail = length(effects_eval) >= 2 ? toliteral(effects_eval[2]) | toliteral(effects_eval);
+        raise(E_INVARG, "Invalid effects expression: " + detail);
+      endif
       effects = effects_eval[2];
       typeof(effects) != TYPE_LIST && raise(E_INVARG, "Effects must evaluate to a list.");
       reaction = $reaction:mk(trigger, when_clause, effects);
