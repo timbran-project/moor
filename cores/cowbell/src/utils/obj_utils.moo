@@ -129,10 +129,10 @@ object OBJ_UTILS
           continue;
         endif
         "Get verbs defined at this level";
-        all_verbs = verbs(definer);
+        all_verbs = `verbs(definer) ! ANY => {}';
         for verb_name in (all_verbs)
           "Get verb signature";
-          verb_sig = verb_args(definer, verb_name);
+          verb_sig = `verb_args(definer, verb_name) ! ANY => {}';
           if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
             continue;
           endif
