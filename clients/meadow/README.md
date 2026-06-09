@@ -22,9 +22,9 @@ Meadow and `moor` currently have two active version lines:
 - `main`: the post-1.0 development line
 
 Use matching branches across the stack. A Meadow checkout on `v1.0-release` should be used with the
-`v1.0-release` line of `moor` and the corresponding `1.0.0-rc1-dev...` published packages. A
-Meadow checkout on `main` should be used with `moor` `main` and the corresponding `1.1.0-dev...`
-published packages.
+`v1.0-release` line of `moor` and the corresponding `1.0.0-rc1-dev...` published packages. A Meadow
+checkout on `main` should be used with `moor` `main` and the corresponding `1.1.0-dev...` published
+packages.
 
 `main` in the `moor` repository tracks post-1.0 development. If you want the stable 1.0 setup, use
 the `v1.0-release` line rather than `main`.

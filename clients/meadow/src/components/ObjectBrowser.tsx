@@ -62,6 +62,7 @@ interface PropertyData {
     moorVar?: MoorVar; // Original MoorVar for proper formatting
     owner: string;
     definer: string;
+    location: string;
     readable: boolean;
     writable: boolean;
     chown: boolean;
@@ -630,6 +631,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
                 const nameSymbol = propInfo.name();
                 const definer = propInfo.definer();
+                const location = propInfo.location();
                 const owner = propInfo.owner();
 
                 propList.push({
@@ -637,6 +639,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                     value: null,
                     owner: objToString(owner) || "",
                     definer: objToString(definer) || "",
+                    location: objToString(location) || "",
                     readable: propInfo.r(),
                     writable: propInfo.w(),
                     chown: propInfo.chown(),
@@ -719,18 +722,32 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         setSelectedVerb(null);
         setEditorVisible(true);
 
-        // Fetch property value from the object where the property is defined (prop.definer)
+        // Fetch through the selected object so inherited properties show the closest override.
         if (!selectedObject) return;
 
         try {
-            const objectCurie = stringToCurie(prop.definer);
+            const objectCurie = stringToCurie(selectedObject.obj);
             const propValue = await getPropertyFlatBuffer(authToken, objectCurie, prop.name);
+            const propInfo = propValue.propInfo();
+            const owner = propInfo?.owner();
+            const definer = propInfo?.definer();
+            const location = propInfo?.location();
             const varValue = propValue.value();
             if (varValue) {
                 const moorVar = new MoorVar(varValue);
                 const jsValue = moorVar.toJS();
                 // Update the property with both JS value and MoorVar
-                setSelectedProperty({ ...prop, value: jsValue, moorVar });
+                setSelectedProperty({
+                    ...prop,
+                    value: jsValue,
+                    moorVar,
+                    owner: objToString(owner) || prop.owner,
+                    definer: objToString(definer) || prop.definer,
+                    location: objToString(location) || prop.location,
+                    readable: propInfo?.r() ?? prop.readable,
+                    writable: propInfo?.w() ?? prop.writable,
+                    chown: propInfo?.chown() ?? prop.chown,
+                });
             }
         } catch (error) {
             console.error("Failed to load property value:", error);
@@ -1518,39 +1535,39 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         setIsSplitDragging(false);
     }, []);
 
-    // Group properties by definer
+    // Group properties by location.
     const groupedProperties = React.useMemo(() => {
         const filterLower = propertyFilter.toLowerCase();
         const filteredProps = properties.filter(prop => prop.name.toLowerCase().includes(filterLower));
 
-        // Track the order definers appear in the original array (API order = ancestor order)
-        const definerOrder = new Map<string, number>();
+        // Track the order locations appear in the original array (API order = ancestor order)
+        const locationOrder = new Map<string, number>();
         for (const prop of properties) {
-            if (!definerOrder.has(prop.definer)) {
-                definerOrder.set(prop.definer, definerOrder.size);
+            if (!locationOrder.has(prop.location)) {
+                locationOrder.set(prop.location, locationOrder.size);
             }
         }
 
         const groups = new Map<string, PropertyData[]>();
         for (const prop of filteredProps) {
-            const definer = prop.definer;
-            if (!groups.has(definer)) {
-                groups.set(definer, []);
+            const location = prop.location;
+            if (!groups.has(location)) {
+                groups.set(location, []);
             }
-            groups.get(definer)!.push(prop);
+            groups.get(location)!.push(prop);
         }
         let entries = Array.from(groups.entries()).sort((a, b) => {
             // Current object always first
             if (selectedObject && a[0] === selectedObject.obj) return -1;
             if (selectedObject && b[0] === selectedObject.obj) return 1;
             // Otherwise preserve API order (nearest ancestor first)
-            const orderA = definerOrder.get(a[0]) ?? Infinity;
-            const orderB = definerOrder.get(b[0]) ?? Infinity;
+            const orderA = locationOrder.get(a[0]) ?? Infinity;
+            const orderB = locationOrder.get(b[0]) ?? Infinity;
             return orderA - orderB;
         });
         if (!showInheritedProperties && selectedObject) {
             const currentId = selectedObject.obj;
-            entries = entries.filter(([definer]) => definer === currentId);
+            entries = entries.filter(([location]) => location === currentId);
         }
         return entries;
     }, [properties, selectedObject, propertyFilter, showInheritedProperties]);
@@ -2206,22 +2223,22 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                         </div>
                                     )
                                     : (
-                                        groupedProperties.map(([definer, props], _groupIdx) => (
-                                            <div key={definer}>
-                                                {definer !== selectedObject.obj && showInheritedProperties && (
+                                        groupedProperties.map(([location, props], _groupIdx) => (
+                                            <div key={location}>
+                                                {location !== selectedObject.obj && showInheritedProperties && (
                                                     <div
                                                         className="browser-inherited-label"
                                                         style={{ fontSize: `${secondaryFontSize}px` }}
                                                     >
-                                                        from {formatInheritedFrom(definer)}
+                                                        from {formatInheritedFrom(location)}
                                                     </div>
                                                 )}
                                                 {props.map((prop, idx) => (
                                                     <div
-                                                        key={`${definer}-${idx}`}
+                                                        key={`${location}-${idx}`}
                                                         className={`browser-item ${
                                                             selectedProperty?.name === prop.name
-                                                                && selectedProperty?.definer === prop.definer
+                                                                && selectedProperty?.location === prop.location
                                                                 ? "selected"
                                                                 : ""
                                                         }`}
@@ -2235,7 +2252,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                                         tabIndex={0}
                                                         role="button"
                                                         aria-pressed={selectedProperty?.name === prop.name
-                                                            && selectedProperty?.definer === prop.definer}
+                                                            && selectedProperty?.location === prop.location}
                                                     >
                                                         <div className="browser-item-name font-bold">
                                                             {prop.name}{" "}
@@ -2243,13 +2260,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                                                 className="text-secondary"
                                                                 style={{
                                                                     opacity: selectedProperty?.name === prop.name
-                                                                            && selectedProperty?.definer
-                                                                                === prop.definer
+                                                                            && selectedProperty?.location
+                                                                                === prop.location
                                                                         ? "0.7"
                                                                         : "1",
                                                                     color: selectedProperty?.name === prop.name
-                                                                            && selectedProperty?.definer
-                                                                                === prop.definer
+                                                                            && selectedProperty?.location
+                                                                                === prop.location
                                                                         ? "inherit"
                                                                         : undefined,
                                                                     fontWeight: "400",
@@ -2501,7 +2518,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                             {selectedProperty && selectedProperty.moorVar && selectedObject && (
                                 <PropertyValueEditor
                                     authToken={authToken}
-                                    objectCurie={stringToCurie(selectedProperty.definer)}
+                                    objectCurie={stringToCurie(selectedObject.obj)}
                                     propertyName={selectedProperty.name}
                                     propertyValue={selectedProperty.moorVar}
                                     onSave={async () => {
@@ -2509,7 +2526,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                         if (selectedObject) {
                                             const freshProps = await loadPropertiesAndVerbs(selectedObject);
                                             // Find the updated property in the freshly loaded list
-                                            const updatedProp = freshProps.find(p => p.name === selectedProperty.name);
+                                            const updatedProp = freshProps.find(p =>
+                                                p.name === selectedProperty.name
+                                                && p.location === selectedProperty.location
+                                            ) ?? freshProps.find(p => p.name === selectedProperty.name);
                                             if (updatedProp) {
                                                 await handlePropertySelect(updatedProp);
                                             }
@@ -2519,7 +2539,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                         setSelectedProperty(null);
                                         setEditorVisible(false);
                                     }}
-                                    onDelete={selectedProperty.definer === selectedObject.obj
+                                    onDelete={selectedProperty.location === selectedObject.obj
                                         ? () => {
                                             setPropertyToDelete(selectedProperty);
                                             setDeletePropertyDialogError(null);

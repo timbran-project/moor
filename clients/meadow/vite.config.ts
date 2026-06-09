@@ -32,6 +32,7 @@ export default defineConfig({
     root: "src",
     publicDir: "../public",
     build: {
+        target: "esnext",
         outDir: "../dist",
         emptyOutDir: true,
         sourcemap: true,
