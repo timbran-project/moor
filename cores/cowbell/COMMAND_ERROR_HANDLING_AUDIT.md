@@ -206,7 +206,7 @@ and list renderers also catch internally and skip failed records.
 | `@ps @tasks` | Renders active/queued tasks. | Uses task structures directly; display fallbacks. | Low. |
 | `@kill-task @kill` | Parses task id and kills task. | Boundary catches distinguish invalid/no/permission/generic. | Low. |
 | `@chparent` | Changes parent with dry-run support. | Boundary catches. | Low. |
-| `@program @program#` | Interactive and inline verb programming. | Many catch/report paths; `toint(...) ! ANY => 0`; broad read and compile catches. | Medium to high due to complex stateful flow. |
+| `@program @program#` | Interactive and inline verb programming. | Verb-number parsing, read errors, compile errors, and argspec lookup failures are reported; disappeared verb indexes are skipped during argspec scan. | Medium due to complex stateful flow. |
 | `@clear-property` | Parses direct property and clears it. | Boundary catches. | Low. |
 | `@which @where-defined` | Resolves verb definer. | Boundary catches. | Low. |
 | `@mvverb` | Parses source/dest, copies code, deletes source. | Many boundary catches; dry-run/confirm gates. | Medium. |

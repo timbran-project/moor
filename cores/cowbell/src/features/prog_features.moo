@@ -2196,8 +2196,10 @@ object PROG_FEATURES
         if (dobj == req_dobj && prep == req_prep && iobj == req_iobj)
           return i;
         endif
-      except (ANY)
+      except (E_VERBNF)
         continue;
+      except e (ANY)
+        raise(e[1], "Error inspecting verb #" + tostr(i) + " on " + tostr(target_obj) + ": " + tostr(e[2]));
       endtry
     endfor
     return 0;
@@ -2771,6 +2773,25 @@ object PROG_FEATURES
     finally
       if (valid(fixture))
         `delete_verb(fixture, "grep_regex_match") ! E_VERBNF => 0';
+        recycle(fixture);
+      endif
+    endtry
+    return true;
+  endverb
+
+  verb test_find_verb_by_argspec_returns_matching_index (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Unit test: argspec disambiguation finds the matching verb index.";
+    fixture = #-1;
+    try
+      fixture = create($root);
+      add_verb(fixture, {$hacker, "rxd", "argspec_probe"}, {"this", "none", "this"});
+      index = this:_find_verb_by_argspec(fixture, "argspec_probe", "this", "none", "this");
+      $test_utils:assert_true(index > 0, "argspec helper should find the matching verb index");
+      missing = this:_find_verb_by_argspec(fixture, "argspec_probe", "none", "none", "none");
+      $test_utils:assert_eq(missing, 0, "argspec helper should return 0 for non-matching args");
+    finally
+      if (valid(fixture))
+        `delete_verb(fixture, "argspec_probe") ! E_VERBNF => 0';
         recycle(fixture);
       endif
     endtry
