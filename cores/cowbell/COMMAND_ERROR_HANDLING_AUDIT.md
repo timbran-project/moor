@@ -197,7 +197,7 @@ and list renderers also catch internally and skip failed records.
 | `@property` | Parses target, evaluates literal value, adds property. | Some parsing shortcuts; duplicate property special-case. | Medium. |
 | `@rmproperty` | Parses direct property, optionally dry-run, deletes. | Boundary catches. | Low. |
 | `@args` | Parses verb reference and edits/shows args. | Boundary catches; uses metadata helper. | Low to medium. |
-| `@show @display` | Parses compound selectors, displays header and property/verb tables. | Per-selector broad catch; property metadata was caught as `E_PERM => 0` and skipped; rows now stringify symbol names. | High: table/list code still silently skips metadata failures. |
+| `@show @display` | Parses compound selectors, displays header and property/verb tables. | Per-selector catch reports visible errors; inaccessible properties render `(no access)` rows; rows stringify symbol names. | Low to medium: remaining fallbacks are display formatting and per-selector command-boundary reporting. |
 | `@chmod` | Parses selector, normalizes permission changes, applies metadata `set_perms`. | Boundary catches; explicit inherited-selector rejection. | Low to medium. |
 | `@grep` | Searches verb code. | Many skip-on-shape guards; catches verb/code access failures and continues. | High: expected for a grep, but can hide broken metadata/listing APIs. |
 | `@codepaste` | Reads paste content and emits code paste event. | Minimal defensive handling. | Low. |
@@ -227,7 +227,7 @@ and list renderers also catch internally and skip failed records.
 
 ### Main Problem Shapes
 
-- `@show` and `@grep` are the major skip-on-error list renderers.
+- `@grep` is the major skip-on-error list renderer.
 - Several commands catch `ANY` around broad blocks and report `e[2]`, which is
   useful at the boundary but poor inside helpers.
 - Parser and metadata helpers have mixed styles: some raise, some return
