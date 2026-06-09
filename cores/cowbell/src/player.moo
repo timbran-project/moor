@@ -1333,7 +1333,12 @@ object PLAYER
       if (!respond_to(o, 'help_topics))
         continue;
       endif
-      topics = `o:help_topics(this, "") ! ANY => {}';
+      try
+        topics = o:help_topics(this, "");
+      except e (ANY)
+        server_log("[help] topic collection failed for " + tostr(o) + ": " + toliteral(e));
+        continue;
+      endtry
       if (typeof(topics) != TYPE_LIST)
         continue;
       endif

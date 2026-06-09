@@ -637,6 +637,7 @@ These are lower-priority, mostly cosmetic or in best-effort paths:
 - `$builder_features` has broad `except ANY` blocks — most are at command boundaries (acceptable if helpers raise), but verification is ongoing. `@describe` and `@set-message` object matching were narrowed so expected not-found remains user-facing not-found behavior while unexpected matcher failures are reported.
 - `$player` has broad `except ANY` blocks — most are proper command-boundary catches with error reporting, but verification is ongoing. `examine` and `@gag` object/player matching were narrowed so expected not-found remains not-found while unexpected matcher failures are reported; direct `help` source provider calls, targeted topic lookup, and targeted object help now report provider failures instead of collapsing them into empty/no-help results.
 - `find_help_topic` provider failure reporting exposed missing `$builder_features.help_source` and `$help_topics` accidentally treating `topic_order` as a help topic; fixed by wiring `$builder_features` to `BUILDER_HELP_TOPICS`, overriding `$prog_features.help_source`, and excluding `topic_order` from fallback topic scans.
+- `_collect_help_topics` remains best-effort for summary/listing output, but provider failures are now logged instead of silently defaulting to an empty topic list.
 
 ### Overall Completion
 
