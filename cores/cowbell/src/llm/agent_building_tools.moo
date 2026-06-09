@@ -261,7 +261,7 @@ object AGENT_BUILDING_TOOLS
     typeof(parent_obj) == TYPE_OBJ || raise(E_INVARG, "Parent not found");
     valid(parent_obj) || raise(E_INVARG, "Parent no longer exists");
     "Use fertile flag (f) to allow child creation";
-    is_fertile = `parent_obj.f ! ANY => false';
+    is_fertile = parent_obj.f;
     !is_fertile && !actor.wizard && parent_obj.owner != actor && raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj));
     new_obj = parent_obj:create();
     new_obj:set_name_aliases(primary_name, final_aliases);
@@ -457,12 +457,12 @@ object AGENT_BUILDING_TOOLS
     target = this:_resolve_object(args_map["object"], actor);
     typeof(target) == TYPE_OBJ || return "Error: Could not find object '" + tostr(args_map["object"]) + "'.";
     !valid(target) && return "Error: Object does not exist.";
-    obj_name = `target:name() ! ANY => `target.name ! ANY => "(unnamed)"'';
-    desc = `target:description() ! ANY => `target.description ! ANY => "(no description)"'';
-    owner = `target.owner ! ANY => #-1';
-    parent_obj = `parent(target) ! ANY => #-1';
-    loc = `target.location ! ANY => #-1';
-    result = {"Object Information for " + tostr(target) + ":", "", "Name: " + obj_name, "Description: " + desc, "", "Owner: " + (valid(owner) ? `owner:name() ! ANY => tostr(owner)' + " (" + tostr(owner) + ")" | "(none)"), "Parent: " + (valid(parent_obj) ? `parent_obj:name() ! ANY => tostr(parent_obj)' + " (" + tostr(parent_obj) + ")" | "(none)"), "Location: " + (valid(loc) ? `loc:name() ! ANY => tostr(loc)' + " (" + tostr(loc) + ")" | "(nowhere)"), ""};
+    obj_name = target:name();
+    desc = target:description();
+    owner = target.owner;
+    parent_obj = parent(target);
+    loc = target.location;
+    result = {"Object Information for " + tostr(target) + ":", "", "Name: " + obj_name, "Description: " + desc, "", "Owner: " + (valid(owner) ? owner:name() + " (" + tostr(owner) + ")" | "(none)"), "Parent: " + (valid(parent_obj) ? parent_obj:name() + " (" + tostr(parent_obj) + ")" | "(none)"), "Location: " + (valid(loc) ? loc:name() + " (" + tostr(loc) + ")" | "(nowhere)"), ""};
     "Type-specific information";
     if (respond_to(target, 'is_actor) && target:is_actor())
       result = {@result, "Type: Actor/Player"};
@@ -1176,6 +1176,28 @@ object AGENT_BUILDING_TOOLS
     iobj = args_map["iobj"];
     set_verb_args(target_obj, verb_name, {dobj, prep, iobj});
     return "Updated " + tostr(target_obj) + ":" + verb_name + " args to [" + dobj + " " + prep + " " + iobj + "]";
+  endverb
+
+  verb test_core_building_tool_metadata (this none this) owner: HACKER flags: "rxd"
+    "Core building tools should expose real prototype and object metadata.";
+    prototypes = this:list_prototypes([], player);
+    $test_utils:assert_true(index(prototypes, "$thing") > 0, "list_prototypes should include $thing");
+    $test_utils:assert_true(index(prototypes, $thing.description) > 0, "list_prototypes should include prototype descriptions");
+    created = #-1;
+    try
+      message = this:create_object(["parent" -> "$thing", "name" -> "tool metadata probe:tool-probe"], $hacker);
+      $test_utils:assert_true(index(message, "Created \"tool metadata probe\"") > 0, "create_object should report created object");
+      created = $match:match_object("tool-probe", $hacker);
+      $test_utils:assert_type(created, TYPE_OBJ, "created object should be matchable by alias");
+      $test_utils:assert_true(valid(created), "created object should be valid");
+      details = this:inspect_object(["object" -> tostr(created)], $hacker);
+      $test_utils:assert_true(index(details, "Name: tool metadata probe") > 0, "inspect_object should include real name");
+      $test_utils:assert_true(index(details, "Description:") > 0, "inspect_object should include description field");
+      $test_utils:assert_true(index(details, "Parent:") > 0, "inspect_object should include parent metadata");
+    finally
+      $test_utils:destroy_if_valid(created);
+    endtry
+    return true;
   endverb
 
   verb _resolve_object (none none none) owner: ARCH_WIZARD flags: "rxd"
