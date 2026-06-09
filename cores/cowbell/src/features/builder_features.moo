@@ -1224,7 +1224,7 @@ object BUILDER_FEATURES
       !valid(dest_loc) && raise(E_INVARG, "That destination no longer exists.");
       "Get current location for messaging";
       old_loc = target_obj.location;
-      is_player = `target_obj.player ! ANY => false';
+      is_player = target_obj.player;
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       "If it's a player, notify the old location";
       if (is_player && valid(old_loc))
