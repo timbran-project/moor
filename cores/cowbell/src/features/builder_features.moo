@@ -2010,7 +2010,7 @@ object BUILDER_FEATURES
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return help topics for builder/programmer commands via configured help source.";
     {for_player, ?topic = ""} = args;
-    source = `this.help_source ! ANY => #90';
+    source = this.help_source;
     if (valid(source))
       result = source:help_topics(for_player, topic);
       if (typeof(result) != TYPE_INT)

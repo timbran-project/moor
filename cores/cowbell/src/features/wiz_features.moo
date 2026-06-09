@@ -718,7 +718,7 @@ object WIZ_FEATURES
     "Return help topics for wizard commands via configured help source.";
     {for_player, ?topic = ""} = args;
     sources = {};
-    primary = `this.help_source ! ANY => 0';
+    primary = this.help_source;
     if (valid(primary))
       sources = {@sources, primary};
     endif
@@ -732,7 +732,7 @@ object WIZ_FEATURES
       endif
     endif
     if (include_admin && valid(admin_features))
-      admin_source = `admin_features.help_source ! ANY => $nothing';
+      admin_source = admin_features.help_source;
       if (valid(admin_source) && !is_member(admin_source, sources))
         sources = {@sources, admin_source};
       endif

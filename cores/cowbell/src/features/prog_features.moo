@@ -1730,7 +1730,7 @@ object PROG_FEATURES
   verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Return help topics for programmer commands.";
     {for_player, ?topic = ""} = args;
-    source = `this.help_source ! ANY => $nothing';
+    source = this.help_source;
     if (valid(source) && respond_to(source, 'help_topics))
       source_result = source:help_topics(for_player, topic);
       if (typeof(source_result) != TYPE_INT)
