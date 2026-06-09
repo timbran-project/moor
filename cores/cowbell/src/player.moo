@@ -1345,10 +1345,10 @@ object PLAYER
     "On save calls: target_obj:verb_name(content)";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {target_obj, verb_name, ?initial_content = "", ?opts = []} = args;
-    content_type = `opts['content_type] ! ANY => 'text_plain';
-    title = `opts['title] ! ANY => "Edit"';
-    text_mode = `opts['text_mode] ! ANY => 'string';
-    session_id = `opts['session_id] ! ANY => ""';
+    content_type = `opts['content_type] ! E_RANGE => 'text_plain';
+    title = `opts['title] ! E_RANGE => "Edit"';
+    text_mode = `opts['text_mode] ! E_RANGE => 'string';
+    session_id = `opts['session_id] ! E_RANGE => ""';
     ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
     mode_str = text_mode == 'string ? "string" | "list";
     attrs = {{"object", $url_utils:to_curie_str(target_obj)}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
@@ -1370,14 +1370,14 @@ object PLAYER
     "Get an editing session by session_id. Returns session data or E_INVARG if not found.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {session_id} = args;
-    return `this.editing_sessions[session_id] ! ANY => raise(E_INVARG, "No such editing session")';
+    return `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
   endverb
 
   verb end_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
     "End an editing session, removing it from the map. Returns session data.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {session_id} = args;
-    session = `this.editing_sessions[session_id] ! ANY => raise(E_INVARG, "No such editing session")';
+    session = `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
     this.editing_sessions = mapdelete(this.editing_sessions, session_id);
     return session;
   endverb
