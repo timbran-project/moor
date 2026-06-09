@@ -1415,7 +1415,15 @@ object PROG_FEATURES
           return;
         endif
         limit_tok = tokens[idx + 1];
-        limit = `toint(limit_tok) ! ANY => 0';
+        try
+          limit = toint(limit_tok);
+        except e (E_INVARG)
+          player:inform_current($event:mk_error(player, "--limit requires a positive integer."));
+          return;
+        except e (ANY)
+          player:inform_current($event:mk_error(player, "Error parsing --limit: " + tostr(e[2])));
+          return;
+        endtry
         if (limit <= 0)
           player:inform_current($event:mk_error(player, "--limit requires a positive integer."));
           return;
@@ -2232,7 +2240,15 @@ object PROG_FEATURES
     endtry
     "Determine verb descriptor based on which command was used";
     if (verb == "@program#")
-      verb_num = `toint(verb_spec) ! ANY => 0';
+      try
+        verb_num = toint(verb_spec);
+      except e (E_INVARG)
+        player:inform_current($event:mk_error(player, "Invalid verb number: " + verb_spec));
+        return;
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error parsing verb number: " + tostr(e[2])));
+        return;
+      endtry
       if (verb_num < 1)
         player:inform_current($event:mk_error(player, "Invalid verb number: " + verb_spec));
         return;
