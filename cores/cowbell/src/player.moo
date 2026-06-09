@@ -1483,7 +1483,7 @@ object PLAYER
     "HINT format: 'HINT: <whom> -- Description' returns '<whom> -- Description'";
     {definer, verb_name, dobj, prep, iobj} = args;
     "Try to get hint from verb comment";
-    code = `verb_code(definer, verb_name) ! ANY => {}';
+    code = `verb_code(definer, verb_name) ! E_VERBNF => {}';
     if (code && length(code) > 0)
       first_line = code[1]:trim();
       "Check if it's a string literal (comment) starting with HINT:";

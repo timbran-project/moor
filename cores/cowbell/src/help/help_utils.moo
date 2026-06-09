@@ -16,7 +16,7 @@ object HELP_UTILS
     set_task_perms(caller_perms());
     {verb_location, verb_name} = args;
     "Get the verb code with line numbers";
-    code_lines = `verb_code(verb_location, verb_name, false, true) ! ANY => {}';
+    code_lines = `verb_code(verb_location, verb_name, false, true) ! E_VERBNF => {}';
     if (typeof(code_lines) != TYPE_LIST || length(code_lines) == 0)
       return {};
     endif
@@ -171,7 +171,7 @@ object HELP_UTILS
     "Extract help topic from a verb's HINT tag.";
     "Args: (definer, verb_name, ?category) -> $help flyweight or 0";
     {definer, verb_name, ?category = 'command} = args;
-    code = `verb_code(definer, verb_name) ! ANY => {}';
+    code = `verb_code(definer, verb_name) ! E_VERBNF => {}';
     if (!code || length(code) == 0)
       return 0;
     endif

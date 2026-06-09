@@ -61,11 +61,7 @@ object VERB
   verb code (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Get the verb's code as a list of lines";
     set_task_perms(caller_perms());
-    code_lines = `verb_code(this:location(), this:index(), false, true) ! ANY => {}';
-    if (typeof(code_lines) == TYPE_ERR)
-      return {};
-    endif
-    return code_lines;
+    return verb_code(this:location(), this:index(), false, true);
   endverb
 
   verb set_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
