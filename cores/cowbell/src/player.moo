@@ -2525,7 +2525,14 @@ object PLAYER
       return;
     endif
     "Match the player";
-    target = `$match:match_player(target_name) ! ANY => $failed_match';
+    try
+      target = $match:match_player(target_name);
+    except e (E_INVARG)
+      target = $failed_match;
+    except e (ANY)
+      player:inform_current($event:mk_error(player, "Player lookup failed: " + toliteral(e[2])));
+      return;
+    endtry
     if (target == $ambiguous_match)
       candidates = {};
       for p in (players())
