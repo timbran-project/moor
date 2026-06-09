@@ -1232,14 +1232,14 @@ object BUILDER_FEATURES
         raise(E_PERM, "You do not have permission to set integrated description on " + tostr(target_obj) + ".");
       endif
       new_description = iobjstr:trim();
-      this:_do_set_integrated_description(target_obj, new_description);
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       if (new_description == "")
-        message = "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
+        success_message = "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + ").";
       else
-        message = "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "): \"" + new_description + "\"";
+        success_message = "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "): \"" + new_description + "\"";
       endif
-      player:inform_current($event:mk_info(player, message));
+      this:_do_set_integrated_description(target_obj, new_description);
+      player:inform_current($event:mk_info(player, success_message));
       return 1;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);

@@ -292,7 +292,7 @@ inline fallbacks while inspecting world state.
 | `@edit-description @edit-d` | Starts editor flow for description. | Editor title/display is prepared before starting the edit session; broad command-boundary catch remains. | Low to medium. |
 | `@parent` | Displays/changes parent relationship. | Display fallbacks and broad catch. | Medium. |
 | `@children @kids @descendants` | Displays child/descendant tree. | Skips invalid entries; display fallbacks; broad catch. | Medium. |
-| `@integrate` | Integrates generated/temporary description into object. | Broad catch and display fallback. | Medium. |
+| `@integrate` | Integrates generated/temporary description into object. | Success display is prepared before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@move` | Moves object to destination. | Success display is prepared before mutation and move result/location are checked before reporting success. | Low. |
 | `@edit` | Opens property/object editor. | Broad catch; delegates editor setup. | Medium. |
 | `@set-message @setm` | Sets a message template property. | Template compile failures are reported and success display is prepared before mutation; broad command-boundary catch remains. | Low to medium. |
