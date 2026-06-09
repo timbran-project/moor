@@ -910,7 +910,7 @@ object PROG_FEATURES
         definer = current;
         break;
       endif
-      current = `parent(current) ! ANY => #-1';
+      current = parent(current);
     endwhile
     if (definer == #-1)
       raise(E_PROPNF, "Property not found: " + prop_name);
@@ -953,7 +953,7 @@ object PROG_FEATURES
           owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
           rows = {@rows, {"." + prop_display, definer_str, owner_str, metadata:perms(), prop_value}};
         endfor
-        current = `parent(current) ! ANY => #-1';
+        current = parent(current);
       endwhile
     else
       "No Definer column for local-only";
@@ -1043,7 +1043,7 @@ object PROG_FEATURES
           owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
           rows = {@rows, {":" + verb_display, definer_str, owner_str, metadata:flags(), args_spec}};
         endfor
-        current = `parent(current) ! ANY => #-1';
+        current = parent(current);
       endwhile
     else
       "No Definer column for local-only";
