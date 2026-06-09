@@ -840,12 +840,14 @@ object BUILDER_FEATURES
       return;
     endif
     try
-      "Try to match as object first, but catch errors";
+      "Try to match as object first, then fall through to passage matching on ordinary not-found errors.";
       target_obj = false;
       try
         target_obj = $match:match_object(dobjstr, player);
-      except (ANY)
-        "Not an object - will try as passage below";
+      except e (E_INVARG, E_PROPNF)
+        target_obj = false;
+      except e (ANY)
+        raise(e[1], "Object lookup failed: " + toliteral(e));
       endtry
       if (typeof(target_obj) == TYPE_OBJ && valid(target_obj))
         "It's an object - use existing object description logic";
