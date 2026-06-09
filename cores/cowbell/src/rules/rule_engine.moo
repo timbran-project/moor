@@ -617,7 +617,7 @@ object RULE_ENGINE
       obj_val != #0 || name == "#0" && return obj_val;
     endif
     "Integer literal";
-    num_val = `toint(name) ! ANY => 0';
+    num_val = toint(name);
     num_val != 0 || name == "0" && return num_val;
     "Uppercase = variable";
     first_char = name[1];

@@ -114,7 +114,7 @@ object MAILBOX
     if (num_str && num_str[1] == "#")
       num_str = num_str[2..$];
     endif
-    idx = `toint(num_str) ! ANY => 0';
+    idx = toint(num_str);
     if (idx < 1 || idx > length(letters))
       player:inform_current($event:mk_error(player, "Invalid letter number. Use 1-", tostr(length(letters)), "."));
       return;
