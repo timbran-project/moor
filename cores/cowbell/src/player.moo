@@ -3114,6 +3114,7 @@ object PLAYER
                   candidate_ok = true;
                 endif
               except e (ANY)
+                server_log("[assist] candidate validation failed for " + toliteral(candidate) + ": " + toliteral(e));
               endtry
               if (!candidate_ok)
                 first_space = index(candidate, " ");
@@ -3134,6 +3135,7 @@ object PLAYER
           endif
         endif
       except e (ANY)
+        server_log("[assist] command suggestion failed for " + tostr(this) + ": " + toliteral(e));
       endtry
       if (length(note) > 220)
         note = note[1..220];
