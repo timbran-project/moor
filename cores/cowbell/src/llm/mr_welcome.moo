@@ -337,10 +337,10 @@ object MR_WELCOME
         result = {@result, "  " + tostr(i) + ". Take the " + label};
       else
         "Passage flyweight - extract direction label";
-        side_a_room = `connector.side_a_room ! ANY => #-1';
-        side_b_room = `connector.side_b_room ! ANY => #-1';
-        side_a_label = `connector.side_a_label ! ANY => "passage"';
-        side_b_label = `connector.side_b_label ! ANY => "passage"';
+        side_a_room = connector.side_a_room;
+        side_b_room = connector.side_b_room;
+        side_a_label = connector.side_a_label;
+        side_b_label = connector.side_b_label;
         "Determine which direction to use";
         if (room == side_a_room)
           direction = side_a_label;
@@ -788,5 +788,35 @@ object MR_WELCOME
         this.location:announce(this:mk_emote_event("scribbles something in his notebook..."));
       endif
     endif
+  endverb
+
+  verb test_navigation_tool_metadata (this none this) owner: HACKER flags: "rxd"
+    "Mr. Welcome route tools should expose real room, area, and passage metadata.";
+    original_location = this.location;
+    area = $area:create(true);
+    r1 = $room:create(true);
+    r2 = $room:create(true);
+    try
+      area.name = "Welcome Test Area";
+      r1.name = "Welcome Test Start";
+      r2.name = "Welcome Test End";
+      move(r1, area);
+      move(r2, area);
+      move(this, r1);
+      passage = <$passage, .side_a_room = r1, .side_a_label = "east", .side_b_room = r2, .side_b_label = "west", .is_open = true>;
+      area:set_passage(r1, r2, passage);
+      map = this:_tool_area_map([], $hacker);
+      $test_utils:assert_true(index(map, "Current Location: Welcome Test Start") > 0, "area_map should include current room name");
+      $test_utils:assert_true(index(map, "Area: Welcome Test Area") > 0, "area_map should include area name");
+      route = this:_tool_find_route(["destination" -> "Welcome Test End"], $hacker);
+      $test_utils:assert_true(index(route, "Route from Welcome Test Start to Welcome Test End") > 0, "find_route should include room names");
+      $test_utils:assert_true(index(route, "Go east to Welcome Test End") > 0, "find_route should include real passage label");
+    finally
+      valid(original_location) && move(this, original_location);
+      $test_utils:destroy_if_valid(r2);
+      $test_utils:destroy_if_valid(r1);
+      $test_utils:destroy_if_valid(area);
+    endtry
+    return true;
   endverb
 endobject
