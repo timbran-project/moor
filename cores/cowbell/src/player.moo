@@ -1976,8 +1976,10 @@ object PLAYER
     if (length(ref) >= 1 && ref[1] in {"#", "$", "@"})
       try
         target = $match:match_object(ref, this);
-      except e (ANY)
+      except e (E_INVARG, E_PROPNF)
         return this:inform_current($event:mk_error(this, "I can't find '" + ref + "' to gag."):with_audience('utility));
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "Object lookup failed: " + toliteral(e)):with_audience('utility));
       endtry
     else
       "Try matching a player anywhere by name.";
@@ -1987,9 +1989,13 @@ object PLAYER
         "Fall back to matching an object in scope (here, inventory, room, etc.).";
         try
           target = $match:match_object(ref, this);
-        except e2 (ANY)
+        except e2 (E_INVARG, E_PROPNF)
           return this:inform_current($event:mk_error(this, "I can't find '" + ref + "' to gag."):with_audience('utility));
+        except e2 (ANY)
+          return this:inform_current($event:mk_error(this, "Object lookup failed: " + toliteral(e2)):with_audience('utility));
         endtry
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "Player lookup failed: " + toliteral(e)):with_audience('utility));
       endtry
     endif
     if (target == this)

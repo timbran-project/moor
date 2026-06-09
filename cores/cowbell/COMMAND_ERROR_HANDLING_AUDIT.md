@@ -635,7 +635,7 @@ These are lower-priority, mostly cosmetic or in best-effort paths:
 - ~~`except e (ANY)` with empty body in assist suggestion loop~~. Fixed with server logging while preserving best-effort assist behavior.
 - ~~`except e (ANY)` defaulting match_object to `0` in `@ungag`~~. Fixed by narrowing expected not-found errors and reporting unexpected player/object lookup failures.
 - `$builder_features` has 35 `except ANY` blocks — these are at command boundaries (acceptable if helpers raise), but a few may be overly broad.
-- `$player` has broad `except ANY` blocks — most are proper command-boundary catches with error reporting, but verification is ongoing. `examine` object matching was narrowed so expected not-found remains not-found while unexpected matcher failures are reported.
+- `$player` has broad `except ANY` blocks — most are proper command-boundary catches with error reporting, but verification is ongoing. `examine` and `@gag` object/player matching were narrowed so expected not-found remains not-found while unexpected matcher failures are reported.
 
 ### Overall Completion
 
