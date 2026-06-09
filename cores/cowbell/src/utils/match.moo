@@ -61,7 +61,7 @@ object MATCH
     endif
     "Handle object number references (e.g., '#2', '#000053-9A6FBE399A')";
     if (player_name[1] == "#")
-      obj = `toobj(player_name) ! ANY => $nothing';
+      obj = `toobj(player_name) ! E_RANGE => $nothing';
       !valid(obj) && raise(E_INVARG, "Invalid object reference: " + player_name);
       !is_player(obj) && raise(E_INVARG, tostr(obj) + " is not a player.");
       return obj;
@@ -135,7 +135,7 @@ object MATCH
           if (typeof(candidate_obj) == TYPE_OBJ && valid(candidate_obj))
             return candidate_obj;
           endif
-        except (ANY)
+        except (E_RANGE)
         endtry
       endif
     endif
