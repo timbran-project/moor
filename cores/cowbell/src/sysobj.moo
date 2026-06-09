@@ -172,7 +172,7 @@ object SYSOBJ
       return;
     endif
     "Guard: don't run disfunc if the user still has active connections.";
-    `length(connections(user)) > 0 ! ANY => 0' && return;
+    length(connections(user)) > 0 && return;
     "Set last_disconnected before calling disfunc so it reads consistently.";
     `user.last_disconnected = time() ! E_PROPNF, E_PERM';
     set_task_perms(user);
