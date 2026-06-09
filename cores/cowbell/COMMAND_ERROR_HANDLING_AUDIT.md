@@ -152,9 +152,9 @@ and LLM-assisted suggestions.
 | `@gag` | Match target and add gag entry. | Broad catch reports generic failure. | Medium. |
 | `@ungag` | Match target and remove gag entry. | Broad catch reports generic failure. | Medium. |
 | `@listgag listgag` | Renders gag list. | Type/shape skips. | Medium: malformed gag entries are silently ignored. |
-| `walk go_to goto` | Resolve passage or nearby room, then travel. | `find_passage_by_direction(...) ! ANY => false`; `travel_from(...) ! ANY => false`; skips rooms with bad names/aliases. | High: real passage/travel errors can become "no route." |
-| `join @join` | Match player and attempt travel toward their room. | `$match:match_player(...) ! ANY => $failed_match`; skips players with bad names. | Medium. |
-| `home` | Attempts to travel home or reports why it cannot. | Area/name fallbacks and room placeholders. | Medium. |
+| `walk go_to goto` | Resolve passage or nearby room, then travel. | Passage, travel, and route lookup failures are reported; room name/alias matching still uses display fallbacks. | Low to medium: remaining fallbacks are candidate-list display helpers. |
+| `join @join` | Match player and attempt travel toward their room. | Unexpected player lookup and route lookup failures are reported; skips players with bad names while building ambiguity hints. | Low to medium. |
+| `home` | Attempts to travel home or reports why it cannot. | Route lookup failures are reported; area/name fallbacks remain display-only. | Low to medium. |
 | `@sethome` | Stores current room as home. | Mostly direct checks; room placeholders defaulted elsewhere. | Low. |
 | `assist` | Builds LLM-backed command/help suggestions. | Heavy `! ANY =>`, JSON parse defaults, shape guards, and skipped candidates. | High: best-effort UX path but hides parser/context failures. |
 | `stop` | Cancels current activity. | Activity description fallback. | Low. |
@@ -172,7 +172,7 @@ and LLM-assisted suggestions.
 
 ### Main Problem Shapes
 
-- `help`, travel, and assist use broad defaulting in control flow.
+- `help` and assist use broad defaulting in control flow.
 - Help and assist loops silently skip malformed providers/topics/verbs.
 - Direct display fallbacks are usually fine; structural defaults should be
   narrowed.

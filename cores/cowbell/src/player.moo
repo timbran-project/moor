@@ -2517,10 +2517,15 @@ object PLAYER
       return;
     endif
     "First try to find a walkable route (passages only, no transports)";
-    path = area:find_path(current_room, destination, true, false);
+    try
+      paths = this:_walk_path_options(area, current_room, destination);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, tostr(e[2])));
+      return;
+    endtry
+    {path, path_with_transport} = paths;
     if (!path || length(path) < 2)
       "No passage-only route - check if there's a route with transports";
-      path_with_transport = area:find_path(current_room, destination, true, true);
       if (path_with_transport && length(path_with_transport) >= 2)
         "Route exists but requires transport - find the first transport step";
         for i in [1..length(path_with_transport) - 1]
@@ -2676,10 +2681,15 @@ object PLAYER
       return;
     endif
     "First try to find a walkable route (passages only, no transports)";
-    path = area:find_path(current_room, target_room, true, false);
+    try
+      paths = this:_walk_path_options(area, current_room, target_room);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, tostr(e[2])));
+      return;
+    endtry
+    {path, path_with_transport} = paths;
     if (!path || length(path) < 2)
       "No passage-only route - check if there's a route with transports";
-      path_with_transport = area:find_path(current_room, target_room, true, true);
       if (path_with_transport && length(path_with_transport) >= 2)
         "Route exists but requires transport - find the first transport step";
         for i in [1..length(path_with_transport) - 1]
@@ -2704,6 +2714,19 @@ object PLAYER
       this:_do_walk(path);
     endfork
     this:action_start_activity(this, 'walk, activity_task_id, "walking to " + target:name());
+  endverb
+
+  verb _walk_path_options (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return {passage_only_path, transport_inclusive_path} for walking commands.";
+    caller == this || raise(E_PERM);
+    {area, current_room, destination} = args;
+    try
+      path = area:find_path(current_room, destination, true, false);
+      path_with_transport = (!path || length(path) < 2) ? area:find_path(current_room, destination, true, true) | false;
+    except e (ANY)
+      raise(E_INVARG, "Route lookup failed: " + toliteral(e));
+    endtry
+    return {path, path_with_transport};
   endverb
 
   verb disfunc (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2753,10 +2776,15 @@ object PLAYER
       return;
     endif
     "Find a walkable route to home";
-    path = current_area:find_path(current_room, home, true, false);
+    try
+      paths = this:_walk_path_options(current_area, current_room, home);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, tostr(e[2])));
+      return;
+    endtry
+    {path, path_with_transport} = paths;
     if (!path || length(path) < 2)
       "Check if there's a route with transports";
-      path_with_transport = current_area:find_path(current_room, home, true, true);
       if (path_with_transport && length(path_with_transport) >= 2)
         "Find the first transport step";
         for i in [1..length(path_with_transport) - 1]
@@ -3578,6 +3606,30 @@ object PLAYER
       $test_utils:assert_true(raised, "malformed passage records should raise");
     finally
       valid(original_location) && move(this, original_location);
+      $test_utils:destroy_if_valid(room_b);
+      $test_utils:destroy_if_valid(room_a);
+      $test_utils:destroy_if_valid(area);
+    endtry
+    return true;
+  endverb
+
+  verb test_walk_path_options_reports_malformed_route (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Walking route lookup should report malformed passage records instead of treating them as no route.";
+    area = $area:create(true);
+    room_a = $room:create(true);
+    room_b = $room:create(true);
+    try
+      move(room_a, area);
+      move(room_b, area);
+      area:set_passage(room_a, room_b, $thing);
+      raised = false;
+      try
+        this:_walk_path_options(area, room_a, room_b);
+      except e (E_INVARG)
+        raised = true;
+      endtry
+      $test_utils:assert_true(raised, "malformed route records should raise");
+    finally
       $test_utils:destroy_if_valid(room_b);
       $test_utils:destroy_if_valid(room_a);
       $test_utils:destroy_if_valid(area);
