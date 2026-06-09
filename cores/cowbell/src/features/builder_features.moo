@@ -1408,6 +1408,8 @@ object BUILDER_FEATURES
         raise(E_INVARG, "Template compilation failed: " + result);
       endif
       compiled_list = result;
+      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+      success_message = "Set message template on " + obj_name + " (" + tostr(target_obj) + ")." + prop_name + ".";
       "Set the compiled message";
       existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
       if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
@@ -1415,9 +1417,7 @@ object BUILDER_FEATURES
       else
         $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
       endif
-      obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-      message = "Set message template on " + obj_name + " (" + tostr(target_obj) + ")." + prop_name + ".";
-      player:inform_current($event:mk_info(player, message));
+      player:inform_current($event:mk_info(player, success_message));
       return true;
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);

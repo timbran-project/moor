@@ -295,7 +295,7 @@ inline fallbacks while inspecting world state.
 | `@integrate` | Integrates generated/temporary description into object. | Broad catch and display fallback. | Medium. |
 | `@move` | Moves object to destination. | Success display is prepared before mutation; broad catch and best-effort display fallbacks remain. | Low to medium. |
 | `@edit` | Opens property/object editor. | Broad catch; delegates editor setup. | Medium. |
-| `@set-message @setm` | Sets a message template property. | Broad catch; `$sub_utils` compile/decompile fallback. | Medium. |
+| `@set-message @setm` | Sets a message template property. | Template compile failures are reported and success display is prepared before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@get-message @getm` | Reads a message template property. | Decompile fallback to literal; broad catch. | Medium. |
 | `@set-rule` | Sets rule property. | Broad catch; rule parsing delegated. | Medium. |
 | `@clear-rule` | Clears rule property. | Broad catch. | Medium. |
