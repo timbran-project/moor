@@ -135,8 +135,9 @@ const OP_PUT_TEMP_POP: u16 = 99;
 const OP_PUSH_SCOPE0_LOCAL: u16 = 100;
 const OP_PUT_SCOPE0_LOCAL: u16 = 101;
 const OP_PUT_POP_SCOPE0_LOCAL: u16 = 102;
+const OP_FILTER_COMPREHENSION: u16 = 103;
 
-// Reserve 103-999 for future opcodes
+// Reserve 104-999 for future opcodes
 // Reserve 1000-65535 for extensions
 
 // ============================================================================
@@ -606,6 +607,11 @@ impl OpStream {
                 self.words.push(offset.0);
             }
 
+            Op::FilterComprehension(label) => {
+                self.words.push(OP_FILTER_COMPREHENSION);
+                self.words.push(label.0);
+            }
+
             Op::ContinueComprehension(name) => {
                 self.words.push(OP_CONTINUE_COMPREHENSION);
                 self.encode_name(name);
@@ -903,6 +909,7 @@ impl OpStream {
 
             OP_COMPREHEND_RANGE => Ok(Op::ComprehendRange(Offset(self.read_u16(pc)?))),
             OP_COMPREHEND_LIST => Ok(Op::ComprehendList(Offset(self.read_u16(pc)?))),
+            OP_FILTER_COMPREHENSION => Ok(Op::FilterComprehension(Label(self.read_u16(pc)?))),
             OP_CONTINUE_COMPREHENSION => Ok(Op::ContinueComprehension(self.decode_name(pc)?)),
 
             OP_CAPTURE => Ok(Op::Capture(self.decode_name(pc)?)),

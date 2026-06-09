@@ -307,6 +307,7 @@ impl<'a> Unparse<'a> {
                 producer_expr,
                 from,
                 to,
+                filter,
                 ..
             } => {
                 write!(writer, "{{ ")?;
@@ -319,6 +320,12 @@ impl<'a> Unparse<'a> {
                 self.write_expr(from, writer)?;
                 write!(writer, "..")?;
                 self.write_expr(to, writer)?;
+                if let Some(filter) = filter {
+                    write!(writer, "] if ")?;
+                    self.write_expr(filter, writer)?;
+                    write!(writer, " }}")?;
+                    return Ok(());
+                }
                 write!(writer, "] }}")?;
                 Ok(())
             }
@@ -326,6 +333,7 @@ impl<'a> Unparse<'a> {
                 variable,
                 producer_expr,
                 list,
+                filter,
                 ..
             } => {
                 write!(writer, "{{ ")?;
@@ -336,6 +344,12 @@ impl<'a> Unparse<'a> {
                     self.unparse_variable(variable).as_arc_str()
                 )?;
                 self.write_expr(list, writer)?;
+                if let Some(filter) = filter {
+                    write!(writer, ") if ")?;
+                    self.write_expr(filter, writer)?;
+                    write!(writer, " }}")?;
+                    return Ok(());
+                }
                 write!(writer, ") }}")?;
                 Ok(())
             }

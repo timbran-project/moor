@@ -22,12 +22,25 @@ use moor_common::{
     builtins::BUILTINS,
     model::{CompileContext, CompileError, CompileError::InvalidAssignmentTarget},
 };
+use moor_var::program::names::Name;
 use moor_var::program::opcode::{
     ComprehensionType, ListComprehend, Op, Op::Jump, RangeComprehend, ScatterLabel,
 };
 use moor_var::{Symbol, Variant, v_arc_str, v_int, v_sym};
 
 impl CodegenState {
+    fn advance_comprehension_position(&mut self, position: Name) {
+        self.emit_push_name(position);
+        self.push_stack(1);
+        self.emit(ImmInt(1));
+        self.push_stack(1);
+        self.emit(Op::Add);
+        self.pop_stack(1);
+        self.emit_put_name(position);
+        self.emit(Op::Pop);
+        self.pop_stack(1);
+    }
+
     pub(crate) fn generate_codes(&mut self, codes: &CatchCodes) -> Result<usize, CompileError> {
         match codes {
             CatchCodes::Codes(codes) => {
@@ -303,6 +316,7 @@ impl CodegenState {
                 producer_expr,
                 from,
                 to,
+                filter,
             } => {
                 let end_label = self.make_jump_label(None);
                 let loop_start_label = self.make_jump_label(None);
@@ -329,11 +343,28 @@ impl CodegenState {
                     end_label,
                 });
                 self.emit(ComprehendRange(offset));
-                self.generate_expr(producer_expr.as_ref())?;
-                self.emit(ContinueComprehension(index_variable));
-                self.emit(Jump {
-                    label: loop_start_label,
-                });
+                if let Some(filter) = filter {
+                    let skip_producer_label = self.make_jump_label(None);
+                    self.generate_expr(filter.as_ref())?;
+                    self.emit(Op::FilterComprehension(skip_producer_label));
+                    self.pop_stack(1);
+                    self.generate_expr(producer_expr.as_ref())?;
+                    self.emit(ContinueComprehension(index_variable));
+                    self.emit(Jump {
+                        label: loop_start_label,
+                    });
+                    self.commit_jump_label(skip_producer_label);
+                    self.advance_comprehension_position(index_variable);
+                    self.emit(Jump {
+                        label: loop_start_label,
+                    });
+                } else {
+                    self.generate_expr(producer_expr.as_ref())?;
+                    self.emit(ContinueComprehension(index_variable));
+                    self.emit(Jump {
+                        label: loop_start_label,
+                    });
+                }
                 self.commit_jump_label(end_label);
                 self.exit_scope();
             }
@@ -343,6 +374,7 @@ impl CodegenState {
                 list_register,
                 producer_expr,
                 list,
+                filter,
             } => {
                 let end_label = self.make_jump_label(None);
                 let position_register = self.find_name(position_register);
@@ -369,11 +401,28 @@ impl CodegenState {
                     end_label,
                 });
                 self.emit(ComprehendList(offset));
-                self.generate_expr(producer_expr.as_ref())?;
-                self.emit(ContinueComprehension(position_register));
-                self.emit(Jump {
-                    label: loop_start_label,
-                });
+                if let Some(filter) = filter {
+                    let skip_producer_label = self.make_jump_label(None);
+                    self.generate_expr(filter.as_ref())?;
+                    self.emit(Op::FilterComprehension(skip_producer_label));
+                    self.pop_stack(1);
+                    self.generate_expr(producer_expr.as_ref())?;
+                    self.emit(ContinueComprehension(position_register));
+                    self.emit(Jump {
+                        label: loop_start_label,
+                    });
+                    self.commit_jump_label(skip_producer_label);
+                    self.advance_comprehension_position(position_register);
+                    self.emit(Jump {
+                        label: loop_start_label,
+                    });
+                } else {
+                    self.generate_expr(producer_expr.as_ref())?;
+                    self.emit(ContinueComprehension(position_register));
+                    self.emit(Jump {
+                        label: loop_start_label,
+                    });
+                }
                 self.commit_jump_label(end_label);
                 self.exit_scope();
             }

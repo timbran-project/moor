@@ -198,6 +198,7 @@ pub enum Expr {
         list_register: Variable,
         producer_expr: Box<Expr>,
         list: Box<Expr>,
+        filter: Option<Box<Expr>>,
     },
     ComprehendRange {
         variable: Variable,
@@ -205,6 +206,7 @@ pub enum Expr {
         producer_expr: Box<Expr>,
         from: Box<Expr>,
         to: Box<Expr>,
+        filter: Option<Box<Expr>>,
     },
     Decl {
         id: Variable,
@@ -953,6 +955,7 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
                     list_register,
                     producer_expr,
                     list,
+                    filter,
                 } => {
                     self.line(
                         indent,
@@ -965,6 +968,11 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
                     );
                     self.write_expr(producer_expr, indent + 1);
                     self.write_expr(list, indent + 1);
+                    if let Some(filter) = filter {
+                        self.line(indent + 1, "(filter");
+                        self.write_expr(filter, indent + 2);
+                        self.line(indent + 1, ")");
+                    }
                     self.line(indent, ")");
                 }
                 Expr::ComprehendRange {
@@ -973,6 +981,7 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
                     producer_expr,
                     from,
                     to,
+                    filter,
                 } => {
                     self.line(
                         indent,
@@ -985,6 +994,11 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
                     self.write_expr(producer_expr, indent + 1);
                     self.write_expr(from, indent + 1);
                     self.write_expr(to, indent + 1);
+                    if let Some(filter) = filter {
+                        self.line(indent + 1, "(filter");
+                        self.write_expr(filter, indent + 2);
+                        self.line(indent + 1, ")");
+                    }
                     self.line(indent, ")");
                 }
                 Expr::Decl { id, is_const, expr } => {
@@ -1156,9 +1170,13 @@ pub trait AstVisitor {
                 list_register: _,
                 producer_expr,
                 list,
+                filter,
             } => {
                 self.visit_expr(producer_expr);
                 self.visit_expr(list);
+                if let Some(filter) = filter {
+                    self.visit_expr(filter);
+                }
             }
             Expr::ComprehendRange {
                 variable: _,
@@ -1166,10 +1184,14 @@ pub trait AstVisitor {
                 producer_expr,
                 from,
                 to,
+                filter,
             } => {
                 self.visit_expr(producer_expr);
                 self.visit_expr(from);
                 self.visit_expr(to);
+                if let Some(filter) = filter {
+                    self.visit_expr(filter);
+                }
             }
             Expr::Decl {
                 id: _,

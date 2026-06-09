@@ -226,6 +226,105 @@ impl Decompile {
         self.decompile_statements_sub_offset(label, 0)
     }
 
+    fn find_top_level_comprehension_op<F>(
+        &self,
+        mut start: usize,
+        predicate: F,
+    ) -> Result<Option<usize>, DecompileError>
+    where
+        F: Fn(&Op) -> bool,
+    {
+        let opcodes = self.opcode_vector();
+        while start < opcodes.len() {
+            let op = &opcodes[start];
+            if predicate(op) {
+                return Ok(Some(start));
+            }
+            match op {
+                Op::BeginComprehension(_, end_label, _) => {
+                    let end_position = self.find_jump(end_label)?.position.0 as usize;
+                    if end_position <= start {
+                        start += 1;
+                    } else {
+                        start = end_position;
+                    }
+                }
+                Op::ContinueComprehension(_) => return Ok(None),
+                _ => start += 1,
+            }
+        }
+        Ok(None)
+    }
+
+    fn decompile_filtered_comprehension(
+        &mut self,
+        loop_start_label: Label,
+        position_name: Name,
+    ) -> Result<Option<(Expr, Expr)>, DecompileError> {
+        let Some(filter_marker_position) = self
+            .find_top_level_comprehension_op(self.position, |op| {
+                matches!(op, Op::FilterComprehension(_))
+            })?
+        else {
+            return Ok(None);
+        };
+
+        let (_, filter_op) = self
+            .decompile_statements_until_match(|position, _| position == filter_marker_position)?;
+        let Op::FilterComprehension(skip_producer_label) = filter_op else {
+            return Err(MalformedProgram(
+                "malformed filtered comprehension".to_string(),
+            ));
+        };
+        let filter_expr = self.pop_expr()?;
+
+        let Some(continue_position) = self
+            .find_top_level_comprehension_op(self.position, |op| {
+                matches!(op, Op::ContinueComprehension(_))
+            })?
+        else {
+            return Err(MalformedProgram(
+                "filtered comprehension missing continue".to_string(),
+            ));
+        };
+        let (_, continue_op) =
+            self.decompile_statements_until_match(|position, _| position == continue_position)?;
+        let Op::ContinueComprehension(continue_name) = continue_op else {
+            return Err(MalformedProgram(
+                "malformed filtered comprehension".to_string(),
+            ));
+        };
+        if continue_name != position_name {
+            return Err(MalformedProgram(
+                "filtered comprehension advances the wrong variable".to_string(),
+            ));
+        }
+        let producer_expr = self.pop_expr()?;
+
+        let Op::Jump { label } = self.next()? else {
+            return Err(MalformedProgram(
+                "filtered comprehension missing producer jump".to_string(),
+            ));
+        };
+        if label != loop_start_label {
+            return Err(MalformedProgram(
+                "filtered comprehension producer jumps to the wrong label".to_string(),
+            ));
+        }
+
+        let skip_position = self.find_jump(&skip_producer_label)?.position.0 as usize;
+        if self.position != skip_position {
+            return Err(MalformedProgram(
+                "filtered comprehension skip label is misplaced".to_string(),
+            ));
+        }
+
+        let _ = self.decompile_statements_until_match(
+            |_, op| matches!(op, Op::Jump { label } if *label == loop_start_label),
+        )?;
+        Ok(Some((producer_expr, filter_expr)))
+    }
+
     fn can_skip_short_circuit_cleanup(&self, from: usize, to: usize) -> bool {
         if to <= from + 1 {
             return false;
@@ -1374,8 +1473,14 @@ impl Decompile {
                             end_of_range_register,
                             end_label,
                         } = self.program.range_comprehension(offset).clone();
-                        self.decompile_statements_until(&end_label)?;
-                        let producer_expr = self.pop_expr()?;
+                        let (producer_expr, filter) = if let Some((producer_expr, filter)) =
+                            self.decompile_filtered_comprehension(loop_start_label, position)?
+                        {
+                            (producer_expr, Some(Box::new(filter)))
+                        } else {
+                            self.decompile_statements_until(&end_label)?;
+                            (self.pop_expr()?, None)
+                        };
 
                         let StmtNode::Expr(Expr::Assign {
                             left: _,
@@ -1403,6 +1508,7 @@ impl Decompile {
                             producer_expr: Box::new(producer_expr),
                             from: from.clone(),
                             to: to.clone(),
+                            filter,
                         })
                     }
                     ComprehensionType::List => {
@@ -1422,8 +1528,14 @@ impl Decompile {
                             item_variable,
                             end_label,
                         } = self.program.list_comprehension(offset).clone();
-                        self.decompile_statements_until(&end_label)?;
-                        let producer_expr = self.pop_expr()?;
+                        let (producer_expr, filter) = if let Some((producer_expr, filter)) = self
+                            .decompile_filtered_comprehension(loop_start_label, position_register)?
+                        {
+                            (producer_expr, Some(Box::new(filter)))
+                        } else {
+                            self.decompile_statements_until(&end_label)?;
+                            (self.pop_expr()?, None)
+                        };
 
                         let StmtNode::Expr(Expr::Assign {
                             left: _,
@@ -1444,13 +1556,15 @@ impl Decompile {
                             list_register,
                             producer_expr: Box::new(producer_expr),
                             list: list.clone(),
+                            filter,
                         })
                     }
                 }
             }
             Op::ContinueComprehension(..)
             | Op::ComprehendRange { .. }
-            | Op::ComprehendList { .. } => {
+            | Op::ComprehendList { .. }
+            | Op::FilterComprehension(..) => {
                 // noop, handled above
             }
             Op::Capture(_) => {
@@ -1972,8 +2086,22 @@ return 0 && "Automatically Added Return";
     }
 
     #[test]
+    fn test_for_range_comprehension_filter() {
+        let program = r#"return { x * 2 for x in [1..6] if x % 2 };"#;
+        let (parse, decompiled) = parse_decompile(program);
+        assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
+    }
+
+    #[test]
     fn test_for_list_comprehension() {
         let program = r#"return { x * 2 for x in ({1,2,3}) };"#;
+        let (parse, decompiled) = parse_decompile(program);
+        assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
+    }
+
+    #[test]
+    fn test_for_list_comprehension_filter() {
+        let program = r#"return { x * 2 for x in ({1,2,3,4}) if x > 2 };"#;
         let (parse, decompiled) = parse_decompile(program);
         assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
     }

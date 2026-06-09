@@ -137,6 +137,13 @@ or
 => {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}
 ```
 
+Comprehensions can include a trailing `if` clause to omit items that do not match a condition:
+
+```moo
+{ x * 2 for x in ({1, 2, 3, 4}) if x > 2 };
+=> {6, 8}
+```
+
 ### Return as expression rather than a statement
 
 `mooR` allows the `return` statement to be used as an expression, allowing for "short circuit" returns within chains

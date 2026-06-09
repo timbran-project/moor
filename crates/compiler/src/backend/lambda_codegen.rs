@@ -335,20 +335,28 @@ fn assign_expr_lambda_source_lines(expr: &mut Expr) {
         Expr::ComprehendList {
             producer_expr,
             list,
+            filter,
             ..
         } => {
             assign_expr_lambda_source_lines(producer_expr);
             assign_expr_lambda_source_lines(list);
+            if let Some(filter) = filter {
+                assign_expr_lambda_source_lines(filter);
+            }
         }
         Expr::ComprehendRange {
             producer_expr,
             from,
             to,
+            filter,
             ..
         } => {
             assign_expr_lambda_source_lines(producer_expr);
             assign_expr_lambda_source_lines(from);
             assign_expr_lambda_source_lines(to);
+            if let Some(filter) = filter {
+                assign_expr_lambda_source_lines(filter);
+            }
         }
         Expr::Lambda { params, body, .. } => {
             for param in params {

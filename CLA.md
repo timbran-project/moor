@@ -36,8 +36,8 @@ This grant includes the right for the Project Maintainer to:
 
 To the extent Contributor has patent claims that would be infringed by Contributor's Contribution
 alone or by combination of the Contribution with the Project as of the time the Contribution is
-submitted, Contributor grants to the Project Maintainer and to recipients of software distributed
-by the Project Maintainer a perpetual, worldwide, non-exclusive, royalty-free, irrevocable patent
+submitted, Contributor grants to the Project Maintainer and to recipients of software distributed by
+the Project Maintainer a perpetual, worldwide, non-exclusive, royalty-free, irrevocable patent
 license to make, have made, use, sell, offer for sale, import, modify, reproduce, distribute, and
 otherwise transfer the Contribution and the Project.
 
@@ -48,8 +48,8 @@ Contributor represents that:
 - Contributor has the legal authority to enter into this Agreement.
 - Each Contribution is an original work of authorship of Contributor, or Contributor has sufficient
   rights to submit it under this Agreement.
-- To the best of Contributor's knowledge, each Contribution does not knowingly violate the rights
-  of any third party.
+- To the best of Contributor's knowledge, each Contribution does not knowingly violate the rights of
+  any third party.
 - If Contributor makes Contributions in the course of employment or other engagement, Contributor
   has obtained any permissions necessary for this Agreement to be effective.
 

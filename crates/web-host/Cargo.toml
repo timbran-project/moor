@@ -56,7 +56,6 @@ sha2.workspace = true
 
 # Networking & Communication
 axum.workspace = true
-webrtc.workspace = true
 hickory-resolver.workspace = true
 ipnet.workspace = true
 reqwest = { workspace = true, features = ["json"] }
@@ -64,6 +63,7 @@ tmq.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tower_governor.workspace = true
+webrtc.workspace = true
 
 # Async Runtime & Concurrency
 futures-util.workspace = true

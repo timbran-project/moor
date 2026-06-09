@@ -1828,6 +1828,13 @@ pub fn moo_frame_execute<H: VmHost>(
                     f.set_variable(&item_variable, item);
                 }
             }
+            Op::FilterComprehension(label) => {
+                let label = *label;
+                let cond = f.pop();
+                if !cond.is_true() {
+                    f.jump(&label);
+                }
+            }
             Op::ContinueComprehension(id) => {
                 let id = *id;
                 let result = f.pop();

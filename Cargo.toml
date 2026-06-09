@@ -119,7 +119,6 @@ fs2 = "0.4"
 
 # Networking & Communication
 axum = { version = "0.8", features = ["ws"] }
-webrtc = "0.12"
 hickory-resolver = "0.25"
 ipnet = "2.11"
 reqwest = { version = "0.12", default-features = false }
@@ -130,6 +129,7 @@ tokio-rustls = "0.26"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 tower_governor = "0.6"
+webrtc = "0.12"
 zmq = "0.10"
 
 # Async Runtime & Concurrency
@@ -181,9 +181,9 @@ unicode-width = "0.2"
 ariadne = "0.6"
 pest = "2.8"
 pest_derive = "2.8"
-rowan = "0.16"
 proc-macro2 = "1.0"
 quote = "1.0"
+rowan = "0.16"
 syn = { version = "2.0", features = ["full", "parsing"] }
 
 # Collections & Data Structures

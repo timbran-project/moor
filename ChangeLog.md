@@ -19,6 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `include!("path")` and `include_bin!("path")` macros in the objdef compiler for embedding external
   file contents (String and Binary respectively) at compile time.
+- List and range comprehensions now support an optional trailing `if` filter clause, for example
+  `{ item for item in (items) if valid(item) }`.
 
 `web-host`:
 
@@ -76,8 +78,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Commit path rewritten from serialized mutex to lock-free CAS loop with `ArcSwap::rcu`; workers
   speculatively check conflicts and build candidate snapshots in parallel
 - Relation-level rebase on CAS failure: if the winning commit didn't modify any relation the loser
-  also modified (detected via `Arc::ptr_eq`), re-slot prepared indexes onto the winner's snapshot and
-  CAS again without re-checking
+  also modified (detected via `Arc::ptr_eq`), re-slot prepared indexes onto the winner's snapshot
+  and CAS again without re-checking
 - Key-level CAS rebase via bloom filter of modified keys per committed snapshot; enables successful
   rebase when two transactions modify different keys in the same relation
 - Cumulative bloom filter on snapshot to skip `check_all` when a committing transaction's keys don't
@@ -99,8 +101,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `compiler`:
 
-- Duplicate constants (both duplicate names and duplicate values) now detected and rejected in objdef
-  compiler
+- Duplicate constants (both duplicate names and duplicate values) now detected and rejected in
+  objdef compiler
 - Trailing newlines in objdef output corrected
 - Fixed duplicate declarations in compiler roundtrip proptests
 
@@ -121,8 +123,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `parse_command()` result map: `argstr` key/value types were swapped and `prep` key used wrong
   string type
-- `parse_command()` behaviour for matching "here" was broken for dobj/iobj matching. 
-  Now defaults to player location with an optional new argument to override.
+- `parse_command()` behaviour for matching "here" was broken for dobj/iobj matching. Now defaults to
+  player location with an optional new argument to override.
 
 ## [1.0.0-rc1] - 2026-03-05 (`v1.0-release` branch)
 

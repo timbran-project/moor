@@ -167,6 +167,7 @@ pub enum Op {
     BeginComprehension(ComprehensionType, Label, Label),
     ComprehendRange(Offset),
     ComprehendList(Offset),
+    FilterComprehension(Label),
     ContinueComprehension(Name),
     /// Capture a variable from the current environment for lambda closure
     /// Pushes the variable's value onto a capture stack in the frame

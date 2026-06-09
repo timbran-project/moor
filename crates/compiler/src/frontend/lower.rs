@@ -1210,6 +1210,13 @@ impl<'a> Lowerer<'a> {
             ));
         };
         let producer_expr = self.lower_expr_element(expect_exprish(&elements, 1)?)?;
+        let filter_idx = elements.iter().position(
+            |element| matches!(element, NodeOrToken::Token(token) if token.kind() == SyntaxKind::IfKw),
+        );
+        let filter = filter_idx
+            .map(|idx| self.lower_expr_element(expect_exprish(&elements, idx + 1)?))
+            .transpose()?
+            .map(Box::new);
 
         match elements.get(5) {
             Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::LBracket => {
@@ -1224,6 +1231,7 @@ impl<'a> Lowerer<'a> {
                     producer_expr: Box::new(producer_expr),
                     from: Box::new(from),
                     to: Box::new(to),
+                    filter,
                 })
             }
             Some(NodeOrToken::Token(token)) if token.kind() == SyntaxKind::LParen => {
@@ -1238,6 +1246,7 @@ impl<'a> Lowerer<'a> {
                     list_register,
                     producer_expr: Box::new(producer_expr),
                     list: Box::new(list),
+                    filter,
                 })
             }
             _ => Err(self.make_parse_error(

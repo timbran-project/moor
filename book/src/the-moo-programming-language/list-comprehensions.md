@@ -12,10 +12,17 @@ The pattern for a list comprehension looks like this:
 { what_to_do_with_each_item for each_item in (source_list) }
 ```
 
+You can also include an `if` clause to keep only some of the input items:
+
+```moo
+{ what_to_do_with_each_item for each_item in (source_list) if condition }
+```
+
 Let's break this down:
 - `source_list` is where your original data comes from
 - `each_item` is what you call each piece of data as you work with it  
 - `what_to_do_with_each_item` is the transformation you want to apply
+- `condition`, if present, decides whether the current item is included
 - The curly braces `{}` tell MOO you're creating a new list
 
 ## Your First List Comprehension
@@ -87,6 +94,13 @@ let even_numbers = { x * 2 for x in [1..10] };
 // Result: {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}
 ```
 
+If you want to keep only some values from a range, add an `if` clause after the range:
+
+```moo
+let odd_squares = { x * x for x in [1..10] if x % 2 };
+// Result: {1, 9, 25, 49, 81}
+```
+
 Compare this to the traditional way of doing the same thing with a loop:
 
 ```moo
@@ -112,7 +126,7 @@ Say you have a list of object numbers and want to check which ones are valid:
 
 ```moo
 let player_ids = {#123, #456, #789};
-let valid_players = { valid(obj) ? obj | $nothing for obj in (player_ids) };
+let valid_players = { obj for obj in (player_ids) if valid(obj) };
 ```
 
 Or maybe you want to get the names of everything in a room:
@@ -148,6 +162,30 @@ let fahrenheit = { (c * 9/5) + 32 for c in (celsius) };
 // Result: {32, 50, 68, 86, 104}
 ```
 
+## Filtering Items
+
+The `if` clause is useful when you want to skip input items rather than produce a placeholder value for them. It runs
+after each item has been assigned to the loop variable and before the produced expression is evaluated.
+
+For example, this keeps only objects that are both valid and instances of a chosen prototype:
+
+```moo
+let valid_drinks = {
+    obj
+    for obj in (possible_drinks)
+    if valid(obj) && isa(obj, bar_drink_prototype)
+};
+```
+
+This is different from writing a conditional expression in the produced value:
+
+```moo
+let maybe_players = { valid(obj) ? obj | $nothing for obj in (player_ids) };
+```
+
+That form always produces one output item for each input item. Invalid objects become `$nothing`. With an `if` filter,
+invalid objects are omitted from the result entirely.
+
 ## Why Comprehensions Can Be Faster
 
 Comprehensions often run faster than loops that do the same thing. Here's why:
@@ -177,6 +215,7 @@ MOO can figure out how big the final list will be and create it all at once. Muc
 
 **Comprehensions are great when:**
 - You want to do the same thing to every item in a list
+- You want to transform only the items that match a simple condition
 - The transformation is straightforward (not too many complicated steps)
 - You want code that clearly shows your intent
 - You're working with lots of data and want better performance
@@ -214,8 +253,8 @@ let greet = {name} => "Hello, " + name;
 
 // Now use them in comprehensions
 let numbers = [1..5];
-let doubled = { double(x) for x in numbers };     // {2, 4, 6, 8, 10}
-let squared = { square(x) for x in numbers };     // {1, 4, 9, 16, 25}
+let doubled = { double(x) for x in (numbers) };     // {2, 4, 6, 8, 10}
+let squared = { square(x) for x in (numbers) };     // {1, 4, 9, 16, 25}
 
 let names = {"Alice", "Bob", "Charlie"};
 let greetings = { greet(name) for name in (names) };

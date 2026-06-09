@@ -897,6 +897,22 @@ mod tests {
     }
 
     #[test]
+    fn test_for_range_comprehension_filter() {
+        assert_eq!(
+            run_moo(r#"return { x * 2 for x in [1..6] if x % 2 };"#).unwrap(),
+            v_list(&[v_int(2), v_int(6), v_int(10)])
+        );
+    }
+
+    #[test]
+    fn test_for_list_comprehension_filter() {
+        assert_eq!(
+            run_moo(r#"return { x * 2 for x in ({1,2,3,4,5,6}) if x > 2 && x < 6 };"#).unwrap(),
+            v_list(&[v_int(6), v_int(8), v_int(10)])
+        );
+    }
+
+    #[test]
     fn test_for_list_comprehension_scope_regression() {
         assert_eq!(
             run_moo(

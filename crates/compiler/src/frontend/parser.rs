@@ -732,6 +732,13 @@ impl<'a> Parser<'a> {
                     .push_error("expected range or source clause in comprehension");
                 self.consume_error_node_until(&[SyntaxKind::RBrace]);
             }
+            if self.cursor.at(SyntaxKind::IfKw) {
+                self.bump_significant();
+                self.parse_required_expr(
+                    "expected filter expression after if",
+                    &[SyntaxKind::RBrace],
+                );
+            }
         } else {
             self.parse_list_item();
             while self.cursor.bump_if(SyntaxKind::Comma) {
@@ -1639,6 +1646,21 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::MapExpr));
         assert!(kinds.contains(&SyntaxKind::FlyweightExpr));
         assert!(kinds.contains(&SyntaxKind::TryExpr));
+    }
+
+    #[test]
+    fn parses_filtered_comprehensions() {
+        let source = "{x for x in (items) if valid(x) && x > 2}; {x for x in [1..10] if x % 2};";
+        let (root, errors) = parse_to_syntax_node(source);
+        assert!(errors.is_empty(), "{errors:?}");
+        let kinds: Vec<_> = root.descendants().map(|node| node.kind()).collect();
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| **kind == SyntaxKind::ComprehensionExpr)
+                .count(),
+            2
+        );
     }
 
     #[test]

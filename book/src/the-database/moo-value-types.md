@@ -144,8 +144,9 @@ oldlist = {@oldlist, newelement};
 mooR also provides a concise syntax for creating new lists by transforming existing ones, called list comprehensions:
 
 ```
-doubled = { x * 2 for x in {1, 2, 3, 4} };    // Creates {2, 4, 6, 8}
+doubled = { x * 2 for x in ({1, 2, 3, 4}) };  // Creates {2, 4, 6, 8}
 squares = { x * x for x in [1..5] };          // Creates {1, 4, 9, 16, 25}
+evens = { x for x in [1..10] if x % 2 == 0 }; // Creates {2, 4, 6, 8, 10}
 ```
 
 This syntax lets you build complex lists in a single, readable expression. For detailed information about list
@@ -748,4 +749,3 @@ let squared = map({x} => x * x, numbers);  // {1, 4, 9, 16}
 
 For comprehensive examples and advanced usage, see
 the [Functions and Lambdas](../the-moo-programming-language/lambda-functions.md) chapter.
-
