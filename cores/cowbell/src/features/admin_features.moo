@@ -100,7 +100,7 @@ object ADMIN_FEATURES
     if (typeof(active) == TYPE_MAP)
       for tid in (mapkeys(active))
         entry = active[tid];
-        if (typeof(entry) == TYPE_MAP && `entry["subject"] ! ANY => $nothing' == target)
+        if (typeof(entry) == TYPE_MAP && entry["subject"] == target)
           active = mapdelete(active, tid);
         endif
       endfor
@@ -422,12 +422,12 @@ object ADMIN_FEATURES
     endif
     entry = active[tid];
     typeof(entry) == TYPE_MAP || return false;
-    expires = `entry["expires"] ! ANY => 0';
+    expires = entry["expires"];
     if (typeof(expires) == TYPE_INT && expires > 0 && time() > expires)
       this.sudo_active = mapdelete(active, tid);
       return false;
     endif
-    entry_subject = `entry["subject"] ! ANY => $nothing';
+    entry_subject = entry["subject"];
     if (entry_subject != subject)
       return false;
     endif
@@ -540,16 +540,16 @@ object ADMIN_FEATURES
       if (typeof(entry) != TYPE_MAP)
         continue;
       endif
-      if (`entry["subject"] ! ANY => $nothing' != target)
+      if (entry["subject"] != target)
         continue;
       endif
-      expires = `entry["expires"] ! ANY => 0';
+      expires = entry["expires"];
       if (typeof(expires) == TYPE_INT && expires > 0 && time() > expires)
         continue;
       endif
       count = count + 1;
-      verb = tostr(`entry["verb"] ! ANY => ""');
-      cmd = tostr(`entry["command"] ! ANY => ""');
+      verb = tostr(entry["verb"]);
+      cmd = tostr(entry["command"]);
       player:inform_current($event:mk_info(player, "  active tid=" + tostr(tid) + " verb=" + verb + " cmd=" + cmd));
     endfor
     if (!count)
@@ -577,15 +577,15 @@ object ADMIN_FEATURES
       if (typeof(entry) != TYPE_MAP)
         continue;
       endif
-      expires = `entry["expires"] ! ANY => 0';
+      expires = entry["expires"];
       if (typeof(expires) == TYPE_INT && expires > 0 && now > expires)
         active = mapdelete(active, tid);
         continue;
       endif
-      subject = `entry["subject"] ! ANY => $nothing';
-      delegate = `entry["delegate"] ! ANY => $nothing';
-      verb = tostr(`entry["verb"] ! ANY => ""');
-      cmd = tostr(`entry["command"] ! ANY => ""');
+      subject = entry["subject"];
+      delegate = entry["delegate"];
+      verb = tostr(entry["verb"]);
+      cmd = tostr(entry["command"]);
       subject_name = valid(subject) ? subject:name() | "?";
       delegate_name = valid(delegate) ? delegate:name() | "?";
       active_rows = {@active_rows, {tostr(tid), subject_name, delegate_name, verb, cmd}};
