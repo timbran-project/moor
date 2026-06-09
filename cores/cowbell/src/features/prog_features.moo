@@ -1778,11 +1778,11 @@ object PROG_FEATURES
     "Count inherited (walk up parent chain)";
     inherited_prop_count = 0;
     inherited_verb_count = 0;
-    current = `parent(target_obj) ! ANY => #-1';
+    current = parent(target_obj);
     while (valid(current))
-      inherited_prop_count = inherited_prop_count + length(`properties(current) ! ANY => {}');
-      inherited_verb_count = inherited_verb_count + length(`verbs(current) ! ANY => {}');
-      current = `parent(current) ! ANY => #-1';
+      inherited_prop_count = inherited_prop_count + length(this:_do_get_properties(current));
+      inherited_verb_count = inherited_verb_count + length(this:_do_get_verbs(current));
+      current = parent(current);
     endwhile
     "Build single deflist with all info - wrap object refs in djot backticks";
     obj_ref = tostr(target_obj);
