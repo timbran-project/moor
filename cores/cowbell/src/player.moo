@@ -1540,7 +1540,11 @@ object PLAYER
     endif
     "Create and deliver the DM";
     dm_obj = $dm:mk(this, target, message);
-    delivered = `target:receive_dm(dm_obj) ! ANY => E_NONE';
+    try
+      delivered = target:receive_dm(dm_obj);
+    except e (ANY)
+      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + ": " + toliteral(e[2])):with_audience('utility));
+    endtry
     if (typeof(delivered) == TYPE_ERR || !delivered)
       return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
     endif
@@ -1583,7 +1587,11 @@ object PLAYER
     message = args:join(" ");
     "Create and deliver the DM";
     dm_obj = $dm:mk(this, target, message);
-    delivered = `target:receive_dm(dm_obj) ! ANY => E_NONE';
+    try
+      delivered = target:receive_dm(dm_obj);
+    except e (ANY)
+      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + ": " + toliteral(e[2])):with_audience('utility));
+    endtry
     if (typeof(delivered) == TYPE_ERR || !delivered)
       return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
     endif
@@ -3386,7 +3394,11 @@ object PLAYER
       return this:inform_current($event:mk_error(this, "No message provided."):with_audience('utility));
     endif
     dm_obj = $dm:mk(this, target, message);
-    delivered = `target:receive_dm(dm_obj) ! ANY => E_NONE';
+    try
+      delivered = target:receive_dm(dm_obj);
+    except e (ANY)
+      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + ": " + toliteral(e[2])):with_audience('utility));
+    endtry
     if (typeof(delivered) == TYPE_ERR || !delivered)
       return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
     endif
@@ -3414,7 +3426,11 @@ object PLAYER
       return player:inform_current($event:mk_error(player, "No message provided."):with_audience('utility));
     endif
     dm_obj = $dm:mk(player, this, message);
-    delivered = `this:receive_dm(dm_obj) ! ANY => E_NONE';
+    try
+      delivered = this:receive_dm(dm_obj);
+    except e (ANY)
+      return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + ": " + toliteral(e[2])):with_audience('utility));
+    endtry
     if (typeof(delivered) == TYPE_ERR || !delivered)
       return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + "."):with_audience('utility));
     endif
