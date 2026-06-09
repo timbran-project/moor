@@ -17,7 +17,8 @@
   flex-direction: row;
   flex: 1;
   min-height: 0;
-  padding: var(--space-lg) 0;
+  gap: var(--space-md);
+  padding: var(--space-md);
   box-sizing: border-box;
 }
 
@@ -45,6 +46,8 @@ aside[aria-label*="dock"] {
 @container (max-width: 768px) {
   .middle_section {
     flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
   }
   
   .right_dock,
