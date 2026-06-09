@@ -460,24 +460,7 @@ object BUILDER_FEATURES
         target_room = $match:resolve_in_scope(iobjstr, area.contents);
         if (typeof(target_room) != TYPE_OBJ)
           if (target_room == $ambiguous_match)
-            needle = iobjstr:trim():lowercase();
-            candidates = {};
-            for room in (area.contents)
-              room_name = `room.name ! ANY => ""';
-              aliases = `room.aliases ! ANY => {}';
-              matched = needle in room_name:lowercase() > 0;
-              if (!matched)
-                for a in (aliases)
-                  if (needle in a:lowercase() > 0)
-                    matched = true;
-                    break;
-                  endif
-                endfor
-              endif
-              if (matched)
-                candidates = {@candidates, room_name + " (" + tostr(room) + ")"};
-              endif
-            endfor
+            candidates = this:_matching_room_candidates(area, iobjstr);
             if (candidates)
               max_show = length(candidates) > 5 ? 5 | length(candidates);
               shown = candidates[1..max_show];
@@ -545,7 +528,7 @@ object BUILDER_FEATURES
       for alias in (from_dir)
         if (maphaskey(existing_from, alias))
           conflict_room = existing_from[alias];
-          conflict_name = valid(conflict_room) ? `conflict_room.name ! ANY => tostr(conflict_room)' | "unknown room";
+          conflict_name = this:_room_name_for_error(conflict_room);
           raise(E_INVARG, "Direction alias '" + alias + "' already exists from this room (to " + conflict_name + " (" + tostr(conflict_room) + ")).");
         endif
       endfor
@@ -572,7 +555,7 @@ object BUILDER_FEATURES
         for alias in (to_dir)
           if (maphaskey(existing_to, alias))
             conflict_room = existing_to[alias];
-            conflict_name = valid(conflict_room) ? `conflict_room.name ! ANY => tostr(conflict_room)' | "unknown room";
+            conflict_name = this:_room_name_for_error(conflict_room);
             raise(E_INVARG, "Return direction alias '" + alias + "' already exists from target room (to " + conflict_name + " (" + tostr(conflict_room) + ")).");
           endif
         endfor
@@ -785,6 +768,51 @@ object BUILDER_FEATURES
     from_dirs = $passage:expand_direction_aliases(from_dirs);
     to_dirs = $passage:expand_direction_aliases(to_dirs);
     return ['oneway -> is_oneway, 'from_dir -> from_dirs, 'to_dir -> to_dirs, 'dry_run -> dry_run, 'allow_parallel -> allow_parallel];
+  endverb
+
+  verb _room_name_for_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return a room's display name for error messages, raising on invalid room refs.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {room} = args;
+    valid(room) || raise(E_INVARG, "Invalid room reference while reporting passage conflict: " + toliteral(room));
+    try
+      return room:name();
+    except e (ANY)
+      raise(E_INVARG, "Could not read room name for " + tostr(room) + ": " + toliteral(e));
+    endtry
+  endverb
+
+  verb _matching_room_candidates (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return formatted room candidates in area matching a room search string.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {area, search_string} = args;
+    valid(area) || raise(E_INVARG, "Invalid area while resolving room candidates: " + toliteral(area));
+    needle = search_string:trim():lowercase();
+    candidates = {};
+    for room in (area.contents)
+      valid(room) || raise(E_INVARG, "Invalid object in area contents while resolving room candidates: " + toliteral(room));
+      try
+        room_name = room:name();
+        aliases = room:aliases();
+      except e (ANY)
+        raise(E_INVARG, "Could not read room search metadata for " + tostr(room) + ": " + toliteral(e));
+      endtry
+      typeof(aliases) == TYPE_LIST || raise(E_TYPE, "Room aliases must be a list for " + tostr(room));
+      matched = needle in room_name:lowercase() > 0;
+      if (!matched)
+        for a in (aliases)
+          typeof(a) == TYPE_STR || raise(E_TYPE, "Room aliases must contain strings for " + tostr(room));
+          if (needle in a:lowercase() > 0)
+            matched = true;
+            break;
+          endif
+        endfor
+      endif
+      if (matched)
+        candidates = {@candidates, room_name + " (" + tostr(room) + ")"};
+      endif
+    endfor
+    return candidates;
   endverb
 
   verb _infer_opposite_directions (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -2522,6 +2550,26 @@ object BUILDER_FEATURES
       endtry
       $test_utils:assert_true(raised, "duplicate room name should be rejected");
       $test_utils:assert_true(this:_require_unique_room_name(area, "unique build room"), "unique room name should pass");
+    finally
+      $test_utils:destroy_if_valid(room);
+      $test_utils:destroy_if_valid(area);
+    endtry
+    return true;
+  endverb
+
+  verb test_matching_room_candidates_reads_names_and_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Unit test: @dig ambiguous-room candidate formatting reads room names and aliases.";
+    area = $area:create(true);
+    room = $room:create(true);
+    try
+      room:set_name_aliases("candidate room", {"candidate-alias"});
+      move(room, area);
+      name_matches = this:_matching_room_candidates(area, "candidate room");
+      alias_matches = this:_matching_room_candidates(area, "candidate-alias");
+      $test_utils:assert_eq(length(name_matches), 1, "room name should produce one candidate");
+      $test_utils:assert_eq(length(alias_matches), 1, "room alias should produce one candidate");
+      $test_utils:assert_true(index(name_matches[1], "candidate room") > 0, "candidate should include room name");
+      $test_utils:assert_true(index(alias_matches[1], tostr(room)) > 0, "candidate should include room object ref");
     finally
       $test_utils:destroy_if_valid(room);
       $test_utils:destroy_if_valid(area);

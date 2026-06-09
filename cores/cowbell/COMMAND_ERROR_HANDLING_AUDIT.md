@@ -285,7 +285,7 @@ inline fallbacks while inspecting world state.
 | `@grant` | Parses grant target/grantee/capability list and stores grant. | Broad catch; grant parsing/formatting delegated to `$grant_utils`. | Medium to high. |
 | `@audit @owned` | Lists objects owned by a target. | Skips invalid/malformed object entries; display fallbacks. | Medium. |
 | `@build` | Creates a room in an area. | Duplicate room-name scan reports invalid/unreadable existing entries; broad command-boundary catch remains. | Low to medium. |
-| `@dig @tunnel` | Creates a passage between rooms. | Many passage/room slot defaults; conflict scans skip malformed passages; broad catch. | High. |
+| `@dig @tunnel` | Creates a passage between rooms. | Destination candidate and conflict-name reads now report invalid/unreadable rooms; passage conflict scans still rely on broad command-boundary catch. | Medium to high. |
 | `@undig @remove-exit @delete-passage` | Removes a matching passage. | Passage matching uses slot defaults and shape checks; broad catch. | High. |
 | `@rename` | Renames an object. | Broad catch; old-name display fallback. | Medium. |
 | `@describe` | Sets object or passage description. | Broad catch; compiles/decompiles substitution content with fallback. | Medium. |
