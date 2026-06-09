@@ -174,8 +174,17 @@ object BUILDER_FEATURES
     {builder_player, parent_obj, primary_name, alias_list} = args;
     set_task_perms(builder_player);
     new_obj = parent_obj:create();
-    new_obj:set_name_aliases(primary_name, alias_list);
-    new_obj:moveto(builder_player);
+    try
+      new_obj:set_name_aliases(primary_name, alias_list);
+      move_result = new_obj:moveto(builder_player);
+      if (typeof(move_result) == TYPE_ERR)
+        raise(error_code(move_result), "Could not move new object into builder inventory.");
+      endif
+      new_obj.location == builder_player || raise(E_INVARG, "Could not move new object into builder inventory.");
+    except e (ANY)
+      valid(new_obj) && new_obj:destroy();
+      raise(e[1], length(e) >= 2 ? e[2] | "Could not create child object.");
+    endtry
     return new_obj;
   endverb
 
@@ -1275,13 +1284,16 @@ object BUILDER_FEATURES
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       dest_name = `dest_loc.name ! ANY => tostr(dest_loc)';
       success_message = "Moved " + obj_name + " (" + tostr(target_obj) + ") to " + dest_name + " (" + tostr(dest_loc) + ").";
-      "If it's a player, notify the old location";
+      "Perform the move";
+      move_result = target_obj:moveto(dest_loc);
+      if (typeof(move_result) == TYPE_ERR)
+        raise(error_code(move_result), "Could not move object.");
+      endif
+      target_obj.location == dest_loc || raise(E_INVARG, "Could not move object.");
+      "If it's a player, notify rooms after the move succeeds";
       if (is_player && valid(old_loc))
         old_loc:announce_all_but({target_obj}, obj_name + " disappears suddenly for parts unknown.");
       endif
-      "Perform the move";
-      target_obj:moveto(dest_loc);
-      "If it's a player, notify the new location";
       if (is_player && valid(dest_loc))
         dest_loc:announce_all_but({target_obj}, obj_name + " materializes out of thin air.");
       endif

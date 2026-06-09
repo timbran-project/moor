@@ -280,7 +280,7 @@ inline fallbacks while inspecting world state.
 | --- | --- | --- | --- |
 | `@add-message` | Adds a message property/spec to an object. | Parses target via `$prog_utils`; broad catches; property existence and value handling are command-local. | Medium. |
 | `@del-message` | Removes a message property/spec. | Parses target and catches broad failures. | Medium. |
-| `@create` | Creates child object from a prototype and names it. | Broad catch; prototype/name display fallback. | Medium. |
+| `@create` | Creates child object from a prototype and names it. | Inventory placement result is checked and failed creations are cleaned up; broad command-boundary catch remains. | Low to medium. |
 | `@recycle @destroy` | Recycles a matched object. | Broad catch around destroy. | Medium. |
 | `@grant` | Parses grant target/grantee/capability list and stores grant. | Grant parsing/formatting delegated to `$grant_utils`; success display is prepared before mutation; broad command-boundary catch remains. | Medium. |
 | `@audit @owned` | Lists objects owned by a target. | Skips invalid/malformed object entries; display fallbacks. | Medium. |
@@ -293,7 +293,7 @@ inline fallbacks while inspecting world state.
 | `@parent` | Displays/changes parent relationship. | Display fallbacks and broad catch. | Medium. |
 | `@children @kids @descendants` | Displays child/descendant tree. | Skips invalid entries; display fallbacks; broad catch. | Medium. |
 | `@integrate` | Integrates generated/temporary description into object. | Broad catch and display fallback. | Medium. |
-| `@move` | Moves object to destination. | Success display is prepared before mutation; broad catch and best-effort display fallbacks remain. | Low to medium. |
+| `@move` | Moves object to destination. | Success display is prepared before mutation and move result/location are checked before reporting success. | Low. |
 | `@edit` | Opens property/object editor. | Broad catch; delegates editor setup. | Medium. |
 | `@set-message @setm` | Sets a message template property. | Template compile failures are reported and success display is prepared before mutation; broad command-boundary catch remains. | Low to medium. |
 | `@get-message @getm` | Reads a message template property. | Decompile fallback to literal; broad catch. | Medium. |
