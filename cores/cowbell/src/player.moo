@@ -465,7 +465,7 @@ object PLAYER
     seen = [];
     features = typeof(this.features) == TYPE_LIST ? this.features | {};
     candidates = {@features, this.authoring_features};
-    admin_features = `this.admin_features ! ANY => {}';
+    admin_features = this.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
     candidates = {@candidates, @admin_features};
     (this.wizard || this:has_admin_elevation()) && (candidates = {@candidates, $wiz_features});
@@ -2758,13 +2758,13 @@ object PLAYER
 
   verb has_admin_elevation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "True when this player is running inside delegated admin elevation.";
-    admin_features = `this.admin_features ! ANY => {}';
+    admin_features = this.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
     for feat in (admin_features)
       if (!valid(feat))
         continue;
       endif
-      if (`feat:is_elevated(this) ! ANY => false')
+      if (feat:is_elevated(this))
         return true;
       endif
     endfor

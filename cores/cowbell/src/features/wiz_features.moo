@@ -723,9 +723,9 @@ object WIZ_FEATURES
       sources = {@sources, primary};
     endif
     include_admin = true;
-    admin_features = `$sysobj.admin_features ! E_PROPNF => $nothing';
+    admin_features = $sysobj.admin_features;
     if (typeof(for_player) == TYPE_OBJ && valid(for_player) && valid(admin_features))
-      player_admin_features = `for_player.admin_features ! ANY => {}';
+      player_admin_features = for_player.admin_features;
       typeof(player_admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
       if (is_member(admin_features, player_admin_features))
         include_admin = false;
@@ -854,11 +854,9 @@ object WIZ_FEATURES
       endif
     endif
     "Ensure admin and wizard feature objects are wired";
-    admin_features = `target.admin_features ! ANY => {}';
-    if (typeof(admin_features) != TYPE_LIST)
-      admin_features = valid(admin_features) ? {admin_features} | {};
-    endif
-    admin_feat_obj = `$admin_features ! ANY => $nothing';
+    admin_features = target.admin_features;
+    typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
+    admin_feat_obj = $admin_features;
     if (valid(admin_feat_obj) && !is_member(admin_feat_obj, admin_features))
       admin_features = {@admin_features, admin_feat_obj};
     endif
