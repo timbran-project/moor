@@ -1870,7 +1870,7 @@ object PROG_FEATURES
     if (valid(target_obj))
       obj_display = tostr(target_obj);
       for prop in (properties(#0))
-        val = `#0.(prop) ! ANY => 0';
+        val = #0.(prop);
         if (val == target_obj)
           obj_display = "$" + prop;
           break;
@@ -1913,7 +1913,7 @@ object PROG_FEATURES
           "Get all properties on #0 that point to valid objects";
           sysrefs = {};
           for prop in (properties(#0))
-            val = `#0.(prop) ! ANY => 0';
+            val = #0.(prop);
             if (typeof(val) == TYPE_OBJ && valid(val))
               sysrefs = {@sysrefs, "$" + prop};
             endif
@@ -1934,7 +1934,7 @@ object PROG_FEATURES
         "Verb not found - provide list of verbs on the object";
         prompt = prompt + "They tried to look up verb '" + item_name + "' on " + obj_display + ".\n\n";
         prompt = prompt + "VERBS ON " + obj_display + ":\n";
-        verb_list = `verbs(target_obj) ! ANY => {}';
+        verb_list = verbs(target_obj);
         if (length(verb_list) > 50)
           verb_list = verb_list[1..50];
           prompt = prompt + verb_list:join(", ") + " ... (and more)\n\n";
@@ -1943,8 +1943,8 @@ object PROG_FEATURES
         endif
         "Also check ancestors for inherited verbs";
         inherited = {};
-        for anc in (`ancestors(target_obj) ! ANY => {}')
-          for v in (`verbs(anc) ! ANY => {}')
+        for anc in (ancestors(target_obj))
+          for v in (verbs(anc))
             if (!(v in verb_list) && !(v in inherited) && length(inherited) < 20)
               inherited = {@inherited, v};
             endif
@@ -1958,7 +1958,7 @@ object PROG_FEATURES
         "Property not found - provide list of properties on the object";
         prompt = prompt + "They tried to look up property '" + item_name + "' on " + obj_display + ".\n\n";
         prompt = prompt + "PROPERTIES ON " + obj_display + ":\n";
-        prop_list = `properties(target_obj) ! ANY => {}';
+        prop_list = properties(target_obj);
         if (length(prop_list) > 50)
           prop_list = prop_list[1..50];
           prompt = prompt + prop_list:join(", ") + " ... (and more)\n\n";
