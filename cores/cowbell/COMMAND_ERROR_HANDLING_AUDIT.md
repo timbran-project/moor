@@ -137,7 +137,7 @@ and LLM-assisted suggestions.
 
 | Command | Current formulation | Defensive patterns | Risk |
 | --- | --- | --- | --- |
-| `look` | Match object/passage, then render object or passage; not-found/ambiguous reported directly. | `$match:match_object(...) ! ANY => E_NONE`; name/alias loops skip bad entries. | High: broad match failure can hide matcher regressions and collapse them into not-found behavior. |
+| `look` | Match object/passage, then render object or passage; not-found/ambiguous reported directly. | Unexpected object matcher failures and malformed passage records are reported; name/alias loops still use display fallbacks. | Low to medium: remaining fallbacks are ambiguity/display helpers rather than structural lookup defaults. |
 | `inventory` | Renders carried item names as a list. | Cosmetic defaults for display names. | Low. |
 | `who @who` | Match optional player, otherwise render connected players. | `last_connected` / `last_disconnected` defaulting; idle checks. | Low to medium; mostly display fallback. |
 | `@pronouns` | Direct validation and preset lookup; reports unknown sets. | Type guard for pronoun flyweight. | Low. |
@@ -172,7 +172,7 @@ and LLM-assisted suggestions.
 
 ### Main Problem Shapes
 
-- `look`, `help`, travel, and assist use broad defaulting in control flow.
+- `help`, travel, and assist use broad defaulting in control flow.
 - Help and assist loops silently skip malformed providers/topics/verbs.
 - Direct display fallbacks are usually fine; structural defaults should be
   narrowed.

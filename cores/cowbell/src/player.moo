@@ -89,7 +89,11 @@ object PLAYER
         return this:inform_current($event:mk_error(player, "\"" + dobjstr + "\" is ambiguous. Try being more specific."):with_audience('utility));
       elseif (typeof(match_result) == TYPE_ERR || match_result == $failed_match || !valid(match_result))
         "Object match failed - try as passage direction";
-        passage_desc = this:_look_passage(dobjstr);
+        try
+          passage_desc = this:_look_passage(dobjstr);
+        except e (ANY)
+          return this:inform_current($event:mk_error(player, "Passage lookup failed: " + toliteral(e)):with_audience('utility));
+        endtry
         if (passage_desc)
           return this:inform_current($event:mk_info(player, passage_desc):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
         else
@@ -126,16 +130,28 @@ object PLAYER
     endif
     "Search for passage matching the direction";
     for p in (passages)
-      side_a_room = p.side_a_room;
-      side_b_room = p.side_b_room;
+      try
+        side_a_room = p.side_a_room;
+        side_b_room = p.side_b_room;
+      except e (ANY)
+        raise(E_INVARG, "Malformed passage in " + tostr(area) + ": " + toliteral(p) + " (" + toliteral(e) + ")");
+      endtry
       if (current_room == side_a_room)
-        label = p.side_a_label;
-        aliases = p.side_a_aliases;
-        description = p.side_a_description;
+        try
+          label = p.side_a_label;
+          aliases = p.side_a_aliases;
+          description = p.side_a_description;
+        except e (ANY)
+          raise(E_INVARG, "Malformed passage side for " + tostr(p) + ": " + toliteral(e));
+        endtry
       elseif (current_room == side_b_room)
-        label = p.side_b_label;
-        aliases = p.side_b_aliases;
-        description = p.side_b_description;
+        try
+          label = p.side_b_label;
+          aliases = p.side_b_aliases;
+          description = p.side_b_description;
+        except e (ANY)
+          raise(E_INVARG, "Malformed passage side for " + tostr(p) + ": " + toliteral(e));
+        endtry
       else
         continue;
       endif
@@ -3539,6 +3555,33 @@ object PLAYER
     $test_utils:assert_eq(info["name"], "Assist Probe", "assist info should include object name");
     $test_utils:assert_eq(info["aliases"], {"assist-probe"}, "assist info should include aliases");
     $test_utils:assert_true(found_get, "assist info should include inherited readable command syntax");
+    return true;
+  endverb
+
+  verb test_look_passage_reports_malformed_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Passage lookup should report malformed passage records instead of treating them as misses.";
+    original_location = this.location;
+    area = $area:create(true);
+    room_a = $room:create(true);
+    room_b = $room:create(true);
+    try
+      move(room_a, area);
+      move(room_b, area);
+      move(this, room_a);
+      area:set_passage(room_a, room_b, $thing);
+      raised = false;
+      try
+        this:_look_passage("north");
+      except e (E_INVARG)
+        raised = true;
+      endtry
+      $test_utils:assert_true(raised, "malformed passage records should raise");
+    finally
+      valid(original_location) && move(this, original_location);
+      $test_utils:destroy_if_valid(room_b);
+      $test_utils:destroy_if_valid(room_a);
+      $test_utils:destroy_if_valid(area);
+    endtry
     return true;
   endverb
 endobject
