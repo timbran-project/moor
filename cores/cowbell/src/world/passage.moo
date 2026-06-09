@@ -466,10 +466,12 @@ object PASSAGE
     {room, description} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
     "Allow strings or precompiled lists (with $sub flyweights)";
-    if (typeof(description) == TYPE_STR && "{" in description && "}" in description)
+    if (typeof(description) == TYPE_STR && ("{" in description || "}" in description))
       try
         description = $sub_utils:compile(description);
-      except (ANY)
+      except e (ANY)
+        message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+        raise(E_INVARG, "Description template compilation failed: " + message);
       endtry
     elseif (typeof(description) != TYPE_STR && typeof(description) != TYPE_LIST)
       raise(E_TYPE);
@@ -774,5 +776,14 @@ object PASSAGE
     endif
     "Not a door, use the directional label";
     return this:label_for(from_room);
+  endverb
+
+  verb test_with_description_from_reports_template_errors (this none this) owner: HACKER flags: "rxd"
+    "Unit test: passage description updates reject malformed substitution templates.";
+    passage = this:mk($room, "east", {"east"}, "", true, $room, "west", {"west"}, "", true);
+    $test_utils:assert_raises(E_INVARG, passage, "with_description_from", {$room, "broken {template"}, "with_description_from should reject malformed templates");
+    updated = passage:with_description_from($room, "{the direction}");
+    $test_utils:assert_type(updated.side_a_description, TYPE_LIST, "valid substitution descriptions should be compiled");
+    return true;
   endverb
 endobject

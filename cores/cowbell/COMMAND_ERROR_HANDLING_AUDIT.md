@@ -309,7 +309,7 @@ inline fallbacks while inspecting world state.
 | `@parents @ancestors` | Displays ancestor chain. | Display fallbacks and broad catch. | Low to medium. |
 | `@set-thumbnail @thumbnail` | Uploads/sets thumbnail. | Prompt/upload defaults; broad catch. | Medium. |
 | `@passage @passage-info @pinfo` | Displays passage info. | Passage slot defaults. | Medium. |
-| `@set-passage @setp` | Mutates passage fields. | Broad catch; string/list parsing and passage slot defaults. | Medium to high. |
+| `@set-passage @setp` | Mutates passage fields. | Description template compilation failures are reported; string/list parsing and lower-level passage slot defaults remain. | Medium. |
 | `#*` | Numeric/object reference command shortcut. | Delegates matching/display paths. | Medium. |
 | `@show-reaction @showr` | Displays one reaction. | Broad catch and reaction shape handling. | Medium. |
 
