@@ -424,7 +424,7 @@ object ACTOR
         if (valid(item))
           wearing_names = {@wearing_names, item:display_name()};
           if (respond_to(item, 'integrate_description))
-            idesc = `item:integrate_description() ! ANY => ""';
+            idesc = item:integrate_description();
             if (typeof(idesc) == TYPE_STR && idesc != "")
               integrated_descs = {@integrated_descs, idesc};
             endif
