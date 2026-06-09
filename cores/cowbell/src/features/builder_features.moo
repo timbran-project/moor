@@ -2207,7 +2207,7 @@ object BUILDER_FEATURES
       elseif (scope == "inventory")
         search_objects = player.contents;
         !length(search_objects) && raise(E_INVARG, "Your inventory is empty");
-        keys = { {item.name, @`item.aliases ! ANY => {}'} for item in (search_objects) };
+        keys = { {item.name, @item.aliases} for item in (search_objects) };
         thing = complex_match(obj_string, search_objects, keys);
         thing == $failed_match && raise(E_INVARG, "No object found matching '" + obj_string + "' in inventory");
       elseif (scope == "exit")
@@ -2418,7 +2418,7 @@ object BUILDER_FEATURES
         continue;
       endif
       names = {o.name};
-      aliases = `o.aliases ! ANY => {}';
+      aliases = o.aliases;
       if (typeof(aliases) == TYPE_LIST)
         names = {@names, @aliases};
       endif
