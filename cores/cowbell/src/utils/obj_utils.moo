@@ -121,16 +121,16 @@ object OBJ_UTILS
       "Get object display name for tracking source";
       obj_name = `o:display_name() ! ANY => tostr(o)';
       "Walk inheritance chain to collect all verbs";
-      ancestor_chain = `ancestors(o) ! ANY => {}';
+      ancestor_chain = ancestors(o);
       for definer in ({o, @ancestor_chain})
         if (!valid(definer))
           continue;
         endif
         "Get verbs defined at this level";
-        all_verbs = `verbs(definer) ! ANY => {}';
+        all_verbs = verbs(definer);
         for verb_name in (all_verbs)
           "Get verb signature";
-          verb_sig = `verb_args(definer, verb_name) ! ANY => false';
+          verb_sig = verb_args(definer, verb_name);
           if (typeof(verb_sig) != TYPE_LIST || length(verb_sig) < 3)
             continue;
           endif
