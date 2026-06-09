@@ -2701,7 +2701,7 @@ object PROG_FEATURES
         continue;
       endif
       names = {o.name};
-      aliases = `o.aliases ! ANY => {}';
+      aliases = o.aliases;
       if (typeof(aliases) == TYPE_LIST)
         names = {@names, @aliases};
       endif
