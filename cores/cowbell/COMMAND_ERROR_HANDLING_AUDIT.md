@@ -145,10 +145,10 @@ and LLM-assisted suggestions.
 | `put` | Reports that players are not containers. | No defensive helper work. | Low. |
 | `examine x` | Match object, call `:examination()`, render owner/location/verbs. | Broad match catch; skips if examination is not a flyweight; cosmetic owner fallback. | Medium: helper contract failures become "could not examine." |
 | `help what` | Aggregates help sources, object help, command context, and programmer docs. | Many `! ANY => 0` fallbacks, flyweight type guards, source loops that skip malformed topics. | High: broken help providers can disappear from output. |
-| `dm pm tell page` | Match target player, create/deliver DM. | Delivery result defaults with `! ANY => E_NONE`. | Medium: delivery failures can be presented as ordinary status unless explicitly checked. |
-| `reply` | Sends DM to last correspondent. | Delegates to DM path; target/message fallback behavior. | Medium. |
-| `dms messages msgs mail` | Finds mailbox and renders message list. | Mailbox and message properties defaulted. | Medium. |
-| `message` | Displays a single message. | Message/mailbox fallbacks. | Medium. |
+| `dm pm tell page` | Match target player, create/deliver DM. | Delivery failures are caught and reported; ordinary unknown player matches report not-found. | Low. |
+| `reply` | Sends DM to last correspondent. | Delivery failures are caught and reported; missing last correspondent reports directly. | Low. |
+| `dms messages msgs mail` | Finds mailbox and renders message list. | Command creates a mailbox if missing and reads message structures directly. | Low to medium: malformed message records fail visibly rather than being silently skipped. |
+| `message` | Displays a single message. | Index validation is direct; message rendering/letter read failures are not hidden locally. | Low to medium. |
 | `@gag` | Match target and add gag entry. | Broad catch reports generic failure. | Medium. |
 | `@ungag` | Match target and remove gag entry. | Broad catch reports generic failure. | Medium. |
 | `@listgag listgag` | Renders gag list. | Type/shape skips. | Medium: malformed gag entries are silently ignored. |
