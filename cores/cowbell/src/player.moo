@@ -1809,15 +1809,15 @@ object PLAYER
     "Returns a map with name, aliases, and verbs with full syntax.";
     {item} = args;
     obj_name = item:name();
-    obj_aliases = `item:aliases() ! ANY => {}';
+    obj_aliases = item:aliases();
     "Collect usable verbs with full syntax info";
-    usable = `item:usable_verbs() ! ANY => {}';
+    usable = item:usable_verbs();
     verb_list = {};
     seen = {};
     for v in (usable)
       {vname, definer, dobj_spec, prep_spec, iobj_spec} = v;
       "Get full verb names with all aliases";
-      vinfo = `verb_info(definer, vname) ! ANY => {}';
+      vinfo = verb_info(definer, vname);
       if (typeof(vinfo) == TYPE_LIST && length(vinfo) >= 3)
         full_names = strsub(vinfo[3], "*", "");
       else
@@ -1853,10 +1853,10 @@ object PLAYER
       info["commands"] = verb_list;
     endif
     "Add state for containers";
-    is_container = `$container in {item, @ancestors(item)} ! ANY => false';
+    is_container = $container in {item, @ancestors(item)};
     if (is_container)
-      is_open = `item.open ! ANY => #-1';
-      is_locked = `item.locked ! ANY => #-1';
+      is_open = item.open;
+      is_locked = item.locked;
       if (is_open == true)
         info["state"] = "open";
       elseif (is_open == false)
@@ -1868,9 +1868,9 @@ object PLAYER
       endif
     endif
     "Add state for sittables";
-    is_sittable = `$sittable in {item, @ancestors(item)} ! ANY => false';
+    is_sittable = $sittable in {item, @ancestors(item)};
     if (is_sittable)
-      occupants = `item.sitting ! ANY => {}';
+      occupants = item.sitting;
       if (length(occupants) > 0)
         names = {};
         for occ in (occupants)
@@ -3457,6 +3457,24 @@ object PLAYER
     bonk_topic = this:find_help_topic("bonk");
     $test_utils:assert_type(bonk_topic, TYPE_FLYWEIGHT, "feature-generated help topic 'bonk' should resolve");
     $test_utils:assert_eq(bonk_topic.name, "bonk", "feature-generated help topic name");
+    return true;
+  endverb
+
+  verb test_assist_object_info_includes_command_metadata (this none this) owner: HACKER flags: "rxd"
+    "Assist object info should include object aliases and readable command syntax.";
+    scratch = $test_utils:anonymous($thing);
+    scratch.name = "Assist Probe";
+    scratch.aliases = {"assist-probe"};
+    info = this:_collect_object_info(scratch);
+    found_get = false;
+    for command in (info["commands"])
+      if (index(command, "get") == 1 && index(command, "<this>"))
+        found_get = true;
+      endif
+    endfor
+    $test_utils:assert_eq(info["name"], "Assist Probe", "assist info should include object name");
+    $test_utils:assert_eq(info["aliases"], {"assist-probe"}, "assist info should include aliases");
+    $test_utils:assert_true(found_get, "assist info should include inherited readable command syntax");
     return true;
   endverb
 endobject
