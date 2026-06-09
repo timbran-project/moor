@@ -411,7 +411,7 @@ object PLAYER
       description = {base_desc, " ", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " awake, but ", $sub:verb_have_dobj(), " been staring off into space for ", time, "."};
     endif
     "Append shared actor details from $actor.";
-    details = `this:_look_self_details() ! ANY => {}';
+    details = this:_look_self_details();
     if (details && length(details) > 0)
       description = {@description, @details};
     endif

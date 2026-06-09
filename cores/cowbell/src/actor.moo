@@ -438,7 +438,7 @@ object ACTOR
         details = {@details, " ", idesc};
       endfor
     endif
-    activity_descriptions = `this:action_activity_descriptions(this) ! ANY => {}';
+    activity_descriptions = this:action_activity_descriptions(this);
     if (activity_descriptions && length(activity_descriptions) > 0)
       details = {@details, "\n\n", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " currently ", activity_descriptions:english_list(), "."};
     endif
