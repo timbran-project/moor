@@ -616,16 +616,16 @@ object ROOT
     "Returns: <$examination, [slots...]>";
     set_task_perms(caller_perms());
     "Get basic properties";
-    obj_name = `this:name() ! ANY => this.name';
-    obj_aliases = `this:aliases() ! ANY => this.aliases';
-    obj_description = `this:description() ! ANY => this.description';
-    obj_owner = `this.owner ! ANY => #-1';
-    obj_parent = `parent(this) ! ANY => #-1';
-    obj_location = `this.location ! ANY => #-1';
+    obj_name = this:name();
+    obj_aliases = this:aliases();
+    obj_description = this:description();
+    obj_owner = this.owner;
+    obj_parent = parent(this);
+    obj_location = this.location;
     "Get verbs that can use this object as a target";
     usable = this:usable_verbs();
     "Get contents";
-    obj_contents = `this:contents() ! E_PROPNF => {}';
+    obj_contents = this:contents();
     return <$examination, .object_ref = this, .name = obj_name, .aliases = obj_aliases, .description = obj_description, .owner = obj_owner, .parent = obj_parent, .location = obj_location, .verbs = usable, .contents = obj_contents>;
   endverb
 
