@@ -936,6 +936,32 @@
   transition: background-color 0.2s ease;
 }
 
+.browser-filter-toggle-text {
+  width: auto;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+}
+
+.browser-filter-segmented {
+  gap: 2px;
+  padding: 2px;
+}
+
+.browser-filter-segmented .browser-filter-toggle-text {
+  height: 22px;
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.browser-filter-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .browser-inherited-toggle.active,
 .browser-filter-toggle.active {
   background-color: color-mix(in srgb, var(--color-text-accent) 84%, white 16%);

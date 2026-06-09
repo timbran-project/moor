@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { usePersistentState } from "../hooks/usePersistentState.js";
 import { useTouchDevice } from "../hooks/useTouchDevice.js";
+import { useAuthContext } from "../context/AuthContext";
 import { MoorVar } from "../lib/MoorVar.js";
 import {
     fetchServerFeatures,
@@ -126,6 +127,15 @@ const isTestVerb = (name: string): boolean => name.startsWith("test_");
 const isMethodVerb = (verb: VerbData): boolean =>
     verb.dobj === "this" && verb.prep === "none" && verb.iobj === "this";
 
+const normalizeObjectRefForCompare = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    try {
+        return stringToCurie(raw).toLowerCase();
+    } catch {
+        return null;
+    }
+};
+
 // Helper to decode object flags to readable string
 function formatObjectFlags(flags: number): string {
     const parts: string[] = [];
@@ -227,6 +237,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     focusedObjectCurie,
     onOpenVerbInEditor,
 }) => {
+    const { authState } = useAuthContext();
+    const playerObjectRef = normalizeObjectRefForCompare(authState.player?.oid);
     const isMobile = useMediaQuery("(max-width: 768px)");
     const isTouchDevice = useTouchDevice();
     // Use tabbed layout on touch devices with mobile-sized screens
@@ -373,6 +385,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     const [showMethods, setShowMethods] = usePersistentState(
         "moor-object-browser-show-methods",
         true,
+    );
+    const [showMineOnly, setShowMineOnly] = usePersistentState(
+        "moor-object-browser-show-mine-only",
+        false,
     );
     const [serverFeatures, setServerFeatures] = useState<ServerFeatureSet | null>(null);
     const [dollarNames, setDollarNames] = useState<Map<string, string>>(new Map());
@@ -1711,6 +1727,11 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     // Filter and group objects by type
     const filteredObjects = objects
         .filter(obj => {
+            if (!showMineOnly) return true;
+            if (!playerObjectRef) return false;
+            return normalizeObjectRefForCompare(obj.owner) === playerObjectRef;
+        })
+        .filter(obj => {
             const filterLower = filter.toLowerCase();
             // Strip leading $ for matching against dollarNames
             const filterNormalized = filterLower.startsWith("$") ? filterLower.slice(1) : filterLower;
@@ -2024,17 +2045,49 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                 >
                                     Objects
                                 </span>
-                                <button
-                                    type="button"
-                                    className="btn btn-sm"
-                                    onClick={() => {
-                                        setShowCreateDialog(true);
-                                    }}
-                                    style={{ fontSize: `${secondaryFontSize}px` }}
-                                    title="Add new object"
-                                >
-                                    + Add
-                                </button>
+                                <div className="browser-pane-actions">
+                                    <div
+                                        className="browser-filter-controls browser-filter-segmented"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <button
+                                            type="button"
+                                            className={`browser-filter-toggle browser-filter-toggle-text ${
+                                                !showMineOnly ? "active" : ""
+                                            }`}
+                                            onClick={() => setShowMineOnly(false)}
+                                            aria-label="Show all objects"
+                                            aria-pressed={!showMineOnly}
+                                            title="Show all objects"
+                                        >
+                                            All
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`browser-filter-toggle browser-filter-toggle-text ${
+                                                showMineOnly ? "active" : ""
+                                            }`}
+                                            onClick={() => setShowMineOnly(true)}
+                                            aria-label="Show only objects owned by me"
+                                            aria-pressed={showMineOnly}
+                                            title="Show only objects owned by me"
+                                            disabled={!playerObjectRef}
+                                        >
+                                            Mine
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm"
+                                        onClick={() => {
+                                            setShowCreateDialog(true);
+                                        }}
+                                        style={{ fontSize: `${secondaryFontSize}px` }}
+                                        title="Add new object"
+                                    >
+                                        + Add
+                                    </button>
+                                </div>
                             </div>
                             <div className="p-sm border-bottom bg-secondary">
                                 <input
