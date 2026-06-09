@@ -15,7 +15,7 @@ object HELP_SOURCE
     "Reads ordered topic properties as either $help flyweights or tuple data.";
     {for_player, ?topic = ""} = args;
     props = properties(this);
-    order = `this.topic_order ! ANY => {}';
+    order = this.topic_order;
     if (typeof(order) != TYPE_LIST)
       order = {};
     endif
@@ -34,7 +34,7 @@ object HELP_SOURCE
     endfor
     my_topics = {};
     for prop in (names)
-      data = `this.(prop) ! ANY => 0';
+      data = this.(prop);
       if (typeof(data) == TYPE_FLYWEIGHT)
         t = data;
       elseif (typeof(data) == TYPE_LIST && length(data) >= 3)
@@ -61,7 +61,7 @@ object HELP_SOURCE
       endif
       if (topic == "")
         my_topics = {@my_topics, t};
-      elseif (`t:matches(topic) ! ANY => false')
+      elseif (t:matches(topic))
         return t;
       endif
     endfor

@@ -305,7 +305,7 @@ object HELP_TOPICS
     "Topics are stored as topic_* properties: {name, summary, content, aliases, category, see_also}";
     {for_player, ?topic = ""} = args;
     props = properties(this);
-    order = `this.topic_order ! ANY => {}';
+    order = this.topic_order;
     if (typeof(order) != TYPE_LIST)
       order = {};
     endif
