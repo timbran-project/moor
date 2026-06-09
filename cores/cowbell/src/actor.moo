@@ -310,8 +310,8 @@ object ACTOR
     "Return structured data for client inspection popover.";
     {?who = player} = args;
     item_name = `this:name() ! E_VERBNF => this.name';
-    desc = `this:description() ! ANY => ""';
-    actions = `this:inspection_actions(who) ! ANY => {}';
+    desc = this:description();
+    actions = this:inspection_actions(who);
     return ["title" -> item_name, "description" -> desc, "actions" -> actions];
   endverb
 
@@ -456,11 +456,11 @@ object ACTOR
       actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
       seen = {"do_examine"};
     endif
-    exam = `this:examination() ! ANY => 0';
+    exam = this:examination();
     if (typeof(exam) != TYPE_FLYWEIGHT)
       return actions;
     endif
-    verb_specs = `exam.verbs ! ANY => {}';
+    verb_specs = exam.verbs;
     if (typeof(verb_specs) != TYPE_LIST)
       return actions;
     endif
@@ -506,7 +506,7 @@ object ACTOR
       seen = {@seen, candidate};
       if (mode == "direct")
         can_invoke = 0;
-        info = `verb_info(definer, candidate) ! ANY => 0';
+        info = verb_info(definer, candidate);
         if (typeof(info) == TYPE_LIST && length(info) >= 2 && typeof(info[2]) == TYPE_STR)
           perms = info[2];
           if ("x" in perms > 0)
