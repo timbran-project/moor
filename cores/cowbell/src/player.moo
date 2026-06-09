@@ -2034,8 +2034,10 @@ object PLAYER
     if (length(ref) >= 1 && ref[1] in {"#", "$", "@"})
       try
         target = $match:match_object(ref, this);
-      except e (ANY)
+      except e (E_INVARG, E_PROPNF)
         target = 0;
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "Object lookup failed: " + toliteral(e)):with_audience('utility));
       endtry
     else
       try
@@ -2043,9 +2045,13 @@ object PLAYER
       except e (E_INVARG)
         try
           target = $match:match_object(ref, this);
-        except e2 (ANY)
+        except e2 (E_INVARG, E_PROPNF)
           target = 0;
+        except e2 (ANY)
+          return this:inform_current($event:mk_error(this, "Object lookup failed: " + toliteral(e2)):with_audience('utility));
         endtry
+      except e (ANY)
+        return this:inform_current($event:mk_error(this, "Player lookup failed: " + toliteral(e)):with_audience('utility));
       endtry
     endif
     if (typeof(target) == TYPE_OBJ && valid(target))
