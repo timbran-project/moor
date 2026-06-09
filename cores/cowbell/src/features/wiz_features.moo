@@ -56,11 +56,11 @@ object WIZ_FEATURES
     is_upgrade = target.authoring_features == $builder_features;
     "Check if player has a description (skip for upgrades)";
     if (!is_upgrade)
-      desc = `target:description() ! ANY => ""';
+      desc = target:description();
       if (!desc || desc == "")
         "Get pronouns for proper grammar";
         pronouns = `target:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
-        possessive = `pronouns.possessive ! ANY => "their"';
+        possessive = pronouns.possessive;
         question = "Grant " + target:name() + " programmer bit despite " + possessive + " lack of description?";
         metadata = {{"input_type", "yes_no"}, {"prompt", question}};
         response = player:read_with_prompt(metadata);
@@ -150,10 +150,10 @@ object WIZ_FEATURES
     endif
     "Check if player has a description (skip for downgrades)";
     if (!is_downgrade)
-      desc = `dobj:description() ! ANY => ""';
+      desc = dobj:description();
       if (!desc || desc == "")
         pronouns = `dobj:pronouns() ! E_VERBNF => $pronouns:mk('they, 'them, 'their, 'theirs, 'themself, false)';
-        possessive = `pronouns.possessive ! ANY => "their"';
+        possessive = pronouns.possessive;
         question = "Grant " + dobj:name() + " builder status despite " + possessive + " lack of description?";
         metadata = {{"input_type", "yes_no"}, {"prompt", question}};
         response = player:read_with_prompt(metadata);
