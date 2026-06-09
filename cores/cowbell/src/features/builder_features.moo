@@ -320,7 +320,7 @@ object BUILDER_FEATURES
       parent_obj = result['parent];
       "Reject duplicate room names in the target area";
       if (valid(target_area))
-        for existing_room in (`target_area.contents ! ANY => {}')
+        for existing_room in (target_area.contents)
           existing_name = `existing_room.name ! ANY => ""';
           if (existing_name == room_name)
             raise(E_INVARG, "A room named \"" + room_name + "\" already exists in " + tostr(target_area) + ".");
@@ -509,13 +509,13 @@ object BUILDER_FEATURES
       "Build alias->room map for current room exits";
       existing_from = [];
       for p in (area:passages_from(current_room))
-        side_a_room = `p.side_a_room ! ANY => #-1';
-        side_b_room = `p.side_b_room ! ANY => #-1';
+        side_a_room = p.side_a_room;
+        side_b_room = p.side_b_room;
         if (current_room == side_a_room)
-          aliases = `p.side_a_aliases ! ANY => {}';
+          aliases = p.side_a_aliases;
           other_room = side_b_room;
         elseif (current_room == side_b_room)
-          aliases = `p.side_b_aliases ! ANY => {}';
+          aliases = p.side_b_aliases;
           other_room = side_a_room;
         else
           aliases = {};
@@ -537,13 +537,13 @@ object BUILDER_FEATURES
       if (!is_oneway)
         existing_to = [];
         for p in (area:passages_from(target_room))
-          side_a_room = `p.side_a_room ! ANY => #-1';
-          side_b_room = `p.side_b_room ! ANY => #-1';
+          side_a_room = p.side_a_room;
+          side_b_room = p.side_b_room;
           if (target_room == side_a_room)
-            aliases = `p.side_a_aliases ! ANY => {}';
+            aliases = p.side_a_aliases;
             other_room = side_b_room;
           elseif (target_room == side_b_room)
-            aliases = `p.side_b_aliases ! ANY => {}';
+            aliases = p.side_b_aliases;
             other_room = side_a_room;
           else
             aliases = {};
