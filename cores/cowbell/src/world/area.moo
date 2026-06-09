@@ -163,7 +163,7 @@ object AREA
       for binding in (results)
         dest = binding['dest];
         passage = binding['passage];
-        if (only_open && !`passage.is_open ! ANY => true')
+        if (only_open && !passage.is_open)
           continue;
         endif
         if (!maphaskey(visited, dest))
@@ -176,7 +176,7 @@ object AREA
       for binding in (results)
         src = binding['src];
         passage = binding['passage];
-        if (only_open && !`passage.is_open ! ANY => true')
+        if (only_open && !passage.is_open)
           continue;
         endif
         if (!maphaskey(visited, src))
@@ -225,7 +225,7 @@ object AREA
         for binding in (results)
           next = binding['next];
           passage = binding['passage];
-          if (only_open && !`passage.is_open ! ANY => true')
+          if (only_open && !passage.is_open)
             continue;
           endif
           if (next == goal_room)
@@ -241,7 +241,7 @@ object AREA
         for binding in (results)
           next = binding['next];
           passage = binding['passage];
-          if (only_open && !`passage.is_open ! ANY => true')
+          if (only_open && !passage.is_open)
             continue;
           endif
           if (next == goal_room)
@@ -435,7 +435,7 @@ object AREA
     exits = {};
     ambient_passages = {};
     for passage in (passages)
-      is_open = `passage.is_open ! ANY => false';
+      is_open = passage.is_open;
       if (!is_open)
         continue;
       endif
