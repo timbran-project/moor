@@ -609,31 +609,7 @@ object ADMIN_FEATURES
     endif
     for i in [start..length(log)]
       entry = log[i];
-      if (typeof(entry) != TYPE_MAP)
-        continue;
-      endif
-      ts = `entry["time"] ! ANY => 0';
-      if (typeof(ts) == TYPE_INT && ts > 0)
-        ts_str = ctime(ts);
-      else
-        ts_str = tostr(ts);
-      endif
-      status = `entry["status"] ! ANY => ""';
-      if (!status)
-        status = tostr(`entry["kind"] ! ANY => ""');
-      else
-        status = tostr(status);
-      endif
-      kind = tostr(`entry["kind"] ! ANY => ""');
-      actor = `entry["actor"] ! ANY => $nothing';
-      subject = `entry["subject"] ! ANY => $nothing';
-      delegate = `entry["delegate"] ! ANY => $nothing';
-      verb = tostr(`entry["verb"] ! ANY => ""');
-      cmd = tostr(`entry["command"] ! ANY => ""');
-      actor_name = valid(actor) ? actor:name() | "";
-      subject_name = valid(subject) ? subject:name() | "";
-      delegate_name = valid(delegate) ? delegate:name() | "";
-      audit_rows = {@audit_rows, {ts_str, status, kind, actor_name, subject_name, delegate_name, verb, cmd}};
+      audit_rows = {@audit_rows, this:_format_audit_entry(entry)};
     endfor
     title = $format.title:mk("Sudo Status");
     active_title = $format.title:mk("Active Elevated Tasks");
@@ -681,37 +657,53 @@ object ADMIN_FEATURES
     rows = {};
     for i in [start..length(log)]
       entry = log[i];
-      if (typeof(entry) != TYPE_MAP)
-        continue;
-      endif
-      ts = `entry["time"] ! ANY => 0';
-      if (typeof(ts) == TYPE_INT && ts > 0)
-        ts_str = ctime(ts);
-      else
-        ts_str = tostr(ts);
-      endif
-      status = `entry["status"] ! ANY => ""';
-      if (!status)
-        status = tostr(`entry["kind"] ! ANY => ""');
-      else
-        status = tostr(status);
-      endif
-      kind = tostr(`entry["kind"] ! ANY => ""');
-      actor = `entry["actor"] ! ANY => $nothing';
-      subject = `entry["subject"] ! ANY => $nothing';
-      delegate = `entry["delegate"] ! ANY => $nothing';
-      verb = tostr(`entry["verb"] ! ANY => ""');
-      cmd = tostr(`entry["command"] ! ANY => ""');
-      actor_name = valid(actor) ? actor:name() | "";
-      subject_name = valid(subject) ? subject:name() | "";
-      delegate_name = valid(delegate) ? delegate:name() | "";
-      rows = {@rows, {ts_str, status, kind, actor_name, subject_name, delegate_name, verb, cmd}};
+      rows = {@rows, this:_format_audit_entry(entry)};
     endfor
     title = $format.title:mk("Sudo Audit Log");
     summary = $format.code:mk("Showing entries " + tostr(start) + "-" + tostr(length(log)) + " of " + tostr(length(log)) + ".");
     table = $format.table:mk({"Time", "Status", "Kind", "Actor", "Subject", "Delegate", "Verb", "Command"}, rows);
     content = $format.block:mk(title, summary, table);
     player:inform_current($event:mk_info(player, content):with_audience('utility));
+    return true;
+  endverb
+
+  verb _format_audit_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format one sudo audit entry row, including malformed entries.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {entry} = args;
+    if (typeof(entry) != TYPE_MAP)
+      return {"", "invalid", "malformed", "", "", "", "", toliteral(entry)};
+    endif
+    ts = `entry["time"] ! ANY => 0';
+    if (typeof(ts) == TYPE_INT && ts > 0)
+      ts_str = ctime(ts);
+    else
+      ts_str = tostr(ts);
+    endif
+    status = `entry["status"] ! ANY => ""';
+    if (!status)
+      status = tostr(`entry["kind"] ! ANY => ""');
+    else
+      status = tostr(status);
+    endif
+    kind = tostr(`entry["kind"] ! ANY => ""');
+    actor = `entry["actor"] ! ANY => $nothing';
+    subject = `entry["subject"] ! ANY => $nothing';
+    delegate = `entry["delegate"] ! ANY => $nothing';
+    verb = tostr(`entry["verb"] ! ANY => ""');
+    cmd = tostr(`entry["command"] ! ANY => ""');
+    actor_name = valid(actor) ? `actor:name() ! ANY => tostr(actor)' | "";
+    subject_name = valid(subject) ? `subject:name() ! ANY => tostr(subject)' | "";
+    delegate_name = valid(delegate) ? `delegate:name() ! ANY => tostr(delegate)' | "";
+    return {ts_str, status, kind, actor_name, subject_name, delegate_name, verb, cmd};
+  endverb
+
+  verb test_format_audit_entry_reports_malformed_entries (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Audit display should show malformed entries instead of silently skipping them.";
+    row = this:_format_audit_entry("not a map");
+    $test_utils:assert_eq(row[2], "invalid", "malformed audit entry should have invalid status");
+    $test_utils:assert_eq(row[3], "malformed", "malformed audit entry should identify malformed kind");
+    $test_utils:assert_eq(row[8], "\"not a map\"", "malformed audit entry should preserve the literal value");
     return true;
   endverb
 endobject

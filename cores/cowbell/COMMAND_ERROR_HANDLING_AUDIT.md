@@ -243,14 +243,14 @@ dispatch setup.
 
 | Command | Current formulation | Defensive patterns | Risk |
 | --- | --- | --- | --- |
-| `@sudo-revoke` | Match target, remove delegate/allowlist entries, append audit log. | `dobj ! ANY => $nothing`, admin feature defaults, audit append swallowed. | Medium: audit append failure is silent. |
-| `@sudo-allow` | Match target, parse allowlist specs, update allow map. | Skips malformed specs; `toobj(...) ! ANY => $nothing`; audit append swallowed. | Medium. |
-| `@sudo-grant` | Match subject/delegate and grant delegation. | `dobj`/`iobj` defaulting, admin feature defaults, audit append swallowed. | Medium. |
-| `@sudo` | Parse and dispatch a delegated command. | Heavy context defaulting; broad parse and dispatch catches; audit append swallowed; skips malformed features and verbs. | High: this is security-sensitive and has many silent fallbacks. |
+| `@sudo-revoke` | Match target, remove delegate/allowlist entries, append audit log. | Direct/indirect parser values fall back to explicit player match; audit append is strict. | Low to medium. |
+| `@sudo-allow` | Match target, parse allowlist specs, update allow map. | Blank/malformed allowlist specs are rejected; unresolved `obj::verb` object parts remain literal; audit append is strict. | Low to medium. |
+| `@sudo-grant` | Match subject/delegate and grant delegation. | Direct/indirect parser values fall back to explicit player match; admin feature list type is checked; audit append is strict. | Low to medium. |
+| `@sudo` | Parse and dispatch a delegated command. | Parse, confirmation, dispatch, and denial paths append strict audit records and report visible command errors. | Medium: security-sensitive path still has best-effort command environment construction. |
 | `@dump-database` | Calls `dump_database()` and reports success/failure. | Boundary `except ANY`. | Low. |
 | `@sudo-show` | Shows configured sudo state and active tasks for target. | Skips malformed active entries; defaults map fields. | Medium. |
-| `@sudo-who` | Lists active sudo and recent audit entries. | Skips malformed entries; defaults map fields. | Medium. |
-| `@sudo-log` | Lists audit log entries. | `toint(...) ! ANY => 0`; skips malformed entries; defaults fields. | Medium. |
+| `@sudo-who` | Lists active sudo and recent audit entries. | Expired/malformed active task entries are skipped; malformed audit entries are shown explicitly. | Low to medium: active display remains best-effort cleanup. |
+| `@sudo-log` | Lists audit log entries. | Positive integer parsing is direct; malformed audit entries are shown explicitly. | Low. |
 
 ### Utilities And Helpers
 
@@ -260,9 +260,9 @@ dispatch setup.
 
 ### Main Problem Shapes
 
-- Audit logging failures are deliberately swallowed with `! ANY => 0`.
-- Display commands skip malformed audit/active entries; acceptable for display,
-  but it should log corruption.
+- Audit logging failures now propagate through `_append_log` callers.
+- Display commands show malformed audit entries; active task display remains
+  best-effort and skips expired/malformed active entries.
 - `@sudo` is the highest-risk command in this object because it mixes
   best-effort feature traversal, allowlist enforcement, delegated invocation,
   prompting, and audit logging.
