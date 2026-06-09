@@ -595,7 +595,7 @@ permission-specific handling now does.
 | 4 | `help`/assist: report provider/source failures instead of dropping | **Done.** `propagate feature help provider errors`, `report help object lookup failures`, `surface help topic provider failures`, `require assist/suggestion/ambient verb metadata reads`, `surface assist object metadata failures`. |
 | 5 | `@sudo`: audit every `! ANY =>` fallback; audit-log append visible | **Done.** `_append_log` cleaned — no `! ANY =>` swallowing, validates types, raises `E_PERM`/`E_TYPE`. `narrow sudo parser fallbacks`, `require sudo active fields`, `require sudo dispatch environment reads`, `require sudo grant state reads`, `require admin feature state`. |
 | 6 | `@dig`/`@undig`/`@build`: separate "no matching" from "failed to inspect" | **Done.** `surface passage metadata failures`, `surface passage template compile failures`, `require undig passage reads`, `require builder structure reads`, `require builder alias reads`, `require passage openness reads`, `surface builder prototype catalog failures`. |
-| 7 | `$obj_utils` scanners: document best-effort, don't reuse for authoritative | **Partial.** `require ambient verb metadata reads` and `require targetable verb examination` tightened the callers. Scanner documentation not yet added inline. |
+| 7 | `$obj_utils` scanners: document best-effort, don't reuse for authoritative | **Done.** `require ambient verb metadata reads` and `require targetable verb examination` tightened the callers; `document object scanner contracts` added inline scanner docstrings warning against authoritative command, permission, or metadata use. |
 
 ### Utility Object Status
 
@@ -639,6 +639,6 @@ These are lower-priority, mostly cosmetic or in best-effort paths:
 
 ### Overall Completion
 
-**~70-75%** of audit items addressed. High-risk security/matching patterns are
-eliminated. The remaining work is narrowing a handful of broad catches in
-best-effort paths and adding scanner documentation.
+**Priority cleanup chart complete.** High-risk security/matching patterns are
+eliminated. The remaining work is lower-priority verification of broad catches
+in mostly cosmetic or best-effort paths.
