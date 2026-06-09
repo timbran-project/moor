@@ -343,7 +343,14 @@ object ADMIN_FEATURES
           if (this.sudo_require_confirm)
             question = "Run `" + command + "` as " + delegate:name() + "?";
             metadata = {{"input_type", "yes_no"}, {"prompt", question}};
-            response = `player:read_with_prompt(metadata) ! ANY => ""';
+            try
+              response = player:read_with_prompt(metadata);
+            except e (ANY)
+              set_task_perms(player);
+              this:_append_log(["kind" -> "sudo", "status" -> "error", "subject" -> player, "delegate" -> delegate, "command" -> command, "target" -> target, "verb" -> matched_name, "error" -> toliteral(e)]);
+              player:inform_current($event:mk_error(player, "Sudo confirmation failed: " + toliteral(e)));
+              return false;
+            endtry
             typeof(response) == TYPE_STR || (response = tostr(response));
             response = response:trim():lowercase();
             if (!(response == "yes" || response == "y"))

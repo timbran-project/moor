@@ -631,7 +631,7 @@ These are lower-priority, mostly cosmetic or in best-effort paths:
 - Owner/location display fallbacks in `examine`
 
 **Minor structural concerns:**
-- `player:read_with_prompt(metadata) ! ANY => ""` in `@sudo` confirm flow (line 346). Failure means "Sudo cancelled" instead of surfacing the actual error, but the prompt is cosmetic confirmation.
+- ~~`player:read_with_prompt(metadata) ! ANY => ""` in `@sudo` confirm flow~~. Fixed by reporting/logging prompt failures as sudo errors while preserving explicit user cancellation.
 - `except e (ANY)` with empty body in assist suggestion loop (line 3110). Swallows parse/command errors silently. Classified as "intentionally best-effort" but could benefit from debug logging.
 - ~~`except e (ANY)` defaulting match_object to `0` in `@ungag`~~. Fixed by narrowing expected not-found errors and reporting unexpected player/object lookup failures.
 - `$builder_features` has 35 `except ANY` blocks — these are at command boundaries (acceptable if helpers raise), but a few may be overly broad.
