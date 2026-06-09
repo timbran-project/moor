@@ -226,7 +226,7 @@ object AGENT_BUILDING_TOOLS
     {args_map, actor} = args;
     set_task_perms(actor);
     {direction, description, ambient, source_spec} = {args_map["direction"], args_map["description"], maphaskey(args_map, "ambient") ? args_map["ambient"] | true, maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
-    typeof(description) == TYPE_STR && "{" in description && "}" in description && (description = `$sub_utils:compile(description) ! ANY => description');
+    typeof(description) == TYPE_STR && ("{" in description || "}" in description) && (description = $sub_utils:compile(description));
     source_room = this:_resolve_object(source_spec, actor, actor.location);
     typeof(source_room) == TYPE_OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
@@ -1236,6 +1236,11 @@ object AGENT_BUILDING_TOOLS
       move(actor, r1);
       passage = <$passage, .side_a_room = r1, .side_a_label = "east", .side_b_room = r2, .side_b_label = "west", .is_open = true>;
       area:set_passage(r1, r2, passage);
+      $test_utils:assert_raises(E_INVARG, this, "set_passage_description", {["direction" -> "east", "description" -> "broken {template", "source_room" -> r1], $hacker}, "set_passage_description should reject malformed templates");
+      result = this:set_passage_description(["direction" -> "east", "description" -> "{nc} heads east.", "source_room" -> r1], $hacker);
+      $test_utils:assert_true(index(result, "Set description for 'east' passage") > 0, "set_passage_description should report success");
+      updated_passage = area:passage_for(r1, r2);
+      $test_utils:assert_type(updated_passage.side_a_description, TYPE_LIST, "set_passage_description should store compiled templates");
       map = this:area_map([], actor);
       $test_utils:assert_true(index(map, "Current Location: Tool Test Start") > 0, "area_map should include current room name: " + toliteral(map));
       $test_utils:assert_true(index(map, "Area: Tool Test Area") > 0, "area_map should include area name");
