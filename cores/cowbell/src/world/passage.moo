@@ -305,6 +305,7 @@ object PASSAGE
     {player, from_room, parsed} = args;
     valid(player) || return false;
     valid(from_room) || return false;
+    player.location == from_room || return false;
     this:_value("is_open", true) || return this:_notify_blocked(player, from_room);
     this:check_unlock(player, from_room) || return this:_notify_locked(player, from_room);
     to_room = this:other_room(from_room);
@@ -317,7 +318,7 @@ object PASSAGE
     "Notify room contents before departure (e.g., stand up from furniture)";
     `from_room:notify_pre_exit(player) ! E_VERBNF => 0';
     "Actually move the player before any expensive presentation work.";
-    player:moveto(to_room);
+    this:_move_actor(player, to_room);
     "Render and announce movement asynchronously after the move commits.";
     fork (0)
       "Render departure event";
@@ -392,6 +393,14 @@ object PASSAGE
       endif
     endfork
     return true;
+  endverb
+
+  verb _move_actor (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Privileged final movement step for checked passage traversal.";
+    caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate) || raise(E_PERM);
+    {actor, destination} = args;
+    valid(actor) && valid(destination) || raise(E_INVARG);
+    return move(actor, destination);
   endverb
 
   verb _notify_blocked (this none this) owner: HACKER flags: "rxd"
