@@ -1456,8 +1456,11 @@ object PROG_FEATURES
           return;
         endif
         search_objects = {target_obj};
-      except e (ANY)
+      except e (E_INVARG, E_PROPNF)
         "No explicit target object; treat full remainder as pattern.";
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error resolving grep target: " + toliteral(e)));
+        return;
       endtry
     endif
     player:inform_current($event:mk_info(player, "Searching for \"" + pattern + "\" in " + tostr(length(search_objects)) + " objects..."));
@@ -1469,7 +1472,12 @@ object PROG_FEATURES
       if (obj_count % 3 == 0)
         suspend_if_needed();
       endif
-      grep_result = this:_do_grep_object(pattern, o, casematters, use_regex, owner_filter);
+      try
+        grep_result = this:_do_grep_object(pattern, o, casematters, use_regex, owner_filter);
+      except e (ANY)
+        player:inform_current($event:mk_error(player, "Error searching " + tostr(o) + ": " + toliteral(e)));
+        return;
+      endtry
       all_matches = {@all_matches, @grep_result['matches]};
       skipped_verb_count = skipped_verb_count + grep_result['skipped_verb_count];
       if (limit && length(all_matches) >= limit)

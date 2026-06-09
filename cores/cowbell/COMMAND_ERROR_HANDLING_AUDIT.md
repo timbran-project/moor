@@ -199,7 +199,7 @@ and list renderers also catch internally and skip failed records.
 | `@args` | Parses verb reference and edits/shows args. | Boundary catches; uses metadata helper. | Low to medium. |
 | `@show @display` | Parses compound selectors, displays header and property/verb tables. | Per-selector catch reports visible errors; inaccessible properties render `(no access)` rows; rows stringify symbol names. | Low to medium: remaining fallbacks are display formatting and per-selector command-boundary reporting. |
 | `@chmod` | Parses selector, normalizes permission changes, applies metadata `set_perms`. | Boundary catches; explicit inherited-selector rejection. | Low to medium. |
-| `@grep` | Searches verb code. | Many skip-on-shape guards; catches verb/code access failures and continues. | High: expected for a grep, but can hide broken metadata/listing APIs. |
+| `@grep` | Searches verb code. | Inaccessible verb code is counted and reported as skipped; unexpected target resolution and per-object search failures are reported. | Low to medium: expected access skips remain for search output. |
 | `@codepaste` | Reads paste content and emits code paste event. | Minimal defensive handling. | Low. |
 | `@documentation @doc` | Parses object/verb/property/builtin docs. | Broad match catch; delegates heavily to `$help_utils`. | Medium. |
 | `@rename` | Handles object rename and verb rename. | Boundary catches, string formatting defaults. | Low to medium. |
@@ -227,7 +227,7 @@ and list renderers also catch internally and skip failed records.
 
 ### Main Problem Shapes
 
-- `@grep` is the major skip-on-error list renderer.
+- `@grep` still skips inaccessible verb code by design, but reports unexpected target/search failures.
 - Several commands catch `ANY` around broad blocks and report `e[2]`, which is
   useful at the boundary but poor inside helpers.
 - Parser and metadata helpers have mixed styles: some raise, some return
