@@ -1341,9 +1341,11 @@ object BUILDER_FEATURES
       "Match the target object";
       try
         target_obj = $match:match_object(object_str, player);
-      except e (ANY)
+      except e (E_INVARG, E_PROPNF)
         player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
         return;
+      except e (ANY)
+        raise(e[1], "Object lookup failed: " + toliteral(e));
       endtry
       "Get remainder after target spec";
       offset = index(argstr, target_spec) + length(target_spec);
