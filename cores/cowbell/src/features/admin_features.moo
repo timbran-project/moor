@@ -106,7 +106,7 @@ object ADMIN_FEATURES
       endfor
       this.sudo_active = active;
     endif
-    admin_features = `target.admin_features ! ANY => {}';
+    admin_features = target.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
     filtered = {};
     for feat in (admin_features)
@@ -125,7 +125,7 @@ object ADMIN_FEATURES
   verb _resolve_delegate (this none this) owner: ARCH_WIZARD flags: "rxd"
     {subject} = args;
     typeof(subject) == TYPE_OBJ || return $nothing;
-    if (`subject.wizard ! ANY => 0')
+    if (subject.wizard)
       return subject;
     endif
     delegates = this.sudo_delegates;
@@ -229,7 +229,7 @@ object ADMIN_FEATURES
       allowed_map[target] = {"@llm-budget", "@llm-set-budget", "@llm-reset-usage"};
     endif
     this.sudo_allowed = allowed_map;
-    admin_features = `target.admin_features ! ANY => {}';
+    admin_features = target.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
     if (!is_member(this, admin_features))
       admin_features = {@admin_features, this};
