@@ -294,7 +294,7 @@ object AGENT_BUILDING_TOOLS
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to rename " + tostr(target_obj));
     {new_name, new_aliases} = $str_proto:parse_name_aliases(args_map["name"]);
     !new_name && raise(E_INVARG, "Object name cannot be blank");
-    old_name = `target_obj.name ! ANY => "(no name)"';
+    old_name = target_obj.name;
     target_obj:set_name_aliases(new_name, new_aliases);
     message = "Renamed \"" + old_name + "\" (" + tostr(target_obj) + ") to \"" + new_name + "\".";
     new_aliases && (message = message + " Aliases: " + new_aliases:join(", ") + ".");
@@ -311,7 +311,7 @@ object AGENT_BUILDING_TOOLS
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to describe " + tostr(target_obj));
     !args_map["description"] && raise(E_INVARG, "Description cannot be blank");
     target_obj.description = args_map["description"];
-    return "Set description of \"" + `target_obj.name ! ANY => tostr(target_obj)' + "\" (" + tostr(target_obj) + ").";
+    return "Set description of \"" + target_obj.name + "\" (" + tostr(target_obj) + ").";
   endverb
 
   verb move_object (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -326,9 +326,9 @@ object AGENT_BUILDING_TOOLS
     dest_obj = this:_resolve_object(dest_spec, actor);
     typeof(dest_obj) == TYPE_OBJ || raise(E_INVARG, "Destination not found");
     valid(dest_obj) || raise(E_INVARG, "Destination no longer exists");
-    old_location_name = valid(target_obj.location) ? `target_obj.location.name ! ANY => tostr(target_obj.location)' | "(nowhere)";
+    old_location_name = valid(target_obj.location) ? target_obj.location.name | "(nowhere)";
     target_obj:moveto(dest_obj);
-    return "Moved \"" + `target_obj.name ! ANY => tostr(target_obj)' + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + `dest_obj.name ! ANY => tostr(dest_obj)' + "\" (" + tostr(dest_obj) + ").";
+    return "Moved \"" + target_obj.name + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + dest_obj.name + "\" (" + tostr(dest_obj) + ").";
   endverb
 
   verb set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -340,7 +340,7 @@ object AGENT_BUILDING_TOOLS
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to modify " + tostr(target_obj));
     target_obj.integrated_description = args_map["integrated_description"];
-    obj_name = `target_obj.name ! ANY => tostr(target_obj)';
+    obj_name = target_obj.name;
     return args_map["integrated_description"] == "" ? "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + ")." | "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description.";
   endverb
 
@@ -369,7 +369,8 @@ object AGENT_BUILDING_TOOLS
     !owned && return "You don't own any objects.";
     result = "You own " + tostr(length(owned)) + " objects:\n";
     for o in (owned)
-      result = result + tostr(o) + ": \"" + `o.name ! ANY => "(no name)"' + "\" (parent: " + (valid(`parent(o) ! ANY => #-1') ? tostr(parent(o)) | "(none)") + ")\n";
+      p = parent(o);
+      result = result + tostr(o) + ": \"" + o.name + "\" (parent: " + (valid(p) ? tostr(p) | "(none)") + ")\n";
     endfor
     return result;
   endverb
@@ -1196,6 +1197,17 @@ object AGENT_BUILDING_TOOLS
       $test_utils:assert_true(index(details, "Name: tool metadata probe") > 0, "inspect_object should include real name");
       $test_utils:assert_true(index(details, "Description:") > 0, "inspect_object should include description field");
       $test_utils:assert_true(index(details, "Parent:") > 0, "inspect_object should include parent metadata");
+      message = this:rename_object(["object" -> created, "name" -> "renamed metadata probe:renamed-probe"], $hacker);
+      $test_utils:assert_true(index(message, "Renamed \"tool metadata probe\"") > 0, "rename_object should report the real previous name");
+      $test_utils:assert_true(index(message, "to \"renamed metadata probe\"") > 0, "rename_object should report the new name");
+      message = this:describe_object(["object" -> created, "description" -> "A probe with renamed metadata."], $hacker);
+      $test_utils:assert_true(index(message, "Set description of \"renamed metadata probe\"") > 0, "describe_object should report the real object name");
+      message = this:move_object(["object" -> created, "destination" -> $hacker], $hacker);
+      $test_utils:assert_true(index(message, "Moved \"renamed metadata probe\"") > 0, "move_object should report the real object name");
+      message = this:set_integrated_description(["object" -> created, "integrated_description" -> "a renamed probe is here"], $hacker);
+      $test_utils:assert_true(index(message, "Set integrated description of \"renamed metadata probe\"") > 0, "set_integrated_description should report the real object name");
+      audit = this:audit_owned([], $hacker);
+      $test_utils:assert_true(index(audit, "renamed metadata probe") > 0, "audit_owned should list real object names");
       add_property(created, "probe_rule", 0, {$hacker, "rc"});
       add_property(created, "probe_msg", "Probe message.", {$hacker, "rc"});
       rules = this:list_rules(["object" -> tostr(created)], $hacker);
