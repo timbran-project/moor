@@ -335,9 +335,9 @@ object WIZ_FEATURES
       raise(E_INVARG, tostr(target) + " is not a player.");
     endif
     "Get budget and usage information";
-    budget = `target.llm_token_budget ! ANY => 20000000';
-    used = `target.llm_tokens_used ! ANY => 0';
-    usage_log = `target.llm_usage_log ! ANY => {}';
+    budget = target.llm_token_budget;
+    used = target.llm_tokens_used;
+    usage_log = target.llm_usage_log;
     percent_used = used * 100 / budget;
     "Build budget info as table";
     title_obj = $format.title:mk("LLM Token Budget for " + target:name() + " (" + tostr(target) + ")");
@@ -387,8 +387,8 @@ object WIZ_FEATURES
     new_budget = tonum(iobjstr);
     typeof(new_budget) == TYPE_INT || raise(E_INVARG, "Budget must be a number.");
     new_budget > 0 || raise(E_INVARG, "Budget must be positive.");
-    old_budget = `target.llm_token_budget ! ANY => 20000000';
-    used = `target.llm_tokens_used ! ANY => 0';
+    old_budget = target.llm_token_budget;
+    used = target.llm_tokens_used;
     question = "Set " + target:name() + "'s LLM token budget to " + tostr(new_budget) + " (currently " + tostr(old_budget) + ", " + tostr(used) + " used)?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
@@ -418,8 +418,8 @@ object WIZ_FEATURES
     if (!is_player(target))
       raise(E_INVARG, tostr(target) + " is not a player.");
     endif
-    used = `target.llm_tokens_used ! ANY => 0';
-    budget = `target.llm_token_budget ! ANY => 20000000';
+    used = target.llm_tokens_used;
+    budget = target.llm_token_budget;
     question = "Reset " + target:name() + "'s LLM token usage from " + tostr(used) + " to 0 (budget: " + tostr(budget) + ")?";
     metadata = {{"input_type", "yes_no"}, {"prompt", question}};
     response = player:read_with_prompt(metadata);
