@@ -16,6 +16,16 @@ import { useAuthContext } from "../context/AuthContext";
 import { OAuth2UserInfo } from "../lib/oauth2";
 import { ContentRenderer } from "./ContentRenderer";
 import { OAuth2Buttons } from "./OAuth2Buttons";
+import { useTheme } from "./ThemeProvider";
+import { type Theme } from "./themeSupport";
+
+const WELCOME_THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
+    { value: "dark", label: "Dark" },
+    { value: "light", label: "Light" },
+    { value: "fresh", label: "Fresh" },
+    { value: "crt", label: "CRT" },
+    { value: "crt-amber", label: "Amber" },
+];
 
 /**
  * Simple loading spinner component for server startup
@@ -184,11 +194,33 @@ export const Login: React.FC<LoginProps> = (
     );
     const [hasOAuth2Providers, setHasOAuth2Providers] = useState(false);
     const { authState } = useAuthContext();
+    const { theme, setTheme } = useTheme();
     const showCredentialEntry = mode === "connect" || (mode === "create" && createStep === "credentials");
     const showOAuth2Options = showCredentialEntry && hasOAuth2Providers;
     const handleOAuth2AvailabilityChange = useCallback((available: boolean) => {
         setHasOAuth2Providers(available);
     }, []);
+    const handleWelcomeThemeChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+        setTheme(event.target.value as Theme);
+    }, [setTheme]);
+
+    const renderWelcomeThemeSelector = () => (
+        <label className="welcome-theme-selector">
+            <span className="sr-only">Theme</span>
+            <select
+                value={theme}
+                onChange={handleWelcomeThemeChange}
+                aria-label="Theme"
+                disabled={authState.isConnecting}
+            >
+                {WELCOME_THEME_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
 
     const usernameRef = useRef<HTMLInputElement>(null);
     const passwordRef = useRef<HTMLInputElement>(null);
@@ -593,6 +625,7 @@ export const Login: React.FC<LoginProps> = (
     if (!isServerReady) {
         return (
             <div className="login_window" style={{ display: "block" }}>
+                {renderWelcomeThemeSelector()}
                 <LoadingSpinner message="Starting server, please wait..." />
             </div>
         );
@@ -602,6 +635,7 @@ export const Login: React.FC<LoginProps> = (
     if (oauth2UserInfo && onOAuth2AccountChoice) {
         return (
             <div className="login_window" style={{ display: "block" }}>
+                {renderWelcomeThemeSelector()}
                 <div className="welcome_box" role="banner" aria-label="Welcome message">
                     <ContentRenderer content={welcomeMessage} contentType={contentType} />
                 </div>
@@ -975,6 +1009,7 @@ export const Login: React.FC<LoginProps> = (
 
     return (
         <div className="login_window" style={{ display: "block", position: "relative" }}>
+            {renderWelcomeThemeSelector()}
             {/* Loading overlay with spinner - shown during authentication */}
             {authState.isConnecting && (
                 <div

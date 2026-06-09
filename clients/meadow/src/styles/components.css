@@ -1075,6 +1075,36 @@
   box-sizing: border-box;
 }
 
+.welcome-theme-selector {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+}
+
+.welcome-theme-selector select {
+  max-width: 7.5rem;
+  min-height: 1.8rem;
+  padding: 0.22rem 1.65rem 0.22rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--color-border-medium) 64%, transparent);
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 86%, transparent);
+  color: color-mix(in srgb, var(--color-text-secondary) 88%, transparent);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.welcome-theme-selector select:hover,
+.welcome-theme-selector select:focus {
+  border-color: var(--color-border-dark);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+}
+
 .welcome_box,
 .login_prompt {
   background-color: var(--color-bg-primary);
