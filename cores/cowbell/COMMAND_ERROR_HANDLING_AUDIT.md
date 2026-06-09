@@ -151,7 +151,7 @@ and LLM-assisted suggestions.
 | `message` | Displays a single message. | Index validation is direct; message rendering/letter read failures are not hidden locally. | Low to medium. |
 | `@gag` | Match target and add gag entry. | Broad catch reports generic failure. | Medium. |
 | `@ungag` | Match target and remove gag entry. | Broad catch reports generic failure. | Medium. |
-| `@listgag listgag` | Renders gag list. | Type/shape skips. | Medium: malformed gag entries are silently ignored. |
+| `@listgag listgag` | Renders gag list. | Invalid local entries are shown explicitly; reverse "who gagged you" scan ignores players without gag-list support. | Low to medium: remaining skip is best-effort reverse display. |
 | `walk go_to goto` | Resolve passage or nearby room, then travel. | Passage, travel, and route lookup failures are reported; room name/alias matching still uses display fallbacks. | Low to medium: remaining fallbacks are candidate-list display helpers. |
 | `join @join` | Match player and attempt travel toward their room. | Unexpected player lookup and route lookup failures are reported; skips players with bad names while building ambiguity hints. | Low to medium. |
 | `home` | Attempts to travel home or reports why it cannot. | Route lookup failures are reported; area/name fallbacks remain display-only. | Low to medium. |

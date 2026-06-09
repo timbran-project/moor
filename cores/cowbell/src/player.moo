@@ -2194,9 +2194,7 @@ object PLAYER
     player_names = {};
     if (this.gaglist && length(this.gaglist) > 0)
       for p in (this.gaglist)
-        if (valid(p))
-          player_names = {@player_names, p:name()};
-        endif
+        player_names = {@player_names, this:_format_gag_entry(p)};
       endfor
     endif
     parts = {@parts, "Gagged players:"};
@@ -2209,9 +2207,7 @@ object PLAYER
     object_names = {};
     if (this.object_gaglist && length(this.object_gaglist) > 0)
       for o in (this.object_gaglist)
-        if (valid(o))
-          object_names = {@object_names, o:name()};
-        endif
+        object_names = {@object_names, this:_format_gag_entry(o)};
       endfor
     endif
     parts = {@parts, "", "Gagged objects:"};
@@ -2241,6 +2237,20 @@ object PLAYER
     content = $format.block:mk(@parts);
     event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
     return this:inform_current(event);
+  endverb
+
+  verb _format_gag_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Format one gag-list entry for display, including malformed entries.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {entry} = args;
+    if (typeof(entry) != TYPE_OBJ || !valid(entry))
+      return "(invalid entry: " + toliteral(entry) + ")";
+    endif
+    try
+      return entry:name();
+    except e (ANY)
+      return "(error reading " + tostr(entry) + ": " + toliteral(e) + ")";
+    endtry
   endverb
 
   verb _display_ambiguous_topic_matches (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -3634,6 +3644,13 @@ object PLAYER
       $test_utils:destroy_if_valid(room_a);
       $test_utils:destroy_if_valid(area);
     endtry
+    return true;
+  endverb
+
+  verb test_format_gag_entry_reports_invalid_entries (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Gag-list display should show malformed entries instead of silently dropping them.";
+    formatted = this:_format_gag_entry(#-1);
+    $test_utils:assert_true(index(formatted, "invalid entry") > 0, "invalid gag-list entry should be visible");
     return true;
   endverb
 endobject
