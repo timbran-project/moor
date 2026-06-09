@@ -347,8 +347,8 @@ object LLM_AGENT
     caller == this || raise(E_PERM);
     {player_obj} = args;
     !valid(player_obj) || !is_player(player_obj) && return true;
-    budget = `player_obj.llm_token_budget ! ANY => 20000000';
-    used = `player_obj.llm_tokens_used ! ANY => 0';
+    budget = player_obj.llm_token_budget;
+    used = player_obj.llm_tokens_used;
     used >= budget && return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
     return true;
   endverb
