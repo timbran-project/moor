@@ -908,7 +908,7 @@ object WIZ_FEATURES
       endtry
       scan_objects = {target};
     else
-      scan_objects = `objects() ! ANY => {}';
+      scan_objects = objects();
     endif
     if (!scan_objects)
       player:inform_current($event:mk_info(player, "No objects available to scan."));
@@ -924,9 +924,9 @@ object WIZ_FEATURES
       if (obj_count % 25 == 0)
         suspend_if_needed();
       endif
-      prop_names = `obj:all_properties() ! ANY => {}';
+      prop_names = obj:all_properties();
       for prop_name in (prop_names)
-        info = `property_info(obj, prop_name) ! ANY => 0';
+        info = property_info(obj, prop_name);
         if (!(typeof(info) == TYPE_LIST && length(info) >= 2))
           continue;
         endif
