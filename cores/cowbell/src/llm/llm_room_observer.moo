@@ -281,8 +281,8 @@ object LLM_ROOM_OBSERVER
     if (!valid(this.agent))
       return;
     endif
-    budget = `user.llm_token_budget ! ANY => 20000000';
-    used = `user.llm_tokens_used ! ANY => 0';
+    budget = user.llm_token_budget;
+    used = user.llm_tokens_used;
     last_usage = this.agent.last_token_usage;
     if (typeof(last_usage) == TYPE_MAP && maphaskey(last_usage, "total_tokens"))
       last_tokens = last_usage["total_tokens"];

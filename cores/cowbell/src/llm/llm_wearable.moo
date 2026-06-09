@@ -109,8 +109,8 @@ object LLM_WEARABLE
     {wearer} = args;
     !valid(this.agent) && return;
     "Don't downgrade perms - need ARCH_WIZARD perms to read llm_token_budget and llm_tokens_used";
-    budget = `wearer.llm_token_budget ! ANY => 20000000';
-    used = `wearer.llm_tokens_used ! ANY => 0';
+    budget = wearer.llm_token_budget;
+    used = wearer.llm_tokens_used;
     percent_used = used * 100 / budget;
     "Color code based on usage";
     if (percent_used >= 90)
