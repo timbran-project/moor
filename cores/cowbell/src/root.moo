@@ -78,15 +78,15 @@ object ROOT
     {new_owner, ?suspendok = 0} = args;
     valid(new_owner) || raise(E_INVARG);
     target.owner = new_owner;
-    for pname in (target:all_properties())
+    for pname in (properties(target))
       if (suspendok && (ticks_left() < 5000 || seconds_left() < 2))
         suspend(0);
       endif
-      info = `property_info(target, pname) ! ANY => 0';
+      info = property_info(target, pname);
       if (typeof(info) == TYPE_LIST && length(info) >= 2)
         perms_string = info[2];
         if (typeof(perms_string) == TYPE_STR && index(perms_string, "c"))
-          `set_property_info(target, pname, {new_owner, perms_string}) ! ANY';
+          set_property_info(target, pname, {new_owner, perms_string});
         endif
       endif
     endfor
@@ -936,6 +936,7 @@ object ROOT
   verb test_mutators_and_help_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Test root metadata mutators and default help behavior.";
     scratch = create($root);
+    new_owner = #-1;
     try
       scratch:set_name_aliases("Renamed Root Test", {"renamed-root", "rrt"});
       $test_utils:assert_eq(scratch.name, "Renamed Root Test", "set_name_aliases() should update name");
@@ -944,6 +945,12 @@ object ROOT
       $test_utils:assert_eq(scratch.description, "Plain root test description.", "set_description() should store plain strings");
       scratch:set_description("This is {n}.");
       $test_utils:assert_type(scratch.description, TYPE_LIST, "set_description() should compile substitution strings");
+      new_owner = create($root);
+      add_property(scratch, "root_test_owned_prop", "owned", {this.owner, "rc"});
+      scratch:set_owner(new_owner);
+      $test_utils:assert_eq(scratch.owner, new_owner, "set_owner() should update object owner");
+      prop_info = property_info(scratch, "root_test_owned_prop");
+      $test_utils:assert_eq(prop_info[1], new_owner, "set_owner() should retitle local c properties");
       scratch:set_thumbnail("text/plain", "not binary");
       raise(E_ASSERT, "set_thumbnail() should reject non-image content types");
     except (E_TYPE)
@@ -952,6 +959,7 @@ object ROOT
     try
       $test_utils:assert_eq(scratch:object_help(), 0, "object_help() should default to no help");
     finally
+      valid(new_owner) && recycle(new_owner);
       valid(scratch) && recycle(scratch);
     endtry
     return true;
