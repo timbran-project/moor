@@ -510,12 +510,13 @@ object AGENT_BUILDING_TOOLS
     all_props = target_obj:all_properties();
     rule_props = {};
     for prop in (all_props)
-      prop:ends_with("_rule") && (rule_props = {@rule_props, prop});
+      prop_name = tostr(prop);
+      prop_name:ends_with("_rule") && (rule_props = {@rule_props, prop_name});
     endfor
     !rule_props && return "No rule properties found on " + tostr(target_obj) + ".";
     lines = {"Rules on " + tostr(target_obj) + ":"};
     for prop in (rule_props)
-      value = `target_obj.(prop) ! ANY => 0';
+      value = target_obj.(prop);
       if (value == 0)
         lines = {@lines, "  " + prop + ": (no rule set)"};
       elseif (typeof(value) == TYPE_FLYWEIGHT)
@@ -733,12 +734,13 @@ object AGENT_BUILDING_TOOLS
     all_props = target_obj:all_properties();
     msg_props = {};
     for prop in (all_props)
-      prop:ends_with("_msg") || prop:ends_with("_msgs") || prop:ends_with("_msg_bag") && (msg_props = {@msg_props, prop});
+      prop_name = tostr(prop);
+      (prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag")) && (msg_props = {@msg_props, prop_name});
     endfor
     !msg_props && return "No message properties found on " + tostr(target_obj) + ".";
     lines = {"Messages on " + tostr(target_obj) + ":"};
     for prop in (msg_props)
-      value = `target_obj.(prop) ! ANY => ""';
+      value = target_obj.(prop);
       if ($msg_bag:is_msg_bag(value))
         lines = {@lines, "  " + prop + ": " + tostr(value) + " (" + tostr(length(value:entries())) + " entries)"};
       elseif (typeof(value) == TYPE_STR)
@@ -1194,6 +1196,12 @@ object AGENT_BUILDING_TOOLS
       $test_utils:assert_true(index(details, "Name: tool metadata probe") > 0, "inspect_object should include real name");
       $test_utils:assert_true(index(details, "Description:") > 0, "inspect_object should include description field");
       $test_utils:assert_true(index(details, "Parent:") > 0, "inspect_object should include parent metadata");
+      add_property(created, "probe_rule", 0, {$hacker, "rc"});
+      add_property(created, "probe_msg", "Probe message.", {$hacker, "rc"});
+      rules = this:list_rules(["object" -> tostr(created)], $hacker);
+      $test_utils:assert_true(index(rules, "probe_rule: (no rule set)") > 0, "list_rules should read real rule property values");
+      messages = this:list_messages(["object" -> tostr(created)], $hacker);
+      $test_utils:assert_true(index(messages, "probe_msg: \"Probe message.\"") > 0, "list_messages should read real message property values");
     finally
       $test_utils:destroy_if_valid(created);
     endtry
