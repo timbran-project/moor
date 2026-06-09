@@ -1724,13 +1724,13 @@ object PROG_FEATURES
     {for_player, ?topic = ""} = args;
     source = `this.help_source ! ANY => $nothing';
     if (valid(source) && respond_to(source, 'help_topics))
-      source_result = `source:help_topics(for_player, topic) ! ANY => 0';
+      source_result = source:help_topics(for_player, topic);
       if (typeof(source_result) != TYPE_INT)
         return source_result;
       endif
     endif
     if (topic != "")
-      verb_help = `$help_utils:verb_help_from_hint(this, topic, 'programming) ! ANY => 0';
+      verb_help = $help_utils:verb_help_from_hint(this, topic, 'programming);
       typeof(verb_help) != TYPE_INT && return verb_help;
       return 0;
     endif

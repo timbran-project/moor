@@ -2012,12 +2012,12 @@ object BUILDER_FEATURES
     {for_player, ?topic = ""} = args;
     source = `this.help_source ! ANY => #90';
     if (valid(source))
-      result = `source:help_topics(for_player, topic) ! ANY => 0';
+      result = source:help_topics(for_player, topic);
       if (typeof(result) != TYPE_INT)
         return result;
       endif
     endif
-    verb_help = `$help_utils:verb_help_from_hint(this, topic, 'building) ! ANY => 0';
+    verb_help = $help_utils:verb_help_from_hint(this, topic, 'building);
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
   endverb
