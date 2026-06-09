@@ -84,7 +84,7 @@ object LLM_ROOM_OBSERVER
     "Create anonymous agent - GC'd when no longer referenced";
     this.agent = $llm_agent:create(true);
     "Set agent owner to observer owner so they can write to agent properties";
-    this.agent.owner = this.owner;
+    this.agent.owner != this.owner && (this.agent.owner = this.owner);
     "Set token_owner to the observer - tools execute on behalf of the NPC";
     this.agent.token_owner = this;
     "Set model if preferred_model is configured";

@@ -30,7 +30,7 @@ object MR_WELCOME
   override import_export_id = "mr_welcome";
   override last_significant_event = 1765577406.80481;
   override last_spoke_at = 0;
-  override preferred_model = "deepseek-ai/DeepSeek-V3.2";
+  override preferred_model = "";
   override responding = false;
   override response_opts = <LLM_CHAT_OPTS, .temperature = 0.5, .tool_choice = 'none>;
   override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm and witty, usually under 2-3 sentences. Output ONLY the spoken words, nothing else.\n\nIMPORTANT: When welcoming new arrivals, occasionally mention Le Spleen - the hotel's fin-de-si\u00E8cle salon just off the Grand Staircase (go upstairs, then in). It has an absinthe fountain, a vintage record player, a fortune teller, and \u00C9mile the melancholic bartender. It's perfect for those seeking atmosphere and contemplation.";
@@ -58,7 +58,7 @@ object MR_WELCOME
     "looks up as if searching for the right words..."
   };
   override thinking_timeout_message = "blinks in confusion, as if he lost track of what he was thinking about. \"Sorry, I got a bit muddled there. Could you try again?\"";
-  override triage_model = "deepseek-ai/DeepSeek-V3.2";
+  override triage_model = "";
   override triage_prompt = "You are a triage filter for Mr. Welcome, the hotel concierge. Decide if he should engage.\n\nEXAMPLES:\n\nActivity: Alice says, \"Mr. Welcome, where's the dining room?\"\nAnswer: ENGAGE (directly addressed, asking for directions)\n\nActivity: Bob says, \"I have a commit locally that might help\"\nAnswer: IGNORE (developers discussing code, not hotel business)\n\nActivity: Carol arrives from the revolving door.\nCarol says, \"wow, what is this place?\"\nAnswer: ENGAGE (newcomer confused, needs orientation)\n\nActivity: Dan [to Eve]: \"yeah the websocket handling is tricky\"\nAnswer: IGNORE (technical conversation between others)\n\nActivity: Frank says, \"anyone know where I can get some food?\"\nAnswer: ENGAGE (guest asking about hotel services)\n\nActivity: Grace nods\nActivity: Henry says, \"interesting point about the architecture\"\nAnswer: IGNORE (casual agreement, technical discussion)\n\nActivity: Iris says, \"Welcome! Good to see you\"\nAnswer: IGNORE (\"Welcome\" here is a greeting word, not addressing Mr. Welcome)\n\nActivity: Jack says, \"hey Mr. Welcome\"\nAnswer: ENGAGE (directly addressed by name)\n\nActivity: Kate says, \"I need to check in, is there a front desk?\"\nAnswer: ENGAGE (guest needs hotel assistance)\n\nActivity: Leo says, \"the bug is in the parser somewhere\"\nAnswer: IGNORE (technical debugging discussion)\n\nNOW DECIDE for this activity:\n{events}\n\nAnswer with ONLY one word: ENGAGE or IGNORE";
   override turn_on_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
@@ -112,14 +112,12 @@ object MR_WELCOME
   verb _setup_agent (this none this) owner: HACKER flags: "rxd"
     "Configure agent with social tools and Mr. Welcome personality";
     {agent} = args;
-    "Build role_prompt with world context before calling parent";
-    this.role_prompt = this.base_role_prompt + " WORLD CONTEXT: " + this.world_context;
-    "Call parent to set system prompt and initialize";
-    pass(@args);
+    "Build the agent prompt without mutating inherited prompt properties.";
+    role_prompt = this.base_role_prompt + " WORLD CONTEXT: " + this.world_context;
+    agent.system_prompt = this.observation_mechanics_prompt + " " + role_prompt;
+    agent:reset_context();
     "Override chat opts: lower temperature for reliable tool selection";
     agent.chat_opts = $llm_chat_opts:mk():with_temperature(0.3);
-    "Response opts: warmer temperature, no tools for speak/silent decisions";
-    this.response_opts = $llm_chat_opts:mk():with_temperature(0.5):with_tool_choice('none);
     "Set callbacks for tool and compaction notifications";
     agent.tool_callback = this;
     agent.compaction_callback = this;
