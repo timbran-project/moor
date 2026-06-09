@@ -898,7 +898,13 @@ object PLAYER
       topic_query = parts[$]:trim();
       source_ref = parts[1..$ - 1]:join(":"):trim();
       if (source_ref && topic_query)
-        src = `$match:match_object(source_ref, this) ! ANY => $failed_match';
+        try
+          src = $match:match_object(source_ref, this);
+        except e (E_INVARG)
+          src = $failed_match;
+        except e (ANY)
+          return this:inform_current($event:mk_error(this, "Help source lookup failed: " + toliteral(e[2])):with_audience('utility));
+        endtry
         if (valid(src) && respond_to(src, 'help_topics))
           topic_result = `src:help_topics(this, topic_query) ! ANY => 0';
           if (typeof(topic_result) != TYPE_INT)
@@ -1025,7 +1031,13 @@ object PLAYER
     if (!force_topic)
       target_obj = $failed_match;
       if (force_object || query in {"here", "me", "myself", "player"} || query[1] in {"#", "$"})
-        target_obj = `$match:match_object(query, this) ! ANY => $failed_match';
+        try
+          target_obj = $match:match_object(query, this);
+        except e (E_INVARG)
+          target_obj = $failed_match;
+        except e (ANY)
+          return this:inform_current($event:mk_error(this, "Help object lookup failed: " + toliteral(e[2])):with_audience('utility));
+        endtry
       else
         "Strict-ish match only against direct scope: me, here, room contents, inventory.";
         targets = {};
