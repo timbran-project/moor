@@ -540,7 +540,13 @@ object CONTAINER
       return;
     endif
     "Match the key object from player's perspective";
-    key = $match:match_object(iobjstr, player);
+    try
+      key = $match:match_object(iobjstr, player);
+    except e (ANY)
+      event = $event:mk_error(player, "You don't have that.");
+      player:inform_current(event);
+      return;
+    endtry
     if (!valid(key) || typeof(key) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
@@ -577,7 +583,13 @@ object CONTAINER
       return;
     endif
     "Match the key object from player's perspective";
-    key = $match:match_object(iobjstr, player);
+    try
+      key = $match:match_object(iobjstr, player);
+    except e (ANY)
+      event = $event:mk_error(player, "You don't have that.");
+      player:inform_current(event);
+      return;
+    endtry
     if (!valid(key) || typeof(key) != TYPE_OBJ)
       event = $event:mk_error(player, "You don't have that.");
       player:inform_current(event);
