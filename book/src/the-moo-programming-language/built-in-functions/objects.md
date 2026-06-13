@@ -571,8 +571,8 @@ If object is not valid, then `E_INVARG` is raised. If the programmer does not ha
 of the remainder of this section on verb-manipulating functions applies:
 
 For the functions described in the next section, if object is not valid, then `E_INVARG` is raised. If object does not
-define a verb named verb-name, then `E_VERBNF` is raised. If the programmer does not have read permission on object,
-then `E_PERM` is raised.
+define a verb named verb-name, then `E_VERBNF` is raised. If the programmer does not have read permission on the verb in
+question, then `E_PERM` is raised.
 
 ### `verb_info`
 
@@ -582,6 +582,9 @@ list verb_info(obj object, str verb-name)
 
 Returns a list of three items: the owner of the named verb, a string containing the permission bits for the named verb,
 and a string containing the names that the named verb can go by.
+
+`verb_info()` requires the verb to exist and requires read permission on that verb; use an error-catching expression such
+as `` `verb_info(object, verb-name) ! E_VERBNF => 0' `` when testing for existence.
 
 ### `set_verb_info`
 
