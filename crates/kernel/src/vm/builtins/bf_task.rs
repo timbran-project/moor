@@ -21,8 +21,8 @@ use crate::vm::vm_host::ExecutionResult;
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
-    E_ARGS, E_INVARG, E_PERM, E_TYPE, Symbol, Variant, v_arc_str, v_int, v_list, v_list_iter,
-    v_obj, v_str, v_string, v_sym,
+    E_ARGS, E_INVARG, E_TYPE, Symbol, Variant, v_arc_str, v_int, v_list, v_list_iter, v_obj, v_str,
+    v_string, v_sym,
 };
 use std::time::{Duration, SystemTime};
 use tracing::warn;
@@ -421,7 +421,7 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 }
 
 /// Usage: `list|int queue_info([obj player])`
-/// Without argument (wizard-only): returns list of players with queued tasks.
+/// Without argument: returns list of players with queued tasks.
 /// With player argument: returns count of queued tasks for that player.
 fn bf_queue_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() > 1 {
@@ -442,19 +442,10 @@ fn bf_queue_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     let tasks = current_task_scheduler_client().task_list();
-    // Two modes: if player is None, we return a list of all players with queued tasks, but we
-    // expect wiz perms.
-    // If player is set, we return the number of tasks queued for that player.
+    // Two modes: if player is None, return a list of all players with queued tasks. If player is
+    // set, return the number of tasks queued for that player.
     match player {
         None => {
-            // Check wiz perms
-            bf_args
-                .task_perms()
-                .map_err(world_state_bf_err)?
-                .check_wizard()
-                .map_err(world_state_bf_err)?;
-
-            // Now we can get the list of players with queued tasks.
             let players = tasks
                 .iter()
                 .map(|task| task.permissions)
@@ -463,13 +454,6 @@ fn bf_queue_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Ok(Ret(v_list_iter(players.iter().map(|p| v_obj(*p)))))
         }
         Some(p) => {
-            // Player must be either a wizard, or the player themselves.
-            let perms = bf_args.task_perms().map_err(world_state_bf_err)?;
-            if !perms.check_is_wizard().map_err(world_state_bf_err)? && !p.eq(&perms.who) {
-                return Err(ErrValue(E_PERM.msg(
-                    "queue_info() requires the caller to be a wizard or the caller itself",
-                )));
-            }
             let queued_tasks = tasks.iter().filter(|t| t.permissions == p).count();
             Ok(Ret(v_int(queued_tasks as i64)))
         }
