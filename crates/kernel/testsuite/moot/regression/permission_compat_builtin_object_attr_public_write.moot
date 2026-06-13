@@ -1,0 +1,18 @@
+@wizard
+; add_property($system, "compat_attr_name", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "compat_attr_r", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "compat_attr_w", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "compat_attr_f", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_attr_name.w = 1;
+; $compat_attr_r.w = 1;
+; $compat_attr_w.w = 1;
+; $compat_attr_f.w = 1;
+
+@programmer
+; return {
+>   `$compat_attr_name.name = "renamed by non-owner" ! ANY => E_PERM',
+>   `$compat_attr_r.r = 0 ! ANY => E_PERM',
+>   `$compat_attr_w.w = 0 ! ANY => E_PERM',
+>   `$compat_attr_f.f = 1 ! ANY => E_PERM'
+> };
+{E_PERM, E_PERM, E_PERM, E_PERM}

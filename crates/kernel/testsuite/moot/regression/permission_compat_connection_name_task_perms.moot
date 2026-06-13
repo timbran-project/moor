@@ -1,0 +1,6 @@
+@wizard
+; add_property($system, "compat_conn_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($compat_conn_helper, {$programmer_player, "xd", "try_connection_name"}, {"this", "none", "this"});
+; set_verb_code($compat_conn_helper, "try_connection_name", {"return connection_name($programmer_player);"});
+; $compat_conn_helper:try_connection_name();
+"player-#4"
