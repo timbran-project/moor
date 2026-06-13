@@ -35,8 +35,8 @@ actual_room:check_permissions('dig_from);
 Passing the flyweight therefore “carries” permission with it - scripts can hand a
 player a capability, and the player can then pass that flyweight into privileged
 verbs without ever knowing the underlying object number. Treat capability
-flyweights like references you can hand around safely; discarding the flyweight
-revokes the authority automatically.
+flyweights like bearer credentials; discarding your copy only removes your local
+access and does not invalidate copies held elsewhere.
 
 ## Issuing Capabilities
 
@@ -60,6 +60,12 @@ and stores it in a property named `grants_<category>` on the grantee (e.g.,
 `grantee:find_capability_for(target, category)` looks up the stored flyweight so
 builder UX and tools can fetch the right capability without touching protected
 properties directly.
+
+`$root:revoke_capability(target, grantee, category)` removes the stored grant and
+records the grant token id in `$root.revoked_capability_jtis`, so copied bearer
+flyweights for that grant fail later challenge checks. Directly-issued
+capabilities that were never stored as grants still need expiration or server key
+rotation for global invalidation.
 
 ## Consuming Capabilities
 
@@ -115,6 +121,9 @@ and keep the scope of `cap_list` as narrow as possible.
 - **Never share flyweights** outside trusted code paths; treat them like
   passwords. If you must transmit one (e.g., via mail), remember that anyone who
   sees it gains the encoded rights.
+- **Revoke stored grants explicitly** with `$root:revoke_capability()` when
+  removing delegated access. Deleting a local variable or inventory object is not
+  a global revocation mechanism.
 - **Document capability needs** on objects so admins know which grants to issue.
   All prototype verbs that rely on capabilities should have descriptive comments
   (see `src/root.moo` and `src/area.moo` for examples).
@@ -148,6 +157,9 @@ hard-to-reason-about privilege escalations.
   documented patterns.
 - Tokens are symmetrically encrypted; rotating the server key invalidates every
   outstanding capability unless you reissue them. Plan for that operationally.
+- Stored-grant revocation uses a token-id denylist. This requires server-side
+  state, so it only applies to token ids recorded during revoke/merge; old
+  direct bearer tokens remain valid until expiration or key rotation.
 - Flyweights are immutable and expose their metadata only via `flyslots()` /
   related helpers. Treat them as black boxes you hand around rather than data
   structures you modify in place.

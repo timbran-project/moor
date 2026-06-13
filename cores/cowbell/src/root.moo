@@ -10,6 +10,7 @@ object ROOT
   property import_export_hierarchy (owner: HACKER, flags: "rc") = {};
   property import_export_id (owner: HACKER, flags: "r") = "root";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
+  property revoked_capability_jtis (owner: ARCH_WIZARD, flags: "rc") = [];
   property thumbnail (owner: HACKER, flags: "rc") = false;
 
   verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -328,7 +329,8 @@ object ROOT
     "Only owner or wizard can issue";
     !caller_perms().wizard && caller_perms() != target.owner && raise(E_PERM);
     "Build claims map - PASETO handles symbols/objects natively via __type_* tags";
-    claims = ['target -> target, 'caps -> cap_list, 'iat -> time(), 'granted_by -> caller_perms(), 'jti -> uuid()];
+    jti = uuid();
+    claims = ['target -> target, 'caps -> cap_list, 'iat -> time(), 'granted_by -> caller_perms(), 'jti -> jti];
     "Add optional expiration";
     if (expiration)
       claims['exp] = expiration;
@@ -341,7 +343,7 @@ object ROOT
     endif
     "Create server authority PASETO token (wizard-only builtin)";
     token = key ? paseto_make_local(claims, key) | paseto_make_local(claims);
-    return <target, .token = token>;
+    return <target, .token = token, .jti = jti>;
   endverb
 
   verb merge_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
@@ -357,6 +359,8 @@ object ROOT
     "Decode both tokens";
     claims1 = key ? paseto_verify_local(cap1.token, key) | paseto_verify_local(cap1.token);
     claims2 = key ? paseto_verify_local(cap2.token, key) | paseto_verify_local(cap2.token);
+    $root:_capability_is_revoked(claims1) && raise(E_PERM);
+    $root:_capability_is_revoked(claims2) && raise(E_PERM);
     "Combine capability lists (remove duplicates)";
     all_caps = {@claims1["caps"], @claims2["caps"]};
     unique_caps = {};
@@ -403,6 +407,7 @@ object ROOT
       "Merge with existing grant";
       old_cap = grants_map[target_obj];
       new_cap = $root:merge_capability(old_cap, new_cap, key);
+      $root:_revoke_capability_token(old_cap, key);
     endif
     "Store the grant";
     grants_map[target_obj] = new_cap;
@@ -429,6 +434,8 @@ object ROOT
     endtry
     typeof(grants_map) == TYPE_MAP || raise(E_INVARG, tostr(grantee) + "." + prop_name + " must be a map");
     maphaskey(grants_map, target_obj) || return false;
+    old_cap = grants_map[target_obj];
+    this:_revoke_capability_token(old_cap);
     grantee.(prop_name) = mapdelete(grants_map, target_obj);
     return true;
   endverb
@@ -535,6 +542,10 @@ object ROOT
     if (maphaskey(claims, "exp") && time() > claims["exp"])
       raise(E_PERM);
     endif
+    "Revocation check";
+    if ($root:_capability_is_revoked(claims))
+      raise(E_PERM);
+    endif
     "Capability subset check - symbols round-trip directly";
     for required in (required_caps)
       if (!(required in claims["caps"]))
@@ -547,6 +558,61 @@ object ROOT
       run_as = claims["run_as"];
     endif
     return {this.delegate, run_as};
+  endverb
+
+  verb _capability_jti (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return a capability token id from its flyweight slot or decoded claims.";
+    {cap, ?key = 0} = args;
+    if (typeof(cap) != TYPE_FLYWEIGHT)
+      return 0;
+    endif
+    jti = `cap.jti ! E_PROPNF, E_TYPE => 0';
+    if (jti)
+      return jti;
+    endif
+    if (!maphaskey(flyslots(cap), 'token))
+      return 0;
+    endif
+    try
+      claims = key ? paseto_verify_local(cap.token, key) | paseto_verify_local(cap.token);
+    except (ANY)
+      return 0;
+    endtry
+    return `claims["jti"] ! E_RANGE, E_TYPE => 0';
+  endverb
+
+  verb _revoke_capability_token (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Record a capability token id as revoked so copied bearer tokens fail challenge.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {cap, ?key = 0} = args;
+    jti = this:_capability_jti(cap, key);
+    if (!jti)
+      return false;
+    endif
+    revoked = this.revoked_capability_jtis;
+    if (typeof(revoked) != TYPE_MAP)
+      revoked = [];
+    endif
+    revoked[jti] = time();
+    this.revoked_capability_jtis = revoked;
+    return true;
+  endverb
+
+  verb _capability_is_revoked (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return true if decoded capability claims identify a revoked token.";
+    {claims} = args;
+    if (typeof(claims) != TYPE_MAP)
+      return false;
+    endif
+    jti = `claims["jti"] ! E_RANGE, E_TYPE => 0';
+    if (!jti)
+      return false;
+    endif
+    revoked = `$root.revoked_capability_jtis ! E_PROPNF, E_PERM => []';
+    if (typeof(revoked) != TYPE_MAP)
+      return false;
+    endif
+    return maphaskey(revoked, jti);
   endverb
 
   verb is_actor (this none this) owner: HACKER flags: "rxd"
