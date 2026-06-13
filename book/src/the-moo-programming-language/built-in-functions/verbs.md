@@ -85,8 +85,16 @@
 - : Optional boolean indicating whether to fully parenthesize the code (default: false) `fully-paren`
 - `indent`: Optional integer specifying indentation amount (default: 0)
 
-**Returns:** A list of strings, each representing a line of the verb's source code  
-**Note:** Requires read permission on the verb and programmer bit.
+**Returns:** A list of strings, each representing a line of the verb's source code
+
+**Errors:**
+
+- `E_ARGS` if the wrong number of arguments is provided
+- `E_TYPE` if `object` is not an object, or if `verb-desc` is neither a string nor an integer
+- `E_INVARG` if `object` is not valid, if `verb-desc` is an integer less than 1, or if the verb program cannot be
+  decoded as MOO source
+- `E_VERBNF` if `object` does not define the requested verb
+- `E_PERM` if the caller does not have read permission on the verb
 
 ### `set_verb_code`
 
@@ -113,7 +121,7 @@
 - On compilation failure with `verbosity` 3: map containing structured error data (use `format_compile_error()` to
   format)
 
-**Note:** Requires appropriate permissions to modify the verb and programmer bit.
+**Note:** Requires read and write permission on the verb. Changing the verb program also requires programmer or wizard.
 
 **Examples:**
 
@@ -142,8 +150,15 @@ formatted = format_compile_error(err, 0);  // Summary only
 - : A list containing permission information (same format as in ) `info`set_verb_info``
 - : A list containing argument specifications (same format as in ) `args`set_verb_args``
 
-**Returns:** `none`  
-**Note:** Requires appropriate permissions to add verbs to the object and programmer bit.
+**Returns:** `none`
+
+**Errors:**
+
+- `E_ARGS` if the wrong number of arguments is provided
+- `E_TYPE` if `object` is not an object, or if `info` or `args` is not a list
+- `E_INVARG` if `object` is not valid, or if `info` or `args` is malformed
+- `E_PERM` if the caller does not have write permission on `object` (including owner or wizard authority), or if the
+  requested verb owner is not the caller and the caller is not a wizard
 
 ### `delete_verb`
 
@@ -153,8 +168,15 @@ formatted = format_compile_error(err, 0);  // Summary only
 - : The object to remove the verb from `object`
 - : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
 
-**Returns:** `none`  
-**Note:** Requires ownership of the verb or the object and programmer bit.
+**Returns:** `none`
+
+**Errors:**
+
+- `E_ARGS` if the wrong number of arguments is provided
+- `E_TYPE` if `object` is not an object, or if `verb-desc` is neither a string nor an integer
+- `E_INVARG` if `object` is not valid, or if `verb-desc` is an integer less than 1
+- `E_VERBNF` if `object` does not directly define the requested verb
+- `E_PERM` if the caller does not have write permission on `object` (including owner or wizard authority)
 
 ## Error Formatting Functions
 

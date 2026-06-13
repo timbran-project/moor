@@ -570,9 +570,10 @@ Returns a list of the names of the verbs defined directly on the given object, n
 If object is not valid, then `E_INVARG` is raised. If the programmer does not have read permission on object, then most
 of the remainder of this section on verb-manipulating functions applies:
 
-For the functions described in the next section, if object is not valid, then `E_INVARG` is raised. If object does not
-define a verb named verb-name, then `E_VERBNF` is raised. If the programmer does not have read permission on the verb in
-question, then `E_PERM` is raised.
+For the verb introspection functions described below, if object is not valid, then `E_INVARG` is raised. If object does
+not define a verb named verb-name, then `E_VERBNF` is raised. If the programmer does not have read permission on the
+verb in question, then `E_PERM` is raised. The verb modification functions note their additional or different permission
+requirements individually.
 
 ### `verb_info`
 
@@ -636,9 +637,9 @@ described above. The new verb's direct-, preposition, and indirect-object specif
 format as is returned by `verb_args()`, described above. The new verb initially has the empty program associated with
 it; this program does nothing but return an unspecified value.
 
-If object is not valid, or info does not have the correct format, then `E_INVARG` is raised. If the programmer does not
-have write permission on object, if the owner specified by info is not valid, or if the programmer is not a wizard and
-the owner specified by info is not the same as the programmer, then `E_PERM` is raised.
+If object is not valid, or info or args does not have the correct format, then `E_INVARG` is raised. If the programmer
+does not have write permission on object, if the owner specified by info is not valid, or if the programmer is not a
+wizard and the owner specified by info is not the same as the programmer, then `E_PERM` is raised.
 
 ### `delete_verb`
 
@@ -648,8 +649,9 @@ none delete_verb(obj object, str verb-name)
 
 Removes the named verb from the given object.
 
-If object is not valid, then `E_INVARG` is raised. If the programmer does not have write permission on object, then
-`E_PERM` is raised. If object does not define a verb named verb-name, then `E_VERBNF` is raised.
+If object is not valid, then `E_INVARG` is raised. If the programmer does not have write permission on object (including
+owner or wizard authority), then `E_PERM` is raised. If object does not directly define a verb named verb-name, then
+`E_VERBNF` is raised. The programmer does not need to own the verb or have read permission on it in order to delete it.
 
 ### `verb_code`
 
@@ -687,8 +689,9 @@ non-empty list of compiler error messages is returned. The program may be syntac
 more MOO compile-time semantic errors (e.g., syntax that would exceed certain built-in MOO limits); if so, the operation
 fails and a non-empty list of compiler error messages is returned.
 
-If object is not valid, then `E_INVARG` is raised. If the programmer does not have write permission on object, then
-`E_PERM` is raised. If object does not define a verb named verb-name, then `E_VERBNF` is raised.
+If object is not valid, then `E_INVARG` is raised. If object does not define a verb named verb-name, then `E_VERBNF` is
+raised. If the programmer lacks read permission on the verb, lacks write permission on the verb, or is neither a
+programmer nor a wizard, then `E_PERM` is raised.
 
 ### `eval`
 
