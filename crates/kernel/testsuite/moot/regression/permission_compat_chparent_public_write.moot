@@ -1,0 +1,9 @@
+@wizard
+; add_property($system, "compat_chparent_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "compat_chparent_parent", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_chparent_obj.w = 1;
+; $compat_chparent_parent.f = 1;
+
+@programmer
+; chparent($compat_chparent_obj, $compat_chparent_parent);
+E_PERM

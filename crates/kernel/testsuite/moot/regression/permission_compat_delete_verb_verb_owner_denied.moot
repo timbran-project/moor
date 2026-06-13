@@ -1,0 +1,8 @@
+@wizard
+; add_property($system, "compat_delverb_denied_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($compat_delverb_denied_obj, {$programmer_player, "xd", "owned_by_programmer"}, {"this", "none", "this"});
+; set_verb_code($compat_delverb_denied_obj, "owned_by_programmer", {"return 1;"});
+
+@programmer
+; delete_verb($compat_delverb_denied_obj, "owned_by_programmer");
+E_PERM

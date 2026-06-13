@@ -1,0 +1,8 @@
+@wizard
+; add_property($system, "compat_move_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "compat_move_dest", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_move_obj.w = 1;
+
+@programmer
+; move($compat_move_obj, $nothing);
+E_PERM

@@ -1,0 +1,7 @@
+@wizard
+; add_property($system, "compat_delprop_denied_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($compat_delprop_denied_obj, "owned_by_programmer", 0, {$programmer_player, ""});
+
+@programmer
+; delete_property($compat_delprop_denied_obj, "owned_by_programmer");
+E_PERM

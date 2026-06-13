@@ -1,0 +1,6 @@
+@wizard
+; add_property($system, "compat_delprop_obj", create($nothing, $programmer_player), {$wizard_player, "rwc"});
+; add_property($compat_delprop_obj, "owned_by_wizard", 0, {$wizard_player, ""});
+
+@programmer
+; delete_property($compat_delprop_obj, "owned_by_wizard");
