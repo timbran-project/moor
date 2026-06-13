@@ -22,6 +22,8 @@ use moor_var::Obj;
 enum ParenPosition {
     Left,
     Right,
+    ConditionalCondition,
+    ConditionalBranch,
 }
 
 fn needs_parens(
@@ -45,7 +47,7 @@ fn needs_parens(
     }
 
     if current_precedence == PrecedenceLevel::Conditional {
-        return true;
+        return matches!(paren_position, ParenPosition::ConditionalCondition);
     }
 
     if current_precedence == PrecedenceLevel::Exponent {
@@ -266,11 +268,26 @@ impl<'a> Unparse<'a> {
                 consequence,
                 alternative,
             } => {
-                self.write_expr_in_context(condition, writer, Some(expr), ParenPosition::Left)?;
+                self.write_expr_in_context(
+                    condition,
+                    writer,
+                    Some(expr),
+                    ParenPosition::ConditionalCondition,
+                )?;
                 write!(writer, " ? ")?;
-                self.write_expr_in_context(consequence, writer, Some(expr), ParenPosition::Left)?;
+                self.write_expr_in_context(
+                    consequence,
+                    writer,
+                    Some(expr),
+                    ParenPosition::ConditionalBranch,
+                )?;
                 write!(writer, " | ")?;
-                self.write_expr_in_context(alternative, writer, Some(expr), ParenPosition::Right)?;
+                self.write_expr_in_context(
+                    alternative,
+                    writer,
+                    Some(expr),
+                    ParenPosition::ConditionalBranch,
+                )?;
                 Ok(())
             }
             Expr::TryCatch {

@@ -733,7 +733,7 @@ mod tests {
     #[test_case(r#"this:("listgag()")();"#; "verb expr escaping brackets ")]
     #[test_case(r#"1 ^ 2;"#; "exponents")]
     #[test_case(r#"(a + b)[1];"#; "index precedence")]
-    #[test_case(r#"a ? b | (c ? d | e);"#; "conditional precedence")]
+    #[test_case(r#"a ? b | c ? d | e;"#; "conditional precedence")]
     #[test_case(r#"1 ^ (2 + 3);"#; "exponent precedence")]
     #[test_case(r#"(1 + 2) ^ (2 + 3);"#; "exponent precedence 2")]
     #[test_case(r#"verb[1..5 - 1];"#; "range precedence")]
@@ -774,6 +774,22 @@ end"#; "complex scatter declaration with optional and rest")]
         let parsed_original = parse_program_frontend(&stripped, CompileOptions::default()).unwrap();
         let parsed_decompiled = parse_program_frontend(&result, CompileOptions::default()).unwrap();
         assert_trees_match_recursive(&parsed_original.stmts, &parsed_decompiled.stmts)
+    }
+
+    #[test]
+    fn nested_conditional_branches_do_not_get_extra_parens() {
+        let program = r#"content = maphaskey(tail, "content") ? typeof(tail["content"]) == TYPE_STR ? tail["content"] | toliteral(tail["content"]) | "";"#;
+        let result = parse_and_unparse(program).unwrap();
+
+        assert_eq!(result.trim(), program);
+    }
+
+    #[test]
+    fn nested_conditional_condition_keeps_parens() {
+        let program = r#"(a ? b | c) ? d | e;"#;
+        let result = parse_and_unparse(program).unwrap();
+
+        assert_eq!(result.trim(), program);
     }
 
     #[test]
