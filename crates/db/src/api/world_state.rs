@@ -709,14 +709,27 @@ impl WorldState for DbWorldState {
         Ok(())
     }
 
-    fn remove_verb(&mut self, perms: &Obj, obj: &Obj, uuid: Uuid) -> Result<(), WorldStateError> {
+    fn remove_verb(&mut self, perms: &Obj, obj: &Obj, verb: Var) -> Result<(), WorldStateError> {
         let _t = PerfTimerGuard::new(&db_counters().remove_verb);
-        let verbs = self.get_tx().get_verbs(obj)?;
-        let vh = verbs
-            .find(&uuid)
-            .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
+        let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.perms(perms)?
-            .check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Write)?;
+            .check_object_allows(&objowner, objflags, ObjFlag::Write.into())?;
+
+        let vh = match verb.variant() {
+            Variant::Int(verb_index) => {
+                if verb_index < 1 {
+                    return Err(WorldStateError::VerbNotFound(*obj, verb_index.to_string()));
+                }
+                let verb_index = (verb_index as usize) - 1;
+                self.get_tx().get_verb_by_index(obj, verb_index)?
+            }
+            _ => {
+                let name = verb
+                    .as_symbol()
+                    .map_err(|_| WorldStateError::VerbNotFound(*obj, format!("{verb:?}")))?;
+                self.get_tx().get_verb_by_name(obj, name)?
+            }
+        };
 
         self.get_tx_mut().delete_verb(obj, vh.uuid())?;
         Ok(())

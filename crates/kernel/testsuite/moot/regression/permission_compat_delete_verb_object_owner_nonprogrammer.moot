@@ -6,4 +6,6 @@
 ; add_verb($compat_delverb_helper, {$wizard_player, "xd", "try_delete"}, {"this", "none", "this"});
 ; set_verb_code($compat_delverb_helper, "try_delete", {"set_task_perms($player);", "delete_verb($compat_delverb_obj, \"victim\");", "return 1;"});
 ; $compat_delverb_helper:try_delete();
-1
+false
+; verb_info($compat_delverb_obj, "victim");
+E_VERBNF

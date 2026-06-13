@@ -449,7 +449,7 @@ fn bf_set_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     }
 
-    // Verify caller is a programmer.
+    // Setting verb code is limited to programmers in LambdaMOO/ToastStunt.
     if !bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
@@ -598,20 +598,22 @@ fn bf_delete_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     }
 
-    // Verify caller is a programmer.
-    if !bf_args
-        .task_perms()
-        .map_err(world_state_bf_err)?
-        .flags
-        .contains(ObjFlag::Programmer)
-    {
-        return Err(BfErr::Code(E_PERM));
+    let verb = bf_args.args[1].clone();
+    match verb.variant() {
+        Variant::Int(verb_index) => {
+            if verb_index < 1 {
+                return Err(BfErr::Code(E_INVARG));
+            }
+        }
+        _ => {
+            if verb.as_symbol().is_err() {
+                return Err(BfErr::Code(E_TYPE));
+            }
+        }
     }
 
-    let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
-
     with_current_transaction_mut(|world_state| {
-        world_state.remove_verb(&bf_args.task_perms_who(), &obj, verbdef.uuid())
+        world_state.remove_verb(&bf_args.task_perms_who(), &obj, verb)
     })
     .map_err(world_state_bf_err)?;
 
