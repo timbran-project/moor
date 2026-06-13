@@ -411,7 +411,7 @@ pub trait WorldState: Send {
     ) -> Result<(), WorldStateError>;
 
     /// Remove a verb from the given object.
-    fn remove_verb(&mut self, perms: &Obj, obj: &Obj, verb: Uuid) -> Result<(), WorldStateError>;
+    fn remove_verb(&mut self, perms: &Obj, obj: &Obj, verb: Var) -> Result<(), WorldStateError>;
 
     /// Update data about a verb on the given object.
     fn update_verb(
