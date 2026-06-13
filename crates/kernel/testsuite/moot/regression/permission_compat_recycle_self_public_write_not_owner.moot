@@ -1,0 +1,11 @@
+@wizard
+; add_property($system, "compat_recycle_self", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_recycle_self.r = 1;
+; $compat_recycle_self.w = 1;
+; $compat_recycle_self.programmer = 1;
+; add_verb($compat_recycle_self, {$compat_recycle_self, "rxd", "try_recycle_self"}, {"this", "none", "this"});
+; set_verb_code($compat_recycle_self, "try_recycle_self", {"recycle(this);", "return 1;"});
+
+@programmer
+; return $compat_recycle_self:try_recycle_self();
+E_PERM
