@@ -11,7 +11,7 @@ object DRINK
   property drink_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "drink", .for_others = "drinks">,
+    <SUB, .capitalize = false, .for_self = "drink", .type = 'self_alt, .for_others = "drinks">,
     " from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -21,7 +21,7 @@ object DRINK
   property gulp_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "gulp", .for_others = "gulps">,
+    <SUB, .capitalize = false, .for_self = "gulp", .type = 'self_alt, .for_others = "gulps">,
     " from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -29,7 +29,7 @@ object DRINK
   property quaff_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "quaff", .for_others = "quaffs">,
+    <SUB, .capitalize = false, .for_self = "quaff", .type = 'self_alt, .for_others = "quaffs">,
     " deeply from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -37,7 +37,7 @@ object DRINK
   property refill_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "refill", .for_others = "refills">,
+    <SUB, .capitalize = false, .for_self = "refill", .type = 'self_alt, .for_others = "refills">,
     " ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -46,7 +46,7 @@ object DRINK
   property sip_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "take", .for_others = "takes">,
+    <SUB, .capitalize = false, .for_self = "take", .type = 'self_alt, .for_others = "takes">,
     " a small sip from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -63,7 +63,7 @@ object DRINK
   override consume_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "drink", .for_others = "drinks">,
+    <SUB, .capitalize = false, .for_self = "drink", .type = 'self_alt, .for_others = "drinks">,
     " from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -72,7 +72,7 @@ object DRINK
   override finish_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "drain", .for_others = "drains">,
+    <SUB, .capitalize = false, .for_self = "drain", .type = 'self_alt, .for_others = "drains">,
     " the last of ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."

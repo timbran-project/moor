@@ -4,41 +4,6 @@ object HELP_TOPICS
   owner: ARCH_WIZARD
   readable: true
 
-  property topic_order (owner: ARCH_WIZARD, flags: "rc") = {
-    'topic_basics,
-    'topic_bite,
-    'topic_close,
-    'topic_communicating,
-    'topic_describe,
-    'topic_doors,
-    'topic_drink,
-    'topic_drop,
-    'topic_eat,
-    'topic_emote,
-    'topic_examine,
-    'topic_exits,
-    'topic_gag,
-    'topic_gagging,
-    'topic_get,
-    'topic_give,
-    'topic_inventory,
-    'topic_join,
-    'topic_listgag,
-    'topic_lock,
-    'topic_look,
-    'topic_movement,
-    'topic_open,
-    'topic_privacy,
-    'topic_quit,
-    'topic_refill,
-    'topic_say,
-    'topic_sip,
-    'topic_ungag,
-    'topic_unlock,
-    'topic_walk,
-    'topic_who
-  };
-
   property topic_basics (owner: ARCH_WIZARD, flags: "rc") = {
     "basics",
     "Getting started",
@@ -222,6 +187,40 @@ object HELP_TOPICS
     {"open door"},
     "basics",
     {"close", "lock", "unlock", "doors"}
+  };
+  property topic_order (owner: ARCH_WIZARD, flags: "rc") = {
+    'topic_basics,
+    'topic_bite,
+    'topic_close,
+    'topic_communicating,
+    'topic_describe,
+    'topic_doors,
+    'topic_drink,
+    'topic_drop,
+    'topic_eat,
+    'topic_emote,
+    'topic_examine,
+    'topic_exits,
+    'topic_gag,
+    'topic_gagging,
+    'topic_get,
+    'topic_give,
+    'topic_inventory,
+    'topic_join,
+    'topic_listgag,
+    'topic_lock,
+    'topic_look,
+    'topic_movement,
+    'topic_open,
+    'topic_privacy,
+    'topic_quit,
+    'topic_refill,
+    'topic_say,
+    'topic_sip,
+    'topic_ungag,
+    'topic_unlock,
+    'topic_walk,
+    'topic_who
   };
   property topic_privacy (owner: ARCH_WIZARD, flags: "rc") = {
     "privacy",

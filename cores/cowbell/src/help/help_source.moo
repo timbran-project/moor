@@ -76,21 +76,17 @@ object HELP_SOURCE
     add_property(src, 'topic_short, {"short", "Short tuple", "Tuple with default aliases/category/see_also."}, {src.owner, "r"});
     add_property(src, 'topic_full, {"full", "Full tuple", "Tuple with all fields.", {"complete"}, "testing", {"short"}}, {src.owner, "r"});
     src.topic_order = {'ordered_metadata};
-
     ordered = src:help_topics($test_player, "ordered");
     $test_utils:assert_type(ordered, TYPE_FLYWEIGHT, "topic_order should allow explicit non-topic symbol properties");
     $test_utils:assert_eq(ordered.name, "ordered", "ordered topic name");
-
     metadata = src:help_topics($test_player, "metadata");
     $test_utils:assert_eq(metadata, 0, "fallback discovery should ignore non-topic symbol properties");
-
     short = src:help_topics($test_player, "short");
     $test_utils:assert_type(short, TYPE_FLYWEIGHT, "fallback topic_ symbol property should resolve");
     $test_utils:assert_eq(short.name, "short", "short tuple topic name");
     $test_utils:assert_eq(short.aliases, {}, "short tuple should default aliases");
     $test_utils:assert_eq(short.category, 'general, "short tuple should default category");
     $test_utils:assert_eq(short.see_also, {}, "short tuple should default see_also");
-
     full = src:help_topics($test_player, "complete");
     $test_utils:assert_type(full, TYPE_FLYWEIGHT, "aliases should match full tuple topic");
     $test_utils:assert_eq(full.name, "full", "full tuple topic name");

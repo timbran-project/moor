@@ -1160,5 +1160,4 @@ object STR_PROTO
     $test_utils:assert_eq("invalid":parse_curie(), false, "parse_curie rejects unknown prefix");
     return true;
   endverb
-
 endobject

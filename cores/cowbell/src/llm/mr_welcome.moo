@@ -30,7 +30,6 @@ object MR_WELCOME
   override import_export_id = "mr_welcome";
   override last_significant_event = 1765577406.80481;
   override last_spoke_at = 0;
-  override preferred_model = "";
   override responding = false;
   override response_opts = <LLM_CHAT_OPTS, .temperature = 0.5, .tool_choice = 'none>;
   override response_prompt = "Based on what you've observed in the room, respond with ONLY what Mr. Welcome should say out loud - no internal reasoning, no meta-commentary about your tools or thought process. If someone just arrived, welcome them warmly and offer assistance. If people are interacting, add insightful commentary or helpful tips about navigating this place. Keep your response conversational and warm and witty, usually under 2-3 sentences. Output ONLY the spoken words, nothing else.\n\nIMPORTANT: When welcoming new arrivals, occasionally mention Le Spleen - the hotel's fin-de-si\u00E8cle salon just off the Grand Staircase (go upstairs, then in). It has an absinthe fountain, a vintage record player, a fortune teller, and \u00C9mile the melancholic bartender. It's perfect for those seeking atmosphere and contemplation.";
@@ -38,7 +37,7 @@ object MR_WELCOME
   override shut_off_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
+    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head, finding a small recessed switch that ",
@@ -63,7 +62,7 @@ object MR_WELCOME
   override turn_on_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
+    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
     " the small switch behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head. *click* ",
@@ -796,8 +795,8 @@ object MR_WELCOME
     r2 = $room:create(true);
     try
       area.name = "Welcome Test Area";
-      r1.name = "Welcome Test Start";
-      r2.name = "Welcome Test End";
+      (r1).name = "Welcome Test Start";
+      (r2).name = "Welcome Test End";
       move(r1, area);
       move(r2, area);
       move(this, r1);

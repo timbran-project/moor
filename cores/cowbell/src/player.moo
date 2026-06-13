@@ -484,7 +484,7 @@ object PLAYER
     admin_features = this.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
     candidates = {@candidates, @admin_features};
-    (this.wizard || this:has_admin_elevation()) && (candidates = {@candidates, $wiz_features});
+    this.wizard || this:has_admin_elevation() && (candidates = {@candidates, $wiz_features});
     this.is_builder && (candidates = {@candidates, $builder_features});
     for feat in (candidates)
       if (!valid(feat))
@@ -2729,7 +2729,7 @@ object PLAYER
     {area, current_room, destination} = args;
     try
       path = area:find_path(current_room, destination, true, false);
-      path_with_transport = (!path || length(path) < 2) ? area:find_path(current_room, destination, true, true) | false;
+      path_with_transport = !path || length(path) < 2 ? area:find_path(current_room, destination, true, true) | false;
     except e (ANY)
       raise(E_INVARG, "Route lookup failed: " + toliteral(e));
     endtry

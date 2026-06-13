@@ -736,7 +736,7 @@ object AGENT_BUILDING_TOOLS
     msg_props = {};
     for prop in (all_props)
       prop_name = tostr(prop);
-      (prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag")) && (msg_props = {@msg_props, prop_name});
+      prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") && (msg_props = {@msg_props, prop_name});
     endfor
     !msg_props && return "No message properties found on " + tostr(target_obj) + ".";
     lines = {"Messages on " + tostr(target_obj) + ":"};
@@ -1229,8 +1229,8 @@ object AGENT_BUILDING_TOOLS
     try
       actor.name = "Tool Test Actor";
       area.name = "Tool Test Area";
-      r1.name = "Tool Test Start";
-      r2.name = "Tool Test End";
+      (r1).name = "Tool Test Start";
+      (r2).name = "Tool Test End";
       move(r1, area);
       move(r2, area);
       move(actor, r1);

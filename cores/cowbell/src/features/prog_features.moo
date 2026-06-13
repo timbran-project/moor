@@ -5,8 +5,8 @@ object PROG_FEATURES
   owner: HACKER
   readable: true
 
-  override help_source = PROG_HELP_TOPICS;
   override description = "Provides programmer commands (@show, @program, @grep, @chmod, @move, @which, @clear-property) for object and code management.";
+  override help_source = PROG_HELP_TOPICS;
   override import_export_hierarchy = {"features"};
   override import_export_id = "prog_features";
 

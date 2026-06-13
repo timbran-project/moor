@@ -9,7 +9,7 @@ object FOOD
   property bite_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "take", .for_others = "takes">,
+    <SUB, .capitalize = false, .for_self = "take", .type = 'self_alt, .for_others = "takes">,
     " a bite of ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -18,7 +18,7 @@ object FOOD
   property devour_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "devour", .for_others = "devours">,
+    <SUB, .capitalize = false, .for_self = "devour", .type = 'self_alt, .for_others = "devours">,
     " ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -26,7 +26,7 @@ object FOOD
   property eat_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "eat", .for_others = "eats">,
+    <SUB, .capitalize = false, .for_self = "eat", .type = 'self_alt, .for_others = "eats">,
     " some of ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -34,7 +34,7 @@ object FOOD
   property munch_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "munch", .for_others = "munches">,
+    <SUB, .capitalize = false, .for_self = "munch", .type = 'self_alt, .for_others = "munches">,
     " on ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -42,7 +42,7 @@ object FOOD
   property nibble_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "nibble", .for_others = "nibbles">,
+    <SUB, .capitalize = false, .for_self = "nibble", .type = 'self_alt, .for_others = "nibbles">,
     " at ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -51,7 +51,7 @@ object FOOD
   override consume_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "eat", .for_others = "eats">,
+    <SUB, .capitalize = false, .for_self = "eat", .type = 'self_alt, .for_others = "eats">,
     " some of ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
@@ -60,7 +60,7 @@ object FOOD
   override finish_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "finish", .for_others = "finishes">,
+    <SUB, .capitalize = false, .for_self = "finish", .type = 'self_alt, .for_others = "finishes">,
     " eating ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."

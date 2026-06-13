@@ -75,14 +75,14 @@ object SUB_UTILS
     'this -> "t",
     'dobj -> "d",
     'iobj -> "i",
-    'verb_be -> "be",
-    'verb_have -> "have",
     'location -> "l",
     'subject -> "s",
     'object -> "o",
-    'reflexive -> "r",
     'pos_adj -> "p",
     'pos_noun -> "q",
+    'reflexive -> "r",
+    'verb_be -> "be",
+    'verb_have -> "have",
     'verb_look -> "look"
   ];
   property verb_map (owner: HACKER, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];

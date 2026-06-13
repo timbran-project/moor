@@ -492,7 +492,7 @@ object REACTION
     $test_utils:assert_eq(effect.prop, 'counter, "increment property");
     $test_utils:assert_eq(effect.by, 1, "default increment amount");
     effect2 = this:parse_effect({'increment, 'counter, 5});
-    $test_utils:assert_eq(effect2.by, 5, "explicit increment amount");
+    $test_utils:assert_eq((effect2).by, 5, "explicit increment amount");
     return true;
   endverb
 
@@ -636,13 +636,7 @@ object REACTION
     add_property(receiver, "action_this", #-1, {this.owner, "r"});
     add_property(receiver, "action_actor", #-1, {this.owner, "r"});
     add_verb(handler, {this.owner, "rxd", "action_mark"}, {"this", "none", "this"});
-    set_verb_code(handler, "action_mark", {
-      "{target, context} = args;",
-      "target.action_seen = true;",
-      "target.action_this = context['This];",
-      "target.action_actor = context['Actor];",
-      "return true;"
-    });
+    set_verb_code(handler, "action_mark", {"{target, context} = args;", "target.action_seen = true;", "target.action_this = context['This];", "target.action_actor = context['Actor];", "return true;"});
     add_property(source, "chain_reaction", this:mk('on_first, 0, {{'trigger, receiver, 'on_second}}), {this.owner, "r"});
     add_property(receiver, "mark_reaction", this:mk('on_second, 0, {{'action, 'mark, handler}}), {this.owner, "r"});
     source:fire_trigger('on_first, ['Actor -> player]);

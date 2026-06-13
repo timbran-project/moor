@@ -51,14 +51,14 @@ object SYM_PROTO
 
   verb test_symbol_text_helpers (this none this) owner: HACKER flags: "rxd"
     "Cover symbol text projection and matching helpers.";
-    $test_utils:assert_eq(('topic_say):as_string(), "topic_say", "as_string returns symbol text");
-    $test_utils:assert_true(('topic_say):starts_with('topic_), "starts_with accepts symbol prefix");
-    $test_utils:assert_true(('topic_say):starts_with("topic_"), "starts_with accepts string prefix");
-    $test_utils:assert_false(('say_topic):starts_with('topic_), "starts_with rejects non-prefix");
-    $test_utils:assert_true(('topic_say):ends_with('say), "ends_with accepts symbol suffix");
-    $test_utils:assert_false(('topic_say):ends_with('topic), "ends_with rejects non-suffix");
-    $test_utils:assert_true(('topic_say):contains('ic_s), "contains accepts symbol needle");
-    $test_utils:assert_false(('topic_say):contains("emote"), "contains rejects absent needle");
+    $test_utils:assert_eq('topic_say:as_string(), "topic_say", "as_string returns symbol text");
+    $test_utils:assert_true('topic_say:starts_with('topic_), "starts_with accepts symbol prefix");
+    $test_utils:assert_true('topic_say:starts_with("topic_"), "starts_with accepts string prefix");
+    $test_utils:assert_false('say_topic:starts_with('topic_), "starts_with rejects non-prefix");
+    $test_utils:assert_true('topic_say:ends_with('say), "ends_with accepts symbol suffix");
+    $test_utils:assert_false('topic_say:ends_with('topic), "ends_with rejects non-suffix");
+    $test_utils:assert_true('topic_say:contains('ic_s), "contains accepts symbol needle");
+    $test_utils:assert_false('topic_say:contains("emote"), "contains rejects absent needle");
     $test_utils:assert_raises(E_TYPE, 'topic_say, "starts_with", {1}, "starts_with rejects non-text prefix");
     return true;
   endverb
