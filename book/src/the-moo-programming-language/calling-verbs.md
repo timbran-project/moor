@@ -158,13 +158,28 @@ player:tell(box:get_item("sword"):description());
 ### Conditional verb calls:
 
 ```moo
-// Only call a verb if the object has it
-if (verb_info(player, "fly"))
+// Only call a verb if the object has it.
+// verb_info() raises E_VERBNF when the verb is missing, so catch that case.
+if (`verb_info(player, "fly") ! E_VERBNF => 0')
     player:fly();
 else
     player:tell("You cannot fly.");
 endif
 ```
+
+If you need to check inherited verbs often, wrap that pattern in a helper:
+
+```moo
+// has_verb(object, verbname)
+{object, verbname} = args;
+while (E_VERBNF == (info = `verb_info(object, verbname) ! ANY'))
+    object = parent(object);
+endwhile
+return info ? {object} | 0;
+```
+
+This returns `{location}` when the verb is found, where `location` is the object that defines the verb, or `0` when no
+matching verb exists in the inheritance chain.
 
 ### Self-references:
 

@@ -14,7 +14,11 @@
 2. A string representing the permission flags: 'r' (read), 'w' (write), 'x' (execute), 'd' (debug)
 3. A string containing the verb names (aliases) separated by spaces
 
-**Note:** Requires read permission on the verb.
+**Errors:**
+
+- `E_INVARG` if `object` is not valid
+- `E_VERBNF` if `object` does not define the requested verb
+- `E_PERM` if the caller does not have read permission on the verb
 
 ### `set_verb_info`
 
