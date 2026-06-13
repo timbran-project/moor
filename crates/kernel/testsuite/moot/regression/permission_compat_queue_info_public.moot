@@ -1,0 +1,5 @@
+@programmer
+; return length(queue_info()) >= 0;
+1
+; return queue_info($wizard_player);
+0
