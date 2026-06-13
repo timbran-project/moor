@@ -1,8 +1,9 @@
 @wizard
 ; add_property($system, "compat_delverb_obj", create($nothing, $player), {$wizard_player, "rwc"});
+; add_property($system, "compat_delverb_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
 ; add_verb($compat_delverb_obj, {$wizard_player, "xd", "victim"}, {"this", "none", "this"});
 ; set_verb_code($compat_delverb_obj, "victim", {"return 1;"});
-; add_verb($compat_delverb_obj, {$player, "xd", "try_delete"}, {"this", "none", "this"});
-; set_verb_code($compat_delverb_obj, "try_delete", {"delete_verb(this, \"victim\");", "return 1;"});
-; $compat_delverb_obj:try_delete();
+; add_verb($compat_delverb_helper, {$wizard_player, "xd", "try_delete"}, {"this", "none", "this"});
+; set_verb_code($compat_delverb_helper, "try_delete", {"set_task_perms($player);", "delete_verb($compat_delverb_obj, \"victim\");", "return 1;"});
+; $compat_delverb_helper:try_delete();
 1
