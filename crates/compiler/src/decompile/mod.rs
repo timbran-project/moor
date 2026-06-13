@@ -1774,9 +1774,13 @@ pub fn program_to_tree(program: &Program) -> Result<Parse, DecompileError> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        CompileOptions, ast::assert_trees_match_recursive, codegen::compile,
-        decompile::program_to_tree, frontend::lower::parse_program_frontend, parse_tree::Parse,
-        unparse::annotate_line_numbers,
+        CompileOptions,
+        ast::assert_trees_match_recursive,
+        codegen::compile,
+        decompile::program_to_tree,
+        frontend::lower::parse_program_frontend,
+        parse_tree::Parse,
+        unparse::{annotate_line_numbers, unparse},
     };
     use moor_var::program::{opcode::Op, program::Program};
     use test_case::test_case;
@@ -1890,6 +1894,16 @@ mod tests {
     fn test_case_decompile_matches(prg: &str) {
         let (parse, decompiled) = parse_decompile(prg);
         assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
+    }
+
+    #[test]
+    fn decompiled_unary_postfix_operands_do_not_get_extra_parens() {
+        let program = r#"return !ic:ends_with(".");"#;
+        let binary = compile(program, CompileOptions::default()).unwrap();
+        let tree = program_to_tree(&binary).unwrap();
+        let decompiled = unparse(&tree, false, true).unwrap().join("\n");
+
+        assert_eq!(decompiled.trim(), program);
     }
 
     #[test]

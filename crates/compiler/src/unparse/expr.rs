@@ -118,7 +118,8 @@ impl<'a> Unparse<'a> {
             }
             Expr::Unary(op, operand) => {
                 write!(writer, "{op}")?;
-                let operand_needs_parens = self.fully_paren || unary_operand_needs_parens(operand);
+                let operand_needs_parens =
+                    self.fully_paren || unary_operand_needs_parens(op, operand);
                 write_maybe_parenthesized_expr(self, operand, writer, operand_needs_parens)?;
                 Ok(())
             }
@@ -478,21 +479,20 @@ fn is_system_object(expr: &Expr) -> bool {
     matches!(expr, Expr::Value(value) if value.as_object() == Some(Obj::mk_id(0)))
 }
 
-fn unary_operand_needs_parens(expr: &Expr) -> bool {
+fn unary_operand_needs_parens(op: &ast::UnaryOp, expr: &Expr) -> bool {
     match expr {
         Expr::Assign { .. }
         | Expr::Binary(..)
         | Expr::And(..)
         | Expr::Or(..)
-        | Expr::Prop { .. }
-        | Expr::Verb { .. }
-        | Expr::Range { .. }
         | Expr::Cond { .. }
         | Expr::TryCatch { .. }
-        | Expr::Index(..)
         | Expr::Scatter(..)
         | Expr::Decl { .. }
         | Expr::Return(..) => true,
+        Expr::Prop { .. } | Expr::Verb { .. } | Expr::Range { .. } | Expr::Index(..) => {
+            matches!(op, ast::UnaryOp::Neg)
+        }
         Expr::Call { function, .. } => matches!(function, CallTarget::Expr(..)),
         _ => false,
     }
