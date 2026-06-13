@@ -117,8 +117,6 @@ impl DbWorldState {
         {
             let (mut flags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
 
-            // User is either wizard or owner
-            perms_who.check_object_allows(&objowner, flags, ObjFlag::Write.into())?;
             if pname == *NAME_SYM {
                 let Some(name) = value.as_string() else {
                     return Err(WorldStateError::PropertyTypeMismatch);
@@ -128,6 +126,7 @@ impl DbWorldState {
                 if flags.contains(ObjFlag::User) && !perms_who.check_is_wizard()? {
                     return Err(WorldStateError::PropertyPermissionDenied);
                 }
+                perms_who.check_obj_owner_perms(&objowner)?;
 
                 self.get_tx_mut().set_object_name(obj, name.to_string())?;
                 return Ok(());
@@ -141,6 +140,8 @@ impl DbWorldState {
                 self.get_tx_mut().set_object_owner(obj, &owner)?;
                 return Ok(());
             }
+
+            perms_who.check_obj_owner_perms(&objowner)?;
 
             if pname == *R_SYM {
                 let Some(v) = value.as_integer() else {
@@ -346,9 +347,8 @@ impl WorldState for DbWorldState {
     ) -> Result<(), WorldStateError> {
         let _t = PerfTimerGuard::new(&db_counters().set_flags_of);
         // Owner or wizard only.
-        let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&owner, flags, ObjFlag::Write.into())?;
+        let owner = self.owner_of(obj)?;
+        self.perms(perms)?.check_obj_owner_perms(&owner)?;
         self.get_tx_mut().set_object_flags(obj, new_flags)
     }
 
@@ -424,9 +424,8 @@ impl WorldState for DbWorldState {
         new_loc: &Obj,
     ) -> Result<(), WorldStateError> {
         let _t = PerfTimerGuard::new(&db_counters().move_object);
-        let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&owner, flags, ObjFlag::Write.into())?;
+        let owner = self.owner_of(obj)?;
+        self.perms(perms)?.check_obj_owner_perms(&owner)?;
 
         // Get the old location before moving
         let old_loc = self.get_tx().get_object_location(obj)?;
@@ -898,11 +897,10 @@ impl WorldState for DbWorldState {
             }
         };
 
-        let (objflags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
+        let owner = self.owner_of(obj)?;
 
         self.check_parent(perms, new_parent, &owner)?;
-        self.perms(perms)?
-            .check_object_allows(&owner, objflags, ObjFlag::Write.into())?;
+        self.perms(perms)?.check_obj_owner_perms(&owner)?;
         self.check_chparent_property_conflict(&owner, obj, new_parent)?;
 
         self.get_tx_mut().set_object_parent(obj, new_parent)
