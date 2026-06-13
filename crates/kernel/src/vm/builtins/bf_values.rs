@@ -353,7 +353,7 @@ fn bf_object_bytes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::ErrValue(E_INVARG.msg("object is not valid")));
     };
     let size = with_current_transaction(|world_state| {
-        world_state.object_bytes(&bf_args.caller_perms(), &o)
+        world_state.object_bytes(&bf_args.task_perms_who(), &o)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(v_int(size as i64)))
