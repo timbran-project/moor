@@ -680,11 +680,9 @@ impl WorldState for DbWorldState {
         let pdef = properties
             .find_first_named(pname)
             .ok_or_else(|| WorldStateError::PropertyNotFound(*obj, pname.to_string()))?;
-        let propperms = self
-            .get_tx()
-            .retrieve_property_permissions(obj, pdef.uuid())?;
+        let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.perms(perms)?
-            .check_property_allows(&propperms, PropFlag::Write)?;
+            .check_object_allows(&objowner, objflags, ObjFlag::Write.into())?;
 
         self.get_tx_mut().delete_property(obj, pdef.uuid())
     }
