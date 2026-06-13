@@ -325,9 +325,6 @@ impl WorldState for DbWorldState {
         if flags.contains(ObjFlag::Wizard) {
             return Ok(true);
         }
-        if who == what {
-            return Ok(true);
-        }
         let owner = self.owner_of(what)?;
         if owner == *who {
             return Ok(true);
