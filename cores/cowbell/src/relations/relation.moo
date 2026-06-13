@@ -86,12 +86,12 @@ object RELATION
     {position, value} = args;
     typeof(position) != TYPE_INT && raise(E_TYPE);
     position < 1 && raise(E_INVARG);
-    index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
+    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
+      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       tuple && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
     endfor
     return result;
@@ -100,12 +100,12 @@ object RELATION
   verb select_containing (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Find all tuples containing value in any position.";
     {value} = args;
-    index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
+    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
+      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       tuple && (result = {@result, tuple});
     endfor
     return result;
@@ -161,11 +161,11 @@ object RELATION
       return 0;
     endif
     "Use index for efficient lookup";
-    index_map = `this.(("index_" + value_hash(scalar_element))) ! E_PROPNF => 0';
+    index_map = `this.("index_" + value_hash(scalar_element)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return 0;
     uuid_list = maphaskey(index_map, scalar_element) ? index_map[scalar_element] | {};
     for tuple_id in (uuid_list)
-      stored_tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
+      stored_tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       stored_tuple == tuple && return tuple_id;
     endfor
     return 0;

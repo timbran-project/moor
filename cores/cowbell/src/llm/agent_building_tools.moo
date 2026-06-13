@@ -166,7 +166,7 @@ object AGENT_BUILDING_TOOLS
     area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
     area_target:create_passage(from_target, to_target, passage);
     "Report";
-    msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way)." | (!to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred)." | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ".");
+    msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way)." | !to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred)." | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ".";
     return msg;
   endverb
 
@@ -433,7 +433,7 @@ object AGENT_BUILDING_TOOLS
       else
         "Passage flyweight - extract direction label";
         {side_a_room, side_b_room} = {connector.side_a_room, connector.side_b_room};
-        direction = room == side_a_room ? connector.side_a_label | (room == side_b_room ? connector.side_b_label | "passage");
+        direction = room == side_a_room ? connector.side_a_label | room == side_b_room ? connector.side_b_label | "passage";
         result = {@result, "  " + tostr(i) + ". Go " + direction + " to " + next_name + " (" + tostr(next_room) + ")"};
       endif
     endfor
@@ -1229,8 +1229,8 @@ object AGENT_BUILDING_TOOLS
     try
       actor.name = "Tool Test Actor";
       area.name = "Tool Test Area";
-      (r1).name = "Tool Test Start";
-      (r2).name = "Tool Test End";
+      r1.name = "Tool Test Start";
+      r2.name = "Tool Test End";
       move(r1, area);
       move(r2, area);
       move(actor, r1);

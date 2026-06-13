@@ -248,8 +248,8 @@ object AGENTIC_AGENT
         endif
       endif
     endfor
-    old_messages = (this.context)[2..split_point - 1];
-    recent_messages = (this.context)[split_point..$];
+    old_messages = this.context[2..split_point - 1];
+    recent_messages = this.context[split_point..$];
     length(old_messages) == 0 && return;
     summary_prompt = "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages);
     summary_context = {system_msg, ["role" -> "user", "content" -> summary_prompt]};

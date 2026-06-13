@@ -200,7 +200,7 @@ object AGENT_ROOM
         continue;
       endif
       status_str = tostr(entry['status]);
-      query_preview = (entry['query])[1..min(50, length(entry['query]))];
+      query_preview = entry['query][1..min(50, length(entry['query]))];
       if (length(entry['query]) > 50)
         query_preview = query_preview + "...";
       endif
@@ -402,7 +402,7 @@ object AGENT_ROOM
     status_header = "\n" + $ansi:wrap("Agent Status:", 'bold, 'cyan);
     status_items = {};
     if (this.current_task && length(this.current_task) > 0)
-      task_preview = (this.current_task)[1..min(50, length(this.current_task))];
+      task_preview = this.current_task[1..min(50, length(this.current_task))];
       if (length(this.current_task) > 50)
         task_preview = task_preview + "...";
       endif
@@ -435,7 +435,7 @@ object AGENT_ROOM
     hist_len = length(this.history);
     if (hist_len > 0)
       recent = this.history[hist_len];
-      query_preview = (recent['query])[1..min(40, length(recent['query]))];
+      query_preview = recent['query][1..min(40, length(recent['query]))];
       if (length(recent['query]) > 40)
         query_preview = query_preview + "...";
       endif
@@ -856,7 +856,7 @@ object AGENT_ROOM
       for key in (mapkeys(val))
         key_str = typeof(key) == TYPE_STR ? key | tostr(key);
         v = val[key];
-        val_str = typeof(v) == TYPE_STR ? v | (typeof(v) == TYPE_INT || typeof(v) == TYPE_FLOAT ? tostr(v) | this:_flatten_content(v));
+        val_str = typeof(v) == TYPE_STR ? v | typeof(v) == TYPE_INT || typeof(v) == TYPE_FLOAT ? tostr(v) | this:_flatten_content(v);
         result = result + key_str + val_str;
       endfor
       return result;

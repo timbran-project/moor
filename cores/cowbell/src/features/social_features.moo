@@ -19,7 +19,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Nod at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Nod at/to whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -40,7 +40,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Wave at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Wave at/to whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -61,7 +61,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Bow to/at whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Bow to/at whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -85,7 +85,7 @@ object SOCIAL_FEATURES
     try
       target = this:_match_social_target(dobjstr);
     except e (E_INVARG)
-      msg = e[2] == "missing_target" ? "Bonk whom?" | (e[2] == "not_found" ? "I don't see \"" + dobjstr + "\" here." | tostr(e[2]));
+      msg = e[2] == "missing_target" ? "Bonk whom?" | e[2] == "not_found" ? "I don't see \"" + dobjstr + "\" here." | tostr(e[2]);
       player:inform_current($event:mk_error(player, msg));
       return;
     endtry
@@ -117,7 +117,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Smile at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Smile at/to whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry

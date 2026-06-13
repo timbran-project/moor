@@ -38,7 +38,7 @@ object SITTABLE
   property sit_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .for_self = "sit", .type = 'self_alt, .for_others = "sits">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "sit", .for_others = "sits">,
     " on ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."
@@ -58,7 +58,7 @@ object SITTABLE
   property stand_msg (owner: HACKER, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .capitalize = false, .for_self = "stand", .type = 'self_alt, .for_others = "stands">,
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "stand", .for_others = "stands">,
     " up from ",
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
     "."

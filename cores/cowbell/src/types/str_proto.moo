@@ -732,13 +732,13 @@ object STR_PROTO
   verb starts_with (this none this) owner: HACKER flags: "rxd"
     "starts_with(string, prefix) => true if string starts with prefix";
     "Example: \"hello world\":starts_with(\"hello\") => true";
-    return length(args[2]) <= length(args[1]) && (args[1])[1..length(args[2])] == args[2];
+    return length(args[2]) <= length(args[1]) && args[1][1..length(args[2])] == args[2];
   endverb
 
   verb ends_with (this none this) owner: HACKER flags: "rxd"
     "ends_with(string, suffix) => true if string ends with suffix";
     "Example: \"hello world\":ends_with(\"world\") => true";
-    return length(args[2]) <= length(args[1]) && (args[1])[length(args[1]) - length(args[2]) + 1..$] == args[2];
+    return length(args[2]) <= length(args[1]) && args[1][length(args[1]) - length(args[2]) + 1..$] == args[2];
   endverb
 
   verb contains (this none this) owner: HACKER flags: "rxd"

@@ -179,7 +179,7 @@ object LIST_PROTO
     "The empty list returns true.";
     {lst, pred} = args;
     for item in (lst)
-      if (!pred(item))
+      if (!(pred(item)))
         return false;
       endif
     endfor

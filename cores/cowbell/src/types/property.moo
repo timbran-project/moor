@@ -40,7 +40,7 @@ object PROPERTY
       return "(clear)";
     endif
     try
-      val = this:location().((this:name()));
+      val = this:location().(this:name());
       return toliteral(val);
     except (ANY)
       return "(error reading property)";

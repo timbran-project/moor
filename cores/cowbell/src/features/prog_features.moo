@@ -1569,7 +1569,7 @@ object PROG_FEATURES
           if (fn_info[1] == target_spec)
             min_args = fn_info[2];
             max_args = fn_info[3];
-            sig_info = "Arguments: " + tostr(min_args) + (max_args == -1 ? "+" | (max_args == min_args ? "" | "-" + tostr(max_args)));
+            sig_info = "Arguments: " + tostr(min_args) + (max_args == -1 ? "+" | max_args == min_args ? "" | "-" + tostr(max_args));
             doc_text = sig_info + "\n\n" + doc_text;
             break;
           endif

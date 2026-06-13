@@ -37,7 +37,7 @@ object MR_WELCOME
   override shut_off_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "reach", .type = 'self_alt, .for_others = "reaches">,
+    <SUB, .type = 'self_alt, .for_self = "reach", .for_others = "reaches">,
     " behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head, finding a small recessed switch that ",
@@ -62,7 +62,7 @@ object MR_WELCOME
   override turn_on_msg = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "flip", .type = 'self_alt, .for_others = "flips">,
+    <SUB, .type = 'self_alt, .for_self = "flip", .for_others = "flips">,
     " the small switch behind ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "'s head. *click* ",
@@ -795,8 +795,8 @@ object MR_WELCOME
     r2 = $room:create(true);
     try
       area.name = "Welcome Test Area";
-      (r1).name = "Welcome Test Start";
-      (r2).name = "Welcome Test End";
+      r1.name = "Welcome Test Start";
+      r2.name = "Welcome Test End";
       move(r1, area);
       move(r2, area);
       move(this, r1);

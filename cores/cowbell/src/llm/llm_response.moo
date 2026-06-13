@@ -116,21 +116,21 @@ object LLM_RESPONSE
     "Test response with tool calls";
     sample2 = ["choices" -> {["message" -> ["content" -> "", "tool_calls" -> {["id" -> "1", "function" -> ["name" -> "test", "arguments" -> []]]}]]}, "usage" -> ["total_tokens" -> 100]];
     resp2 = this:mk(sample2);
-    (resp2):is_valid() || raise(E_ASSERT, "should be valid with tools");
-    !(resp2):has_tool_calls() && raise(E_ASSERT, "should have tool calls");
-    length((resp2):tool_calls()) != 1 && raise(E_ASSERT, "should have 1 tool call");
-    (resp2):usage()["total_tokens"] != 100 && raise(E_ASSERT, "usage should have total_tokens");
+    resp2:is_valid() || raise(E_ASSERT, "should be valid with tools");
+    !resp2:has_tool_calls() && raise(E_ASSERT, "should have tool calls");
+    length(resp2:tool_calls()) != 1 && raise(E_ASSERT, "should have 1 tool call");
+    resp2:usage()["total_tokens"] != 100 && raise(E_ASSERT, "usage should have total_tokens");
     "Test reasoning_content fallback";
     sample3 = ["choices" -> {["message" -> ["reasoning_content" -> "Thinking..."]]}];
     resp3 = this:mk(sample3);
-    (resp3):content() != "Thinking..." && raise(E_ASSERT, "should fall back to reasoning_content");
+    resp3:content() != "Thinking..." && raise(E_ASSERT, "should fall back to reasoning_content");
     "Test invalid responses";
     resp4 = this:mk("not a map");
-    (resp4):is_valid() && raise(E_ASSERT, "string should be invalid");
+    resp4:is_valid() && raise(E_ASSERT, "string should be invalid");
     resp5 = this:mk(["no_choices" -> 1]);
-    (resp5):is_valid() && raise(E_ASSERT, "missing choices should be invalid");
+    resp5:is_valid() && raise(E_ASSERT, "missing choices should be invalid");
     resp6 = this:mk(["choices" -> {}]);
-    (resp6):is_valid() && raise(E_ASSERT, "empty choices should be invalid");
+    resp6:is_valid() && raise(E_ASSERT, "empty choices should be invalid");
     return true;
   endverb
 

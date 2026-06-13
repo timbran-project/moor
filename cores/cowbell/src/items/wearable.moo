@@ -9,7 +9,7 @@ object WEARABLE
   property remove_msg (owner: HACKER, flags: "rw") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "remove", .type = 'self_alt, .for_others = "removes">,
+    <SUB, .type = 'self_alt, .for_self = "remove", .for_others = "removes">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."
@@ -17,7 +17,7 @@ object WEARABLE
   property wear_msg (owner: HACKER, flags: "rw") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
-    <SUB, .for_self = "put on", .type = 'self_alt, .for_others = "puts on">,
+    <SUB, .type = 'self_alt, .for_self = "put on", .for_others = "puts on">,
     " ",
     <SUB, .capitalize = false, .type = 'dobj>,
     "."

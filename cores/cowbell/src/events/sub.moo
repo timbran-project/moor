@@ -375,13 +375,13 @@ object SUB
     this.type == 'iobj_reflexive && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "yourself" | event.iobj:pronoun_reflexive() | "<no-iobj>";
     this.type == 'verb_be && return event.actor == render_for ? "are" | event.actor:pronouns().verb_be;
     this.type == 'verb_have && return event.actor == render_for ? "have" | event.actor:pronouns().verb_have;
-    this.type == 'verb_look && return event.actor == render_for ? "look" | (event.actor:pronouns().is_plural ? "look" | "looks");
+    this.type == 'verb_look && return event.actor == render_for ? "look" | event.actor:pronouns().is_plural ? "look" | "looks";
     this.type == 'dobj_verb_be && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be | "<no-dobj>";
     this.type == 'dobj_verb_have && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have | "<no-dobj>";
-    this.type == 'dobj_verb_look && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks") | "<no-dobj>";
+    this.type == 'dobj_verb_look && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "look" | event.dobj:pronouns().is_plural ? "look" | "looks" | "<no-dobj>";
     this.type == 'iobj_verb_be && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be | "<no-iobj>";
     this.type == 'iobj_verb_have && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have | "<no-iobj>";
-    this.type == 'iobj_verb_look && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
+    this.type == 'iobj_verb_look && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "look" | event.iobj:pronouns().is_plural ? "look" | "looks" | "<no-iobj>";
     if (this.type == 'self_alt)
       value = event.actor == render_for ? this.for_self | this.for_others;
       typeof(value) == TYPE_FLYWEIGHT && `value.type ! E_PROPNF => false' && return value:eval_sub(event, render_for);
@@ -448,31 +448,31 @@ object SUB
 
   verb "o*c o*_dobj o*_iobj oc*_dobj oc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_object | (verb:ends_with("_iobj") ? 'iobj_object | 'object);
+    type = verb:ends_with("_dobj") ? 'dobj_object | verb:ends_with("_iobj") ? 'iobj_object | 'object;
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "p*c p*_dobj p*_iobj pc*_dobj pc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_pos_adj | (verb:ends_with("_iobj") ? 'iobj_pos_adj | 'pos_adj);
+    type = verb:ends_with("_dobj") ? 'dobj_pos_adj | verb:ends_with("_iobj") ? 'iobj_pos_adj | 'pos_adj;
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "q*c q*_dobj q*_iobj qc*_dobj qc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_pos_noun | (verb:ends_with("_iobj") ? 'iobj_pos_noun | 'pos_noun);
+    type = verb:ends_with("_dobj") ? 'dobj_pos_noun | verb:ends_with("_iobj") ? 'iobj_pos_noun | 'pos_noun;
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "r*c r*_dobj r*_iobj rc*_dobj rc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_reflexive | (verb:ends_with("_iobj") ? 'iobj_reflexive | 'reflexive);
+    type = verb:ends_with("_dobj") ? 'dobj_reflexive | verb:ends_with("_iobj") ? 'iobj_reflexive | 'reflexive;
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
   verb "s*c s*_dobj s*_iobj sc*_dobj sc*_iobj" (this none this) owner: HACKER flags: "rxd"
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_subject | (verb:ends_with("_iobj") ? 'iobj_subject | 'subject);
+    type = verb:ends_with("_dobj") ? 'dobj_subject | verb:ends_with("_iobj") ? 'iobj_subject | 'subject;
     return <this, .type = type, .capitalize = capitalize>;
   endverb
 
@@ -483,19 +483,19 @@ object SUB
 
   verb "verb_be verb_be_dobj verb_be_iobj" (this none this) owner: HACKER flags: "rxd"
     "Verb conjugation for 'be' (is/are).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_be | (verb:ends_with("_iobj") ? 'iobj_verb_be | 'verb_be);
+    type = verb:ends_with("_dobj") ? 'dobj_verb_be | verb:ends_with("_iobj") ? 'iobj_verb_be | 'verb_be;
     return <this, .type = type>;
   endverb
 
   verb "verb_have verb_have_dobj verb_have_iobj" (this none this) owner: HACKER flags: "rxd"
     "Verb conjugation for 'have' (has/have).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_have | (verb:ends_with("_iobj") ? 'iobj_verb_have | 'verb_have);
+    type = verb:ends_with("_dobj") ? 'dobj_verb_have | verb:ends_with("_iobj") ? 'iobj_verb_have | 'verb_have;
     return <this, .type = type>;
   endverb
 
   verb "verb_look verb_look_dobj verb_look_iobj" (this none this) owner: HACKER flags: "rxd"
     "Verb conjugation for 'look' (look/looks).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_look | (verb:ends_with("_iobj") ? 'iobj_verb_look | 'verb_look);
+    type = verb:ends_with("_dobj") ? 'dobj_verb_look | verb:ends_with("_iobj") ? 'iobj_verb_look | 'verb_look;
     return <this, .type = type>;
   endverb
 

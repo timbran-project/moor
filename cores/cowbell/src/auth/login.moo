@@ -125,7 +125,7 @@ object LOGIN
     endtry
     try
       "Is our candidate name invalid?";
-      if (!valid(candidate = orig_candidate = this:_match_player(name)))
+      if (!valid(candidate = (orig_candidate = this:_match_player(name))))
         raise(E_INVARG, tostr("`", name, "' matches no player name."));
       endif
       "We have a valid candidate, so we can now attempt to challenge it.";

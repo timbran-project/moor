@@ -348,7 +348,7 @@ object LLM_WEARABLE
     if (maphaskey(steps, tool_name) && length(steps[tool_name]) > 0)
       rewrite_id = steps[tool_name][1];
       if (length(steps[tool_name]) > 1)
-        steps[tool_name] = (steps[tool_name])[2..length(steps[tool_name])];
+        steps[tool_name] = steps[tool_name][2..length(steps[tool_name])];
       else
         steps = mapdelete(steps, tool_name);
       endif
@@ -546,13 +546,13 @@ object LLM_WEARABLE
     for item in (todos_input)
       content = item["content"];
       status_str = item["status"];
-      status = status_str == "pending" ? 'pending | (status_str == "in_progress" ? 'in_progress | (status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str)));
+      status = status_str == "pending" ? 'pending | status_str == "in_progress" ? 'in_progress | status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str);
       todo_items = {@todo_items, ["content" -> content, "status" -> status]};
     endfor
     this.agent:set_todos(todo_items);
     summary = {tostr(length(todo_items)) + " todos set:"};
     for todo in (this.agent:get_todos())
-      prefix = todo["status"] == 'completed ? "[x]" | (todo["status"] == 'in_progress ? "[>]" | "[ ]");
+      prefix = todo["status"] == 'completed ? "[x]" | todo["status"] == 'in_progress ? "[>]" | "[ ]";
       summary = {@summary, "  " + prefix + " " + todo["content"]};
     endfor
     return summary:join("\n");
@@ -659,7 +659,7 @@ object LLM_WEARABLE
     lines = {"Message properties for " + tostr(target_obj) + ":"};
     for prop_info in (msg_props)
       {prop_name, prop_value} = prop_info;
-      value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | (typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value));
+      value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value);
       lines = {@lines, " - " + prop_name + ": " + value_summary};
     endfor
     return lines:join("\n");

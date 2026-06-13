@@ -22,7 +22,7 @@ object AGENTIC_EVENT_QUEUE
     "Pop first item from queue. Returns false when empty.";
     length(this.queue) == 0 && return 0;
     item = this.queue[1];
-    this.queue = length(this.queue) > 1 ? (this.queue)[2..$] | {};
+    this.queue = length(this.queue) > 1 ? this.queue[2..$] | {};
     return item;
   endverb
 

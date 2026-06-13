@@ -369,18 +369,18 @@ object REACTION
     endif
     actor = context['Actor] || player;
     if (effect.type == 'set)
-      old_value = `target.((effect.prop)) ! E_PROPNF => 0';
-      target.((effect.prop)) = effect.value;
+      old_value = `target.(effect.prop) ! E_PROPNF => 0';
+      target.(effect.prop) = effect.value;
       target:_check_thresholds(effect.prop, old_value, effect.value, context);
     elseif (effect.type == 'increment)
-      old_value = `target.((effect.prop)) ! E_PROPNF => 0';
+      old_value = `target.(effect.prop) ! E_PROPNF => 0';
       new_value = old_value + effect.by;
-      target.((effect.prop)) = new_value;
+      target.(effect.prop) = new_value;
       target:_check_thresholds(effect.prop, old_value, new_value, context);
     elseif (effect.type == 'decrement)
-      old_value = `target.((effect.prop)) ! E_PROPNF => 0';
+      old_value = `target.(effect.prop) ! E_PROPNF => 0';
       new_value = old_value - effect.by;
-      target.((effect.prop)) = new_value;
+      target.(effect.prop) = new_value;
       target:_check_thresholds(effect.prop, old_value, new_value, context);
     elseif (effect.type == 'announce)
       "Announce to actor's room - actor is the player, dobj is the reacting object";
@@ -492,7 +492,7 @@ object REACTION
     $test_utils:assert_eq(effect.prop, 'counter, "increment property");
     $test_utils:assert_eq(effect.by, 1, "default increment amount");
     effect2 = this:parse_effect({'increment, 'counter, 5});
-    $test_utils:assert_eq((effect2).by, 5, "explicit increment amount");
+    $test_utils:assert_eq(effect2.by, 5, "explicit increment amount");
     return true;
   endverb
 

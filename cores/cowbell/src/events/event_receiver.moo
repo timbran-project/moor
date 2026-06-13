@@ -71,7 +71,7 @@ object EVENT_RECEIVER
       if (entry_num % 50 == 0)
         suspend_if_needed();
       endif
-      let {conn, content_type, output} = content;
+      {conn, content_type, output} = content;
       let event_slots = flyslots(event);
       this:_notify(conn, output, false, false, content_type, event_slots);
     endfor
@@ -121,7 +121,7 @@ object EVENT_RECEIVER
     for connection in (connections)
       "Wrap each connection's rendering in error handling";
       try
-        let {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
+        {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
         preferred_types = event:preferred_content_types();
         if (typeof(preferred_types) != TYPE_LIST)
           preferred_types = {};

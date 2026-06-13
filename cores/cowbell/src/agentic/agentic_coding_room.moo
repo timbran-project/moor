@@ -224,7 +224,7 @@ object AGENTIC_CODING_ROOM
       content = typeof(result) == TYPE_STR ? result | toliteral(result);
       this:_announce("### Task Completed for " + task_player.name + "\n\n" + content);
     else
-      brief = failure_reason ? failure_reason | (typeof(result) == TYPE_STR ? result | toliteral(result));
+      brief = failure_reason ? failure_reason | typeof(result) == TYPE_STR ? result | toliteral(result);
       if (length(brief) > 220)
         brief = brief[1..220] + "...";
       endif
