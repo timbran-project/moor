@@ -526,10 +526,20 @@ connections()
 
 ### `queue_info`
 
-**Description:** Provides detailed information about the task queue.
+**Description:** Returns information about queued background tasks.
 **Arguments:**
 
-- : Optional ID to get information about a specific queued task `task_id`
+- `player`: Optional player object
+
+**Returns:**
+
+- With no arguments: a list of players with queued tasks
+- With `player`: the number of queued tasks for that player
+
+**Errors:**
+
+- `E_ARGS` if more than one argument is provided
+- `E_TYPE` if `player` is provided and is not an object
 
 ### `kill_task`
 
