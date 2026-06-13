@@ -1,0 +1,13 @@
+@wizard
+; add_property($system, "compat_addverb_obj", create($nothing, #5), {$wizard_player, "rwc"});
+; $compat_addverb_obj.r = 1;
+; add_property($system, "compat_addverb_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_addverb_helper.r = 1;
+; add_verb($compat_addverb_helper, {#5, "rxd", "try_add_verb"}, {"this", "none", "this"});
+// The helper verb is owned by #5, so this call runs with non-programmer task permissions.
+// add_verb() would fail if this ran as #4, because the target object and requested verb owner are both #5.
+; set_verb_code($compat_addverb_helper, "try_add_verb", {"add_verb($compat_addverb_obj, {#5, \"r\", \"added_by_user\"}, {\"this\", \"none\", \"this\"});", "return 1;"});
+
+@programmer
+; return $compat_addverb_helper:try_add_verb();
+1

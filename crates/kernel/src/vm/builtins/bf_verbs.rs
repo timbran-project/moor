@@ -554,15 +554,6 @@ fn bf_add_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     }
 
-    // Verify caller is a programmer.
-    if !bf_args
-        .task_perms()
-        .map_err(world_state_bf_err)?
-        .flags
-        .contains(ObjFlag::Programmer)
-    {
-        return Err(BfErr::Code(E_PERM));
-    }
     let verbargs = parse_verb_args(args).map_err(BfErr::ErrValue)?;
     let verbinfo = parse_verb_info(info).map_err(BfErr::ErrValue)?;
 
