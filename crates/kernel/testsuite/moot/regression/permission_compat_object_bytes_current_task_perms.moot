@@ -1,9 +1,10 @@
 @wizard
 ; add_property($system, "compat_object_bytes_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
 ; add_property($system, "compat_object_bytes_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
-; add_verb($compat_object_bytes_helper, {$wizard_player, "xd", "try_object_bytes"}, {"this", "none", "this"});
+; $compat_object_bytes_helper.r = 1;
+; add_verb($compat_object_bytes_helper, {$wizard_player, "rxd", "try_object_bytes"}, {"this", "none", "this"});
 ; set_verb_code($compat_object_bytes_helper, "try_object_bytes", {"return object_bytes($compat_object_bytes_obj) > 0;"});
 
 @programmer
-; $compat_object_bytes_helper:try_object_bytes();
+; return $compat_object_bytes_helper:try_object_bytes();
 1
