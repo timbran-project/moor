@@ -360,15 +360,6 @@ fn bf_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     }
 
-    // Verify caller is a programmer.
-    if !bf_args
-        .task_perms()
-        .map_err(world_state_bf_err)?
-        .flags
-        .contains(ObjFlag::Programmer)
-    {
-        return Err(BfErr::Code(E_PERM));
-    }
     let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
 
     // Parse optional fully_paren parameter (defaults to false)

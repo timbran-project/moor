@@ -1,0 +1,15 @@
+@wizard
+; add_property($system, "compat_verbcode_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_verbcode_obj.r = 1;
+; add_verb($compat_verbcode_obj, {#5, "xd", "readable_code"}, {"this", "none", "this"});
+; set_verb_code($compat_verbcode_obj, "readable_code", {"return 123;"});
+; add_property($system, "compat_verbcode_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $compat_verbcode_helper.r = 1;
+; add_verb($compat_verbcode_helper, {#5, "rxd", "try_verb_code"}, {"this", "none", "this"});
+// The target verb is owned by #5 and has no read bit. This succeeds only if the #5-owned helper
+// runs with non-programmer task permissions and verb_code() does not require the programmer bit.
+; set_verb_code($compat_verbcode_helper, "try_verb_code", {"return length(verb_code($compat_verbcode_obj, \"readable_code\")) > 0;"});
+
+@programmer
+; return $compat_verbcode_helper:try_verb_code();
+1
