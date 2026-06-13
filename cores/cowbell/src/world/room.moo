@@ -127,7 +127,7 @@ object ROOM
         if (!is_player(viewer))
           continue;
         endif
-        `$event_receiver:emit_room_snapshot_state(viewer, this) ! ANY => 0';
+        `viewer:emit_room_snapshot_state(viewer, this) ! ANY => 0';
       endfor
     endfork
     `pass(@args) ! E_TYPE, E_VERBNF => 0';
@@ -149,7 +149,7 @@ object ROOM
         if (!is_player(viewer))
           continue;
         endif
-        `$event_receiver:emit_room_snapshot_state(viewer, this) ! ANY => 0';
+        `viewer:emit_room_snapshot_state(viewer, this) ! ANY => 0';
       endfor
     endfork
     `pass(@args) ! E_TYPE, E_VERBNF => 0';

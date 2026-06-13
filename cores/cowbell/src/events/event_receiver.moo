@@ -60,7 +60,7 @@ object EVENT_RECEIVER
 
   verb inform_connection (this none this) owner: HACKER flags: "rxd"
     "Deliver an event to a single connection without broadcasting or event-logging it.";
-    this:_can_inform() || raise(E_PERM);
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
     {connection_obj, event} = args;
     info = this:_connection_entry(connection_obj);
     event = event:with_audience('utility);
@@ -80,7 +80,7 @@ object EVENT_RECEIVER
 
   verb inform_current (this none this) owner: HACKER flags: "rxd"
     "Deliver an event only to the connection executing the current task.";
-    this:_can_inform() || raise(E_PERM);
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
     {event} = args;
     event = event:with_audience('utility);
     "connections() returns current connection first (but all connections globally)";
@@ -98,12 +98,29 @@ object EVENT_RECEIVER
     return this:inform_connection(current, event);
   endverb
 
-  verb _can_inform (this none this) owner: HACKER flags: "rxd"
-    return valid(this.location) && caller == this.location || caller == this || caller == #0 || caller.wizard || caller_perms().wizard;
+  verb _can_inform_as (this none this) owner: HACKER flags: "rxd"
+    "Return whether actor/perms may send utility output for this receiver.";
+    {actor, actor_perms} = args;
+    if (player == this)
+      return true;
+    endif
+    if (valid(this.location) && actor == this.location)
+      return true;
+    endif
+    if (actor == this || actor == #0)
+      return true;
+    endif
+    if (typeof(actor) == TYPE_OBJ && valid(actor) && actor.wizard)
+      return true;
+    endif
+    if (typeof(actor_perms) == TYPE_OBJ && valid(actor_perms) && actor_perms.wizard)
+      return true;
+    endif
+    return false;
   endverb
 
   verb _connections (this none this) owner: ARCH_WIZARD flags: "rxd"
-    this:_can_inform() || raise(E_PERM);
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
     set_task_perms(this);
     return connections(this);
   endverb
@@ -206,7 +223,7 @@ object EVENT_RECEIVER
   verb rewrite_event (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Replace a previously-sent rewritable event with new content.";
     "Args: rewrite_id, new_content, ?connection (optional - required if called from fork)";
-    this:_can_inform() || raise(E_PERM);
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
     {rewrite_id, new_content, ?target_conn = 0} = args;
     "Build the replacement event";
     if (typeof(new_content) == TYPE_STR)
@@ -319,7 +336,7 @@ object EVENT_RECEIVER
 
   verb emit_room_look (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Emit room look to narrative notify plus OOB room panel state.";
-    this:_can_inform() || raise(E_PERM);
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
     {?room = this.location} = args;
     if (!valid(room) || !isa(room, $room))
       room = this.location;
@@ -339,7 +356,7 @@ object EVENT_RECEIVER
 
   verb emit_room_snapshot_state (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Emit room snapshot state to a specific viewer.";
-    this:_can_inform() || raise(E_PERM);
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
     {viewer, room, ?look_d = 0} = args;
     if (!valid(viewer) || !is_player(viewer))
       return;
@@ -353,5 +370,34 @@ object EVENT_RECEIVER
     except e (ANY)
       "Best-effort snapshot broadcast.";
     endtry
+  endverb
+
+  verb test_can_inform_as_checks_explicit_authority (this none this) owner: HACKER flags: "rxd"
+    "Inform permission checks should use the supplied actor/perms, not the helper's caller.";
+    receiver = $test_utils:anonymous($event_receiver);
+    room = $test_utils:anonymous($room);
+    unrelated = $test_utils:anonymous($thing);
+    try
+      move(receiver, room);
+      $test_utils:assert_true(receiver:_can_inform_as(receiver, $hacker), "receiver should inform itself");
+      $test_utils:assert_true(receiver:_can_inform_as(room, $hacker), "receiver location should inform the receiver");
+      $test_utils:assert_true(receiver:_can_inform_as(unrelated, $arch_wizard), "wizard perms should inform a receiver");
+      $test_utils:assert_false(receiver:_can_inform_as(unrelated, $hacker), "unrelated non-wizard actor should not inform a receiver");
+    finally
+      valid(receiver) && move(receiver, $prototype_box);
+      $test_utils:destroy_if_valid(room);
+    endtry
+    return true;
+  endverb
+
+  verb test_inform_methods_reject_unrelated_receiver (this none this) owner: HACKER flags: "rxd"
+    "Public inform helpers should reject calls aimed at an unrelated receiver.";
+    receiver = $test_utils:anonymous($event_receiver);
+    event = $event:mk_info(receiver, "hidden");
+    $test_utils:assert_raises(E_PERM, receiver, "inform_current", {event}, "inform_current should reject unrelated callers");
+    $test_utils:assert_raises(E_PERM, receiver, "_connections", {}, "_connections should reject unrelated callers");
+    $test_utils:assert_raises(E_PERM, receiver, "rewrite_event", {"rewrite-id", "replacement"}, "rewrite_event should reject unrelated callers");
+    $test_utils:assert_raises(E_PERM, receiver, "emit_room_snapshot_state", {receiver, $prototype_box}, "emit_room_snapshot_state should reject unrelated callers");
+    return true;
   endverb
 endobject
