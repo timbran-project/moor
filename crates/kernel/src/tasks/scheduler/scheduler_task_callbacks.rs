@@ -536,7 +536,7 @@ impl Scheduler {
         &self,
         _task_id: TaskId,
         victim_task_id: TaskId,
-        sender_permissions: Perms,
+        sender_permissions: Authority,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
         lc.task_q.kill_task(victim_task_id, sender_permissions)
@@ -546,7 +546,7 @@ impl Scheduler {
         &self,
         task_id: TaskId,
         queued_task_id: TaskId,
-        sender_permissions: Perms,
+        sender_permissions: Authority,
         return_value: Var,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
@@ -711,7 +711,7 @@ impl Scheduler {
         task_id: TaskId,
         target_task_id: TaskId,
         value: Var,
-        sender_permissions: Perms,
+        sender_permissions: Authority,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
 
@@ -721,10 +721,8 @@ impl Scheduler {
             );
         };
 
-        let is_wizard = sender_permissions
-            .check_is_wizard()
-            .expect("Could not check wizard status for task_send");
-        if !is_wizard && sender_permissions.who != owner {
+        let is_wizard = sender_permissions.is_wizard();
+        if !is_wizard && sender_permissions.principal != owner {
             return v_error(E_PERM.with_msg(|| {
                 format!("Permission denied for task_send to task ({target_task_id})")
             }));

@@ -630,7 +630,7 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // create_at is wizard-only
     let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
-    task_perms.check_wizard().map_err(world_state_bf_err)?;
+    task_perms.require_wizard().map_err(world_state_bf_err)?;
 
     let tramp = bf_args
         .bf_frame_mut()
@@ -958,7 +958,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         }))));
                     }
                     Ok(None) => {
-                        if !perms.check_is_wizard().map_err(world_state_bf_err)? {
+                        if !perms.is_wizard() {
                             return Err(BfErr::Code(E_NACC));
                         }
                         // Short-circuit fake-tramp state change.
@@ -982,7 +982,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     Some(n) => v_int(n),
                 };
                 // If the result is false, and we're not a wizard, then raise E_NACC.
-                if !result.is_true() && !perms.check_is_wizard().map_err(world_state_bf_err)? {
+                if !result.is_true() && !perms.is_wizard() {
                     return Err(BfErr::Code(E_NACC));
                 }
 
@@ -1182,7 +1182,7 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_wizard()
+        .require_wizard()
         .map_err(world_state_bf_err)?;
 
     // Get and set object flags
@@ -1201,7 +1201,7 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     .map_err(world_state_bf_err)?;
 
     // If the object was player, update the VM's copy of the perms.
-    if obj.eq(&bf_args.task_perms().map_err(world_state_bf_err)?.who) {
+    if obj.eq(&bf_args.task_perms().map_err(world_state_bf_err)?.principal) {
         bf_args
             .exec_state
             .set_task_perms(&mut crate::vm::kernel_host::KernelHost, obj);
@@ -1228,7 +1228,7 @@ fn bf_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_wizard()
+        .require_wizard()
         .map_err(world_state_bf_err)?;
 
     if !bf_args.args.is_empty() {
@@ -1887,7 +1887,7 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_wizard()
+        .require_wizard()
         .map_err(world_state_bf_err)?;
 
     let Some(target) = bf_args.args[0].as_object() else {

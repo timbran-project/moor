@@ -29,7 +29,7 @@ use crate::{
 use moor_common::{
     model::{
         BuiltinProxyCacheBits, CommitResult, DispatchFlagsSource, HasUuid, ObjAttrs, ObjFlag,
-        ObjSet, ObjectKind, ObjectQuery, ObjectRef, Perms, PropAttrs, PropDef, PropDefs, PropFlag,
+        ObjSet, ObjectKind, ObjectQuery, ObjectRef, PropAttrs, PropDef, PropDefs, PropFlag,
         PropPerms, ValSet, VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbDispatch,
         VerbDispatchResult, VerbFlag, VerbLookup, VerbProgramKey, WorldState, WorldStateError,
         WorldStatePerf, WorldStateTimerOp,
@@ -89,11 +89,6 @@ impl DbWorldState {
     pub fn from_transaction(tx: WorldStateTransaction) -> Self {
         Self { tx }
     }
-    fn perms(&self, who: &Obj) -> Result<Perms, WorldStateError> {
-        let flags = self.flags_of(who)?;
-        Ok(Perms { who: *who, flags })
-    }
-
     fn auth(&self, who: &Obj) -> Result<AuthContext, WorldStateError> {
         let flags = self.flags_of(who)?;
         Ok(AuthContext::new(AuthPrincipal::new(*who, flags)))
@@ -233,23 +228,17 @@ impl DbWorldState {
         verbdef: &VerbDef,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError> {
-        let perms = self.perms(perms)?;
-        perms.check_verb_allows(&verbdef.owner(), verbdef.flags(), VerbFlag::Write)?;
+        let auth = self.auth(perms)?;
+        auth.require_verb_allows(&verbdef.owner(), verbdef.flags(), VerbFlag::Write)?;
 
         // LambdaMOO/ToastStunt semantics: only wizards can transfer verb ownership.
-        if let Some(new_owner) = verb_attrs.owner
-            && !perms.check_is_wizard()?
-            && new_owner != verbdef.owner()
-        {
-            return Err(WorldStateError::VerbPermissionDenied);
+        if let Some(new_owner) = verb_attrs.owner {
+            auth.require_verb_owner_unchanged_or_wizard(&verbdef.owner(), &new_owner)?;
         }
 
         // If the verb code is being altered, a programmer or wizard bit is required.
-        if verb_attrs.program.is_some()
-            && !perms.check_is_wizard()?
-            && !perms.flags.contains(ObjFlag::Programmer)
-        {
-            return Err(WorldStateError::VerbPermissionDenied);
+        if verb_attrs.program.is_some() {
+            auth.require_verb_programmer_or_wizard()?;
         }
 
         self.get_tx_mut()
@@ -259,14 +248,14 @@ impl DbWorldState {
 
     fn check_parent(&self, perms: &Obj, parent: &Obj, owner: &Obj) -> Result<(), WorldStateError> {
         let (parentflags, parentowner) = (self.flags_of(parent)?, self.owner_of(parent)?);
-        let createorperms = self.perms(perms)?;
+        let auth = self.auth(perms)?;
         if self.valid(parent)? {
-            createorperms.check_object_allows(
+            auth.require_object_allows(
                 &parentowner,
                 parentflags,
                 BitEnum::new_with(ObjFlag::Fertile),
             )?;
-        } else if parent.ne(&NOTHING) || (owner.ne(perms) && !createorperms.check_is_wizard()?) {
+        } else if parent.ne(&NOTHING) || (owner.ne(perms) && !auth.is_wizard()) {
             return Err(WorldStateError::ObjectPermissionDenied);
         }
         Ok(())
@@ -375,7 +364,7 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::CreateObject);
-        let is_wizard = self.perms(perms)?.check_is_wizard()?;
+        let is_wizard = self.auth(perms)?.is_wizard();
         if !self.valid(parent)? && (!parent.is_nothing() || (owner != perms && !is_wizard)) {
             return Err(WorldStateError::ObjectPermissionDenied);
         }
@@ -454,8 +443,8 @@ impl WorldState for DbWorldState {
     fn verbs(&self, perms: &Obj, obj: &Obj) -> Result<VerbDefs, WorldStateError> {
         let _t = db_counters().timers_hot.start(WorldStateTimerOp::Verbs);
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&owner, flags, ObjFlag::Read.into())?;
+        self.auth(perms)?
+            .require_object_allows(&owner, flags, ObjFlag::Read.into())?;
 
         self.get_tx().get_verbs(obj)
     }
@@ -662,7 +651,8 @@ impl WorldState for DbWorldState {
             return Err(WorldStateError::PropertyPermissionDenied);
         }
 
-        // Perms needs to be wizard, or have write permission on object *and* the owner in prop_flags
+        // Defining a property requires write permission on the object and authority over the
+        // requested property owner.
         // must be the perms
         let (flags, objowner) = (self.flags_of(location)?, self.owner_of(location)?);
         let auth = self.auth(perms)?;
@@ -716,10 +706,10 @@ impl WorldState for DbWorldState {
     ) -> Result<(), WorldStateError> {
         let _t = db_counters().timers_hot.start(WorldStateTimerOp::AddVerb);
         let (objflags, obj_owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        let perms = self.perms(perms)?;
-        perms.check_object_allows(&obj_owner, objflags, ObjFlag::Write.into())?;
+        let auth = self.auth(perms)?;
+        auth.require_object_allows(&obj_owner, objflags, ObjFlag::Write.into())?;
         // LambdaMOO/ToastStunt semantics: non-wizards can only create verbs owned by themselves.
-        perms.check_obj_owner_perms(owner)?;
+        auth.require_owner_or_wizard(owner)?;
 
         self.get_tx_mut()
             .add_object_verb(obj, owner, &names, program, flags, args)?;
@@ -731,8 +721,8 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::RemoveVerb);
         let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&objowner, objflags, ObjFlag::Write.into())?;
+        self.auth(perms)?
+            .require_object_allows(&objowner, objflags, ObjFlag::Write.into())?;
 
         let vh = match verb.variant() {
             Variant::Int(verb_index) => {
@@ -806,8 +796,8 @@ impl WorldState for DbWorldState {
         }
 
         let vh = self.get_tx().get_verb_by_name(obj, vname)?;
-        self.perms(perms)?
-            .check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
+        self.auth(perms)?
+            .require_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
 
         Ok(vh)
     }
@@ -822,8 +812,8 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::GetVerbAtIndex);
         let vh = self.get_tx().get_verb_by_index(obj, vidx)?;
-        self.perms(perms)?
-            .check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
+        self.auth(perms)?
+            .require_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
         Ok(vh)
     }
 
@@ -840,8 +830,8 @@ impl WorldState for DbWorldState {
         let vh = verbs
             .find(&uuid)
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
-        self.perms(perms)?
-            .check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
+        self.auth(perms)?
+            .require_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
         let binary = self.get_tx().get_verb_program(&vh.location(), vh.uuid())?;
         Ok((binary, vh))
     }
@@ -868,8 +858,8 @@ impl WorldState for DbWorldState {
             Err(WorldStateError::VerbNotFound(_, _)) => return Ok(None),
             Err(e) => return Err(e),
         };
-        self.perms(perms)?
-            .check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
+        self.auth(perms)?
+            .require_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
         Ok(Some(vh))
     }
 
@@ -885,7 +875,7 @@ impl WorldState for DbWorldState {
             return Ok(None);
         }
 
-        let perms = self.perms(perms)?;
+        let auth = self.auth(perms)?;
         let tx = self.get_tx();
 
         let vh = match tx.resolve_verb_handle(
@@ -899,12 +889,12 @@ impl WorldState for DbWorldState {
             Err(e) => return Err(e),
         };
 
-        perms.check_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
+        auth.require_verb_allows(&vh.owner(), vh.flags(), VerbFlag::Read)?;
         let permissions_flags = match dispatch.flags_source {
-            DispatchFlagsSource::Permissions => perms.flags,
+            DispatchFlagsSource::Permissions => auth.flags(),
             DispatchFlagsSource::VerbOwner => {
-                if vh.owner() == perms.who {
-                    perms.flags
+                if vh.owner() == auth.who() {
+                    auth.flags()
                 } else {
                     self.flags_of(&vh.owner()).unwrap_or_default()
                 }
@@ -958,7 +948,7 @@ impl WorldState for DbWorldState {
         let owner = self.owner_of(obj)?;
 
         self.check_parent(perms, new_parent, &owner)?;
-        self.perms(perms)?.check_obj_owner_perms(&owner)?;
+        self.auth(perms)?.require_owner_or_wizard(&owner)?;
         self.check_chparent_property_conflict(&owner, obj, new_parent)?;
 
         self.get_tx_mut().set_object_parent(obj, new_parent)

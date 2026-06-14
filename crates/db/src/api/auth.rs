@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use moor_common::{
-    model::{ObjFlag, PropFlag, PropPerms, WorldStateError},
+    model::{ObjFlag, PropFlag, PropPerms, VerbFlag, WorldStateError},
     util::BitEnum,
 };
 use moor_var::Obj;
@@ -44,6 +44,16 @@ impl AuthContext {
     #[inline]
     pub(crate) fn is_wizard(&self) -> bool {
         self.principal.flags.contains(ObjFlag::Wizard)
+    }
+
+    #[inline]
+    pub(crate) fn who(&self) -> Obj {
+        self.principal.who
+    }
+
+    #[inline]
+    pub(crate) fn flags(&self) -> BitEnum<ObjFlag> {
+        self.principal.flags
     }
 
     #[inline]
@@ -119,5 +129,38 @@ impl AuthContext {
             return Ok(());
         }
         Err(WorldStateError::PropertyPermissionDenied)
+    }
+
+    #[inline]
+    pub(crate) fn require_verb_allows(
+        &self,
+        verb_owner: &Obj,
+        verb_flags: BitEnum<VerbFlag>,
+        required: VerbFlag,
+    ) -> Result<(), WorldStateError> {
+        if self.principal.who == *verb_owner || self.is_wizard() || verb_flags.contains(required) {
+            return Ok(());
+        }
+        Err(WorldStateError::VerbPermissionDenied)
+    }
+
+    #[inline]
+    pub(crate) fn require_verb_owner_unchanged_or_wizard(
+        &self,
+        current_owner: &Obj,
+        requested_owner: &Obj,
+    ) -> Result<(), WorldStateError> {
+        if self.is_wizard() || requested_owner == current_owner {
+            return Ok(());
+        }
+        Err(WorldStateError::VerbPermissionDenied)
+    }
+
+    #[inline]
+    pub(crate) fn require_verb_programmer_or_wizard(&self) -> Result<(), WorldStateError> {
+        if self.is_wizard() || self.principal.flags.contains(ObjFlag::Programmer) {
+            return Ok(());
+        }
+        Err(WorldStateError::VerbPermissionDenied)
     }
 }

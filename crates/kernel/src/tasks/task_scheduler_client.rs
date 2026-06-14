@@ -18,13 +18,14 @@ use crate::{
     vm::{Fork, TaskSuspend},
 };
 use moor_common::{
-    model::{Perms, WorldState},
+    model::WorldState,
     tasks::{
         AbortLimitReason, CommandError, EventLogPurgeResult, EventLogStats, Exception,
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
 use moor_var::{Error, Obj, Symbol, Var};
+use moor_vm::Authority;
 
 use crate::tasks::scheduler::Scheduler;
 
@@ -127,7 +128,7 @@ impl TaskSchedulerClient {
         self.scheduler.handle_task_exists(task_id)
     }
 
-    pub fn kill_task(&self, victim_task_id: TaskId, sender_permissions: Perms) -> Var {
+    pub fn kill_task(&self, victim_task_id: TaskId, sender_permissions: Authority) -> Var {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskKillTaskLatency);
@@ -138,7 +139,7 @@ impl TaskSchedulerClient {
     pub fn resume_task(
         &self,
         queued_task_id: TaskId,
-        sender_permissions: Perms,
+        sender_permissions: Authority,
         return_value: Var,
     ) -> Var {
         let _timer = sched_counters()
@@ -265,7 +266,12 @@ impl TaskSchedulerClient {
         self.scheduler.handle_request_new_transaction(self.task_id)
     }
 
-    pub fn task_send(&self, target_task_id: TaskId, value: Var, sender_permissions: Perms) -> Var {
+    pub fn task_send(
+        &self,
+        target_task_id: TaskId,
+        value: Var,
+        sender_permissions: Authority,
+    ) -> Var {
         self.scheduler
             .handle_task_send(self.task_id, target_task_id, value, sender_permissions)
     }
