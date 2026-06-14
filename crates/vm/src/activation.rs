@@ -107,14 +107,31 @@ pub struct Activation {
     pub verb_name: Symbol,
     /// Compact resolved metadata for the running verb.
     pub verbdef: ResolvedVerb,
-    /// This is the "task perms" for the current activation. It is the "who" the verb is acting on
-    /// behalf-of in terms of permissions in the world.
-    /// Set initially to verb owner ('programmer'). It is what set_task_perms() can override,
-    /// and caller_perms() returns the value of this in the *parent* stack frame (or #-1 if none)
-    pub permissions: Obj,
-    /// Cached flags for the permissions object, to avoid repeated DB lookups.
-    /// Updated when set_task_perms is called.
-    pub permissions_flags: BitEnum<ObjFlag>,
+    /// The current task authority for this activation.
+    pub authority: Authority,
+}
+
+/// Compact authority facts for the current activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Authority {
+    /// The object whose authority the activation executes under.
+    ///
+    /// This is the "task perms" object. It starts as the resolved verb owner and can be changed by
+    /// `set_task_perms()`.
+    pub principal: Obj,
+    /// Cached flags for the principal, to avoid repeated DB lookups.
+    pub principal_flags: BitEnum<ObjFlag>,
+}
+
+impl Authority {
+    #[inline]
+    #[must_use]
+    pub fn new(principal: Obj, principal_flags: BitEnum<ObjFlag>) -> Self {
+        Self {
+            principal,
+            principal_flags,
+        }
+    }
 }
 
 // Boxing MooStackFrame would add pointer indirection on every opcode dispatch,
@@ -207,6 +224,29 @@ pub struct BuiltinFrame {
 }
 
 impl Activation {
+    #[inline]
+    #[must_use]
+    pub fn permissions(&self) -> Obj {
+        self.authority.principal
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn permissions_flags(&self) -> BitEnum<ObjFlag> {
+        self.authority.principal_flags
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn authority(&self) -> Authority {
+        self.authority
+    }
+
+    #[inline]
+    pub fn set_authority(&mut self, authority: Authority) {
+        self.authority = authority;
+    }
+
     pub fn is_builtin_frame(&self) -> bool {
         matches!(self.frame, Frame::Bf(_))
     }
@@ -306,8 +346,7 @@ impl Activation {
             player,
             verbdef: resolved_verb,
             verb_name,
-            permissions: verb_owner,
-            permissions_flags,
+            authority: Authority::new(verb_owner, permissions_flags),
         }
     }
 
@@ -501,8 +540,7 @@ impl Activation {
             player: current_activation.player,
             verbdef: current_activation.verbdef,
             verb_name: Symbol::mk(&lambda_name),
-            permissions: current_activation.permissions,
-            permissions_flags: current_activation.permissions_flags,
+            authority: current_activation.authority,
         })
     }
 
@@ -549,8 +587,7 @@ impl Activation {
             player: *player,
             verbdef,
             verb_name: *EVAL_SYMBOL,
-            permissions,
-            permissions_flags,
+            authority: Authority::new(permissions, permissions_flags),
         }
     }
 
@@ -587,9 +624,7 @@ impl Activation {
             player,
             verbdef,
             verb_name: bf_name,
-            permissions: NOTHING,
-            // NOTHING has no flags
-            permissions_flags: BitEnum::new(),
+            authority: Authority::new(NOTHING, BitEnum::new()),
         }
     }
 

@@ -22,6 +22,7 @@ use std::sync::LazyLock;
 use uuid::Uuid;
 
 use crate::{
+    api::auth::{AuthContext, AuthPrincipal},
     api::gc::{GCError, GCInterface},
     engine::moor_db::WorldStateTransaction,
 };
@@ -93,6 +94,11 @@ impl DbWorldState {
         Ok(Perms { who: *who, flags })
     }
 
+    fn auth(&self, who: &Obj) -> Result<AuthContext, WorldStateError> {
+        let flags = self.flags_of(who)?;
+        Ok(AuthContext::new(AuthPrincipal::new(*who, flags)))
+    }
+
     fn update_property_internal(
         &mut self,
         perms: &Obj,
@@ -100,7 +106,7 @@ impl DbWorldState {
         pname: Symbol,
         value: &Var,
     ) -> Result<(), WorldStateError> {
-        let perms_who = self.perms(perms)?;
+        let auth = self.auth(perms)?;
 
         // You have to use move/chparent for this kinda fun.
         if pname == *LOCATION_SYM
@@ -125,10 +131,10 @@ impl DbWorldState {
                 };
 
                 // For player objects (objects with User flag), only wizards can set the name
-                if flags.contains(ObjFlag::User) && !perms_who.check_is_wizard()? {
+                if flags.contains(ObjFlag::User) && !auth.is_wizard() {
                     return Err(WorldStateError::PropertyPermissionDenied);
                 }
-                perms_who.check_obj_owner_perms(&objowner)?;
+                auth.require_owner_or_wizard(&objowner)?;
 
                 self.get_tx_mut().set_object_name(obj, name.to_string())?;
                 return Ok(());
@@ -138,12 +144,12 @@ impl DbWorldState {
                 let Some(owner) = value.as_object() else {
                     return Err(WorldStateError::PropertyTypeMismatch);
                 };
-                perms_who.check_wizard()?;
+                auth.require_wizard()?;
                 self.get_tx_mut().set_object_owner(obj, &owner)?;
                 return Ok(());
             }
 
-            perms_who.check_obj_owner_perms(&objowner)?;
+            auth.require_owner_or_wizard(&objowner)?;
 
             if pname == *R_SYM {
                 let Some(v) = value.as_integer() else {
@@ -187,7 +193,7 @@ impl DbWorldState {
 
         if pname == *PROGRAMMER_SYM || pname == *WIZARD_SYM {
             // Caller *must* be a wizard for either of these.
-            perms_who.check_wizard()?;
+            auth.require_wizard()?;
 
             // Gott get and then set flags
             let mut flags = self.flags_of(obj)?;
@@ -214,7 +220,7 @@ impl DbWorldState {
         }
 
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        perms_who.check_property_allows(&propperms, PropFlag::Write)?;
+        auth.require_property_allows(&propperms, PropFlag::Write)?;
         self.get_tx_mut()
             .set_property(obj, pdef.uuid(), value.clone())?;
         Ok(())
@@ -323,15 +329,8 @@ impl WorldState for DbWorldState {
     }
 
     fn controls(&self, who: &Obj, what: &Obj) -> Result<bool, WorldStateError> {
-        let flags = self.flags_of(who)?;
-        if flags.contains(ObjFlag::Wizard) {
-            return Ok(true);
-        }
         let owner = self.owner_of(what)?;
-        if owner == *who {
-            return Ok(true);
-        }
-        Ok(false)
+        Ok(self.auth(who)?.controls_owner(&owner))
     }
 
     fn flags_of(&self, obj: &Obj) -> Result<BitEnum<ObjFlag>, WorldStateError> {
@@ -347,9 +346,8 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::SetFlagsOf);
-        // Owner or wizard only.
         let owner = self.owner_of(obj)?;
-        self.perms(perms)?.check_obj_owner_perms(&owner)?;
+        self.auth(perms)?.require_owner_or_wizard(&owner)?;
         self.get_tx_mut().set_object_flags(obj, new_flags)
     }
 
@@ -362,7 +360,7 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::ObjectBytes);
-        self.perms(perms)?.check_wizard()?;
+        self.auth(perms)?.require_wizard()?;
         self.get_tx().get_object_size_bytes(obj)
     }
 
@@ -414,7 +412,7 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::RecycleObject);
         let owner = self.owner_of(obj)?;
-        self.perms(perms)?.check_obj_owner_perms(&owner)?;
+        self.auth(perms)?.require_owner_or_wizard(&owner)?;
 
         self.get_tx_mut().recycle_object(obj)
     }
@@ -433,7 +431,7 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::MoveObject);
         let owner = self.owner_of(obj)?;
-        self.perms(perms)?.check_obj_owner_perms(&owner)?;
+        self.auth(perms)?.require_owner_or_wizard(&owner)?;
 
         // Get the old location before moving
         let old_loc = self.get_tx().get_object_location(obj)?;
@@ -464,8 +462,8 @@ impl WorldState for DbWorldState {
 
     fn properties(&self, perms: &Obj, obj: &Obj) -> Result<PropDefs, WorldStateError> {
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&owner, flags, ObjFlag::Read.into())?;
+        self.auth(perms)?
+            .require_object_allows(&owner, flags, ObjFlag::Read.into())?;
 
         let properties = self.get_tx().get_properties(obj)?;
         Ok(properties)
@@ -530,8 +528,8 @@ impl WorldState for DbWorldState {
         }
 
         let (_, value, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        self.perms(perms)?
-            .check_property_allows(&propperms, PropFlag::Read)?;
+        self.auth(perms)?
+            .require_property_allows(&propperms, PropFlag::Read)?;
         Ok(value)
     }
 
@@ -545,8 +543,8 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::GetPropertyInfo);
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        self.perms(perms)?
-            .check_property_allows(&propperms, PropFlag::Read)?;
+        self.auth(perms)?
+            .require_property_allows(&propperms, PropFlag::Read)?;
 
         Ok((pdef.clone(), propperms))
     }
@@ -561,16 +559,13 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::SetPropertyInfo);
-        let perms_who = self.perms(perms)?;
+        let auth = self.auth(perms)?;
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        perms_who.check_property_allows(&propperms, PropFlag::Write)?;
+        auth.require_property_allows(&propperms, PropFlag::Write)?;
 
         // LambdaMOO/ToastStunt semantics: non-wizards may not transfer property ownership.
-        if let Some(new_owner) = attrs.owner
-            && !perms_who.check_is_wizard()?
-            && new_owner != propperms.owner()
-        {
-            return Err(WorldStateError::PropertyPermissionDenied);
+        if let Some(new_owner) = attrs.owner {
+            auth.require_property_owner_unchanged_or_wizard(&propperms.owner(), &new_owner)?;
         }
 
         // TODO Also keep a close eye on 'clear' & perms:
@@ -608,8 +603,8 @@ impl WorldState for DbWorldState {
         pname: Symbol,
     ) -> Result<bool, WorldStateError> {
         let (_, _, propperms, clear) = self.get_tx().resolve_property(obj, pname)?;
-        self.perms(perms)?
-            .check_property_allows(&propperms, PropFlag::Read)?;
+        self.auth(perms)?
+            .require_property_allows(&propperms, PropFlag::Read)?;
         Ok(clear)
     }
 
@@ -625,8 +620,8 @@ impl WorldState for DbWorldState {
         // This is just deleting the local *value* portion of the property.
         // First seek the property handle.
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        self.perms(perms)?
-            .check_property_allows(&propperms, PropFlag::Write)?;
+        self.auth(perms)?
+            .require_property_allows(&propperms, PropFlag::Write)?;
         if pdef.location() == *obj {
             return Err(WorldStateError::CannotClearPropertyOnDefiner(
                 *obj,
@@ -670,9 +665,9 @@ impl WorldState for DbWorldState {
         // Perms needs to be wizard, or have write permission on object *and* the owner in prop_flags
         // must be the perms
         let (flags, objowner) = (self.flags_of(location)?, self.owner_of(location)?);
-        self.perms(perms)?
-            .check_object_allows(&objowner, flags, ObjFlag::Write.into())?;
-        self.perms(perms)?.check_obj_owner_perms(propowner)?;
+        let auth = self.auth(perms)?;
+        auth.require_object_allows(&objowner, flags, ObjFlag::Write.into())?;
+        auth.require_owner_or_wizard(propowner)?;
 
         if initial_value.as_ref().is_some_and(Var::is_none) {
             return Err(WorldStateError::PropertyTypeMismatch);
@@ -703,8 +698,8 @@ impl WorldState for DbWorldState {
             .find_first_named(pname)
             .ok_or_else(|| WorldStateError::PropertyNotFound(*obj, pname.to_string()))?;
         let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&objowner, objflags, ObjFlag::Write.into())?;
+        self.auth(perms)?
+            .require_object_allows(&objowner, objflags, ObjFlag::Write.into())?;
 
         self.get_tx_mut().delete_property(obj, pdef.uuid())
     }
@@ -1058,7 +1053,7 @@ impl WorldState for DbWorldState {
     ) -> Result<Obj, WorldStateError> {
         use moor_common::model::ObjectRef;
 
-        self.perms(perms)?.check_wizard()?;
+        self.auth(perms)?.require_wizard()?;
 
         // Check that source object exists
         if !self.get_tx().object_valid(obj)? {

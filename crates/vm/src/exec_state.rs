@@ -32,7 +32,7 @@ use moor_var::{
 
 use crate::activation::CallProgram;
 use crate::moo_execute::{ExecutionResult, Fork, VerbExecutionRequest};
-use crate::{Activation, Frame, PhantomUnsync, VmHost};
+use crate::{Activation, Authority, Frame, PhantomUnsync, VmHost};
 
 static LIST_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("list_proto"));
 static MAP_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("map_proto"));
@@ -136,7 +136,7 @@ impl ExecState {
             let player = activation.player;
             let line_number = activation.frame.find_line_no().unwrap_or(0);
             let this = activation.this.clone();
-            let perms = activation.permissions;
+            let perms = activation.permissions();
             let programmer = match activation.frame {
                 Frame::Bf(_) => NOTHING,
                 _ => perms,
@@ -208,7 +208,7 @@ impl ExecState {
             }
 
             // Return the second non-builtin (caller frame)
-            return activation.permissions;
+            return activation.permissions();
         }
 
         // No caller found
@@ -220,14 +220,14 @@ impl ExecState {
     /// the `set_task_perms` built-in function.
     pub fn task_perms(&self) -> Obj {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
-        stack_top.map(|a| a.permissions).unwrap_or(NOTHING)
+        stack_top.map(Activation::permissions).unwrap_or(NOTHING)
     }
 
     /// Return the cached flags for the task permissions object.
     pub fn task_perms_flags(&self) -> BitEnum<ObjFlag> {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
         stack_top
-            .map(|a| a.permissions_flags)
+            .map(Activation::permissions_flags)
             .unwrap_or_else(BitEnum::new)
     }
 
@@ -245,8 +245,7 @@ impl ExecState {
         // Copy the stack perms up to the last non-builtin. That is, make sure builtin-frames
         // get the permissions update, and the first non-builtin, too.
         for activation in self.stack.iter_mut().rev() {
-            activation.permissions = perms;
-            activation.permissions_flags = perms_flags;
+            activation.set_authority(Authority::new(perms, perms_flags));
             if !activation.is_builtin_frame() {
                 break;
             }
@@ -516,7 +515,7 @@ impl ExecState {
                 }
             }
         };
-        let perms = self.top().permissions;
+        let perms = self.top().permissions();
         let prop_val = host
             .retrieve_property(&perms, &SYSTEM_OBJECT, sysprop_sym)
             .map_err(|e| e.to_error())?;
@@ -574,7 +573,7 @@ impl ExecState {
         }
 
         let verb_result = host.dispatch_verb(
-            &self.top().permissions,
+            &self.top().permissions(),
             VerbDispatch::new(
                 VerbLookup::method(&location, verb_name),
                 DispatchFlagsSource::VerbOwner,
@@ -612,7 +611,7 @@ impl ExecState {
         // Defer program materialization/slot resolution to VmHost so it can source programs
         // from the task-owned cache.
         ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-            permissions: self.top().permissions,
+            permissions: self.top().permissions(),
             permissions_flags,
             resolved_verb,
             verb_name,
@@ -675,7 +674,7 @@ impl ExecState {
         caller: Var,
     ) -> Result<Option<ExecutionResult>, WorldStateError> {
         let Some(verb_result) = host.dispatch_verb(
-            &self.top().permissions,
+            &self.top().permissions(),
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, bf_override_name),
                 DispatchFlagsSource::Permissions,
@@ -690,7 +689,7 @@ impl ExecState {
 
         let player = self.top().player;
         let args_list = args.clone();
-        let permissions = self.top().permissions;
+        let permissions = self.top().permissions();
         Ok(Some(ExecutionResult::DispatchVerb(Box::new(
             VerbExecutionRequest {
                 permissions,

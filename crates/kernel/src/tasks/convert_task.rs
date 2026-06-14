@@ -1318,7 +1318,7 @@ pub(crate) fn activation_to_flatbuffer(
     let fb_verbdef = convert_schema::verbdef_to_flatbuffer(&serialized_verbdef)
         .map_err(|e| TaskConversionError::EncodingError(format!("Error encoding verbdef: {e}")))?;
 
-    let fb_permissions = convert_schema::obj_to_flatbuffer_struct(&activation.permissions);
+    let fb_permissions = convert_schema::obj_to_flatbuffer_struct(&activation.permissions());
 
     Ok(fb::Activation {
         frame: Box::new(fb_frame),
@@ -1328,7 +1328,7 @@ pub(crate) fn activation_to_flatbuffer(
         verb_name: Box::new(fb_verb_name),
         verbdef: Box::new(fb_verbdef),
         permissions: Box::new(fb_permissions),
-        permissions_flags: activation.permissions_flags.to_u16(),
+        permissions_flags: activation.permissions_flags().to_u16(),
     })
 }
 
@@ -1405,8 +1405,7 @@ pub(crate) fn activation_from_ref(
         player,
         verb_name,
         verbdef: verbdef.as_resolved(),
-        permissions,
-        permissions_flags,
+        authority: moor_vm::Authority::new(permissions, permissions_flags),
     })
 }
 
