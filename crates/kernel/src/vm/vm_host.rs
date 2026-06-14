@@ -394,7 +394,7 @@ impl VmHost {
                     }
                     let fork_request = Box::new(Fork {
                         player: a.player,
-                        progr: a.permissions,
+                        progr: a.permissions(),
                         parent_task_id,
                         delay,
                         activation: new_activation,
@@ -466,13 +466,15 @@ impl VmHost {
         let activation = self.vm_exec_state.top_mut();
         let verb_name = activation.verb_name;
         let verb_definer = activation.verb_definer();
+        let permissions = activation.permissions();
+        let permissions_flags = activation.permissions_flags();
 
         let (result, new_tick_count) = match &mut activation.frame {
             Frame::Moo(fr) => {
                 let mut host = KernelHost;
                 let frame_context = FrameExecutionContext {
-                    permissions: activation.permissions,
-                    task_permissions_flags: activation.permissions_flags,
+                    permissions,
+                    task_permissions_flags: permissions_flags,
                     activation_player: activation.player,
                     this: &activation.this,
                     verb_name,
@@ -569,7 +571,7 @@ impl VmHost {
     }
 
     pub fn permissions(&self) -> Obj {
-        self.vm_exec_state.top().permissions
+        self.vm_exec_state.top().permissions()
     }
 
     pub fn set_program_cache_sizes(

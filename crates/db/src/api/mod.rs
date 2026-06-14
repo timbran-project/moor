@@ -17,6 +17,7 @@
 //! - `loader_adapter`: loader/snapshot traits implemented on the same adapter.
 //! - `gc`: garbage-collection trait and error types.
 
+mod auth;
 pub mod gc;
 pub mod world_state;
 
