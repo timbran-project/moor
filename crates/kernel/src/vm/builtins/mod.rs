@@ -292,7 +292,7 @@ impl BfCallState<'_> {
         self.exec_state.caller_perms()
     }
     pub fn task_authority_principal(&self) -> Obj {
-        self.exec_state.task_perms()
+        self.exec_state.task_authority_principal()
     }
 
     pub fn player(&self) -> Obj {
