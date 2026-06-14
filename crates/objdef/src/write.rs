@@ -12,7 +12,9 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::dump::ObjectDumpError;
-use moor_common::model::{ObjFlag, PrepSpec, prop_flags_string, verb_perms_string};
+use moor_common::model::{
+    ObjFlag, PrepSpec, VerbArgsSpec, VerbFlag, prop_flags_string, verb_perms_string,
+};
 use moor_compiler::{
     ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition, program_to_tree, to_literal,
     to_literal_objsub, unparse,
@@ -228,19 +230,7 @@ fn write_verb<W: Write>(
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
     let owner = canon_name(&v.owner, index_names);
-    let vflags = verb_perms_string(v.flags);
-
-    let prepspec = match v.argspec.prep {
-        PrepSpec::Any => "any".to_string(),
-        PrepSpec::None => "none".to_string(),
-        PrepSpec::Other(p) => p.to_string_single().to_string(),
-    };
-    let verbargsspec = format!(
-        "{} {} {}",
-        v.argspec.dobj.to_string(),
-        prepspec,
-        v.argspec.iobj.to_string(),
-    );
+    let is_method = v.argspec == VerbArgsSpec::this_none_this() && v.flags.contains(VerbFlag::Exec);
 
     let joined_names: String = v
         .names
@@ -273,14 +263,43 @@ fn write_verb<W: Write>(
             reason: e.to_string(),
         })?;
 
-    writeln!(
-        writer,
-        "{indent}verb {names} ({verbargsspec}) owner: {owner} flags: \"{vflags}\""
-    )?;
-    for line in unparsed {
-        writeln!(writer, "{indent}{indent}{line}")?;
+    if is_method {
+        let default_flags = VerbFlag::rxd();
+        if v.flags == default_flags {
+            writeln!(writer, "{indent}method {names} owner: {owner}")?;
+        } else {
+            let vflags = verb_perms_string(v.flags);
+            writeln!(
+                writer,
+                "{indent}method {names} owner: {owner} flags: \"{vflags}\""
+            )?;
+        }
+        for line in unparsed {
+            writeln!(writer, "{indent}{indent}{line}")?;
+        }
+        writeln!(writer, "{indent}endmethod")?;
+    } else {
+        let vflags = verb_perms_string(v.flags);
+        let prepspec = match v.argspec.prep {
+            PrepSpec::Any => "any".to_string(),
+            PrepSpec::None => "none".to_string(),
+            PrepSpec::Other(p) => p.to_string_single().to_string(),
+        };
+        let verbargsspec = format!(
+            "{} {} {}",
+            v.argspec.dobj.to_string(),
+            prepspec,
+            v.argspec.iobj.to_string(),
+        );
+        writeln!(
+            writer,
+            "{indent}verb {names} ({verbargsspec}) owner: {owner} flags: \"{vflags}\""
+        )?;
+        for line in unparsed {
+            writeln!(writer, "{indent}{indent}{line}")?;
+        }
+        writeln!(writer, "{indent}endverb")?;
     }
-    writeln!(writer, "{indent}endverb")?;
     Ok(())
 }
 

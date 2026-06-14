@@ -241,12 +241,13 @@ mod tests {
     };
 
     fn compile_single_object(spec: &str) -> ObjectDefinition {
+        compile_single_object_opt(spec).expect("should compile")
+    }
+
+    fn compile_single_object_opt(spec: &str) -> Result<ObjectDefinition, ObjDefParseError> {
         let mut context = ObjFileContext::new();
         compile_object_definitions(spec, &CompileOptions::default(), &mut context)
-            .unwrap()
-            .into_iter()
-            .next()
-            .unwrap()
+            .map(|v| v.into_iter().next().unwrap())
     }
 
     /// Just a simple objdef no verbs or props
@@ -933,5 +934,98 @@ mod tests {
         assert_eq!(items[0].as_string().unwrap(), "image/png");
         let binary_data = items[1].as_binary().expect("Expected binary in list");
         assert_eq!(binary_data.as_bytes(), &png_bytes[..]);
+    }
+
+    #[test]
+    fn method_decl_basic() {
+        let spec = r#"
+                object #1
+                    parent: #-1
+                    name: "Test Object"
+                    location: #-1
+                    owner: #0
+
+                    method "look_self" owner: #1
+                        return this.description;
+                    endmethod
+                endobject"#;
+        let odef = compile_single_object(spec);
+
+        assert_eq!(odef.verbs.len(), 1);
+        assert_eq!(odef.verbs[0].names, vec![Symbol::mk("look_self")]);
+        assert_eq!(odef.verbs[0].argspec, VerbArgsSpec::this_none_this());
+        assert_eq!(odef.verbs[0].owner, Obj::mk_id(1));
+        assert_eq!(odef.verbs[0].flags, VerbFlag::rxd());
+    }
+
+    #[test]
+    fn method_decl_explicit_flags() {
+        let spec = r#"
+                object #1
+                    parent: #-1
+                    name: "Test Object"
+                    location: #-1
+                    owner: #0
+
+                    method "helper" owner: #0 flags: "rx"
+                        return 42;
+                    endmethod
+                endobject"#;
+        let odef = compile_single_object(spec);
+
+        assert_eq!(odef.verbs.len(), 1);
+        assert_eq!(odef.verbs[0].names, vec![Symbol::mk("helper")]);
+        assert_eq!(odef.verbs[0].argspec, VerbArgsSpec::this_none_this());
+        assert_eq!(odef.verbs[0].owner, Obj::mk_id(0));
+        assert_eq!(odef.verbs[0].flags, VerbFlag::rx());
+    }
+
+    #[test]
+    fn method_decl_rejects_non_exec_flags() {
+        let spec = r#"
+                object #1
+                    parent: #-1
+                    name: "Test Object"
+                    location: #-1
+                    owner: #0
+
+                    method "helper" owner: #0 flags: "rw"
+                        return 42;
+                    endmethod
+                endobject"#;
+        let result = compile_single_object_opt(spec);
+        assert!(
+            result.is_err(),
+            "method without exec flag should be rejected"
+        );
+    }
+
+    #[test]
+    fn method_decl_body_starts_with_flags_colon() {
+        // The body code starts with `flags:` (a verb-call expression on the local
+        // variable `flags`), which must not be parsed as a header attribute.
+        let spec = r#"
+                object #1
+                    parent: #-1
+                    name: "Test Object"
+                    location: #-1
+                    owner: #0
+
+                    method "test" owner: #1
+                        flags = 42;
+                        return flags;
+                    endmethod
+                endobject"#;
+        let odef = compile_single_object(spec);
+
+        assert_eq!(odef.verbs.len(), 1);
+        assert_eq!(odef.verbs[0].names, vec![Symbol::mk("test")]);
+        assert_eq!(odef.verbs[0].argspec, VerbArgsSpec::this_none_this());
+        assert_eq!(odef.verbs[0].owner, Obj::mk_id(1));
+        assert_eq!(
+            odef.verbs[0].flags,
+            VerbFlag::rxd(),
+            "flags = 42; is body code, not a header attribute"
+        );
     }
 }

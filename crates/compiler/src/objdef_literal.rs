@@ -172,6 +172,16 @@ impl<'a> LiteralParser<'a> {
         }
     }
 
+    fn skip_horizontal_whitespace(&mut self) {
+        while let Some(ch) = self.peek_char() {
+            if ch == ' ' || ch == '\t' {
+                self.bump_char();
+            } else {
+                break;
+            }
+        }
+    }
+
     fn peek_char(&self) -> Option<char> {
         self.remaining().chars().next()
     }
@@ -916,6 +926,10 @@ impl<'a> LiteralParser<'a> {
             if self.eat_keyword("endobject") {
                 return Ok(objdef);
             }
+            if self.eat_keyword("method") {
+                objdef.verbs.push(self.parse_method_decl(options)?);
+                continue;
+            }
             if self.eat_keyword("verb") {
                 objdef.verbs.push(self.parse_verb_decl(options)?);
                 continue;
@@ -1013,7 +1027,11 @@ impl<'a> LiteralParser<'a> {
         })
     }
 
-    fn parse_verb_body_until_endverb(&mut self) -> Result<(String, usize), ObjDefParseError> {
+    fn parse_verb_body_until_end_keyword(
+        &mut self,
+        end_keyword: &str,
+        missing_msg: &str,
+    ) -> Result<(String, usize), ObjDefParseError> {
         let start = self.pos;
         let mut pos = self.pos;
         let mut in_string = false;
@@ -1021,6 +1039,7 @@ impl<'a> LiteralParser<'a> {
         let mut in_line_comment = false;
         let mut in_block_comment = false;
         let mut line_start = self.pos == 0 || self.source[..self.pos].ends_with('\n');
+        let end_kw_len = end_keyword.len();
 
         while pos < self.source.len() {
             if !in_string && !in_line_comment && !in_block_comment && line_start {
@@ -1033,14 +1052,14 @@ impl<'a> LiteralParser<'a> {
                         break;
                     }
                 }
-                if self.source[probe..].len() >= 7
-                    && self.source[probe..][..7].eq_ignore_ascii_case("endverb")
+                if self.source[probe..].len() >= end_kw_len
+                    && self.source[probe..][..end_kw_len].eq_ignore_ascii_case(end_keyword)
                 {
-                    let next = self.source[probe + 7..].chars().next();
+                    let next = self.source[probe + end_kw_len..].chars().next();
                     if !matches!(next, Some(c) if c == '_' || c.is_ascii_alphanumeric()) {
                         let body = self.source[start..pos].to_string();
                         let start_line = self.line_col(start).0;
-                        self.pos = probe + 7;
+                        self.pos = probe + end_kw_len;
                         return Ok((body, start_line));
                     }
                 }
@@ -1107,7 +1126,11 @@ impl<'a> LiteralParser<'a> {
             line_start = ch == '\n';
         }
 
-        Err(self.parse_error("missing endverb"))
+        Err(self.parse_error(missing_msg))
+    }
+
+    fn parse_verb_body_until_endverb(&mut self) -> Result<(String, usize), ObjDefParseError> {
+        self.parse_verb_body_until_end_keyword("endverb", "missing endverb")
     }
 
     fn parse_verb_decl(
@@ -1173,6 +1196,69 @@ impl<'a> LiteralParser<'a> {
         Ok(ObjVerbDef {
             names,
             argspec: VerbArgsSpec { dobj, prep, iobj },
+            owner,
+            flags,
+            program: ProgramType::MooR(program),
+        })
+    }
+
+    fn parse_method_decl(
+        &mut self,
+        compile_options: &CompileOptions,
+    ) -> Result<ObjVerbDef, ObjDefParseError> {
+        self.skip_trivia();
+        let names = if self.peek_char() == Some('"') {
+            let names = self.parse_string_value()?;
+            names
+                .split_whitespace()
+                .map(|name| Symbol::mk(name.trim()))
+                .collect::<Vec<_>>()
+        } else {
+            vec![Symbol::mk(self.parse_propchars()?.trim())]
+        };
+
+        self.skip_trivia();
+        if !self.eat_keyword("owner") {
+            return Err(self.parse_error("expected owner attribute after method name"));
+        }
+        self.skip_trivia();
+        self.expect_char(':', "expected ':' after owner")?;
+        self.skip_trivia();
+        let owner = self.parse_object_attr_value()?;
+
+        let flags = {
+            let saved_pos = self.pos;
+            self.skip_horizontal_whitespace();
+            if self.eat_keyword("flags") {
+                self.skip_horizontal_whitespace();
+                if self.eat_char(':') {
+                    self.skip_horizontal_whitespace();
+                    let flags = self.parse_verb_flags_value()?;
+                    if !flags.contains(VerbFlag::Exec) {
+                        return Err(self.parse_error("method requires exec (x) flag"));
+                    }
+                    flags
+                } else {
+                    self.pos = saved_pos;
+                    VerbFlag::rxd()
+                }
+            } else {
+                VerbFlag::rxd()
+            }
+        };
+
+        let (statements_text, verb_start_line) =
+            self.parse_verb_body_until_end_keyword("endmethod", "missing endmethod")?;
+        let program = compile(statements_text.as_str(), compile_options.clone()).map_err(|e| {
+            ObjDefParseError::VerbCompileError(
+                offset_compile_error(e, verb_start_line.saturating_sub(1)),
+                statements_text.clone(),
+            )
+        })?;
+
+        Ok(ObjVerbDef {
+            names,
+            argspec: VerbArgsSpec::this_none_this(),
             owner,
             flags,
             program: ProgramType::MooR(program),
