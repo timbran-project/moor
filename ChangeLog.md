@@ -138,6 +138,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Rich formatted telnet output (`text/djot` and `text/markdown`) now normalizes line endings to
   `CRLF` before sending to clients, avoiding layout issues in less-tolerant telnet clients
 
+## [1.0.1] - 2026-06-14 (`v1.0-release` branch)
+
+### Fixed
+
+`kernel`:
+
+- Permission compatibility fixes for regular programmer/user operations:
+  - Built-in object attribute assignment for `.name`, `.r`, `.w`, and `.f`, `move()`, `chparent()`,
+    and `recycle()` now require owner-or-wizard authority instead of accepting public object write
+    alone.
+  - `add_verb()` no longer requires the caller to have the programmer bit when the caller otherwise
+    has object write permission and owner authority.
+  - `verb_code()` no longer requires the caller to have the programmer bit when the caller has read
+    permission on the verb.
+  - `delete_verb()` is authorized by write permission on the object defining the verb, not ownership
+    of or write permission on the verb itself.
+  - `object_bytes()` and `connection_name()` now check current task permissions rather than
+    `caller_perms()`.
+
+`db`:
+
+- `delete_property()` is authorized by write permission on the object defining the property, not
+  ownership of or write permission on the property itself.
+- `queue_info()` is now available to regular callers instead of requiring wizard permissions.
+
+`docs`:
+
+- Corrected book documentation for `verb_info()`, `verb_code()`, `set_verb_code()`, `add_verb()`,
+  `delete_verb()`, and `queue_info()` permission and error behavior.
+
 ## [1.0.0-rc2] - Forthcoming (`v1.0-release` branch)
 
 ### Fixed

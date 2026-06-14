@@ -14,8 +14,8 @@ enhancements.
 
 > **Which version should I use?**
 >
-> Use the stable [`1.0.0` release](https://codeberg.org/timbran/moor/releases/tag/1.0.0), the
-> `v1.0-release` branch, or published `1.0.0` images/packages for running worlds and evaluating
+> Use the stable [`1.0.1` release](https://codeberg.org/timbran/moor/releases/tag/1.0.1), the
+> `v1.0-release` branch, or published `1.0.1` images/packages for running worlds and evaluating
 > mooR. `main` tracks `1.1.0-dev` and contains active next-version development work.
 >
 > See the [Status](#status) section below for the branch policy.
@@ -86,7 +86,7 @@ To see a live running instance, visit our demonstrator community at
 
 ## Status
 
-mooR [`1.0.0`](https://codeberg.org/timbran/moor/releases/tag/1.0.0) is the current stable release.
+mooR [`1.0.1`](https://codeberg.org/timbran/moor/releases/tag/1.0.1) is the current stable release.
 The core runtime and database formats are stable for the 1.0 series. It successfully runs databases
 imported from LambdaMOO with real-world workloads and has passed extensive stress and performance
 testing.
@@ -276,7 +276,7 @@ mooR offers several opportunities for contribution. For detailed contribution gu
 Found a bug or have a feature request? Please file an issue on our
 [Codeberg issue tracker](https://codeberg.org/timbran/moor/issues). Bug reports from `main` are
 welcome, but if you're running a world or evaluating mooR for stability, use the
-[`1.0.0` release](https://codeberg.org/timbran/moor/releases/tag/1.0.0) or the `v1.0-release`
+[`1.0.1` release](https://codeberg.org/timbran/moor/releases/tag/1.0.1) or the `v1.0-release`
 branch.
 
 When reporting bugs, please include:
