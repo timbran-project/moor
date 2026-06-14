@@ -288,9 +288,19 @@ pub(crate) struct BfCallState<'a> {
 }
 
 impl BfCallState<'_> {
+    /// Return the MOO-visible `caller_perms()`: the authority principal of the previous
+    /// non-builtin activation, or `#-1` when there is no MOO caller.
+    ///
+    /// This is for the `caller_perms()` builtin. DB authorization should usually use
+    /// `task_authority_principal()` instead.
     pub fn caller_perms(&self) -> Obj {
         self.exec_state.caller_perms()
     }
+
+    /// Return the current task authority principal for builtin and DB permission checks.
+    ///
+    /// This tracks the running MOO frame's authority, including changes made by
+    /// `set_task_perms()`, and skips transient builtin frames.
     pub fn task_authority_principal(&self) -> Obj {
         self.exec_state.task_authority_principal()
     }
@@ -299,6 +309,11 @@ impl BfCallState<'_> {
         self.exec_state.top().player()
     }
 
+    /// Return the current task authority with freshly loaded object flags.
+    ///
+    /// Use this for builtin-level wizard/programmer/control checks. The principal comes from
+    /// `task_authority_principal()`, while flags are read from the current transaction so changes
+    /// to object flags during the task are observed.
     pub fn task_authority(&self) -> Result<Authority, WorldStateError> {
         let who = self.task_authority_principal();
         // Always do a live lookup here - object flags can change mid-execution

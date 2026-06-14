@@ -181,7 +181,11 @@ impl ExecState {
         v_obj(NOTHING)
     }
 
-    /// Return the permissions of the caller of the current activation.
+    /// Return the MOO-visible permissions of the caller of the current activation.
+    ///
+    /// Builtin frames are skipped so this reports the previous non-builtin activation's
+    /// authority principal. Builtin frames may provide an explicit override for special cases
+    /// that need `caller_perms()` to return `#-1`.
     pub fn caller_perms(&self) -> Obj {
         // Walk the stack backwards, skipping builtin frames (checking them for overrides)
         // and skipping the first non-builtin frame (current), returning the second non-builtin
@@ -218,7 +222,8 @@ impl ExecState {
     /// Return the object whose authority the current task is running under.
     ///
     /// This starts as the resolved verb owner and can be modified by the
-    /// `set_task_perms` built-in function.
+    /// `set_task_perms` built-in function. Builtin frames are skipped because they are transient
+    /// implementation frames; task authority belongs to the active MOO frame.
     pub fn task_authority_principal(&self) -> Obj {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
         stack_top
@@ -227,6 +232,9 @@ impl ExecState {
     }
 
     /// Return the cached flags for the current task authority principal.
+    ///
+    /// Like `task_authority_principal()`, this skips builtin frames. Kernel builtins that need
+    /// current flags should reload them through `BfCallState::task_authority()`.
     pub fn task_authority_flags(&self) -> BitEnum<ObjFlag> {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
         stack_top
@@ -241,6 +249,9 @@ impl ExecState {
 
     /// Update the authority principal of the current task, as called by the `set_task_perms`
     /// built-in.
+    ///
+    /// The new authority is copied through any active builtin frames and into the current MOO
+    /// frame so subsequent builtin calls and DB checks observe the same task authority.
     pub fn set_task_perms(&mut self, host: &mut impl VmHost, authority_principal: Obj) {
         // Look up the flags for the new authority principal.
         let authority_flags = host.flags_of(&authority_principal).unwrap_or_default();

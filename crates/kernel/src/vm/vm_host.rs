@@ -576,7 +576,7 @@ impl VmHost {
     }
 
     pub fn authority_principal(&self) -> Obj {
-        self.vm_exec_state.top().authority_principal()
+        self.vm_exec_state.task_authority_principal()
     }
 
     pub fn set_program_cache_sizes(
