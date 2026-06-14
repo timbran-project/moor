@@ -1331,14 +1331,9 @@ fn bf_renumber(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
-
-    // Only wizards can renumber objects
-    task_perms.check_wizard().map_err(world_state_bf_err)?;
-
     // Call the world state renumber_object method
     let new_obj = with_current_transaction_mut(|world_state| {
-        world_state.renumber_object(&task_perms.who, &obj, target)
+        world_state.renumber_object(&bf_args.task_perms_who(), &obj, target)
     })
     .map_err(world_state_bf_err)?;
 

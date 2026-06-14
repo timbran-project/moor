@@ -36,7 +36,7 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_var::{
-    NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, Variant,
+    NOTHING, Obj, Symbol, Var, Variant,
     program::{ProgramType, opcode::BuiltinId},
     v_bool_int, v_list, v_obj,
 };
@@ -413,9 +413,8 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::RecycleObject);
-        let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.perms(perms)?
-            .check_object_allows(&owner, flags, ObjFlag::Write.into())?;
+        let owner = self.owner_of(obj)?;
+        self.perms(perms)?.check_obj_owner_perms(&owner)?;
 
         self.get_tx_mut().recycle_object(obj)
     }
@@ -1059,10 +1058,7 @@ impl WorldState for DbWorldState {
     ) -> Result<Obj, WorldStateError> {
         use moor_common::model::ObjectRef;
 
-        // Check permissions - only wizards can renumber objects
-        if !self.controls(perms, &SYSTEM_OBJECT)? {
-            return Err(WorldStateError::ObjectPermissionDenied);
-        }
+        self.perms(perms)?.check_wizard()?;
 
         // Check that source object exists
         if !self.get_tx().object_valid(obj)? {

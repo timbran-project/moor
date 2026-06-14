@@ -25,3 +25,5 @@ mod gc_tests;
 mod loader_adapter;
 #[cfg(test)]
 mod loader_tests;
+#[cfg(test)]
+mod world_state_tests;
