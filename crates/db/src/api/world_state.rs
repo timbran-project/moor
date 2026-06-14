@@ -96,12 +96,12 @@ impl DbWorldState {
 
     fn update_property_internal(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
         value: &Var,
     ) -> Result<(), WorldStateError> {
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
 
         // You have to use move/chparent for this kinda fun.
         if pname == *LOCATION_SYM
@@ -224,11 +224,11 @@ impl DbWorldState {
     fn do_update_verb(
         &mut self,
         obj: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         verbdef: &VerbDef,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError> {
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         auth.require(AuthRule::verb_allows(
             &verbdef.owner(),
             verbdef.flags(),
@@ -253,9 +253,14 @@ impl DbWorldState {
         Ok(())
     }
 
-    fn check_parent(&self, perms: &Obj, parent: &Obj, owner: &Obj) -> Result<(), WorldStateError> {
+    fn check_parent(
+        &self,
+        authority_principal: &Obj,
+        parent: &Obj,
+        owner: &Obj,
+    ) -> Result<(), WorldStateError> {
         let (parentflags, parentowner) = (self.flags_of(parent)?, self.owner_of(parent)?);
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         if self.valid(parent)? {
             auth.require(AuthRule::object_allows(
                 &parentowner,
@@ -277,21 +282,21 @@ impl DbWorldState {
 
     fn check_chparent_property_conflict(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         new_parent: &Obj,
     ) -> Result<(), WorldStateError> {
         // If object or one of its descendants defines a property with the same name as one defined
         // either on new-parent or on one of its ancestors, then E_INVARG is raised.
         let obj_or_descendant_props = self
-            .descendants_of(perms, obj, true)?
+            .descendants_of(authority_principal, obj, true)?
             .iter()
             .map(|descendant| self.get_tx().get_properties(&descendant))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten();
         let new_parent_or_ancestors_property_names: HashSet<_> = self
-            .ancestors_of(perms, new_parent, true)?
+            .ancestors_of(authority_principal, new_parent, true)?
             .iter()
             .map(|ancestor| self.get_tx().get_properties(&ancestor))
             .collect::<Result<Vec<_>, _>>()?
@@ -340,7 +345,7 @@ impl WorldState for DbWorldState {
 
     fn set_flags_of(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         new_flags: BitEnum<ObjFlag>,
     ) -> Result<(), WorldStateError> {
@@ -348,7 +353,7 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::SetFlagsOf);
         let owner = self.owner_of(obj)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::object_owner_or_wizard(&owner))?;
         self.get_tx_mut().set_object_flags(obj, new_flags)
     }
@@ -358,18 +363,18 @@ impl WorldState for DbWorldState {
         self.get_tx().get_object_location(obj)
     }
 
-    fn object_bytes(&self, perms: &Obj, obj: &Obj) -> Result<usize, WorldStateError> {
+    fn object_bytes(&self, authority_principal: &Obj, obj: &Obj) -> Result<usize, WorldStateError> {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::ObjectBytes);
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::object_wizard())?;
         self.get_tx().get_object_size_bytes(obj)
     }
 
     fn create_object(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         parent: &Obj,
         owner: &Obj,
         flags: BitEnum<ObjFlag>,
@@ -378,7 +383,7 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::CreateObject);
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         if !self.valid(parent)? && !parent.is_nothing() {
             return Err(WorldStateError::ObjectPermissionDenied);
         }
@@ -397,7 +402,7 @@ impl WorldState for DbWorldState {
             }
         }
 
-        self.check_parent(perms, parent, owner)?;
+        self.check_parent(authority_principal, parent, owner)?;
 
         // TODO: ownership_quota support
         //    If the intended owner of the new object has a property named `ownership_quota' and the value of that property is an integer, then `create()' treats that value
@@ -407,12 +412,16 @@ impl WorldState for DbWorldState {
         self.get_tx_mut().create_object(id_kind, attrs)
     }
 
-    fn recycle_object(&mut self, perms: &Obj, obj: &Obj) -> Result<(), WorldStateError> {
+    fn recycle_object(
+        &mut self,
+        authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<(), WorldStateError> {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::RecycleObject);
         let owner = self.owner_of(obj)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::object_owner_or_wizard(&owner))?;
 
         self.get_tx_mut().recycle_object(obj)
@@ -424,7 +433,7 @@ impl WorldState for DbWorldState {
 
     fn move_object(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         new_loc: &Obj,
     ) -> Result<(), WorldStateError> {
@@ -432,7 +441,7 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::MoveObject);
         let owner = self.owner_of(obj)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::object_owner_or_wizard(&owner))?;
 
         // Get the old location before moving
@@ -453,25 +462,23 @@ impl WorldState for DbWorldState {
         self.get_tx().get_object_contents(obj)
     }
 
-    fn verbs(&self, perms: &Obj, obj: &Obj) -> Result<VerbDefs, WorldStateError> {
+    fn verbs(&self, authority_principal: &Obj, obj: &Obj) -> Result<VerbDefs, WorldStateError> {
         let _t = db_counters().timers_hot.start(WorldStateTimerOp::Verbs);
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.auth_context(perms)?.require(AuthRule::object_allows(
-            &owner,
-            flags,
-            ObjFlag::Read.into(),
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::object_allows(&owner, flags, ObjFlag::Read.into()))?;
 
         self.get_tx().get_verbs(obj)
     }
 
-    fn properties(&self, perms: &Obj, obj: &Obj) -> Result<PropDefs, WorldStateError> {
+    fn properties(
+        &self,
+        authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<PropDefs, WorldStateError> {
         let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.auth_context(perms)?.require(AuthRule::object_allows(
-            &owner,
-            flags,
-            ObjFlag::Read.into(),
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::object_allows(&owner, flags, ObjFlag::Read.into()))?;
 
         let properties = self.get_tx().get_properties(obj)?;
         Ok(properties)
@@ -480,7 +487,7 @@ impl WorldState for DbWorldState {
     #[allow(clippy::obfuscated_if_else)]
     fn retrieve_property(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<Var, WorldStateError> {
@@ -493,11 +500,15 @@ impl WorldState for DbWorldState {
 
         // Special properties like name, location, and contents get treated specially.
         if pname == *NAME_SYM {
-            return self.name_of(perms, obj).map(Var::from);
+            return self.name_of(authority_principal, obj).map(Var::from);
         } else if pname == *LOCATION_SYM {
-            return self.location_of(perms, obj).map(Var::from);
+            return self.location_of(authority_principal, obj).map(Var::from);
         } else if pname == *CONTENTS_SYM {
-            let contents: Vec<_> = self.contents_of(perms, obj)?.iter().map(v_obj).collect();
+            let contents: Vec<_> = self
+                .contents_of(authority_principal, obj)?
+                .iter()
+                .map(v_obj)
+                .collect();
             return Ok(v_list(&contents));
         } else if pname == *OWNER_SYM {
             return self.owner_of(obj).map(Var::from);
@@ -536,14 +547,14 @@ impl WorldState for DbWorldState {
         }
 
         let (_, value, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::property_allows(&propperms, PropFlag::Read))?;
         Ok(value)
     }
 
     fn get_property_info(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(PropDef, PropPerms), WorldStateError> {
@@ -551,7 +562,7 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::GetPropertyInfo);
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::property_allows(&propperms, PropFlag::Read))?;
 
         Ok((pdef.clone(), propperms))
@@ -559,7 +570,7 @@ impl WorldState for DbWorldState {
 
     fn set_property_info(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
         attrs: PropAttrs,
@@ -567,7 +578,7 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::SetPropertyInfo);
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
         auth.require(AuthRule::property_allows(&propperms, PropFlag::Write))?;
 
@@ -579,7 +590,7 @@ impl WorldState for DbWorldState {
             ))?;
         }
 
-        // TODO Also keep a close eye on 'clear' & perms:
+        // TODO Also keep a close eye on 'clear' & MOO property-info perms:
         //  "raises `E_INVARG' if <owner> is not valid" & If <object> is the definer of the property
         //   <prop-name>, as opposed to an inheritor of the property, then `clear_property()' raises
         //   `E_INVARG'
@@ -596,7 +607,7 @@ impl WorldState for DbWorldState {
 
     fn update_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
         value: &Var,
@@ -604,24 +615,24 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::UpdateProperty);
-        self.update_property_internal(perms, obj, pname, value)
+        self.update_property_internal(authority_principal, obj, pname, value)
     }
 
     fn is_property_clear(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<bool, WorldStateError> {
         let (_, _, propperms, clear) = self.get_tx().resolve_property(obj, pname)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::property_allows(&propperms, PropFlag::Read))?;
         Ok(clear)
     }
 
     fn clear_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(), WorldStateError> {
@@ -631,7 +642,7 @@ impl WorldState for DbWorldState {
         // This is just deleting the local *value* portion of the property.
         // First seek the property handle.
         let (pdef, _, propperms, _) = self.get_tx().resolve_property(obj, pname)?;
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::property_allows(&propperms, PropFlag::Write))?;
         if pdef.location() == *obj {
             return Err(WorldStateError::CannotClearPropertyOnDefiner(
@@ -645,7 +656,7 @@ impl WorldState for DbWorldState {
 
     fn define_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         definer: &Obj,
         location: &Obj,
         pname: Symbol,
@@ -676,7 +687,7 @@ impl WorldState for DbWorldState {
         // Defining a property requires write permission on the object and authority over the
         // requested property owner.
         let (flags, objowner) = (self.flags_of(location)?, self.owner_of(location)?);
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         auth.require(AuthRule::object_allows(
             &objowner,
             flags,
@@ -701,7 +712,7 @@ impl WorldState for DbWorldState {
 
     fn delete_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(), WorldStateError> {
@@ -713,18 +724,19 @@ impl WorldState for DbWorldState {
             .find_first_named(pname)
             .ok_or_else(|| WorldStateError::PropertyNotFound(*obj, pname.to_string()))?;
         let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.auth_context(perms)?.require(AuthRule::object_allows(
-            &objowner,
-            objflags,
-            ObjFlag::Write.into(),
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::object_allows(
+                &objowner,
+                objflags,
+                ObjFlag::Write.into(),
+            ))?;
 
         self.get_tx_mut().delete_property(obj, pdef.uuid())
     }
 
     fn add_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         names: Vec<Symbol>,
         owner: &Obj,
@@ -734,7 +746,7 @@ impl WorldState for DbWorldState {
     ) -> Result<(), WorldStateError> {
         let _t = db_counters().timers_hot.start(WorldStateTimerOp::AddVerb);
         let (objflags, obj_owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         auth.require(AuthRule::object_allows(
             &obj_owner,
             objflags,
@@ -748,16 +760,22 @@ impl WorldState for DbWorldState {
         Ok(())
     }
 
-    fn remove_verb(&mut self, perms: &Obj, obj: &Obj, verb: Var) -> Result<(), WorldStateError> {
+    fn remove_verb(
+        &mut self,
+        authority_principal: &Obj,
+        obj: &Obj,
+        verb: Var,
+    ) -> Result<(), WorldStateError> {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::RemoveVerb);
         let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
-        self.auth_context(perms)?.require(AuthRule::object_allows(
-            &objowner,
-            objflags,
-            ObjFlag::Write.into(),
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::object_allows(
+                &objowner,
+                objflags,
+                ObjFlag::Write.into(),
+            ))?;
 
         let vh = match verb.variant() {
             Variant::Int(verb_index) => {
@@ -781,7 +799,7 @@ impl WorldState for DbWorldState {
 
     fn update_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         vname: Symbol,
         verb_attrs: VerbAttrs,
@@ -790,12 +808,12 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::UpdateVerb);
         let vh = self.get_tx().get_verb_by_name(obj, vname)?;
-        self.do_update_verb(obj, perms, &vh, verb_attrs)
+        self.do_update_verb(obj, authority_principal, &vh, verb_attrs)
     }
 
     fn update_verb_at_index(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         vidx: usize,
         verb_attrs: VerbAttrs,
@@ -804,12 +822,12 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::UpdateVerbAtIndex);
         let vh = self.get_tx().get_verb_by_index(obj, vidx)?;
-        self.do_update_verb(obj, perms, &vh, verb_attrs)
+        self.do_update_verb(obj, authority_principal, &vh, verb_attrs)
     }
 
     fn update_verb_with_id(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         uuid: Uuid,
         verb_attrs: VerbAttrs,
@@ -821,28 +839,34 @@ impl WorldState for DbWorldState {
         let vh = verbs
             .find(&uuid)
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
-        self.do_update_verb(obj, perms, &vh, verb_attrs)
+        self.do_update_verb(obj, authority_principal, &vh, verb_attrs)
     }
 
-    fn get_verb(&self, perms: &Obj, obj: &Obj, vname: Symbol) -> Result<VerbDef, WorldStateError> {
+    fn get_verb(
+        &self,
+        authority_principal: &Obj,
+        obj: &Obj,
+        vname: Symbol,
+    ) -> Result<VerbDef, WorldStateError> {
         let _t = db_counters().timers_hot.start(WorldStateTimerOp::GetVerb);
         if !self.get_tx().object_valid(obj)? {
             return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
         }
 
         let vh = self.get_tx().get_verb_by_name(obj, vname)?;
-        self.auth_context(perms)?.require(AuthRule::verb_allows(
-            &vh.owner(),
-            vh.flags(),
-            VerbFlag::Read,
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::verb_allows(
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Read,
+            ))?;
 
         Ok(vh)
     }
 
     fn get_verb_at_index(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         vidx: usize,
     ) -> Result<VerbDef, WorldStateError> {
@@ -850,17 +874,18 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::GetVerbAtIndex);
         let vh = self.get_tx().get_verb_by_index(obj, vidx)?;
-        self.auth_context(perms)?.require(AuthRule::verb_allows(
-            &vh.owner(),
-            vh.flags(),
-            VerbFlag::Read,
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::verb_allows(
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Read,
+            ))?;
         Ok(vh)
     }
 
     fn retrieve_verb(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError> {
@@ -871,18 +896,19 @@ impl WorldState for DbWorldState {
         let vh = verbs
             .find(&uuid)
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
-        self.auth_context(perms)?.require(AuthRule::verb_allows(
-            &vh.owner(),
-            vh.flags(),
-            VerbFlag::Read,
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::verb_allows(
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Read,
+            ))?;
         let binary = self.get_tx().get_verb_program(&vh.location(), vh.uuid())?;
         Ok((binary, vh))
     }
 
     fn lookup_verb(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         lookup: VerbLookup<'_>,
     ) -> Result<Option<VerbDef>, WorldStateError> {
         let _t = db_counters()
@@ -902,17 +928,18 @@ impl WorldState for DbWorldState {
             Err(WorldStateError::VerbNotFound(_, _)) => return Ok(None),
             Err(e) => return Err(e),
         };
-        self.auth_context(perms)?.require(AuthRule::verb_allows(
-            &vh.owner(),
-            vh.flags(),
-            VerbFlag::Read,
-        ))?;
+        self.auth_context(authority_principal)?
+            .require(AuthRule::verb_allows(
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Read,
+            ))?;
         Ok(Some(vh))
     }
 
     fn dispatch_verb(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError> {
         let _t = db_counters()
@@ -922,7 +949,7 @@ impl WorldState for DbWorldState {
             return Ok(None);
         }
 
-        let auth = self.auth_context(perms)?;
+        let auth = self.auth_context(authority_principal)?;
         let tx = self.get_tx();
 
         let vh = match tx.resolve_verb_handle(
@@ -979,7 +1006,7 @@ impl WorldState for DbWorldState {
 
     fn change_parent(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         new_parent: &Obj,
     ) -> Result<(), WorldStateError> {
@@ -992,14 +1019,14 @@ impl WorldState for DbWorldState {
                 if &curr == obj {
                     return Err(WorldStateError::RecursiveMove(*obj, *new_parent));
                 }
-                curr = self.parent_of(perms, &curr)?;
+                curr = self.parent_of(authority_principal, &curr)?;
             }
         };
 
         let owner = self.owner_of(obj)?;
 
-        self.check_parent(perms, new_parent, &owner)?;
-        self.auth_context(perms)?
+        self.check_parent(authority_principal, new_parent, &owner)?;
+        self.auth_context(authority_principal)?
             .require(AuthRule::object_owner_or_wizard(&owner))?;
         self.check_chparent_property_conflict(&owner, obj, new_parent)?;
 
@@ -1058,11 +1085,15 @@ impl WorldState for DbWorldState {
         Ok(name)
     }
 
-    fn names_of(&self, perms: &Obj, obj: &Obj) -> Result<(String, Vec<String>), WorldStateError> {
+    fn names_of(
+        &self,
+        authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<(String, Vec<String>), WorldStateError> {
         let name = self.get_tx().get_object_name(obj)?;
 
         // Then grab aliases property.
-        let aliases = match self.retrieve_property(perms, obj, *ALIASES_SYM) {
+        let aliases = match self.retrieve_property(authority_principal, obj, *ALIASES_SYM) {
             Ok(a) => match a.variant() {
                 Variant::List(a) => a
                     .iter()
@@ -1089,13 +1120,13 @@ impl WorldState for DbWorldState {
 
     fn renumber_object(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         target: Option<ObjectKind>,
     ) -> Result<Obj, WorldStateError> {
         use moor_common::model::ObjectRef;
 
-        self.auth_context(perms)?
+        self.auth_context(authority_principal)?
             .require(AuthRule::object_wizard())?;
 
         // Check that source object exists
