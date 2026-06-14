@@ -302,6 +302,14 @@ impl Task {
         self.retry_state = snapshot;
     }
 
+    #[inline]
+    fn sync_authority_from_vm(&mut self) {
+        let authority_principal = self.vm_host.vm_exec_state().task_authority_principal();
+        if !authority_principal.is_nothing() {
+            self.authority_principal = authority_principal;
+        }
+    }
+
     fn collect_live_program_ptrs_from_state(
         state: &ExecState,
         live_ptrs: &mut HashSet<usize, std::hash::BuildHasherDefault<AHasher>>,
@@ -373,6 +381,7 @@ impl Task {
             config,
             &mut self.program_cache,
         );
+        self.sync_authority_from_vm();
         self.vm_host.set_program_cache_sizes(
             self.program_cache.total_slot_count(),
             self.program_cache.live_slot_count(),

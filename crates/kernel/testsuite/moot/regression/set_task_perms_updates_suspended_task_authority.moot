@@ -1,0 +1,23 @@
+@wizard
+; add_property($system, "auth_sync_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "auth_sync_task", 0, {$wizard_player, "rwc"});
+; $auth_sync_helper.r = 1;
+; add_verb($auth_sync_helper, {$wizard_player, "rxd", "start_suspended"}, {"this", "none", "this"});
+; set_verb_code($auth_sync_helper, "start_suspended", {
+>   "fork task_id (0)",
+>   "  set_task_perms($programmer_player);",
+>   "  suspend(60);",
+>   "endfork",
+>   "return task_id;"
+> });
+
+@programmer
+; $auth_sync_task = $auth_sync_helper:start_suspended();
+
+@wizard
+; suspend(0.1); return 1;
+1
+; for task in (queued_tasks()) if (task[1] == $auth_sync_task) return task[5] == $programmer_player; endif endfor return 0;
+1
+; kill_task($auth_sync_task); return 1;
+1
