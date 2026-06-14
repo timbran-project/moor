@@ -98,18 +98,18 @@ fn create_object_with_initialize(
         List::mk_list(&[])
     };
 
-    let ve = VerbExecutionRequest {
+    let ve = VerbExecutionRequest::new(
         permissions,
-        permissions_flags: verb_result.permissions_flags,
-        resolved_verb: verb_result.verbdef,
-        verb_name: *INITIALIZE_SYM,
-        this: v_obj(new_obj),
-        player: bf_args.exec_state.top().player,
-        args: initialize_args,
-        caller: bf_args.exec_state.top().this.clone(),
-        argstr: v_empty_str(),
-        program_key: verb_result.program_key,
-    };
+        verb_result.permissions_flags,
+        verb_result.verbdef,
+        *INITIALIZE_SYM,
+        v_obj(new_obj),
+        bf_args.exec_state.top().player,
+        initialize_args,
+        bf_args.exec_state.top().this.clone(),
+        v_empty_str(),
+        verb_result.program_key,
+    );
     Ok(VmInstr(DispatchVerb(Box::new(ve))))
 }
 /// Usage: `int valid(obj object)`
@@ -629,8 +629,7 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // create_at is wizard-only
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    authority.require_wizard().map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     let tramp = bf_args
         .bf_frame_mut()
@@ -758,18 +757,18 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline = Some(BF_RECYCLE_TRAMPOLINE_CALL_EXITFUNC);
                         bf_frame.bf_trampoline_arg = Some(contents);
 
-                        return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest {
+                        return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
                             permissions,
-                            permissions_flags: verb_result.permissions_flags,
-                            resolved_verb: verb_result.verbdef,
-                            verb_name: *RECYCLE_SYM,
-                            this: v_obj(obj),
-                            player: bf_args.exec_state.top().player,
-                            args: List::mk_list(&[]),
-                            caller: bf_args.exec_state.top().this.clone(),
-                            argstr: v_empty_str(),
-                            program_key: verb_result.program_key,
-                        }))));
+                            verb_result.permissions_flags,
+                            verb_result.verbdef,
+                            *RECYCLE_SYM,
+                            v_obj(obj),
+                            bf_args.exec_state.top().player,
+                            List::mk_list(&[]),
+                            bf_args.exec_state.top().this.clone(),
+                            v_empty_str(),
+                            verb_result.program_key,
+                        )))));
                     }
                     Ok(None) => {
                         // Short-circuit fake-tramp state change.
@@ -830,18 +829,18 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     bf_frame.bf_trampoline = Some(BF_RECYCLE_TRAMPOLINE_CALL_EXITFUNC);
 
                     // Call :exitfunc on the head object.
-                    return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest {
+                    return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
                         permissions,
-                        permissions_flags: verb_result.permissions_flags,
-                        resolved_verb: verb_result.verbdef,
-                        verb_name: *EXITFUNC_SYM,
-                        this: v_obj(head_obj),
-                        player: bf_args.exec_state.top().player,
-                        args: List::mk_list(&[v_obj(obj)]),
-                        caller: bf_args.exec_state.top().this.clone(),
-                        argstr: v_empty_str(),
-                        program_key: verb_result.program_key,
-                    }))));
+                        verb_result.permissions_flags,
+                        verb_result.verbdef,
+                        *EXITFUNC_SYM,
+                        v_obj(head_obj),
+                        bf_args.exec_state.top().player,
+                        List::mk_list(&[v_obj(obj)]),
+                        bf_args.exec_state.top().this.clone(),
+                        v_empty_str(),
+                        verb_result.program_key,
+                    )))));
                 }
             }
             Some(BF_RECYCLE_TRAMPOLINE_DONE_MOVE) => {
@@ -945,18 +944,18 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         let bf_frame = bf_args.bf_frame_mut();
                         bf_frame.bf_trampoline = Some(BF_MOVE_TRAMPOLINE_MOVE_CALL_EXITFUNC);
                         bf_frame.bf_trampoline_arg = None;
-                        return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest {
+                        return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
                             permissions,
-                            permissions_flags: verb_result.permissions_flags,
-                            resolved_verb: verb_result.verbdef,
-                            verb_name: *ACCEPT_SYM,
-                            this: v_obj(whereto),
-                            player: bf_args.exec_state.top().player,
-                            args: List::mk_list(&[v_obj(what)]),
-                            caller: bf_args.exec_state.top().this.clone(),
-                            argstr: v_empty_str(),
-                            program_key: verb_result.program_key,
-                        }))));
+                            verb_result.permissions_flags,
+                            verb_result.verbdef,
+                            *ACCEPT_SYM,
+                            v_obj(whereto),
+                            bf_args.exec_state.top().player,
+                            List::mk_list(&[v_obj(what)]),
+                            bf_args.exec_state.top().this.clone(),
+                            v_empty_str(),
+                            verb_result.program_key,
+                        )))));
                     }
                     Ok(None) => {
                         if !authority.is_wizard() {
@@ -1023,18 +1022,18 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline = Some(BF_MOVE_TRAMPOLINE_CALL_ENTERFUNC);
                         bf_frame.bf_trampoline_arg = None;
 
-                        let continuation = DispatchVerb(Box::new(VerbExecutionRequest {
+                        let continuation = DispatchVerb(Box::new(VerbExecutionRequest::new(
                             permissions,
-                            permissions_flags: verb_result.permissions_flags,
-                            resolved_verb: verb_result.verbdef,
-                            verb_name: *EXITFUNC_SYM,
-                            this: v_obj(original_location),
-                            player: bf_args.exec_state.top().player,
-                            args: List::mk_list(&[v_obj(what)]),
-                            caller: bf_args.exec_state.top().this.clone(),
-                            argstr: v_empty_str(),
-                            program_key: verb_result.program_key,
-                        }));
+                            verb_result.permissions_flags,
+                            verb_result.verbdef,
+                            *EXITFUNC_SYM,
+                            v_obj(original_location),
+                            bf_args.exec_state.top().player,
+                            List::mk_list(&[v_obj(what)]),
+                            bf_args.exec_state.top().this.clone(),
+                            v_empty_str(),
+                            verb_result.program_key,
+                        )));
                         return Ok(VmInstr(continuation));
                     }
                     Ok(None) => {
@@ -1072,18 +1071,18 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline = Some(BF_MOVE_TRAMPOLINE_DONE);
                         bf_frame.bf_trampoline_arg = None;
 
-                        return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest {
+                        return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
                             permissions,
-                            permissions_flags: verb_result.permissions_flags,
-                            resolved_verb: verb_result.verbdef,
-                            verb_name: *ENTERFUNC_SYM,
-                            this: v_obj(whereto),
-                            player: bf_args.exec_state.top().player,
-                            args: List::mk_list(&[v_obj(what)]),
-                            caller: bf_args.exec_state.top().this.clone(),
-                            argstr: v_empty_str(),
-                            program_key: verb_result.program_key,
-                        }))));
+                            verb_result.permissions_flags,
+                            verb_result.verbdef,
+                            *ENTERFUNC_SYM,
+                            v_obj(whereto),
+                            bf_args.exec_state.top().player,
+                            List::mk_list(&[v_obj(what)]),
+                            bf_args.exec_state.top().this.clone(),
+                            v_empty_str(),
+                            verb_result.program_key,
+                        )))));
                     }
                     Ok(None) => {
                         // Short-circuit fake-tramp state change.
@@ -1181,11 +1180,7 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let f = f == 1;
 
     // User must be a wizard.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     // Get and set object flags
     let mut flags = with_current_transaction(|world_state| world_state.flags_of(&obj))
@@ -1231,11 +1226,7 @@ fn bf_players(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Usage: `list objects()`
 /// Returns a list of all valid objects in the database. Wizard-only.
 fn bf_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if !bf_args.args.is_empty() {
         return Err(BfErr::ErrValue(E_ARGS.msg("objects() takes no arguments")));
@@ -1890,11 +1881,7 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
     }
 
     // Must be a wizard to use this function
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     let Some(target) = bf_args.args[0].as_object() else {
         return Err(BfErr::ErrValue(
@@ -2053,18 +2040,18 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
 
             // Build the CommandVerbExecutionRequest
             let permissions = verb_result.verbdef.owner();
-            let exec_request = Box::new(crate::vm::CommandVerbExecutionRequest {
+            let exec_request = Box::new(crate::vm::CommandVerbExecutionRequest::new(
                 permissions,
-                permissions_flags: verb_result.permissions_flags,
-                resolved_verb: verb_result.verbdef,
+                verb_result.permissions_flags,
+                verb_result.verbdef,
                 verb_name,
-                this: v_obj(target),
-                player: bf_args.exec_state.top().player,
-                // Caller needs to be the player in order for downstream caller perms checks to function correctly
-                caller: v_obj(bf_args.exec_state.top().player),
-                command: parsed_command,
-                program_key: verb_result.program_key,
-            });
+                v_obj(target),
+                bf_args.exec_state.top().player,
+                // Caller needs to be the player in order for downstream caller_perms() checks to function correctly.
+                v_obj(bf_args.exec_state.top().player),
+                parsed_command,
+                verb_result.program_key,
+            ));
 
             // Set trampoline to DONE for when the verb returns
             let bf_frame = bf_args.bf_frame_mut();

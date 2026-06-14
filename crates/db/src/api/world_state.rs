@@ -129,7 +129,7 @@ impl DbWorldState {
                 if flags.contains(ObjFlag::User) {
                     auth.require(AuthRule::property_wizard())?;
                 }
-                auth.require(AuthRule::owner_or_wizard(&objowner))?;
+                auth.require(AuthRule::object_owner_or_wizard(&objowner))?;
 
                 self.get_tx_mut().set_object_name(obj, name.to_string())?;
                 return Ok(());
@@ -144,7 +144,7 @@ impl DbWorldState {
                 return Ok(());
             }
 
-            auth.require(AuthRule::owner_or_wizard(&objowner))?;
+            auth.require(AuthRule::object_owner_or_wizard(&objowner))?;
 
             if pname == *R_SYM {
                 let Some(v) = value.as_integer() else {
@@ -266,7 +266,7 @@ impl DbWorldState {
             if parent.ne(&NOTHING) {
                 return Err(WorldStateError::ObjectPermissionDenied);
             }
-            auth.require(AuthRule::owner_or_wizard(owner))?;
+            auth.require(AuthRule::object_owner_or_wizard(owner))?;
         }
         Ok(())
     }
@@ -331,7 +331,7 @@ impl WorldState for DbWorldState {
         let owner = self.owner_of(what)?;
         Ok(self
             .auth_context(who)?
-            .allows(AuthRule::owner_or_wizard(&owner)))
+            .allows(AuthRule::object_owner_or_wizard(&owner)))
     }
 
     fn flags_of(&self, obj: &Obj) -> Result<BitEnum<ObjFlag>, WorldStateError> {
@@ -349,7 +349,7 @@ impl WorldState for DbWorldState {
             .start(WorldStateTimerOp::SetFlagsOf);
         let owner = self.owner_of(obj)?;
         self.auth_context(perms)?
-            .require(AuthRule::owner_or_wizard(&owner))?;
+            .require(AuthRule::object_owner_or_wizard(&owner))?;
         self.get_tx_mut().set_object_flags(obj, new_flags)
     }
 
@@ -362,7 +362,8 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::ObjectBytes);
-        self.auth_context(perms)?.require(AuthRule::wizard())?;
+        self.auth_context(perms)?
+            .require(AuthRule::object_wizard())?;
         self.get_tx().get_object_size_bytes(obj)
     }
 
@@ -381,7 +382,7 @@ impl WorldState for DbWorldState {
         if !self.valid(parent)? && !parent.is_nothing() {
             return Err(WorldStateError::ObjectPermissionDenied);
         }
-        auth.require(AuthRule::owner_or_wizard(owner))?;
+        auth.require(AuthRule::object_owner_or_wizard(owner))?;
 
         // Handle different ID kinds - validate specific IDs exist check
         match &id_kind {
@@ -412,7 +413,7 @@ impl WorldState for DbWorldState {
             .start(WorldStateTimerOp::RecycleObject);
         let owner = self.owner_of(obj)?;
         self.auth_context(perms)?
-            .require(AuthRule::owner_or_wizard(&owner))?;
+            .require(AuthRule::object_owner_or_wizard(&owner))?;
 
         self.get_tx_mut().recycle_object(obj)
     }
@@ -432,7 +433,7 @@ impl WorldState for DbWorldState {
             .start(WorldStateTimerOp::MoveObject);
         let owner = self.owner_of(obj)?;
         self.auth_context(perms)?
-            .require(AuthRule::owner_or_wizard(&owner))?;
+            .require(AuthRule::object_owner_or_wizard(&owner))?;
 
         // Get the old location before moving
         let old_loc = self.get_tx().get_object_location(obj)?;
@@ -681,7 +682,7 @@ impl WorldState for DbWorldState {
             flags,
             ObjFlag::Write.into(),
         ))?;
-        auth.require(AuthRule::owner_or_wizard(propowner))?;
+        auth.require(AuthRule::property_owner_or_wizard(propowner))?;
 
         if initial_value.as_ref().is_some_and(Var::is_none) {
             return Err(WorldStateError::PropertyTypeMismatch);
@@ -740,7 +741,7 @@ impl WorldState for DbWorldState {
             ObjFlag::Write.into(),
         ))?;
         // LambdaMOO/ToastStunt semantics: non-wizards can only create verbs owned by themselves.
-        auth.require(AuthRule::owner_or_wizard(owner))?;
+        auth.require(AuthRule::verb_owner_or_wizard(owner))?;
 
         self.get_tx_mut()
             .add_object_verb(obj, owner, &names, program, flags, args)?;
@@ -999,7 +1000,7 @@ impl WorldState for DbWorldState {
 
         self.check_parent(perms, new_parent, &owner)?;
         self.auth_context(perms)?
-            .require(AuthRule::owner_or_wizard(&owner))?;
+            .require(AuthRule::object_owner_or_wizard(&owner))?;
         self.check_chparent_property_conflict(&owner, obj, new_parent)?;
 
         self.get_tx_mut().set_object_parent(obj, new_parent)
@@ -1094,7 +1095,8 @@ impl WorldState for DbWorldState {
     ) -> Result<Obj, WorldStateError> {
         use moor_common::model::ObjectRef;
 
-        self.auth_context(perms)?.require(AuthRule::wizard())?;
+        self.auth_context(perms)?
+            .require(AuthRule::object_wizard())?;
 
         // Check that source object exists
         if !self.get_tx().object_valid(obj)? {

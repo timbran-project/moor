@@ -48,8 +48,8 @@ use moor_common::model::WorldStateError;
 use moor_common::util::hot_stride;
 use moor_compiler::{BUILTINS, BuiltinId, DiagnosticRenderOptions, DiagnosticVerbosity};
 use moor_var::{
-    E_INVARG, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant, v_bool_int,
-    v_map,
+    E_INVARG, E_PERM, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant,
+    v_bool_int, v_map,
 };
 use moor_vm::{Authority, BuiltinFrame, ExecState, Frame};
 
@@ -305,6 +305,41 @@ impl BfCallState<'_> {
         // (e.g., player.programmer = 0) and builtins need to see current state
         let flags = with_current_transaction(|ws| ws.flags_of(&who))?;
         Ok(Authority::new(who, flags))
+    }
+
+    pub fn require_wizard(&self) -> Result<(), BfErr> {
+        self.task_authority()
+            .map_err(world_state_bf_err)?
+            .require_wizard()
+            .map_err(world_state_bf_err)
+    }
+
+    pub fn require_wizard_msg(&self, message: &'static str) -> Result<(), BfErr> {
+        self.task_authority()
+            .map_err(world_state_bf_err)?
+            .require_wizard()
+            .map_err(|_| BfErr::ErrValue(E_PERM.msg(message)))
+    }
+
+    pub fn require_programmer(&self) -> Result<(), BfErr> {
+        self.task_authority()
+            .map_err(world_state_bf_err)?
+            .require_programmer()
+            .map_err(world_state_bf_err)
+    }
+
+    pub fn require_controls(&self, owner: &Obj) -> Result<(), BfErr> {
+        self.task_authority()
+            .map_err(world_state_bf_err)?
+            .require_controls(owner)
+            .map_err(world_state_bf_err)
+    }
+
+    pub fn require_controls_msg(&self, owner: &Obj, message: &'static str) -> Result<(), BfErr> {
+        self.task_authority()
+            .map_err(world_state_bf_err)?
+            .require_controls(owner)
+            .map_err(|_| BfErr::ErrValue(E_PERM.msg(message)))
     }
 
     pub fn bf_frame(&self) -> &BuiltinFrame {

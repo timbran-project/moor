@@ -47,9 +47,7 @@ fn bf_force_input(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    // Must be either player or wizard
     let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-
     if !authority.controls(&conn) {
         return Err(Code(E_PERM));
     }
@@ -68,11 +66,7 @@ fn bf_force_input(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Sends a request to an external worker (e.g., HTTP) and suspends until complete.
 /// Options may include `timeout_seconds` (float) and may be a map or alist. Wizard-only.
 fn bf_worker_request(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.len() < 2 || bf_args.args.len() > 3 {
         return Err(Code(E_ARGS));
@@ -155,12 +149,10 @@ fn bf_connections(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Permission check: if requesting for another player, must be wizard or same player
     if let Some(target_player) = player {
-        let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-        if !authority.controls(&target_player) {
-            return Err(ErrValue(E_PERM.msg(
-                "connections() requires the caller to be a wizard or requesting their own connections",
-            )));
-        }
+        bf_args.require_controls_msg(
+            &target_player,
+            "connections() requires the caller to be a wizard or requesting their own connections",
+        )?;
     }
 
     let connection_details = match current_session().connection_details(player) {
@@ -267,14 +259,8 @@ fn bf_switch_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
+    bf_args.require_wizard_msg("switch_player() requires wizard permissions")?;
     let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-
-    // Only wizards can switch players
-    if !authority.is_wizard() {
-        return Err(ErrValue(
-            E_PERM.msg("switch_player() requires wizard permissions"),
-        ));
-    }
 
     // Check if we're already the target player - if so, no-op
     if authority.principal() == new_player {
@@ -341,11 +327,7 @@ fn bf_workers(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Must be wizard
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     let workers_info = current_task_scheduler_client().workers_info();
 
@@ -384,10 +366,7 @@ fn bf_output_delimiters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Permission check: can only query own delimiters unless wizard
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if !authority.controls(&player) {
-        return Err(ErrValue(E_PERM.msg("Permission denied")));
-    }
+    bf_args.require_controls_msg(&player, "Permission denied")?;
 
     // Get the attributes from the connection registry
     let attributes_var = match current_session().connection_attributes(player) {
@@ -666,10 +645,7 @@ fn bf_notify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Caller must be the target player or a wizard.
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    authority
-        .require_controls(&player)
-        .map_err(world_state_bf_err)?;
+    bf_args.require_controls(&player)?;
 
     let no_flush = if bf_args.args.len() > 2 {
         bf_args.args[2].is_true()
@@ -769,10 +745,7 @@ fn bf_emit_data(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let payload = bf_args.args[3].clone();
 
     // Caller must be the target player or a wizard.
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    authority
-        .require_controls(&player)
-        .map_err(world_state_bf_err)?;
+    bf_args.require_controls(&player)?;
 
     let event = NarrativeEvent::data(bf_args.exec_state.this(), namespace, kind, payload);
     current_task_scheduler_client().notify(player, Box::new(event));
@@ -820,10 +793,7 @@ fn bf_event_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Caller must be the target player or a wizard.
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    authority
-        .require_controls(&player)
-        .map_err(world_state_bf_err)?;
+    bf_args.require_controls(&player)?;
 
     let content_type = if bf_args.config.rich_notify && bf_args.args.len() >= 3 {
         let content_type = bf_args.args[2].as_symbol().map_err(ErrValue)?;
@@ -911,10 +881,7 @@ fn bf_present(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Caller must be the target player or a wizard.
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    authority
-        .require_controls(&player)
-        .map_err(world_state_bf_err)?;
+    bf_args.require_controls(&player)?;
 
     let id = match bf_args.args[1].variant() {
         Variant::Str(id) => id,
@@ -1140,12 +1107,10 @@ fn bf_connection_name(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if !authority.controls(&player) {
-        return Err(ErrValue(E_PERM.msg(
-            "connection_name() requires the caller to be a wizard or the caller itself",
-        )));
-    }
+    bf_args.require_controls_msg(
+        &player,
+        "connection_name() requires the caller to be a wizard or the caller itself",
+    )?;
 
     let Ok(connection_name) = current_session().connection_name(player) else {
         return Err(ErrValue(E_ARGS.msg(
@@ -1226,11 +1191,7 @@ fn bf_listeners(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Stops listening on the specified port. Host_type defaults to "tcp". Wizard-only.
 fn bf_unlisten(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Requires wizard permissions.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.is_empty() || bf_args.args.len() > 2 {
         return Err(ErrValue(E_ARGS.msg("unlisten() requires 1 or 2 arguments")));
@@ -1279,11 +1240,7 @@ fn bf_unlisten(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Returns the canonical port. Wizard-only.
 fn bf_listen(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Requires wizard permissions.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.len() < 2 || bf_args.args.len() > 3 {
         return Err(ErrValue(E_ARGS.msg("listen() requires 2 to 3 arguments")));

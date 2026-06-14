@@ -268,7 +268,7 @@ impl VmHost {
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
-                            &exec_request.permissions,
+                            &exec_request.lookup_principal(),
                             &exec_request.program_key.verb_definer,
                             exec_request.program_key.verb_uuid,
                         )
@@ -291,7 +291,7 @@ impl VmHost {
                         self.vm_exec_state.program_cache_stats.inserts += 1;
                     }
                     self.vm_exec_state.exec_call_request(
-                        exec_request.permissions_flags,
+                        exec_request.activation_authority_flags(),
                         exec_request.resolved_verb,
                         exec_request.verb_name,
                         exec_request.this,
@@ -310,7 +310,7 @@ impl VmHost {
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
-                            &exec_request.permissions,
+                            &exec_request.lookup_principal(),
                             &exec_request.program_key.verb_definer,
                             exec_request.program_key.verb_uuid,
                         )
@@ -333,7 +333,7 @@ impl VmHost {
                         self.vm_exec_state.program_cache_stats.inserts += 1;
                     }
                     self.vm_exec_state.exec_command_request(
-                        exec_request.permissions_flags,
+                        exec_request.activation_authority_flags(),
                         exec_request.resolved_verb,
                         exec_request.verb_name,
                         exec_request.this,

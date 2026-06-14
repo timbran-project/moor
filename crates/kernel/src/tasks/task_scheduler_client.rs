@@ -128,18 +128,18 @@ impl TaskSchedulerClient {
         self.scheduler.handle_task_exists(task_id)
     }
 
-    pub fn kill_task(&self, victim_task_id: TaskId, sender_permissions: Authority) -> Var {
+    pub fn kill_task(&self, victim_task_id: TaskId, sender_authority: Authority) -> Var {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskKillTaskLatency);
         self.scheduler
-            .handle_kill_task(self.task_id, victim_task_id, sender_permissions)
+            .handle_kill_task(self.task_id, victim_task_id, sender_authority)
     }
 
     pub fn resume_task(
         &self,
         queued_task_id: TaskId,
-        sender_permissions: Authority,
+        sender_authority: Authority,
         return_value: Var,
     ) -> Var {
         let _timer = sched_counters()
@@ -148,7 +148,7 @@ impl TaskSchedulerClient {
         self.scheduler.handle_resume_task(
             self.task_id,
             queued_task_id,
-            sender_permissions,
+            sender_authority,
             return_value,
         )
     }
@@ -270,10 +270,10 @@ impl TaskSchedulerClient {
         &self,
         target_task_id: TaskId,
         value: Var,
-        sender_permissions: Authority,
+        sender_authority: Authority,
     ) -> Var {
         self.scheduler
-            .handle_task_send(self.task_id, target_task_id, value, sender_permissions)
+            .handle_task_send(self.task_id, target_task_id, value, sender_authority)
     }
 
     pub fn task_recv(&self) -> Vec<Var> {

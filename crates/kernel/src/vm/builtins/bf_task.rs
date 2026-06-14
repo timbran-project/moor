@@ -139,11 +139,7 @@ fn bf_commit(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// the session output buffer is preserved. Wizard-only.
 fn bf_rollback(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Rollback is wizard only
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.len() > 1 {
         return Err(ErrValue(E_ARGS.msg("rollback() requires 0 or 1 arguments")));
@@ -283,7 +279,7 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     //      <programmer>, <verb-loc>, <verb-name>, <line>, <this>}
     let tasks = tasks
         .iter()
-        .filter(|task| is_wizard || task.permissions == authority_principal)
+        .filter(|task| is_wizard || task.authority_principal == authority_principal)
         .map(|task| {
             let task_id = v_int(task.task_id as i64);
             let start_time = match task.start_time {
@@ -295,7 +291,7 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             };
             let x = v_int(0);
             let y = v_int(0);
-            let programmer = v_obj(task.permissions);
+            let programmer = v_obj(task.authority_principal);
             let verb_loc = v_obj(task.verb_definer);
             let verb_name = v_arc_str(task.verb_name.as_arc_str());
             let line = v_int(task.line_number as i64);
@@ -448,13 +444,13 @@ fn bf_queue_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         None => {
             let players = tasks
                 .iter()
-                .map(|task| task.permissions)
+                .map(|task| task.authority_principal)
                 .collect::<Vec<_>>();
 
             Ok(Ret(v_list_iter(players.iter().map(|p| v_obj(*p)))))
         }
         Some(p) => {
-            let queued_tasks = tasks.iter().filter(|t| t.permissions == p).count();
+            let queued_tasks = tasks.iter().filter(|t| t.authority_principal == p).count();
             Ok(Ret(v_int(queued_tasks as i64)))
         }
     }

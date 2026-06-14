@@ -45,11 +45,11 @@ pub struct VerbExecutionRequest {
     /// This is not necessarily the authority principal of the activation that will be pushed. For
     /// normal verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and
     /// program materialization still use this principal.
-    pub permissions: Obj,
+    lookup_principal: Obj,
     /// Cached flags for the activation authority selected by dispatch.
     ///
     /// `Activation::for_call` pairs these flags with `resolved_verb.owner()`.
-    pub permissions_flags: BitEnum<ObjFlag>,
+    activation_authority_flags: BitEnum<ObjFlag>,
     /// The resolved verb.
     pub resolved_verb: ResolvedVerb,
     /// Verb name
@@ -68,6 +68,48 @@ pub struct VerbExecutionRequest {
     pub program_key: VerbProgramKey,
 }
 
+impl VerbExecutionRequest {
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    pub fn new(
+        lookup_principal: Obj,
+        activation_authority_flags: BitEnum<ObjFlag>,
+        resolved_verb: ResolvedVerb,
+        verb_name: Symbol,
+        this: Var,
+        player: Obj,
+        args: List,
+        caller: Var,
+        argstr: Var,
+        program_key: VerbProgramKey,
+    ) -> Self {
+        Self {
+            lookup_principal,
+            activation_authority_flags,
+            resolved_verb,
+            verb_name,
+            this,
+            player,
+            args,
+            caller,
+            argstr,
+            program_key,
+        }
+    }
+
+    /// Principal used to resolve or materialize the target verb program.
+    #[inline]
+    pub fn lookup_principal(&self) -> Obj {
+        self.lookup_principal
+    }
+
+    /// Cached flags paired with the resolved verb owner for the new activation.
+    #[inline]
+    pub fn activation_authority_flags(&self) -> BitEnum<ObjFlag> {
+        self.activation_authority_flags
+    }
+}
+
 /// The set of parameters for a command verb dispatch with full command environment.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandVerbExecutionRequest {
@@ -76,11 +118,11 @@ pub struct CommandVerbExecutionRequest {
     /// This is not necessarily the authority principal of the activation that will be pushed. For
     /// normal verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and
     /// program materialization still use this principal.
-    pub permissions: Obj,
+    lookup_principal: Obj,
     /// Cached flags for the activation authority selected by dispatch.
     ///
     /// `Activation::for_call` pairs these flags with `resolved_verb.owner()`.
-    pub permissions_flags: BitEnum<ObjFlag>,
+    activation_authority_flags: BitEnum<ObjFlag>,
     /// The resolved verb.
     pub resolved_verb: ResolvedVerb,
     /// Verb name
@@ -95,6 +137,125 @@ pub struct CommandVerbExecutionRequest {
     pub command: ParsedCommand,
     /// Stable key for the dispatched verb program.
     pub program_key: VerbProgramKey,
+}
+
+impl CommandVerbExecutionRequest {
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    pub fn new(
+        lookup_principal: Obj,
+        activation_authority_flags: BitEnum<ObjFlag>,
+        resolved_verb: ResolvedVerb,
+        verb_name: Symbol,
+        this: Var,
+        player: Obj,
+        caller: Var,
+        command: ParsedCommand,
+        program_key: VerbProgramKey,
+    ) -> Self {
+        Self {
+            lookup_principal,
+            activation_authority_flags,
+            resolved_verb,
+            verb_name,
+            this,
+            player,
+            caller,
+            command,
+            program_key,
+        }
+    }
+
+    /// Principal used to resolve or materialize the target verb program.
+    #[inline]
+    pub fn lookup_principal(&self) -> Obj {
+        self.lookup_principal
+    }
+
+    /// Cached flags paired with the resolved verb owner for the new activation.
+    #[inline]
+    pub fn activation_authority_flags(&self) -> BitEnum<ObjFlag> {
+        self.activation_authority_flags
+    }
+}
+
+#[cfg(test)]
+mod execution_request_tests {
+    use super::*;
+    use moor_common::model::{PrepSpec, VerbArgsSpec, VerbFlag};
+    use uuid::Uuid;
+
+    fn resolved_verb(owner: Obj) -> ResolvedVerb {
+        ResolvedVerb::new(
+            Uuid::nil(),
+            Obj::mk_id(2),
+            owner,
+            BitEnum::new_with(VerbFlag::Read),
+            VerbArgsSpec::this_none_this(),
+        )
+    }
+
+    #[test]
+    fn verb_execution_request_separates_lookup_principal_from_activation_flags() {
+        let lookup_principal = Obj::mk_id(10);
+        let activation_flags = BitEnum::new_with(ObjFlag::Programmer);
+        let request = VerbExecutionRequest::new(
+            lookup_principal,
+            activation_flags,
+            resolved_verb(Obj::mk_id(20)),
+            Symbol::mk("test"),
+            v_obj(Obj::mk_id(2)),
+            Obj::mk_id(3),
+            List::mk_list(&[]),
+            v_obj(Obj::mk_id(4)),
+            v_empty_str(),
+            VerbProgramKey {
+                verb_definer: Obj::mk_id(2),
+                verb_uuid: Uuid::nil(),
+            },
+        );
+
+        assert_eq!(request.lookup_principal(), lookup_principal);
+        assert_eq!(request.activation_authority_flags(), activation_flags);
+        assert_eq!(request.resolved_verb.owner(), Obj::mk_id(20));
+    }
+
+    #[test]
+    fn command_execution_request_separates_lookup_principal_from_activation_flags() {
+        let lookup_principal = Obj::mk_id(11);
+        let activation_flags = BitEnum::new_with(ObjFlag::Wizard);
+        let command = ParsedCommand {
+            verb: Symbol::mk("look"),
+            argstr: "look".to_string(),
+            args: vec![],
+            dobjstr: None,
+            dobj: None,
+            ambiguous_dobj: None,
+            prepstr: None,
+            prep: PrepSpec::None,
+            iobjstr: None,
+            iobj: None,
+            ambiguous_iobj: None,
+        };
+        let request = CommandVerbExecutionRequest::new(
+            lookup_principal,
+            activation_flags,
+            resolved_verb(Obj::mk_id(21)),
+            Symbol::mk("look"),
+            v_obj(Obj::mk_id(2)),
+            Obj::mk_id(3),
+            v_obj(Obj::mk_id(3)),
+            command,
+            VerbProgramKey {
+                verb_definer: Obj::mk_id(2),
+                verb_uuid: Uuid::nil(),
+            },
+        );
+
+        assert_eq!(request.lookup_principal(), lookup_principal);
+        assert_eq!(request.activation_authority_flags(), activation_flags);
+        assert_eq!(request.resolved_verb.owner(), Obj::mk_id(21));
+    }
 }
 
 /// Activation data needed by opcodes that prepare host-level execution requests.
@@ -539,18 +700,18 @@ fn prepare_pass_verb<H: VmHost>(
         Err(e) => return ExecutionResult::RaiseError(e.to_error()),
     };
 
-    ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-        permissions: authority_principal,
+    ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
+        authority_principal,
         permissions_flags,
         resolved_verb,
-        verb_name: context.verb_name,
-        this: (*context.this).clone(),
-        player: context.activation_player,
+        context.verb_name,
+        (*context.this).clone(),
+        context.activation_player,
         args,
-        caller: (*context.this).clone(),
-        argstr: v_empty_str(),
+        (*context.this).clone(),
+        v_empty_str(),
         program_key,
-    }))
+    )))
 }
 
 fn prepare_call_verb<H: VmHost>(
@@ -604,18 +765,18 @@ fn prepare_call_verb<H: VmHost>(
         }
     };
 
-    ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-        permissions: authority_principal,
+    ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
+        authority_principal,
         permissions_flags,
         resolved_verb,
         verb_name,
         this,
         player,
         args,
-        caller: (*context.this).clone(),
-        argstr: v_empty_str(),
+        (*context.this).clone(),
+        v_empty_str(),
         program_key,
-    }))
+    )))
 }
 
 /// Main VM opcode execution for MOO stack frames. The actual meat of the MOO virtual machine.

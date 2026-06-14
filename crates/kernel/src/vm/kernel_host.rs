@@ -25,21 +25,21 @@ pub(crate) struct KernelHost;
 impl VmHost for KernelHost {
     fn retrieve_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         prop: Symbol,
     ) -> Result<Var, WorldStateError> {
-        with_current_transaction_mut(|ws| ws.retrieve_property(perms, obj, prop))
+        with_current_transaction_mut(|ws| ws.retrieve_property(authority_principal, obj, prop))
     }
 
     fn update_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         prop: Symbol,
         value: &Var,
     ) -> Result<(), WorldStateError> {
-        with_current_transaction_mut(|ws| ws.update_property(perms, obj, prop, value))
+        with_current_transaction_mut(|ws| ws.update_property(authority_principal, obj, prop, value))
     }
 
     fn flags_of(&mut self, obj: &Obj) -> Result<BitEnum<ObjFlag>, WorldStateError> {
@@ -52,22 +52,22 @@ impl VmHost for KernelHost {
 
     fn dispatch_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError> {
-        with_current_transaction(|ws| ws.dispatch_verb(perms, dispatch))
+        with_current_transaction(|ws| ws.dispatch_verb(authority_principal, dispatch))
     }
 
-    fn parent_of(&mut self, perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {
-        with_current_transaction(|ws| ws.parent_of(perms, obj))
+    fn parent_of(&mut self, authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {
+        with_current_transaction(|ws| ws.parent_of(authority_principal, obj))
     }
 
     fn retrieve_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError> {
-        with_current_transaction(|ws| ws.retrieve_verb(perms, obj, uuid))
+        with_current_transaction(|ws| ws.retrieve_verb(authority_principal, obj, uuid))
     }
 }

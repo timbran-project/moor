@@ -48,10 +48,10 @@ pub(super) struct AuthContext {
 /// `AuthContext` choose the matching denial error.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AuthRule<'a> {
-    /// Principal must have the wizard bit.
-    Wizard,
-    /// Principal must be the owner or have the wizard bit.
-    OwnerOrWizard { owner: &'a Obj },
+    /// Principal must have the wizard bit for an object-domain operation.
+    ObjectWizard,
+    /// Principal must own an object-domain resource or have the wizard bit.
+    ObjectOwnerOrWizard { owner: &'a Obj },
     /// Object owner, wizard bit, or all requested object flags authorize access.
     ObjectAllows {
         owner: &'a Obj,
@@ -60,11 +60,13 @@ pub(super) enum AuthRule<'a> {
     },
     /// Property owner, wizard bit, or the requested property flag authorizes access.
     PropertyAllows {
-        perms: &'a PropPerms,
+        property_perms: &'a PropPerms,
         required: PropFlag,
     },
     /// Principal must have the wizard bit for a property operation.
     PropertyWizard,
+    /// Principal must be the requested property owner or have the wizard bit.
+    PropertyOwnerOrWizard { owner: &'a Obj },
     /// Non-wizards may not change property ownership to a different object.
     PropertyOwnerUnchangedOrWizard {
         current_owner: &'a Obj,
@@ -76,6 +78,8 @@ pub(super) enum AuthRule<'a> {
         flags: BitEnum<VerbFlag>,
         required: VerbFlag,
     },
+    /// Principal must be the requested verb owner or have the wizard bit.
+    VerbOwnerOrWizard { owner: &'a Obj },
     /// Non-wizards may not change verb ownership to a different object.
     VerbOwnerUnchangedOrWizard {
         current_owner: &'a Obj,
@@ -86,16 +90,16 @@ pub(super) enum AuthRule<'a> {
 }
 
 impl AuthRule<'_> {
-    /// Principal must be a wizard.
+    /// Principal must be a wizard for an object-domain operation.
     #[inline]
-    pub(super) fn wizard() -> Self {
-        Self::Wizard
+    pub(super) fn object_wizard() -> Self {
+        Self::ObjectWizard
     }
 
-    /// Principal must be the owner or a wizard.
+    /// Principal must own an object-domain resource or be a wizard.
     #[inline]
-    pub(super) fn owner_or_wizard(owner: &Obj) -> AuthRule<'_> {
-        AuthRule::OwnerOrWizard { owner }
+    pub(super) fn object_owner_or_wizard(owner: &Obj) -> AuthRule<'_> {
+        AuthRule::ObjectOwnerOrWizard { owner }
     }
 
     /// Principal must control the object owner or the object must expose all required flags.
@@ -114,14 +118,23 @@ impl AuthRule<'_> {
 
     /// Principal must control the property owner or the property must expose the required flag.
     #[inline]
-    pub(super) fn property_allows(perms: &PropPerms, required: PropFlag) -> AuthRule<'_> {
-        AuthRule::PropertyAllows { perms, required }
+    pub(super) fn property_allows(property_perms: &PropPerms, required: PropFlag) -> AuthRule<'_> {
+        AuthRule::PropertyAllows {
+            property_perms,
+            required,
+        }
     }
 
     /// Principal must be a wizard for a property operation.
     #[inline]
     pub(super) fn property_wizard() -> Self {
         Self::PropertyWizard
+    }
+
+    /// Principal must be the requested property owner or a wizard.
+    #[inline]
+    pub(super) fn property_owner_or_wizard(owner: &Obj) -> AuthRule<'_> {
+        AuthRule::PropertyOwnerOrWizard { owner }
     }
 
     /// Principal may leave the property owner unchanged; only wizards may change it.
@@ -134,6 +147,12 @@ impl AuthRule<'_> {
             current_owner,
             requested_owner,
         }
+    }
+
+    /// Principal must be the requested verb owner or a wizard.
+    #[inline]
+    pub(super) fn verb_owner_or_wizard(owner: &Obj) -> AuthRule<'_> {
+        AuthRule::VerbOwnerOrWizard { owner }
     }
 
     /// Principal must control the verb owner or the verb must expose the required flag.
@@ -173,13 +192,15 @@ impl AuthRule<'_> {
         match self {
             Self::PropertyAllows { .. }
             | Self::PropertyWizard
+            | Self::PropertyOwnerOrWizard { .. }
             | Self::PropertyOwnerUnchangedOrWizard { .. } => {
                 WorldStateError::PropertyPermissionDenied
             }
             Self::VerbAllows { .. }
+            | Self::VerbOwnerOrWizard { .. }
             | Self::VerbOwnerUnchangedOrWizard { .. }
             | Self::VerbProgrammerOrWizard => WorldStateError::VerbPermissionDenied,
-            Self::Wizard | Self::OwnerOrWizard { .. } | Self::ObjectAllows { .. } => {
+            Self::ObjectWizard | Self::ObjectOwnerOrWizard { .. } | Self::ObjectAllows { .. } => {
                 WorldStateError::ObjectPermissionDenied
             }
         }
@@ -221,19 +242,23 @@ impl AuthContext {
     #[inline]
     pub(super) fn allows(&self, rule: AuthRule<'_>) -> bool {
         match rule {
-            AuthRule::Wizard => self.is_wizard(),
-            AuthRule::OwnerOrWizard { owner } => self.controls_owner(owner),
+            AuthRule::ObjectWizard => self.is_wizard(),
+            AuthRule::ObjectOwnerOrWizard { owner } => self.controls_owner(owner),
             AuthRule::ObjectAllows {
                 owner,
                 flags,
                 required,
             } => self.controls_owner(owner) || flags.contains_all(required),
-            AuthRule::PropertyAllows { perms, required } => {
+            AuthRule::PropertyAllows {
+                property_perms,
+                required,
+            } => {
                 self.is_wizard()
-                    || self.principal.who == perms.owner()
-                    || perms.flags().contains(required)
+                    || self.principal.who == property_perms.owner()
+                    || property_perms.flags().contains(required)
             }
             AuthRule::PropertyWizard => self.is_wizard(),
+            AuthRule::PropertyOwnerOrWizard { owner } => self.controls_owner(owner),
             AuthRule::PropertyOwnerUnchangedOrWizard {
                 current_owner,
                 requested_owner,
@@ -243,6 +268,7 @@ impl AuthContext {
                 flags,
                 required,
             } => self.principal.who == *owner || self.is_wizard() || flags.contains(required),
+            AuthRule::VerbOwnerOrWizard { owner } => self.controls_owner(owner),
             AuthRule::VerbOwnerUnchangedOrWizard {
                 current_owner,
                 requested_owner,
@@ -278,7 +304,7 @@ mod tests {
 
         assert_eq!(auth.principal(), Obj::mk_id(1));
         assert_eq!(auth.principal_flags(), flags);
-        assert!(auth.allows(AuthRule::wizard()));
+        assert!(auth.allows(AuthRule::object_wizard()));
     }
 
     #[test]
@@ -311,7 +337,7 @@ mod tests {
         )));
         assert!(
             context(2, BitEnum::new())
-                .require(AuthRule::owner_or_wizard(&other))
+                .require(AuthRule::object_owner_or_wizard(&other))
                 .is_ok()
         );
     }
@@ -374,12 +400,20 @@ mod tests {
         let propperms = PropPerms::new(owner, BitEnum::new());
 
         assert!(matches!(
-            context(3, BitEnum::new()).require(AuthRule::owner_or_wizard(&owner)),
+            context(3, BitEnum::new()).require(AuthRule::object_wizard()),
+            Err(WorldStateError::ObjectPermissionDenied)
+        ));
+        assert!(matches!(
+            context(3, BitEnum::new()).require(AuthRule::object_owner_or_wizard(&owner)),
             Err(WorldStateError::ObjectPermissionDenied)
         ));
         assert!(matches!(
             context(3, BitEnum::new())
                 .require(AuthRule::property_allows(&propperms, PropFlag::Write)),
+            Err(WorldStateError::PropertyPermissionDenied)
+        ));
+        assert!(matches!(
+            context(3, BitEnum::new()).require(AuthRule::property_owner_or_wizard(&owner)),
             Err(WorldStateError::PropertyPermissionDenied)
         ));
         assert!(matches!(
@@ -397,6 +431,10 @@ mod tests {
                 BitEnum::new(),
                 VerbFlag::Write
             )),
+            Err(WorldStateError::VerbPermissionDenied)
+        ));
+        assert!(matches!(
+            context(3, BitEnum::new()).require(AuthRule::verb_owner_or_wizard(&owner)),
             Err(WorldStateError::VerbPermissionDenied)
         ));
         assert!(matches!(
