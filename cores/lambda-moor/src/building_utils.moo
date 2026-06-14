@@ -42,7 +42,7 @@ object BUILDING_UTILS
   override import_export_id = "building_utils";
   override object_size = {12705, 1084848672};
 
-  verb make_exit (this none this) owner: #2 flags: "rxd"
+  method make_exit owner: #2
     "make_exit(spec, source, dest[, use-$recycler-pool [, kind]])";
     "";
     "Uses $recycler by default; supplying fourth arg as 0 suppresses this.";
@@ -80,18 +80,18 @@ object BUILDING_UTILS
       player:tell("I couldn't add a new exit as EITHER a legal exit from ", source.name, " OR as a legal entrance to ", dest.name, ".  Get their owners, ", source.owner.name, " and ", dest.owner.name, ", respectively, to add it for you.");
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb set_names (this none this) owner: #2 flags: "rxd"
+  method set_names owner: #2
     "$building_utils:set_names(object, spec)";
     set_task_perms(caller_perms());
     object = args[1];
     names = this:parse_names(args[2]);
     name = names[1] || object.name;
     return object:set_name(name) && object:set_aliases(names[2]);
-  endverb
+  endmethod
 
-  verb recreate (this none this) owner: #2 flags: "rxd"
+  method recreate owner: #2
     ":recreate(object,newparent) -- effectively recycle and recreate the specified object as a child of parent.  Returns true if successful.";
     {object, parent} = args;
     who = caller_perms();
@@ -135,9 +135,9 @@ object BUILDING_UTILS
       object:initialize();
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb parse_names (this none this) owner: #2 flags: "rxd"
+  method parse_names owner: #2
     "$building_utils:parse_names(spec)";
     "Return {name, {alias, alias, ...}} from name,alias,alias or name:alias,alias";
     spec = args[1];
@@ -152,9 +152,9 @@ object BUILDING_UTILS
       name = spec[1..colon - 1];
     endif
     return {name, $list_utils:map_arg($string_utils, "trim", aliases)};
-  endverb
+  endmethod
 
-  verb audit_object_category (this none this) owner: #2 flags: "rxd"
+  method audit_object_category owner: #2
     if (is_player(what = args[1]))
       return "P";
     endif
@@ -165,9 +165,9 @@ object BUILDING_UTILS
       what = parent(what);
     endwhile
     return " ";
-  endverb
+  endmethod
 
-  verb object_audit_string (this none this) owner: #2 flags: "rxd"
+  method object_audit_string owner: #2
     ":object_audit_string(object [,prospectus-style])";
     {o, ?prospectus = 0} = args;
     olen = length(tostr(max_object()));
@@ -259,9 +259,9 @@ object BUILDING_UTILS
     endif
     namelen = min(length(o.name), name_field_len - 1);
     return tostr(vstr, $string_utils:right(o, olen), " ", $string_utils:left(o.name[1..namelen], name_field_len), loc);
-  endverb
+  endmethod
 
-  verb "do_audit do_prospectus" (this none this) owner: #2 flags: "rxd"
+  method "do_audit do_prospectus" owner: #2
     ":do_audit(who, start, end, match)";
     "audit who, with objects from start to end that match 'match'";
     ":do_prospectus(...)";
@@ -304,9 +304,9 @@ object BUILDING_UTILS
       endfor
     endif
     player:tell($string_utils:left(tostr("-- ", count, " object", count == 1 ? "." | "s.", $quota_utils.byte_based ? tostr("  Total bytes: ", $string_utils:group_number(bytes), ".") | ""), player:linelen() - 1, "-"));
-  endverb
+  endmethod
 
-  verb do_audit_item (this none this) owner: #2 flags: "rxd"
+  method do_audit_item owner: #2
     ":do_audit_item(object, match-name-string, prospectus-flag)";
     {o, match, pros} = args;
     found = match ? 0 | 1;
@@ -325,9 +325,9 @@ object BUILDING_UTILS
       return 1;
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb size_string (this none this) owner: #2 flags: "rxd"
+  method size_string owner: #2
     "Copied from Roebare (#109000):size_string at Sat Nov 26 18:41:12 2005 PST";
     size = args[1];
     if (typeof(size) != TYPE_INT)
@@ -406,12 +406,12 @@ object BUILDING_UTILS
     "Rewritten by Roebare (#109000), 051119-26";
     "With inspiration from Miral (#107983) and assistance from Diopter (#98842)";
     "Byte & float display optional, per Nosredna (#2487), 051120-24";
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.classes = {$player, $room, $exit, $note, $container, $thing, $feature, $mail_recipient, $generic_help, $generic_db, $generic_utils, $generic_options};
     endif
-  endverb
+  endmethod
 endobject

@@ -146,7 +146,7 @@ object VERB_EDITOR
     endif
   endverb
 
-  verb working_on (this none this) owner: #96 flags: "rxd"
+  method working_on owner: #96
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
     else
@@ -159,9 +159,9 @@ object VERB_EDITOR
       endif
     endif
     "return this:ok(who = args[1]) && tostr(this.objects[who]) + \":\" + this.verbnames[who];";
-  endverb
+  endmethod
 
-  verb init_session (this none this) owner: #96 flags: "rxd"
+  method init_session owner: #96
     {who, object, vname, vcode} = args;
     if (this:ok(who))
       this:load(who, vcode);
@@ -170,9 +170,9 @@ object VERB_EDITOR
       this.active[who]:tell("Now editing ", this:working_on(who), ".");
       "this.active[who]:tell(\"Now editing \", object, \":\", vname, \".\");";
     endif
-  endverb
+  endmethod
 
-  verb parse_invoke (this none this) owner: #96 flags: "rxd"
+  method parse_invoke owner: #96
     ":parse_invoke(string,v,?code)";
     "  string is the commandline string to parse to obtain the obj:verb to edit";
     "  v is the actual command verb used to invoke the editor";
@@ -220,9 +220,9 @@ object VERB_EDITOR
       endif
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb fetch_verb_code (this none this) owner: #2 flags: "rxd"
+  method fetch_verb_code owner: #2
     "WIZARDLY";
     if (caller != $verb_editor || caller_perms() != $verb_editor.owner)
       return E_PERM;
@@ -230,9 +230,9 @@ object VERB_EDITOR
       set_task_perms(player);
       return `verb_code(args[1], args[2], !player:edit_option("no_parens")) ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb set_verb_code (this none this) owner: #2 flags: "rxd"
+  method set_verb_code owner: #2
     "WIZARDLY";
     if (caller != $verb_editor || caller_perms() != $verb_editor.owner)
       return E_PERM;
@@ -240,9 +240,9 @@ object VERB_EDITOR
       set_task_perms(player);
       return `set_verb_code(args[1], args[2], args[3]) ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb local_editing_info (this none this) owner: #2 flags: "rxd"
+  method local_editing_info owner: #2
     if (caller == $verb_editor)
       set_task_perms(player);
     endif
@@ -266,9 +266,9 @@ object VERB_EDITOR
     "vargs = verb_args(object, vname)";
     "";
     return {name, code, tostr("@program ", object, ":", vname, vargs)};
-  endverb
+  endmethod
 
-  verb verb_name (this none this) owner: #2 flags: "rxd"
+  method verb_name owner: #2
     "verb_name(object, vname)";
     "Find vname on object and return its full name (quoted).";
     "This is useful for when we're working with verb numbers.";
@@ -285,9 +285,9 @@ object VERB_EDITOR
         return tostr(given, "/\"", info[3], "\"");
       endif
     endif
-  endverb
+  endmethod
 
-  verb verb_args (this none this) owner: #2 flags: "rxd"
+  method verb_args owner: #2
     "verb_name(object, vname)";
     "Find vname on object and return its full name (quoted).";
     "This is useful for when we're working with verb numbers.";
@@ -297,7 +297,7 @@ object VERB_EDITOR
       set_task_perms(player);
       return $string_utils:from_list(`verb_args(args[1], args[2]) ! ANY', " ");
     endif
-  endverb
+  endmethod
 
   verb comment (any any any) owner: #96 flags: "rd"
     "Syntax: comment [<range>]";
@@ -366,7 +366,7 @@ object VERB_EDITOR
     endif
   endverb
 
-  verb fetch_verb_args (this none this) owner: #2 flags: "rxd"
+  method fetch_verb_args owner: #2
     "WIZARDLY";
     if (caller != $verb_editor || caller_perms() != $verb_editor.owner)
       raise(E_PERM);
@@ -374,5 +374,5 @@ object VERB_EDITOR
       set_task_perms(player);
       return `verb_args(args[1], args[2]) ! ANY';
     endif
-  endverb
+  endmethod
 endobject

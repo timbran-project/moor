@@ -422,7 +422,7 @@ object BUILDER
     endtry
   endverb
 
-  verb _messagify (this none this) owner: #2 flags: "rxd"
+  method _messagify owner: #2
     "Given any of several formats people are likely to use for a @message";
     "property, return the canonical form (\"foobar_msg\").";
     name = args[1];
@@ -433,7 +433,7 @@ object BUILDER
       name = name + "_msg";
     endif
     return name;
-  endverb
+  endmethod
 
   verb "@kids" (any none none) owner: #2 flags: "rxd"
     "'@kids <obj>' - List the children of an object. This is handy for seeing whether anybody's actually using your carefully-wrought public objects.";
@@ -544,7 +544,7 @@ object BUILDER
     endif
   endverb
 
-  verb classes_2 (this none this) owner: #2 flags: "rxd"
+  method classes_2 owner: #2
     {root, indent, members, printed} = args;
     if (root in members)
       player:tell(indent, root.name, " (", root, ")");
@@ -558,25 +558,25 @@ object BUILDER
       $command_utils:suspend_if_needed(10);
       this:classes_2(c, indent, members, printed);
     endfor
-  endverb
+  endmethod
 
-  verb _create (this none this) owner: #2 flags: "rxd"
+  method _create owner: #2
     set_task_perms(caller_perms());
     if (this:build_option("bi_create"))
       return $quota_utils:bi_create(@args);
     else
       return $recycler:(verb)(@args);
     endif
-  endverb
+  endmethod
 
-  verb _recycle (this none this) owner: #2 flags: "rxd"
+  method _recycle owner: #2
     set_task_perms(caller_perms());
     if (this:build_option("bi_create") || is_uuobjid(@args))
       return recycle(@args);
     else
       return $recycler:(verb)(@args);
     endif
-  endverb
+  endmethod
 
   verb "@chparent" (any at any) owner: #2 flags: "rd"
     set_task_perms(player);
@@ -697,7 +697,7 @@ object BUILDER
     endif
   endverb
 
-  verb build_option (this none this) owner: #2 flags: "rxd"
+  method build_option owner: #2
     ":build_option(name)";
     "Returns the value of the specified builder option";
     if (caller == this || $perm_utils:controls(caller_perms(), this))
@@ -705,9 +705,9 @@ object BUILDER
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb set_build_option (this none this) owner: #2 flags: "rxd"
+  method set_build_option owner: #2
     ":set_build_option(oname,value)";
     "Changes the value of the named option.";
     "Returns a string error if something goes wrong.";
@@ -727,7 +727,7 @@ object BUILDER
       this.(foo_options) = s;
       return 1;
     endif
-  endverb
+  endmethod
 
   verb "@build-o*ptions @buildo*ptions @builder-o*ptions @buildero*ptions" (any any any) owner: #2 flags: "rd"
     "@<what>-option <option> [is] <value>   sets <option> to <value>";
@@ -884,7 +884,7 @@ object BUILDER
     endif
   endverb
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       if (this == $builder)
         this.build_options = {};
@@ -893,7 +893,7 @@ object BUILDER
       endif
       return pass(@args);
     endif
-  endverb
+  endmethod
 
   verb "@listedit @pedit" (any none none) owner: HACKER flags: "rd"
     "@listedit|@pedit object.prop -- invokes the list editor.";

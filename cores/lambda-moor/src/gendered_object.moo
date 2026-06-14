@@ -21,7 +21,7 @@ object GENDERED_OBJECT
   override import_export_id = "gendered_object";
   override object_size = {2378, 1084848672};
 
-  verb set_gender (this none this) owner: #2 flags: "rxd"
+  method set_gender owner: #2
     "set_gender(newgender) attempts to change this.gender to newgender";
     "  => E_PERM   if you don't own this or aren't its parent";
     "  => Other return values as from $gender_utils:set.";
@@ -32,7 +32,7 @@ object GENDERED_OBJECT
       this.gender = typeof(result) == TYPE_STR ? result | args[1];
       return result;
     endif
-  endverb
+  endmethod
 
   verb "@gen*der" (this is any) owner: #2 flags: "rd"
     if (player.wizard || player == this.owner)
@@ -42,7 +42,7 @@ object GENDERED_OBJECT
     endif
   endverb
 
-  verb verb_sub (this none this) owner: #2 flags: "rxd"
+  method verb_sub owner: #2
     "Copied from generic player (#6):verb_sub by ur-Rog (#6349) Fri Jan 22 11:20:11 1999 PST";
     "This verb was copied by TheCat on 01/22/99, so that the generic gendered object will be able to do verb conjugation as well as pronoun substitution.";
     text = args[1];
@@ -51,5 +51,5 @@ object GENDERED_OBJECT
     else
       return $gender_utils:get_conj(text, this);
     endif
-  endverb
+  endmethod
 endobject

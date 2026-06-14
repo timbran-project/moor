@@ -50,10 +50,10 @@ object FRAND_CLASS
     player:tell(line);
   endverb
 
-  verb names_of (this none this) owner: HACKER flags: "rxd"
+  method names_of owner: HACKER
     "Return a string giving the names of the objects in a list. Now on $string_utils";
     return $string_utils:names_of(@args);
-  endverb
+  endmethod
 
   verb "@go" (any none none) owner: HACKER flags: "rxd"
     "'@go <place>' - Teleport yourself somewhere. Example: '@go liv' to go to the living room.";
@@ -65,7 +65,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb lookup_room (this none this) owner: HACKER flags: "rxd"
+  method lookup_room owner: HACKER
     "Look up a room in your personal database of room names, returning its object number. If it's not in your database, it checks to see if it's a number or a nearby object.";
     room = args[1];
     if (room == "home")
@@ -89,9 +89,9 @@ object FRAND_CLASS
       endif
       return source:match_object(room);
     endif
-  endverb
+  endmethod
 
-  verb teleport (this none this) owner: #2 flags: "rxd"
+  method teleport owner: #2
     "Teleport a player or object. For printing messages, there are three cases: (1) teleport self (2) teleport other player (3) teleport object. There's a spot of complexity for handling the invalid location #-1.";
     set_task_perms(caller == this ? this | $no_one);
     {thing, dest} = args;
@@ -130,9 +130,9 @@ object FRAND_CLASS
       thing_name = thing == player ? "you" | thing.name;
       player:tell("A strange force deflects ", thing_name, " from the destination.");
     endif
-  endverb
+  endmethod
 
-  verb teleport_messages (this none this) owner: HACKER flags: "rxd"
+  method teleport_messages owner: HACKER
     "Send teleport messages. There's a slight complication in that the source and dest need not be valid objects.";
     {thing, source, dest, pmsg, smsg, dmsg, tmsg} = args;
     if (pmsg)
@@ -149,7 +149,7 @@ object FRAND_CLASS
       "A message to the victim being teleported.";
       thing:tell(tmsg);
     endif
-  endverb
+  endmethod
 
   verb "@move" (any any any) owner: HACKER flags: "rxd"
     "'@move <object> to <place>' - Teleport an object. Example: '@move trash to #11' to move trash to the closet.";
@@ -179,7 +179,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb index_room (this none this) owner: HACKER flags: "rxd"
+  method index_room owner: HACKER
     "'index_room (<room name>)' - Look up a room in your personal database of room names, returning its index in the list. Return 0 if it is not in the list. If the room name is the empty string, then only exact matches are considered; otherwise, a leading match is good enough.";
     room = tostr(args[1]);
     size = length(room);
@@ -195,7 +195,7 @@ object FRAND_CLASS
       index = index + 1;
     endfor
     return match;
-  endverb
+  endmethod
 
   verb "@addr*oom" (any none none) owner: HACKER flags: "rxd"
     "'@addroom <name> <object>', '@addroom <object> <name>', '@addroom <name>', '@addroom <object>', '@addroom' - Add a room to your personal database of teleport destinations. Example: '@addroom Kitchen #24'. Reasonable <object>s are numbers (#17) and 'here'. If you leave out <object>, the object is the current room. If you leave out <name>, the name is the specified room's name. If you leave out both, you get the current room and its name.";
@@ -311,7 +311,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb find_verb (this none this) owner: HACKER flags: "rxd"
+  method find_verb owner: HACKER
     "'find_verb (<name>)' - Search for a verb with the given name. The objects searched are those returned by this:find_verbs_on(). The printing order relies on $list_utils:remove_duplicates to leave the *first* copy of each duplicated element in a list; for example, {1, 2, 1} -> {1, 2}, not to {2, 1}.";
     name = args[1];
     results = "";
@@ -330,7 +330,7 @@ object FRAND_CLASS
     else
       this:tell("The verb :", name, " is nowhere to be found.");
     endif
-  endverb
+  endmethod
 
   verb "@ways" (any none none) owner: HACKER flags: "rxd"
     "'@ways', '@ways <room>' - List any obvious exits from the given room (or this room, if none is given).";
@@ -352,7 +352,7 @@ object FRAND_CLASS
     this:tell_ways(exits, room);
   endverb
 
-  verb findexits (this none this) owner: HACKER flags: "rxd"
+  method findexits owner: HACKER
     "Add to the 'exits' list any exits in the room which have a single-letter alias.";
     {room, exits} = args;
     alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -363,9 +363,9 @@ object FRAND_CLASS
       endif
     endfor
     return exits;
-  endverb
+  endmethod
 
-  verb checkexits (this none this) owner: HACKER flags: "rxd"
+  method checkexits owner: HACKER
     "Check a list of exits to see if any of them are in the given room.";
     {to_check, room, exits} = args;
     for word in (to_check)
@@ -375,18 +375,18 @@ object FRAND_CLASS
       endif
     endfor
     return exits;
-  endverb
+  endmethod
 
-  verb "self_port_msg player_port_msg thing_port_msg join_msg" (this none this) owner: HACKER flags: "rxd"
+  method "self_port_msg player_port_msg thing_port_msg join_msg" owner: HACKER
     "This verb returns messages that go only to you. You don't need to have your name tacked on to the beginning of these. Heh.";
     msg = this.(verb);
     if (msg && length(args) >= 3)
       msg = this:msg_sub(msg, @args);
     endif
     return msg;
-  endverb
+  endmethod
 
-  verb "oself_port_msg self_arrive_msg oplayer_port_msg player_arrive_msg victim_port_msg othing_port_msg thing_arrive_msg object_port_msg" (this none this) owner: HACKER flags: "rxd"
+  method "oself_port_msg self_arrive_msg oplayer_port_msg player_arrive_msg victim_port_msg othing_port_msg thing_arrive_msg object_port_msg" owner: HACKER
     "This verb returns messages that go to other players. It does pronoun substitutions; if your name is not included in the final string, it adds the name in front.";
     msg = this.(verb);
     if (!msg)
@@ -399,22 +399,22 @@ object FRAND_CLASS
       msg = player.name + " " + msg;
     endif
     return msg;
-  endverb
+  endmethod
 
-  verb msg_sub (this none this) owner: HACKER flags: "rxd"
+  method msg_sub owner: HACKER
     "Do pronoun and other substitutions on the teleport messages. The arguments are: 1. The original message, before any substitutions; 2. object being teleported; 3. from location; 4. to location. The return value is the final message.";
     {msg, thing, from, to} = args;
     msg = $string_utils:substitute(msg, $string_utils:pronoun_quote({{"%<from room>", valid(from) ? from.name | "Nowhere"}, {"%<to room>", valid(to) ? to.name | "Nowhere"}}));
     msg = $string_utils:pronoun_sub(msg, thing);
     return msg;
-  endverb
+  endmethod
 
-  verb obvious_exits (this none this) owner: HACKER flags: "rxd"
+  method obvious_exits owner: HACKER
     "'obvious_exits()' - Return a list of common exit names which are obviously worth looking for in a room.";
     return {"n", "ne", "e", "se", "s", "sw", "w", "nw", "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest", "u", "d", "up", "down", "out", "exit", "leave", "enter"};
-  endverb
+  endmethod
 
-  verb tell_ways (this none this) owner: HACKER flags: "rxd"
+  method tell_ways owner: HACKER
     ":tell_ways (<list of exits>)' - Tell yourself a list of exits, for @ways. You can override it to print the exits in any format.";
     exits = args[1];
     answer = {};
@@ -422,15 +422,15 @@ object FRAND_CLASS
       answer = {@answer, e.name + " (" + $string_utils:english_list(e.aliases) + ")"};
     endfor
     player:tell("Obvious exits: ", $string_utils:english_list(answer), ".");
-  endverb
+  endmethod
 
-  verb tell_obj (this none this) owner: HACKER flags: "rxd"
+  method tell_obj owner: HACKER
     "Return the name and number of an object, e.g. 'Root Class (#1)'.";
     o = args[1];
     return (valid(o) ? o.name | "Nothing") + " (" + tostr(o) + ")";
-  endverb
+  endmethod
 
-  verb parse_out_object (this none this) owner: HACKER flags: "rxd"
+  method parse_out_object owner: HACKER
     "'parse_out_object (<string>)' -> {<name>, <object>}, or 0. Given a string, attempt to find an object at its beginning or its end. An object can be either an object number, or 'here'. If this succeeds, return a list of the object and the unmatched part of the string, called the name. If it fails, return 0.";
     words = $string_utils:words(args[1]);
     if (!length(words))
@@ -466,9 +466,9 @@ object FRAND_CLASS
       name = valid(what) ? what.name | "Nowhere";
     endif
     return {name, what};
-  endverb
+  endmethod
 
-  verb enlist (this none this) owner: HACKER flags: "rxd"
+  method enlist owner: HACKER
     "'enlist (<x>)' - If x is a list, just return it; otherwise, return {x}. The purpose here is to turn message strings into lists, so that lines can be added. It is not guaranteed to work for non-string non-lists.";
     x = args[1];
     if (!x)
@@ -478,7 +478,7 @@ object FRAND_CLASS
     else
       return {x};
     endif
-  endverb
+  endmethod
 
   verb "@spellm*essages @spellp*roperties" (any any any) owner: #2 flags: "rd"
     "@spellproperties <object>";
@@ -560,12 +560,12 @@ object FRAND_CLASS
     this:internal_at(argstr);
   endverb
 
-  verb at_players (this none this) owner: HACKER flags: "rxd"
+  method at_players owner: HACKER
     "'at_players ()' - Return a list of players to be displayed by @at.";
     return connected_players();
-  endverb
+  endmethod
 
-  verb do_at_all (this none this) owner: HACKER flags: "rxd"
+  method do_at_all owner: HACKER
     "'do_at_all ()' - List where everyone is, sorted by popularity of location. This is called when you type '@at'.";
     locations = {};
     parties = {};
@@ -584,9 +584,9 @@ object FRAND_CLASS
     locations = $list_utils:sort(locations, counts);
     parties = $list_utils:sort(parties, counts);
     this:print_at_items(locations, parties);
-  endverb
+  endmethod
 
-  verb do_at (this none this) owner: HACKER flags: "rxd"
+  method do_at owner: HACKER
     "'do_at (<location>)' - List the players at a given location.";
     loc = args[1];
     party = {};
@@ -596,18 +596,18 @@ object FRAND_CLASS
       endif
     endfor
     this:print_at_items({loc}, {party});
-  endverb
+  endmethod
 
-  verb print_at_items (this none this) owner: HACKER flags: "rxd"
+  method print_at_items owner: HACKER
     "'print_at_items (<locations>, <parties>)' - Print a list of locations and people, for @at. Override this if you want to make a change to @at's output that you can't make in :at_item.";
     {locations, parties} = args;
     for i in [1..length(locations)]
       $command_utils:suspend_if_needed(0);
       player:tell_lines(this:at_item(locations[i], parties[i]));
     endfor
-  endverb
+  endmethod
 
-  verb at_item (this none this) owner: HACKER flags: "rxd"
+  method at_item owner: HACKER
     "'at_item (<location>, <party>)' - Given a location and a list of the people there, return a string displaying the information. Override this if you want to change the format of each line of @at's output.";
     {loc, party} = args;
     su = $string_utils;
@@ -639,9 +639,9 @@ object FRAND_CLASS
       text = text + " [deserted]";
     endif
     return text;
-  endverb
+  endmethod
 
-  verb internal_at (this none this) owner: HACKER flags: "rxd"
+  method internal_at owner: HACKER
     "'internal_at (<argument string>)' - Perform the function of @at. The argument string is whatever the user typed after @at. This is factored out so that other verbs can call it.";
     where = $string_utils:trim(args[1]);
     if (where)
@@ -668,9 +668,9 @@ object FRAND_CLASS
     else
       this:do_at_all();
     endif
-  endverb
+  endmethod
 
-  verb confunc (this none this) owner: #2 flags: "rxd"
+  method confunc owner: #2
     "'confunc ()' - Besides the inherited behavior, notify the player's feature objects that the player has connected.";
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this))
       return E_PERM;
@@ -687,9 +687,9 @@ object FRAND_CLASS
       endtry
       $command_utils:suspend_if_needed(0);
     endfor
-  endverb
+  endmethod
 
-  verb disfunc (this none this) owner: #2 flags: "rxd"
+  method disfunc owner: #2
     "'disfunc ()' - Besides the inherited behavior, notify the player's feature objects that the player has disconnected.";
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this))
       return E_PERM;
@@ -706,7 +706,7 @@ object FRAND_CLASS
         endtry
       endfor
     endfork
-  endverb
+  endmethod
 
   verb "@addword @adddict" (any any any) owner: #2 flags: "rd"
     set_task_perms(player);
@@ -847,7 +847,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb find_property (this none this) owner: HACKER flags: "rxd"
+  method find_property owner: HACKER
     "'find_property (<name>)' - Search for a property with the given name. The objects searched are those returned by this:find_properties_on(). The printing order relies on $list_utils:remove_duplicates to leave the *first* copy of each duplicated element in a list; for example, {1, 2, 1} -> {1, 2}, not to {2, 1}.";
     name = args[1];
     results = "";
@@ -870,19 +870,19 @@ object FRAND_CLASS
     else
       this:tell("The property .", name, " is nowhere to be found.");
     endif
-  endverb
+  endmethod
 
-  verb find_verbs_on (this none this) owner: HACKER flags: "rxd"
+  method find_verbs_on owner: HACKER
     "'find_verbs_on ()' -> list of objects - Return the objects that @find searches when looking for a verb. The objects are searched (and the results printed) in the order returned. Feature objects are included in the search. Duplicate entries are removed by the caller.";
     return {this, this.location, @valid(this.location) ? this.location:contents() | {}, @this:contents(), @this.features};
-  endverb
+  endmethod
 
-  verb find_properties_on (this none this) owner: HACKER flags: "rxd"
+  method find_properties_on owner: HACKER
     "'find_properties_on ()' -> list of objects - Return the objects that @find searches when looking for a property. The objects are searched (and the results printed) in the order returned. Feature objects are *not* included in the search. Duplicate entries are removed by the caller.";
     return {this, this.location, @valid(this.location) ? this.location:contents() | {}, @this:contents()};
-  endverb
+  endmethod
 
-  verb property_inherited_from (this none this) owner: HACKER flags: "rxd"
+  method property_inherited_from owner: HACKER
     "'property_inherited_from (<object>, <property name>)' -> object - Return the ancestor of <object> on which <object>.<property> is originally defined. If <object>.<property> is not actually defined, return 0. The property is taken as originally defined on the earliest ancestor of <object> which has it. If the property is built-in, return $nothing.";
     {what, prop} = args;
     if (!$object_utils:has_property(what, prop))
@@ -895,7 +895,7 @@ object FRAND_CLASS
       ancestor = parent(ancestor);
     endwhile
     return ancestor;
-  endverb
+  endmethod
 
   verb "@ref*use" (any any any) owner: HACKER flags: "rd"
     "'@refuse <action(s)> [ from <player> ] [ for <time> ]' - Refuse all of a list of one or more actions. If a player is given, refuse actions from the player; otherwise, refuse all actions. If a time is specified, refuse the actions for the given amount of time; otherwise, refuse them for a week. If the actions are already refused, then the only their times are adjusted.";
@@ -987,7 +987,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb parse_refuse_arguments (this none this) owner: HACKER flags: "rxd"
+  method parse_refuse_arguments owner: HACKER
     "'parse_refuse_arguments (<string>)' -> {<who>, <actions>, <duration>} - Parse the arguments of a @refuse or @unrefuse command. <who> is the player requested, or $nothing if none was. <actions> is a list of the actions asked for. <duration> is how long the refusal should last, or 0 if no expiration is given. <errors> is a list of actions (or other words) which are wrong. If there are any errors, this prints an error message and returns 0.";
     words = $string_utils:explode(args[1]);
     possible_actions = this:refusable_actions();
@@ -1033,14 +1033,14 @@ object FRAND_CLASS
       return 0;
     endif
     return {this:player_to_refusal_origin(who), actions, until};
-  endverb
+  endmethod
 
-  verb time_word_to_seconds (this none this) owner: HACKER flags: "rxd"
+  method time_word_to_seconds owner: HACKER
     "'time_word_to_seconds (<string>)' - The <string> is expected to be a time word, 'second', 'minute', 'hour', 'day', 'week', or 'month'. Return the number of seconds in that amount of time (a month is taken to be 30 days). If <string> is not a time word, return 0. This is used both as a test of whether a word is a time word and as a converter.";
     return $time_utils:parse_english_time_interval("1", args[1]);
-  endverb
+  endmethod
 
-  verb parse_time_length (this none this) owner: HACKER flags: "rxd"
+  method parse_time_length owner: HACKER
     "'parse_time_length (<words>)' -> n - Given a list of words which is expected to begin with a time expression, return how many of them belong to the time expression. A time expression can be a positive integer, a time word, or a positive integer followed by a time word. A time word is anything that this:time_word_to_seconds this is one. The return value is 0, 1, or 2.";
     words = {@args[1], "dummy"};
     n = 0;
@@ -1051,9 +1051,9 @@ object FRAND_CLASS
       n = n + 1;
     endif
     return n;
-  endverb
+  endmethod
 
-  verb parse_time (this none this) owner: HACKER flags: "rxd"
+  method parse_time owner: HACKER
     "'parse_time (<words>)' -> <seconds> - Given a list of zero or more words, either empty or a valid time expression, return the number of seconds that the time expression refers to. This is a duration, not an absolute time.";
     words = args[1];
     "If the list is empty, return the default refusal time.";
@@ -1068,9 +1068,9 @@ object FRAND_CLASS
     endif
     "The list must contain two words, <n> <units>.";
     return toint(words[1]) * this:time_word_to_seconds(words[2]);
-  endverb
+  endmethod
 
-  verb clear_refusals (this none this) owner: HACKER flags: "rxd"
+  method clear_refusals owner: HACKER
     "'clear_refusals ()' - Erase all of this player's refusals.";
     if (caller != this && !$perm_utils:controls(caller_perms(), this))
       return E_PERM;
@@ -1079,36 +1079,36 @@ object FRAND_CLASS
     this.refused_actions = {};
     this.refused_until = {};
     this.refused_extra = {};
-  endverb
+  endmethod
 
-  verb set_default_refusal_time (this none this) owner: HACKER flags: "rxd"
+  method set_default_refusal_time owner: HACKER
     "'set_default_refusal_time (<seconds>)' - Set the length of time that a refusal lasts if its duration isn't specified.";
     if (caller != this && !$perm_utils:controls(caller_perms(), this))
       return E_PERM;
     endif
     this.default_refusal_time = toint(args[1]);
-  endverb
+  endmethod
 
-  verb refusable_actions (this none this) owner: HACKER flags: "rxd"
+  method refusable_actions owner: HACKER
     "'refusable_actions ()' -> {'page', 'whisper', ...} - Return a list of the actions that can be refused. This is a verb, rather than a property, so that it can be inherited properly. If you override this verb to add new refusable actions, write something like 'return {@pass (), 'action1', 'action2', ...}'. That way people can add new refusable actions at any level of the player class hierarchy, without clobbering any that were added higher up.";
     return {"page", "whisper", "move", "join", "accept", "mail"};
-  endverb
+  endmethod
 
-  verb translate_refusal_synonym (this none this) owner: HACKER flags: "rxd"
+  method translate_refusal_synonym owner: HACKER
     "'translate_refusal_synonym (<word>)' -> list - If the <word> is a synonym for some set of refusals, return the list of those refusals. Otherwise return the empty list, {}. Programmers can override this verb to provide more synonyms.";
     word = args[1];
     if (word == "all")
       return this:refusable_actions();
     endif
     return {};
-  endverb
+  endmethod
 
-  verb default_refusals_text_filter (this none this) owner: HACKER flags: "rxd"
+  method default_refusals_text_filter owner: HACKER
     "'default_refusals_text_filter (<origin>, <actions>)' - Return any actions by this <origin> which should be included in the text returned by :refusals_text. This is the default filter, which includes all actions.";
     return args[2];
-  endverb
+  endmethod
 
-  verb refusals_text (this none this) owner: HACKER flags: "rxd"
+  method refusals_text owner: HACKER
     "'refusals_text (<player>, [<filter verb name>])' - Return text describing the given player's refusals. The filter verb name is optional; if it is given, this verb takes an origin and a list of actions and returns any actions which should be included in the refusals text. This verb works only if <player> is a player who has the refusals facility; it does not check for this itself.";
     who = args[1];
     "Used to allow you to supply the filter verb name, but that introduced a security hole. --Nosredna";
@@ -1131,9 +1131,9 @@ object FRAND_CLASS
       text = {"No refusals."};
     endif
     return text;
-  endverb
+  endmethod
 
-  verb player_to_refusal_origin (this none this) owner: #2 flags: "rxd"
+  method player_to_refusal_origin owner: #2
     "'player_to_refusal_origin (<player>)' -> <origin> - Convert a player to a unique identifier called the player's 'refusal origin'. For most players, it's just their object number. For guests, it is a hash of the site they are connecting from. Converting an origin to an origin is a safe no-op--the code relies on this.";
     set_task_perms(caller_perms());
     {who} = args;
@@ -1142,9 +1142,9 @@ object FRAND_CLASS
     else
       return who;
     endif
-  endverb
+  endmethod
 
-  verb refusal_origin_to_name (this none this) owner: HACKER flags: "rxd"
+  method refusal_origin_to_name owner: HACKER
     "'refusal_origin_to_name (<origin>)' -> string - Convert a refusal origin to a name.";
     origin = args[1];
     if (origin in {"all guests", "everybody"})
@@ -1158,9 +1158,9 @@ object FRAND_CLASS
     else
       return $string_utils:name_and_number(origin);
     endif
-  endverb
+  endmethod
 
-  verb check_refusal_actions (this none this) owner: HACKER flags: "rxd"
+  method check_refusal_actions owner: HACKER
     "'check_refusal_actions (<actions>)' - Check a list of refusal actions, and return whether they are all legal.";
     actions = args[1];
     legal_actions = this:refusable_actions();
@@ -1170,9 +1170,9 @@ object FRAND_CLASS
       endif
     endfor
     return 1;
-  endverb
+  endmethod
 
-  verb add_refusal (this none this) owner: HACKER flags: "rxd"
+  method add_refusal owner: HACKER
     "'add_refusal (<origin>, <actions> [, <duration> [, <extra>]])' - Add refusal(s) to this player's list. <Actions> is a list of the actions to be refused. The list should contain only actions, no synonyms. <Origin> is the actor whose actions are to be refused. <Until> is the time that the actions are being refused until, in the form returned by time(). It is optional; if it's not given, it defaults to .default_refusal_time. <Extra> is any extra information; it can be used for comments, or to make finer distinctions about the actions being refused, or whatever. If it is not given, it defaults to 0. The extra information is per-action; that is, it is stored separately for each action that it applies to.";
     if (caller != this)
       return E_PERM;
@@ -1207,9 +1207,9 @@ object FRAND_CLASS
         this.refused_extra = {@this.refused_extra, $list_utils:make(length(actions), extra)};
       endif
     endfor
-  endverb
+  endmethod
 
-  verb remove_refusal (this none this) owner: HACKER flags: "rxd"
+  method remove_refusal owner: HACKER
     "'remove_refusal (<origin>, <actions>)' - Remove any refused <actions> by <origin>. The <actions> list should contain only actions, no synonyms. Return the number of such refusals found (0 if none).";
     if (caller != this)
       return E_PERM;
@@ -1236,9 +1236,9 @@ object FRAND_CLASS
       endif
     endif
     return count;
-  endverb
+  endmethod
 
-  verb remove_expired_refusals (this none this) owner: HACKER flags: "rxd"
+  method remove_expired_refusals owner: HACKER
     "'remove_expired_refusals ()' - Remove refusal entries which are past their time limits.";
     origins = {};
     "Before removing any refusals, figure out which ones to remove. Removing one changes the indices and invalidates the loop invariant.";
@@ -1250,9 +1250,9 @@ object FRAND_CLASS
     for origin in (origins)
       this:remove_refusal(origin, this:refusable_actions());
     endfor
-  endverb
+  endmethod
 
-  verb refuses_action (this none this) owner: HACKER flags: "rxd"
+  method refuses_action owner: HACKER
     "'refuses_action (<origin>, <action>, ...)' - Return whether this object refuses the given <action> by <origin>. <Origin> is typically a player. Extra arguments after <origin>, if any, are used to further describe the action.";
     "Modified by Diopter (#98842) at LambdaMOO";
     {origin, action, @extra_args} = args;
@@ -1268,9 +1268,9 @@ object FRAND_CLASS
       return 1;
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb "refuses_action_*" (this none this) owner: HACKER flags: "rxd"
+  method "refuses_action_*" owner: HACKER
     "'refuses_action_* (<which>, <origin>, ...)' - The action (such as 'whisper' for the verb :refuses_action_whisper) is being considered for refusal. Return whether the action should really be refused. <Which> is an index into this.refused_origins. By default, always refuse non-outdated actions that get this far.";
     {which, @junk} = args;
     if (time() >= this.refused_until[which])
@@ -1282,14 +1282,14 @@ object FRAND_CLASS
     else
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb report_refusal (this none this) owner: HACKER flags: "rxd"
+  method report_refusal owner: HACKER
     "'report_refusal (<player>, <message>, ...)' - If refusal reporting is turned on, print the given <message> to report the refusal of some action by <player>. The message may take more than one argument. You can override this verb to do more selective reporting.";
     if (this.report_refusal)
       this:tell(@listdelete(args, 1));
     endif
-  endverb
+  endmethod
 
   verb "wh*isper" (any at this) owner: HACKER flags: "rxd"
     "'whisper <message> to <this player>' - Whisper a message to this player which nobody else can see.";
@@ -1301,7 +1301,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb receive_page (this none this) owner: HACKER flags: "rxd"
+  method receive_page owner: HACKER
     "'receive_page (<message>)' - Receive a page. If the page is accepted, pass(@args) shows it to the player.";
     if (this:refuses_action(player, "page"))
       this.page_refused = task_id();
@@ -1309,9 +1309,9 @@ object FRAND_CLASS
     endif
     this.page_refused = 0;
     return pass(@args);
-  endverb
+  endmethod
 
-  verb page_echo_msg (this none this) owner: HACKER flags: "rxd"
+  method page_echo_msg owner: HACKER
     "'page_echo_msg ()' - Return a message to inform the pager what happened to their page.";
     if (task_id() == this.page_refused)
       this:report_refusal(player, "You just refused a page from ", player.name, ".");
@@ -1319,9 +1319,9 @@ object FRAND_CLASS
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb "moveto acceptable" (this none this) owner: HACKER flags: "rxd"
+  method "moveto acceptable" owner: HACKER
     "'moveto (<destination>)', 'accept (<object>)' - Check whether this :moveto or :accept is allowed or refused. If it is allowed, do it. This code is slightly modified from an original verb by Grump.  Upgraded by Bits to account for forthcoming 1.8.0 behavior of callers().";
     by = callers();
     "Ignore all the verbs on this.";
@@ -1356,9 +1356,9 @@ object FRAND_CLASS
     endif
     "(end of code added by TheCat)";
     return pass(@args);
-  endverb
+  endmethod
 
-  verb receive_message (this none this) owner: HACKER flags: "rxd"
+  method receive_message owner: HACKER
     "'receive_message (<message>, <sender>)' - Receive the given mail message from the given sender. This version handles refusal of the message.";
     if (!$perm_utils:controls(caller_perms(), this) && caller != this)
       return E_PERM;
@@ -1367,14 +1367,14 @@ object FRAND_CLASS
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb "whisper_refused_msg page_refused_msg mail_refused_msg" (this none this) owner: HACKER flags: "rxd"
+  method "whisper_refused_msg page_refused_msg mail_refused_msg" owner: HACKER
     "'whisper_refused_msg()', 'page_refused_msg()', etc. - Return a message string.";
     return $string_utils:pronoun_sub(this.(verb), this);
-  endverb
+  endmethod
 
-  verb last_huh (this none this) owner: #2 flags: "rxd"
+  method last_huh owner: #2
     set_task_perms(caller_perms());
     if (pass(@args))
       return 1;
@@ -1387,9 +1387,9 @@ object FRAND_CLASS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb ping_features (this none this) owner: #2 flags: "rxd"
+  method ping_features owner: #2
     ":ping_features()";
     " -- cleans up the .features list to remove !valid objects";
     " ==> cleaned-up .features list";
@@ -1400,9 +1400,9 @@ object FRAND_CLASS
       endif
     endfor
     return this.features = features;
-  endverb
+  endmethod
 
-  verb set_owned_objects (this none this) owner: #2 flags: "rxd"
+  method set_owned_objects owner: #2
     ":set_owned_objects( LIST owned-objects list )";
     "  -- set your .owned_objects, ordered as you please";
     "  -- no, it will NOT let you set to to anything you want";
@@ -1424,9 +1424,9 @@ object FRAND_CLASS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       if ($code_utils:verb_location() == this)
@@ -1436,9 +1436,9 @@ object FRAND_CLASS
       endif
       this.features = {$pasting_feature, $stage_talk};
     endif
-  endverb
+  endmethod
 
-  verb find_help (this none this) owner: HACKER flags: "rxd"
+  method find_help owner: HACKER
     "'find_help (<name>[, databases])'";
     "Search for a help topic with the given name. [<databases>] defaults to the ones returned by $code_utils:help_db_list().";
     {name, ?databases = $code_utils:help_db_list()} = args;
@@ -1480,7 +1480,7 @@ object FRAND_CLASS
     else
       this:tell("The help topic \"", name, "\" could not be found.");
     endif
-  endverb
+  endmethod
 
   verb "@spurn" (any none none) owner: HACKER flags: "rd"
     "Prevent an object or any of its descendents from going into your inventory, regardless of whose player perms sent it there.";
@@ -1526,7 +1526,7 @@ object FRAND_CLASS
     endif
   endverb
 
-  verb set_spurned_objects (this none this) owner: HACKER flags: "rxd"
+  method set_spurned_objects owner: HACKER
     "Permits programmatic setting of .spurned_objects, which is -c.";
     {spurned_objects} = args;
     if ($perm_utils:controls(caller_perms(), this))
@@ -1536,7 +1536,7 @@ object FRAND_CLASS
       endif
       this.spurned_objects = spurned_objects;
     endif
-  endverb
+  endmethod
 
   verb "@addsubmitted @rmsubmitted @submitted" (none none none) owner: HACKER flags: "rd"
     "Copied from Roebare (#109000):@submitted at Sat Feb 26 19:41:37 2005 PST";

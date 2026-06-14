@@ -15,7 +15,7 @@ object GENERIC_OPTIONS
   override import_export_id = "generic_options";
   override object_size = {12729, 1084848672};
 
-  verb get (this none this) owner: HACKER flags: "rxd"
+  method get owner: HACKER
     ":get(options,name) => returns the value of the option specified by name";
     "i.e., if {name,value} is present in options, return value";
     "      if name is present, return 1";
@@ -28,9 +28,9 @@ object GENERIC_OPTIONS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb set (this none this) owner: HACKER flags: "rxd"
+  method set owner: HACKER
     ":set(optionlist,oname,value) => revised optionlist or string error message.";
     "oname must be the full name of an option in .names or .extras.";
     "Note that values must not be of type ERR.  ";
@@ -103,9 +103,9 @@ object GENERIC_OPTIONS
       endif
     endfor
     return options;
-  endverb
+  endmethod
 
-  verb parse (this none this) owner: HACKER flags: "rxd"
+  method parse owner: HACKER
     ":parse(args[,...]) => {oname [,value]} or string error message";
     "additional arguments are fed straight through to :parse_* routines.";
     " <option> <value>     => {option, value}";
@@ -167,9 +167,9 @@ object GENERIC_OPTIONS
     else
       return tostr("Option is a flag, use `+", option, "' or `-", option, "' (or `!", option, "')");
     endif
-  endverb
+  endmethod
 
-  verb _name (this none this) owner: HACKER flags: "rxd"
+  method _name owner: HACKER
     ":_name(string) => full option name corresponding to string ";
     "               => $failed_match or $ambiguous_match as appropriate.";
     if ((string = args[1]) in this.names || string in this.extras)
@@ -184,9 +184,9 @@ object GENERIC_OPTIONS
       j = index(namestr[i + 1..$], char);
       return namestr[i + 1..i + j - 1];
     endif
-  endverb
+  endmethod
 
-  verb add_name (this none this) owner: HACKER flags: "rxd"
+  method add_name owner: HACKER
     ":add_name(name[,isextra]) adds name to the list of options recognized.";
     "name must be a nonempty string and must not contain spaces, -, +, !, or =.";
     "isextra true means that name isn't an actual option (recognized by :get) but merely a name that the option setting command should recognize to set a particular combination of options.  Actual options go in .names; others go in .extras";
@@ -225,9 +225,9 @@ object GENERIC_OPTIONS
       endif
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb remove_name (this none this) owner: HACKER flags: "rxd"
+  method remove_name owner: HACKER
     ":remove_name(name) removes name from the list of options recognized.";
     if (!$perm_utils:controls(caller_perms(), this))
       return E_PERM;
@@ -241,9 +241,9 @@ object GENERIC_OPTIONS
       this.extras = setremove(this.extras, name);
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb show (this none this) owner: HACKER flags: "rxd"
+  method show owner: HACKER
     ":show(options,name or list of names)";
     " => text describing current value of option and what it means";
     name = args[2];
@@ -294,17 +294,17 @@ object GENERIC_OPTIONS
       show = {@show, $string_utils:space(this.namewidth) + desc[i]};
     endfor
     return show;
-  endverb
+  endmethod
 
-  verb actual (this none this) owner: HACKER flags: "rxd"
+  method actual owner: HACKER
     ":actual(<name>,<value>) => list of {<name>,<value>} pairs or string errormsg";
     " corresponding to what setting option <name> to <value> actually means";
     " e.g., :actual(\"unfoo\",1) => {{\"foo\",0}}";
     " e.g., :actual(\"g7mode\",1) => {{\"splat\",37},{\"baz\",#3}}";
     return "Not implemented.";
-  endverb
+  endmethod
 
-  verb istype (this none this) owner: HACKER flags: "rxd"
+  method istype owner: HACKER
     ":istype(value,types) => whether value is one of the given types";
     if ((vtype = typeof(value = args[1])) in (types = args[2]))
       return 1;
@@ -318,9 +318,9 @@ object GENERIC_OPTIONS
       endfor
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb islistof (this none this) owner: HACKER flags: "rxd"
+  method islistof owner: HACKER
     ":islistof(value,types) => whether value (a list) has each element being one of the given types";
     types = args[2];
     for v in (value = args[1])
@@ -329,9 +329,9 @@ object GENERIC_OPTIONS
       endif
     endfor
     return 1;
-  endverb
+  endmethod
 
-  verb desc_type (this none this) owner: HACKER flags: "rxd"
+  method desc_type owner: HACKER
     ":desc_type(types) => string description of types";
     nlist = {};
     for t in (types = args[1])
@@ -348,9 +348,9 @@ object GENERIC_OPTIONS
       endif
     endfor
     return $string_utils:english_list(nlist, "nothing", " or ");
-  endverb
+  endmethod
 
-  verb parsechoice (this none this) owner: HACKER flags: "rxd"
+  method parsechoice owner: HACKER
     ":parsechoice(oname,rawval,assoclist)";
     which = {};
     oname = args[1];
@@ -377,5 +377,5 @@ object GENERIC_OPTIONS
     else
       return {oname, which[1]};
     endif
-  endverb
+  endmethod
 endobject

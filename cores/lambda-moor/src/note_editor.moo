@@ -91,16 +91,16 @@ object NOTE_EDITOR
     endif
   endverb
 
-  verb init_session (this none this) owner: #96 flags: "rxd"
+  method init_session owner: #96
     if (this:ok(who = args[1]))
       this.strmode[who] = strmode = typeof(text = args[3]) == TYPE_STR;
       this:load(who, strmode ? text ? {text} | {} | text);
       this.objects[who] = args[2];
       player:tell("Now editing ", this:working_on(who), ".", strmode ? "  [string mode]" | "");
     endif
-  endverb
+  endmethod
 
-  verb working_on (this none this) owner: #96 flags: "rxd"
+  method working_on owner: #96
     if (!(who = args[1]))
       return "????";
     endif
@@ -113,9 +113,9 @@ object NOTE_EDITOR
       prop = 0;
     endif
     return valid(object) ? tostr("\"", object.name, "\"(", object, ")", prop ? "." + prop | "") | tostr(prop ? "." + prop + " on " | "", "invalid object (", object, ")");
-  endverb
+  endmethod
 
-  verb parse_invoke (this none this) owner: #96 flags: "rxd"
+  method parse_invoke owner: #96
     ":parse_invoke(string,verb)";
     " string is the actual commandline string indicating what we are to edit";
     " verb is the command verb that is attempting to invoke the editor";
@@ -130,9 +130,9 @@ object NOTE_EDITOR
       return {note, text};
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb note_text (this none this) owner: #2 flags: "rxd"
+  method note_text owner: #2
     "WIZARDLY";
     if (caller != $note_editor || caller_perms() != $note_editor.owner)
       return E_PERM;
@@ -148,9 +148,9 @@ object NOTE_EDITOR
     else
       return E_TYPE;
     endif
-  endverb
+  endmethod
 
-  verb set_note_text (this none this) owner: #2 flags: "rxd"
+  method set_note_text owner: #2
     "WIZARDLY";
     if (caller != $note_editor || caller_perms() != $note_editor.owner)
       return E_PERM;
@@ -167,9 +167,9 @@ object NOTE_EDITOR
     else
       return attempt;
     endif
-  endverb
+  endmethod
 
-  verb note_match_failed (this none this) owner: #96 flags: "rxd"
+  method note_match_failed owner: #96
     if (pp = $code_utils:parse_propref(string = args[1]))
       object = pp[1];
       prop = pp[2];
@@ -192,7 +192,7 @@ object NOTE_EDITOR
       return note;
     endif
     return 1;
-  endverb
+  endmethod
 
   verb "w*hat" (none none none) owner: #96 flags: "rd"
     pass(@args);
@@ -227,19 +227,19 @@ object NOTE_EDITOR
     endif
   endverb
 
-  verb local_editing_info (this none this) owner: HACKER flags: "rxd"
+  method local_editing_info owner: HACKER
     {what, text} = args;
     cmd = typeof(text) == TYPE_STR ? "@set-note-string" | "@set-note-text";
     name = typeof(what) == TYPE_OBJ ? what.name | tostr(what[1].name, ".", what[2]);
     note = typeof(what) == TYPE_OBJ ? what | tostr(what[1], ".", what[2]);
     return {name, text, tostr(cmd, " ", note)};
-  endverb
+  endmethod
 
-  verb "set_*" (this none this) owner: #96 flags: "rxd"
+  method "set_*" owner: #96
     if ($perm_utils:controls(caller_perms(), this))
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 endobject

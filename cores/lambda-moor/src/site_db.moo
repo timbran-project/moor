@@ -22,11 +22,11 @@ object SITE_DB
   override node_perms = "";
   override object_size = {13167, 1084848672};
 
-  verb "find* _only* _every*" (this none this) owner: HACKER flags: "rxd"
+  method "find* _only* _every*" owner: HACKER
     return caller == this || caller_perms().wizard ? pass(@args) | E_PERM;
-  endverb
+  endmethod
 
-  verb add (this none this) owner: HACKER flags: "rxd"
+  method add owner: HACKER
     ":add(player,site)";
     if (!caller_perms().wizard)
       return E_PERM;
@@ -67,9 +67,9 @@ object SITE_DB
       endif
       return;
     endif
-  endverb
+  endmethod
 
-  verb load (this none this) owner: #2 flags: "rxd"
+  method load owner: #2
     ":load([start]) -- reloads site_db with the connection places of all players.";
     "This routine calls suspend() if it runs out of time.";
     "WIZARDLY";
@@ -98,9 +98,9 @@ object SITE_DB
         endfor
       endif
     endfor
-  endverb
+  endmethod
 
-  verb domain_literal (this none this) owner: HACKER flags: "rxd"
+  method domain_literal owner: HACKER
     ":domain_literal(string)";
     " => true iff string is a domain literal (i.e., numeric IP address).";
     if (10 <= (len = length(hnum = strsub(args[1], ".", ""))))
@@ -118,18 +118,18 @@ object SITE_DB
     "";
     "... As soon as we're sure match() is working, this will become a one-liner:";
     return match(args[1], "[0-9]+%.[0-9]+%.[0-9]+%.[0-9]+");
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this:clearall();
       this.domain = "localdomain";
       this:prune_reset();
     endif
-  endverb
+  endmethod
 
-  verb prune_alpha (this none this) owner: #2 flags: "rxd"
+  method prune_alpha owner: #2
     "Carefully loop through the db and delete items associated with !valid and !is_player objects.  If that results in no objects remaining for a site, delete that site.";
     "Attempt to keep memory usage down by only asking for a small number of items at a time.  Should probably have some arguments to control this.";
     "Another thing it should do is be clever about string typed items.  (What did I mean by this?)";
@@ -190,9 +190,9 @@ object SITE_DB
       endif
     endwhile
     player:tell("Prune stopped at ", toliteral(this.prune_progress));
-  endverb
+  endmethod
 
-  verb report_prune_progress (this none this) owner: #2 flags: "rxd"
+  method report_prune_progress owner: #2
     player:tell("Prune is up to ", toliteral(this.prune_progress), ".");
     mine = 0;
     if (typeof(this.prune_progress) == TYPE_STR)
@@ -218,9 +218,9 @@ object SITE_DB
     else
       player:tell("The recorded task_id is no longer valid.");
     endif
-  endverb
+  endmethod
 
-  verb prune_fixup (this none this) owner: #2 flags: "rxd"
+  method prune_fixup owner: #2
     if (!caller_perms().wizard)
       raise(E_PERM);
     endif
@@ -257,9 +257,9 @@ object SITE_DB
     else
       this:insert(root, items);
     endif
-  endverb
+  endmethod
 
-  verb prune_numeric (this none this) owner: #2 flags: "rxd"
+  method prune_numeric owner: #2
     "Carefully loop through the db and delete items associated with !valid and !is_player objects.  If that results in no objects remaining for a site, delete that site.";
     "Attempt to keep memory usage down by only asking for a small number of items at a time.  Should probably have some arguments to control this.";
     "Another thing it should do is be clever about string typed items.";
@@ -303,9 +303,9 @@ object SITE_DB
       endif
     endwhile
     player:tell("Prune stopped at ", toliteral(this.prune_progress));
-  endverb
+  endmethod
 
-  verb schedule_prune (this none this) owner: #2 flags: "rxd"
+  method schedule_prune owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
@@ -329,9 +329,9 @@ object SITE_DB
         endif
       endif
     endfork
-  endverb
+  endmethod
 
-  verb prune_reset (this none this) owner: #2 flags: "rxd"
+  method prune_reset owner: #2
     if (!caller_perms().wizard)
       raise(E_PERM);
     endif
@@ -342,5 +342,5 @@ object SITE_DB
     this.prune_progress = "aaa";
     this.prune_stop = "zzz";
     `kill_task(this.prune_task) ! ANY';
-  endverb
+  endmethod
 endobject

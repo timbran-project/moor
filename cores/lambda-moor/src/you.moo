@@ -42,7 +42,7 @@ object YOU
   override ps = "you";
   override psc = "You";
 
-  verb verb_sub (this none this) owner: HACKER flags: "rxd"
+  method verb_sub owner: HACKER
     "$you:verb_sub(STR verbspec) -> returns verbspec conjugated for singular use as if `you' were saying it.";
     return $gender_utils:get_conj(args[1], this);
     x = args[1];
@@ -61,9 +61,9 @@ object YOU
       endif
     endfor
     return x;
-  endverb
+  endmethod
 
-  verb say_action (this none this) owner: HACKER flags: "rx"
+  method say_action owner: HACKER flags: "rx"
     "$you:say_action(message [,who [,thing, [,where [, excluding-whom]]]])";
     "announce 'message' with pronoun substitution as if it were just ";
     "  where:announce_all_but(excluding-whom, ";
@@ -101,18 +101,18 @@ object YOU
       x:tell($string_utils:pronoun_sub(this:fixpos(tell, "%i"), who, thing, where));
       iobj = x;
     endif
-  endverb
+  endmethod
 
-  verb fixpos (this none this) owner: HACKER flags: "rxd"
+  method fixpos owner: HACKER
     "This is horribly dwimmy.  E.g. %x's gets turned into your, %X's gets turned into Your, and %X'S gets turned into YOUR. --Nosredna";
     upper = $string_utils:uppercase(args[2]);
     allupper = upper + "'S";
     upper = upper + "'s";
     lower = $string_utils:lowercase(args[2]) + "'s";
     return strsub(strsub(strsub(args[1], lower, "your", 1), upper, "Your", 1), allupper, "YOUR", 1);
-  endverb
+  endmethod
 
-  verb reflexive (this none this) owner: HACKER flags: "rxd"
+  method reflexive owner: HACKER
     "Copied from you (#67923):reflexive [verb author Blob (#21528)] at Wed Jul 13 05:09:32 2005 PDT";
     ":reflexive(msg, %[di])";
     "Make a message reflexive by replacing %d or %i with %r.";
@@ -124,9 +124,9 @@ object YOU
     msg = strsub(msg, pos, "%r", 1);
     msg = strsub(msg, $string_utils:uppercase(pos), "%R", 1);
     return msg;
-  endverb
+  endmethod
 
-  verb say_action_reflexive (this none this) owner: #2 flags: "rx"
+  method say_action_reflexive owner: #2 flags: "rx"
     "$you:say_action(message [,who [,thing, [,where [, excluding-whom]]]])";
     "announce 'message' with pronoun substitution as if it were just ";
     "  where:announce_all_but(excluding-whom, ";
@@ -184,5 +184,5 @@ object YOU
       x:tell($string_utils:pronoun_sub(this:fixpos(tell, "%i"), who, thing, where));
       iobj = x;
     endif
-  endverb
+  endmethod
 endobject

@@ -18,10 +18,10 @@ object HACKER
   override ownership_quota = 37331;
   override size_quota = {100000008, -27508461, 1008125633, 1510455};
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.mail_forward = {$owner};
     endif
-  endverb
+  endmethod
 endobject

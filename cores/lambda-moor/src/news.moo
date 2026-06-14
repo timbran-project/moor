@@ -178,20 +178,20 @@ object NEWS
   override object_size = {21017, 1084848672};
   override readers = 1;
 
-  verb description (this none this) owner: HACKER flags: "rxd"
+  method description owner: HACKER
     raw = ctime(this.last_news_time);
     "         111111111122222";
     "123456789012345678901234";
     "Fri Nov 30 14:31:21 1990";
     date = raw[1..10] + "," + raw[20..24];
     return strsub(this.description, "%d", date);
-  endverb
+  endmethod
 
-  verb is_writable_by (this none this) owner: #2 flags: "rxd"
+  method is_writable_by owner: #2
     return pass(@args) || args[1] in $list_utils:map_prop($object_utils:descendants($wiz), "mail_identity");
-  endverb
+  endmethod
 
-  verb rm_message_seq (this none this) owner: HACKER flags: "rxd"
+  method rm_message_seq owner: HACKER
     if (this:ok_write(caller, caller_perms()))
       seq = args[1];
       this.current_news_going = $seq_utils:intersection(this.current_news, seq);
@@ -200,9 +200,9 @@ object NEWS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb undo_rmm (this none this) owner: HACKER flags: "rxd"
+  method undo_rmm owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
@@ -210,17 +210,17 @@ object NEWS
     this.current_news = $seq_utils:union(this.current_news_going, $seq_utils:expand(this.current_news, seq));
     this.current_news_going = {};
     return seq;
-  endverb
+  endmethod
 
-  verb expunge_rmm (this none this) owner: HACKER flags: "rxd"
+  method expunge_rmm owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
     this.current_news_going = {};
     return $mail_agent:(verb)(@args);
-  endverb
+  endmethod
 
-  verb set_current_news (this none this) owner: HACKER flags: "rxd"
+  method set_current_news owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     else
@@ -238,25 +238,25 @@ object NEWS
         this.last_news_time = 0;
       endif
     endif
-  endverb
+  endmethod
 
-  verb add_current_news (this none this) owner: HACKER flags: "rxd"
+  method add_current_news owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     else
       return this:set_current_news($seq_utils:union(this.current_news, args[1]));
     endif
-  endverb
+  endmethod
 
-  verb rm_current_news (this none this) owner: HACKER flags: "rxd"
+  method rm_current_news owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     else
       return this:set_current_news($seq_utils:intersection(this.current_news, $seq_utils:complement(args[1])));
     endif
-  endverb
+  endmethod
 
-  verb news_display_seq_full (this none this) owner: #2 flags: "rxd"
+  method news_display_seq_full owner: #2
     ":news_display_seq_full(msg_seq) => {cur, last-read-date}";
     "Display the given msg_seq as a collection of news items";
     set_task_perms(caller_perms());
@@ -272,9 +272,9 @@ object NEWS
     endfor
     player:notify("(end)");
     return {msgs[n][1], msgs[n][2][1]};
-  endverb
+  endmethod
 
-  verb to_text (this none this) owner: HACKER flags: "rxd"
+  method to_text owner: HACKER
     ":to_text(@msg) => message in text form -- formatted like a $news entry circa October, 1993";
     date = args[1];
     by = args[2];
@@ -284,9 +284,9 @@ object NEWS
     ctime = $time_utils:time_sub("$D, $N $3, $Y", date);
     return {ctime, subject, @text};
     return {subject, tostr("  by ", by, " on ", ctime), "", @text};
-  endverb
+  endmethod
 
-  verb check (this none this) owner: #2 flags: "rxd"
+  method check owner: #2
     set_task_perms(caller_perms());
     if ((player:get_current_message(this) || {0, 0})[2] < this.last_news_time)
       if ((n = player:mail_option("news")) in {0, "all"})
@@ -297,7 +297,7 @@ object NEWS
         player:tell("There is new news.  Type `news' to read new news, or `news all' to read all news.");
       endif
     endif
-  endverb
+  endmethod
 
   verb touch (this none none) owner: #2 flags: "rxd"
     if (!this:ok_write(caller, valid(who = caller_perms()) ? who | player))
@@ -376,7 +376,7 @@ object NEWS
     endif
   endverb
 
-  verb _parse (this none this) owner: HACKER flags: "rxd"
+  method _parse owner: HACKER
     if (!(strings = args[1]))
       return "You need to specify a message sequence";
     elseif (typeof(pms = this:parse_message_seq(@args)) == TYPE_STR)
@@ -390,9 +390,9 @@ object NEWS
     else
       return seq;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.description = "It's the current issue of the News, dated %d.";
@@ -406,9 +406,9 @@ object NEWS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb add_news (this none this) owner: #2 flags: "rxd"
+  method add_news owner: #2
     if (!this:ok_write(caller, caller_perms()))
       $error:raise(E_PERM);
     endif
@@ -424,9 +424,9 @@ object NEWS
     endif
     this:set_current_news(new);
     return 1;
-  endverb
+  endmethod
 
-  verb rm_news (this none this) owner: #2 flags: "rxd"
+  method rm_news owner: #2
     if (!this:ok_write(caller, caller_perms()))
       raise(E_PERM);
     endif
@@ -442,7 +442,7 @@ object NEWS
     endif
     this:set_current_news(new);
     return 1;
-  endverb
+  endmethod
 
   verb "@listnews" (none on this) owner: #2 flags: "rxd"
     player:notify("The following articles are currently in the newspaper:");

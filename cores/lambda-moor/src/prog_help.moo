@@ -1271,19 +1271,19 @@ object PROG_HELP
   override index_cache = {"prog-index"};
   override object_size = {90272, 1084848672};
 
-  verb errors (this none this) owner: HACKER flags: "rxd"
+  method errors owner: HACKER
     text = args[1];
     for i in [1..length($code_utils.error_list)]
       text = {@text, tostr("    ", $string_utils:left($code_utils.error_names[i], 15), $code_utils.error_list[i])};
     endfor
     return text;
-  endverb
+  endmethod
 
-  verb prepositions (this none this) owner: HACKER flags: "rxd"
+  method prepositions owner: HACKER
     text = args[1];
     for p in ($code_utils:prepositions())
       text = {@text, tostr($string_utils:space(4), p)};
     endfor
     return text;
-  endverb
+  endmethod
 endobject

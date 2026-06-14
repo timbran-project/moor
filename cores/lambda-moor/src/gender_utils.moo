@@ -114,7 +114,7 @@ object GENDER_UTILS
   override import_export_id = "gender_utils";
   override object_size = {12822, 1084848672};
 
-  verb set (this none this) owner: #2 flags: "rxd"
+  method set owner: #2
     "$gender_utils:set(object,gender) --- sets the pronoun properties of object.";
     "gender is a string: one of the strings in $gender_utils.genders, the list of rcognized genders.  If the gender change is successful, the (full) name of the gender (e.g., \"male\") is returned.  E_NONE is returned if gender does not match any recognized gender.  Any other error encountered (e.g., E_PERM, E_PROPNF) is likewise returned and the object's pronoun properties are left unaltered.";
     set_task_perms(caller_perms());
@@ -138,9 +138,9 @@ object GENDER_UTILS
       endif
     endfor
     return gender;
-  endverb
+  endmethod
 
-  verb add (this none this) owner: #2 flags: "rxd"
+  method add owner: #2
     "$gender_utils:add(object[,perms[,owner]])";
     "--- adds pronoun properties to object if they're not already there.";
     "    perms default to \"rc\", owner defaults to the object owner.";
@@ -165,9 +165,9 @@ object GENDER_UTILS
     if (!e && TYPE_ERR == typeof(e = this:set(object, "neuter")))
       player:tell("Couldn't initialize pronouns:  ", e);
     endif
-  endverb
+  endmethod
 
-  verb get_pronoun (this none this) owner: HACKER flags: "rxd"
+  method get_pronoun owner: HACKER
     "get_pronoun(key,object) => pronoun corresponding to object.";
     "key can be one of s,o,p,q,r,S,O,P,Q,R to refer to the pronoun properties relatively directly or it can be something of the form \"he/she\" or \"He/She\".";
     "Next the object is checked for the desired pronoun property.  If that doesn't exist, we look at object.gender and infer the pronoun from the corresponding $gender_utils property.  If .gender doesn't exist or the object itself is invalid, we use the corresponding property on $player.";
@@ -195,9 +195,9 @@ object GENDER_UTILS
     else
       return $player.(prop);
     endif
-  endverb
+  endmethod
 
-  verb "get_conj*ugation" (this none this) owner: HACKER flags: "rxd"
+  method "get_conj*ugation" owner: HACKER
     "get_conj(verbspec,object) => verb conjugated according to object.";
     "verbspec can be one of \"singular/plural\", \"singular\", \"singular/\", or \"/plural\", e.g., \"is/are\", \"is\", \"is/\", or \"/are\".";
     "The object is checked to see whether it is singular or plural.  This is inferred from its .gender property.  If .gender doesn't exist or the object itself is invalid, we assume singular.";
@@ -220,9 +220,9 @@ object GENDER_UTILS
     else
       return vb;
     endif
-  endverb
+  endmethod
 
-  verb _verb_plural (this none this) owner: HACKER flags: "rxd"
+  method _verb_plural owner: HACKER
     {st, idx} = args;
     if (typeof(st) != TYPE_STR)
       return E_INVARG;
@@ -254,9 +254,9 @@ object GENDER_UTILS
     else
       return st[1..len - 1];
     endif
-  endverb
+  endmethod
 
-  verb _verb_singular (this none this) owner: HACKER flags: "rxd"
+  method _verb_singular owner: HACKER
     {st, ?idx = 1} = args;
     if (typeof(st) != TYPE_STR)
       return E_INVARG;
@@ -275,9 +275,9 @@ object GENDER_UTILS
     else
       return st + "s";
     endif
-  endverb
+  endmethod
 
-  verb _do (this none this) owner: HACKER flags: "rxd"
+  method _do owner: HACKER
     "_do(cap,object,modifiers...)";
     {cap, object, modifiers} = args;
     if (!modifiers)
@@ -320,9 +320,9 @@ object GENDER_UTILS
         return tostr("%(", s, "??)");
       endif
     endif
-  endverb
+  endmethod
 
-  verb pronoun_sub (this none this) owner: #2 flags: "rxd"
+  method pronoun_sub owner: #2
     "Experimental pronoun substitution. The official version is on $string_utils.";
     "syntax:  :pronoun_sub(text[,who])";
     "experimental version that accomodates Aladdin's style...";
@@ -376,5 +376,5 @@ object GENDER_UTILS
       oldlen = oldlen - k;
     endwhile
     return new + old;
-  endverb
+  endmethod
 endobject

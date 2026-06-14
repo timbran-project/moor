@@ -117,7 +117,7 @@ object STRING_UTILS
   override import_export_id = "string_utils";
   override object_size = {76712, 1084848672};
 
-  verb space (this none this) owner: HACKER flags: "rxd"
+  method space owner: HACKER
     "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
     {n, ?fill = " "} = args;
     if (typeof(n) == TYPE_STR)
@@ -142,9 +142,9 @@ object STRING_UTILS
       m = m / 2;
     endwhile
     return n > 0 ? fill[1..n] | fill[$ + 1 + n..$];
-  endverb
+  endmethod
 
-  verb left (this none this) owner: HACKER flags: "rxd"
+  method left owner: HACKER
     "$string_utils:left(string,width[,filler])";
     "";
     "Assures that <string> is at least <width> characters wide.  Returns <string> if it is at least that long, or else <string> followed by enough filler to make it that wide. If <width> is negative and the length of <string> is greater than the absolute value of <width>, then the <string> is cut off at <width>.";
@@ -158,9 +158,9 @@ object STRING_UTILS
     else
       return len > 0 ? out | out[1..abslen];
     endif
-  endverb
+  endmethod
 
-  verb right (this none this) owner: HACKER flags: "rxd"
+  method right owner: HACKER
     "$string_utils:right(string,width[,filler])";
     "";
     "Assures that <string> is at least <width> characters wide.  Returns <string> if it is at least that long, or else <string> preceded by enough filler to make it that wide. If <width> is negative and the length of <string> is greater than the absolute value of <width>, then <string> is cut off at <width> from the right.";
@@ -174,9 +174,9 @@ object STRING_UTILS
     else
       return len > 0 ? out | out[$ - abslen + 1..$];
     endif
-  endverb
+  endmethod
 
-  verb "centre center" (this none this) owner: HACKER flags: "rxd"
+  method "centre center" owner: HACKER
     "$string_utils:center(string,width[,lfiller[,rfiller]])";
     "";
     "Assures that <string> is at least <width> characters wide.  Returns <string> if it is at least that long, or else <string> preceded and followed by enough filler to make it that wide.  If <width> is negative and the length of <string> is greater than the absolute value of <width>, then the <string> is cut off at <width>.";
@@ -190,9 +190,9 @@ object STRING_UTILS
     else
       return len > 0 ? out | out[1..abslen];
     endif
-  endverb
+  endmethod
 
-  verb "columnize columnise" (this none this) owner: HACKER flags: "rxd"
+  method "columnize columnise" owner: HACKER
     "columnize (items, n [, width]) - Turn a one-column list of items into an n-column list. 'width' is the last character position that may be occupied; it defaults to a standard screen width. Example: To tell the player a list of numbers in three columns, do 'player:tell_lines ($string_utils:columnize ({1, 2, 3, 4, 5, 6, 7}, 3));'.";
     {items, n, ?width = 79} = args;
     height = (length(items) + n - 1) / n;
@@ -210,9 +210,9 @@ object STRING_UTILS
       result = listappend(result, line[1..min($, width)]);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb from_list (this none this) owner: HACKER flags: "rxd"
+  method from_list owner: HACKER
     "$string_utils:from_list(list [, separator])";
     "Return a string being the concatenation of the string representations of the elements of LIST, each pair separated by the string SEPARATOR, which defaults to the empty string.";
     {thelist, ?separator = ""} = args;
@@ -227,9 +227,9 @@ object STRING_UTILS
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb english_list (this none this) owner: HACKER flags: "rxd"
+  method english_list owner: HACKER
     "Prints the argument (must be a list) as an english list, e.g. {1, 2, 3} is printed as \"1, 2, and 3\", and {1, 2} is printed as \"1 and 2\".";
     "Optional arguments are treated as follows:";
     "  Second argument is the string to use when the empty list is given.  The default is \"nothing\".";
@@ -254,9 +254,9 @@ object STRING_UTILS
       endfor
       return tostr(ret, andstr, things[nthings]);
     endif
-  endverb
+  endmethod
 
-  verb names_of (this none this) owner: HACKER flags: "rxd"
+  method names_of owner: HACKER
     "Return a string of the names and object numbers of the objects in a list.";
     line = "";
     for item in (args[1])
@@ -265,9 +265,9 @@ object STRING_UTILS
       endif
     endfor
     return $string_utils:trimr(line);
-  endverb
+  endmethod
 
-  verb from_seconds (this none this) owner: HACKER flags: "rxd"
+  method from_seconds owner: HACKER
     ":from_seconds(number of seconds) => returns a string containing the rough increment of days, or hours if less than a day, or minutes if less than an hour, or lastly in seconds.";
     ":from_seconds(86400) => \"a day\"";
     ":from_seconds(7200)  => \"two hours\"";
@@ -298,44 +298,44 @@ object STRING_UTILS
       time = tostr(count, " ", unit, "s");
     endif
     return time;
-  endverb
+  endmethod
 
-  verb trim (this none this) owner: HACKER flags: "rxd"
+  method trim owner: HACKER
     ":trim (string [, space]) -- remove leading and trailing spaces";
     "";
     "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading and trailing copies of that character removed.  For example, $string_utils:trim(\"***foo***\", \"*\") => \"foo\".";
     {string, ?space = " "} = args;
     m = match(string, tostr("[^", space, "]%(.*[^", space, "]%)?%|$"));
     return string[m[1]..m[2]];
-  endverb
+  endmethod
 
-  verb triml (this none this) owner: HACKER flags: "rxd"
+  method triml owner: HACKER
     ":triml(string [, space]) -- remove leading spaces";
     "";
     "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading copies of that character removed.  For example, $string_utils:triml(\"***foo***\", \"*\") => \"foo***\".";
     {string, ?what = " "} = args;
     m = match(string, tostr("[^", what, "]%|$"));
     return string[m[1]..$];
-  endverb
+  endmethod
 
-  verb trimr (this none this) owner: HACKER flags: "rxd"
+  method trimr owner: HACKER
     ":trimr(string [, space]) -- remove trailing spaces";
     "";
     "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all trailing copies of that character removed.  For example, $string_utils:trimr(\"***foo***\", \"*\") => \"***foo\".";
     {string, ?what = " "} = args;
     return string[1..rmatch(string, tostr("[^", what, "]%|^"))[2]];
-  endverb
+  endmethod
 
-  verb strip_chars (this none this) owner: HACKER flags: "rxd"
+  method strip_chars owner: HACKER
     ":strip_chars(string,chars) => string with chars removed";
     {subject, stripped} = args;
     for i in [1..length(stripped)]
       subject = strsub(subject, stripped[i], "");
     endfor
     return subject;
-  endverb
+  endmethod
 
-  verb strip_all_but (this none this) owner: HACKER flags: "rxd"
+  method strip_all_but owner: HACKER
     ":strip_all_but(string,keep) => string with chars not in `keep' removed.";
     "`keep' is used in match() so if it includes ], ^, or -,";
     "] should be first, ^ should be other from first, and - should be last.";
@@ -347,9 +347,9 @@ object STRING_UTILS
       string = string[m[2] + 1..$];
     endwhile
     return output;
-  endverb
+  endmethod
 
-  verb "uppercase lowercase" (this none this) owner: HACKER flags: "rxd"
+  method "uppercase lowercase" owner: HACKER
     "lowercase(string) -- returns a lowercase version of the string.";
     "uppercase(string) -- returns the uppercase version of the string.";
     string = args[1];
@@ -363,17 +363,17 @@ object STRING_UTILS
       string = strsub(string, from[i], to[i], 1);
     endfor
     return string;
-  endverb
+  endmethod
 
-  verb "capitalize capitalise" (this none this) owner: HACKER flags: "rxd"
+  method "capitalize capitalise" owner: HACKER
     "capitalizes its argument.";
     if ((string = args[1]) && (i = index("abcdefghijklmnopqrstuvwxyz", string[1], 1)))
       string[1] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i];
     endif
     return string;
-  endverb
+  endmethod
 
-  verb literal_object (this none this) owner: HACKER flags: "rxd"
+  method literal_object owner: HACKER
     "Matches args[1] against literal objects: #xxxxx, $variables, *mailing-lists, and username.  Returns the object if successful, $failed_match else.";
     string = args[1];
     if (!string)
@@ -401,9 +401,9 @@ object STRING_UTILS
     else
       return $failed_match;
     endif
-  endverb
+  endmethod
 
-  verb match (this none this) owner: HACKER flags: "rxd"
+  method match owner: HACKER
     "$string_utils:match(string [, obj-list, prop-name]*)";
     "Each obj-list should be a list of objects or a single object, which is treated as if it were a list of that object.  Each prop-name should be string naming a property on every object in the corresponding obj-list.  The value of that property in each case should be either a string or a list of strings.";
     "The argument string is matched against all of the strings in the property values.";
@@ -442,9 +442,9 @@ object STRING_UTILS
       endfor
     endfor
     return no_exact_match && (no_partial_match && $failed_match);
-  endverb
+  endmethod
 
-  verb "match_str*ing" (this none this) owner: HACKER flags: "rxd"
+  method "match_str*ing" owner: HACKER
     "* wildcard matching. Returns a list of what the *s actually matched. Won't cath every match, if there are several ways to parse it.";
     "Example: $string_utils:match_string(\"Jack waves to Jill\",\"* waves to *\") returns {\"Jack\", \"Jill\"}";
     "Optional arguments: numbers are interpreted as case-sensitivity, strings as alternative wildcards.";
@@ -485,9 +485,9 @@ object STRING_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb match_object (this none this) owner: HACKER flags: "rxd"
+  method match_object owner: HACKER
     ":match_object(string,location[,someone])";
     "Returns the object matching the given string for someone, on the assumption that s/he is in the given location.  `someone' defaults to player.";
     "This first tries :literal_object(string), \"me\"=>someone,\"here\"=>location, then player:match(string) and finally location:match(string) if location is valid.";
@@ -508,9 +508,9 @@ object STRING_UTILS
     else
       return pobject;
     endif
-  endverb
+  endmethod
 
-  verb match_player (this none this) owner: HACKER flags: "rxd"
+  method match_player owner: HACKER
     "match_player(name,name,...)      => {obj,obj,...}";
     "match_player(name[,meobj])       => obj";
     "match_player({name,...}[,meobj]) => {obj,...}";
@@ -545,9 +545,9 @@ object STRING_UTILS
       found = {@found, aobj};
     endfor
     return retstr ? found[1] | found;
-  endverb
+  endmethod
 
-  verb match_player_or_object (this none this) owner: HACKER flags: "rxd"
+  method match_player_or_object owner: HACKER
     "Accepts any number of strings, attempts to match those strings first against objects in the room, and if no objects by those names exist, matches against player names (and \"#xxxx\" style strings regardless of location).  Returns a list of valid objects so found.";
     "Unlike $string_utils:match_player, does not include in the list the failed and ambiguous matches; instead has built-in error messages for such objects.  This should probably be improved.  Volunteers?";
     if (!args)
@@ -572,9 +572,9 @@ object STRING_UTILS
       endif
     endfor
     return objs;
-  endverb
+  endmethod
 
-  verb find_prefix (this none this) owner: HACKER flags: "rxd"
+  method find_prefix owner: HACKER
     "find_prefix(prefix, string-list) => list index of something starting with prefix, or 0 or $ambiguous_match.";
     {subject, choices} = args;
     answer = 0;
@@ -588,15 +588,15 @@ object STRING_UTILS
       endif
     endfor
     return answer;
-  endverb
+  endmethod
 
-  verb "index_d*elimited" (this none this) owner: HACKER flags: "rxd"
+  method "index_d*elimited" owner: HACKER
     "index_delimited(string,target[,case_matters]) is just like the corresponding call to the builtin index() but instead only matches on occurences of target delimited by word boundaries (i.e., not preceded or followed by an alphanumeric)";
     args[2] = "%(%W%|^%)" + $string_utils:regexp_quote(args[2]) + "%(%W%|$%)";
     return (m = match(@args)) ? m[3][1][2] + 1 | 0;
-  endverb
+  endmethod
 
-  verb "is_integer is_numeric" (this none this) owner: HACKER flags: "rxd"
+  method "is_integer is_numeric" owner: HACKER
     "Usage:  is_numeric(string)";
     "        is_integer(string)";
     "Is string numeric (composed of one or more digits possibly preceded by a minus sign)? This won't catch floating points.";
@@ -615,9 +615,9 @@ object STRING_UTILS
       endif
     endfor
     return 1;
-  endverb
+  endmethod
 
-  verb ordinal (this none this) owner: HACKER flags: "rxd"
+  method ordinal owner: HACKER
     ":short_ordinal(1) => \"1st\",:short_ordinal(2) => \"2nd\",etc...";
     string = tostr(n = args[1]);
     n = abs(n) % 100;
@@ -626,9 +626,9 @@ object STRING_UTILS
     else
       return string + "th";
     endif
-  endverb
+  endmethod
 
-  verb group_number (this none this) owner: HACKER flags: "rxd"
+  method group_number owner: HACKER
     "$string_utils:group_number(INT n [, sep_char])";
     "$string_utils:group_number(FLOAT n, [INT precision [, scientific [, sep_char]]])";
     "";
@@ -655,9 +655,9 @@ object STRING_UTILS
     endwhile
     return sign + n + result;
     "Code contributed by SunRay";
-  endverb
+  endmethod
 
-  verb english_number (this none this) owner: HACKER flags: "rxd"
+  method english_number owner: HACKER
     "$string_utils:english_number(n) -- convert the integer N into English";
     "";
     "Produces a string containing the English phrase naming the given integer.  For example, $string_utils:english_number(-1234) returns the string `negative one thousand two hundred thirty-four'.";
@@ -686,9 +686,9 @@ object STRING_UTILS
       mod = mod / 1000;
     endfor
     return (numb < 0 ? "negative " | "") + numstr;
-  endverb
+  endmethod
 
-  verb english_ordinal (this none this) owner: HACKER flags: "rxd"
+  method english_ordinal owner: HACKER
     "$string_utils:english_ordinal(n) -- convert the integer N into an english ordinal (1 => \"first\", etc...)";
     numb = toint(args[1]);
     if (numb == 0)
@@ -708,15 +708,15 @@ object STRING_UTILS
     else
       return this:english_number(numb) + "th";
     endif
-  endverb
+  endmethod
 
-  verb english_ones (this none this) owner: HACKER flags: "rxd"
+  method english_ones owner: HACKER
     numb = args[1];
     ones = {"", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
     return ones[numb + 1];
-  endverb
+  endmethod
 
-  verb english_tens (this none this) owner: HACKER flags: "rxd"
+  method english_tens owner: HACKER
     numb = args[1];
     teens = {"ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
     others = {"twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"};
@@ -727,9 +727,9 @@ object STRING_UTILS
     else
       return others[numb / 10 - 1] + (numb % 10 ? "-" | "") + this:english_ones(numb % 10);
     endif
-  endverb
+  endmethod
 
-  verb "subst*itute" (this none this) owner: HACKER flags: "rxd"
+  method "subst*itute" owner: HACKER
     "subst(string,{{redex1,repl1},{redex2,repl2},{redex3,repl3}...}[,case])";
     "  => returns string with all instances of the strings redex<n> replaced respectively by the strings repl<n>.  If the optional argument `case' is given and nonzero, the search for instances of redex<n> is case sensitive.";
     "  Substitutions are done in parallel, i.e., instances of redex<n> that appear in any of the replacement strings are ignored.  In the event that two redexes overlap, whichever is leftmost in `string' takes precedence.  For two redexes beginning at the same position, the longer one takes precedence.";
@@ -778,7 +778,7 @@ object STRING_UTILS
       endif
     endwhile
     return nstr + ostr;
-  endverb
+  endmethod
 
   verb "substitute_d*elimited" (none none none) owner: #2 flags: "rxd"
     "subst(string,{{redex1,repl1},{redex2,repl2},{redex3,repl3}...}[,case])";
@@ -827,7 +827,7 @@ object STRING_UTILS
     return nstr + ostr;
   endverb
 
-  verb _cap_property (this none this) owner: #2 flags: "rxd"
+  method _cap_property owner: #2
     "cap_property(what,prop[,ucase]) returns what.(prop) but capitalized if either ucase is true or the prop name specified is capitalized.";
     "If prop is blank, returns what:title().";
     "If prop is bogus or otherwise irretrievable, returns the error.";
@@ -857,9 +857,9 @@ object STRING_UTILS
       endif
     endif
     return typeof(s) == TYPE_ERR ? s | tostr(s);
-  endverb
+  endmethod
 
-  verb pronoun_sub (this none this) owner: #2 flags: "rxd"
+  method pronoun_sub owner: #2
     "Pronoun (and other things) substitution. See 'help pronouns' for details.";
     "syntax:  $string_utils:pronoun_sub(text[,who[,thing[,location[,dobj[,iobj]]]]])";
     "%s,%o,%p,%q,%r    => <who>'s pronouns.  <who> defaults to player.";
@@ -937,9 +937,9 @@ object STRING_UTILS
       oldlen = oldlen - k;
     endwhile
     return new + old;
-  endverb
+  endmethod
 
-  verb pronoun_sub_secure (this none this) owner: HACKER flags: "rxd"
+  method pronoun_sub_secure owner: HACKER
     "$string_utils:pronoun_sub_secure(string[,who[,thing[,location]]], default)";
     "Do pronoun_sub on string with the arguments given (see help";
     "string_utils:pronoun_sub for more information).  Return pronoun_subbed";
@@ -949,9 +949,9 @@ object STRING_UTILS
     default = args[$];
     result = this:pronoun_sub(@args[1..$ - 1]);
     return this:index_delimited(result, who.name) ? result | this:pronoun_sub(@{default, @args[2..$ - 1]});
-  endverb
+  endmethod
 
-  verb pronoun_quote (this none this) owner: HACKER flags: "rxd"
+  method pronoun_quote owner: HACKER
     " pronoun_quote(string) => quoted_string";
     " pronoun_quote(list of strings) => list of quoted_strings";
     " pronoun_quote(list of {key,string} pairs) => list of {key,quoted_string} pairs";
@@ -975,7 +975,7 @@ object STRING_UTILS
       endfor
       return ret;
     endif
-  endverb
+  endmethod
 
   verb alt_pronoun_sub (none none none) owner: #2 flags: "rxd"
     "Pronoun (and other things) substitution. See 'help pronouns' for details.";
@@ -1056,7 +1056,7 @@ object STRING_UTILS
     return new + old;
   endverb
 
-  verb explode (this none this) owner: HACKER flags: "rxd"
+  method explode owner: HACKER
     "$string_utils:explode(subject [, break])";
     "Return a list of those substrings of subject separated by runs of break[1].";
     "break defaults to space.";
@@ -1071,9 +1071,9 @@ object STRING_UTILS
       subject = subject[i + 1..$];
     endwhile
     return parts;
-  endverb
+  endmethod
 
-  verb words (this none this) owner: HACKER flags: "rxd"
+  method words owner: HACKER
     "This breaks up the argument string into words, the resulting list being obtained exactly the way the command line parser obtains `args' from `argstr'.";
     rest = args[1];
     "...trim leading blanks...";
@@ -1108,9 +1108,9 @@ object STRING_UTILS
       rest[1..m[2]] = "";
     endwhile
     return rest || char != " " ? {@toklist, token + rest} | toklist;
-  endverb
+  endmethod
 
-  verb word_start (this none this) owner: HACKER flags: "rxd"
+  method word_start owner: HACKER
     "This breaks up the argument string into words, returning a list of indices into argstr corresponding to the starting points of each of the arguments.";
     rest = args[1];
     "... find first nonspace...";
@@ -1139,9 +1139,9 @@ object STRING_UTILS
       wbefore = wbefore + m[2];
     endwhile
     return rest || char != " " ? {@wslist, {wstart, wbefore + length(rest)}} | wslist;
-  endverb
+  endmethod
 
-  verb to_value (this none this) owner: HACKER flags: "rxd"
+  method to_value owner: HACKER
     ":to_value(string) tries to parse string as a value (i.e., object, number, string, error, or list thereof).";
     "Returns {1,value} or {0,error_message} according as the attempt was successful or not.";
     result = this:_tolist(string = args[1] + "}");
@@ -1156,9 +1156,9 @@ object STRING_UTILS
     else
       return {0, "missing expression"};
     endif
-  endverb
+  endmethod
 
-  verb prefix_to_value (this none this) owner: HACKER flags: "rxd"
+  method prefix_to_value owner: HACKER
     ":prefix_to_value(string) tries to parse string as a value (i.e., object, number, string, error, or list thereof).";
     "Returns {rest-of-string,value} or {0,error_message} according as the attempt was successful or not.";
     alen = length(args[1]);
@@ -1182,9 +1182,9 @@ object STRING_UTILS
         return {0, s, alen - slen + 1};
       endif
     endif
-  endverb
+  endmethod
 
-  verb _tolist (this none this) owner: HACKER flags: "rxd"
+  method _tolist owner: HACKER
     "_tolist(string) --- auxiliary for :to_value()";
     rest = this:triml(args[1]);
     vlist = {};
@@ -1220,9 +1220,9 @@ object STRING_UTILS
         return {length(rest), ", or } expected"};
       endif
     endwhile
-  endverb
+  endmethod
 
-  verb _unquote (this none this) owner: HACKER flags: "rxd"
+  method _unquote owner: HACKER
     "_unquote(string)   (auxiliary for :to_value())";
     "reads string as if it were preceded by a quote, reading up to the closing quote if any, then returns the corresponding unquoted string.";
     " => {0, string unquoted}  if there is no closing quote";
@@ -1238,9 +1238,9 @@ object STRING_UTILS
       rest = rest[m[2] + 1..$];
     endwhile
     return {0, result + rest};
-  endverb
+  endmethod
 
-  verb _toscalar (this none this) owner: HACKER flags: "rxd"
+  method _toscalar owner: HACKER
     ":_toscalar(string)  --- auxiliary for :tovalue";
     " => value if string represents a number, object or error";
     " => string error message otherwise";
@@ -1264,9 +1264,9 @@ object STRING_UTILS
     else
       return tostr("`", thing[1], "' unexpected");
     endif
-  endverb
+  endmethod
 
-  verb parse_command (this none this) owner: #2 flags: "rxd"
+  method parse_command owner: #2
     ":parse_command(cmd_line[,player])";
     " => {verb, {dobj, dobjstr}, {prep, prepstr}, {iobj, iobjstr}, {args, argstr},";
     "     {dobjset, prepset, iobjset}}";
@@ -1307,9 +1307,9 @@ object STRING_UTILS
     pset = {"any", @ps ? {$code_utils:full_prep(ps)} | {"none"}};
     iset = {"any", @is == "" ? {"none"} | {}};
     return {vrb, {do, ds}, {$code_utils:short_prep(ps), ps}, {io, is}, {y, as}, {dset, pset, iset}};
-  endverb
+  endmethod
 
-  verb from_value (this none this) owner: #2 flags: "rxd"
+  method from_value owner: #2
     "$string_utils:from_value(value [, quote_strings = 0 [, list_depth = 1]])";
     "Print the given value into a string.";
     {value, ?quote_strings = 0, ?list_depth = 1} = args;
@@ -1346,9 +1346,9 @@ object STRING_UTILS
     else
       return tostr(value);
     endif
-  endverb
+  endmethod
 
-  verb "print print_suspended" (this none this) owner: HACKER flags: "rxd"
+  method "print print_suspended" owner: HACKER
     "$string_utils:print(value)";
     "Print the given value into a string. == from_value(value,1,-1)";
     return toliteral(args[1]);
@@ -1370,9 +1370,9 @@ object STRING_UTILS
     else
       return tostr(value);
     endif
-  endverb
+  endmethod
 
-  verb reverse (this none this) owner: HACKER flags: "rxd"
+  method reverse owner: HACKER
     ":reverse(string) => \"gnirts\"";
     "An example: :reverse(\"This is a test.\") => \".tset a si sihT\"";
     string = args[1];
@@ -1386,9 +1386,9 @@ object STRING_UTILS
       index = index - 1;
     endwhile
     return result;
-  endverb
+  endmethod
 
-  verb char_list (this none this) owner: HACKER flags: "rxd"
+  method char_list owner: HACKER
     ":char_list(string) => string as a list of characters.";
     "   e.g., :char_list(\"abad\") => {\"a\",\"b\",\"a\",\"d\"}";
     if (30 < (len = length(string = args[1])))
@@ -1400,9 +1400,9 @@ object STRING_UTILS
       endfor
       return l;
     endif
-  endverb
+  endmethod
 
-  verb regexp_quote (this none this) owner: HACKER flags: "rxd"
+  method regexp_quote owner: HACKER
     ":regexp_quote(string)";
     " => string with all of the regular expression special characters quoted with %";
     string = args[1];
@@ -1412,20 +1412,20 @@ object STRING_UTILS
       string = string[1..m[1] - 1];
     endwhile
     return string + quoted;
-  endverb
+  endmethod
 
-  verb connection_hostname_bsd (this none this) owner: HACKER flags: "rxd"
+  method connection_hostname_bsd owner: HACKER
     "Takes the output from connection_name() and returns just the host string portion of it.  Assumes you are using bsd_network style connection names.";
     s = args[1];
     return (m = `match(args[1], "^.* %(from%|to%) %([^, ]+%)") ! ANY') ? substitute("%2", m) | "";
-  endverb
+  endmethod
 
-  verb connection_hostname (this none this) owner: HACKER flags: "rxd"
+  method connection_hostname owner: HACKER
     "This is the function that should actually be called to get the host name from a connection name.  The archwizard should change _bsd so as to be calling the verb appropriate for his/her network interface.";
     return this:connection_hostname_bsd(@args);
-  endverb
+  endmethod
 
-  verb from_value_suspended (this none this) owner: #2 flags: "rxd"
+  method from_value_suspended owner: #2
     "$string_utils:from_value(value [, quote_strings = 0 [, list_depth = 1]])";
     "Print the given value into a string.";
     "This verb suspends as necessary for large values.";
@@ -1466,9 +1466,9 @@ object STRING_UTILS
     else
       return tostr(value);
     endif
-  endverb
+  endmethod
 
-  verb end_expression (this none this) owner: HACKER flags: "rxd"
+  method end_expression owner: HACKER
     ":end_expression(string[,stop_at])";
     "  assumes string starts with an expression; returns the index of the last char in expression or 0 if string appears not to be an expression.  Expression ends at any character from stop_at which occurs at top level.";
     {string, ?stop_at = " "} = args;
@@ -1511,9 +1511,9 @@ object STRING_UTILS
       endif
     endwhile
     return !paren_stack && gone + length(string);
-  endverb
+  endmethod
 
-  verb first_word (this none this) owner: HACKER flags: "rxd"
+  method first_word owner: HACKER
     ":first_word(string) => {first word, rest of string} or {}";
     rest = args[1];
     "...trim leading blanks...";
@@ -1544,9 +1544,9 @@ object STRING_UTILS
       rest[1..m[2]] = "";
     endwhile
     return {token + rest, ""};
-  endverb
+  endmethod
 
-  verb common (this none this) owner: HACKER flags: "rxd"
+  method common owner: HACKER
     ":common(first,second) => length of longest common prefix";
     {first, second} = args;
     r = min(length(first), length(second));
@@ -1560,9 +1560,9 @@ object STRING_UTILS
       endif
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb "title_list*c list_title*c" (this none this) owner: HACKER flags: "rxd"
+  method "title_list*c list_title*c" owner: HACKER
     "wr_utils:title_list/title_listc(<obj-list>[, @<args>)";
     "Creates an english list out of the titles of the objects in <obj-list>.  Optional <args> are passed on to $string_utils:english_list.";
     "title_listc uses :titlec() for the first item.";
@@ -1577,9 +1577,9 @@ object STRING_UTILS
       endif
     endif
     return $string_utils:english_list(titles, @args[2..$]);
-  endverb
+  endmethod
 
-  verb "name_and_number nn name_and_number_list nn_list" (this none this) owner: HACKER flags: "rxd"
+  method "name_and_number nn name_and_number_list nn_list" owner: HACKER
     "name_and_number(object [,sepr] [,english_list_args]) => \"ObjectName (#object)\"";
     "Return name and number for OBJECT.  Second argument is optional separator (for those who want no space, use \"\").  If OBJECT is a list of objects, this maps the above function over the list and then passes it to $string_utils:english_list.";
     "The third through nth arguments to nn_list corresponds to the second through nth arguments to English_list, and are passed along untouched.";
@@ -1594,9 +1594,9 @@ object STRING_UTILS
       name_list = {@name_list, name};
     endfor
     return this:english_list(name_list, @eng_args);
-  endverb
+  endmethod
 
-  verb "columnize_suspended columnise_suspended" (this none this) owner: HACKER flags: "rxd"
+  method "columnize_suspended columnise_suspended" owner: HACKER
     "columnize_suspended (interval, items, n [, width]) - Turn a one-column list of items into an n-column list, suspending for `interval' seconds as necessary. 'width' is the last character position that may be occupied; it defaults to a standard screen width. Example: To tell the player a list of numbers in three columns, do 'player:tell_lines ($string_utils:columnize_suspended(0, {1, 2, 3, 4, 5, 6, 7}, 3));'.";
     {interval, items, n, ?width = 79} = args;
     height = (length(items) + n - 1) / n;
@@ -1615,9 +1615,9 @@ object STRING_UTILS
       result = listappend(result, line[1..min($, width)]);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb a_or_an (this none this) owner: HACKER flags: "rxd"
+  method a_or_an owner: HACKER
     ":a_or_an(<noun>) => \"a\" or \"an\"";
     "To accomodate personal variation (e.g., \"an historical book\"), a player can override this by having a personal a_or_an verb.  If that verb returns 0 instead of a string, the standard algorithm is used.";
     noun = args[1];
@@ -1643,9 +1643,9 @@ object STRING_UTILS
     return a_or_an;
     "Ported by Mickey with minor tweaks from a Moo far far away.";
     "Last modified Sun Aug  1 22:53:07 1993 EDT by BabyBriar (#2).";
-  endverb
+  endmethod
 
-  verb index_all (this none this) owner: HACKER flags: "rxd"
+  method index_all owner: HACKER
     "index_all(string,target) -- returns list of positions of target in string.";
     "Usage: $string_utils:index_all(<string,pattern>)";
     "       $string_utils:index_all(\"aaabacadae\",\"a\")";
@@ -1662,9 +1662,9 @@ object STRING_UTILS
       endwhile
       return where;
     endif
-  endverb
+  endmethod
 
-  verb "match_stringlist match_string_list" (this none this) owner: HACKER flags: "rx"
+  method "match_stringlist match_string_list" owner: HACKER flags: "rx"
     "Copied from Puff (#1449):match_stringlist Tue Oct 19 08:18:13 1993 PDT";
     "$string_utils:match_stringlist(string, {list of strings})";
     "The list of strings should be just that, a list of strings.  The first string is matched against the list of strings.";
@@ -1703,24 +1703,24 @@ object STRING_UTILS
         return $failed_match;
       endif
     endif
-  endverb
+  endmethod
 
-  verb from_ASCII (this none this) owner: HACKER flags: "rxd"
+  method from_ASCII owner: HACKER
     "This converts a ASCII character code in the range [32..126] into the ASCII character with that code, represented as a one-character string.";
     "";
     "Example:   $string_utils:from_ASCII(65) => \"A\"";
     code = args[1];
     return this.ascii[code - 31];
-  endverb
+  endmethod
 
-  verb to_ASCII (this none this) owner: HACKER flags: "rxd"
+  method to_ASCII owner: HACKER
     "Convert a one-character string into the ASCII character code for that character.";
     "";
     "Example:  $string_utils:to_ASCII(\"A\") => 65";
     return (index(this.ascii, args[1], 1) || raise(E_INVARG)) + 31;
-  endverb
+  endmethod
 
-  verb abbreviated_value (this none this) owner: HACKER flags: "rxd"
+  method abbreviated_value owner: HACKER
     "Copied from Mickey (#52413):abbreviated_value Fri Sep  9 08:52:41 1994 PDT";
     ":abbreviated_value(value,max_reslen,max_lstlev,max_lstlen,max_strlen,max_toklen)";
     "";
@@ -1735,9 +1735,9 @@ object STRING_UTILS
     {value, ?max_reslen = $maxint, ?max_lstlev = $maxint, ?max_lstlen = $maxint, ?max_strlen = $maxint, ?max_toklen = $maxint} = args;
     return this:_abbreviated_value(value, max_reslen, max_lstlev, max_lstlen, max_strlen, max_toklen);
     "Originally written by Mickey.";
-  endverb
+  endmethod
 
-  verb _abbreviated_value (this none this) owner: HACKER flags: "rxd"
+  method _abbreviated_value owner: HACKER
     "Copied from Mickey (#52413):_abbreviated_value Fri Sep  9 08:52:44 1994 PDT";
     "Internal to :abbreviated_value.  Do not call this directly.";
     {value, max_reslen, max_lstlev, max_lstlen, max_strlen, max_toklen} = args;
@@ -1807,9 +1807,9 @@ object STRING_UTILS
       return length(v) > len ? v[1..len - 3] + "..." | v;
     endif
     "Originally written by Mickey.";
-  endverb
+  endmethod
 
-  verb match_suspended (this none this) owner: HACKER flags: "rxd"
+  method match_suspended owner: HACKER
     "$string_utils:match_suspended(string [, obj-list, prop-name]*)";
     "Each obj-list should be a list of objects or a single object, which is treated as if it were a list of that object.  Each prop-name should be string naming a property on every object in the corresponding obj-list.  The value of that property in each case should be either a string or a list of strings.";
     "The argument string is matched against all of the strings in the property values.";
@@ -1850,9 +1850,9 @@ object STRING_UTILS
       endfor
     endfor
     return no_exact_match && (no_partial_match && $failed_match);
-  endverb
+  endmethod
 
-  verb incr_alpha (this none this) owner: HACKER flags: "rxd"
+  method incr_alpha owner: HACKER
     "args[1] is a string.  'increments' the string by one. E.g., aaa => aab, aaz => aba.  empty string => a, zzz => aaaa.";
     "args[2] is optional alphabet to use instead of $string_utils.alphabet.";
     {s, ?alphabet = this.alphabet} = args;
@@ -1865,16 +1865,16 @@ object STRING_UTILS
       t = index(alphabet, s[index]);
       return s[1..index - 1] + alphabet[t + 1];
     endif
-  endverb
+  endmethod
 
-  verb is_float (this none this) owner: HACKER flags: "rxd"
+  method is_float owner: HACKER
     "Usage:  is_float(string)";
     "Is string composed of one or more digits possibly preceded by a minus sign either followed by a decimal or by an exponent?";
     "Return true or false";
     return match(args[1], "^ *[-+]?%(%([0-9]+%.[0-9]*%|[0-9]*%.[0-9]+%)%(e[-+]?[0-9]+%)?%)%|%([0-9]+e[-+]?[0-9]+%) *$");
-  endverb
+  endmethod
 
-  verb inside_quotes (this none this) owner: HACKER flags: "rx"
+  method inside_quotes owner: HACKER flags: "rx"
     "Copied from Moo_tilities (#332):inside_quotes by Mooshie (#106469) Tue Dec 23 10:26:49 1997 PST";
     "Usage: inside_quotes(STR)";
     "Is the  end of the given string `inside' a doublequote?";
@@ -1888,9 +1888,9 @@ object STRING_UTILS
       string = string[i + 1..$];
     endwhile
     return quoted;
-  endverb
+  endmethod
 
-  verb strip_all_but_seq (this none this) owner: HACKER flags: "rxd"
+  method strip_all_but_seq owner: HACKER
     ":strip_all_but_seq(string, keep) => chars in string not in exact sequence of keep removed.";
     ":strip_all_but() works similarly, only it does not concern itself with the sequence, just the specified chars.";
     string = args[1];
@@ -1901,5 +1901,5 @@ object STRING_UTILS
       string = string[m[2] + 1..length(string)];
     endwhile
     return output;
-  endverb
+  endmethod
 endobject

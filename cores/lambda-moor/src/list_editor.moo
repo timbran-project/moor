@@ -129,7 +129,7 @@ object LIST_EDITOR
     endif
   endverb
 
-  verb value (this none this) owner: #96 flags: "rxd"
+  method value owner: #96
     if (!(e = this:readable(who = args ? args[1] | player in this.active) || this:ok(who)))
       return e;
     endif
@@ -140,27 +140,27 @@ object LIST_EDITOR
     else
       return vlist[2];
     endif
-  endverb
+  endmethod
 
-  verb working_on (this none this) owner: #96 flags: "rxd"
+  method working_on owner: #96
     if (!(who = args[1]))
       return "????";
     endif
     object = this.objects[who];
     prop = this.properties[who] || "(???)";
     return valid(object) ? tostr("\"", object.name, "\"(", object, ")", "." + prop) | tostr(".", prop, " on an invalid object (", object, ")");
-  endverb
+  endmethod
 
-  verb init_session (this none this) owner: #96 flags: "rxd"
+  method init_session owner: #96
     if (this:ok(who = args[1]))
       this:load(who, args[4]);
       this.objects[who] = args[2];
       this.properties[who] = args[3];
       player:tell("Now editing ", this:working_on(who), ".");
     endif
-  endverb
+  endmethod
 
-  verb property_match_result (this none this) owner: #96 flags: "rxd"
+  method property_match_result owner: #96
     if (!(pp = $code_utils:parse_propref(string = args[1])))
       player:tell("Property specification expected.");
       return 0;
@@ -174,9 +174,9 @@ object LIST_EDITOR
       return {object, prop};
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb property (this none this) owner: #2 flags: "rx"
+  method property owner: #2 flags: "rx"
     "WIZARDLY";
     vl = $code_utils:verb_loc();
     if (caller != vl || caller_perms() != vl.owner)
@@ -184,9 +184,9 @@ object LIST_EDITOR
     endif
     set_task_perms(player);
     return args[1].(args[2]);
-  endverb
+  endmethod
 
-  verb set_property (this none this) owner: #2 flags: "rx"
+  method set_property owner: #2 flags: "rx"
     "WIZARDLY";
     vl = $code_utils:verb_loc();
     if (caller != vl || caller_perms() != vl.owner)
@@ -200,9 +200,9 @@ object LIST_EDITOR
       endif
     endif
     return typeof(e = (object.(pname) = value)) == TYPE_ERR ? e | 1;
-  endverb
+  endmethod
 
-  verb explode_line (this none this) owner: #96 flags: "rxd"
+  method explode_line owner: #96
     su = $string_utils;
     prev = args[1];
     line = su:triml(args[2]);
@@ -237,9 +237,9 @@ object LIST_EDITOR
         return {prev, su:space(indent) + "{", @newlines};
       endif
     endif
-  endverb
+  endmethod
 
-  verb explode_list (this none this) owner: #96 flags: "rxd"
+  method explode_list owner: #96
     ":explode_list(indent,list) => corresponding list of strings to use.";
     lines = {};
     indent = $string_utils:space(args[1]);
@@ -251,14 +251,14 @@ object LIST_EDITOR
       endif
     endfor
     return lines;
-  endverb
+  endmethod
 
-  verb is_delimiter (this none this) owner: #96 flags: "rxd"
+  method is_delimiter owner: #96
     line = $string_utils:triml(args[1]);
     return line && (line[1] == "}" || (line[1] == "{" && !rindex(line, "}")));
-  endverb
+  endmethod
 
-  verb to_value (this none this) owner: #96 flags: "rxd"
+  method to_value owner: #96
     ":to_value(@list_of_strings) => {line#, error_message} or {0,value}";
     "converts the given list of strings back into a value if possible";
     stack = {};
@@ -325,9 +325,9 @@ object LIST_EDITOR
     else
       return {0, curlist};
     endif
-  endverb
+  endmethod
 
-  verb parse_invoke (this none this) owner: #96 flags: "rxd"
+  method parse_invoke owner: #96
     if (caller != this)
       raise(E_PERM);
     elseif (!(string = args[1]))
@@ -346,5 +346,5 @@ object LIST_EDITOR
       return {@objprop, this:explode_list(0, value)};
     endif
     return 0;
-  endverb
+  endmethod
 endobject

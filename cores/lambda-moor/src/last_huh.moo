@@ -9,7 +9,7 @@ object LAST_HUH
   override import_export_id = "last_huh";
   override object_size = {4598, 1084848672};
 
-  verb "@*" (this none this) owner: #2 flags: "rxd"
+  method "@*" owner: #2
     "{last_huh}  @<msg_name> <object> is [<text>]";
     "If <text> is given calls <object>:set_message(<msg_name>,<text>),";
     "otherwise prints the value of the specified message property";
@@ -53,9 +53,9 @@ object LAST_HUH
         player:notify(tostr("You clear the \"", msg_name, "\" message of ", dobj.name, " (", dobj, ")."));
       endif
     endif
-  endverb
+  endmethod
 
-  verb "give hand" (this none this) owner: #2 flags: "rxd"
+  method "give hand" owner: #2
     "{last_huh}  give any to any";
     "a give \"verb\" that works for non-$things.";
     set_task_perms(caller_perms());
@@ -80,9 +80,9 @@ object LAST_HUH
         player:tell("Either that doesn't want to be given away or ", iobj.name, " doesn't want it.");
       endif
     endif
-  endverb
+  endmethod
 
-  verb "get take" (this none this) owner: #2 flags: "rxd"
+  method "get take" owner: #2
     "{last_huh}  get/take any";
     "a take \"verb\" that works for non-$things.";
     set_task_perms(caller_perms());
@@ -103,9 +103,9 @@ object LAST_HUH
         player:tell("You can't pick that up.");
       endif
     endif
-  endverb
+  endmethod
 
-  verb "drop throw" (this none this) owner: #2 flags: "rxd"
+  method "drop throw" owner: #2
     "{last_huh}  drop/throw any";
     "a drop \"verb\" that works for non-$things.";
     set_task_perms(caller_perms());
@@ -126,5 +126,5 @@ object LAST_HUH
         player:tell_lines("You can't seem to drop that here.");
       endif
     endif
-  endverb
+  endmethod
 endobject

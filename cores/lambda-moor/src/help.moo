@@ -1153,15 +1153,15 @@ object HELP
   override index_cache = {"gen-index"};
   override object_size = {82127, 1084848672};
 
-  verb player_quota (this none this) owner: #2 flags: "rxd"
+  method player_quota owner: #2
     return $player.ownership_quota;
-  endverb
+  endmethod
 
-  verb prog_quota (this none this) owner: #2 flags: "rxd"
+  method prog_quota owner: #2
     return $prog.ownership_quota;
-  endverb
+  endmethod
 
-  verb get_topic (this none this) owner: #2 flags: "rxd"
+  method get_topic owner: #2
     text = pass(@args);
     object = $string_utils:match_object(what = args[1], player.location);
     if (text != E_PROPNF || !valid(object))
@@ -1172,9 +1172,9 @@ object HELP
       about = $object_utils:has_verb(object, "about");
       return {tostr("Sorry, but no help is available on ", object.name, " (", object, ")."), tostr("Try `examine ", what, "'", @about ? {" or `about ", what, "'"} | {}, ".")};
     endif
-  endverb
+  endmethod
 
-  verb find_topics (this none this) owner: #2 flags: "rxd"
+  method find_topics owner: #2
     topiclist = pass(@args);
     if (topiclist || !args)
       return topiclist;
@@ -1183,9 +1183,9 @@ object HELP
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb full_index (this none this) owner: HACKER flags: "rxd"
+  method full_index owner: HACKER
     text = {};
     for db in ($code_utils:help_db_list())
       if ($object_utils:has_callable_verb(db, "index"))
@@ -1193,9 +1193,9 @@ object HELP
       endif
     endfor
     return text;
-  endverb
+  endmethod
 
-  verb index_list (this none this) owner: HACKER flags: "rxd"
+  method index_list owner: HACKER
     hdr = "Available Help Indices";
     text = {"", hdr, $string_utils:space(hdr, "-")};
     for db in ($code_utils:help_db_list())
@@ -1212,9 +1212,9 @@ object HELP
       text = {@text, "", tostr($string_utils:left(full, 14), " -- ", "EVERYTHING")};
     endif
     return text;
-  endverb
+  endmethod
 
-  verb wizard_list (this none this) owner: #2 flags: "rxd"
+  method wizard_list owner: #2
     wizzes = {};
     for w in ($object_utils:leaves($wiz))
       if (w.wizard && (w.advertised && is_player(w)))
@@ -1231,17 +1231,17 @@ object HELP
       slist = {@slist, tostr(su:left(hlist[i], 13), su:left(wiz.name, 16), (wpi = `wiz.public_identity.name ! ANY') ? " (a.k.a. " + wpi + ")" | "")};
     endfor
     return slist;
-  endverb
+  endmethod
 
-  verb dump_topic (this none this) owner: HACKER flags: "rxd"
+  method dump_topic owner: HACKER
     if ((text = pass(@args)) != E_PROPNF || (!valid(object = $string_utils:match_object(what = args[1], player.location)) || !$object_utils:has_property(object, "help_msg")))
       return text;
     else
       return {tostr(";;", $code_utils:corify_object(object), ".help_msg = $command_utils:read_lines()"), @$command_utils:dump_lines(typeof(text = object.help_msg) == TYPE_LIST ? text | {text})};
     endif
-  endverb
+  endmethod
 
-  verb find_full_index_topic (this none this) owner: HACKER flags: "rxd"
+  method find_full_index_topic owner: HACKER
     ":find_full_index_topic([search])";
     "Return the *full_index* topic or 0";
     "If search argument is given and true, we don't depend on cached info.";
@@ -1255,5 +1255,5 @@ object HELP
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 endobject

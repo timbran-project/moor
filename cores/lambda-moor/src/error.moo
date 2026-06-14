@@ -50,96 +50,96 @@ object ERROR
   override import_export_id = "error";
   override object_size = {7458, 1084848672};
 
-  verb raise (this none this) owner: HACKER flags: "rxd"
+  method raise owner: HACKER
     raise(@args);
     "this:(this.names[tonum(args[1]) + 1])()";
-  endverb
+  endmethod
 
-  verb E_NONE (this none this) owner: HACKER flags: "rxd"
+  method E_NONE owner: HACKER
     "... hmmm... don't know how to raise E_NONE...";
     return E_NONE;
-  endverb
+  endmethod
 
-  verb E_TYPE (this none this) owner: HACKER flags: "rxd"
+  method E_TYPE owner: HACKER
     "...raise E_TYPE ...";
     1[2];
-  endverb
+  endmethod
 
-  verb E_DIV (this none this) owner: HACKER flags: "rxd"
+  method E_DIV owner: HACKER
     "...raise E_DIV ...";
     1 / 0;
-  endverb
+  endmethod
 
-  verb E_PERM (this none this) owner: HACKER flags: "rxd"
+  method E_PERM owner: HACKER
     "...raise E_PERM ...";
     this.owner.password;
-  endverb
+  endmethod
 
-  verb E_PROPNF (this none this) owner: HACKER flags: "rxd"
+  method E_PROPNF owner: HACKER
     "...raise E_PROPNF ...";
     this.a;
-  endverb
+  endmethod
 
-  verb E_VERBNF (this none this) owner: HACKER flags: "rxd"
+  method E_VERBNF owner: HACKER
     "...raise E_VERBNF ...";
     this:a();
-  endverb
+  endmethod
 
-  verb E_VARNF (this none this) owner: HACKER flags: "rxd"
+  method E_VARNF owner: HACKER
     "...raise E_VARNF ...";
     a;
-  endverb
+  endmethod
 
-  verb E_INVIND (this none this) owner: HACKER flags: "rxd"
+  method E_INVIND owner: HACKER
     "...raise E_INVIND ...";
     #-1.a;
-  endverb
+  endmethod
 
-  verb E_RECMOVE (this none this) owner: HACKER flags: "rxd"
+  method E_RECMOVE owner: HACKER
     move(this, this);
-  endverb
+  endmethod
 
-  verb E_MAXREC (this none this) owner: HACKER flags: "rxd"
+  method E_MAXREC owner: HACKER
     "...raise E_MAXREC ...";
     this:(verb)();
-  endverb
+  endmethod
 
-  verb E_RANGE (this none this) owner: HACKER flags: "rxd"
+  method E_RANGE owner: HACKER
     "...raise E_RANGE ...";
     {}[1];
-  endverb
+  endmethod
 
-  verb E_ARGS (this none this) owner: HACKER flags: "rxd"
+  method E_ARGS owner: HACKER
     "...raise E_ARGS ...";
     toint();
-  endverb
+  endmethod
 
-  verb E_NACC (this none this) owner: HACKER flags: "rxd"
+  method E_NACC owner: HACKER
     "...raise E_NACC ...";
     move($hacker, this);
-  endverb
+  endmethod
 
-  verb E_INVARG (this none this) owner: HACKER flags: "rxd"
+  method E_INVARG owner: HACKER
     "...raise E_INVARG ...";
     parent(#-1);
-  endverb
+  endmethod
 
-  verb E_QUOTA (this none this) owner: #2 flags: "rxd"
+  method E_QUOTA owner: #2
     set_task_perms($no_one);
     "...raise E_QUOTA ...";
     create($thing);
-  endverb
+  endmethod
 
-  verb accept (this none this) owner: HACKER flags: "rxd"
+  method accept owner: HACKER
     return 0;
-  endverb
+  endmethod
 
-  verb name (this none this) owner: HACKER flags: "rxd"
+  method name owner: HACKER
     return toliteral(args[1]);
     "return this.names[tonum(args[1]) + 1];";
-  endverb
+  endmethod
 
-  verb toerr (this none this) owner: HACKER flags: "rxd"
+  method toerr owner: HACKER
     "toerr -- given a string or a number, return the corresponding ERR.";
     "If not found or an execution error, return -1.";
     if (typeof(string = args[1]) == TYPE_STR)
@@ -156,9 +156,9 @@ object ERROR
       endfor
     endif
     return -1;
-  endverb
+  endmethod
 
-  verb match_error (this none this) owner: HACKER flags: "rxd"
+  method match_error owner: HACKER
     "match_error -- searches for tostr(E_WHATEVER) in a string, returning the ERR, returns -1 if no error string is found.";
     string = args[1];
     for e in (this.all_errors)
@@ -167,5 +167,5 @@ object ERROR
       endif
     endfor
     return -1;
-  endverb
+  endmethod
 endobject

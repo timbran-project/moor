@@ -690,11 +690,11 @@ object PROG
     endif
   endverb
 
-  verb _kill_task_message (this none this) owner: #2 flags: "rxd"
+  method _kill_task_message owner: #2
     set_task_perms(caller_perms());
     task = args[1];
     player:notify(tostr("Killed: ", $string_utils:right(tostr("task ", task[1]), 17), ", verb ", task[6], ":", task[7], ", line ", task[8], task[9] != task[6] ? ", this==" + tostr(task[9]) | ""));
-  endverb
+  endmethod
 
   verb "@prog*ram @program#" (any any any) owner: #2 flags: "rd"
     "This version of @program deals with multiple verbs having the same name.";
@@ -1180,7 +1180,7 @@ object PROG
     endif
   endverb
 
-  verb set_eval_env (this none this) owner: HACKER flags: "rxd"
+  method set_eval_env owner: HACKER
     "set_eval_env(string);";
     "Run <string> through eval.  If it doesn't compile, return E_INVARG.  If it crashes, well, it crashes.  If it works okay, set .eval_env to it and set .eval_ticks to the amount of time it took.";
     if (is_player(this) && $perm_utils:controls(caller_perms(), this))
@@ -1199,7 +1199,7 @@ object PROG
         return error[1];
       endtry
     endif
-  endverb
+  endmethod
 
   verb "@clearp*roperty @clprop*erty" (any none none) owner: #2 flags: "rd"
     "@clearproperty <obj>.<prop>";
@@ -1261,7 +1261,7 @@ object PROG
     endtry
   endverb
 
-  verb eval_cmd_string (this none this) owner: #2 flags: "rxd"
+  method eval_cmd_string owner: #2
     ":eval_cmd_string(string[,debug])";
     "Evaluates the string the way this player would normally expect to see it evaluated if it were typed on the command line.  debug (defaults to 1) indicates how the debug flag should be set during the evaluation.";
     " => {@eval_result, ticks, seconds}";
@@ -1284,7 +1284,7 @@ object PROG
     seconds = seconds - seconds_left();
     ticks = ticks - ticks_left();
     return {@value, ticks, seconds};
-  endverb
+  endmethod
 
   verb "@dump" (any any any) owner: #2 flags: "rd"
     "@dump something [with [id=...] [noprops] [noverbs] [create]]";
@@ -1404,7 +1404,7 @@ object PROG
     endif
   endverb
 
-  verb eval_value_to_string (this none this) owner: #2 flags: "rxd"
+  method eval_value_to_string owner: #2
     set_task_perms(caller_perms());
     if (typeof(val = args[1]) == TYPE_OBJ)
       return tostr("=> ", val, "  ", valid(val) ? "(" + val.name + ")" | (a = $list_utils:assoc(val, {{#-1, "<$nothing>"}, {#-2, "<$ambiguous_match>"}, {#-3, "<$failed_match>"}})) ? a[2] | "<invalid>");
@@ -1413,7 +1413,7 @@ object PROG
     else
       return tostr("=> ", toliteral(val));
     endif
-  endverb
+  endmethod
 
   verb "@progo*ptions @prog-o*ptions @programmero*ptions @programmer-o*ptions" (any any any) owner: #2 flags: "rd"
     "@<what>-option <option> [is] <value>   sets <option> to <value>";
@@ -1447,7 +1447,7 @@ object PROG
     endif
   endverb
 
-  verb prog_option (this none this) owner: #2 flags: "rxd"
+  method prog_option owner: #2
     ":prog_option(name)";
     "Returns the value of the specified prog option";
     if (caller == this || $perm_utils:controls(caller_perms(), this))
@@ -1455,9 +1455,9 @@ object PROG
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb set_prog_option (this none this) owner: #2 flags: "rxd"
+  method set_prog_option owner: #2
     ":set_prog_option(oname,value)";
     "Changes the value of the named option.";
     "Returns a string error if something goes wrong.";
@@ -1477,7 +1477,7 @@ object PROG
       this.(foo_options) = s;
       return 1;
     endif
-  endverb
+  endmethod
 
   verb "@list*#" (any any any) owner: #2 flags: "rd"
     "@list <obj>:<verb> [<dobj> <prep> <iobj>] [with[out] paren|num] [all] [ranges]";

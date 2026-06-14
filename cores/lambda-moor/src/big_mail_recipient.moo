@@ -57,7 +57,7 @@ object BIG_MAIL_RECIPIENT
   override import_export_id = "big_mail_recipient";
   override object_size = {37437, 1084848672};
 
-  verb _genprop (this none this) owner: HACKER flags: "rxd"
+  method _genprop owner: HACKER
     gp = this._genprop;
     ngp = "";
     for i in [1..length(gp)]
@@ -68,9 +68,9 @@ object BIG_MAIL_RECIPIENT
       ngp = ngp + "a";
     endfor
     return " " + (this._genprop = ngp + "a");
-  endverb
+  endmethod
 
-  verb _make (this none this) owner: #2 flags: "rxd"
+  method _make owner: #2
     ":_make(...) => new node with value {...}";
     if (!(caller in {this._mgr, this}))
       return E_PERM;
@@ -78,29 +78,29 @@ object BIG_MAIL_RECIPIENT
     prop = this:_genprop();
     `add_property(this, prop, args, {this.mowner, ""}) ! ANY';
     return prop;
-  endverb
+  endmethod
 
-  verb _kill (this none this) owner: #2 flags: "rxd"
+  method _kill owner: #2
     ":_kill(node) destroys the given node.";
     if (!(caller in {this, this._mgr}))
       return E_PERM;
     endif
     `delete_property(this, args[1]) ! ANY';
-  endverb
+  endmethod
 
-  verb _get (this none this) owner: HACKER flags: "rxd"
+  method _get owner: HACKER
     return caller == this._mgr ? `this.(args[1]) ! ANY' | E_PERM;
-  endverb
+  endmethod
 
-  verb _put (this none this) owner: HACKER flags: "rxd"
+  method _put owner: HACKER
     return caller == this._mgr ? (this.(args[1]) = listdelete(args, 1)) | E_PERM;
-  endverb
+  endmethod
 
-  verb _ord (this none this) owner: HACKER flags: "rxd"
+  method _ord owner: HACKER
     return args[1][2..3];
-  endverb
+  endmethod
 
-  verb _makemsg (this none this) owner: HACKER flags: "rxd"
+  method _makemsg owner: HACKER
     ":_makemsg(ord,msg) => leafnode for msg";
     "msg = $mail_agent:__convert_new(@args[2])";
     msg = args[2];
@@ -111,46 +111,46 @@ object BIG_MAIL_RECIPIENT
     else
       return {0, args[1], @msg};
     endif
-  endverb
+  endmethod
 
-  verb _killmsg (this none this) owner: HACKER flags: "rxd"
+  method _killmsg owner: HACKER
     if (caller != this._mgr)
       return E_PERM;
     elseif (node = args[1][1])
       this:_kill(node);
     endif
-  endverb
+  endmethod
 
-  verb _message_num (this none this) owner: HACKER flags: "rxd"
+  method _message_num owner: HACKER
     return args[2];
-  endverb
+  endmethod
 
-  verb _message_date (this none this) owner: HACKER flags: "rxd"
+  method _message_date owner: HACKER
     return args[3];
-  endverb
+  endmethod
 
-  verb _message_hdr (this none this) owner: HACKER flags: "rxd"
+  method _message_hdr owner: HACKER
     return args[3..$];
-  endverb
+  endmethod
 
-  verb _message_text (this none this) owner: HACKER flags: "rxd"
+  method _message_text owner: HACKER
     if (caller == this || this:is_readable_by(caller_perms()))
       "perms check added HTC 16 Feb 1999";
       return {@args[3..$], @args[1] ? {"", @this.(args[1])} | {}};
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb _lt_msgnum (this none this) owner: HACKER flags: "rxd"
+  method _lt_msgnum owner: HACKER
     return args[1] < args[2][1];
-  endverb
+  endmethod
 
-  verb _lt_msgdate (this none this) owner: HACKER flags: "rxd"
+  method _lt_msgdate owner: HACKER
     return args[1] < args[2][2];
-  endverb
+  endmethod
 
-  verb receive_batch (this none this) owner: HACKER flags: "rxd"
+  method receive_batch owner: HACKER
     if (!this:is_writable_by(caller_perms()))
       return E_PERM;
     else
@@ -171,9 +171,9 @@ object BIG_MAIL_RECIPIENT
       this.last_used_time = time();
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb receive_message (this none this) owner: HACKER flags: "rxd"
+  method receive_message owner: HACKER
     if (!this:is_writable_by(caller_perms()))
       return E_PERM;
     else
@@ -182,9 +182,9 @@ object BIG_MAIL_RECIPIENT
       this.last_used_time = time();
       return new;
     endif
-  endverb
+  endmethod
 
-  verb messages_in_seq (this none this) owner: HACKER flags: "rxd"
+  method messages_in_seq owner: HACKER
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
     elseif (typeof(seq = args[1]) != TYPE_LIST)
@@ -205,9 +205,9 @@ object BIG_MAIL_RECIPIENT
       endwhile
       return msgs;
     endif
-  endverb
+  endmethod
 
-  verb display_seq_headers (this none this) owner: HACKER flags: "rxd"
+  method display_seq_headers owner: HACKER
     ":display_seq_headers(msg_seq[,cur[,last_read_date]])";
     "This is the default header display routine.";
     "Prints a list of headers of messages on this to player.  msg_seq is the handle returned by this:parse_message_seq(...).  cur is the player's current message.  last_read_date is the date of the last of the already-read messages.";
@@ -237,9 +237,9 @@ object BIG_MAIL_RECIPIENT
       seq = seq[3..$];
     endwhile
     player:tell("-----+");
-  endverb
+  endmethod
 
-  verb display_seq_full (this none this) owner: HACKER flags: "rxd"
+  method display_seq_full owner: HACKER
     ":display_seq_full(msg_seq[,preamble]) => {cur}";
     "This is the default message display routine.";
     "Prints the indicated messages on folder to player.  msg_seq is the handle returned by folder:parse_message_seq(...).  Returns the number of the final message in the sequence (to be the new current message number).";
@@ -262,9 +262,9 @@ object BIG_MAIL_RECIPIENT
       seq = seq[3..$];
     endwhile
     return {cur, date};
-  endverb
+  endmethod
 
-  verb list_rmm (this none this) owner: HACKER flags: "rxd"
+  method list_rmm owner: HACKER
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
     endif
@@ -299,9 +299,9 @@ object BIG_MAIL_RECIPIENT
       player:tell("----+");
     endif
     return len;
-  endverb
+  endmethod
 
-  verb undo_rmm (this none this) owner: HACKER flags: "rxd"
+  method undo_rmm owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
@@ -327,9 +327,9 @@ object BIG_MAIL_RECIPIENT
     this.messages_kept = $seq_utils:union(kept, $seq_utils:expand(this.messages_kept, seq));
     this:_fix_last_msg_date();
     return seq;
-  endverb
+  endmethod
 
-  verb expunge_rmm (this none this) owner: HACKER flags: "rxd"
+  method expunge_rmm owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
@@ -344,9 +344,9 @@ object BIG_MAIL_RECIPIENT
     endfor
     this.messages_going = {};
     return len;
-  endverb
+  endmethod
 
-  verb rm_message_seq (this none this) owner: HACKER flags: "rxd"
+  method rm_message_seq owner: HACKER
     seq = args[1];
     if (!(this:ok_write(caller, caller_perms()) || (this:ok(caller, caller_perms()) && (seq = this:own_messages_filter(caller_perms(), @args)))))
       return E_PERM;
@@ -380,9 +380,9 @@ object BIG_MAIL_RECIPIENT
     this.messages = msgtree;
     this:_fix_last_msg_date();
     return $seq_utils:tostr(nums);
-  endverb
+  endmethod
 
-  verb renumber (this none this) owner: HACKER flags: "rxd"
+  method renumber owner: HACKER
     ":renumber([cur]) renumbers caller.messages, doing a suspend() if necessary.";
     "  => {number of messages,new cur}.";
     if (!this:ok_write(caller, caller_perms()))
@@ -440,25 +440,25 @@ object BIG_MAIL_RECIPIENT
       endif
       msgtree = this.messages;
     endwhile
-  endverb
+  endmethod
 
-  verb length_all_msgs (this none this) owner: HACKER flags: "rxd"
+  method length_all_msgs owner: HACKER
     return this:ok(caller, caller_perms()) ? this.messages ? this.messages[2] | 0 | E_PERM;
-  endverb
+  endmethod
 
-  verb length_num_le (this none this) owner: HACKER flags: "rxd"
+  method length_num_le owner: HACKER
     return this:ok(caller, caller_perms()) ? this._mgr:find_ord(this.messages, args[1], "_lt_msgnum") | E_PERM;
-  endverb
+  endmethod
 
-  verb length_date_le (this none this) owner: HACKER flags: "rxd"
+  method length_date_le owner: HACKER
     return this:ok(caller, caller_perms()) ? this._mgr:find_ord(this.messages, args[1], "_lt_msgdate") | E_PERM;
-  endverb
+  endmethod
 
-  verb exists_num_eq (this none this) owner: HACKER flags: "rxd"
+  method exists_num_eq owner: HACKER
     return this:ok(caller, caller_perms()) ? (i = this._mgr:find_ord(this.messages, args[1], "_lt_msgnum")) && (this:_message_num(@this._mgr:find_nth(this.messages, i)) == args[1] && i) | E_PERM;
-  endverb
+  endmethod
 
-  verb new_message_num (this none this) owner: HACKER flags: "rxd"
+  method new_message_num owner: HACKER
     if (this:ok(caller, caller_perms()))
       new = (msgtree = this.messages) ? this:_message_num(@this._mgr:find_nth(msgtree, msgtree[2])) + 1 | 1;
       if (rmsgs = this.messages_going)
@@ -470,9 +470,9 @@ object BIG_MAIL_RECIPIENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb from_msg_seq (this none this) owner: HACKER flags: "rxd"
+  method from_msg_seq owner: HACKER
     ":from_msg_seq(object or list)";
     " => msg_seq of messages from any of these senders";
     if (!this:ok(caller, caller_perms()))
@@ -502,9 +502,9 @@ object BIG_MAIL_RECIPIENT
       endwhile
     endfor
     return fseq || "%f %<has> no messages from " + $string_utils:english_list($list_utils:map_arg(2, $string_utils, "pronoun_sub", "%n (%#)", plist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb "%from_msg_seq" (this none this) owner: HACKER flags: "rxd"
+  method "%from_msg_seq" owner: HACKER
     ":%from_msg_seq(string or list of strings)";
     " => msg_seq of messages with one of these strings in the from line";
     if (!this:ok(caller, caller_perms()))
@@ -534,9 +534,9 @@ object BIG_MAIL_RECIPIENT
       endwhile
     endfor
     return fseq || "%f %<has> no messages from " + $string_utils:english_list($list_utils:map_arg($string_utils, "print", nlist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb to_msg_seq (this none this) owner: HACKER flags: "rxd"
+  method to_msg_seq owner: HACKER
     ":to_msg_seq(object or list) => msg_seq of messages to those people";
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
@@ -565,9 +565,9 @@ object BIG_MAIL_RECIPIENT
       endwhile
     endfor
     return seq || "%f %<has> no messages to " + $string_utils:english_list($list_utils:map_arg(2, $string_utils, "pronoun_sub", "%n (%#)", plist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb "%to_msg_seq" (this none this) owner: HACKER flags: "rxd"
+  method "%to_msg_seq" owner: HACKER
     ":%to_msg_seq(string or list of strings)";
     " => msg_seq of messages containing one of strings in the to line";
     if (!this:ok(caller, caller_perms()))
@@ -597,9 +597,9 @@ object BIG_MAIL_RECIPIENT
       endwhile
     endfor
     return seq || "%f %<has> no messages to " + $string_utils:english_list($list_utils:map_arg($string_utils, "print", nlist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb subject_msg_seq (this none this) owner: HACKER flags: "rxd"
+  method subject_msg_seq owner: HACKER
     ":subject_msg_seq(target) => msg_seq of messages with target in the Subject:";
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
@@ -622,9 +622,9 @@ object BIG_MAIL_RECIPIENT
       endwhile
     endfor
     return seq || "%f %<has> no messages with subjects containing `" + target + "'";
-  endverb
+  endmethod
 
-  verb body_msg_seq (this none this) owner: HACKER flags: "rxd"
+  method body_msg_seq owner: HACKER
     ":body_msg_seq(target) => msg_seq of messages with target in the body";
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
@@ -655,18 +655,18 @@ object BIG_MAIL_RECIPIENT
       endwhile
     endfor
     return seq || tostr("%f %<has> no messages containing `", target, "' in the body.");
-  endverb
+  endmethod
 
-  verb date_sort (this none this) owner: HACKER flags: "rxd"
+  method date_sort owner: HACKER
     return E_VERBNF;
-  endverb
+  endmethod
 
-  verb _fix_last_msg_date (this none this) owner: HACKER flags: "rxd"
+  method _fix_last_msg_date owner: HACKER
     msgtree = this.messages;
     this.last_msg_date = msgtree && this:_message_hdr(@this._mgr:find_nth(msgtree, msgtree[2]))[1] || 0;
-  endverb
+  endmethod
 
-  verb __fix (this none this) owner: HACKER flags: "rxd"
+  method __fix owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
@@ -687,9 +687,9 @@ object BIG_MAIL_RECIPIENT
       endif
     endfor
     return 1;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       this._mgr = $biglist;
       this.mowner = $mail_recipient.owner;
@@ -704,18 +704,18 @@ object BIG_MAIL_RECIPIENT
       this._genprop = "";
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb length_date_gt (this none this) owner: HACKER flags: "rxd"
+  method length_date_gt owner: HACKER
     if (this:ok(caller, caller_perms()))
       date = args[1];
       return this.last_msg_date <= date ? 0 | this.messages[2] - this._mgr:find_ord(this.messages, args[1], "_lt_msgdate");
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb _repair (this none this) owner: #2 flags: "rx"
+  method _repair owner: #2 flags: "rx"
     c = callers();
     if (caller != this && !(length(c) > 1 && c[1][1] == $list_utils && c[1][2] == "map_arg" && c[2][1] == this))
       raise(E_PERM);
@@ -863,7 +863,7 @@ object BIG_MAIL_RECIPIENT
     endif
     return result;
     "Last modified Thu Feb 15 23:13:44 1996 MST by Minnie (#123).";
-  endverb
+  endmethod
 
   verb repair (this none none) owner: #2 flags: "rd"
     "Syntax: repair <biglist>";
@@ -885,7 +885,7 @@ object BIG_MAIL_RECIPIENT
     "Last modified Fri Feb 16 08:36:27 1996 MST by Minnie (#123).";
   endverb
 
-  verb restore_from (this none this) owner: #2 flags: "rxd"
+  method restore_from owner: #2
     ":restore_from(OLD_MAIL_RECIPIENT, LOST_STRING)";
     "This clears all biglist properties from this object, then";
     "scans the properties of OLD_MAIL_RECIPIENT, which must be a descendant";
@@ -952,9 +952,9 @@ object BIG_MAIL_RECIPIENT
     else
       player:tell("No message bodies were missing.");
     endif
-  endverb
+  endmethod
 
-  verb set_message_body_by_index (this none this) owner: HACKER flags: "rxd"
+  method set_message_body_by_index owner: HACKER
     {i, body} = args;
     if (!this:ok_write(caller, caller_perms()))
       "... maybe someday let people edit messages they've sent?";
@@ -976,5 +976,5 @@ object BIG_MAIL_RECIPIENT
       bodyprop = this:_make(@body);
       this._mgr:set_nth(this.messages, i, {bodyprop, @rest});
     endif
-  endverb
+  endmethod
 endobject

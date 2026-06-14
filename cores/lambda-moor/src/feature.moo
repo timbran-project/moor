@@ -20,7 +20,7 @@ object FEATURE
   override import_export_id = "feature";
   override object_size = {6698, 1084848672};
 
-  verb help_msg (this none this) owner: HACKER flags: "rxd"
+  method help_msg owner: HACKER
     all_help = this.help_msg;
     if (typeof(all_help) == TYPE_STR)
       all_help = {all_help};
@@ -41,9 +41,9 @@ object FEATURE
       all_help = {@all_help, "", "No help found on " + $string_utils:english_list(helpless, "nothing", " or ") + "."};
     endif
     return {@all_help, "----"};
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  method look_self owner: HACKER
     "Definition from #1";
     desc = this:description();
     if (desc)
@@ -52,9 +52,9 @@ object FEATURE
       player:tell("You see nothing special.");
     endif
     player:tell("Please type \"help ", this, "\" for more information.");
-  endverb
+  endmethod
 
-  verb "using this" (this none this) owner: HACKER flags: "rxd"
+  method "using this" owner: HACKER
     "Proper usage for the Generic Feature Object:";
     "";
     "First of all, the Generic Feature Object is constructed with the idea";
@@ -73,21 +73,21 @@ object FEATURE
     "";
     "When someone types `help <this object>', they will be told the comment";
     "strings from each of the verbs named in .feature_verbs.";
-  endverb
+  endmethod
 
-  verb examine_commands_ok (this none this) owner: #2 flags: "rxd"
+  method examine_commands_ok owner: #2
     return this in args[1].features;
-  endverb
+  endmethod
 
-  verb set_feature_ok (this none this) owner: HACKER flags: "rxd"
+  method set_feature_ok owner: HACKER
     if ($perm_utils:controls(caller_perms(), this) || caller == this)
       return this.feature_ok = args[1];
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb hidden_verbs (this none this) owner: HACKER flags: "rxd"
+  method hidden_verbs owner: HACKER
     "Can't see `get' unless it's in the room; can't see `drop' unless it's in the player.  Should possibly go on $thing.";
     "Should use :contents, but I'm in a hurry.";
     hidden = pass(@args);
@@ -99,43 +99,43 @@ object FEATURE
       hidden = setadd(hidden, {$thing, verb_info($thing, "get")[3], {"this", "none", "none"}});
     endif
     return hidden;
-  endverb
+  endmethod
 
-  verb set_feature_verbs (this none this) owner: HACKER flags: "rxd"
+  method set_feature_verbs owner: HACKER
     if ($perm_utils:controls(caller_perms(), this) || caller == this)
       return this.feature_verbs = args[1];
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: HACKER flags: "rxd"
+  method initialize owner: HACKER
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       pass(@args);
       this.feature_verbs = {};
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if ($code_utils:verb_location() == this && caller_perms().wizard)
       this.warehouse = $feature_warehouse;
       `delete_property(this, "guest_ok") ! ANY';
       `delete_verb(this, "set_ok_for_guest_use") ! ANY';
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb feature_remove (this none this) owner: #2 flags: "rxd"
+  method feature_remove owner: #2
     "This is just a blank verb definition to encourage others to use this verb name if they care when a user is no longer using that feature.";
-  endverb
+  endmethod
 
-  verb player_connected (this none this) owner: #2 flags: "rxd"
+  method player_connected owner: #2
     return;
-  endverb
+  endmethod
 
-  verb has_feature_verb (this none this) owner: #2 flags: "rxd"
+  method has_feature_verb owner: #2
     ":has_feature_verb(verb, dlist, plist, ilist)";
     "If this feature has a feature verb that matches <verb> and whose {dobj, prep, iobj} arguments match the possibilities listed in <dlist>, <plist> and <ilist>, then return the name of that verb, otherwise return false.";
     "Note: Individual FOs may over-ride this the method to redirect particular feature verbs to different verbs on the object. For example, 'sit with <any>' and 'sit on <any>' could be directed to separate :sit_with() and :sit_on() verbs -- which is something that the code below cannot do.";
@@ -147,5 +147,5 @@ object FEATURE
       endif
     endif
     return 0;
-  endverb
+  endmethod
 endobject

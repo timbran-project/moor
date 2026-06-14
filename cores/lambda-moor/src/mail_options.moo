@@ -87,15 +87,15 @@ object MAIL_OPTIONS
   override namewidth = 19;
   override object_size = {14349, 1084848672};
 
-  verb actual (this none this) owner: HACKER flags: "rxd"
+  method actual owner: HACKER
     if (i = args[1] in {"noinclude", "sender"})
       return {{{"include", "all"}[i], !args[2]}};
     else
       return {args};
     endif
-  endverb
+  endmethod
 
-  verb "parse_@mail" (this none this) owner: HACKER flags: "rxd"
+  method "parse_@mail" owner: HACKER
     "... we'll take anything...";
     raw = args[2];
     if (raw == 1)
@@ -104,9 +104,9 @@ object MAIL_OPTIONS
     else
       return args[1..2];
     endif
-  endverb
+  endmethod
 
-  verb "parse_sticky parse_manymsgs" (this none this) owner: HACKER flags: "rxd"
+  method "parse_sticky parse_manymsgs" owner: HACKER
     {oname, raw, data} = args;
     if (typeof(raw) == TYPE_LIST)
       if (length(raw) > 1)
@@ -120,9 +120,9 @@ object MAIL_OPTIONS
       return tostr("`", raw, "'?  Number expected.");
     endif
     return {oname, value};
-  endverb
+  endmethod
 
-  verb parse_replyto (this none this) owner: HACKER flags: "rxd"
+  method parse_replyto owner: HACKER
     {oname, raw, data} = args;
     if (typeof(raw) == TYPE_STR)
       raw = $string_utils:explode(raw, ",");
@@ -135,53 +135,53 @@ object MAIL_OPTIONS
     else
       return "No valid recipients in list.";
     endif
-  endverb
+  endmethod
 
-  verb show_manymsgs (this none this) owner: HACKER flags: "rxd"
+  method show_manymsgs owner: HACKER
     value = this:get(@args);
     if (value)
       return {tostr(value), {tostr("Query when asking for ", value, " or more messages.")}};
     else
       return {0, {"Willing to be spammed with arbitrarily many messages/headers"}};
     endif
-  endverb
+  endmethod
 
-  verb show_sticky (this none this) owner: HACKER flags: "rxd"
+  method show_sticky owner: HACKER
     value = this:get(@args);
     if (value)
       return {value, {"Sticky folders:  mail commands default to whatever", "mail collection the previous successful command looked at."}};
     else
       return {0, {"Teflon folders:  mail commands always default to `on me'."}};
     endif
-  endverb
+  endmethod
 
-  verb "show_@mail" (this none this) owner: HACKER flags: "rxd"
+  method "show_@mail" owner: HACKER
     if (value = this:get(@args))
       return {"", {tostr("Default message sequence for @mail:  ", typeof(value) == TYPE_STR ? value | $string_utils:from_list(value, " "))}};
     else
       default = $mail_agent.("player_default_@mail");
       return {0, {tostr("Default message sequence for @mail:  ", typeof(default) == TYPE_STR ? default | $string_utils:from_list(default, " "))}};
     endif
-  endverb
+  endmethod
 
-  verb show_replyto (this none this) owner: HACKER flags: "rxd"
+  method show_replyto owner: HACKER
     if (value = this:get(@args))
       return {"", {tostr("Default Reply-to:  ", $mail_agent:name_list(@value))}};
     else
       return {0, {"No default Reply-to: field"}};
     endif
-  endverb
+  endmethod
 
-  verb show (this none this) owner: HACKER flags: "rxd"
+  method show owner: HACKER
     if (o = (name = args[2]) in {"sender", "noinclude"})
       args[2] = {"all", "include"}[o];
       return {@pass(@args), tostr("(", name, " is a synonym for -", args[2], ")")};
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb check_replyto (this none this) owner: HACKER flags: "rxd"
+  method check_replyto owner: HACKER
     "... must be object, list of objects, or false...";
     value = args[1];
     if (typeof(value) == TYPE_OBJ)
@@ -191,18 +191,18 @@ object MAIL_OPTIONS
     else
       return {value};
     endif
-  endverb
+  endmethod
 
-  verb show_netmail (this none this) owner: #2 flags: "rxd"
+  method show_netmail owner: #2
     if (value = this:get(@args))
       return {value, {"Have MOO-mail automatically forwarded to me at", "my registered email-address."}};
     else
       return {value, {"Receive MOO-mail here on the MOO."}};
     endif
     "Last modified Tue Jun  1 02:10:08 1993 EDT by Edison@OpalMOO (#200).";
-  endverb
+  endmethod
 
-  verb check_netmail (this none this) owner: #2 flags: "rxd"
+  method check_netmail owner: #2
     ":check_netmail(value) => Makes sure the email-address is one that can actually be used by $network:sendmail().";
     "The actual value sent is not checked since it can only be a boolean flag.  The player's email_address property is what is checked.";
     "Possible situations where the address would be unusable are when the address is invalid or we can't connect to the site to send mail.";
@@ -214,18 +214,18 @@ object MAIL_OPTIONS
       return tostr("Invalid registered email_address: ", reason);
     endif
     return args;
-  endverb
+  endmethod
 
-  verb show_expire (this none this) owner: HACKER flags: "rxd"
+  method show_expire owner: HACKER
     value = this:get(args[1], "expire");
     if (value < 0)
       return {1, {"Messages will not expire."}};
     else
       return {value, {tostr("Unkept messages expire in ", $time_utils:english_time(value || $mail_agent.player_expire_time), value ? "" | " (default)")}};
     endif
-  endverb
+  endmethod
 
-  verb parse_expire (this none this) owner: HACKER flags: "rxd"
+  method parse_expire owner: HACKER
     {oname, value, data} = args;
     if (typeof(value) == TYPE_STR && index(value, " "))
       value = $string_utils:explode(value, " ");
@@ -253,9 +253,9 @@ object MAIL_OPTIONS
     else
       return "Number, time interval (e.g., \"30 days\"), or \"Never\" expected";
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rx"
+  method init_for_core owner: #2 flags: "rx"
     if (caller_perms().wizard)
       for x in ({"fast_check", "idle_check", "idle_threshold"})
         this:remove_name(x);
@@ -266,25 +266,25 @@ object MAIL_OPTIONS
       endfor
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb check_news (this none this) owner: HACKER flags: "rxd"
+  method check_news owner: HACKER
     if ((what = args[1]) in {"new", "contents", "all"})
       return {what};
     else
       return "Error: `news' option must be one of `new' or `contents' or `all'";
     endif
-  endverb
+  endmethod
 
-  verb parse_news (this none this) owner: HACKER flags: "rxd"
+  method parse_news owner: HACKER
     if (typeof(args[2]) == TYPE_INT)
       return tostr(strsub(verb, "parse_", ""), " is not a boolean option.");
     else
       return {args[1], typeof(args[2]) == TYPE_STR ? args[2] | $string_utils:from_list(args[2], " ")};
     endif
-  endverb
+  endmethod
 
-  verb show_news (this none this) owner: HACKER flags: "rxd"
+  method show_news owner: HACKER
     if ((value = this:get(@args)) == "all")
       return {value, {"the `news' command will show all news"}};
     elseif (value == "contents")
@@ -294,9 +294,9 @@ object MAIL_OPTIONS
     else
       return {0, {"the `news' command will show all news"}};
     endif
-  endverb
+  endmethod
 
-  verb "parse_@unsend" (this none this) owner: #2 flags: "rxd"
+  method "parse_@unsend" owner: #2
     {name, value, bleh} = args;
     if (typeof(value) == TYPE_INT)
       return tostr(name, " is not a boolean option.");
@@ -312,14 +312,14 @@ object MAIL_OPTIONS
       endif
     endfor
     return {name, value};
-  endverb
+  endmethod
 
-  verb "show_@unsend" (this none this) owner: #2 flags: "rxd"
+  method "show_@unsend" owner: #2
     if (value = this:get(@args))
       return {"", {tostr("Default message sequence for @unsend:  ", typeof(value) == TYPE_STR ? value | $string_utils:from_list(value, " "))}};
     else
       default = $mail_agent.("player_default_@unsend");
       return {0, {tostr("Default message sequence for @unsend:  ", typeof(default) == TYPE_STR ? default | $string_utils:from_list(default, " "))}};
     endif
-  endverb
+  endmethod
 endobject

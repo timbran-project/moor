@@ -37,7 +37,7 @@ object MAIL_AGENT
   override import_export_id = "mail_agent";
   override object_size = {50262, 1084848672};
 
-  verb resolve_addr (this none this) owner: HACKER flags: "rxd"
+  method resolve_addr owner: HACKER
     "resolve(name,from,seen,prevrcpts,prevnotifs) => {rcpts,notifs} or E_INVARG";
     "resolve(list,from,seen,prevrcpts,prevnotifs) => {bogus,rcpts,notifs}";
     "Given either an address (i.e., objectid) or a list of such, traces down all .mail_forward lists and .mail_notify to determine where a message should actually go and who should be told about it.  Both forms take previous lists of recipients/notifications and add only those addresses that weren't there before.  `seen' is the stack of addresses we are currently resolving (for detecting loops).  The first form returns E_INVARG if `name' is invalid.  The second form returns all invalid addresses in the `bogus' list but still does the appropriate search on the remaining addresses.";
@@ -98,9 +98,9 @@ object MAIL_AGENT
       endfor
       return {include_recip ? setadd(sofar[1], recip) | sofar[1], biffs};
     endif
-  endverb
+  endmethod
 
-  verb sends_to (this none this) owner: HACKER flags: "rxd"
+  method sends_to owner: HACKER
     "sends_to(from,addr,rcpt[,seen]) ==> true iff mail sent to addr passes through rcpt.";
     {from, addr, rcpt, ?seen = {}} = args;
     if (addr == rcpt)
@@ -115,9 +115,9 @@ object MAIL_AGENT
       endfor
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb send_message (this none this) owner: HACKER flags: "rxd"
+  method send_message owner: HACKER
     "send_message(from,rcpt-list,hdrs,msg) -- formats and sends a mail message.  hders is either the text of the subject line, or a {subject,{reply-to,...}} list.";
     "Return E_PERM if from isn't owned by the caller.";
     "Return {0, @invalid_rcpts} if rcpt-list contains any invalid addresses.  No mail is sent in this case.";
@@ -145,9 +145,9 @@ object MAIL_AGENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb raw_send (this none this) owner: #2 flags: "rxd"
+  method raw_send owner: #2
     "Copied from Mail Distribution Center (#6418):raw_send by Nosredna (#2487) Mon Feb 24 10:46:26 1997 PST";
     "WIZARDLY";
     "raw_send(text,rcpts,sender) -- does the actual sending of a message.  Assumes that text has already been formatted correctly.  Decides who to send it to and who wants to be notified about it and does so.";
@@ -209,18 +209,18 @@ object MAIL_AGENT
       endfork
       return {1, @actual_rcpts};
     endif
-  endverb
+  endmethod
 
-  verb "mail_forward mail_notify" (this none this) owner: HACKER flags: "rxd"
+  method "mail_forward mail_notify" owner: HACKER
     who = args[1];
     if ($object_utils:has_verb(who, verb))
       return who:(verb)(@listdelete(args, 1));
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb touch (this none this) owner: HACKER flags: "rxd"
+  method touch owner: HACKER
     "touch(name or list,seen) => does .last_used_time = time() if we haven't already touched this in the last hour";
     {recip, ?seen = {}} = args;
     if (typeof(recip) == TYPE_LIST)
@@ -240,23 +240,23 @@ object MAIL_AGENT
         endif
       endif
     endif
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  method look_self owner: HACKER
     player:tell_lines(this.description);
     for c in (this.contents)
       $command_utils:suspend_if_needed(0);
       c:look_self();
     endfor
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  method acceptable owner: HACKER
     "Only allow mailing lists/folders in here and only if their names aren't already taken.";
     what = args[1];
     return $object_utils:isa(what, $mail_recipient) && this:check_names(what, @what.aliases) && what:description() != parent(what):description();
-  endverb
+  endmethod
 
-  verb check_names (this none this) owner: HACKER flags: "rxd"
+  method check_names owner: HACKER
     "...make sure the list has at least one usable name.";
     "...make sure none of the aliases are already taken.";
     {object, @aliases} = args;
@@ -295,9 +295,9 @@ object MAIL_AGENT
       endif
     endfor
     return ok;
-  endverb
+  endmethod
 
-  verb "match_old match" (this none this) owner: HACKER flags: "rxd"
+  method "match_old match" owner: HACKER
     ":match(string) => mailing list object in here that matches string.";
     ":match(string,player) => similar but also matches against player's private mailing lists (as kept in .mail_lists).";
     if (!(string = args[1]))
@@ -336,9 +336,9 @@ object MAIL_AGENT
       endfor
       return partial && $failed_match;
     endif
-  endverb
+  endmethod
 
-  verb match_recipient (this none this) owner: HACKER flags: "rxd"
+  method match_recipient owner: HACKER
     ":match_recipient(string[,meobj]) => $player or $mail_recipient object that matches string.  Optional second argument (defaults to player) is returned in the case string==\"me\" and is also used to obtain a list of private $mail_recipients to match against.";
     {string, ?me = player} = args;
     if (valid(me) && $failed_match != (o = me:my_match_recipient(string)))
@@ -355,9 +355,9 @@ object MAIL_AGENT
     else
       return this:match(@args);
     endif
-  endverb
+  endmethod
 
-  verb match_failed (this none this) owner: HACKER flags: "rxd"
+  method match_failed owner: HACKER
     {match_result, string, ?cmd_id = ""} = args;
     cmd_id = cmd_id || "";
     if (match_result == $nothing)
@@ -376,9 +376,9 @@ object MAIL_AGENT
       return 0;
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb make_message (this none this) owner: HACKER flags: "rxd"
+  method make_message owner: HACKER
     ":make_message(sender,recipients,subject/replyto/additional-headers,body)";
     " => message in the form as it will get sent.";
     {from, recips, hdrs, body} = args;
@@ -420,9 +420,9 @@ object MAIL_AGENT
       body = body ? {body} | {};
     endif
     return {this:time(), fromline, recips, subj || " ", @replyto ? {"Reply-to: " + replyto} | {}, @others, "", @body};
-  endverb
+  endmethod
 
-  verb name (this none this) owner: HACKER flags: "rxd"
+  method name owner: HACKER
     what = args[1];
     if (!valid(what))
       name = "???";
@@ -436,13 +436,13 @@ object MAIL_AGENT
       name[s..e] = "";
     endwhile
     return tostr(name, " (", what, ")");
-  endverb
+  endmethod
 
-  verb name_list (this none this) owner: HACKER flags: "rxd"
+  method name_list owner: HACKER
     return $string_utils:english_list($list_utils:map_arg(this, "name", args), "no one");
-  endverb
+  endmethod
 
-  verb parse_address_field (this none this) owner: HACKER flags: "rxd"
+  method parse_address_field owner: HACKER
     ":parse_address_field(string) => list of objects";
     "This is the standard routine for parsing address lists that appear in From:, To: and Reply-To: lines";
     objects = {};
@@ -455,9 +455,9 @@ object MAIL_AGENT
       string = string[e + 1..$];
     endwhile
     return objects;
-  endverb
+  endmethod
 
-  verb display_seq_full (this none this) owner: #2 flags: "rxd"
+  method display_seq_full owner: #2
     ":display_seq_full(msg_seq[,preamble]) => {cur, last-read-date}";
     "This is the default message display routine.";
     "Prints entire messages on folder (caller) to player.  msg_seq is the handle returned by :parse_message_seq(...) and indicates which messages should be printed.  preamble, if given will precede the output of the message itself, in which case the message number will be substituted for \"%d\".  Returns the number of the final message in the sequence (which can be then used as the new current message number).";
@@ -473,9 +473,9 @@ object MAIL_AGENT
       endif
     endfor
     return {cur, date};
-  endverb
+  endmethod
 
-  verb display_seq_headers (this none this) owner: #2 flags: "rxd"
+  method display_seq_headers owner: #2
     ":display_seq_headers(msg_seq[,cur[,last_read_date]])";
     "This is the default header display routine.";
     "Prints a list of headers of messages on caller to player.  msg_seq is the handle returned by caller:parse_message_seq(...).  cur is the player's current message.  last_read_date is the date of the last of the already-read messages.";
@@ -497,9 +497,9 @@ object MAIL_AGENT
       endif
     endfor
     player:tell("----+");
-  endverb
+  endmethod
 
-  verb rm_message_seq (this none this) owner: #2 flags: "rxd"
+  method rm_message_seq owner: #2
     ":rm_message_seq(msg_seq)  removes the given sequence of from folder (caller)";
     "...removed messages are saved in .messages_going for possible restoration.";
     set_task_perms(caller_perms());
@@ -529,9 +529,9 @@ object MAIL_AGENT
       caller:_fix_last_msg_date();
     endif
     return $seq_utils:tostr(nums);
-  endverb
+  endmethod
 
-  verb undo_rmm (this none this) owner: #2 flags: "rxd"
+  method undo_rmm owner: #2
     ":undo_rmm()  restores previously deleted messages in .messages_going to .messages.";
     set_task_perms(caller_perms());
     old = caller.messages;
@@ -560,9 +560,9 @@ object MAIL_AGENT
       caller:_fix_last_msg_date();
     endif
     return seq;
-  endverb
+  endmethod
 
-  verb "expunge_rmm list_rmm" (this none this) owner: #2 flags: "rxd"
+  method "expunge_rmm list_rmm" owner: #2
     ":list_rmm()    displays contents of .messages_going.";
     ":expunge_rmm() destroys contents of .messages_going once and for all.";
     "... both return the number of messages in .messages_going.";
@@ -607,9 +607,9 @@ object MAIL_AGENT
       endif
       return length(msgs);
     endif
-  endverb
+  endmethod
 
-  verb renumber (this none this) owner: #2 flags: "rxd"
+  method renumber owner: #2
     ":renumber([cur]) -- assumes caller is a $mail_recipient or a $player.";
     "...renumbers caller.messages, doing a suspend() if necessary.";
     "...returns {number of messages,new cur}.";
@@ -655,9 +655,9 @@ object MAIL_AGENT
       "... have to be careful since new mail may be received at this point...";
       msgs = caller.messages;
     endwhile
-  endverb
+  endmethod
 
-  verb msg_summary_line (this none this) owner: HACKER flags: "rxd"
+  method msg_summary_line owner: HACKER
     ":msg_summary_line(@msg) => date/from/subject as a single string.";
     body = ("" in {@args, ""}) + 1;
     if (body > length(args) || !(subject = args[body]))
@@ -674,9 +674,9 @@ object MAIL_AGENT
       subject = args[4];
     endif
     return tostr(date, "   ", $string_utils:left(from, 20), "   ", subject);
-  endverb
+  endmethod
 
-  verb parse_message_seq (this none this) owner: #2 flags: "rxd"
+  method parse_message_seq owner: #2
     "parse_message_seq(strings,cur[,last_old])";
     "This is the default <message-sequence> parsing routine for those mail commands that refer to sequences of messages (@mail, @read,...) on a folder.";
     "  caller (the folder) is assumed to be a $mail_recipient or a player.";
@@ -842,9 +842,9 @@ object MAIL_AGENT
       endif
     endfor
     return {$seq_utils:union(result, seq)};
-  endverb
+  endmethod
 
-  verb "_parse_from _parse_to" (this none this) owner: HACKER flags: "rxd"
+  method "_parse_from _parse_to" owner: HACKER
     ":_parse_from(string with |'s in it) => object list";
     ":_parse_to(string with |'s in it) => object list";
     "  for from:string and to:string items in :parse_message_seq";
@@ -869,9 +869,9 @@ object MAIL_AGENT
       plist = setadd(plist, p);
     endfor
     return plist;
-  endverb
+  endmethod
 
-  verb _parse_date (this none this) owner: HACKER flags: "rxd"
+  method _parse_date owner: HACKER
     words = $string_utils:explode(args[1], "-");
     if (length(words) == 1)
       if (index("yesterday", words[1]) == 1)
@@ -895,9 +895,9 @@ object MAIL_AGENT
       endif
     endif
     return time;
-  endverb
+  endmethod
 
-  verb new_message_num (this none this) owner: #2 flags: "rxd"
+  method new_message_num owner: #2
     ":new_message_num() => number that the next incoming message will receive.";
     set_task_perms(caller_perms());
     new = (msgs = caller.messages) ? msgs[$][1] + 1 | 1;
@@ -910,14 +910,14 @@ object MAIL_AGENT
     else
       return new;
     endif
-  endverb
+  endmethod
 
-  verb length_all_msgs (this none this) owner: #2 flags: "rxd"
+  method length_all_msgs owner: #2
     set_task_perms(caller_perms());
     return length(caller.messages);
-  endverb
+  endmethod
 
-  verb length_date_le (this none this) owner: #2 flags: "rxd"
+  method length_date_le owner: #2
     set_task_perms(caller_perms());
     date = args[1];
     msgs = caller.messages;
@@ -939,9 +939,9 @@ object MAIL_AGENT
       endwhile
       return r;
     endif
-  endverb
+  endmethod
 
-  verb length_date_gt (this none this) owner: #2 flags: "rxd"
+  method length_date_gt owner: #2
     set_task_perms(caller_perms());
     date = args[1];
     msgs = caller.messages;
@@ -964,21 +964,21 @@ object MAIL_AGENT
       endwhile
       return len - r;
     endif
-  endverb
+  endmethod
 
-  verb length_num_le (this none this) owner: #2 flags: "rxd"
+  method length_num_le owner: #2
     ":length_num_le(num) => number of messages in folder numbered <= num";
     set_task_perms(caller_perms());
     return $list_utils:iassoc_sorted(args[1], caller.messages);
-  endverb
+  endmethod
 
-  verb exists_num_eq (this none this) owner: #2 flags: "rxd"
+  method exists_num_eq owner: #2
     ":exists_num_eq(num) => index of message in folder numbered == num";
     set_task_perms(caller_perms());
     return (i = $list_utils:iassoc_sorted(args[1], caller.messages)) && (caller.messages[i][1] == args[1] && i);
-  endverb
+  endmethod
 
-  verb from_msg_seq (this none this) owner: #2 flags: "rxd"
+  method from_msg_seq owner: #2
     ":from_msg_seq(object or list[,mask])";
     " => msg_seq of messages from any of these senders";
     set_task_perms(caller_perms());
@@ -1004,9 +1004,9 @@ object MAIL_AGENT
       $command_utils:suspend_if_needed(0);
     endfor
     return fseq || "%f %<has> no messages from " + $string_utils:english_list($list_utils:map_arg(2, $string_utils, "pronoun_sub", "%n (%#)", plist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb "%from_msg_seq" (this none this) owner: #2 flags: "rxd"
+  method "%from_msg_seq" owner: #2
     ":%from_msg_seq(string or list of strings[,mask])";
     " => msg_seq of messages with one of these strings in the from line";
     set_task_perms(caller_perms());
@@ -1032,9 +1032,9 @@ object MAIL_AGENT
       $command_utils:suspend_if_needed(0);
     endfor
     return fseq || "%f %<has> no messages from " + $string_utils:english_list($list_utils:map_arg($string_utils, "print", nlist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb to_msg_seq (this none this) owner: #2 flags: "rxd"
+  method to_msg_seq owner: #2
     ":to_msg_seq(object or list[,mask]) => msg_seq of messages to those people";
     set_task_perms(caller_perms());
     {plist, ?mask = {1}} = args;
@@ -1059,9 +1059,9 @@ object MAIL_AGENT
       $command_utils:suspend_if_needed(0);
     endfor
     return seq || "%f %<has> no messages to " + $string_utils:english_list($list_utils:map_arg(2, $string_utils, "pronoun_sub", "%n (%#)", plist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb "%to_msg_seq" (this none this) owner: #2 flags: "rxd"
+  method "%to_msg_seq" owner: #2
     ":%to_msg_seq(string or list of strings[,mask])";
     " => msg_seq of messages containing one of strings in the to line";
     set_task_perms(caller_perms());
@@ -1087,9 +1087,9 @@ object MAIL_AGENT
       $command_utils:suspend_if_needed(0);
     endfor
     return seq || "%f %<has> no messages to " + $string_utils:english_list($list_utils:map_arg($string_utils, "print", nlist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb subject_msg_seq (this none this) owner: #2 flags: "rxd"
+  method subject_msg_seq owner: #2
     ":subject_msg_seq(target) => msg_seq of messages with target in the Subject:";
     set_task_perms(caller_perms());
     {target, ?mask = {1}} = args;
@@ -1109,9 +1109,9 @@ object MAIL_AGENT
       $command_utils:suspend_if_needed(0);
     endfor
     return seq || "%f %<has> no messages with subjects containing `" + target + "'";
-  endverb
+  endmethod
 
-  verb body_msg_seq (this none this) owner: #2 flags: "rxd"
+  method body_msg_seq owner: #2
     ":body_msg_seq(target[,mask]) => msg_seq of messages with target in the body";
     set_task_perms(caller_perms());
     {target, ?mask = {1}} = args;
@@ -1136,9 +1136,9 @@ object MAIL_AGENT
       $command_utils:suspend_if_needed(0);
     endfor
     return seq || tostr("%f %<has> no messages containing `", target, "' in the body.");
-  endverb
+  endmethod
 
-  verb messages_in_seq (this none this) owner: #2 flags: "rxd"
+  method messages_in_seq owner: #2
     ":messages_in_seq(msg_seq) => list of messages in msg_seq on folder (caller)";
     set_task_perms(caller_perms());
     if (typeof(msgs = args[1]) != TYPE_LIST)
@@ -1148,9 +1148,9 @@ object MAIL_AGENT
     else
       return $seq_utils:extract(msgs, caller.messages);
     endif
-  endverb
+  endmethod
 
-  verb __convert_new (this none this) owner: #2 flags: "rxd"
+  method __convert_new owner: #2
     ":__convert_new(@msg) => msg in new format (if it isn't already)";
     "               ^ don't forget the @ here.";
     "If the msg is already in the new format it passes through unchanged.";
@@ -1197,14 +1197,14 @@ object MAIL_AGENT
       player:notify("Warning: no to-line.");
     endif
     return {date, from, to, subject, @newhdr, @args[blank..$]};
-  endverb
+  endmethod
 
-  verb to_text (this none this) owner: HACKER flags: "rxd"
+  method to_text owner: HACKER
     ":to_text(@msg) => message in text form (suitable for printing)";
     return {"Date:     " + player:ctime(args[1]), "From:     " + args[2], "To:       " + args[3], @args[4] == " " ? {} | {"Subject:  " + args[4]}, @args[5..$]};
-  endverb
+  endmethod
 
-  verb "is_readable_by is_writable_by is_usable_by" (this none this) owner: HACKER flags: "rxd"
+  method "is_readable_by is_writable_by is_usable_by" owner: HACKER
     what = args[1];
     if ($object_utils:isa(what, $mail_recipient))
       return what:(verb)(@listdelete(args, 1));
@@ -1214,9 +1214,9 @@ object MAIL_AGENT
       "...  only the player itself or a wizard can read it.";
       return verb == "is_usable_by" || $perm_utils:controls(args[2], what);
     endif
-  endverb
+  endmethod
 
-  verb reserved_pattern (this none this) owner: HACKER flags: "rxd"
+  method reserved_pattern owner: HACKER
     ":reserved_pattern(string)";
     "  if string matches one of the reserved patterns for mailing list names, ";
     "  we return that element of .reserved_patterns.";
@@ -1227,13 +1227,13 @@ object MAIL_AGENT
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb is_recipient (this none this) owner: HACKER flags: "rxd"
+  method is_recipient owner: HACKER
     return valid(what = args[1]) && ($mail_recipient_class in (ances = $object_utils:ancestors(what)) || $mail_recipient in ances);
-  endverb
+  endmethod
 
-  verb keep_message_seq (this none this) owner: #2 flags: "rxd"
+  method keep_message_seq owner: #2
     ":keep_message_seq(msg_seq)";
     "...If msg_seq nonempty {}, this marks the indicated messages on this folder (caller)";
     "...as immune from expiration.";
@@ -1257,9 +1257,9 @@ object MAIL_AGENT
       nums = {@nums, (start = !start) ? caller:messages_in_seq(a)[1] | caller:messages_in_seq(a - 1)[1] + 1};
     endfor
     return $seq_utils:tostr(nums);
-  endverb
+  endmethod
 
-  verb "kept_msg_seq unkept_msg_seq" (this none this) owner: #2 flags: "rxd"
+  method "kept_msg_seq unkept_msg_seq" owner: #2
     ":kept_msg_seq([mask])";
     " => msg_seq of messages that are marked kept";
     ":unkept_msg_seq([mask])";
@@ -1272,21 +1272,21 @@ object MAIL_AGENT
       kseq = $seq_utils:intersection(mask, $seq_utils:range(1, caller:length_all_msgs()), $seq_utils:complement(caller.messages_kept));
     endif
     return kseq;
-  endverb
+  endmethod
 
-  verb msg_seq_to_msg_num_string (this none this) owner: #2 flags: "rxd"
+  method msg_seq_to_msg_num_string owner: #2
     ":msg_seq_to_msg_num_string(msg_seq) => string giving the corresponding message numbers";
     set_task_perms(caller_perms());
     return $seq_utils:tostr($seq_utils:from_list($list_utils:slice(caller:messages_in_seq(args[1]))));
-  endverb
+  endmethod
 
-  verb msg_seq_to_msg_num_list (this none this) owner: #2 flags: "rxd"
+  method msg_seq_to_msg_num_list owner: #2
     ":msg_seq_to_msg_num_list(msg_seq) => list of corresponding message numbers";
     set_task_perms(caller_perms());
     return $list_utils:slice(caller:messages_in_seq(args[1]));
-  endverb
+  endmethod
 
-  verb send_log_message (this none this) owner: HACKER flags: "rxd"
+  method send_log_message owner: HACKER
     "send_log_message(perms,from,rcpt-list,hdrs,msg) -- formats and sends a mail message. hders is either the text of the subject line, or a {subject,{reply-to,...}} list.";
     "KLUDGE.  this may go away.";
     "Send a message while supplying a different permission for use by :mail_forward to determine moderation action.";
@@ -1300,9 +1300,9 @@ object MAIL_AGENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb parse_misc_headers (this none this) owner: HACKER flags: "rxd"
+  method parse_misc_headers owner: HACKER
     ":parse_misc_headers(msg,@extract_names)";
     "Extracts the miscellaneous (i.e., not including Date: From: To: Subject:)";
     "from msg (a mail message in the usual transmission format).";
@@ -1332,9 +1332,9 @@ object MAIL_AGENT
       endif
     endfor
     return {heads, bogus, extract_texts, msgtxt[bstart + 1..$]};
-  endverb
+  endmethod
 
-  verb resend_message (this none this) owner: #2 flags: "rxd"
+  method resend_message owner: #2
     "resend_message(new_sender,new_rcpts,from,to,hdrs,body)";
     " -- reformats and resends a previously sent message to new recipients.";
     "msg is the previous message";
@@ -1354,18 +1354,18 @@ object MAIL_AGENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rx"
+  method init_for_core owner: #2 flags: "rx"
     if (caller_perms().wizard)
       this.reserved_patterns = {};
       this.last_mail_time = 0;
       this.time_collisions = {0, 0};
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb time (this none this) owner: HACKER flags: "rxd"
+  method time owner: HACKER
     "This was inspired by Xeric's port 4632 on *Core-DB-Issues";
     now = time();
     return now;
@@ -1380,9 +1380,9 @@ object MAIL_AGENT
     else
       return now;
     endif
-  endverb
+  endmethod
 
-  verb set_message_body_by_index (this none this) owner: #2 flags: "rxd"
+  method set_message_body_by_index owner: #2
     ":set_message_body_by_index(i,newbody)";
     "Replaces the body of the i-th message on the (caller) recipient.";
     "i must be a message index (not a message number) in the range 1 .. number of messages,";
@@ -1395,12 +1395,12 @@ object MAIL_AGENT
     else
       caller.messages[i][2][$ + 1..$] = {"", @body};
     endif
-  endverb
+  endmethod
 
-  verb get_message_body_by_index (this none this) owner: #2 flags: "rxd"
-  endverb
+  method get_message_body_by_index owner: #2
+  endmethod
 
-  verb message_body_by_index (this none this) owner: #2 flags: "rxd"
+  method message_body_by_index owner: #2
     ":message_body_by_index(i)";
     "Return the body of the i-th message on the (caller) recipient.";
     "i must be a message index (not a message number) in the range 1 .. number of messages,";
@@ -1409,5 +1409,5 @@ object MAIL_AGENT
     msg = caller:messages_in_seq({i, i + 1})[1][2];
     bstart = "" in msg;
     return msg[bstart ? bstart + 1 | $ + 1..$];
-  endverb
+  endmethod
 endobject

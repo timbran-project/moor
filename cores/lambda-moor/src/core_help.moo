@@ -1683,7 +1683,7 @@ object CORE_HELP
   override index_cache = {"core-index"};
   override object_size = {105976, 1084848672};
 
-  verb find_topics (this none this) owner: HACKER flags: "rxd"
+  method find_topics owner: HACKER
     if (!args)
       l = {};
       for p in (properties(#0))
@@ -1703,23 +1703,23 @@ object CORE_HELP
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb get_topic (this none this) owner: HACKER flags: "rxd"
+  method get_topic owner: HACKER
     topic = args[1];
     if (topic == "$" + topic[2..$ - 5] + "utils" && (valid(#0.(w = strsub(topic[2..$], "-", "_"))) && (uhelp = #0.(w):description())))
       return {tostr("General information on $", w, ":"), "----", @typeof(uhelp) == TYPE_STR ? {uhelp} | uhelp};
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb dump_topic (this none this) owner: #2 flags: "rxd"
+  method dump_topic owner: #2
     if (E_PROPNF != (text = pass(@args)) || (args[1][1] != "$" || (!((uprop = args[1][2..$]) in properties(#0)) || typeof(uobj = #0.(uprop)) != TYPE_OBJ)))
       return text;
     else
       udesc = uobj.description;
       return {tostr(";;$", uprop, ".description = $command_utils:read_lines()"), @$command_utils:dump_lines(typeof(udesc) == TYPE_LIST ? udesc | {udesc})};
     endif
-  endverb
+  endmethod
 endobject

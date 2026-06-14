@@ -217,7 +217,7 @@ object WIZ_UTILS
   override import_export_id = "wiz_utils";
   override object_size = {55744, 1084848672};
 
-  verb set_programmer (this none this) owner: #2 flags: "rxd"
+  method set_programmer owner: #2
     ":set_programmer(victim[,mail from])  => 1 or error.";
     "Sets victim.programmer, chparents victim to $prog if necessary, and sends mail to $new_prog_log, mail is from optional second arg or caller_perms().";
     whodunnit = caller_perms();
@@ -248,9 +248,9 @@ object WIZ_UTILS
       endif
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb set_player (this none this) owner: #2 flags: "rxd"
+  method set_player owner: #2
     ":set_player(victim[,nochown]) => 1 or error";
     "Set victim's player flag, (maybe) chown to itself, add name and aliases to $player_db.";
     " E_NONE == already a player,";
@@ -290,9 +290,9 @@ object WIZ_UTILS
       victim.aliases = setadd(aliases, name);
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb set_owner (this none this) owner: #2 flags: "rxd"
+  method set_owner owner: #2
     ":set_owner(object,newowner[,suspendok])  does object.owner=newowner, taking care of c properties as well.  This should be used anyplace one is contemplating doing object.owner=newowner, since the latter leaves ownership of c properties unchanged.  (--Rog thinks this is a server bug).";
     {object, newowner, ?suspendok = 0} = args;
     if (!valid(object))
@@ -330,9 +330,9 @@ object WIZ_UTILS
       endif
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb set_property_owner (this none this) owner: #2 flags: "rxd"
+  method set_property_owner owner: #2
     ":set_property_owner(object,prop,newowner[,suspendok])  changes the ownership of object.prop to newowner.  If the property is !c, changes the ownership on all of the descendents as well.  Otherwise, we just chown the property on the object itself and give a warning if newowner!=object.owner (--Rog thinks this is a server bug that one is able to do this at all...).";
     {object, pname, newowner, ?suspendok = 0} = args;
     if (!caller_perms().wizard)
@@ -362,9 +362,9 @@ object WIZ_UTILS
       endfor
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb unset_player (this none this) owner: #2 flags: "rxd"
+  method unset_player owner: #2
     ":unset_player(victim[,newowner])  => 1 or error";
     "Reset victim's player flag, chown victim to newowner (if given), remove all of victim's names and aliases from $player_db.";
     {victim, ?newowner = 0} = args;
@@ -396,9 +396,9 @@ object WIZ_UTILS
     endfor
     return 1;
     "Paragraph (#122534) - Sat Nov 5, 2005 - Remove any shared character registry listings for `victim'.";
-  endverb
+  endmethod
 
-  verb set_property_flags (this none this) owner: #2 flags: "rxd"
+  method set_property_flags owner: #2
     ":set_property_flags(object,prop,flags[,suspendok])  changes the permissions on object.prop to flags.  Unlike a mere set_property_info, this changes the flags on all descendant objects as well.  We also change the ownership on the descendent properties where necessary.";
     {object, pname, flags, ?suspendok = 0} = args;
     perms = caller_perms();
@@ -429,9 +429,9 @@ object WIZ_UTILS
       endfor
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb _set_property_flags (this none this) owner: #2 flags: "rxd"
+  method _set_property_flags owner: #2
     "_set_property_flags(object, pname, {owner, flags} or something+\"c\", suspendok)";
     "auxiliary to :set_property_flags... don't call this directly.";
     if (caller != this)
@@ -449,9 +449,9 @@ object WIZ_UTILS
     for kid in (children(object))
       this:_set_property_flags(@listset(args, kid, 1));
     endfor
-  endverb
+  endmethod
 
-  verb random_password (this none this) owner: #2 flags: "rxd"
+  method random_password owner: #2
     "Generate a random password of length args[1].  Alternates vowels and consonants, for maximum pronounceability.  Uses its own list of consonants which exclude F and C and K to prevent generating obscene sounding passwords.";
     "Capital I and lowercase L are excluded on the basis of looking like each other.";
     vowels = "aeiouyAEUY";
@@ -469,9 +469,9 @@ object WIZ_UTILS
     else
       return E_INVARG;
     endif
-  endverb
+  endmethod
 
-  verb queued_tasks (this none this) owner: #2 flags: "rxd"
+  method queued_tasks owner: #2
     ":queued_tasks(player) => list of queued tasks for that player.";
     "shouldn't the server builtin should work this way?  oh well";
     set_task_perms(caller_perms());
@@ -488,18 +488,18 @@ object WIZ_UTILS
     else
       return queued_tasks();
     endif
-  endverb
+  endmethod
 
-  verb isnewt (this none this) owner: #2 flags: "rxd"
+  method isnewt owner: #2
     "Return 1 if args[1] is a newted player.";
     if (!caller_perms().wizard)
       return E_PERM;
     else
       return args[1] in $login.newted;
     endif
-  endverb
+  endmethod
 
-  verb initialize_owned (this none this) owner: #2 flags: "rxd"
+  method initialize_owned owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -517,9 +517,9 @@ object WIZ_UTILS
       this:verify_owned_objects();
       player:tell("Finished:  ", ctime());
     endif
-  endverb
+  endmethod
 
-  verb verify_owned_objects (this none this) owner: #2 flags: "rxd"
+  method verify_owned_objects owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -538,9 +538,9 @@ object WIZ_UTILS
         endif
       endfor
     endif
-  endverb
+  endmethod
 
-  verb "connected_wizards connected_wizards_unadvertised" (this none this) owner: HACKER flags: "rxd"
+  method "connected_wizards connected_wizards_unadvertised" owner: HACKER
     ":connected_wizards() => list of currently connected wizards and players mentioned in .public_identity properties as being wizard counterparts.";
     wizzes = $object_utils:leaves($wiz);
     wlist = {};
@@ -556,9 +556,9 @@ object WIZ_UTILS
       endif
     endfor
     return wlist;
-  endverb
+  endmethod
 
-  verb "all_wizards_advertised all_wizards all_wizards_unadvertised" (this none this) owner: HACKER flags: "rxd"
+  method "all_wizards_advertised all_wizards all_wizards_unadvertised" owner: HACKER
     ":all_wizards_advertised() => list of all wizards who have set .advertised true and players mentioned their .public_identity properties as being wizard counterparts";
     wizzes = $object_utils:leaves($wiz);
     wlist = {};
@@ -574,9 +574,9 @@ object WIZ_UTILS
       endif
     endfor
     return wlist;
-  endverb
+  endmethod
 
-  verb rename_all_instances (this none this) owner: #2 flags: "rxd"
+  method rename_all_instances owner: #2
     ":rename_all_instances(object,oldname,newname)";
     "Used to rename all instances of an unwanted verb (like recycle or disfunc)";
     "if said verb is actually defined on the object itself";
@@ -591,9 +591,9 @@ object WIZ_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb missed_help (this none this) owner: #2 flags: "rxd"
+  method missed_help owner: #2
     if (this.record_missed_help && callers()[1][4] == $player)
       miss = args[1];
       if (!(index = miss in this.missed_help_strings))
@@ -604,9 +604,9 @@ object WIZ_UTILS
       which = args[2] ? 2 | 1;
       this.missed_help_counters[index][which] = this.missed_help_counters[index][which] + 1;
     endif
-  endverb
+  endmethod
 
-  verb show_missing_help (this none this) owner: #2 flags: "rxd"
+  method show_missing_help owner: #2
     mhs = this.missed_help_strings;
     cnt = this.missed_help_counters;
     "save values first, so subsequent changes during suspends wont affect it";
@@ -626,9 +626,9 @@ object WIZ_UTILS
       player:tell(sorted[len - x + 1]);
     endfor
     player:tell(" - - - - - - - - -");
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       `delete_property(this, "guest_feature_restricted") ! ANY';
@@ -647,9 +647,9 @@ object WIZ_UTILS
       this.expiration_progress = $nothing;
       this.expiration_recipient = {#2};
     endif
-  endverb
+  endmethod
 
-  verb show_netwho_listing (this none this) owner: #2 flags: "rxd"
+  method show_netwho_listing owner: #2
     ":show_netwho_listing(tell,player_list)";
     " prints a listing of the indicated players showing connect sites.";
     {who, unsorted} = args;
@@ -726,9 +726,9 @@ object WIZ_UTILS
         who:notify("(+) == graylisted site.");
       endif
     endif
-  endverb
+  endmethod
 
-  verb show_netwho_from_listing (this none this) owner: #2 flags: "rxd"
+  method show_netwho_from_listing owner: #2
     ":show_netwho_from_listing(tell,site)";
     "@net-who from hoststring prints all players who have connected from that host or host substring.  Substring can include *'s, e.g. @net-who from *.foo.edu.";
     if (!caller_perms().wizard)
@@ -802,9 +802,9 @@ object WIZ_UTILS
       endfor
       tellwho:notify(tostr(howmany || "No", " matches found."));
     endif
-  endverb
+  endmethod
 
-  verb "check_player_request check_reregistration" (this none this) owner: #2 flags: "rxd"
+  method "check_player_request check_reregistration" owner: #2
     ":check_player_request(name [,email [,connection]])";
     " check if the request for player and email address is valid;";
     " return empty string if it valid, or else a string saying why not.";
@@ -863,9 +863,9 @@ object WIZ_UTILS
       return tostr("-Automatic registration is not allowed from ", parsed[2], ".");
     endif
     return "";
-  endverb
+  endmethod
 
-  verb make_player (this none this) owner: #2 flags: "rxd"
+  method make_player owner: #2
     "create a player named NAME with email address ADDRESS; return {object, password}.  Optional third arg is comment to be put in registration db.";
     "assumes $wiz_utils:check_player_request() has been called and it passes.";
     if (!caller_perms().wizard)
@@ -890,9 +890,9 @@ object WIZ_UTILS
     move(new, $player_start);
     new.programmer = $player_class.programmer;
     return {new, password};
-  endverb
+  endmethod
 
-  verb send_new_player_mail (this none this) owner: #2 flags: "rxd"
+  method send_new_player_mail owner: #2
     ":send_new_player_mail(preface, name, address, character#, password)";
     "  used by $wiz:@make-player and $guest:@request";
     if (!caller_perms().wizard)
@@ -905,7 +905,7 @@ object WIZ_UTILS
       msg = {@msg, @$local.new_player_message};
     endif
     return $network:sendmail(address, "Your " + $network.moo_name + " character, " + name, "Reply-to: " + $login.registration_address, @msg);
-  endverb
+  endmethod
 
   verb do_make_player (any any any) owner: #2 flags: "rxd"
     "do_maker_player(name,email,[comment])";
@@ -953,7 +953,7 @@ object WIZ_UTILS
     endif
   endverb
 
-  verb do_register (this none this) owner: #2 flags: "rxd"
+  method do_register owner: #2
     "do_register(name, email_address [,comments])";
     "change player's email address.";
     if (!caller_perms().wizard)
@@ -983,9 +983,9 @@ object WIZ_UTILS
     old = $wiz_utils:get_email_address(who);
     $wiz_utils:set_email_address(who, email);
     player:notify(tostr(who.name, " (", who, ") formerly ", old ? old | "unregistered", ", registered at ", email, ".", comments ? " [" + comments + "]" | ""));
-  endverb
+  endmethod
 
-  verb do_new_password (this none this) owner: #2 flags: "rxd"
+  method do_new_password owner: #2
     "do_new_password(who, [password])";
     if (!caller_perms().wizard)
       return E_PERM;
@@ -1020,9 +1020,9 @@ object WIZ_UTILS
     else
       player:tell("No mail sent.");
     endif
-  endverb
+  endmethod
 
-  verb set_owner_new (this none this) owner: #2 flags: "rxd"
+  method set_owner_new owner: #2
     ":set_owner(object,newowner[,suspendok])  does object.owner=newowner, taking care of c properties as well.  This should be used anyplace one is contemplating doing object.owner=newowner, since the latter leaves ownership of c properties unchanged.  (--Rog thinks this is a server bug).";
     {object, newowner, ?suspendok = 0} = args;
     if (!valid(object))
@@ -1060,9 +1060,9 @@ object WIZ_UTILS
       endif
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb boot_idlers (this none this) owner: #2 flags: "rxd"
+  method boot_idlers owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
@@ -1117,9 +1117,9 @@ object WIZ_UTILS
     endfork
     this.boot_task = taskn;
     "This is set up so that it forks the task first, and this.boot_task is the task_id of whatever is running the idle booter";
-  endverb
+  endmethod
 
-  verb grant_object (this none this) owner: #2 flags: "rxd"
+  method grant_object owner: #2
     ":grant_object(what, towhom);";
     "Ownership of the object changes as in @chown and :set_owner (i.e., .owner and all c properties change).  In addition all verbs and !c properties owned by the original owner change ownership as well.  Finally, for !c properties, instances on descendant objects change ownership (as in :set_property_owner).";
     if (!caller_perms().wizard)
@@ -1148,9 +1148,9 @@ object WIZ_UTILS
     suspend(0);
     $wiz_utils:set_owner(object, newowner, 1);
     return same ? "nothing changed" | "grant changed";
-  endverb
+  endmethod
 
-  verb connection_hash (this none this) owner: #2 flags: "rxd"
+  method connection_hash owner: #2
     "connection_hash(forwhom, host [,seed])";
     "Compute an encrypted hash of the host for 'forwhom', using 'crypt'.";
     {forwhom, host, @seed} = args;
@@ -1159,9 +1159,9 @@ object WIZ_UTILS
       hash = hash * 14 + index($string_utils.ascii, host[i]);
     endfor
     return crypt(tostr(hash), @seed);
-  endverb
+  endmethod
 
-  verb newt_player (this none this) owner: #2 flags: "rxd"
+  method newt_player owner: #2
     ":newt_player(who [ , commentary] [, temporary])";
     {who, ?comment = "", ?temporary = 0} = args;
     if (!caller_perms().wizard)
@@ -1191,9 +1191,9 @@ object WIZ_UTILS
       endif
       player:notify(tostr("Mail sent to ", $mail_agent:name($newt_log), "."));
     endif
-  endverb
+  endmethod
 
-  verb unset_programmer (this none this) owner: #2 flags: "rxd"
+  method unset_programmer owner: #2
     ":unset_programmer(victim[,reason[,start time,duration]]) => 1 or error.";
     "Resets victim.programmer, adds victim to .programmer_restricted.";
     "Put into temporary list if 3rd and 4th arguments are given. Which restricts the victim for uptime duration since start time. Must give a reason, though it can be blank, in this case.";
@@ -1215,9 +1215,9 @@ object WIZ_UTILS
       $mail_agent:send_message(caller_perms(), {$newt_log}, tostr("@deprogrammer ", victim.name, " (", victim, ")"), reason ? typeof(reason) == TYPE_STR ? {reason} | reason | {});
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb is_wizard (this none this) owner: HACKER flags: "rxd"
+  method is_wizard owner: HACKER
     ":is_wizard(who) => whether `who' is a wizard or is the .public_identity of some wizard.";
     "This verb is used for permission checks on commands that should only be accessible to wizards or their ordinary-player counterparts.  It will return true for unadvertised wizards.";
     who = args[1];
@@ -1231,7 +1231,7 @@ object WIZ_UTILS
       endfor
     endif
     return 0;
-  endverb
+  endmethod
 
   verb expire_mail (none none none) owner: #2 flags: "rxd"
     if (!caller_perms().wizard)
@@ -1241,7 +1241,7 @@ object WIZ_UTILS
     this:expire_mail_players();
   endverb
 
-  verb expire_mail_weekly (this none this) owner: #2 flags: "rxd"
+  method expire_mail_weekly owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
@@ -1249,9 +1249,9 @@ object WIZ_UTILS
       this:(verb)();
     endfork
     this:expire_mail();
-  endverb
+  endmethod
 
-  verb check_prog_restricted (this none this) owner: #2 flags: "rxd"
+  method check_prog_restricted owner: #2
     "Checks to see if args[1] is restricted from programmer either permanently or temporarily. Removes from temporary list if time is up";
     if (caller != this && !$perm_utils:controls(caller_perms(), this))
       return E_PERM;
@@ -1274,9 +1274,9 @@ object WIZ_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb expire_mail_players (this none this) owner: #2 flags: "rxd"
+  method expire_mail_players owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
@@ -1293,9 +1293,9 @@ object WIZ_UTILS
     endfor
     $mail_agent:send_message(player, this.expiration_recipient, verb, tostr(s, " messages have been expired from players."));
     return s;
-  endverb
+  endmethod
 
-  verb expire_mail_lists (this none this) owner: #2 flags: "rxd"
+  method expire_mail_lists owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
@@ -1312,9 +1312,9 @@ object WIZ_UTILS
     endfor
     $mail_agent:send_message(player, this.expiration_recipient, verb, tostr(sum, " messages have been expired from mailing lists."));
     return sum;
-  endverb
+  endmethod
 
-  verb flush_editors (this none this) owner: #2 flags: "rxd"
+  method flush_editors owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -1327,9 +1327,9 @@ object WIZ_UTILS
         $command_utils:suspend_if_needed(0);
       endfor
     endif
-  endverb
+  endmethod
 
-  verb random_wizard (this none this) owner: #2 flags: "rxd"
+  method random_wizard owner: #2
     "Put all your wizards in $wiz_utils.wizards.  Then various long-running tasks will cycle among the permissions, spreading out the scheduler-induced personal lag.";
     w = this.wizards;
     i = this.next_perm_index;
@@ -1340,9 +1340,9 @@ object WIZ_UTILS
     endif
     this.next_perm_index = i;
     return w[i];
-  endverb
+  endmethod
 
-  verb set_email_address (this none this) owner: #2 flags: "rxd"
+  method set_email_address owner: #2
     set_task_perms(caller_perms());
     {who, email} = args;
     if (typeof(who.email_address) == TYPE_LIST)
@@ -1350,9 +1350,9 @@ object WIZ_UTILS
     else
       who.email_address = email;
     endif
-  endverb
+  endmethod
 
-  verb get_email_address (this none this) owner: #2 flags: "rxd"
+  method get_email_address owner: #2
     set_task_perms(caller_perms());
     {who} = args;
     if (typeof(who.email_address) == TYPE_LIST)
@@ -1360,5 +1360,5 @@ object WIZ_UTILS
     else
       return who.email_address;
     endif
-  endverb
+  endmethod
 endobject

@@ -14,7 +14,7 @@ object GENERIC_DB
   override import_export_id = "generic_db";
   override object_size = {17214, 1084848672};
 
-  verb "find find_key" (this none this) owner: HACKER flags: "rxd"
+  method "find find_key" owner: HACKER
     "find(string[,n]) => datum corresponding to string with the search starting at node \" \"+string[1..n], n defaults to 0 (root node), $ambiguous_match or $failed_match";
     "find_key(string[,n]) is like :find but returns the full string key rather than the associated datum.  Note that if several string keys present in the db share a common prefix, :find_key(prefix) will return $ambiguous_match, but if there is a unique datum associated with all of these strings :find(prefix) will return it rather than $ambiguous_match.";
     "Assumes n<=length(string)";
@@ -45,9 +45,9 @@ object GENERIC_DB
       endfor
       return $failed_match;
     endif
-  endverb
+  endmethod
 
-  verb find_exact (this none this) owner: HACKER flags: "rxd"
+  method find_exact owner: HACKER
     {search, ?sofar = 0} = args;
     rest = search;
     prefix = search[1..sofar];
@@ -62,9 +62,9 @@ object GENERIC_DB
     else
       return $failed_match;
     endif
-  endverb
+  endmethod
 
-  verb "find_all find_all_keys" (this none this) owner: HACKER flags: "rxd"
+  method "find_all find_all_keys" owner: HACKER
     ":find_all(string [,n=0])";
     "assumes n <= length(string)";
     {search, ?sofar = 0} = args;
@@ -92,9 +92,9 @@ object GENERIC_DB
       endfor
       return {};
     endif
-  endverb
+  endmethod
 
-  verb _only (this none this) owner: HACKER flags: "rxd"
+  method _only owner: HACKER
     ":_only(prefix,data) => if all strings in this node have the same datum, return it, otherwise, return $ambiguous_match.";
     if (caller != this)
       raise(E_PERM);
@@ -135,9 +135,9 @@ object GENERIC_DB
       endif
     endfor
     return what;
-  endverb
+  endmethod
 
-  verb _every (this none this) owner: HACKER flags: "rxd"
+  method _every owner: HACKER
     if (caller != this)
       raise(E_PERM);
     endif
@@ -150,9 +150,9 @@ object GENERIC_DB
       endfor
     endfor
     return r;
-  endverb
+  endmethod
 
-  verb _every_key (this none this) owner: HACKER flags: "rxd"
+  method _every_key owner: HACKER
     if (caller != this)
       raise(E_PERM);
     endif
@@ -167,9 +167,9 @@ object GENERIC_DB
       $command_utils:suspend_if_needed(0);
     endfor
     return r;
-  endverb
+  endmethod
 
-  verb insert (this none this) owner: HACKER flags: "rxd"
+  method insert owner: HACKER
     ":insert([n,]string,datum) -- inserts <string,datum> correspondence into tree starting at node \" \"+string[1..n], n defaulting to 0 (root node).";
     "Assumes length(string) >= n";
     "Returns {old_datum} (or 1) if there was a <string,old_datum> correspondence there before, otherwise returns 0";
@@ -241,9 +241,9 @@ object GENERIC_DB
       this:set_node(prefix, @info);
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb delete (this none this) owner: HACKER flags: "rxd"
+  method delete owner: HACKER
     ":delete(string[,n]) deletes any <string,something> pair from the tree starting at node \" \"+string[1..n], n defaulting to 0 (root node)";
     "Returns {something} if such a pair existed, otherwise returns 0";
     "If that node is not the root node and ends up containing only one string and no subnodes, we kill it and return {something,string2,something2} where <string2,something2> is the remaining pair.";
@@ -287,9 +287,9 @@ object GENERIC_DB
       this:set_node(prefix, @listset(sub, tostr(info[1], info[2], sub[1]), 1));
       return previous;
     endif
-  endverb
+  endmethod
 
-  verb delete2 (this none this) owner: HACKER flags: "rxd"
+  method delete2 owner: HACKER
     ":delete2(string,datum[,n]) deletes the pair <string,datum> from the tree starting at node \" \"+string[1..n], n defaulting to 0 (root node)";
     "Similar to :delete except that if the entry for that string has a different associated datum, it will not be removed.  ";
     ":delete2(string,datum) is equivalent to ";
@@ -340,23 +340,23 @@ object GENERIC_DB
       this:set_node(prefix, @listset(sub, tostr(info[1], info[2], sub[1]), 1));
       return previous;
     endif
-  endverb
+  endmethod
 
-  verb set_node (this none this) owner: HACKER flags: "rxd"
+  method set_node owner: HACKER
     return caller != this ? E_PERM | (this.(" " + args[1]) = listdelete(args, 1));
-  endverb
+  endmethod
 
-  verb make_node (this none this) owner: #2 flags: "rxd"
+  method make_node owner: #2
     "WIZARDLY";
     return caller != this ? E_PERM | add_property(this, " " + args[1], listdelete(args, 1), {$generic_db.owner, this.node_perms});
-  endverb
+  endmethod
 
-  verb kill_node (this none this) owner: #2 flags: "rxd"
+  method kill_node owner: #2
     "WIZARDLY";
     return caller != this ? E_PERM | delete_property(this, " " + args[1]);
-  endverb
+  endmethod
 
-  verb clearall (this none this) owner: #2 flags: "rxd"
+  method clearall owner: #2
     "WIZARDLY";
     if (!($perm_utils:controls(caller_perms(), this) || caller == this))
       return E_PERM;
@@ -382,17 +382,17 @@ object GENERIC_DB
         $command_utils:suspend_if_needed(0);
       endfor
     endwhile
-  endverb
+  endmethod
 
-  verb clearall_big (this none this) owner: HACKER flags: "rxd"
+  method clearall_big owner: HACKER
     if (!($perm_utils:controls(caller_perms(), this) || caller == this))
       return E_PERM;
     endif
     this:_kill_subtrees("", 0);
     this:clearall(@args);
-  endverb
+  endmethod
 
-  verb _kill_subtrees (this none this) owner: HACKER flags: "rxd"
+  method _kill_subtrees owner: HACKER
     ":_kill_subtree(node,count)...wipes out all subtrees";
     "...returns count + number of nodes removed...";
     if (!($perm_utils:controls(caller_perms(), this) || caller == this))
@@ -409,9 +409,9 @@ object GENERIC_DB
       this:kill_node(n);
     endfor
     return count;
-  endverb
+  endmethod
 
-  verb depth (this none this) owner: HACKER flags: "rxd"
+  method depth owner: HACKER
     info = this.(" " + (prefix = (args || {""})[1]));
     depth = 0;
     string = prefix;
@@ -426,9 +426,9 @@ object GENERIC_DB
       endif
     endfor
     return {depth + 1, string};
-  endverb
+  endmethod
 
-  verb count_entries (this none this) owner: HACKER flags: "rxd"
+  method count_entries owner: HACKER
     info = this.(" " + (prefix = args[1]));
     count = length(info[3]) + args[2];
     if (ticks_left() < 500 || seconds_left() < 2)
@@ -439,9 +439,9 @@ object GENERIC_DB
       count = this:count_entries(tostr(prefix, info[1], info[2][i]), count);
     endfor
     return count;
-  endverb
+  endmethod
 
-  verb count_chars (this none this) owner: HACKER flags: "rxd"
+  method count_chars owner: HACKER
     info = this.(" " + (prefix = args[1]));
     count = args[2];
     for s in (info[3])
@@ -455,7 +455,7 @@ object GENERIC_DB
       count = this:count_chars(tostr(prefix, info[1], info[2][i]), count);
     endfor
     return count;
-  endverb
+  endmethod
 
   verb count (any in this) owner: HACKER flags: "rd"
     "count [entries|chars] in <db>";
@@ -470,7 +470,7 @@ object GENERIC_DB
     endif
   endverb
 
-  verb proxy_for_core (this none this) owner: #2 flags: "rxd"
+  method proxy_for_core owner: #2
     "Create a stand-in for the core-extraction process";
     "  (rather than change the ownership on 80000 properties only to delete them).";
     {core_variant, is_mcd} = args;
@@ -506,5 +506,5 @@ object GENERIC_DB
     endfor
     proxy:clearall();
     return proxy;
-  endverb
+  endmethod
 endobject

@@ -28,7 +28,7 @@ object PASSWORD_VERIFIER
   override import_export_id = "password_verifier";
   override object_size = {10921, 1084848672};
 
-  verb help_msg (this none this) owner: HACKER flags: "rxd"
+  method help_msg owner: HACKER
     if (typeof(base = this.(verb)) == TYPE_STR)
       base = {base};
     endif
@@ -41,9 +41,9 @@ object PASSWORD_VERIFIER
     base = {@base, "", tostr(".require_funky_characters = ", toliteral(x = this.require_funky_characters)), tostr("Non-alphabetic characters are ", x ? "" | "not ", "required in passwords.")};
     base = {@base, "", tostr(".check_obscure_stuff = ", toliteral(x = this.check_obscure_stuff)), x ? "Misc. obscure checks enabled" | "No obscure checks in use."};
     return base;
-  endverb
+  endmethod
 
-  verb reject_password (this none this) owner: #2 flags: "rxd"
+  method reject_password owner: #2
     ":reject_password ( STR password [ , OBJ for-whom ] );";
     "=> string value [if the password is rejected, why?]";
     "=> false value [if the password isn't rejected]";
@@ -58,9 +58,9 @@ object PASSWORD_VERIFIER
     endif
     "this is gonna be huge";
     return this:trivial_check(@args) || (this.minimum_password_length && this:check_length(@args)) || (this.check_against_name && trust && this:check_name(@args)) || (this.check_against_email && trust && this:check_email(@args)) || (this.check_against_hosts && trust && this:check_hosts(@args)) || (typeof(this.check_against_dictionary) in {TYPE_LIST, TYPE_OBJ} && this:check_dictionary(@args)) || (this.require_funky_characters && this:check_for_funky_characters(@args)) || (this.check_against_moo && this:check_against_moo(@args)) || (this.check_obscure_stuff && this:check_obscure_combinations(@args));
-  endverb
+  endmethod
 
-  verb trivial_check (this none this) owner: HACKER flags: "rxd"
+  method trivial_check owner: HACKER
     if (typeof(pwd = args[1]) != TYPE_STR)
       return "Passwords must be strings.";
     elseif (index(pwd, " "))
@@ -74,24 +74,24 @@ object PASSWORD_VERIFIER
         return "Sorry, but guest characters are not allowed to change their passwords.";
       endif
     endif
-  endverb
+  endmethod
 
-  verb check_length (this none this) owner: HACKER flags: "rxd"
+  method check_length owner: HACKER
     if ((l = this.minimum_password_length) && length(args[1]) < l)
       return tostr("Passwords must be a minimum of ", $string_utils:english_number(l), l == 1 ? " character " | " characters ", "long.");
     endif
-  endverb
+  endmethod
 
-  verb check_name (this none this) owner: HACKER flags: "rxd"
+  method check_name owner: HACKER
     pwd = args[1];
     if (valid($player_db:find_exact(pwd)))
       return "Passwords may not be close to a player's name/alias pair.";
     elseif (valid($player_db:find($string_utils:reverse(pwd))))
       return "Passwords ought not be the reverse of a player's name/alias.";
     endif
-  endverb
+  endmethod
 
-  verb check_email (this none this) owner: #2 flags: "rxd"
+  method check_email owner: #2
     {pwd, who} = args;
     if (!$perm_utils:controls(caller_perms(), who))
       return "Permission denied.";
@@ -104,9 +104,9 @@ object PASSWORD_VERIFIER
     if (index(email, pwd))
       return "Passwords can't match your registered email address.";
     endif
-  endverb
+  endmethod
 
-  verb check_hosts (this none this) owner: #2 flags: "rxd"
+  method check_hosts owner: #2
     {pwd, who} = args;
     if (!$perm_utils:controls(caller_perms(), who))
       return "Permission denied.";
@@ -117,9 +117,9 @@ object PASSWORD_VERIFIER
         return "Passwords may not match hostnames.";
       endif
     endfor
-  endverb
+  endmethod
 
-  verb check_dictionary (this none this) owner: HACKER flags: "rxd"
+  method check_dictionary owner: HACKER
     pwd = args[1];
     if (typeof(dict = this.check_against_dictionary) == TYPE_LIST && $network.active)
       "assume we're checking an on-line dictionary";
@@ -141,9 +141,9 @@ object PASSWORD_VERIFIER
         "in case this is messed up. Just let it go and return 0;";
       endtry
     endif
-  endverb
+  endmethod
 
-  verb check_for_funky_characters (this none this) owner: HACKER flags: "rxd"
+  method check_for_funky_characters owner: HACKER
     if (this:_is_funky_case(pwd = args[1]))
       return;
     endif
@@ -154,9 +154,9 @@ object PASSWORD_VERIFIER
       endif
     endfor
     return "At least one unusual capitalization and/or numeric or punctuation character is required.";
-  endverb
+  endmethod
 
-  verb check_against_moo (this none this) owner: HACKER flags: "rxd"
+  method check_against_moo owner: HACKER
     pwd = args[1];
     moo = $network.MOO_Name;
     if (this:_is_funky_case(pwd))
@@ -170,9 +170,9 @@ object PASSWORD_VERIFIER
         return "The MOO's name is not secure as a password.";
       endif
     endif
-  endverb
+  endmethod
 
-  verb _is_funky_case (this none this) owner: HACKER flags: "rxd"
+  method _is_funky_case owner: HACKER
     pwd = args[1];
     if (!strcmp(pwd, u = $string_utils:uppercase(pwd)))
       return 0;
@@ -183,21 +183,21 @@ object PASSWORD_VERIFIER
     else
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb check_obscure_combinations (this none this) owner: HACKER flags: "rxd"
+  method check_obscure_combinations owner: HACKER
     pwd = args[1];
     if (match(pwd, "^[0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]$"))
       return "Social security numbers are potentially insecure passwords.";
     elseif (match(pwd, "^[0-9]+/[0-9]+/[0-9]+$"))
       return "Passwords which look like dates are potentially insecure passwords.";
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.minimum_password_length = this.check_against_name = (this.check_against_email = (this.check_against_hosts = (this.check_against_dictionary = (this.require_funky_characters = (this.check_against_moo = (this.check_obscure_stuff = 0))))));
     endif
-  endverb
+  endmethod
 endobject

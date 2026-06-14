@@ -809,7 +809,7 @@ object WIZ
     player:notify("");
   endverb
 
-  verb kill_aux_wizard_parse (this none this) owner: #2 flags: "rxd"
+  method kill_aux_wizard_parse owner: #2
     "Auxiliary verb for parsing @kill soon [#-of-seconds] [player | everyone]";
     "Args[1] is either # of seconds or player/everyone.";
     "Args[2], if it exists, is player/everyone, and forces args[1] to have been # of seconds.";
@@ -836,7 +836,7 @@ object WIZ
       endif
     endif
     return {soon ? soon | 60, everyone ? everyone | player};
-  endverb
+  endmethod
 
   verb "@grepcore @egrepcore" (any any any) owner: #2 flags: "rd"
     set_task_perms(player);
@@ -908,7 +908,7 @@ object WIZ
     endif
   endverb
 
-  verb "toad_msg toad_victim_msg programmer_msg programmer_victim_msg newt_msg newt_victim_msg" (this none this) owner: #2 flags: "rxd"
+  method "toad_msg toad_victim_msg programmer_msg programmer_victim_msg newt_msg newt_victim_msg" owner: #2
     "This is the canonical doing-something-to-somebody message.";
     "The corresponding property can either be";
     "   string             msg for all occasions";
@@ -921,12 +921,12 @@ object WIZ
     else
       return $string_utils:pronoun_sub(m[2]);
     endif
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: #2 flags: "rxd"
+  method moveto owner: #2
     set_task_perms(caller in {this, $generic_editor, $verb_editor, $mail_editor, $note_editor} ? this.owner | caller_perms());
     return `move(this, args[1]) ! ANY';
-  endverb
+  endmethod
 
   verb "@newt" (any any any) owner: #2 flags: "rd"
     "@newt <player> [commentary]";
@@ -1443,7 +1443,7 @@ object WIZ
     endif
   endverb
 
-  verb display_list (this none this) owner: #2 flags: "rxd"
+  method display_list owner: #2
     if (caller != this && !caller_perms().wizard)
       return E_PERM;
     endif
@@ -1474,9 +1474,9 @@ object WIZ
     else
       player:notify(tostr("The ", which, " is empty."));
     endif
-  endverb
+  endmethod
 
-  verb parse_templist_duration (this none this) owner: HACKER flags: "rxd"
+  method parse_templist_duration owner: HACKER
     "parses out the time interval at the beginning of the args[1], assumes rest is commentary.";
     if ((fw = $string_utils:first_word(args[1]))[1] == "for")
       words = $string_utils:words(fw[2]);
@@ -1506,9 +1506,9 @@ object WIZ
     else
       return {0, argstr};
     endif
-  endverb
+  endmethod
 
-  verb check_site_entries (this none this) owner: #2 flags: "rxd"
+  method check_site_entries owner: #2
     "Called by @[un]<color>list to check existence of the target site.";
     "=> {done okay, LIST of sites to remove}";
     if (caller != this)
@@ -1555,7 +1555,7 @@ object WIZ
       endfor
     endif
     return {1, rm};
-  endverb
+  endmethod
 
   verb "@lock-login @unlock-login @lock-login!" (any any any) owner: #2 flags: "rd"
     "Syntax:  @lock-login <message>";
@@ -1585,7 +1585,7 @@ object WIZ
     endif
   endverb
 
-  verb __fix (this none this) owner: #2 flags: "rxd"
+  method __fix owner: #2
     "...was on $player, now archived here for posterity...";
     "Runs the old->new format conversion on every message in this.messages.";
     " => 1 if successful";
@@ -1610,12 +1610,12 @@ object WIZ
     endfor
     this.messages = msgs;
     return 1;
-  endverb
+  endmethod
 
-  verb toad_cleanup (this none this) owner: #2 flags: "rxd"
+  method toad_cleanup owner: #2
     if (!player.wizard || caller != this)
       raise(E_PERM);
     endif
     "Noop. Placeholder verb for MOO-specific cleanups.";
-  endverb
+  endmethod
 endobject

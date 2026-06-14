@@ -62,18 +62,18 @@ object THING
     endif
   endverb
 
-  verb moveto (this none this) owner: #2 flags: "rxd"
+  method moveto owner: #2
     where = args[1];
     "if (!valid(where) || this:is_unlocked_for(where))";
     if (this:is_unlocked_for(where))
       pass(where);
     endif
-  endverb
+  endmethod
 
-  verb "take_failed_msg take_succeeded_msg otake_failed_msg otake_succeeded_msg drop_failed_msg drop_succeeded_msg odrop_failed_msg odrop_succeeded_msg" (this none this) owner: #2 flags: "rxd"
+  method "take_failed_msg take_succeeded_msg otake_failed_msg otake_succeeded_msg drop_failed_msg drop_succeeded_msg odrop_failed_msg odrop_succeeded_msg" owner: #2
     set_task_perms(caller_perms());
     return $string_utils:pronoun_sub(this.(verb));
-  endverb
+  endmethod
 
   verb "gi*ve ha*nd" (this at any) owner: #2 flags: "rxd"
     set_task_perms(callers() ? caller_perms() | player);
@@ -97,7 +97,7 @@ object THING
     endif
   endverb
 
-  verb examine_key (this none this) owner: #2 flags: "rxd"
+  method examine_key owner: #2
     "examine_key(examiner)";
     "return a list of strings to be told to the player, indicating what the key on this type of object means, and what this object's key is set to.";
     "the default will only tell the key to a wizard or this object's owner.";
@@ -105,5 +105,5 @@ object THING
     if (caller == this && $perm_utils:controls(who, this) && this.key != 0)
       return {tostr(this:title(), " can only be moved to locations matching this key:"), tostr("  ", $lock_utils:unparse_key(this.key))};
     endif
-  endverb
+  endmethod
 endobject

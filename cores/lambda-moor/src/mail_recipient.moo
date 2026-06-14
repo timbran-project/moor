@@ -29,7 +29,7 @@ object MAIL_RECIPIENT
   override import_export_id = "mail_recipient";
   override object_size = {30900, 1084848672};
 
-  verb set_aliases (this none this) owner: HACKER flags: "rxd"
+  method set_aliases owner: HACKER
     "For changing mailing list aliases, we check to make sure that none of the aliases match existing mailing list aliases.  Aliases containing spaces are not used in addresses and so are not subject to this restriction ($mail_agent:match will not match on them, however, so they only match if used in the immediate room, e.g., with match_object() or somesuch).";
     "  => E_PERM   if you don't own this";
     {newaliases} = args;
@@ -54,9 +54,9 @@ object MAIL_RECIPIENT
       endfor
       return pass(aliases) && newaliases == aliases;
     endif
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  method look_self owner: HACKER
     "Returns full name and mail aliases for this list, read and write status by the player, and a short description. Calling :look_self(1) will omit the description.";
     {?brief = 0} = args;
     namelist = "*" + ((names = this:mail_names()) ? $string_utils:from_list(names, ", *") | tostr(this));
@@ -103,34 +103,34 @@ object MAIL_RECIPIENT
         endfor
       endfor
     endif
-  endverb
+  endmethod
 
-  verb "is_writable_by is_annotatable_by" (this none this) owner: HACKER flags: "rxd"
+  method "is_writable_by is_annotatable_by" owner: HACKER
     return $perm_utils:controls(who = args[1], this) || `who in this.writers ! E_TYPE';
-  endverb
+  endmethod
 
-  verb is_readable_by (this none this) owner: HACKER flags: "rxd"
+  method is_readable_by owner: HACKER
     return typeof(this.readers) != TYPE_LIST || ((who = args[1]) in this.readers || (this:is_writable_by(who) || $mail_agent:sends_to(1, this, who)));
-  endverb
+  endmethod
 
-  verb is_usable_by (this none this) owner: HACKER flags: "rxd"
+  method is_usable_by owner: HACKER
     who = args[1];
     if (this.moderated)
       return `who in this.moderated ! E_TYPE' || (this:is_writable_by(who) || who.wizard);
     else
       return this.guests_can_send_here || !$object_utils:isa(who, $guest);
     endif
-  endverb
+  endmethod
 
-  verb mail_notify (this none this) owner: HACKER flags: "rxd"
+  method mail_notify owner: HACKER
     if (args && !this:is_usable_by(args[1]) && !args[1].wizard)
       return this:moderator_notify(@args);
     else
       return this.(verb);
     endif
-  endverb
+  endmethod
 
-  verb mail_forward (this none this) owner: HACKER flags: "rxd"
+  method mail_forward owner: HACKER
     if (args && !this:is_usable_by(args[1]) && !args[1].wizard)
       return this:moderator_forward(@args);
     elseif (typeof(mf = this.(verb)) == TYPE_STR)
@@ -138,17 +138,17 @@ object MAIL_RECIPIENT
     else
       return mf;
     endif
-  endverb
+  endmethod
 
-  verb moderator_forward (this none this) owner: HACKER flags: "rxd"
+  method moderator_forward owner: HACKER
     if (typeof(mf = this.(verb)) == TYPE_STR)
       return $string_utils:pronoun_sub(mf, args ? args[1] | $player);
     else
       return mf;
     endif
-  endverb
+  endmethod
 
-  verb add_forward (this none this) owner: HACKER flags: "rxd"
+  method add_forward owner: HACKER
     ":add_forward(recip[,recip...]) adds new recipients to this list.  Returns a string error message or a list of results (recip => success, E_PERM => not allowed, E_INVARG => not a valid recipient, string => other kind of failure)";
     if (caller == $mail_editor)
       perms = player;
@@ -175,9 +175,9 @@ object MAIL_RECIPIENT
       this.mail_forward = setadd(this.mail_forward, this);
     endif
     return result;
-  endverb
+  endmethod
 
-  verb delete_forward (this none this) owner: HACKER flags: "rxd"
+  method delete_forward owner: HACKER
     ":delete_forward(recip[,recip...]) removes recipients to this list.  Returns a list of results (E_PERM => not allowed, E_INVARG => not on list)";
     if (caller == $mail_editor)
       perms = player;
@@ -206,9 +206,9 @@ object MAIL_RECIPIENT
       this.mail_forward = {};
     endif
     return result;
-  endverb
+  endmethod
 
-  verb add_notify (this none this) owner: HACKER flags: "rxd"
+  method add_notify owner: HACKER
     ":add_notify(recip[,recip...]) adds new notifiees to this list.  Returns a list of results (recip => success, E_PERM => not allowed, E_INVARG => not a valid recipient)";
     if (caller == $mail_editor)
       perms = player;
@@ -228,9 +228,9 @@ object MAIL_RECIPIENT
       result = listappend(result, r);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb delete_notify (this none this) owner: HACKER flags: "rxd"
+  method delete_notify owner: HACKER
     ":delete_notify(recip[,recip...]) removes notifiees from this list.  Returns a list of results (E_PERM => not allowed, E_INVARG => not on list)";
     if (caller == $mail_editor)
       perms = player;
@@ -254,9 +254,9 @@ object MAIL_RECIPIENT
       result = listappend(result, r);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb receive_message (this none this) owner: HACKER flags: "rxd"
+  method receive_message owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     else
@@ -265,19 +265,19 @@ object MAIL_RECIPIENT
       this.last_used_time = time();
       return new;
     endif
-  endverb
+  endmethod
 
-  verb ok (this none this) owner: HACKER flags: "rxd"
+  method ok owner: HACKER
     ":ok(caller,callerperms) => true iff caller can do read operations";
     return args[1] in {this, $mail_agent} || (args[2].wizard || this:is_readable_by(args[2]));
-  endverb
+  endmethod
 
-  verb ok_write (this none this) owner: HACKER flags: "rxd"
+  method ok_write owner: HACKER
     ":ok_write(caller,callerperms) => true iff caller can do write operations";
     return args[1] in {this, $mail_agent} || (args[2].wizard || this:is_writable_by(args[2]));
-  endverb
+  endmethod
 
-  verb "parse_message_seq from_msg_seq %from_msg_seq to_msg_seq %to_msg_seq subject_msg_seq body_msg_seq kept_msg_seq unkept_msg_seq display_seq_headers display_seq_full messages_in_seq list_rmm new_message_num length_num_le length_date_le length_all_msgs exists_num_eq msg_seq_to_msg_num_list msg_seq_to_msg_num_string" (this none this) owner: HACKER flags: "rxd"
+  method "parse_message_seq from_msg_seq %from_msg_seq to_msg_seq %to_msg_seq subject_msg_seq body_msg_seq kept_msg_seq unkept_msg_seq display_seq_headers display_seq_full messages_in_seq list_rmm new_message_num length_num_le length_date_le length_all_msgs exists_num_eq msg_seq_to_msg_num_list msg_seq_to_msg_num_string" owner: HACKER
     ":parse_message_seq(strings,cur) => {msg_seq,@unused_strings} or string error";
     "";
     ":from_msg_seq(olist)     => msg_seq of messages from those people";
@@ -302,9 +302,9 @@ object MAIL_RECIPIENT
     "";
     "See the corresponding routines on $mail_agent for more detail.";
     return this:ok(caller, caller_perms()) ? $mail_agent:(verb)(@args) | E_PERM;
-  endverb
+  endmethod
 
-  verb length_date_gt (this none this) owner: HACKER flags: "rxd"
+  method length_date_gt owner: HACKER
     ":length_date_le(date) => number of messages in folder dated > date";
     "";
     if (this:ok(caller, caller_perms()))
@@ -313,9 +313,9 @@ object MAIL_RECIPIENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb rm_message_seq (this none this) owner: HACKER flags: "rxd"
+  method rm_message_seq owner: HACKER
     ":rm_message_seq(msg_seq) removes the given sequence of from folder";
     "               => string giving msg numbers removed";
     "See the corresponding routine on $mail_agent.";
@@ -326,9 +326,9 @@ object MAIL_RECIPIENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb "undo_rmm expunge_rmm renumber keep_message_seq set_message_body_by_index" (this none this) owner: HACKER flags: "rxd"
+  method "undo_rmm expunge_rmm renumber keep_message_seq set_message_body_by_index" owner: HACKER
     ":rm_message_seq(msg_seq) removes the given sequence of from folder";
     "               => string giving msg numbers removed";
     ":list_rmm()    displays contents of .messages_going.";
@@ -344,9 +344,9 @@ object MAIL_RECIPIENT
     "";
     "See the corresponding routines on $mail_agent.";
     return this:ok_write(caller, caller_perms()) ? $mail_agent:(verb)(@args) | E_PERM;
-  endverb
+  endmethod
 
-  verb own_messages_filter (this none this) owner: HACKER flags: "rxd"
+  method own_messages_filter owner: HACKER
     ":own_messages_filter(who,msg_seq) => subsequence of msg_seq consisting of those messages that <who> is actually allowed to remove (on the assumption that <who> is not one of the allowed writers of this folder.";
     if (!this.rmm_own_msgs)
       return E_PERM;
@@ -355,9 +355,9 @@ object MAIL_RECIPIENT
     else
       return seq;
     endif
-  endverb
+  endmethod
 
-  verb messages (this none this) owner: HACKER flags: "rxd"
+  method messages owner: HACKER
     "NOTE:  this routine is obsolete, use :messages_in_seq()";
     ":messages(num) => returns the message numbered num.";
     ":messages()    => returns the entire list of messages (can be SLOW).";
@@ -370,9 +370,9 @@ object MAIL_RECIPIENT
     else
       return this:messages_in_seq(n)[2];
     endif
-  endverb
+  endmethod
 
-  verb date_sort (this none this) owner: HACKER flags: "rxd"
+  method date_sort owner: HACKER
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
@@ -397,29 +397,29 @@ object MAIL_RECIPIENT
       this.messages = newmsgs;
       this.last_used_time = newmsgs[$][2][1];
     endif
-  endverb
+  endmethod
 
-  verb _fix_last_msg_date (this none this) owner: HACKER flags: "rxd"
+  method _fix_last_msg_date owner: HACKER
     mlen = this:length_all_msgs();
     this.last_msg_date = mlen && this:messages_in_seq(mlen)[2][1];
-  endverb
+  endmethod
 
-  verb moderator_notify (this none this) owner: HACKER flags: "rxd"
+  method moderator_notify owner: HACKER
     return this.(verb);
-  endverb
+  endmethod
 
-  verb msg_summary_line (this none this) owner: HACKER flags: "rxd"
+  method msg_summary_line owner: HACKER
     return $mail_agent:msg_summary_line(@args);
-  endverb
+  endmethod
 
-  verb __check (this none this) owner: HACKER flags: "rxd"
+  method __check owner: HACKER
     for m in (this.messages)
       $mail_agent:__convert_new(@m[2]);
       $command_utils:suspend_if_needed(0);
     endfor
-  endverb
+  endmethod
 
-  verb __fix (this none this) owner: #2 flags: "rxd"
+  method __fix owner: #2
     if (!this:ok_write(caller, caller_perms()))
       return E_PERM;
     endif
@@ -438,9 +438,9 @@ object MAIL_RECIPIENT
     endfor
     this.messages = msgs;
     return 1;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       if (!(this in {$mail_recipient, $big_mail_recipient}))
@@ -455,20 +455,20 @@ object MAIL_RECIPIENT
         endfor
       endif
     endif
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: #2 flags: "rxd"
+  method initialize owner: #2
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       this.mail_forward = {};
       return pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb "mail_name_old mail_name short_mail_name" (this none this) owner: HACKER flags: "rxd"
+  method "mail_name_old mail_name short_mail_name" owner: HACKER
     return "*" + this.aliases[1];
-  endverb
+  endmethod
 
-  verb mail_names (this none this) owner: HACKER flags: "rxd"
+  method mail_names owner: HACKER
     names = {};
     for a in (this.aliases)
       if (!index(a, " "))
@@ -476,9 +476,9 @@ object MAIL_RECIPIENT
       endif
     endfor
     return names;
-  endverb
+  endmethod
 
-  verb expire_old_messages (this none this) owner: #2 flags: "rxd"
+  method expire_old_messages owner: #2
     if (this:ok_write(caller, caller_perms()))
       if ($network.active)
         "Passed security check...";
@@ -505,23 +505,23 @@ object MAIL_RECIPIENT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: HACKER flags: "rxd"
+  method moveto owner: HACKER
     if (this:is_writable_by(caller_perms()) || this:is_writable_by(caller))
       pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb msg_full_text (this none this) owner: HACKER flags: "rxd"
+  method msg_full_text owner: HACKER
     ":msg_full_text(@msg) => list of strings.";
     "msg is a mail message (in the usual transmission format).";
     "display_seq_full calls this to obtain the actual list of strings to display.";
     return player:msg_text(@args);
     "default is to leave it up to the player how s/he wants it to be displayed.";
-  endverb
+  endmethod
 
   verb "@set_expire" (this at any) owner: HACKER flags: "rxd"
     "Syntax:  @set_expire <recipient> to <time>";
@@ -615,7 +615,7 @@ object MAIL_RECIPIENT
     endif
   endverb
 
-  verb set_name (this none this) owner: HACKER flags: "rxd"
+  method set_name owner: HACKER
     {name} = args;
     if (caller != this && !$perm_utils:controls(caller_perms(), this))
       return E_PERM;
@@ -632,14 +632,14 @@ object MAIL_RECIPIENT
       return 0;
     endif
     return pass(name);
-  endverb
+  endmethod
 
-  verb ok_annotate (this none this) owner: #2 flags: "rxd"
+  method ok_annotate owner: #2
     ":ok_annotate(caller,callerperms) => true iff caller can do annotations";
     return args[1] in {this, $mail_agent} || (args[2].wizard || this:is_annotatable_by(args[2]));
-  endverb
+  endmethod
 
-  verb annotate_message_seq (this none this) owner: #2 flags: "rxd"
+  method annotate_message_seq owner: #2
     "annotate_message_seq(note, \"append\"|\"prepend\", message_seq) ;";
     "";
     "Prepend or append (default is prepend) note (a list of strings) to each message in message_seq";
@@ -659,5 +659,5 @@ object MAIL_RECIPIENT
     endfor
     return 1;
     "Copied from annotatetest (#87053):annotate_message_seq [verb author Puff (#1449)] at Mon Feb 14 14:04:56 2005 PST";
-  endverb
+  endmethod
 endobject

@@ -19,7 +19,7 @@ object NO_ONE
   override page_echo_msg = "... no one out there to see it.";
   override size_quota = {0, 0, 1084781037, 0};
 
-  verb eval (this none this) owner: #2 flags: "rxd"
+  method eval owner: #2
     "eval(code)";
     "Evaluate code with $no_one's permissions (so you won't damage anything).";
     "If code does not begin with a semicolon, set this = caller (in the code to be evaluated) and return the value of the first `line' of code.  This means that subsequent lines will not be evaluated at all.";
@@ -34,13 +34,13 @@ object NO_ONE
     else
       return eval(tostr("this=", caller, ";", exp, ";"));
     endif
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: HACKER flags: "rxd"
+  method moveto owner: HACKER
     return 0;
-  endverb
+  endmethod
 
-  verb eval_d (this none this) owner: #2 flags: "rxd"
+  method eval_d owner: #2
     ":eval_d(code)";
     "exactly like :eval except that the d flag is unset";
     "Evaluate code with $no_one's permissions (so you won't damage anything).";
@@ -56,17 +56,17 @@ object NO_ONE
     else
       return $code_utils:eval_d(tostr("this=", caller, ";", exp, ";"));
     endif
-  endverb
+  endmethod
 
-  verb call_verb (this none this) owner: #2 flags: "rxd"
+  method call_verb owner: #2
     "call_verb(object, verb name, args)";
     "Call verb with $no_one's permissions (so you won't damage anything).";
     "One could do this with $no_one:eval, but ick.";
     set_task_perms(this);
     return args[1]:(args[2])(@args[3]);
-  endverb
+  endmethod
 
-  verb bad_eval (this none this) owner: #2 flags: "rxd"
+  method bad_eval owner: #2
     ":bad_eval(exp)";
     "  Returns 1 if the `exp' is inappropriate for use by $no_one.  In particular, if `exp' contains calls to `eval', `fork', `suspend', or `call_function' it is bad.  Similarly, if `player' is a nonvalid object (or a child of $garbage) the expression is considered `bad' because it is likely an attempt to anonymously spoof.";
     "  At present, the checks for bad builtins are overzealous.  It should check for delimited uses of the above calls, in case someone has a variable called `prevalent'.";
@@ -89,13 +89,13 @@ object NO_ONE
       return 1;
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb "set_*" (this none this) owner: HACKER flags: "rxd"
+  method "set_*" owner: HACKER
     if (!caller_perms().wizard)
       return E_PERM;
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 endobject

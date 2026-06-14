@@ -16,7 +16,7 @@ object GENERIC_BIGLIST_HOME
   override import_export_id = "generic_biglist_home";
   override object_size = {3606, 1084848672};
 
-  verb _make (this none this) owner: #2 flags: "rxd"
+  method _make owner: #2
     ":_make(...) => new node with value {...}";
     if (!(caller in {this._mgr, this}))
       return E_PERM;
@@ -24,25 +24,25 @@ object GENERIC_BIGLIST_HOME
     prop = this:_genprop();
     add_property(this, prop, args, {$generic_biglist_home.owner, ""});
     return prop;
-  endverb
+  endmethod
 
-  verb _kill (this none this) owner: #2 flags: "rxd"
+  method _kill owner: #2
     ":_kill(node) destroys the given node.";
     if (!(caller in {this, this._mgr}))
       return E_PERM;
     endif
     delete_property(this, args[1]);
-  endverb
+  endmethod
 
-  verb _get (this none this) owner: HACKER flags: "rxd"
+  method _get owner: HACKER
     return caller == this._mgr ? this.(args[1]) | E_PERM;
-  endverb
+  endmethod
 
-  verb _put (this none this) owner: HACKER flags: "rxd"
+  method _put owner: HACKER
     return caller == this._mgr ? (this.(args[1]) = listdelete(args, 1)) | E_PERM;
-  endverb
+  endmethod
 
-  verb _genprop (this none this) owner: HACKER flags: "rxd"
+  method _genprop owner: HACKER
     gp = this._genprop;
     ngp = "";
     for i in [1..length(gp)]
@@ -53,19 +53,19 @@ object GENERIC_BIGLIST_HOME
       ngp = ngp + "a";
     endfor
     return " " + (this._genprop = ngp + "a");
-  endverb
+  endmethod
 
-  verb _ord (this none this) owner: HACKER flags: "rxd"
+  method _ord owner: HACKER
     "this is a dummy. You have to decide what your leaves are going to look like and then write this verb accordingly.  It should, given a leaf/list-element, return the corresponding key value.  So for an ordinary alist, where all of the leaves are of the form {key,datum}, you want:";
     return args[1][1];
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
     pass(@args);
     this.mowner = $hacker;
     this._mgr = $biglist;
-  endverb
+  endmethod
 endobject

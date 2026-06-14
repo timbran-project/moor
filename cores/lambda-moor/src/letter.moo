@@ -34,11 +34,11 @@ object LETTER
     endif
   endverb
 
-  verb "burn_succeeded_msg oburn_succeeded_msg burn_failed_msg oburn_failed_msg" (this none this) owner: #2 flags: "rxd"
+  method "burn_succeeded_msg oburn_succeeded_msg burn_failed_msg oburn_failed_msg" owner: #2
     return (msg = this.(verb)) ? $string_utils:pronoun_sub(msg) | "";
-  endverb
+  endmethod
 
-  verb do_burn (this none this) owner: #2 flags: "rxd"
+  method do_burn owner: #2
     if (this != $letter && (caller == this || $perm_utils:controls(caller_perms(), this)))
       fork (0)
         $recycler:_recycle(this);
@@ -47,5 +47,5 @@ object LETTER
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 endobject

@@ -41,32 +41,32 @@ object PROG_OPTIONS
   };
   override object_size = {5196, 1084848672};
 
-  verb actual (this none this) owner: HACKER flags: "rxd"
+  method actual owner: HACKER
     if (i = args[1] in {"list_numbers"})
       return {{{"list_no_numbers"}[i], !args[2]}};
     else
       return {args};
     endif
-  endverb
+  endmethod
 
-  verb show (this none this) owner: HACKER flags: "rxd"
+  method show owner: HACKER
     if (o = (name = args[2]) in {"list_numbers"})
       args[2] = {"list_no_numbers"}[o];
       return {@pass(@args), tostr("(", name, " is a synonym for -", args[2], ")")};
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb show_verb_args (this none this) owner: HACKER flags: "rxd"
+  method show_verb_args owner: HACKER
     if (value = this:get(@args))
       return {value, {tostr("Default args for @verb:  ", $string_utils:from_list(value, " "))}};
     else
       return {0, {"Default args for @verb:  none none none"}};
     endif
-  endverb
+  endmethod
 
-  verb check_verb_args (this none this) owner: HACKER flags: "rxd"
+  method check_verb_args owner: HACKER
     value = args[1];
     if (typeof(value) != TYPE_LIST)
       return "List expected";
@@ -84,9 +84,9 @@ object PROG_OPTIONS
       endif
       return {value};
     endif
-  endverb
+  endmethod
 
-  verb parse_verb_args (this none this) owner: HACKER flags: "rxd"
+  method parse_verb_args owner: HACKER
     {oname, raw, data} = args;
     if (typeof(raw) == TYPE_STR)
       raw = $string_utils:explode(raw, " ");
@@ -102,21 +102,21 @@ object PROG_OPTIONS
       value = {@value[1], "none", "none", "none"}[1..3];
       return {oname, value == {"none", "none", "none"} ? 0 | value};
     endif
-  endverb
+  endmethod
 
-  verb "show_@prop_flags" (this none this) owner: HACKER flags: "rxd"
+  method "show_@prop_flags" owner: HACKER
     value = this:get(@args);
     if (value)
       return {value, {tostr("Default permissions for @property=`", value, "'.")}};
     else
       return {0, {"Default permissions for @property=`rc'."}};
     endif
-  endverb
+  endmethod
 
-  verb "check_@prop_flags" (this none this) owner: #2 flags: "rxd"
-  endverb
+  method "check_@prop_flags" owner: #2
+  endmethod
 
-  verb "parse_@prop_flags" (this none this) owner: #2 flags: "rxd"
+  method "parse_@prop_flags" owner: #2
     {oname, raw, data} = args;
     if (typeof(raw) != TYPE_STR)
       return "Must be a string composed of the characters `rwc'.";
@@ -128,5 +128,5 @@ object PROG_OPTIONS
       endif
     endfor
     return {oname, raw};
-  endverb
+  endmethod
 endobject

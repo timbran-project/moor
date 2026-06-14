@@ -427,15 +427,15 @@ object CONVERT_UTILS
   override import_export_id = "convert_utils";
   override object_size = {30721, 1084848672};
 
-  verb "dd_to_dms dh_to_hms" (this none this) owner: HACKER flags: "rxd"
+  method "dd_to_dms dh_to_hms" owner: HACKER
     ":dd_to_dms(INT|FLOAT <degrees>) => LIST {INT <degrees>, INT <minutes>, FLOAT <seconds>}";
     "This verb converts decimal degrees to degrees, minutes, and seconds.";
     dd = tofloat(args[1]);
     s = ((dd - tofloat(d = toint(dd))) * 60.0 - tofloat(m = toint((dd - tofloat(d)) * 60.0))) * 60.0;
     return {d, m, s};
-  endverb
+  endmethod
 
-  verb "dms_to_dd hms_to_dh" (this none this) owner: HACKER flags: "rxd"
+  method "dms_to_dd hms_to_dh" owner: HACKER
     ":dms_to_dd(INT|FLOAT <deg>, INT|FLOAT <min>, INT|FLOAT <sec>) => FLOAT <deg>";
     "This verb converts degrees/minutes/seconds to decimal degrees.";
     {d, m, s} = args[1..3];
@@ -443,39 +443,39 @@ object CONVERT_UTILS
     m = tofloat(m);
     s = tofloat(s);
     return d + m / 60.0 + s / 3600.0;
-  endverb
+  endmethod
 
-  verb rect_to_polar (this none this) owner: HACKER flags: "rxd"
+  method rect_to_polar owner: HACKER
     ":rect_to_polar(INT|FLOAT <x>, INT|FLOAT <y>) => FLOAT <radius>, FLOAT <angle>.";
     "This verb converts from rectangular (x,y) coordinates to polar (r, theta) coordinates.";
     {x, y} = args[1..2];
     x = tofloat(x);
     y = tofloat(y);
     return {sqrt(x * x + x * x), `atan(y, x) ! E_INVARG => 0.0'};
-  endverb
+  endmethod
 
-  verb polar_to_rect (this none this) owner: HACKER flags: "rxd"
+  method polar_to_rect owner: HACKER
     ":polar_to_rect(INT|FLOAT <radius>, INT|FLOAT <angle>) => FLOAT <x>, FLOAT <y>";
     "This verb converts from polar (radius, angle) coordinates to rectangulat (x,y) coordinates.";
     {r, a} = args[1..2];
     r = tofloat(r);
     a = tofloat(a);
     return {(r = r / (1.0 + (z2 = (z = tan(a / 2.0)) * z))) * (1.0 - z2), r * 2.0 * z};
-  endverb
+  endmethod
 
-  verb "F_to_C degF_to_degC" (this none this) owner: HACKER flags: "rxd"
+  method "F_to_C degF_to_degC" owner: HACKER
     ":F_to_C(INT|FLOAT <Fahrenheit>) => FLOAT <Celsius>";
     "This verb converts Fahrenheit degrees to Celsius degrees.";
     return (tofloat(args[1]) - 32.0) / 1.8;
-  endverb
+  endmethod
 
-  verb "C_to_F degC_to_degF" (this none this) owner: HACKER flags: "rxd"
+  method "C_to_F degC_to_degF" owner: HACKER
     ":C_to_F(INT|FLOAT <Celsius>) => FLOAT <Fahrenheit>";
     "This verb converts Celsius degrees to Fahrenheit degrees.";
     return tofloat(args[1]) * 1.8 + 32.0;
-  endverb
+  endmethod
 
-  verb convert (this none this) owner: HACKER flags: "rxd"
+  method convert owner: HACKER
     ":convert(STR <units>, STR <units>) => FLOAT conversion factor | LIST errors.";
     "This verb attempts to compute the conversion factor between two sets of units. If the two inputs are of the same type (two speeds, two lengths, etc.), the value is returned. If the two inputs are not of the same type, a LIST is returned as follows: {1, {FLOAT <value>, STR <units>}. {FLOAT <value>, STR <units>}}. The 1 indicates that the two inputs were correctly formed. <value> is the conversion factor of the input into the basic <units>. This error output is useful for determining the basic structure and value of an unknown unit of measure. If either of the inputs can not be broken down to known units, a LIST is returned as follows: {0, STR <bad input>}.";
     "";
@@ -506,9 +506,9 @@ object CONVERT_UTILS
     else
       return {0, have ? wantstr | havestr};
     endif
-  endverb
+  endmethod
 
-  verb _do_convert (this none this) owner: HACKER flags: "rxd"
+  method _do_convert owner: HACKER
     "THIS VERB IS NOT INTENDED FOR USER USAGE.";
     ":_do_convert is the workhorse of $convert_utils:convert and is based loosely upon the 'units' Perl script the ships with BSD Unix.";
     "Essentially, it breaks the input up into values and units, attempts to break each unit down into elementary (basic) units, modifies the value as it goes, until it has no more input or can not convert a unit into a basic unit.";
@@ -579,9 +579,9 @@ object CONVERT_UTILS
     endwhile
     "We were able to successfully convert each part of the input. Return the equivalent value and units.";
     return {value, units};
-  endverb
+  endmethod
 
-  verb _try_metric_prefix (this none this) owner: HACKER flags: "rxd"
+  method _try_metric_prefix owner: HACKER
     "THIS VERB IS NOT INTENDED FOR USER USAGE.";
     ":_try_metric_prefix runs through the metrix multipliers and tries to match them against the beginning of the input string. If successful, the given value is adjusted appropritately, and the input string is modified. The verb loops until there are no more prefix matches. (Hence, \"kilodecameter\" can be matched with only one verb call.";
     "If anyone knows of other possibilities here, please let me know.";
@@ -693,9 +693,9 @@ object CONVERT_UTILS
       break;
     endwhile
     return {first, value, top};
-  endverb
+  endmethod
 
-  verb _format_units (this none this) owner: HACKER flags: "rxd"
+  method _format_units owner: HACKER
     "THIS VERB IS NOT INTENDED FOR USER USAGE.";
     ":_format_units takes the associative list of units and powers and construct a more user friendly string.";
     top = bottom = "";
@@ -711,37 +711,37 @@ object CONVERT_UTILS
     else
       return top[2..$];
     endif
-  endverb
+  endmethod
 
-  verb "K_to_C degK_to_degC" (this none this) owner: HACKER flags: "rxd"
+  method "K_to_C degK_to_degC" owner: HACKER
     ":K_to_C (INT|FLOAT <Kelvin>) => FLOAT <Celcius>";
     "This verb converts Kelvin degrees to Celcius degrees.";
     return tofloat(args[1]) - 273.0;
-  endverb
+  endmethod
 
-  verb "C_to_K degC_to_degK" (this none this) owner: HACKER flags: "rxd"
+  method "C_to_K degC_to_degK" owner: HACKER
     ":C_to_K (INT|FLOAT <Celcius>) => FLOAT <Kelvin>";
     "This verb converts Celcius degrees to Kelvin degrees.";
     return tofloat(args[1]) + 273.0;
-  endverb
+  endmethod
 
-  verb "F_to_R degF_to_degR" (this none this) owner: HACKER flags: "rxd"
+  method "F_to_R degF_to_degR" owner: HACKER
     ":F_to_R (INT|FLOAT <Fahrenheit>) => FLOAT <Rankine>";
     "This verb converts Fahrenheit degrees to Rankine degrees.";
     return tofloat(args[1]) + 459.67;
-  endverb
+  endmethod
 
-  verb "R_to_F degR_to_degF" (this none this) owner: HACKER flags: "rxd"
+  method "R_to_F degR_to_degF" owner: HACKER
     ":R_to_F (INT|FLOAT <Rankine>) => FLOAT <Fahrenheit>";
     "This verb converts Rankine degrees to Fahrenheit degrees.";
     return tofloat(args[1]) - 459.67;
-  endverb
+  endmethod
 
-  verb _do_value (this none this) owner: HACKER flags: "rxd"
+  method _do_value owner: HACKER
     "THIS VERB IS NOT INTENDED FOR USER USAGE.";
     ":_do_value takes a string of the form <number>|<number>, interprets it as a ratio, and applies that ratio to the incoming 'value' accordingly with the 'top' input, and returns it back to the calling verb.";
     {first, value, top} = args;
     {numer, denom} = $string_utils:explode(first, "|");
     return top ? value * tofloat(numer) / tofloat(denom) | value * tofloat(denom) / tofloat(numer);
-  endverb
+  endmethod
 endobject

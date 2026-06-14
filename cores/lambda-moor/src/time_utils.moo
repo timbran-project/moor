@@ -164,14 +164,14 @@ object TIME_UTILS
     return time;
   endverb
 
-  verb to_seconds (this none this) owner: HACKER flags: "rxd"
+  method to_seconds owner: HACKER
     "Given string hh:mm:ss ($string_utils:explode(ctime(time))[4]), this returns";
     "the number of seconds elapsed since 00:00:00.  I can't remember why I";
     "created this verb, but I'm sure it serves some useful purpose.";
     return 60 * 60 * toint(args[1][1..2]) + 60 * toint(args[1][4..5]) + toint(args[1][7..8]);
-  endverb
+  endmethod
 
-  verb sun (this none this) owner: HACKER flags: "rxd"
+  method sun owner: HACKER
     {?time = time()} = args;
     r = 10000;
     h = r * r + r / 2;
@@ -182,9 +182,9 @@ object TIME_UTILS
     spss = ($trig_utils:sin(phi) * $trig_utils:sin(s) + h) / r - r;
     cpcs = ($trig_utils:cos(phi) * cs + h) / r - r;
     return (this.stsd * cs - this.ctcd * cpcs - this.ct * spss + h) / r - r;
-  endverb
+  endmethod
 
-  verb from_ctime (this none this) owner: HACKER flags: "rxd"
+  method from_ctime owner: HACKER
     "Given a string such as returned by ctime(), return the corresponding time-in-seconds-since-1970 time returned by time(), or E_DIV if the format is wrong in some essential way.";
     words = $string_utils:explode(args[1]);
     if (length(words) == 5)
@@ -198,9 +198,9 @@ object TIME_UTILS
     day = {-1, 30, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334}[month] + toint(words[3]) + year * 366;
     zone = zone[2];
     return (((day - (day + 1038) / 1464 - (day + 672) / 1464 - (day + 306) / 1464 - (day + 109740) / 146400 - (day + 73140) / 146400 - (day + 36540) / 146400 - 719528) * 24 + toint(hms[1]) + zone) * 60 + toint(hms[2])) * 60 + toint(hms[3]);
-  endverb
+  endmethod
 
-  verb "dhms dayshoursminutesseconds" (this none this) owner: HACKER flags: "rxd"
+  method "dhms dayshoursminutesseconds" owner: HACKER
     s = args[1];
     if (s < 0)
       return "-" + this:(verb)(-s);
@@ -222,9 +222,9 @@ object TIME_UTILS
     else
       return tostr(s);
     endif
-  endverb
+  endmethod
 
-  verb english_time (this none this) owner: HACKER flags: "rxd"
+  method english_time owner: HACKER
     "english_time(time [,reference time]): returns the time as a string of";
     "years, months, days, hours, minutes and seconds using the reference time as";
     "the start time and incrementing forwards. it can be given in either ctime()";
@@ -265,9 +265,9 @@ object TIME_UTILS
       endif
     endfor
     return $string_utils:english_list(units);
-  endverb
+  endmethod
 
-  verb from_day (this none this) owner: HACKER flags: "rxd"
+  method from_day owner: HACKER
     "from_day(day_of_week,which [,reference time])";
     "numeric time (seconds since 1970) corresponding to midnight (PST) of the given weekday.  Use either the name of the day or a 1..7 number (1==Sunday,...)";
     "  which==-1 => use most recent such day.";
@@ -286,9 +286,9 @@ object TIME_UTILS
       time = (time + 302400) / 604800;
     endif
     return time * 604800 + delta;
-  endverb
+  endmethod
 
-  verb from_month (this none this) owner: HACKER flags: "rxd"
+  method from_month owner: HACKER
     "from_month(month,which[,d])";
     "numeric time (seconds since 1970) corresponding to midnight (PST) of the dth (first) day of the given month.  Use either the month name or a 1..12 number (1==January,...)";
     "  which==-1 => use most recent such month.";
@@ -310,15 +310,15 @@ object TIME_UTILS
     day = day * 365 + delta;
     day = day + (day + 671) / 1460;
     return day * 86400 + 28800;
-  endverb
+  endmethod
 
-  verb dst_midnight (this none this) owner: HACKER flags: "rxd"
+  method dst_midnight owner: HACKER
     "Takes a time that is midnight PST and converts it to the nearest PDT midnight time if it's during that part of the year where we use PDT.";
     time = args[1];
     return time - 3600 * ((toint(ctime(time)[12..13]) + 12) % 24 - 12);
-  endverb
+  endmethod
 
-  verb time_sub (this none this) owner: HACKER flags: "rxd"
+  method time_sub owner: HACKER
     "Works like pronoun substitution, but substitutes time stuff.";
     "Call with time_sub(string, time). returns a string.";
     "time is an optional integer in time() format.  If omitted, time() is used.";
@@ -407,9 +407,9 @@ object TIME_UTILS
       endif
     endwhile
     return res + thestr;
-  endverb
+  endmethod
 
-  verb "mmddyy ddmmyy" (this none this) owner: HACKER flags: "rxd"
+  method "mmddyy ddmmyy" owner: HACKER
     "Copied from Archer (#52775):mmddyy Tue Apr  6 17:04:26 1993 PDT";
     "Given a time() or ctime()-style date and an optional separator, this returns the MM/DD/YY or DD/MM/YY form of the date (depending on the verb called.)  The default seperator is '/'";
     {time, ?divstr = "/"} = args;
@@ -430,9 +430,9 @@ object TIME_UTILS
     else
       return tostr(daystr, divstr, monthstr, divstr, yearstr);
     endif
-  endverb
+  endmethod
 
-  verb parse_english_time_interval (this none this) owner: HACKER flags: "rxd"
+  method parse_english_time_interval owner: HACKER
     "$time_utils:parse_english_time_interval(n1,u1,n2,u2,...)";
     "or $time_utils:parse_english_time_interval(\"n1 u1[,] [and] n2[,] u2 [and] ...\")";
     "There must be an even number of arguments, all of which must be strings,";
@@ -482,9 +482,9 @@ object TIME_UTILS
       endif
     endfor
     return nsec;
-  endverb
+  endmethod
 
-  verb seconds_until_date (this none this) owner: HACKER flags: "rx"
+  method seconds_until_date owner: HACKER flags: "rx"
     "Copied from Ballroom Complex (#29992):from_date by Keelah! (#30246) Tue Jul 13 19:42:32 1993 PDT";
     ":seconds_until_date(month,day,time,which)";
     "month is a string or the numeric representation of the month, day is a number, time is a string in the following format, hh:mm:ss.";
@@ -505,9 +505,9 @@ object TIME_UTILS
     endif
     converted = converted + get_seconds - time();
     return converted;
-  endverb
+  endmethod
 
-  verb seconds_until_time (this none this) owner: HACKER flags: "rx"
+  method seconds_until_time owner: HACKER flags: "rx"
     "Copied from Ballroom Complex (#29992):seconds_until by Keelah! (#30246) Tue Jul 13 19:42:37 1993 PDT";
     ":seconds_until_time(hh:mm:ss)";
     "Given the string hh:mm:ss, this returns the number of seconds until that hh:mm:ss. If the hh:mm:ss is before the current time(), the number returned is a negative, else the number is a positive.";
@@ -515,16 +515,16 @@ object TIME_UTILS
     current = $time_utils:to_seconds(ctime()[12..19]);
     time = $time_utils:to_seconds(args[1]);
     return toint(time) - toint(current);
-  endverb
+  endmethod
 
-  verb rfc822_ctime (this none this) owner: #2 flags: "rxd"
+  method rfc822_ctime owner: #2
     "Just like ctime(), but rfc-822 compliant.  I hope.";
     c = $string_utils:Explode(ctime(@args));
     return tostr(c[1], ", ", c[3], " ", c[2], " ", c[5], " ", c[4], " ", c[6]);
     "Last modified Fri Oct 17 23:17:25 1997 EDT by neuro (#3642) on opal moo.";
-  endverb
+  endmethod
 
-  verb "mmddyyyy ddmmyyyy" (this none this) owner: HACKER flags: "rxd"
+  method "mmddyyyy ddmmyyyy" owner: HACKER
     "Given a time() or ctime()-style date and an optional separator, this returns the MM/DD/YYYY or DD/MM/YYYY form of the date (depending on the verb called.)  The default seperator is '/'";
     {time, ?divstr = "/"} = args;
     if (typeof(time) == TYPE_INT)
@@ -544,5 +544,5 @@ object TIME_UTILS
     else
       return tostr(daystr, divstr, monthstr, divstr, yearstr);
     endif
-  endverb
+  endmethod
 endobject

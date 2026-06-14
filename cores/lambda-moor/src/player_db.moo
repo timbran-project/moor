@@ -50,7 +50,7 @@ object PLAYER_DB
   override import_export_id = "player_db";
   override object_size = {8069, 1084848672};
 
-  verb load (this none this) owner: HACKER flags: "rxd"
+  method load owner: HACKER
     ":load() -- reloads the player_db with the names of all existing players.";
     "This routine calls suspend() if it runs out of time.";
     ".frozen is set to 1 while the load is in progress so that other routines are warned and don't try to do any updates.  Sometimes, an update is unavoidable (e.g., player gets recycled) in which case the offending routine should set .frozen to 2, causing the load to start over at the beginning.";
@@ -90,7 +90,7 @@ object PLAYER_DB
       endif
     endfor
     this.frozen = 0;
-  endverb
+  endmethod
 
   verb check (this none none) owner: HACKER flags: "rxd"
     ":check() -- checks for recycled and toaded players that managed not to get expunged from the db.";
@@ -113,15 +113,15 @@ object PLAYER_DB
     player:tell("done.");
   endverb
 
-  verb init_for_core (this none this) owner: HACKER flags: "rxd"
+  method init_for_core owner: HACKER
     if (caller_perms().wizard)
       pass(@args);
       this.reserved = {};
       this:load();
     endif
-  endverb
+  endmethod
 
-  verb available (this none this) owner: HACKER flags: "rxd"
+  method available owner: HACKER
     ":available(name,who) => 1 if a name is available for use, or the object id of whoever is currently using it, or 0 if the name is otherwise forbidden.";
     "If $player_db is not .frozen and :available returns 1, then $player:set_name will succeed.";
     {name, ?target = valid(caller) ? caller | player} = args;
@@ -142,9 +142,9 @@ object PLAYER_DB
     else
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb suspend_restart (this none this) owner: #2 flags: "rxd"
+  method suspend_restart owner: #2
     "used during :load to do the usual out-of-time check.";
     "if someone makes a modification during the suspension (indicated by this.frozen being set to 2), we have to restart the entire load.";
     if (caller != this)
@@ -161,9 +161,9 @@ object PLAYER_DB
         kill_task(task_id());
       endif
     endif
-  endverb
+  endmethod
 
-  verb why_bad_name (this none this) owner: #2 flags: "rxd"
+  method why_bad_name owner: #2
     ":why_bad_name(player, namespec) => Returns a message explaining why a player name change is invalid.  Stolen from APHiD's #15411:name_okay.";
     who = args[1];
     name = $building_utils:parse_names(args[2])[1];
@@ -194,5 +194,5 @@ object PLAYER_DB
     elseif (who in $wiz_utils.rename_restricted)
       return "This player is not allowed to change names.";
     endif
-  endverb
+  endmethod
 endobject

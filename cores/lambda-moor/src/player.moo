@@ -58,7 +58,7 @@ object PLAYER
   override import_export_id = "player";
   override object_size = {97774, 1084848672};
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.home = this in {$no_one, $hacker, $generic_editor.owner} ? $nothing | $player_start;
@@ -77,17 +77,17 @@ object PLAYER
         endif
       endif
     endif
-  endverb
+  endmethod
 
-  verb confunc (this none this) owner: #2 flags: "rxd"
+  method confunc owner: #2
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this) && caller != #0)
       return E_PERM;
     endif
     this:("@last-connection")();
     $news:check();
-  endverb
+  endmethod
 
-  verb disfunc (this none this) owner: #2 flags: "rxd"
+  method disfunc owner: #2
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this) && caller != #0)
       return E_PERM;
     endif
@@ -95,22 +95,22 @@ object PLAYER
     this:erase_paranoid_data();
     this:gc_gaglist();
     return;
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: #2 flags: "rxd"
+  method initialize owner: #2
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       this.help = 0;
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: #2 flags: "rxd"
+  method acceptable owner: #2
     return !is_player(args[1]);
-  endverb
+  endmethod
 
-  verb my_huh (this none this) owner: #2 flags: "rxd"
+  method my_huh owner: #2
     "Extra parsing of player commands.  Called by $command_utils:do_huh.";
     "This version of my_huh just handles features.";
     permissions = caller == this || $perm_utils:controls(caller_perms(), this) && $command_utils:validate_feature(@args) ? this | $no_one;
@@ -154,9 +154,9 @@ object PLAYER
         return 1;
       endif
     endfor
-  endverb
+  endmethod
 
-  verb last_huh (this none this) owner: #2 flags: "rxd"
+  method last_huh owner: #2
     ":last_huh(verb,args)  final attempt to parse a command...";
     set_task_perms(caller_perms());
     {verb, args} = args;
@@ -171,14 +171,14 @@ object PLAYER
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb my_match_object (this none this) owner: #2 flags: "rxd"
+  method my_match_object owner: #2
     ":my_match_object(string [,location])";
     return $string_utils:match_object(@{@args, this.location}[1..2], this);
-  endverb
+  endmethod
 
-  verb tell_contents (this none this) owner: #2 flags: "rxd"
+  method tell_contents owner: #2
     c = args[1];
     if (c)
       longear = {};
@@ -197,13 +197,13 @@ object PLAYER
       player:tell_lines($string_utils:columnize(gear, 2, width));
       player:tell_lines(longear);
     endif
-  endverb
+  endmethod
 
-  verb titlec (this none this) owner: #2 flags: "rxd"
+  method titlec owner: #2
     return `this.namec ! E_PROPNF => this:title()';
-  endverb
+  endmethod
 
-  verb notify (this none this) owner: #2 flags: "rxd"
+  method notify owner: #2
     line = args[1];
     if (!(this in connected_players()))
       "...drop it on the floor...";
@@ -265,9 +265,9 @@ object PLAYER
         pass(line);
       endif
     endif
-  endverb
+  endmethod
 
-  verb notify_lines (this none this) owner: #2 flags: "rxd"
+  method notify_lines owner: #2
     if ($perm_utils:controls(caller_perms(), this) || caller == this || caller_perms() == this)
       set_task_perms(caller_perms());
       for line in (typeof(lines = args[1]) != TYPE_LIST ? {lines} | lines)
@@ -276,9 +276,9 @@ object PLAYER
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb linesplit (this none this) owner: #2 flags: "rxd"
+  method linesplit owner: #2
     ":linesplit(line,len) => list of substrings of line";
     "used by :notify to split up long lines if .linelen>0";
     {line, len} = args;
@@ -293,11 +293,11 @@ object PLAYER
       line = (nospace ? " " | "") + line[cutoff..$];
     endwhile
     return {@cline, line};
-  endverb
+  endmethod
 
-  verb linelen (this none this) owner: HACKER flags: "rxd"
+  method linelen owner: HACKER
     return abs(this.linelen);
-  endverb
+  endmethod
 
   verb "@more" (any none none) owner: #2 flags: "rd"
     if (player != this)
@@ -421,7 +421,7 @@ object PLAYER
     endif
   endverb
 
-  verb tell (this none this) owner: #2 flags: "rxd"
+  method tell owner: #2
     if (this.gaglist || this.paranoid)
       "Check the above first, default case, to save ticks.  Paranoid gaggers are cost an extra three or so ticks by this, probably a net savings.";
       if (this:gag_p())
@@ -435,9 +435,9 @@ object PLAYER
       endif
     endif
     pass(@args);
-  endverb
+  endmethod
 
-  verb gag_p (this none this) owner: #2 flags: "rxd"
+  method gag_p owner: #2
     if (player in this.gaglist)
       return 1;
     elseif (gag = this.gaglist)
@@ -462,16 +462,16 @@ object PLAYER
       endfor
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb set_gaglist (this none this) owner: #2 flags: "rxd"
+  method set_gaglist owner: #2
     ":set_gaglist(@newlist) => this.gaglist = newlist";
     if (!(caller == this || $perm_utils:controls(caller_perms(), this)))
       return E_PERM;
     else
       return this.gaglist = args;
     endif
-  endverb
+  endmethod
 
   verb "@gag*!" (any any any) owner: #2 flags: "rd"
     set_task_perms(player);
@@ -551,7 +551,7 @@ object PLAYER
     endif
   endverb
 
-  verb whodunnit (this none this) owner: #2 flags: "rxd"
+  method whodunnit owner: #2
     {record, trust, mistrust} = args;
     s = {this, "???", this};
     for w in (record)
@@ -562,7 +562,7 @@ object PLAYER
       endif
     endfor
     return s;
-  endverb
+  endmethod
 
   verb "@ch*eck-full" (any any any) owner: #2 flags: "rd"
     responsible = $paranoid_db:get_data(this);
@@ -733,7 +733,7 @@ object PLAYER
     endif
   endverb
 
-  verb receive_page (this none this) owner: #2 flags: "rxd"
+  method receive_page owner: #2
     "called by $player:page.  Two args, the page header and the text, all pre-processed by the page command.  Could be extended to provide haven abilities, multiline pages, etc.  Indeed, at the moment it just does :tell_lines, so we already do have multiline pages, if someone wants to take advantage of it.";
     "Return codes:";
     "  1:  page was received";
@@ -746,12 +746,12 @@ object PLAYER
     else
       return 2;
     endif
-  endverb
+  endmethod
 
-  verb "page_origin_msg page_echo_msg page_absent_msg" (this none this) owner: HACKER flags: "rxd"
+  method "page_origin_msg page_echo_msg page_absent_msg" owner: HACKER
     "set_task_perms(this.owner)";
     return (msg = `this.(verb) ! ANY') ? $string_utils:pronoun_sub(this.(verb), this) | "";
-  endverb
+  endmethod
 
   verb "i inv*entory" (none none none) owner: #2 flags: "rd"
     if (c = player:contents())
@@ -761,7 +761,7 @@ object PLAYER
     endif
   endverb
 
-  verb look_self (this none this) owner: #2 flags: "rxd"
+  method look_self owner: #2
     player:tell(this:titlec());
     pass();
     if (!(this in connected_players()))
@@ -775,7 +775,7 @@ object PLAYER
     if (c = this:contents())
       this:tell_contents(c);
     endif
-  endverb
+  endmethod
 
   verb home (none none none) owner: #2 flags: "rd"
     start = this.location;
@@ -1010,25 +1010,25 @@ object PLAYER
     endif
   endverb
 
-  verb display_option (this none this) owner: #2 flags: "rxd"
+  method display_option owner: #2
     ":display_option(name) => returns the value of the specified @display option";
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       return $display_options:get(this.display_options, args[1]);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb edit_option (this none this) owner: #2 flags: "rxd"
+  method edit_option owner: #2
     ":edit_option(name) => returns the value of the specified edit option";
     if (caller == this || ($object_utils:isa(caller, $generic_editor) || $perm_utils:controls(caller_perms(), this)))
       return $edit_options:get(this.edit_options, args[1]);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb "set_mail_option set_edit_option set_display_option" (this none this) owner: #2 flags: "rxd"
+  method "set_mail_option set_edit_option set_display_option" owner: #2
     ":set_edit_option(oname,value)";
     ":set_display_option(oname,value)";
     ":set_mail_option(oname,value)";
@@ -1050,7 +1050,7 @@ object PLAYER
       this.(foo_options) = s;
       return 1;
     endif
-  endverb
+  endmethod
 
   verb "@mailo*ptions @mail-o*ptions @edito*ptions @edit-o*ptions @displayo*ptions @display-o*ptions" (any any any) owner: #2 flags: "rd"
     "@<what>-option <option> [is] <value>   sets <option> to <value>";
@@ -1084,7 +1084,7 @@ object PLAYER
     endif
   endverb
 
-  verb set_name (this none this) owner: #2 flags: "rxd"
+  method set_name owner: #2
     "set_name(newname) attempts to change this.name to newname";
     "  => E_PERM   if you don't own this";
     "  => E_INVARG if the name is already taken or prohibited for some reason";
@@ -1112,9 +1112,9 @@ object PLAYER
       $player_db:insert(name, this);
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb set_aliases (this none this) owner: #2 flags: "rxd"
+  method set_aliases owner: #2
     "set_aliases(alias_list)";
     "For changing player aliases, we check to make sure that none of the aliases match existing player names/aliases.  Aliases containing spaces are not entered in the $player_db and so are not subject to this restriction ($string_utils:match_player will not match on them, however, so they only match if used in the immediate room, e.g., with match_object() or somesuch).";
     "Also we make sure that the .name is included in the .alias list.  In any situation where .name and .aliases are both being changed, do the name change first.";
@@ -1158,7 +1158,7 @@ object PLAYER
       endfor
       return this.aliases != old;
     endif
-  endverb
+  endmethod
 
   verb "@rename*#" (any at any) owner: #2 flags: "rd"
     if (player != caller || player != this)
@@ -1571,7 +1571,7 @@ object PLAYER
     endif
   endverb
 
-  verb set_gender (this none this) owner: #2 flags: "rxd"
+  method set_gender owner: #2
     "set_gender(newgender) attempts to change this.gender to newgender";
     "  => E_PERM   if you don't own this or aren't its parent";
     "  => Other return values as from $gender_utils:set.";
@@ -1582,7 +1582,7 @@ object PLAYER
       this.gender = typeof(result) == TYPE_STR ? result | args[1];
       return result;
     endif
-  endverb
+  endmethod
 
   verb "@gender" (any none none) owner: #2 flags: "rd"
     set_task_perms(valid(caller_perms()) ? caller_perms() | player);
@@ -1604,7 +1604,7 @@ object PLAYER
     endif
   endverb
 
-  verb set_brief (this none this) owner: #2 flags: "rxd"
+  method set_brief owner: #2
     "set_brief(value)";
     "set_brief(value, anything)";
     "If <anything> is given, add value to the current value; otherwise, just set the value.";
@@ -1617,7 +1617,7 @@ object PLAYER
         this.brief = this.brief + args[1];
       endif
     endif
-  endverb
+  endmethod
 
   verb "@mode" (any any any) owner: #2 flags: "rd"
     "@mode <mode>";
@@ -1766,7 +1766,7 @@ object PLAYER
     what:do_examine(player);
   endverb
 
-  verb add_feature (this none this) owner: HACKER flags: "rxd"
+  method add_feature owner: HACKER
     "Add a feature to this player's features list.  Caller must be this or have suitable permissions (this or wizardly).";
     "If this is a nonprogrammer, then ask feature if it is feature_ok (that is, if it has a verb :feature_ok which returns a true value, or a property .feature_ok which is true).";
     "After adding feature, call feature:feature_add(this).";
@@ -1802,9 +1802,9 @@ object PLAYER
       return E_PERM;
       "Caller doesn't have permission.";
     endif
-  endverb
+  endmethod
 
-  verb remove_feature (this none this) owner: HACKER flags: "rxd"
+  method remove_feature owner: HACKER
     "Remove a feature from this player's features list.  Caller must be this, or have permissions of this, a wizard, or feature.owner.";
     "Returns true if successful, E_PERM if caller didn't have permission.";
     feature = args[1];
@@ -1826,7 +1826,7 @@ object PLAYER
       return E_PERM;
       "Caller didn't have permission.";
     endif
-  endverb
+  endmethod
 
   verb "@add-feature @addfeature" (any none none) owner: #2 flags: "rd"
     "Usage:";
@@ -2001,25 +2001,25 @@ object PLAYER
     "player:moveto(player.home)";
   endverb
 
-  verb examine_commands_ok (this none this) owner: #2 flags: "rxd"
+  method examine_commands_ok owner: #2
     return this == args[1];
-  endverb
+  endmethod
 
-  verb is_listening (this none this) owner: #2 flags: "rxd"
+  method is_listening owner: #2
     "return true if player is active.";
     return typeof(`idle_seconds(this) ! ANY') != TYPE_ERR;
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: #2 flags: "rxd"
+  method moveto owner: #2
     if (args[1] == #-1)
       return E_INVARG;
       this:notify("You are now in #-1, The Void.  Type `home' to get back.");
     endif
     set_task_perms(caller_perms());
     pass(@args);
-  endverb
+  endmethod
 
-  verb "announce*_all_but" (this none this) owner: #2 flags: "rxd"
+  method "announce*_all_but" owner: #2
     return this.location:(verb)(@args);
     "temporarily let player:announce be noisy to player";
     if (verb == "announce_all_but")
@@ -2029,13 +2029,13 @@ object PLAYER
       args = args[2..$];
     endif
     this:tell("(from within you) ", @args);
-  endverb
+  endmethod
 
-  verb linewrap (this none this) owner: HACKER flags: "rxd"
+  method linewrap owner: HACKER
     "Return a true value if this needs linewrapping.";
     "default is true if .linelen > 0";
     return this.linelen > 0;
-  endverb
+  endmethod
 
   verb "@set-note-string @set-note-text" (any none none) owner: #2 flags: "rd"
     "Usage:  @set-note-{string | text} {#xx | #xx.pname}";
@@ -2079,24 +2079,24 @@ object PLAYER
     endif
   endverb
 
-  verb verb_sub (this none this) owner: #2 flags: "rxd"
+  method verb_sub owner: #2
     text = args[1];
     if (a = `$list_utils:assoc(text, this.verb_subs) ! ANY')
       return a[2];
     else
       return $gender_utils:get_conj(text, this);
     endif
-  endverb
+  endmethod
 
-  verb ownership_quota (this none this) owner: #2 flags: "rxd"
+  method ownership_quota owner: #2
     if ($perm_utils:controls(caller_perms(), this))
       return this.(verb);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb tell_lines (this none this) owner: #2 flags: "rxd"
+  method tell_lines owner: #2
     lines = args[1];
     if (typeof(lines) != TYPE_LIST)
       lines = {lines};
@@ -2115,7 +2115,7 @@ object PLAYER
     endif
     "don't gather stats for now: $list_utils:check_nonstring_tell_lines(lines)";
     this:notify_lines(lines);
-  endverb
+  endmethod
 
   verb "@lastlog" (any none none) owner: #2 flags: "rxd"
     "Copied from generic room (#3):@lastlog by Haakon (#2) Wed Dec 30 13:30:02 1992 PST";
@@ -2167,7 +2167,7 @@ object PLAYER
     endif
   endverb
 
-  verb set_linelength (this none this) owner: #2 flags: "rxd"
+  method set_linelength owner: #2
     "Set linelength.  Linelength must be an integer >= 10.";
     "If wrap is currently off (i.e. linelength is less than 0), maintains sign.  That is, this function *takes* an absolute value, and coerces the sign to be appropriate.";
     "If you want to override the dwimming of wrap, pass in a second argument.";
@@ -2183,9 +2183,9 @@ object PLAYER
       this.linelen = this.linelen > 0 ? len | -len;
       return len;
     endif
-  endverb
+  endmethod
 
-  verb set_pagelength (this none this) owner: #2 flags: "rxd"
+  method set_pagelength owner: #2
     "Set pagelength. Must be an integer >= 5, or 0 to turn pagelength off.";
     "Returns E_PERM if you shouldn't be doing this, E_INVARG if it's too low, otherwise, what it got set to.";
     if (caller != this && !$perm_utils:controls(caller_perms(), this))
@@ -2202,9 +2202,9 @@ object PLAYER
       endif
       return len;
     endif
-  endverb
+  endmethod
 
-  verb set_home (this none this) owner: #2 flags: "rxd"
+  method set_home owner: #2
     "set_home(newhome) attempts to change this.home to newhome";
     "E_TYPE   if newhome doesn't have a callable :accept_for_abode verb.";
     "E_INVARG if newhome won't accept you as a resident.";
@@ -2224,7 +2224,7 @@ object PLAYER
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
   verb "@registerme" (any any any) owner: #2 flags: "rd"
     "@registerme as <email-address> -- enter a new email address for player";
@@ -2294,11 +2294,11 @@ object PLAYER
     endif
   endverb
 
-  verb ctime (this none this) owner: #2 flags: "rxd"
+  method ctime owner: #2
     ":ctime([INT time]) => STR as the function.";
     "May be hacked by players and player-classes to reflect differences in time-zone.";
     return ctime(@args);
-  endverb
+  endmethod
 
   verb "@age" (any none none) owner: HACKER flags: "rd"
     if (dobjstr == "" || dobj == player)
@@ -2399,13 +2399,13 @@ object PLAYER
     endif
   endverb
 
-  verb erase_paranoid_data (this none this) owner: #2 flags: "rxd"
+  method erase_paranoid_data owner: #2
     if (!($perm_utils:controls(caller_perms(), this) || this == caller))
       return E_PERM;
     else
       $paranoid_db:erase_data(this);
     endif
-  endverb
+  endmethod
 
   verb "@move-new" (any any any) owner: #2 flags: "rd"
     "'@move <object> to <place>' - Teleport an object. Example: '@move trash to #11' to move trash to the closet.";
@@ -2436,7 +2436,7 @@ object PLAYER
     this:teleport(dobj, iobj);
   endverb
 
-  verb notify_lines_suspended (this none this) owner: #2 flags: "rxd"
+  method notify_lines_suspended owner: #2
     if ($perm_utils:controls(caller_perms(), this) || caller == this || caller_perms() == this)
       set_task_perms(caller_perms());
       for line in (typeof(lines = args[1]) != TYPE_LIST ? {lines} | lines)
@@ -2446,12 +2446,12 @@ object PLAYER
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb _chparent (this none this) owner: #2 flags: "rxd"
+  method _chparent owner: #2
     set_task_perms(caller_perms());
     return chparent(@args);
-  endverb
+  endmethod
 
   verb "@users" (none none none) owner: HACKER flags: "rxd"
     "Prints a count and compact list of the currently-connected players, sorted into columns.";
@@ -2495,7 +2495,7 @@ object PLAYER
     player:notify("New password set.");
   endverb
 
-  verb recycle (this none this) owner: #2 flags: "rxd"
+  method recycle owner: #2
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       pass(@args);
       features = this.features;
@@ -2512,9 +2512,9 @@ object PLAYER
         $command_utils:suspend_if_needed(0);
       endfor
     endif
-  endverb
+  endmethod
 
-  verb gc_gaglist (this none this) owner: #2 flags: "rxd"
+  method gc_gaglist owner: #2
     caller == this || $perm_utils:controls(caller_perms(), this) || raise(E_PERM);
     if (g = this.gaglist)
       recycler = $recycler;
@@ -2525,24 +2525,24 @@ object PLAYER
       endfor
       this.gaglist = g;
     endif
-  endverb
+  endmethod
 
-  verb email_address (this none this) owner: #2 flags: "rxd"
+  method email_address owner: #2
     set_task_perms(caller_perms());
     return this.email_address;
-  endverb
+  endmethod
 
-  verb set_email_address (this none this) owner: #2 flags: "rxd"
+  method set_email_address owner: #2
     set_task_perms(caller_perms());
     this.email_address = args[1];
-  endverb
+  endmethod
 
-  verb reconfunc (this none this) owner: #2 flags: "rxd"
+  method reconfunc owner: #2
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this) && caller != $sysobj)
       return E_PERM;
     endif
     return this:confunc(@args);
-  endverb
+  endmethod
 
   verb "@owner" (any none none) owner: HACKER flags: "rxd"
     if ($command_utils:object_match_failed(dobj = player:my_match_object(dobjstr), dobjstr))
@@ -2551,11 +2551,11 @@ object PLAYER
     player:tell($string_utils:nn(dobj), " is owned by ", $string_utils:nn(dobj.owner), ".");
   endverb
 
-  verb profile_picture (this none this) owner: #2 flags: "rxd"
+  method profile_picture owner: #2
     return this.profile_picture;
-  endverb
+  endmethod
 
-  verb set_profile_picture (this none this) owner: #2 flags: "rxd"
+  method set_profile_picture owner: #2
     $perm_utils:controls(caller_perms(), this) || this == caller || return E_PERM;
     set_task_perms(this);
     {content_type, picbin} = args;
@@ -2563,5 +2563,5 @@ object PLAYER
     typeof(content_type) == TYPE_STR && $string_utils:find_prefix("image/", {content_type}) || raise(E_TYPE);
     typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
     this.profile_picture = {content_type, picbin};
-  endverb
+  endmethod
 endobject

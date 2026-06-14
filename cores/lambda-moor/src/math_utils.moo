@@ -524,7 +524,7 @@ object MATH_UTILS
   override import_export_id = "math_utils";
   override object_size = {36400, 1084848672};
 
-  verb xsin (this none this) owner: HACKER flags: "rxd"
+  method xsin owner: HACKER
     "xsin(INT x) -- calculates the taylor approximation for the sine function";
     if (typeof(x = args[1]) != TYPE_INT)
       return E_TYPE;
@@ -534,9 +534,9 @@ object MATH_UTILS
     else
       return x * (17453000 - x * x * 886) / 100000;
     endif
-  endverb
+  endmethod
 
-  verb xcos (this none this) owner: HACKER flags: "rxd"
+  method xcos owner: HACKER
     "xcos(INT x) -- calculates the taylor approximation for the cosine function";
     if (typeof(x = args[1]) != TYPE_INT)
       return E_TYPE;
@@ -546,9 +546,9 @@ object MATH_UTILS
     else
       return (1000000000 - x * x * (152309 + 4 * x * x)) / 100000;
     endif
-  endverb
+  endmethod
 
-  verb factorial (this none this) owner: HACKER flags: "rxd"
+  method factorial owner: HACKER
     "factorial(INT n) -- returns n factorial for 0 <= n (<= 12).";
     if ((number = args[1]) < 0)
       return E_INVARG;
@@ -560,9 +560,9 @@ object MATH_UTILS
       fact = fact * i;
     endfor
     return fact;
-  endverb
+  endmethod
 
-  verb pow (this none this) owner: HACKER flags: "rxd"
+  method pow owner: HACKER
     "pow(INT|FLOAT x,(INT)|(INT|FLOAT) n) -- returns x raised to the nth power. n must be >= 0. If x is an integer, n must be an integer. If x is a floating point number, n can be either.";
     "This verb was revised on 2006-03-16 by Gary (#110811) to allow for floating input of the second argument.  The help documentation had said this was allowed but actually it caused a traceback.  How many people are actually using this, I wonder? ";
     {x, n} = args;
@@ -587,9 +587,9 @@ object MATH_UTILS
       endif
     endwhile
     return ret;
-  endverb
+  endmethod
 
-  verb fibonacci (this none this) owner: HACKER flags: "rxd"
+  method fibonacci owner: HACKER
     "fibonacci(INT n) -- calculates the fibonacci numbers to the nth term";
     "and returns them in a list. n must be >= 0.";
     if (typeof(n = args[1]) != TYPE_INT)
@@ -605,9 +605,9 @@ object MATH_UTILS
       endfor
       return x;
     endif
-  endverb
+  endmethod
 
-  verb geometric (this none this) owner: HACKER flags: "rxd"
+  method geometric owner: HACKER
     "geometric(INT|FLOAT x [,INT n]) -- calculates the value of the geometric series at x to the nth term. i.e., approximates 1/(1-x) when |x| < 1. This, of course, is impossible in MOO, but someone may find it useful in some way.";
     "n defaults to 5. n must be >= 0.";
     "This verb was revised on 2006-03-16 by Gary (#110811) to allow for floating point input of the first argument.  The help documentation had said this was allowed but actually it caused a traceback.  How many people are actually using this, I wonder? ";
@@ -622,9 +622,9 @@ object MATH_UTILS
       x = x + n ^ i;
     endfor
     return x;
-  endverb
+  endmethod
 
-  verb divmod (this none this) owner: HACKER flags: "rxd"
+  method divmod owner: HACKER
     "divmod(INT n, INT d) => {q,r} such that n = dq + r";
     "  handles negative numbers correctly   0<=r<d if d>0, -d<r<=0 if d<0.";
     {n, d} = args;
@@ -634,9 +634,9 @@ object MATH_UTILS
     r = (n % d + d) % d;
     q = (n - r) / d;
     return {q, r};
-  endverb
+  endmethod
 
-  verb combinations (this none this) owner: HACKER flags: "rxd"
+  method combinations owner: HACKER
     "combinations(INT n, INT r) -- returns the number of ways one can choose r";
     "objects from n distinct choices.";
     "C(n,r) = n!/[r!(n-r)!]";
@@ -655,9 +655,9 @@ object MATH_UTILS
       endfor
       return c;
     endif
-  endverb
+  endmethod
 
-  verb permutations (this none this) owner: HACKER flags: "rxd"
+  method permutations owner: HACKER
     "permutations(INT n, INT r) -- returns the number of ways possible for one to";
     "order r distinct objects given n locations.";
     "P(n,r) = n!/(n-r)!";
@@ -674,9 +674,9 @@ object MATH_UTILS
       endfor
       return p;
     endif
-  endverb
+  endmethod
 
-  verb simpson (this none this) owner: HACKER flags: "rxd"
+  method simpson owner: HACKER
     "simpson({a,b},{f(a),f((a+b)/2),f(b)} [,INT ret-float])";
     " -- given two endpoints, a and b, and the functions value at a, (a+b)/2, and b, this will calculate a numerical approximation of the integral using simpson's rule.";
     "Entries can either be all INT or all FLOAT. Don't mix!";
@@ -689,9 +689,9 @@ object MATH_UTILS
       numer = tofloat(point[2] - point[1]) * (tofloat(fcn[1]) + 4.0 * tofloat(fcn[2]) + tofloat(fcn[3]));
       return numer / 6.0;
     endif
-  endverb
+  endmethod
 
-  verb parts (this none this) owner: HACKER flags: "rxd"
+  method parts owner: HACKER
     "parts(INT n, INT q [,INT i]) -- returns a decomposition of n by q into integer and floating point parts with i = the number of digits after the decimal.";
     "i defaults to 5.";
     "warning: it is quite easy to hit maxint which results in unpredictable";
@@ -702,9 +702,9 @@ object MATH_UTILS
     endif
     parts = {n / q, n % q};
     return {parts[1], parts[2] * 10 ^ i / q};
-  endverb
+  endmethod
 
-  verb sqrt (this none this) owner: HACKER flags: "rxd"
+  method sqrt owner: HACKER
     "sqrt(INT|FLOAT n) => largest integer <= square root of n. Returns the same type as the input. (Backwards compatibility)";
     n = args[1];
     return typeof(n) == TYPE_INT ? toint(sqrt(tofloat(n))) | sqrt(n);
@@ -720,14 +720,14 @@ object MATH_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb div (this none this) owner: HACKER flags: "rxd"
+  method div owner: HACKER
     "div(INT n, INT d) => q such that n = dq + r and  (0<=r<d if d>0, -d<r<=0 if d<0).";
     return this:divmod(@args)[1];
-  endverb
+  endmethod
 
-  verb mod (this none this) owner: HACKER flags: "rxd"
+  method mod owner: HACKER
     "A correct mod function.";
     "mod(INT n, INT d) => r such that n = dq + r and (0<=r<d if d>0 or -d<r<=0 if d<0).";
     {n, d} = args;
@@ -735,9 +735,9 @@ object MATH_UTILS
       return E_TYPE;
     endif
     return (n % d + d) % d;
-  endverb
+  endmethod
 
-  verb exp (this none this) owner: HACKER flags: "rxd"
+  method exp owner: HACKER
     "exp(INT|FLOAT x[,INT n]) -- calculates an nth order taylor approximation for e^x.";
     "n defaults to 5. Any n given must be >= 0. you need to divide the result";
     "the answer will be returned as {integer part,fractional part} if the input x was an integer. If it is floating point, so will the answer (and this uses the builtin function.)";
@@ -753,9 +753,9 @@ object MATH_UTILS
       ex = ex * x + (nfact = nfact * j);
     endfor
     return this:parts(ex, nfact);
-  endverb
+  endmethod
 
-  verb aexp (this none this) owner: HACKER flags: "rxd"
+  method aexp owner: HACKER
     "returns 10000 exp (x/10000)";
     "The accuracy seems to be ~0.1% for 0<x<4";
     x = args[1];
@@ -782,9 +782,9 @@ object MATH_UTILS
     else
       return 10000 + x + (x * x + 10000) / 20000 + (x * x * x + 300000000) / 600000000;
     endif
-  endverb
+  endmethod
 
-  verb random (this none this) owner: HACKER flags: "rxd"
+  method random owner: HACKER
     "random(INT n): returns a random integer in the following manner:";
     "random(n > 0) will return a integer in the range 0 to n";
     "random(n < 0) will return a integer in the range n to 0";
@@ -793,9 +793,9 @@ object MATH_UTILS
     endif
     mod = prob < 0 ? -1 | 1;
     return mod * random(abs(prob + mod)) - mod;
-  endverb
+  endmethod
 
-  verb random_range (this none this) owner: HACKER flags: "rxd"
+  method random_range owner: HACKER
     "random_range(INT range [,INT mean]): returns a random integer within the given range from the mean. if the mean isn't given, it defaults to 0";
     "e.g., random_range(10) => -10..10";
     "      random_range(10,4) => -6..14";
@@ -804,9 +804,9 @@ object MATH_UTILS
       return E_TYPE;
     endif
     return mean + (random(2) == 1 ? -1 | 1) * this:random(range);
-  endverb
+  endmethod
 
-  verb is_prime (this none this) owner: HACKER flags: "rxd"
+  method is_prime owner: HACKER
     "is_prime(INT number) returns 1 if the number is prime or 0 if it isn't.";
     "of course, only positive numbers are candidates for primality.";
     if (typeof(number = args[1]) != TYPE_INT)
@@ -830,9 +830,9 @@ object MATH_UTILS
       endwhile
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb "AND XOR" (this none this) owner: HACKER flags: "rxd"
+  method "AND XOR" owner: HACKER
     "Only useful for integer input.";
     {x, y} = args;
     if (typeof(x) != TYPE_INT && typeof(y) != TYPE_INT)
@@ -858,13 +858,13 @@ object MATH_UTILS
     else
       return z;
     endif
-  endverb
+  endmethod
 
-  verb OR (this none this) owner: HACKER flags: "rxd"
+  method OR owner: HACKER
     return this:NOT(this:AND(this:NOT(args[1]), this:NOT(args[2])));
-  endverb
+  endmethod
 
-  verb NOT (this none this) owner: HACKER flags: "rxd"
+  method NOT owner: HACKER
     return -(1 + args[1]);
     "";
     "... here's what it used to be ...";
@@ -874,9 +874,9 @@ object MATH_UTILS
       blOut = {@blOut, !bl1[i]};
     endfor
     return this:IntFromBL(blOut);
-  endverb
+  endmethod
 
-  verb BLFromInt (this none this) owner: HACKER flags: "rxd"
+  method BLFromInt owner: HACKER
     "BlFromInt(INT x) => converts the number provided into a 32 bit binary number, which is returned via a 32 element LIST of 1's and 0's. Note that this verb was originally written to be used with the $math_utils verbs: AND, NOT, OR, XOR, but has since been taken out of them.";
     if (typeof(x = args[1]) != TYPE_INT)
       return E_TYPE;
@@ -891,9 +891,9 @@ object MATH_UTILS
       x = x / 2;
     endfor
     return {firstbit, @l};
-  endverb
+  endmethod
 
-  verb IntFromBL (this none this) owner: HACKER flags: "rxd"
+  method IntFromBL owner: HACKER
     "IntFromBl(LIST of 1's and 0's) => converts the 32 bit binary representation given by the list of 1's and 0's and converts it to a normal decimal number. Note that this verb was originally written to be used with the $math_utils verbs: AND, NOT, OR, XOR, but has since been taken out of them.";
     bl = args[1];
     x = 0;
@@ -902,9 +902,9 @@ object MATH_UTILS
       x = x + l;
     endfor
     return x;
-  endverb
+  endmethod
 
-  verb "gcd greatest_common_divisor" (this none this) owner: HACKER flags: "rxd"
+  method "gcd greatest_common_divisor" owner: HACKER
     "gcd(INT num1,INT num2): find the greatest common divisor of the two numbers";
     "using the division algorithm. the absolute values of num1 and num2 are";
     "used without loss of generality.";
@@ -921,18 +921,18 @@ object MATH_UTILS
     else
       return min;
     endif
-  endverb
+  endmethod
 
-  verb "lcm least_common_multiple" (this none this) owner: HACKER flags: "rxd"
+  method "lcm least_common_multiple" owner: HACKER
     "lcm(INT num1,INT num2): find the least common multiple of the two numbers.";
     "we shall use the positive lcm value without loss of generality.";
     "since we have gcd already, we'll just use lcm*gcd = num1*num2";
     num1 = abs(args[1]);
     num2 = abs(args[2]);
     return num1 * num2 / this:gcd(num1, num2);
-  endverb
+  endmethod
 
-  verb "are_rel_prime are_relatively_prime" (this none this) owner: HACKER flags: "rxd"
+  method "are_rel_prime are_relatively_prime" owner: HACKER
     "are_rel_prime(INT num1,INT num2): returns 1 if num1 and num2 are relatively";
     "prime.";
     "since we have gcd, this is pretty easy.";
@@ -941,9 +941,9 @@ object MATH_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb base_conversion (this none this) owner: HACKER flags: "rxd"
+  method base_conversion owner: HACKER
     "Synopsis:    :base_conversion(number, current_base, desired_base)";
     "---";
     "Call with first arg either a number or a string, being the number";
@@ -990,9 +990,9 @@ object MATH_UTILS
       result = result / newbase;
     endwhile
     return thestring ? thestring | "0";
-  endverb
+  endmethod
 
-  verb norm (this none this) owner: HACKER flags: "rxd"
+  method norm owner: HACKER
     ":norm(a,b,c,d...) => sqrt(a^2+b^2+c^2+...)";
     m = max(max(@args), -min(@args));
     logm = length(tostr(m));
@@ -1011,9 +1011,9 @@ object MATH_UTILS
       endfor
       return toint(sqrt(tofloat(s))) * factor;
     endif
-  endverb
+  endmethod
 
-  verb sin (this none this) owner: HACKER flags: "rxd"
+  method sin owner: HACKER
     "Copied from Trig_Utils (#25800):sin by Obvious (#54879) Fri Nov 17 06:07:39 1995 PST";
     theta = args[1];
     if (typeof(theta) == TYPE_FLOAT)
@@ -1042,9 +1042,9 @@ object MATH_UTILS
     delta = lim2 - lim1;
     result = (delta * mintheta + 30) / 60 + lim1;
     return result;
-  endverb
+  endmethod
 
-  verb cos (this none this) owner: HACKER flags: "rxd"
+  method cos owner: HACKER
     "Copied from Trig_Utils (#25800):cos by Obvious (#54879) Fri Nov 17 06:07:50 1995 PST";
     theta = args[1];
     if (typeof(theta) == TYPE_FLOAT)
@@ -1059,9 +1059,9 @@ object MATH_UTILS
       return;
     endif
     return this:sin({degtheta, mintheta});
-  endverb
+  endmethod
 
-  verb tan (this none this) owner: HACKER flags: "rxd"
+  method tan owner: HACKER
     "Copied from Trig_Utils (#25800):tan by Obvious (#54879) Fri Nov 17 06:07:53 1995 PST";
     {theta} = args;
     if (typeof(theta) == TYPE_FLOAT)
@@ -1070,9 +1070,9 @@ object MATH_UTILS
     sine = this:sin(theta);
     cosine = this:cos(theta);
     return (sine * 10000 + (cosine + 1) / 2) / cosine;
-  endverb
+  endmethod
 
-  verb "arcsin asin" (this none this) owner: HACKER flags: "rxd"
+  method "arcsin asin" owner: HACKER
     "Copied from Trig_Utils (#25800):arcsin by Obvious (#54879) Fri Nov 17 06:08:01 1995 PST";
     {given} = args;
     if (typeof(given) == TYPE_FLOAT)
@@ -1108,9 +1108,9 @@ object MATH_UTILS
       minutes = -minutes;
     endif
     return {degrees, minutes};
-  endverb
+  endmethod
 
-  verb "arccos acos" (this none this) owner: HACKER flags: "rxd"
+  method "arccos acos" owner: HACKER
     "Copied from Trig_Utils (#25800):arccos by Obvious (#54879) Fri Nov 17 06:08:08 1995 PST";
     given = args[1];
     if (typeof(given) == TYPE_FLOAT)
@@ -1125,9 +1125,9 @@ object MATH_UTILS
       degrees = degrees + 1;
     endif
     return {degrees, minutes};
-  endverb
+  endmethod
 
-  verb "arctan atan" (this none this) owner: HACKER flags: "rxd"
+  method "arctan atan" owner: HACKER
     "Copied from Trig_Utils (#25800):arctan by Obvious (#54879) Fri Nov 17 06:08:18 1995 PST";
     given = args[1];
     if (typeof(given) == TYPE_FLOAT)
@@ -1137,43 +1137,43 @@ object MATH_UTILS
     reciprocal = sqrt(reciprocal * 10000);
     cosine = 100000000 / reciprocal;
     return this:arccos(cosine);
-  endverb
+  endmethod
 
-  verb "deg2rads deg2rad" (this none this) owner: HACKER flags: "rxd"
+  method "deg2rads deg2rad" owner: HACKER
     ":deg2rad(FLOAT Degrees) => FLOAT Radians";
     return tofloat(args[1]) * 0.0174532925199433;
-  endverb
+  endmethod
 
-  verb "rads2deg rad2deg" (this none this) owner: HACKER flags: "rxd"
+  method "rads2deg rad2deg" owner: HACKER
     ":rads2deg(FLOAT Radians) => FLOAT Degrees";
     return tofloat(args[1]) * 57.2957795130824;
-  endverb
+  endmethod
 
-  verb precision (this none this) owner: HACKER flags: "rxd"
+  method precision owner: HACKER
     ":precision(FLOAT Number, INT Digits of Precision) => FLOAT Number";
     "Cuts the given number to the given digits of precision.  Uses rounding.";
     {digits, pre} = args;
     mult = 10.0 ^ pre;
     return this:rint(digits * mult) / mult;
-  endverb
+  endmethod
 
-  verb round (this none this) owner: HACKER flags: "rxd"
+  method round owner: HACKER
     "Usage: round(INT number, INT round)";
     "Rounds 'number' off to the nearest multiple of 'round'.";
     "Rounds UP numbers exactly half way in between two round possibilities.";
     {what, round} = args;
     low = what / round * round;
     return what < low + round / 2 ? low | low + round;
-  endverb
+  endmethod
 
-  verb "mean average" (this none this) owner: HACKER flags: "rxd"
+  method "mean average" owner: HACKER
     "Usage: mean(INT, INT, ... )";
     "       mean({INT, INT, ...})";
     "Returns the average of all integers provided.";
     return this:sum(rlist = typeof(args[1]) == TYPE_LIST ? args[1] | args) / length(rlist);
-  endverb
+  endmethod
 
-  verb sum_float (this none this) owner: HACKER flags: "rxd"
+  method sum_float owner: HACKER
     ":sum_float(FLOAT num, num, num ...) => Total of all arguments added together.";
     ":sum_float({num, num, num, ...}) will also work.";
     {?total = 0.0, @rest} = args;
@@ -1184,9 +1184,9 @@ object MATH_UTILS
       total = total + number;
     endfor
     return total;
-  endverb
+  endmethod
 
-  verb "sum_int sum" (this none this) owner: HACKER flags: "rxd"
+  method "sum_int sum" owner: HACKER
     ":sum_int(INT num, num, num ...) => Total of all arguments added together.";
     ":sum_int({num, num, num, ...}) will also work.";
     "(...also named :sum for backward compatibility).";
@@ -1200,12 +1200,12 @@ object MATH_UTILS
     endfor
     return total;
     "... N.B.  For the sake of backward compatibility this routine will also return the float sum of a non-empty lists of floats, but using it this way should not be encouraged.";
-  endverb
+  endmethod
 
-  verb rint (this none this) owner: HACKER flags: "rxd"
+  method rint owner: HACKER
     ":rint(FLOAT Number) => FLOAT Number";
     "Returns the given floating-point number rounded to the nearest integer, as a floating-point number.  In case of ties, rounds away from 0.";
     {f} = args;
     return trunc(f > 0.0 ? f + 0.5 | f - 0.5);
-  endverb
+  endmethod
 endobject

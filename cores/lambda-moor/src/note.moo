@@ -90,21 +90,21 @@ object NOTE
     endtry
   endverb
 
-  verb text (this none this) owner: #2 flags: "rxd"
+  method text owner: #2
     cp = caller_perms();
     if ($perm_utils:controls(cp, this) || this:is_readable_by(cp))
       return this.text;
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb is_readable_by (this none this) owner: #2 flags: "rxd"
+  method is_readable_by owner: #2
     key = this.encryption_key;
     return key == 0 || $lock_utils:eval_key(key, args[1]);
-  endverb
+  endmethod
 
-  verb set_text (this none this) owner: #2 flags: "rxd"
+  method set_text owner: #2
     cp = caller_perms();
     newtext = args[1];
     if ($perm_utils:controls(cp, this) || this:is_writable_by(cp))
@@ -116,9 +116,9 @@ object NOTE
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb is_writable_by (this none this) owner: #2 flags: "rxd"
+  method is_writable_by owner: #2
     who = args[1];
     wr = this.writers;
     if ($perm_utils:controls(who, this))
@@ -128,7 +128,7 @@ object NOTE
     else
       return wr;
     endif
-  endverb
+  endmethod
 
   verb "mailme @mailme" (this none none) owner: #2 flags: "rd"
     "Usage:  mailme <note>";

@@ -6,21 +6,21 @@ object GARBAGE
   property aliases (owner: HACKER, flags: "r") = {"garbage"};
   property import_export_id (owner: HACKER, flags: "r") = "garbage";
 
-  verb description (this none this) owner: #2 flags: "rxd"
+  method description owner: #2
     return "Garbage object " + tostr(this) + ".";
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: #2 flags: "rxd"
+  method look_self owner: #2
     player:tell(this:description());
-  endverb
+  endmethod
 
-  verb "title titlec" (this none this) owner: #2 flags: "rxd"
+  method "title titlec" owner: #2
     return tostr("Recyclable ", this);
-  endverb
+  endmethod
 
-  verb tell (this none this) owner: #2 flags: "rxd"
+  method tell owner: #2
     return;
-  endverb
+  endmethod
 
   verb do_examine (none none none) owner: #2 flags: "rxd"
     args[1]:notify(tostr(this, " is a garbage object, ready for reuse."));

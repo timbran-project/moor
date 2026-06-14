@@ -10,7 +10,7 @@ object GUEST_LOG
   override import_export_id = "guest_log";
   override object_size = {3738, 1084848672};
 
-  verb enter (this none this) owner: #2 flags: "rxd"
+  method enter owner: #2
     ":enter(who,islogin,time,site)";
     "adds an entry to the connection log for a given guest (caller).";
     if ($object_utils:isa(caller, $guest))
@@ -18,9 +18,9 @@ object GUEST_LOG
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb last (this none this) owner: #2 flags: "rxd"
+  method last owner: #2
     ":last([n,[guest_list]])";
     "print list of the last n entries in the guest log";
     " (use n=0 if you want all entries)";
@@ -67,16 +67,16 @@ object GUEST_LOG
         $command_utils:suspend_if_needed(2);
       endfor
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.connections = {};
     endif
-  endverb
+  endmethod
 
-  verb find (this none this) owner: #2 flags: "rxd"
+  method find owner: #2
     ":find(guest_id,time)";
     " => site name of guest logged in at that time";
     " => 0 if not logged in";
@@ -105,5 +105,5 @@ object GUEST_LOG
       endfor
       return E_NACC;
     endif
-  endverb
+  endmethod
 endobject

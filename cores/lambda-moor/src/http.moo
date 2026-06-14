@@ -27,7 +27,7 @@ object HTTP
   override import_export_id = "http";
   override object_size = {7309, 1529542623};
 
-  verb handle_connection (this none this) owner: #2 flags: "rxd"
+  method handle_connection owner: #2
     "HTTP Server";
     "";
     "This gets called by the #0:do_login_command";
@@ -131,17 +131,17 @@ object HTTP
     endif
     "HTTP Session successful";
     return;
-  endverb
+  endmethod
 
-  verb tell_key (this none this) owner: #2 flags: "rxd"
+  method tell_key owner: #2
     "This makes a URL key for a specific object and player.";
     "With the keyed URL, the PLAYER will be set correctly when :HTML() is called";
     key = this:gen_key(player, caller);
     notify(player, "This is the private key for you, " + player.name + ". Do not share it.");
     notify(player, "http://" + $network.site + ":" + $network.port + "/" + tostr(caller)[2..$] + "/" + tostr(player)[2..$] + "/" + key + "/");
-  endverb
+  endmethod
 
-  verb gen_key (this none this) owner: #2 flags: "rxd"
+  method gen_key owner: #2
     if (caller != this)
       return E_PERM;
     endif
@@ -163,5 +163,5 @@ object HTTP
       endif
     endfor
     return key;
-  endverb
+  endmethod
 endobject

@@ -14,15 +14,15 @@ object OBJECT_QUOTA_UTILS
   override import_export_id = "object_quota_utils";
   override object_size = {6728, 1084848672};
 
-  verb initialize_quota (this none this) owner: HACKER flags: "rxd"
+  method initialize_quota owner: HACKER
     if (!caller_perms().wizard)
       return E_PERM;
     else
       args[1].ownership_quota = $wiz_utils.default_player_quota;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -30,9 +30,9 @@ object OBJECT_QUOTA_UTILS
       "Uncomment this if you want to send the core out with object quota.";
       "  $quota_utils = this";
     endif
-  endverb
+  endmethod
 
-  verb adjust_quota_for_programmer (this none this) owner: HACKER flags: "rxd"
+  method adjust_quota_for_programmer owner: HACKER
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -45,24 +45,24 @@ object OBJECT_QUOTA_UTILS
         victim.ownership_quota = oldquota + ($wiz_utils.default_programmer_quota - $wiz_utils.default_player_quota);
       endif
     endif
-  endverb
+  endmethod
 
-  verb bi_create (this none this) owner: #2 flags: "rxd"
+  method bi_create owner: #2
     "Calls built-in create.";
     set_task_perms(caller_perms());
     return `create(@args) ! ANY';
-  endverb
+  endmethod
 
-  verb creation_permitted (this none this) owner: HACKER flags: "rxd"
+  method creation_permitted owner: HACKER
     $recycler:check_quota_scam(args[1]);
     return args[1].ownership_quota > 0;
-  endverb
+  endmethod
 
-  verb "verb_addition_permitted property_addition_permitted" (this none this) owner: HACKER flags: "rxd"
+  method "verb_addition_permitted property_addition_permitted" owner: HACKER
     return 1;
-  endverb
+  endmethod
 
-  verb display_quota (this none this) owner: HACKER flags: "rxd"
+  method display_quota owner: HACKER
     who = args[1];
     if (caller_perms() == who)
       q = who.ownership_quota;
@@ -79,17 +79,17 @@ object OBJECT_QUOTA_UTILS
         player:tell("Permission denied.");
       endif
     endif
-  endverb
+  endmethod
 
-  verb "get_quota quota_remaining" (this none this) owner: HACKER flags: "rxd"
+  method "get_quota quota_remaining" owner: HACKER
     if ($perm_utils:controls(caller_perms(), args[1]) || caller == this)
       return args[1].ownership_quota;
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb charge_quota (this none this) owner: HACKER flags: "rxd"
+  method charge_quota owner: HACKER
     "Charge args[1] for the quota required to own args[2]";
     {who, what} = args;
     if (caller == this || caller_perms().wizard)
@@ -97,9 +97,9 @@ object OBJECT_QUOTA_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb reimburse_quota (this none this) owner: HACKER flags: "rxd"
+  method reimburse_quota owner: HACKER
     "Reimburse args[1] for the quota required to own args[2]";
     {who, what} = args;
     if (caller == this || caller_perms().wizard)
@@ -107,9 +107,9 @@ object OBJECT_QUOTA_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb set_quota (this none this) owner: HACKER flags: "rxd"
+  method set_quota owner: HACKER
     "Set args[1]'s quota to args[2]";
     {who, quota} = args;
     if (caller_perms().wizard || caller == this)
@@ -117,19 +117,19 @@ object OBJECT_QUOTA_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb preliminary_reimburse_quota (this none this) owner: HACKER flags: "rxd"
+  method preliminary_reimburse_quota owner: HACKER
     return 0;
-  endverb
+  endmethod
 
-  verb can_peek (this none this) owner: HACKER flags: "rxd"
+  method can_peek owner: HACKER
     "Is args[1] permitted to examine args[2]'s quota information?";
     return $perm_utils:controls(args[1], args[2]);
-  endverb
+  endmethod
 
-  verb can_touch (this none this) owner: HACKER flags: "rxd"
+  method can_touch owner: HACKER
     "Is args[1] permitted to examine args[2]'s quota information?";
     return args[1].wizard;
-  endverb
+  endmethod
 endobject

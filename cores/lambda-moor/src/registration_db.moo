@@ -16,11 +16,11 @@ object REGISTRATION_DB
   override node_perms = "";
   override object_size = {8549, 1084848672};
 
-  verb "find* _only* _every*" (this none this) owner: HACKER flags: "rxd"
+  method "find* _only* _every*" owner: HACKER
     return caller == this || caller_perms().wizard ? pass(@args) | E_PERM;
-  endverb
+  endmethod
 
-  verb add (this none this) owner: HACKER flags: "rxd"
+  method add owner: HACKER
     ":add(player,email[,comment])";
     if (!caller_perms().wizard)
       return E_PERM;
@@ -34,18 +34,18 @@ object REGISTRATION_DB
     else
       this:insert(email, {@l, {who, @comment}});
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: HACKER flags: "rxd"
+  method init_for_core owner: HACKER
     if (caller_perms().wizard)
       pass(@args);
       this:clearall();
       this.registrar = #2;
       this:prune_reset();
     endif
-  endverb
+  endmethod
 
-  verb suspicious_address (this none this) owner: #2 flags: "rxd"
+  method suspicious_address owner: #2
     "suspicious(address [,who])";
     "Determine whether an address appears to be another player in disguise.";
     "returns a list of similar addresses.";
@@ -92,9 +92,9 @@ object REGISTRATION_DB
       endif
     endfor
     return others;
-  endverb
+  endmethod
 
-  verb suspicious_userid (this none this) owner: #2 flags: "rxd"
+  method suspicious_userid owner: #2
     "suspicious_userid(userid)";
     "Return yes if userid is root or postmaster or something like that.";
     if ($object_utils:has_property(#0, "local") && $object_utils:has_property($local, "suspicious_userids"))
@@ -104,9 +104,9 @@ object REGISTRATION_DB
     endif
     return args[1] in {@$network.suspicious_userids, @extra} || match(args[1], "^guest") || match(args[1], "^help") || index(args[1], "-owner") || index(args[1], "owner-");
     "Thinking about ruling out hyphenated names, on the grounds that they're probably mailing lists.";
-  endverb
+  endmethod
 
-  verb describe_registration (this none this) owner: #2 flags: "rxd"
+  method describe_registration owner: #2
     "Returns a list of strings describing the registration data for an email address.  Args[1] should be the result of this:find.";
     set_task_perms(caller_perms());
     result = {};
@@ -116,9 +116,9 @@ object REGISTRATION_DB
       result = {@result, tostr("  ", name, " (", x[1], ") current email: ", email, length(x) > 1 ? " [" + x[2] + "]" | "")};
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb prune (this none this) owner: #2 flags: "rxd"
+  method prune owner: #2
     "Carefully loop through the db and delete items associated with reaped objects.  If that results in no objects remaining for a username, delete that username.";
     "Attempt to keep memory usage down by only asking for a small number of items at a time.  Should probably have some arguments to control this.";
     if (!caller_perms().wizard)
@@ -162,9 +162,9 @@ object REGISTRATION_DB
       endif
     endwhile
     player:tell("Prune stopped at ", toliteral(this.prune_progress));
-  endverb
+  endmethod
 
-  verb report_prune_progress (this none this) owner: #2 flags: "rxd"
+  method report_prune_progress owner: #2
     player:tell("Prune is up to ", toliteral(this.prune_progress), ".");
     mine = 0;
     alphalen = length(this.alphabet);
@@ -190,9 +190,9 @@ object REGISTRATION_DB
     else
       player:tell("The recorded task_id is no longer valid.");
     endif
-  endverb
+  endmethod
 
-  verb prune_reset (this none this) owner: #2 flags: "rxd"
+  method prune_reset owner: #2
     this:report_prune_progress();
     player:tell("Resetting...");
     this.prune_progress = "aaa";
@@ -200,7 +200,7 @@ object REGISTRATION_DB
     this.total_pruned_people = 0;
     this.total_pruned_characters = 0;
     this.prune_task = 0;
-  endverb
+  endmethod
 
   verb search (this for any) owner: #2 flags: "rxd"
     who = caller_perms();

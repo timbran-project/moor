@@ -31,24 +31,24 @@ object BUILD_OPTIONS
   override namewidth = 20;
   override object_size = {3690, 1084848672};
 
-  verb check_create_flags (this none this) owner: HACKER flags: "rxd"
+  method check_create_flags owner: HACKER
     value = args[1];
     if (m = match(value, "[^rwf]"))
       return tostr("Unknown object flag:  ", value[m[1]]);
     else
       return {tostr(index(value, "r") ? "r" | "", index(value, "w") ? "w" | "", index(value, "f") ? "f" | "")};
     endif
-  endverb
+  endmethod
 
-  verb show_create_flags (this none this) owner: HACKER flags: "rxd"
+  method show_create_flags owner: HACKER
     if (value = this:get(@args))
       return {value, {tostr("Object flags for @create:  ", value)}};
     else
       return {0, {tostr("@create leaves all object flags reset")}};
     endif
-  endverb
+  endmethod
 
-  verb parse_create_flags (this none this) owner: HACKER flags: "rxd"
+  method parse_create_flags owner: HACKER
     raw = args[2];
     if (raw == 1)
       "...+create_flags => create_flags=r";
@@ -62,9 +62,9 @@ object BUILD_OPTIONS
     else
       return {args[1], raw[1]};
     endif
-  endverb
+  endmethod
 
-  verb "show_dig_room show_dig_exit" (this none this) owner: HACKER flags: "rxd"
+  method "show_dig_room show_dig_exit" owner: HACKER
     name = args[2];
     what = verb == "show_dig_room" ? "room" | "exit";
     if ((value = this:get(args[1], name)) == 0)
@@ -72,9 +72,9 @@ object BUILD_OPTIONS
     else
       return {value, {tostr("@dig ", what, "s are children of ", value, " (", valid(value) ? value.name | "invalid", ").")}};
     endif
-  endverb
+  endmethod
 
-  verb "parse_dig_room parse_dig_exit" (this none this) owner: HACKER flags: "rxd"
+  method "parse_dig_room parse_dig_exit" owner: HACKER
     {oname, raw, data} = args;
     if (typeof(raw) == TYPE_LIST)
       if (length(raw) > 1)
@@ -97,5 +97,5 @@ object BUILD_OPTIONS
       endif
       return {oname, value};
     endif
-  endverb
+  endmethod
 endobject

@@ -23,20 +23,20 @@ object EDIT_OPTIONS
   override namewidth = 20;
   override object_size = {1856, 1084848672};
 
-  verb actual (this none this) owner: HACKER flags: "rxd"
+  method actual owner: HACKER
     if (i = args[1] in {"parens", "noisy_insert"})
       return {{{"no_parens", "quiet_insert"}[i], !args[2]}};
     else
       return {args};
     endif
-  endverb
+  endmethod
 
-  verb show (this none this) owner: HACKER flags: "rxd"
+  method show owner: HACKER
     if (o = (name = args[2]) in {"parens", "noisy_insert"})
       args[2] = {"no_parens", "quiet_insert"}[o];
       return {@pass(@args), tostr("(", name, " is a synonym for -", args[2], ")")};
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 endobject

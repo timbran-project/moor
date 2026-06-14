@@ -8,7 +8,7 @@ object PLAYER_START
   override import_export_id = "player_start";
   override object_size = {4407, 1084848672};
 
-  verb disfunc (this none this) owner: #2 flags: "rxd"
+  method disfunc owner: #2
     "Copied from The Coat Closet (#11):disfunc by Haakon (#2) Mon May  8 10:41:04 1995 PDT";
     if ((cp = caller_perms()) == (who = args[1]) || $perm_utils:controls(cp, who) || caller == this)
       "need the first check since guests don't control themselves";
@@ -19,9 +19,9 @@ object PLAYER_START
         pass(who);
       endif
     endif
-  endverb
+  endmethod
 
-  verb enterfunc (this none this) owner: #2 flags: "rxd"
+  method enterfunc owner: #2
     "Copied from The Coat Closet (#11):enterfunc by Haakon (#2) Mon May  8 10:41:38 1995 PDT";
     who = args[1];
     if ($limbo:acceptable(who))
@@ -29,9 +29,9 @@ object PLAYER_START
     else
       pass(who);
     endif
-  endverb
+  endmethod
 
-  verb match (this none this) owner: HACKER flags: "rxd"
+  method match owner: HACKER
     "Copied from The Coat Closet (#11):match by Lambda (#50) Mon May  8 10:42:01 1995 PDT";
     m = pass(@args);
     if (m == $failed_match)
@@ -42,9 +42,9 @@ object PLAYER_START
       endif
     endif
     return m;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     "Copied from The Coat Closet (#11):init_for_core by Nosredna (#2487) Mon May  8 10:42:52 1995 PDT";
     if (!caller_perms().wizard)
       return E_PERM;
@@ -68,9 +68,9 @@ object PLAYER_START
     $player_start.exits = $player_start.entrances = {};
     "... at the end since $room:init_for_core moves stuff in";
     pass(@args);
-  endverb
+  endmethod
 
-  verb keep_clean (this none this) owner: #2 flags: "rxd"
+  method keep_clean owner: #2
     "Copied from The Coat Closet (#11):keep_clean by Haakon (#2) Mon May  8 10:47:08 1995 PDT";
     if ($perm_utils:controls(caller_perms(), this))
       junk = {};
@@ -101,5 +101,5 @@ object PLAYER_START
         suspend(5 * 60);
       endwhile
     endif
-  endverb
+  endmethod
 endobject

@@ -58,7 +58,7 @@ object OBJECT_UTILS
   override import_export_id = "object_utils";
   override object_size = {21564, 1084848672};
 
-  verb has_property (this none this) owner: #2 flags: "rxd"
+  method has_property owner: #2
     "Syntax:  has_property(OBJ, STR) => INT 0|1";
     "";
     "Does object have the specified property? Returns true if it is defined on the object or a parent.";
@@ -75,9 +75,9 @@ object OBJECT_UTILS
     else
       return !!property_info(object, prop);
     endif
-  endverb
+  endmethod
 
-  verb "all_properties all_verbs" (this none this) owner: #2 flags: "rxd"
+  method "all_properties all_verbs" owner: #2
     "Syntax:  all_properties (OBJ what)";
     "         all_verbs      (OBJ what)";
     "";
@@ -92,9 +92,9 @@ object OBJECT_UTILS
       res = {@`call_function(bif, what) ! E_PERM => {}', @res};
     endwhile
     return res;
-  endverb
+  endmethod
 
-  verb has_verb (this none this) owner: #2 flags: "rxd"
+  method has_verb owner: #2
     ":has_verb(OBJ object, STR verbname)";
     "Find out if an object has a verb matching the given verbname.";
     "Returns {location} if so, 0 if not, where location is the object or the ancestor on which the verb is actually defined.";
@@ -114,9 +114,9 @@ object OBJECT_UTILS
       object = parent(object);
     endwhile
     return vi ? {object} | 0;
-  endverb
+  endmethod
 
-  verb has_callable_verb (this none this) owner: #2 flags: "rxd"
+  method has_callable_verb owner: #2
     "Usage:  has_callable_verb(object, verb)";
     "See if an object has a verb that can be called by another verb (i.e., that has its x permission bit set).";
     "Return {location}, where location is the object that defines the verb, or 0 if the object doesn't have the verb.";
@@ -129,9 +129,9 @@ object OBJECT_UTILS
       object = parent(object);
     endwhile
     return 0;
-  endverb
+  endmethod
 
-  verb match_verb (this none this) owner: #2 flags: "rxd"
+  method match_verb owner: #2
     ":match_verb(OBJ object, STR verb)";
     "Find out if an object has a given verb, and some information about it.";
     "Returns {OBJ location, STR verb} if matched, 0 if not.";
@@ -144,9 +144,9 @@ object OBJECT_UTILS
       object = parent(object);
     endwhile
     return info ? {object, verbname} | 0;
-  endverb
+  endmethod
 
-  verb isa (this none this) owner: HACKER flags: "rxd"
+  method isa owner: HACKER
     ":isa(x,y) == valid(x) && (y==x || y in :ancestors(x))";
     {what, targ} = args;
     while (valid(what))
@@ -156,9 +156,9 @@ object OBJECT_UTILS
       what = parent(what);
     endwhile
     return 0;
-  endverb
+  endmethod
 
-  verb ancestors (this none this) owner: HACKER flags: "rxd"
+  method ancestors owner: HACKER
     "Usage:  ancestors(object[, object...])";
     "Return a list of all ancestors of the object(s) in args, with no duplicates.";
     "If called with a single object, the result will be in order ascending up the inheritance hierarchy.  If called with multiple objects, it probably won't.";
@@ -170,9 +170,9 @@ object OBJECT_UTILS
       endwhile
     endfor
     return ret;
-  endverb
+  endmethod
 
-  verb ordered_descendants (this none this) owner: HACKER flags: "rxd"
+  method ordered_descendants owner: HACKER
     r = {what = args[1]};
     for k in (children(what))
       if (children(k))
@@ -182,9 +182,9 @@ object OBJECT_UTILS
       endif
     endfor
     return r;
-  endverb
+  endmethod
 
-  verb contains (this none this) owner: HACKER flags: "rxd"
+  method contains owner: HACKER
     "$object_utils:contains(obj1, obj2) -- does obj1 contain obj2?";
     "";
     "Return true iff obj2 is under obj1 in the containment hierarchy; that is, if obj1 is obj2's location, or its location's location, or ...";
@@ -196,18 +196,18 @@ object OBJECT_UTILS
       endif
     endwhile
     return 0;
-  endverb
+  endmethod
 
-  verb all_contents (this none this) owner: HACKER flags: "rxd"
+  method all_contents owner: HACKER
     "all_contents(object)";
     "Return a list of all objects contained (at some level) by object.";
     for y in (res = args[1].contents)
       y.contents && (res = {@res, @this:all_contents(y)});
     endfor
     return res;
-  endverb
+  endmethod
 
-  verb findable_properties (this none this) owner: #2 flags: "rxd"
+  method findable_properties owner: #2
     "findable_properties(object)";
     "Return a list of properties on those members of object's ancestor list that are readable or are owned by the caller (or all properties if the caller is a wizard).";
     what = args[1];
@@ -220,9 +220,9 @@ object OBJECT_UTILS
       what = parent(what);
     endwhile
     return props;
-  endverb
+  endmethod
 
-  verb owned_properties (this none this) owner: #2 flags: "rxd"
+  method owned_properties owner: #2
     "owned_properties(what[, who])";
     "Return a list of all properties on WHAT owned by WHO.";
     "Only wizardly verbs can specify WHO; mortal verbs can only search for properties owned by their own owners.  For more information, talk to Gary_Severn.";
@@ -238,9 +238,9 @@ object OBJECT_UTILS
       anc = parent(anc);
     endwhile
     return props;
-  endverb
+  endmethod
 
-  verb property_conflicts (this none this) owner: #2 flags: "rxd"
+  method property_conflicts owner: #2
     ":property_conflicts(object,newparent)";
     "Looks for propertyname conflicts that would keep chparent(object,newparent)";
     "  from working.";
@@ -272,9 +272,9 @@ object OBJECT_UTILS
       $command_utils:suspend_if_needed(0);
     endfor
     return conflicts;
-  endverb
+  endmethod
 
-  verb descendants_with_property_suspended (this none this) owner: #2 flags: "rxd"
+  method descendants_with_property_suspended owner: #2
     ":descendants_with_property_suspended(object,property)";
     " => list of descendants of object on which property is defined.";
     "calls suspend(0) as needed";
@@ -292,9 +292,9 @@ object OBJECT_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb locations (this none this) owner: #2 flags: "rxd"
+  method locations owner: #2
     "Usage:  locations(object)";
     "Return a listing of the location hierarchy above object.";
     ret = {};
@@ -303,9 +303,9 @@ object OBJECT_UTILS
       ret = {@ret, what};
     endwhile
     return ret;
-  endverb
+  endmethod
 
-  verb "all_properties_suspended all_verbs_suspended" (this none this) owner: #2 flags: "rxd"
+  method "all_properties_suspended all_verbs_suspended" owner: #2
     "Syntax:  all_properties_suspended (OBJ what)";
     "         all_verbs_suspended      (OBJ what)";
     "";
@@ -321,16 +321,16 @@ object OBJECT_UTILS
       $command_utils:suspend_if_needed(0);
     endwhile
     return res;
-  endverb
+  endmethod
 
-  verb connected (this none this) owner: HACKER flags: "rxd"
+  method connected owner: HACKER
     ":connected(object) => true if object is a connected player.";
     "equivalent to (object in connected_players()) for valid players, perhaps with less server overhead.";
     "use object:is_listening() if you want to allow for puppets and other non-player objects that still 'care' about what's said.";
     return typeof(`connected_seconds(@args) ! E_INVARG') == TYPE_INT;
-  endverb
+  endmethod
 
-  verb isoneof (this none this) owner: HACKER flags: "rxd"
+  method isoneof owner: HACKER
     ":isoneof(x,y) = x isa z, for some z in list y";
     {what, targ} = args;
     while (valid(what))
@@ -340,18 +340,18 @@ object OBJECT_UTILS
       what = parent(what);
     endwhile
     return 0;
-  endverb
+  endmethod
 
-  verb defines_verb (this none this) owner: #2 flags: "rxd"
+  method defines_verb owner: #2
     "Returns 1 if the verb is actually *defined* on this object, 0 else.";
     "Use this instead of :has_verb if your aim is to manipulate that verb code or whatever.";
     return `verb_info(@args) ! ANY => 0' && 1;
     "Old code below...Ho_Yan 10/22/96";
     info = verb_info(@args);
     return typeof(info) != TYPE_ERR;
-  endverb
+  endmethod
 
-  verb defines_property (this none this) owner: #2 flags: "rxd"
+  method defines_property owner: #2
     ":defines_property(OBJ object, STR property name) => Returns 1 if the property is actually *defined* on the object given";
     if (!valid(o = args[1]))
       return 0;
@@ -360,15 +360,15 @@ object OBJECT_UTILS
     else
       return !this:has_property(p, args[2]) && this:has_property(o, args[2]);
     endif
-  endverb
+  endmethod
 
-  verb "has_any_verb has_any_property" (this none this) owner: #2 flags: "rxd"
+  method "has_any_verb has_any_property" owner: #2
     ":has_any_verb(object) / :has_any_property(object)";
     " -- does `object' have any verbs/properties?";
     return !!(`verb == "has_any_verb" ? verbs(args[1]) | properties(args[1]) ! E_INVARG => 0');
-  endverb
+  endmethod
 
-  verb "has_readable_prop*erty hrp" (this none this) owner: #2 flags: "rxd"
+  method "has_readable_prop*erty hrp" owner: #2
     ":has_readable_property(OBJ object, STR property name) => 1 if property exists and is publically readable (has the r flag set true).";
     {object, prop} = args;
     try
@@ -377,9 +377,9 @@ object OBJECT_UTILS
     except (E_PROPNF)
       return prop in $code_utils.builtin_props > 0;
     endtry
-  endverb
+  endmethod
 
-  verb "descendants descendents" (this none this) owner: HACKER flags: "rxd"
+  method "descendants descendents" owner: HACKER
     ":descendants (OBJ object) => {OBJs} all nested children of <object>";
     r = children(args[1]);
     i = 1;
@@ -390,9 +390,9 @@ object OBJECT_UTILS
       i = i + 1;
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb leaves (this none this) owner: HACKER flags: "rxd"
+  method leaves owner: HACKER
     ":leaves (OBJ object) => {OBJs} descendants of <object> that have no children";
     r = {args[1]};
     i = 1;
@@ -404,9 +404,9 @@ object OBJECT_UTILS
       endif
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb branches (this none this) owner: HACKER flags: "rxd"
+  method branches owner: HACKER
     ":branches (OBJ object) => {OBJs} descendants of <object> that have children";
     r = args[1..1];
     i = 1;
@@ -419,9 +419,9 @@ object OBJECT_UTILS
       endif
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb "descendants_suspended descendents_suspended" (this none this) owner: #2 flags: "rxd"
+  method "descendants_suspended descendents_suspended" owner: #2
     ":descendants_suspended (OBJ object) => {OBJs} all nested children of <object>";
     set_task_perms(caller_perms());
     r = children(args[1]);
@@ -434,9 +434,9 @@ object OBJECT_UTILS
       $command_utils:suspend_if_needed(0);
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb leaves_suspended (this none this) owner: #2 flags: "rxd"
+  method leaves_suspended owner: #2
     ":leaves_suspended (OBJ object) => {OBJs} descendants of <object> that have";
     "                                         no children";
     set_task_perms(caller_perms());
@@ -451,9 +451,9 @@ object OBJECT_UTILS
       $command_utils:suspend_if_needed(0);
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb branches_suspended (this none this) owner: #2 flags: "rxd"
+  method branches_suspended owner: #2
     ":branches_suspended (OBJ object) => {OBJs} all descendants of <object> that";
     "                                           have children.";
     set_task_perms(caller_perms());
@@ -469,9 +469,9 @@ object OBJECT_UTILS
       $command_utils:suspend_if_needed(0);
     endwhile
     return r;
-  endverb
+  endmethod
 
-  verb "disown disinherit" (this none this) owner: #2 flags: "rxd"
+  method "disown disinherit" owner: #2
     ":disown(object) / :disinherit(object)";
     " => 1 (for a successful disinheritance)";
     " raises E_PERM, E_INVARG, E_ARGS";
@@ -493,9 +493,9 @@ object OBJECT_UTILS
       chparent(victim, grandparent);
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb accessible_verbs (this none this) owner: #2 flags: "rxd"
+  method accessible_verbs owner: #2
     "  accessible_verbs(object)   => a list of verb names (or E_PERM) regardless of readability of object";
     {thing} = args;
     valid(thing) || raise(E_INVARG, "Invalid object argument");
@@ -506,9 +506,9 @@ object OBJECT_UTILS
       verbs = {@verbs, `verb_info(thing, i)[3] ! E_PERM'};
     endfor
     return verbs;
-  endverb
+  endmethod
 
-  verb "accessible_prop*erties accessible_props" (this none this) owner: #2 flags: "rxd"
+  method "accessible_prop*erties accessible_props" owner: #2
     " :accessible_props(object)   => a list of property names (or E_PERM), regardless of the readability of the object.";
     thing = args[1];
     all = properties(thing);
@@ -522,5 +522,5 @@ object OBJECT_UTILS
     endfor
     return props;
     "Last modified Mon Nov 28 06:19:35 2005 PST, by Roebare (#109000).";
-  endverb
+  endmethod
 endobject

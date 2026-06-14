@@ -16,7 +16,7 @@ object RECYCLER
   override import_export_id = "recycler";
   override object_size = {11836, 1084848672};
 
-  verb _recreate (this none this) owner: #2 flags: "rxd"
+  method _recreate owner: #2
     "Return a toad (child of #1, owned by $hacker) from this.contents.  Move it to #-1.  Recreate as a child of args[1], or of #1 if no args are given.  Chown to caller_perms() or args[2] if present.";
     {?what = #1, ?who = caller_perms()} = args;
     if (!(caller_perms().wizard || who == caller_perms()))
@@ -32,9 +32,9 @@ object RECYCLER
       endif
     endfor
     return E_NONE;
-  endverb
+  endmethod
 
-  verb _recycle (this none this) owner: #2 flags: "rxd"
+  method _recycle owner: #2
     "Recycle an object. When pooling is disabled (default), destroys it.";
     "When enabled, adds it to the pool for later reuse.";
     item = args[1];
@@ -57,9 +57,9 @@ object RECYCLER
     $wiz_utils:set_owner(item, $hacker);
     item.name = tostr("Pooled ", item);
     `move(item, this) ! ANY => 0';
-  endverb
+  endmethod
 
-  verb _create (this none this) owner: #2 flags: "rxd"
+  method _create owner: #2
     "Create an object. When pooling is disabled (default), just creates fresh.";
     "When enabled, attempts to reuse a pooled object first.";
     e = `set_task_perms(caller_perms()) ! ANY';
@@ -71,9 +71,9 @@ object RECYCLER
     endif
     val = this:_recreate(@args);
     return val == E_NONE ? $quota_utils:bi_create(@args) | val;
-  endverb
+  endmethod
 
-  verb addhist (this none this) owner: #2 flags: "rxd"
+  method addhist owner: #2
     if (caller == this)
       h = this.history;
       if ((len = length(h)) > this.nhist)
@@ -81,7 +81,7 @@ object RECYCLER
       endif
       this.history = {@h, args};
     endif
-  endverb
+  endmethod
 
   verb "show*-history" (this none none) owner: #2 flags: "rxd"
     if ($perm_utils:controls(valid(caller_perms()) ? caller_perms() | player, this))
@@ -127,7 +127,7 @@ object RECYCLER
     endif
   endverb
 
-  verb setup_toad (this none this) owner: #2 flags: "rxd"
+  method setup_toad owner: #2
     "this:setup_toad(objnum,new_owner,parent)";
     "Called by :_create and :request.";
     if (caller != this)
@@ -148,36 +148,36 @@ object RECYCLER
       "... orphan list should be checked periodically...";
       return potential;
     endif
-  endverb
+  endmethod
 
-  verb add_orphan (this none this) owner: HACKER flags: "rxd"
+  method add_orphan owner: HACKER
     if (caller == this)
       this.orphans = setadd(this.orphans, args[1]);
     endif
-  endverb
+  endmethod
 
-  verb remove_orphan (this none this) owner: HACKER flags: "rxd"
+  method remove_orphan owner: HACKER
     if (caller == this)
       this.orphans = setremove(this.orphans, args[1]);
     endif
-  endverb
+  endmethod
 
-  verb valid (this none this) owner: #2 flags: "rxd"
+  method valid owner: #2
     "Usage:  valid(object)";
     "True if object is valid and not $garbage.";
     return valid(args[1]) && parent(args[1]) != $garbage;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       this.orphans = {};
       this.history = {};
       this.lost_souls = {};
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb resurrect (this none this) owner: #2 flags: "rxd"
+  method resurrect owner: #2
     who = caller_perms();
     if (!valid(parent = {@args, $garbage}[1]))
       return E_INVARG;
@@ -194,9 +194,9 @@ object RECYCLER
     endif
     reset_max_object();
     return o;
-  endverb
+  endmethod
 
-  verb reclaim_lost_souls (this none this) owner: #2 flags: "rxd"
+  method reclaim_lost_souls owner: #2
     if (!caller_perms().wizard)
       raise(E_PERM);
     endif
@@ -211,9 +211,9 @@ object RECYCLER
       endif
       $command_utils:suspend_if_needed(0);
     endfor
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  method look_self owner: HACKER
     if (prepstr in {"in", "inside", "into"})
       recycler = this;
       linelen = (linelen = abs(player.linelen)) < 20 ? 78 | linelen;
@@ -227,9 +227,9 @@ object RECYCLER
       return pass(@args);
     endif
     "This code contributed by Mickey.";
-  endverb
+  endmethod
 
-  verb check_quota_scam (this none this) owner: #2 flags: "rxd"
+  method check_quota_scam owner: #2
     who = args[1];
     if ($quota_utils.byte_based && (is_clear_property(who, "size_quota") || is_clear_property(who, "owned_objects")))
       raise(E_QUOTA);
@@ -262,21 +262,21 @@ object RECYCLER
         endfork
       endif
     endif
-  endverb
+  endmethod
 
-  verb gc (this none this) owner: HACKER flags: "rxd"
+  method gc owner: HACKER
     for x in (this.orphans)
       if (!valid(x) || (x.owner != $hacker && x in x.owner.owned_objects))
         this.orphans = setremove(this.orphans, x);
       endif
     endfor
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: HACKER flags: "rxd"
+  method moveto owner: HACKER
     pass(#-1);
-  endverb
+  endmethod
 
-  verb kill_all_tasks (this none this) owner: #2 flags: "rxd"
+  method kill_all_tasks owner: #2
     "kill_all_tasks ( object being recycled )";
     " -- kill all tasks involving this now-recycled object";
     caller == this || caller == #0 || raise(E_PERM);
@@ -294,5 +294,5 @@ object RECYCLER
         endfor
       endfork
     endif
-  endverb
+  endmethod
 endobject

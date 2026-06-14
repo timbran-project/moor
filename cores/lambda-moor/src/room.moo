@@ -23,15 +23,15 @@ object ROOM
   override import_export_id = "room";
   override object_size = {28944, 1084848672};
 
-  verb confunc (this none this) owner: #2 flags: "rxd"
+  method confunc owner: #2
     if ((cp = caller_perms()) == player || $perm_utils:controls(cp, player) || caller == this)
       "Need the first check because guests don't control themselves";
       this:look_self(player.brief);
       this:announce($string_utils:pronoun_sub("%N %<has> connected.", player));
     endif
-  endverb
+  endmethod
 
-  verb disfunc (this none this) owner: #2 flags: "rxd"
+  method disfunc owner: #2
     if ((cp = caller_perms()) == player || $perm_utils:controls(cp, player) || caller == this)
       this:announce($string_utils:pronoun_sub("%N %<has> disconnected.", player));
       "need the first check since guests don't control themselves";
@@ -40,7 +40,7 @@ object ROOM
         $housekeeper:move_players_home(player);
       endif
     endif
-  endverb
+  endmethod
 
   verb say (any any any) owner: #2 flags: "rx"
     try
@@ -59,7 +59,7 @@ object ROOM
     endif
   endverb
 
-  verb announce (this none this) owner: #2 flags: "rxd"
+  method announce owner: #2
     for dude in (setremove(this:contents(), player))
       try
         dude:tell(@args);
@@ -68,9 +68,9 @@ object ROOM
         continue dude;
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb match_exit (this none this) owner: #2 flags: "rxd"
+  method match_exit owner: #2
     what = args[1];
     if (what)
       yes = $failed_match;
@@ -87,14 +87,14 @@ object ROOM
     else
       return $nothing;
     endif
-  endverb
+  endmethod
 
-  verb add_exit (this none this) owner: #2 flags: "rxd"
+  method add_exit owner: #2
     set_task_perms(caller_perms());
     return `this.exits = setadd(this.exits, args[1]) ! E_PERM' != E_PERM;
-  endverb
+  endmethod
 
-  verb tell_contents (this none this) owner: #2 flags: "rxd"
+  method tell_contents owner: #2
     {contents, ctype} = args;
     if (!this.dark && contents != {})
       if (ctype == 0)
@@ -129,7 +129,7 @@ object ROOM
         endif
       endif
     endif
-  endverb
+  endmethod
 
   verb "@exits" (none none none) owner: #2 flags: "rxd"
     if (!$perm_utils:controls(valid(caller_perms()) ? caller_perms() | player, this))
@@ -152,31 +152,31 @@ object ROOM
     endif
   endverb
 
-  verb look_self (this none this) owner: #2 flags: "rxd"
+  method look_self owner: #2
     {?brief = 0} = args;
     player:tell(this:title());
     if (!brief)
       pass();
     endif
     this:tell_contents(setremove(this:contents(), player), this.ctype);
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: #2 flags: "rxd"
+  method acceptable owner: #2
     what = args[1];
     return this:is_unlocked_for(what) && (this:free_entry(@args) || (what == this.blessed_object && task_id() == this.blessed_task) || what.owner == this.owner || (typeof(this.residents) == TYPE_LIST && (what in this.residents || what.owner in this.residents)));
-  endverb
+  endmethod
 
-  verb add_entrance (this none this) owner: #2 flags: "rxd"
+  method add_entrance owner: #2
     set_task_perms(caller_perms());
     return `this.entrances = setadd(this.entrances, args[1]) ! E_PERM' != E_PERM;
-  endverb
+  endmethod
 
-  verb bless_for_entry (this none this) owner: #2 flags: "rxd"
+  method bless_for_entry owner: #2
     if (caller in {@this.entrances, this})
       this.blessed_object = args[1];
       this.blessed_task = task_id();
     endif
-  endverb
+  endmethod
 
   verb "@entrances" (none none none) owner: #2 flags: "rd"
     if (!$perm_utils:controls(valid(caller_perms()) ? caller_perms() | player, this))
@@ -254,7 +254,7 @@ object ROOM
     endif
   endverb
 
-  verb announce_all (this none this) owner: #2 flags: "rxd"
+  method announce_all owner: #2
     for dude in (this:contents())
       try
         dude:tell(@args);
@@ -263,9 +263,9 @@ object ROOM
         continue dude;
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb announce_all_but (this none this) owner: #2 flags: "rxd"
+  method announce_all_but owner: #2
     ":announce_all_but(LIST objects to ignore, text)";
     {ignore, @text} = args;
     contents = this:contents();
@@ -280,9 +280,9 @@ object ROOM
         continue listener;
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb enterfunc (this none this) owner: #2 flags: "rxd"
+  method enterfunc owner: #2
     object = args[1];
     if (is_player(object) && object.location == this)
       player = object;
@@ -291,27 +291,27 @@ object ROOM
     if (object == this.blessed_object)
       this.blessed_object = #-1;
     endif
-  endverb
+  endmethod
 
-  verb exitfunc (this none this) owner: #2 flags: "rxd"
+  method exitfunc owner: #2
     return;
-  endverb
+  endmethod
 
-  verb remove_exit (this none this) owner: #2 flags: "rxd"
+  method remove_exit owner: #2
     exit = args[1];
     if (caller != exit)
       set_task_perms(caller_perms());
     endif
     return `this.exits = setremove(this.exits, exit) ! E_PERM' != E_PERM;
-  endverb
+  endmethod
 
-  verb remove_entrance (this none this) owner: #2 flags: "rxd"
+  method remove_entrance owner: #2
     exit = args[1];
     if (caller != exit)
       set_task_perms(caller_perms());
     endif
     return `this.entrances = setremove(this.entrances, exit) ! E_PERM' != E_PERM;
-  endverb
+  endmethod
 
   verb "@add-exit" (any none none) owner: #2 flags: "rd"
     set_task_perms(player);
@@ -387,7 +387,7 @@ object ROOM
     endif
   endverb
 
-  verb recycle (this none this) owner: #2 flags: "rxd"
+  method recycle owner: #2
     "Make a mild attempt to keep people and objects from ending up in #-1 when people recycle a room";
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       "... first try spilling them out onto the floor of enclosing room if any";
@@ -425,7 +425,7 @@ object ROOM
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
   verb "e east w west s south n north ne northeast nw northwest se southeast sw southwest u up d down" (none none none) owner: #2 flags: "rxd"
     set_task_perms(caller_perms() == #-1 ? player | caller_perms());
@@ -464,14 +464,14 @@ object ROOM
     this:announce_all_but({player, dobj}, this:oejection_msg());
   endverb
 
-  verb "ejection_msg oejection_msg victim_ejection_msg" (this none this) owner: HACKER flags: "rxd"
+  method "ejection_msg oejection_msg victim_ejection_msg" owner: HACKER
     return $gender_utils:pronoun_sub(this.(verb));
-  endverb
+  endmethod
 
-  verb accept_for_abode (this none this) owner: #2 flags: "rxd"
+  method accept_for_abode owner: #2
     who = args[1];
     return this:basic_accept_for_abode(who) && this:acceptable(who);
-  endverb
+  endmethod
 
   verb "@resident*s" (any none none) owner: #2 flags: "rd"
     if (!$perm_utils:controls(player, this))
@@ -522,10 +522,10 @@ object ROOM
     endif
   endverb
 
-  verb match (this none this) owner: #2 flags: "rxd"
+  method match owner: #2
     target = {@this:contents(), @this:exits()};
     return $string_utils:match(args[1], target, "name", target, "aliases");
-  endverb
+  endmethod
 
   verb "@remove-exit" (any none none) owner: #2 flags: "rd"
     set_task_perms(player);
@@ -570,27 +570,27 @@ object ROOM
     endif
   endverb
 
-  verb moveto (this none this) owner: #2 flags: "rxd"
+  method moveto owner: #2
     if (caller in {this, this.owner} || $perm_utils:controls(caller_perms(), this))
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb who_location_msg (this none this) owner: #2 flags: "rxd"
+  method who_location_msg owner: #2
     return (msg = `this.(verb) ! ANY') ? $string_utils:pronoun_sub(msg, args[1]) | "";
-  endverb
+  endmethod
 
-  verb "exits entrances" (this none this) owner: #2 flags: "rxd"
+  method "exits entrances" owner: #2
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       return this.(verb);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb "obvious_exits obvious_entrances" (this none this) owner: #2 flags: "rxd"
+  method "obvious_exits obvious_entrances" owner: #2
     exits = {};
     for exit in (`verb == "obvious_exits" ? this.exits | this.entrances ! ANY => {}')
       if (`$code_utils:verb_or_property(exit, "obvious") ! ANY')
@@ -598,9 +598,9 @@ object ROOM
       endif
     endfor
     return exits;
-  endverb
+  endmethod
 
-  verb here_huh (this none this) owner: #2 flags: "rxd"
+  method here_huh owner: #2
     ":here_huh(verb,args)  -- room-specific :huh processing.  This should return 1 if it finds something interesting to do and 0 otherwise; see $command_utils:do_huh.";
     "For the generic room, we check for the case of the caller specifying an exit for which a corresponding verb was never defined.";
     set_task_perms(caller_perms());
@@ -614,17 +614,17 @@ object ROOM
       player:tell("I don't know which direction `", verb, "' you mean.");
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb "room_announce*_all_but" (this none this) owner: #2 flags: "rxd"
+  method "room_announce*_all_but" owner: #2
     this:(verb[6..$])(@args);
-  endverb
+  endmethod
 
-  verb examine_commands_ok (this none this) owner: #2 flags: "rxd"
+  method examine_commands_ok owner: #2
     return this == args[1].location;
-  endverb
+  endmethod
 
-  verb examine_key (this none this) owner: #2 flags: "rxd"
+  method examine_key owner: #2
     "examine_key(examiner)";
     "return a list of strings to be told to the player, indicating what the key on this type of object means, and what this object's key is set to.";
     "the default will only tell the key to a wizard or this object's owner.";
@@ -632,20 +632,20 @@ object ROOM
     if (caller == this && $perm_utils:controls(who, this) && this.key != 0)
       return {tostr(this:title(), " will accept only objects matching the following key:"), tostr("  ", $lock_utils:unparse_key(this.key))};
     endif
-  endverb
+  endmethod
 
-  verb examine_contents (this none this) owner: #2 flags: "rxd"
+  method examine_contents owner: #2
     "examine_contents(who)";
     if (caller == this)
       this:tell_contents(this.contents, this.ctype);
     endif
-  endverb
+  endmethod
 
-  verb free_entry (this none this) owner: HACKER flags: "rxd"
+  method free_entry owner: HACKER
     return this.free_entry;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       if (this == $player_start)
@@ -655,13 +655,13 @@ object ROOM
         move(player, this);
       endif
     endif
-  endverb
+  endmethod
 
-  verb dark (this none this) owner: #2 flags: "rxd"
+  method dark owner: #2
     return this.(verb);
-  endverb
+  endmethod
 
-  verb announce_lines_x (this none this) owner: #2 flags: "rxd"
+  method announce_lines_x owner: #2
     "Copied from generic room (#3):announce by Haakon (#2) Thu Oct 24 16:15:01 1996 PDT";
     for dude in (setremove(this:contents(), player))
       try
@@ -669,10 +669,10 @@ object ROOM
       except id (ANY)
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb basic_accept_for_abode (this none this) owner: #2 flags: "rxd"
+  method basic_accept_for_abode owner: #2
     who = args[1];
     return valid(who) && (this.free_home || $perm_utils:controls(who, this) || (typeof(residents = this.residents) == TYPE_LIST ? who in this.residents | who == this.residents));
-  endverb
+  endmethod
 endobject

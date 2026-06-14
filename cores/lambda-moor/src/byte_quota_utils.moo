@@ -95,16 +95,16 @@ object BYTE_QUOTA_UTILS
   override import_export_id = "byte_quota_utils";
   override object_size = {32429, 1084848672};
 
-  verb initialize_quota (this none this) owner: HACKER flags: "rxd"
+  method initialize_quota owner: HACKER
     if (!caller_perms().wizard)
       return E_PERM;
     else
       args[1].size_quota = this.default_quota;
       args[1].ownership_quota = this.large_negative_number;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -118,13 +118,13 @@ object BYTE_QUOTA_UTILS
       this.default_quota = {100000, 0, 0, 1};
       $quota_utils = this;
     endif
-  endverb
+  endmethod
 
-  verb adjust_quota_for_programmer (this none this) owner: HACKER flags: "rxd"
+  method adjust_quota_for_programmer owner: HACKER
     return 0;
-  endverb
+  endmethod
 
-  verb bi_create (this none this) owner: #2 flags: "rxd"
+  method bi_create owner: #2
     set_task_perms(caller_perms());
     who = this:parse_create_args(@args);
     "Because who can be E_INVARG, need to catch E_TYPE. Let $recycler:_create deal with returning E_PERM since that's what's going to happen. Ho_Yan 11/19/96.";
@@ -144,25 +144,25 @@ object BYTE_QUOTA_UTILS
     else
       return E_QUOTA;
     endif
-  endverb
+  endmethod
 
-  verb enable_create (this none this) owner: #2 flags: "rxd"
+  method enable_create owner: #2
     if (caller != this && !caller_perms().wizard)
       return E_PERM;
     else
       args[1].ownership_quota = 1;
     endif
-  endverb
+  endmethod
 
-  verb disable_create (this none this) owner: #2 flags: "rxd"
+  method disable_create owner: #2
     if (caller != this && !caller_perms().wizard)
       return E_PERM;
     else
       args[1].ownership_quota = this.large_negative_number;
     endif
-  endverb
+  endmethod
 
-  verb parse_create_args (this none this) owner: HACKER flags: "rxd"
+  method parse_create_args owner: HACKER
     "This figures out who is gonna own the stuff @create does.  If one arg, return caller_perms().  If two args, then if caller_perms().wizard, args[2].";
     {what, ?who = #-1} = args;
     if (!valid(who))
@@ -172,9 +172,9 @@ object BYTE_QUOTA_UTILS
     else
       return E_INVARG;
     endif
-  endverb
+  endmethod
 
-  verb "creation_permitted verb_addition_permitted property_addition_permitted" (this none this) owner: HACKER flags: "rxd"
+  method "creation_permitted verb_addition_permitted property_addition_permitted" owner: HACKER
     "Here's the tricky one.  Collect all the user's characters' cached usage data and total quotas.  Compare same.  If usage bigger than quotas, return 0.  Else, add up the total number of objects that haven't been measured recently.  If greater than the allowed, return 0.  Else, reluctantly, return 1.";
     who = args[1];
     if (who.wizard || who == $hacker)
@@ -201,9 +201,9 @@ object BYTE_QUOTA_UTILS
     else
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb all_characters (this none this) owner: HACKER flags: "rxd"
+  method all_characters owner: HACKER
     {who} = args;
     if (caller != this && !this:can_peek(caller_perms(), who))
       return E_PERM;
@@ -217,9 +217,9 @@ object BYTE_QUOTA_UTILS
     else
       return {who};
     endif
-  endverb
+  endmethod
 
-  verb display_quota (this none this) owner: HACKER flags: "rxd"
+  method display_quota owner: HACKER
     who = args[1];
     if (this:can_peek(caller_perms(), who) && length(all = this:all_characters(who)) > 1)
       many = 1;
@@ -255,13 +255,13 @@ object BYTE_QUOTA_UTILS
     else
       this:display_quota_summary(who, quota, usage, timestamp, unmeasured, unmeasurable);
     endif
-  endverb
+  endmethod
 
-  verb get_quota (this none this) owner: HACKER flags: "rxd"
+  method get_quota owner: HACKER
     return args[1].size_quota[1];
-  endverb
+  endmethod
 
-  verb charge_quota (this none this) owner: HACKER flags: "rxd"
+  method charge_quota owner: HACKER
     "Charge args[1] for the quota required to own args[2]";
     {who, what} = args;
     if (caller == this || caller_perms().wizard)
@@ -276,9 +276,9 @@ object BYTE_QUOTA_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb reimburse_quota (this none this) owner: HACKER flags: "rxd"
+  method reimburse_quota owner: HACKER
     "reimburse args[1] for the quota required to own args[2]";
     "If it is a $garbage, then if who = $hacker, then we mostly ignore everything.  Who cares what $hacker's quota looks like.";
     {who, what} = args;
@@ -298,9 +298,9 @@ object BYTE_QUOTA_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb set_quota (this none this) owner: HACKER flags: "rxd"
+  method set_quota owner: HACKER
     "Set args[1]'s quota to args[2]";
     if (caller_perms().wizard || caller == this || this:can_touch(caller_perms()))
       "Size_quota[1] is the total quota permitted.";
@@ -308,9 +308,9 @@ object BYTE_QUOTA_UTILS
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb get_size_quota (this none this) owner: HACKER flags: "rxd"
+  method get_size_quota owner: HACKER
     "Return args[1]'s quotas.  second arg of 1 means add all second chars.";
     {who, ?all = 0} = args;
     if (all && (caller == this || this:can_peek(caller_perms(), who)))
@@ -326,9 +326,9 @@ object BYTE_QUOTA_UTILS
       baseline[4] = baseline[4] + x.size_quota[4];
     endfor
     return baseline;
-  endverb
+  endmethod
 
-  verb display_quota_summary (this none this) owner: HACKER flags: "rxd"
+  method display_quota_summary owner: HACKER
     {who, quota, usage, timestamp, unmeasured, unmeasurable} = args;
     player:tell(who.name, " has a total building quota of ", $string_utils:group_number(quota), " bytes.");
     player:tell($gender_utils:get_pronoun("P", who), " total usage was ", $string_utils:group_number(usage), " as of ", player:ctime(timestamp), ".");
@@ -348,26 +348,26 @@ object BYTE_QUOTA_UTILS
       plural = unmeasurable != 1;
       player:tell("There ", plural ? tostr("are ", unmeasurable, " objects") | "is 1 object", " which do", plural ? "" | "es", " not have a .object_size property and will thus prevent additional building.", who == player ? "  Contact a wizard for assistance in having this situation repaired." | "");
     endif
-  endverb
+  endmethod
 
-  verb quota_remaining (this none this) owner: HACKER flags: "rxd"
+  method quota_remaining owner: HACKER
     "This wants to only be called by a wizard cuz I'm lazy.  This is just for @second-char anyway.";
     if (caller_perms().wizard)
       q = this:get_size_quota(args[1], 1);
       return q[1] - q[2];
     endif
-  endverb
+  endmethod
 
-  verb preliminary_reimburse_quota (this none this) owner: HACKER flags: "rxd"
+  method preliminary_reimburse_quota owner: HACKER
     "This does the reimbursement work of the recycler, since we ignore $garbage in ordinary reimbursement.";
     if (caller_perms().wizard)
       this:reimburse_quota(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb value_bytes (this none this) owner: #2 flags: "rxd"
+  method value_bytes owner: #2
     return value_bytes(args[1]);
     set_task_perms(caller_perms());
     v = args[1];
@@ -384,9 +384,9 @@ object BYTE_QUOTA_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb "object_bytes object_size" (this none this) owner: #2 flags: "rxd"
+  method "object_bytes object_size" owner: #2
     "No need for lengthy algorithms to measure an object, we have a builtin now. Ho_Yan 10/31/96";
     set_task_perms($wiz_utils:random_wizard());
     o = args[1];
@@ -413,7 +413,7 @@ object BYTE_QUOTA_UTILS
       this.large_objects = setadd(this.large_objects, o);
     endif
     return b;
-  endverb
+  endmethod
 
   verb do_summary (any with this) owner: HACKER flags: "rxd"
     who = args[1];
@@ -428,7 +428,7 @@ object BYTE_QUOTA_UTILS
     endif
   endverb
 
-  verb summarize_one_user (this none this) owner: HACKER flags: "rxd"
+  method summarize_one_user owner: HACKER
     "Summarizes total space usage by one user (args[1]).  Optional second argument is a flag to say whether to re-measure all objects for this user; specify the number of seconds out of date you are willing to accept.  If negative, will only re-measure objects which have no recorded data.";
     "Returns a list of four values:";
     "  total : total measured space in bytes";
@@ -486,9 +486,9 @@ object BYTE_QUOTA_UTILS
       who.size_quota[4] = nuncounted * this.unmeasured_multiplier + nzeros;
     endif
     return {total, nuncounted, nzeros, oldest, eldest};
-  endverb
+  endmethod
 
-  verb recent_object_bytes (this none this) owner: #2 flags: "rxd"
+  method recent_object_bytes owner: #2
     ":recent_object_bytes(x, n) -- return object size of x, guaranteed to be no more than n days old.  N defaults to this.cycle_days.";
     {object, ?since = this.cycle_days} = args;
     if (!valid(object))
@@ -499,9 +499,9 @@ object BYTE_QUOTA_UTILS
     else
       return this:object_bytes(object);
     endif
-  endverb
+  endmethod
 
-  verb measurement_task (this none this) owner: #2 flags: "rxd"
+  method measurement_task owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -522,17 +522,17 @@ object BYTE_QUOTA_UTILS
       endif
       $mail_agent:send_message(player, this.report_recipients, "quota-utils report", {tostr("About to measure objects of player ", this.working.name, " (", this.working, "), ", $string_utils:ordinal(this.working in players), " out of ", lengthp, ".  We processed ", num_processed + lengthp * num_repetitions, " players in this run in ", num_repetitions, " time", num_repetitions == 1 ? "" | "s", " through all players.  Total time spent:  ", $time_utils:dhms(time() - start_time), ".")});
     endif
-  endverb
+  endmethod
 
-  verb can_peek (this none this) owner: HACKER flags: "rxd"
+  method can_peek owner: HACKER
     return args[1] == this.owner || $perm_utils:controls(args[1], args[2]);
-  endverb
+  endmethod
 
-  verb can_touch (this none this) owner: HACKER flags: "rxd"
+  method can_touch owner: HACKER
     return args[1].wizard;
-  endverb
+  endmethod
 
-  verb do_breakdown (this none this) owner: #2 flags: "rxd"
+  method do_breakdown owner: #2
     dobj = args[1];
     who = valid(caller_perms()) ? caller_perms() | player;
     if (!this:can_peek(who, dobj.owner))
@@ -593,33 +593,33 @@ object BYTE_QUOTA_UTILS
     output = {@output, tostr("Grand total:  ", grand_total)};
     return output;
     "Last modified Sun Dec 31 10:12:14 2006 PST, by Roebare (#109000) @ LM.";
-  endverb
+  endmethod
 
-  verb object_overhead_bytes (this none this) owner: HACKER flags: "rxd"
+  method object_overhead_bytes owner: HACKER
     object = args[1];
     return 13 * 4 + length(object.name) + 1;
-  endverb
+  endmethod
 
-  verb property_overhead_bytes (this none this) owner: #2 flags: "rxd"
+  method property_overhead_bytes owner: #2
     {o, ?ps = $object_utils:all_properties_suspended(o)} = args;
     return value_bytes(properties(o)) - 4 + length(ps) * 4 * 4;
-  endverb
+  endmethod
 
-  verb verb_overhead_bytes (this none this) owner: #2 flags: "rxd"
+  method verb_overhead_bytes owner: #2
     o = args[1];
     vs = verbs(o);
     return length(vs) * 5 * 4;
-  endverb
+  endmethod
 
-  verb add_owned_object (this none this) owner: #2 flags: "rxd"
+  method add_owned_object owner: #2
     ":add_owned_object(who, what) -- adds what to whose .owned_objects.";
     {who, what} = args;
     if (typeof(who.owned_objects) == TYPE_LIST && what.owner == who)
       who.owned_objects = setadd(who.owned_objects, what);
     endif
-  endverb
+  endmethod
 
-  verb measurement_task_nofork (this none this) owner: #2 flags: "rxd"
+  method measurement_task_nofork owner: #2
     "This is a one-shot run of the measurement task, as opposed to :measurement_task, which will fork once per day.";
     if (!caller_perms().wizard)
       return E_PERM;
@@ -627,9 +627,9 @@ object BYTE_QUOTA_UTILS
       {num_processed, num_repetitions} = this:measurement_task_body();
       $mail_agent:send_message(player, player, "quota-utils report", {"finished one shot run of measurement task: processed ", num_processed, " players in ", num_repetitions, " runs through all players."});
     endif
-  endverb
+  endmethod
 
-  verb measurement_task_body (this none this) owner: #2 flags: "rxd"
+  method measurement_task_body owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -727,9 +727,9 @@ object BYTE_QUOTA_UTILS
       endwhile
       return {num_processed, num_repetitions};
     endif
-  endverb
+  endmethod
 
-  verb schedule_measurement_task (this none this) owner: #2 flags: "rxd"
+  method schedule_measurement_task owner: #2
     if (caller == this || caller_perms().wizard)
       day = 24 * 3600;
       hour_of_day_GMT = 8;
@@ -740,17 +740,17 @@ object BYTE_QUOTA_UTILS
         this.measurement_task_running = 0;
       endfork
     endif
-  endverb
+  endmethod
 
-  verb task_perms (this none this) owner: #2 flags: "rxd"
+  method task_perms owner: #2
     "Put all your wizards in $byte_quota_utils.wizards.  Then various long-running tasks will cycle among the permissions, spreading out the scheduler-induced personal lag.";
     $wiz_utils.old_task_perms_user = setadd($wiz_utils.old_task_perms_user, caller);
     return $wiz_utils:random_wizard();
-  endverb
+  endmethod
 
-  verb property_exists (this none this) owner: #2 flags: "rxd"
+  method property_exists owner: #2
     "this:property_exists(object, property)";
     " => does the specified property exist?";
     return !!(`property_info(@args) ! ANY');
-  endverb
+  endmethod
 endobject

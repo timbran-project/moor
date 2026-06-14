@@ -14,7 +14,7 @@ object NEW_PROG_LOG
   override moderated = 1;
   override object_size = {6043, 1084848672};
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.mail_notify = {player};
@@ -23,9 +23,9 @@ object NEW_PROG_LOG
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb receive_message (this none this) owner: #2 flags: "rxd"
+  method receive_message owner: #2
     if (!this:is_writable_by(caller_perms()))
       return E_PERM;
     else
@@ -47,9 +47,9 @@ object NEW_PROG_LOG
       this.last_used_time = time();
       return new;
     endif
-  endverb
+  endmethod
 
-  verb "display_seq_headers display_seq_full" (this none this) owner: #2 flags: "rxd"
+  method "display_seq_headers display_seq_full" owner: #2
     ":display_seq_headers(msg_seq[,cur])";
     ":display_seq_full(msg_seq[,cur]) => {cur}";
     if (!this:ok(caller, caller_perms()))
@@ -80,9 +80,9 @@ object NEW_PROG_LOG
     else
       player:tell("----+");
     endif
-  endverb
+  endmethod
 
-  verb from_msg_seq (this none this) owner: #2 flags: "rxd"
+  method from_msg_seq owner: #2
     ":from_msg_seq(object or list[,mask])";
     " => msg_seq of messages from any of these senders";
     if (!this:ok(caller, caller_perms()))
@@ -107,9 +107,9 @@ object NEW_PROG_LOG
       $command_utils:suspend_if_needed(0);
     endfor
     return fseq || "%f %<has> no messages from " + $string_utils:english_list($list_utils:map_arg(2, $string_utils, "pronoun_sub", "%n (%#)", plist), "no one", " or ");
-  endverb
+  endmethod
 
-  verb to_msg_seq (this none this) owner: #2 flags: "rxd"
+  method to_msg_seq owner: #2
     ":to_msg_seq(object or list[,mask]) => msg_seq of messages to those people";
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
@@ -133,9 +133,9 @@ object NEW_PROG_LOG
       $command_utils:suspend_if_needed(0);
     endfor
     return fseq || "%f %<has> no messages about @programmer'ing " + $string_utils:english_list(plist, "no one", " or ");
-  endverb
+  endmethod
 
-  verb "%to_msg_seq subject_msg_seq" (this none this) owner: #2 flags: "rxd"
+  method "%to_msg_seq subject_msg_seq" owner: #2
     ":%to_msg_seq/subject_msg_seq(string or list of strings[,mask])";
     " => msg_seq of messages containing one of strings in the to line";
     if (!this:ok(caller, caller_perms()))
@@ -160,9 +160,9 @@ object NEW_PROG_LOG
       $command_utils:suspend_if_needed(0);
     endfor
     return fseq || "%f %<has> no messages about @programmer'ing " + $string_utils:english_list(nlist, "no one", " or ");
-  endverb
+  endmethod
 
-  verb "%from_msg_seq" (this none this) owner: #2 flags: "rxd"
+  method "%from_msg_seq" owner: #2
     return this.name + " doesn't understand %%from:";
-  endverb
+  endmethod
 endobject

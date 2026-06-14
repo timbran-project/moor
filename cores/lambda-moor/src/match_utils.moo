@@ -37,7 +37,7 @@ object MATCH_UTILS
   override import_export_id = "match_utils";
   override object_size = {9401, 1084848672};
 
-  verb match (this none this) owner: HACKER flags: "rxd"
+  method match owner: HACKER
     ":match(string, object-list)";
     "Return object in 'object-list' aliased to 'string'.";
     "Matches on a wide variety of syntax, including:";
@@ -72,9 +72,9 @@ object MATCH_UTILS
     endif
     "Profane (#30788) - Sat Jan  3, 1998 - Changed so literals get returned ONLY if in the passed object list.";
     "Profane (#30788) - Sat Jan  3, 1998 - OK, that broke lots of stuff, so changed it back.";
-  endverb
+  endmethod
 
-  verb match_nth (this none this) owner: HACKER flags: "rxd"
+  method match_nth owner: HACKER
     ":match_nth(string, objlist, n)";
     "Find the nth object in 'objlist' that matches 'string'.";
     {what, where, n} = args;
@@ -88,9 +88,9 @@ object MATCH_UTILS
       endif
     endfor
     return $failed_match;
-  endverb
+  endmethod
 
-  verb match_verb (this none this) owner: #2 flags: "rxd"
+  method match_verb owner: #2
     "$match_utils:match_verb(verbname, object) => Looks for a command-line style verb named <verbname> on <object> with current values of prepstr, dobjstr, dobj, iobjstr, and iobj.  If a match is made, the verb is called with @args[3] as arguments and 1 is returned.  Otherwise, 0 is returned.";
     {vrb, what, rest} = args;
     if (where = $object_utils:has_verb(what, vrb))
@@ -102,9 +102,9 @@ object MATCH_UTILS
         endif
       endif
     endif
-  endverb
+  endmethod
 
-  verb match_list (this none this) owner: HACKER flags: "rxd"
+  method match_list owner: HACKER
     ":match_list(string, object_list) -> List of all matches.";
     {what, where} = args;
     if (!what)
@@ -125,9 +125,9 @@ object MATCH_UTILS
     endfor
     return r;
     "Hydros (#106189) - Sun Jul 3, 2005 - Changed listappend to a splice to save ticks. Old code commented above.";
-  endverb
+  endmethod
 
-  verb "parse_ordinal_reference parse_ordref" (this none this) owner: HACKER flags: "rxd"
+  method "parse_ordinal_reference parse_ordref" owner: HACKER
     ":parse_ordref(string)";
     "Parses strings referring to an 'nth' object.";
     "=> {INT n, STR object} Where 'n' is the number the ordinal represents, and 'object' is the rest of the string.";
@@ -143,9 +143,9 @@ object MATCH_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb parse_possessive_reference (this none this) owner: HACKER flags: "rxd"
+  method parse_possessive_reference owner: HACKER
     ":parse_possessive_reference(string)";
     "Parses strings in a possessive format.";
     "=> {STR whose, STR object}  Where 'whose' is the possessor of 'object'.";
@@ -165,9 +165,9 @@ object MATCH_UTILS
       return 0;
     endif
     "Profane (#30788) - Sun Jun 21, 1998 - changed first parenthetical match bit from %([^ ]+s?%) to %(.+s?%)";
-  endverb
+  endmethod
 
-  verb object_match_failed (this none this) owner: HACKER flags: "rx"
+  method object_match_failed owner: HACKER flags: "rx"
     "Usage: object_match_failed(object, string[, ambigs])";
     "Prints a message if string does not match object.  Generally used after object is derived from a :match_object(string).";
     "ambigs is an optional list of the objects that were matched upon.  If given, the message printed will list the ambiguous among them as choices.";
@@ -202,12 +202,12 @@ object MATCH_UTILS
       return 0;
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.matching_room = $nothing;
     endif
-  endverb
+  endmethod
 endobject

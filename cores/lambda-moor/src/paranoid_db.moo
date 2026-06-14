@@ -31,7 +31,7 @@ object PARANOID_DB
   override import_export_id = "paranoid_db";
   override object_size = {5921, 1084848672};
 
-  verb ensure_props_exist (this none this) owner: HACKER flags: "rxd"
+  method ensure_props_exist owner: HACKER
     "*Must* be called with PDATA first, and LINES second.";
     if (caller != this && !caller_perms().wizard)
       return E_PERM;
@@ -47,9 +47,9 @@ object PARANOID_DB
         add_property(this, args[3], 5, {$hacker, ""});
       endtry
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: HACKER flags: "rxd"
+  method init_for_core owner: HACKER
     if (!caller_perms().wizard)
       return;
     else
@@ -61,9 +61,9 @@ object PARANOID_DB
       endfor
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb add_data (this none this) owner: HACKER flags: "rxd"
+  method add_data owner: HACKER
     {who, newdata} = args;
     if (is_player(who) && caller_perms().wizard)
       "if ($perm_utils:controls(caller_perms(), who) && is_player(who))";
@@ -79,9 +79,9 @@ object PARANOID_DB
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb get_data (this none this) owner: HACKER flags: "rxd"
+  method get_data owner: HACKER
     who = args[1];
     if ($perm_utils:controls(caller_perms(), who))
       d = tostr(who, "pdata");
@@ -93,9 +93,9 @@ object PARANOID_DB
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb erase_data (this none this) owner: HACKER flags: "rxd"
+  method erase_data owner: HACKER
     who = args[1];
     if ($perm_utils:controls(caller_perms(), who))
       d = tostr(who, "pdata");
@@ -104,9 +104,9 @@ object PARANOID_DB
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb set_kept_lines (this none this) owner: HACKER flags: "rxd"
+  method set_kept_lines owner: HACKER
     maximum = this.max_lines;
     who = args[1];
     if ($perm_utils:controls(caller_perms(), who) && is_player(who))
@@ -118,9 +118,9 @@ object PARANOID_DB
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb gc (this none this) owner: HACKER flags: "rxd"
+  method gc owner: HACKER
     if (caller != this && caller_perms() != #-1 && caller_perms() != player || !player.wizard)
       $error:raise(E_PERM);
     endif
@@ -148,13 +148,13 @@ object PARANOID_DB
       endif
       $command_utils:suspend_if_needed(0);
     endfor
-  endverb
+  endmethod
 
-  verb help_msg (this none this) owner: #2 flags: "rxd"
+  method help_msg owner: #2
     return this:description();
-  endverb
+  endmethod
 
-  verb semiweeklyish (this none this) owner: #2 flags: "rxd"
+  method semiweeklyish owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -164,10 +164,10 @@ object PARANOID_DB
       endfork
       this:gc();
     endif
-  endverb
+  endmethod
 
-  verb is_paranoid (this none this) owner: #2 flags: "rxd"
+  method is_paranoid owner: #2
     "Some people make their .paranoid !r.  Wizardly verb to retrieve value.";
     return `args[1].paranoid ! ANY';
-  endverb
+  endmethod
 endobject

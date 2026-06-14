@@ -79,11 +79,11 @@ object MAIL_EDITOR
   };
   override who_location_msg = "%L [mailing]";
 
-  verb working_on (this none this) owner: HACKER flags: "rxd"
+  method working_on owner: HACKER
     return this:ok(who = args[1]) && tostr("a letter ", this:sending(who) ? "(in transit) " | "", "to ", this:recipient_names(who), (subject = `this.subjects[who] ! ANY') && tostr(" entitled \"", subject, "\""));
-  endverb
+  endmethod
 
-  verb parse_invoke (this none this) owner: HACKER flags: "rxd"
+  method parse_invoke owner: HACKER
     "invoke(rcptstrings,verb[,subject]) for a @send";
     "invoke(1,verb,rcpts,subject,replyto,body) if no parsing is needed";
     "invoke(2,verb,msg,flags,replytos) for an @answer";
@@ -124,9 +124,9 @@ object MAIL_EDITOR
       return {@to_subj, args[5], include};
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb init_session (this none this) owner: HACKER flags: "rxd"
+  method init_session owner: HACKER
     {who, recip, subj, replyto, msg} = args;
     if (this:ok(who))
       this.sending[who] = 0;
@@ -146,7 +146,7 @@ object MAIL_EDITOR
         endif
       endif
     endif
-  endverb
+  endmethod
 
   verb "pri*nt" (any none none) owner: HACKER flags: "rd"
     if (!dobjstr)
@@ -163,9 +163,9 @@ object MAIL_EDITOR
     endif
   endverb
 
-  verb message_with_headers (this none this) owner: HACKER flags: "rxd"
+  method message_with_headers owner: HACKER
     return this:readable(who = args[1]) || this:ok(who) && $mail_agent:make_message(this.active[who], this.recipients[who], {this.subjects[who], this.replytos[who]}, this:text(who));
-  endverb
+  endmethod
 
   verb "subj*ect:" (any any any) owner: HACKER flags: "rd"
     if (!(who = this:loaded(player)))
@@ -179,7 +179,7 @@ object MAIL_EDITOR
     endif
   endverb
 
-  verb set_subject (this none this) owner: HACKER flags: "rxd"
+  method set_subject owner: HACKER
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
     else
@@ -187,9 +187,9 @@ object MAIL_EDITOR
       this:set_changed(who, 1);
       return subj;
     endif
-  endverb
+  endmethod
 
-  verb sending (this none this) owner: HACKER flags: "rxd"
+  method sending owner: HACKER
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
     elseif (!(task = this.sending[who]) || $code_utils:task_valid(task))
@@ -199,7 +199,7 @@ object MAIL_EDITOR
       this:set_changed(who, 1);
       return this.sending[who] = 0;
     endif
-  endverb
+  endmethod
 
   verb "to*:" (any any any) owner: HACKER flags: "rd"
     if (!(who = this:loaded(player)))
@@ -262,7 +262,7 @@ object MAIL_EDITOR
     endif
   endverb
 
-  verb parse_recipients (this none this) owner: HACKER flags: "rxd"
+  method parse_recipients owner: HACKER
     "parse_recipients(prev_list,list_of_strings) -- parses list of strings and adds any resulting player objects to prev_list.  Optional 3rd arg is prefixed to any mismatch error messages";
     {recips, l, ?cmd_id = ""} = args;
     cmd_id = cmd_id || "";
@@ -278,22 +278,22 @@ object MAIL_EDITOR
       endif
     endfor
     return recips;
-  endverb
+  endmethod
 
-  verb recipient_names (this none this) owner: HACKER flags: "rxd"
+  method recipient_names owner: HACKER
     return this:ok(who = args[1]) && $mail_agent:name_list(@this.recipients[who]);
-  endverb
+  endmethod
 
-  verb make_message (this none this) owner: HACKER flags: "rxd"
+  method make_message owner: HACKER
     return $mail_agent:make_message(@args);
-  endverb
+  endmethod
 
-  verb name_list (this none this) owner: HACKER flags: "rxd"
+  method name_list owner: HACKER
     "(obsolete verb... see $mail_agent:name_list)";
     return $mail_agent:(verb)(@args[1]);
-  endverb
+  endmethod
 
-  verb parse_msg_headers (this none this) owner: HACKER flags: "rxd"
+  method parse_msg_headers owner: HACKER
     "parse_msg_headers(msg,flags)";
     "  parses msg to extract reply recipients and construct a subject line";
     "  if the \"all\" flag is present, reply goes to all of the original recipients";
@@ -335,9 +335,9 @@ object MAIL_EDITOR
       subject = "Re: " + subject;
     endif
     return {recips, subject};
-  endverb
+  endmethod
 
-  verb check_answer_flags (this none this) owner: HACKER flags: "rxd"
+  method check_answer_flags owner: HACKER
     flags = {};
     for o in ({"all", "include", "followup"})
       if (player:mail_option(o))
@@ -374,7 +374,7 @@ object MAIL_EDITOR
       endif
     endfor
     return {flags, reply_to};
-  endverb
+  endmethod
 
   verb "reply-to*: replyto*:" (any any any) owner: HACKER flags: "rd"
     if (!(who = this:loaded(player)))
@@ -527,21 +527,21 @@ object MAIL_EDITOR
     endif
   endverb
 
-  verb retain_session_on_exit (this none this) owner: HACKER flags: "rxd"
+  method retain_session_on_exit owner: HACKER
     return this:ok(who = args[1]) && (this:sending(who) || pass(@args));
-  endverb
+  endmethod
 
-  verb no_littering_msg (this none this) owner: HACKER flags: "rxd"
+  method no_littering_msg owner: HACKER
     "recall that this only gets called if :retain_session_on_exit returns true";
     return this:ok(who = player in this.active) && !this:changed(who) ? {"Your message is in transit."} | this.(verb);
-  endverb
+  endmethod
 
-  verb local_editing_info (this none this) owner: HACKER flags: "rxd"
+  method local_editing_info owner: HACKER
     lines = {"To:       " + (toline = $mail_agent:name_list(@args[1])), "Subject:  " + $string_utils:trim(subject = args[2])};
     if (args[3])
       lines = {@lines, "Reply-to: " + $mail_agent:name_list(@args[3])};
     endif
     lines = {@lines, "", @args[4]};
     return {tostr("MOOMail", subject ? "(" + subject + ")" | "-to(" + toline + ")"), lines, "@@sendmail"};
-  endverb
+  endmethod
 endobject

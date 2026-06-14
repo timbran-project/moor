@@ -19,12 +19,12 @@ object EXIT
   override import_export_id = "exit";
   override object_size = {7191, 1084848672};
 
-  verb invoke (this none this) owner: #2 flags: "rxd"
+  method invoke owner: #2
     set_task_perms(caller_perms());
     this:move(player);
-  endverb
+  endmethod
 
-  verb move (this none this) owner: #2 flags: "rxd"
+  method move owner: #2
     set_task_perms(caller_perms());
     what = args[1];
     "if ((what.location != this.source) || (!(this in this.source.exits)))";
@@ -62,9 +62,9 @@ object EXIT
         this:announce_msg(what.location, what, msg);
       endif
     endif
-  endverb
+  endmethod
 
-  verb recycle (this none this) owner: #2 flags: "rxd"
+  method recycle owner: #2
     if (caller == this || $perm_utils:controls(caller_perms(), this))
       try
         this.source:remove_exit(this);
@@ -75,22 +75,22 @@ object EXIT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb "leave_msg oleave_msg arrive_msg oarrive_msg nogo_msg onogo_msg" (this none this) owner: #2 flags: "rxd"
+  method "leave_msg oleave_msg arrive_msg oarrive_msg nogo_msg onogo_msg" owner: #2
     msg = this.(verb);
     return msg ? $string_utils:pronoun_sub(msg, @args) | "";
-  endverb
+  endmethod
 
-  verb set_name (this none this) owner: #2 flags: "rxd"
+  method set_name owner: #2
     if ($perm_utils:controls(cp = caller_perms(), this) || (valid(this.source) && this.source.owner == cp))
       return typeof(e = `this.name = args[1] ! ANY') != TYPE_ERR || e;
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb set_aliases (this none this) owner: #2 flags: "rxd"
+  method set_aliases owner: #2
     if ($perm_utils:controls(cp = caller_perms(), this) || (valid(this.source) && this.source.owner == cp))
       if (typeof(e = `this.aliases = args[1] ! ANY') == TYPE_ERR)
         return e;
@@ -100,9 +100,9 @@ object EXIT
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb announce_all_but (this none this) owner: #2 flags: "rxd"
+  method announce_all_but owner: #2
     "This is intended to be called only by exits, for announcing various oxxx messages.  First argument is room to announce in.  Second argument is as in $room:announce_all_but's first arg, who not to announce to.  Rest args are what to say.  If the final arg is a list, prepends all the other rest args to the first line and emits the lines separately.";
     where = args[1];
     whobut = args[2];
@@ -115,9 +115,9 @@ object EXIT
     else
       where:announce_all_but(@args[3..$]);
     endif
-  endverb
+  endmethod
 
-  verb defaulting_oleave_msg (this none this) owner: #2 flags: "rxd"
+  method defaulting_oleave_msg owner: #2
     for k in ({this.name, @this.aliases})
       if (k in {"east", "west", "south", "north", "northeast", "southeast", "southwest", "northwest", "out", "up", "down", "nw", "sw", "ne", "se", "in"})
         return "goes " + k + ".";
@@ -130,17 +130,17 @@ object EXIT
     else
       return "leaves for the " + this.name + ".";
     endif
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: #2 flags: "rxd"
+  method moveto owner: #2
     if (caller in {this, this.owner} || $perm_utils:controls(caller_perms(), this))
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb examine_key (this none this) owner: #2 flags: "rxd"
+  method examine_key owner: #2
     "examine_key(examiner)";
     "return a list of strings to be told to the player, indicating what the key on this type of object means, and what this object's key is set to.";
     "the default will only tell the key to a wizard or this object's owner.";
@@ -148,9 +148,9 @@ object EXIT
     if (caller == this && $perm_utils:controls(who, this) && this.key != 0)
       return {tostr(this:title(), " will only transport objects matching this key:"), tostr("  ", $lock_utils:unparse_key(this.key))};
     endif
-  endverb
+  endmethod
 
-  verb announce_msg (this none this) owner: #2 flags: "rxd"
+  method announce_msg owner: #2
     ":announce_msg(place, what, msg)";
     "  announce msg in place (except to what). Prepend with what:title if it isn't part of the string";
     msg = args[3];
@@ -160,5 +160,5 @@ object EXIT
       msg = tostr(title, " ", msg);
     endif
     args[1]:announce_all_but({what}, msg);
-  endverb
+  endmethod
 endobject

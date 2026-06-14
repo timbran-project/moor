@@ -30,14 +30,14 @@ object LOCK_UTILS
   override import_export_id = "lock_utils";
   override object_size = {9664, 1084848672};
 
-  verb init_scanner (this none this) owner: #2 flags: "rxd"
+  method init_scanner owner: #2
     this.input_string = args[1];
     this.input_length = length(args[1]);
     this.input_index = 1;
     this.index_incremented = 0;
-  endverb
+  endmethod
 
-  verb scan_token (this none this) owner: #2 flags: "rxd"
+  method scan_token owner: #2
     string = this.input_string;
     len = this.input_length;
     i = this.input_index;
@@ -72,17 +72,17 @@ object LOCK_UTILS
       this.index_incremented = i - start + 1;
       return this:canonicalize_spaces(string[start..i]);
     endif
-  endverb
+  endmethod
 
-  verb canonicalize_spaces (this none this) owner: #2 flags: "rxd"
+  method canonicalize_spaces owner: #2
     name = args[1];
     while (index(name, "  "))
       name = strsub(name, "  ", " ");
     endwhile
     return name;
-  endverb
+  endmethod
 
-  verb parse_keyexp (this none this) owner: #2 flags: "rxd"
+  method parse_keyexp owner: #2
     "parse_keyexp(STRING keyexpression, OBJ player) => returns a list containing the coded key, or a string containing an error message if the attempt failed.";
     "";
     "Grammar for key expressions:";
@@ -97,9 +97,9 @@ object LOCK_UTILS
     this:init_scanner(args[1]);
     this.player = args[2];
     return this:parse_E();
-  endverb
+  endmethod
 
-  verb parse_E (this none this) owner: #2 flags: "rxd"
+  method parse_E owner: #2
     exp = this:parse_A();
     if (typeof(exp) != TYPE_STR)
       while ((token = this:scan_token()) in {"&&", "||"})
@@ -113,9 +113,9 @@ object LOCK_UTILS
       this.input_index = this.input_index - this.index_incremented;
     endif
     return exp;
-  endverb
+  endmethod
 
-  verb parse_A (this none this) owner: #2 flags: "rxd"
+  method parse_A owner: #2
     token = this:scan_token();
     if (token == "(")
       exp = this:parse_E();
@@ -152,9 +152,9 @@ object LOCK_UTILS
     else
       return this:match_object(token);
     endif
-  endverb
+  endmethod
 
-  verb eval_key (this none this) owner: #2 flags: "rxd"
+  method eval_key owner: #2
     "eval_key(LIST|OBJ coded key, OBJ testobject) => returns true if testobject will solve the provided key.";
     {key, who} = args;
     type = typeof(key);
@@ -175,9 +175,9 @@ object LOCK_UTILS
     else
       raise(E_DIV);
     endif
-  endverb
+  endmethod
 
-  verb match_object (this none this) owner: #2 flags: "rxd"
+  method match_object owner: #2
     "used by $lock_utils to unparse a key expression so one can use `here' and `me' as well as doing the regular object matching.";
     token = args[1];
     if (token == "me")
@@ -198,9 +198,9 @@ object LOCK_UTILS
         return what;
       endif
     endif
-  endverb
+  endmethod
 
-  verb unparse_key (this none this) owner: #2 flags: "rxd"
+  method unparse_key owner: #2
     ":unparse_key(LIST|OBJ coded key) => returns a string describing the key in english/moo-code terms.";
     "Example:";
     "$lock_utils:unparse_key({\"||\", $hacker, $housekeeper}) => \"#18105[Hacker] || #36830[housekeeper]\"";
@@ -245,9 +245,9 @@ object LOCK_UTILS
         raise(E_DIV);
       endif
     endif
-  endverb
+  endmethod
 
-  verb eval_key_new (this none this) owner: #2 flags: "rxd"
+  method eval_key_new owner: #2
     set_task_perms($no_one);
     {key, who} = args;
     type = typeof(key);
@@ -290,9 +290,9 @@ object LOCK_UTILS
     else
       raise(E_DIV);
     endif
-  endverb
+  endmethod
 
-  verb parse_A_new (this none this) owner: #2 flags: "rxd"
+  method parse_A_new owner: #2
     token = this:scan_token();
     if (token == "(")
       exp = this:parse_E();
@@ -340,5 +340,5 @@ object LOCK_UTILS
     else
       return this:match_object(token);
     endif
-  endverb
+  endmethod
 endobject

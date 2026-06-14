@@ -105,24 +105,24 @@ object BIGLIST
   override import_export_id = "biglist";
   override object_size = {22666, 1084848672};
 
-  verb length (this none this) owner: HACKER flags: "rxd"
+  method length owner: HACKER
     ":length(tree) => number of leaves in tree.";
     return args[1] ? args[1][2] | 0;
-  endverb
+  endmethod
 
-  verb find_nth (this none this) owner: HACKER flags: "rxd"
+  method find_nth owner: HACKER
     ":find_nth(tree,n) => nth leaf of tree.  Assumes n in [1..tree[2]]";
     return this:_find_nth(caller, @args);
-  endverb
+  endmethod
 
-  verb find_ord (this none this) owner: HACKER flags: "rxd"
+  method find_ord owner: HACKER
     ":_find_ord(tree,n,comp) ";
     " => index of rightmost leaf for which :(comp)(n,:_ord(leaf)) is false.";
     "returns 0 if true for all leaves.";
     return args[1] ? this:_find_ord(caller, @args) | 0;
-  endverb
+  endmethod
 
-  verb set_nth (this none this) owner: HACKER flags: "rxd"
+  method set_nth owner: HACKER
     ":set_nth(tree,n,value) => tree";
     "modifies tree so that nth leaf == value";
     if ((n = args[2]) < 1 || (!(tree = args[1]) || tree[2] < n))
@@ -131,9 +131,9 @@ object BIGLIST
       this:_set_nth(caller, @args);
       return n != 1 ? tree | listset(tree, caller:_ord(args[3]), 3);
     endif
-  endverb
+  endmethod
 
-  verb kill (this none this) owner: HACKER flags: "rxd"
+  method kill owner: HACKER
     ":kill(tree[,leafverb]) deletes tree and _kills all of the nodes that it uses.";
     "if leafverb is given, caller:leafverb is called on all leaves in tree.";
     if (tree = args[1])
@@ -141,9 +141,9 @@ object BIGLIST
       this:_skill(caller, typeof(tree) == TYPE_LIST ? tree[1] | tree, lverb);
     endif
     "... otherwise nothing to do...";
-  endverb
+  endmethod
 
-  verb "insert_after insert_before" (this none this) owner: HACKER flags: "rxd"
+  method "insert_after insert_before" owner: HACKER
     ":insert_after(tree,subtree,n)";
     ":insert_before(tree,subtree,n)";
     "  inserts subtree after (before) the nth leaf of tree,";
@@ -166,32 +166,32 @@ object BIGLIST
     else
       return subtree;
     endif
-  endverb
+  endmethod
 
-  verb extract_range (this none this) owner: HACKER flags: "rxd"
+  method extract_range owner: HACKER
     ":extract_range(tree,first,last) => {newtree,extraction}";
     return this:_extract(caller, @args);
-  endverb
+  endmethod
 
-  verb delete_range (this none this) owner: HACKER flags: "rxd"
+  method delete_range owner: HACKER
     ":delete_range(tree,first,last[,leafkill]) => newtree";
     extract = this:_extract(caller, @args);
     if (die = extract[2])
       this:_skill(caller, die[1], {@args, ""}[4]);
     endif
     return extract[1];
-  endverb
+  endmethod
 
-  verb keep_range (this none this) owner: HACKER flags: "rxd"
+  method keep_range owner: HACKER
     ":keep_range(tree,first,last[,leafkill]) => range";
     extract = this:_extract(caller, @args);
     if (die = extract[1])
       this:_skill(caller, die[1], {@args, ""}[4]);
     endif
     return extract[2];
-  endverb
+  endmethod
 
-  verb insert_last (this none this) owner: HACKER flags: "rxd"
+  method insert_last owner: HACKER
     ":insert_last(tree,insert) => newtree";
     "insert a new leaf to be inserted at the righthand end of the tree";
     tree = args[1];
@@ -225,9 +225,9 @@ object BIGLIST
       insert = {caller:_make(h - 1, {insert}), 1, iord};
     endfor
     return {caller:_make(length(rspine), {tree, insert}), tree[2] + 1, tree[3]};
-  endverb
+  endmethod
 
-  verb start (this none this) owner: HACKER flags: "rxd"
+  method start owner: HACKER
     ":start(tree,first,last) => {list of leaf nodes, @handle}";
     "handle is of the form {{node,next,size}...}";
     if (tree = args[1])
@@ -252,9 +252,9 @@ object BIGLIST
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb next (this none this) owner: HACKER flags: "rxd"
+  method next owner: HACKER
     ":next(@handle) => {list of more leaf nodes, @newhandle}";
     if (args)
       spine = listdelete(args, 1);
@@ -275,9 +275,9 @@ object BIGLIST
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb _find_nth (this none this) owner: HACKER flags: "rxd"
+  method _find_nth owner: HACKER
     ":_find_nth(home,tree,n) => nth leaf of tree.";
     "...Assumes n in [1..tree[2]]";
     if (caller != this)
@@ -296,9 +296,9 @@ object BIGLIST
     else
       return p[2][n];
     endif
-  endverb
+  endmethod
 
-  verb _find_ord (this none this) owner: HACKER flags: "rxd"
+  method _find_ord owner: HACKER
     ":_find_ord(home,tree,n,less_than) ";
     " => index of rightmost leaf for which :(less_than)(n,:_ord(leaf)) is false.";
     "returns 0 if true for all leaves.";
@@ -324,9 +324,9 @@ object BIGLIST
       endfor
       return r;
     endif
-  endverb
+  endmethod
 
-  verb _set_nth (this none this) owner: HACKER flags: "rxd"
+  method _set_nth owner: HACKER
     ":_set_nth(home,tree,n,value) => tree[n] = value";
     "Assumes n in [1..tree[2]]";
     if (caller != this)
@@ -344,9 +344,9 @@ object BIGLIST
       p[2][n] = value;
       home:_put(tree[1], @p);
     endif
-  endverb
+  endmethod
 
-  verb _skill (this none this) owner: HACKER flags: "rxd"
+  method _skill owner: HACKER
     ":_skill(home,node,kill_leaf)";
     "home:_kill's node and all descendants, home:(kill_leaf)'s all leaves";
     if (caller != this)
@@ -368,9 +368,9 @@ object BIGLIST
       endfor
     endif
     home:_kill(node);
-  endverb
+  endmethod
 
-  verb _extract (this none this) owner: HACKER flags: "rxd"
+  method _extract owner: HACKER
     ":_extract(home,tree,first,last) => {newtree,extraction}";
     if (caller != this)
       return E_PERM;
@@ -403,9 +403,9 @@ object BIGLIST
       return {{}, tree};
     endif
     return {this:_scrunch(home, newtree), this:_scrunch(home, extract)};
-  endverb
+  endmethod
 
-  verb _merge (this none this) owner: HACKER flags: "rxd"
+  method _merge owner: HACKER
     "_merge(home,ltree,rtree) => newtree";
     "assumes ltree and rtree to be nonempty.";
     if (caller != this)
@@ -422,9 +422,9 @@ object BIGLIST
     endfor
     m = this:_smerge(home, rh, lnode, rnode);
     return length(m) <= 1 ? m[1] | {home:_make(rh + 1, m), m[1][2] + m[2][2], m[1][3]};
-  endverb
+  endmethod
 
-  verb _smerge (this none this) owner: HACKER flags: "rxd"
+  method _smerge owner: HACKER
     "_smerge(home, height, ltree, rtree) =>{ltree[,rtree]}";
     "assumes ltree and rtree are at the given height.";
     "merges the trees if the combined number of children is <= maxfanout";
@@ -472,9 +472,9 @@ object BIGLIST
       ltree[2] = ltree[2] + rtree[2];
       return {ltree};
     endif
-  endverb
+  endmethod
 
-  verb _split (this none this) owner: HACKER flags: "rxd"
+  method _split owner: HACKER
     "_split(home, height,lmax,ltree[,@rtrees]}) => {ltree,[mtree,]@rtrees}";
     "ltree is split after the lmax'th leaf, the righthand portion grafted onto the leftmost of the rtrees, if possible.  Otherwise we create a new tree mtree, stealing from rtrees[1] if necessary.";
     "Assumes 1<=lmax<ltree[2]";
@@ -542,9 +542,9 @@ object BIGLIST
         return {listset(ltree, lmax, 2), {home:_make(0, {@lkids[lmax + 1..llen], @rkids[1..R]}), mlen / 2, home:_ord(lkids[lmax + 1])}, @rtrees};
       endif
     endif
-  endverb
+  endmethod
 
-  verb _rmerge (this none this) owner: HACKER flags: "rxd"
+  method _rmerge owner: HACKER
     ":_rmerge(home, tree, insertree) => newtree ";
     "(newtree is tree with insertree appended to the right)";
     "insertree is assumed to be of height < tree";
@@ -588,9 +588,9 @@ object BIGLIST
       endif
     endfor
     return {home:_make(length(rspine) + iheight + 1, m), m[1][2] + m[2][2], m[1][3]};
-  endverb
+  endmethod
 
-  verb _scrunch (this none this) owner: HACKER flags: "rxd"
+  method _scrunch owner: HACKER
     ":_scrunch(home,tree) => newtree";
     "decapitates single-child nodes from the top of the tree, returns new root.";
     if (caller != this)
@@ -604,9 +604,9 @@ object BIGLIST
       endwhile
     endif
     return tree;
-  endverb
+  endmethod
 
-  verb _listfind_nth (this none this) owner: HACKER flags: "rxd"
+  method _listfind_nth owner: HACKER
     "_listfind_nth(nodelist,key) => {i,k} where i is the smallest i such that the sum of the first i elements of intlist is > key, and k==key - sum(first i-1 elements).";
     "1 <= i <= length(intlist)+1";
     {lst, key} = args;
@@ -617,19 +617,19 @@ object BIGLIST
       endif
     endfor
     return {length(lst) + 1, key};
-  endverb
+  endmethod
 
-  verb _insertfirst (this none this) owner: HACKER flags: "rxd"
+  method _insertfirst owner: HACKER
     if (caller != this)
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb debug (this none this) owner: HACKER flags: "rxd"
+  method debug owner: HACKER
     return $perm_utils:controls(caller_perms(), this) ? this:(args[1])(@listdelete(args, 1)) | E_PERM;
-  endverb
+  endmethod
 
-  verb _call (this none this) owner: #2 flags: "rxd"
+  method _call owner: #2
     ":_call(home,verb,@vargs) calls home:verb(@vargs) with $no_one's perms";
     set_task_perms($no_one);
     if (caller != this)
@@ -637,5 +637,5 @@ object BIGLIST
     endif
     {home, vb, @vargs} = args;
     return home:(vb)(@vargs);
-  endverb
+  endmethod
 endobject

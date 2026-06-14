@@ -35,16 +35,16 @@ object VERB_HELP
   override import_export_id = "verb_help";
   override object_size = {3958, 1084848672};
 
-  verb find_topics (this none this) owner: HACKER flags: "rxd"
+  method find_topics owner: HACKER
     if ($code_utils:parse_verbref(what = args[1]))
       "... hey wow, I found it!...";
       return {what};
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb get_topic (this none this) owner: #2 flags: "rxd"
+  method get_topic owner: #2
     "Help facility for verbs that people have bothered to document.  If the argument is a verb specification, this retrieves the code and prints any documentation lines that might be at the beginning.  Returns true if the arg can actually be interpreted as a verb specification, whether or not it is a correct one.";
     set_task_perms(caller_perms());
     if (!(spec = $code_utils:parse_verbref(args[1])))
@@ -65,9 +65,9 @@ object VERB_HELP
         return tostr("No information about ", objverb);
       endif
     endif
-  endverb
+  endmethod
 
-  verb dump_topic (this none this) owner: #2 flags: "rxd"
+  method dump_topic owner: #2
     set_task_perms(caller_perms());
     if (!(spec = $code_utils:parse_verbref(args[1])))
       return E_INVARG;
@@ -80,5 +80,5 @@ object VERB_HELP
     else
       return {tostr(";$code_utils:set_verb_documentation(", $code_utils:corify_object(hv[1]), ",", $string_utils:print(spec[2]), ",$command_utils:read_lines())"), @$command_utils:dump_lines(vd)};
     endif
-  endverb
+  endmethod
 endobject

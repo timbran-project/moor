@@ -478,7 +478,7 @@ object LOGIN
     endif
   endverb
 
-  verb parse_command (this none this) owner: #2 flags: "rxd"
+  method parse_command owner: #2
     ":parse_command(@args) => {verb, args}";
     "Given the args from #0:do_login_command,";
     "  returns the actual $login verb to call and the args to use.";
@@ -503,9 +503,9 @@ object LOGIN
       endfor
     endif
     return {this.bogus_command, @args};
-  endverb
+  endmethod
 
-  verb check_for_shutdown (this none this) owner: #2 flags: "rxd"
+  method check_for_shutdown owner: #2
     when = $shutdown_time - time();
     if (when >= 0)
       line = "***************************************************************************";
@@ -524,9 +524,9 @@ object LOGIN
       notify(player, "");
       notify(player, "");
     endif
-  endverb
+  endmethod
 
-  verb check_player_db (this none this) owner: #2 flags: "rxd"
+  method check_player_db owner: #2
     if ($player_db.frozen)
       line = "***************************************************************************";
       notify(player, "");
@@ -546,9 +546,9 @@ object LOGIN
       notify(player, line);
       notify(player, "");
     endif
-  endverb
+  endmethod
 
-  verb _match_player (this none this) owner: #2 flags: "rxd"
+  method _match_player owner: #2
     ":_match_player(name)";
     "This is the matching routine used by @connect.";
     "returns either a valid player corresponding to name or $failed_match.";
@@ -568,9 +568,9 @@ object LOGIN
     ". endfor ";
     ".....";
     return $failed_match;
-  endverb
+  endmethod
 
-  verb find_by_oauth2 (this none this) owner: #2 flags: "rxd"
+  method find_by_oauth2 owner: #2
     ":find_by_oauth2(provider, external_id)";
     "Search all players for matching oauth2_identities entry";
     "Returns player object or $failed_match";
@@ -590,19 +590,19 @@ object LOGIN
       endif
     endfor
     return $failed_match;
-  endverb
+  endmethod
 
-  verb notify (this none this) owner: #2 flags: "rxd"
+  method notify owner: #2
     set_task_perms(caller_perms());
     `notify(player, args[1]) ! ANY';
-  endverb
+  endmethod
 
-  verb tell (this none this) owner: HACKER flags: "rxd"
+  method tell owner: HACKER
     "keeps bad things from happening if someone brings this object into a room and talks to it.";
     return 0;
-  endverb
+  endmethod
 
-  verb player_creation_enabled (this none this) owner: #2 flags: "rxd"
+  method player_creation_enabled owner: #2
     "Accepts a player object.  If player creation is enabled for that player object, then return true.  Otherwise, return false.";
     "Default implementation checks the player's connecting host via $login:blacklisted to decide.";
     if (caller_perms().wizard)
@@ -610,13 +610,13 @@ object LOGIN
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb "newt_registration_string registration_string" (this none this) owner: #2 flags: "rxd"
+  method "newt_registration_string registration_string" owner: #2
     return $string_utils:subst(this.(verb), {{"%e", this.registration_address}, {"%%", "%"}});
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       this.current_lag = 0;
       this.lag_exemptions = {};
@@ -650,12 +650,12 @@ object LOGIN
       endif
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb special_action (this none this) owner: #2 flags: "x"
-  endverb
+  method special_action owner: #2 flags: "x"
+  endmethod
 
-  verb "blacklisted graylisted redlisted spooflisted" (this none this) owner: #2 flags: "rxd"
+  method "blacklisted graylisted redlisted spooflisted" owner: #2
     ":blacklisted(hostname) => is hostname on the .blacklist";
     ":graylisted(hostname)  => is hostname on the .graylist";
     ":redlisted(hostname)   => is hostname on the .redlist";
@@ -686,9 +686,9 @@ object LOGIN
       endfor
     endif
     return this:(verb + "_temp")(hostname);
-  endverb
+  endmethod
 
-  verb "blacklist_add*_temp graylist_add*_temp redlist_add*_temp spooflist_add*_temp" (this none this) owner: #2 flags: "rxd"
+  method "blacklist_add*_temp graylist_add*_temp redlist_add*_temp spooflist_add*_temp" owner: #2
     "To add a temporary entry, only call the `temp' version.";
     "blacklist_add_temp(Site, start time, duration)";
     if (!caller_perms().wizard)
@@ -704,9 +704,9 @@ object LOGIN
       this.(lname)[which] = setadd(this.(lname)[which], where);
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb "blacklist_remove*_temp graylist_remove*_temp redlist_remove*_temp spooflist_remove*_temp" (this none this) owner: #2 flags: "rxd"
+  method "blacklist_remove*_temp graylist_remove*_temp redlist_remove*_temp spooflist_remove*_temp" owner: #2
     "The temp version removes from the temporary property if it exists.";
     if (!caller_perms().wizard)
       return E_PERM;
@@ -728,13 +728,13 @@ object LOGIN
     else
       return E_INVARG;
     endif
-  endverb
+  endmethod
 
-  verb listname (this none this) owner: #2 flags: "rxd"
+  method listname owner: #2
     return {"???", "blacklist", "graylist", "redlist", "spooflist"}[1 + index("bgrs", (args[1] || "?")[1])];
-  endverb
+  endmethod
 
-  verb "who(vanilla)" (this none this) owner: #2 flags: "rxd"
+  method "who(vanilla)" owner: #2
     if (caller != #0)
       return E_PERM;
     elseif (!args)
@@ -744,9 +744,9 @@ object LOGIN
       $code_utils:show_who_listing(plyrs);
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb record_connection (this none this) owner: #2 flags: "rxd"
+  method record_connection owner: #2
     ":record_connection(plyr) update plyr's connection information";
     "to reflect impending login.";
     if (!caller_perms().wizard)
@@ -764,9 +764,9 @@ object LOGIN
         $site_db:add(plyr, chost);
       endif
     endif
-  endverb
+  endmethod
 
-  verb sample_lag (this none this) owner: #2 flags: "rxd"
+  method sample_lag owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     endif
@@ -791,13 +791,13 @@ object LOGIN
       this:sample_lag();
     endfork
     this.last_lag_sample = time();
-  endverb
+  endmethod
 
-  verb is_lagging (this none this) owner: #2 flags: "rxd"
+  method is_lagging owner: #2
     return this:current_lag() > this.lag_cutoff;
-  endverb
+  endmethod
 
-  verb max_connections (this none this) owner: #2 flags: "rxd"
+  method max_connections owner: #2
     max = this.max_connections;
     if (typeof(max) == TYPE_LIST)
       if (this:is_lagging())
@@ -807,9 +807,9 @@ object LOGIN
       endif
     endif
     return max;
-  endverb
+  endmethod
 
-  verb request_character (this none this) owner: #2 flags: "rxd"
+  method request_character owner: #2
     "request_character(player, name, address)";
     "return true if succeeded";
     if (!caller_perms().wizard)
@@ -882,7 +882,7 @@ object LOGIN
       $wiz_utils:send_new_player_mail(tostr("Someone connected from ", connection, " at ", ctime(), " requested a character on ", $network.moo_name, " for email address ", address, "."), name, address, new, password);
       return 1;
     endif
-  endverb
+  endmethod
 
   verb "req*uest @req*uest" (any none any) owner: #2 flags: "rxd"
     if (caller != #0 && caller != this)
@@ -919,7 +919,7 @@ object LOGIN
     endif
   endverb
 
-  verb maybe_print_lag (this none this) owner: #2 flags: "rxd"
+  method maybe_print_lag owner: #2
     if (caller == this || caller_perms() == player)
       if (this.print_lag)
         lag = this:current_lag();
@@ -933,13 +933,13 @@ object LOGIN
         notify(player, tostr("The lag is ", lagstr, "; there ", (l = length(connected_players())) == 1 ? "is " | "are ", l, " connected."));
       endif
     endif
-  endverb
+  endmethod
 
-  verb current_lag (this none this) owner: #2 flags: "rxd"
+  method current_lag owner: #2
     return this.current_lag;
-  endverb
+  endmethod
 
-  verb maybe_limit_commands (this none this) owner: #2 flags: "rxd"
+  method maybe_limit_commands owner: #2
     "This limits the number of commands that can be issued from the login prompt to prevent haywire login programs from lagging the MOO.";
     "$login.current_connections has the current player id's of people at the login prompt.";
     "$login.current_numcommands has the number of commands they have issued at the prompt so far.";
@@ -970,9 +970,9 @@ object LOGIN
         return 0;
       endif
     endif
-  endverb
+  endmethod
 
-  verb server_started (this none this) owner: #2 flags: "rxd"
+  method server_started owner: #2
     "Called by #0:server_started when the server restarts.";
     if (caller_perms().wizard)
       this.lag_samples = {0, 0, 0, 0, 0};
@@ -980,9 +980,9 @@ object LOGIN
       this.intercepted_players = this.intercepted_actions = {};
       this.checkpoint_in_progress = 0;
     endif
-  endverb
+  endmethod
 
-  verb uptime_since (this none this) owner: #2 flags: "rxd"
+  method uptime_since owner: #2
     "uptime_since(time): How much time has LambdaMOO been up since `time'";
     since = args[1];
     up = time() - since;
@@ -995,9 +995,9 @@ object LOGIN
       up = up - (x[1] - max(x[2], since));
     endfor
     return up;
-  endverb
+  endmethod
 
-  verb count_bg_players (this none this) owner: #2 flags: "rxd"
+  method count_bg_players owner: #2
     caller_perms().wizard || $error:raise(E_PERM);
     now = time();
     tasks = queued_tasks();
@@ -1010,9 +1010,9 @@ object LOGIN
     endfor
     count = sum / 100;
     return count;
-  endverb
+  endmethod
 
-  verb "blacklisted_temp graylisted_temp redlisted_temp spooflisted_temp" (this none this) owner: #2 flags: "rxd"
+  method "blacklisted_temp graylisted_temp redlisted_temp spooflisted_temp" owner: #2
     ":blacklisted_temp(hostname) => is hostname on the .blacklist...";
     ":graylisted_temp(hostname)  => is hostname on the .graylist...";
     ":redlisted_temp(hostname)   => is hostname on the .redlist...";
@@ -1049,9 +1049,9 @@ object LOGIN
       endfor
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb templist_expired (this none this) owner: #2 flags: "rxd"
+  method templist_expired owner: #2
     "check to see if duration has expired on temporary_<colorlist>. Removes entry if so, returns true if still <colorlisted>";
     ":(listname, hostname, start time, duration)";
     {lname, hname, start, duration} = args;
@@ -1064,22 +1064,22 @@ object LOGIN
     else
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb temp_newt_registration_string (this none this) owner: #2 flags: "rxd"
+  method temp_newt_registration_string owner: #2
     return "Your character is unavailable for another " + $time_utils:english_time(args[1]) + ".";
-  endverb
+  endmethod
 
-  verb add_interception (this none this) owner: HACKER flags: "rxd"
+  method add_interception owner: HACKER
     caller == this || raise(E_PERM);
     {who, verbname, @arguments} = args;
     who in this.intercepted_players && raise(E_INVARG, "Player already has an interception set.");
     this.intercepted_players = {@this.intercepted_players, who};
     this.intercepted_actions = {@this.intercepted_actions, {verbname, @arguments}};
     return 1;
-  endverb
+  endmethod
 
-  verb delete_interception (this none this) owner: HACKER flags: "rxd"
+  method delete_interception owner: HACKER
     caller == this || raise(E_PERM);
     {who} = args;
     if (loc = who in this.intercepted_players)
@@ -1090,15 +1090,15 @@ object LOGIN
       "raise an error?  nah.";
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb interception (this none this) owner: HACKER flags: "rxd"
+  method interception owner: HACKER
     caller == this || raise(E_PERM);
     {who} = args;
     return (loc = who in this.intercepted_players) ? this.intercepted_actions[loc] | 0;
-  endverb
+  endmethod
 
-  verb intercepted_password (this none this) owner: #2 flags: "rxd"
+  method intercepted_password owner: #2
     caller == #0 || raise(E_PERM);
     this:delete_interception(player);
     set_connection_option(player, "client-echo", 1);
@@ -1109,14 +1109,14 @@ object LOGIN
       return 0;
     endtry
     return this:connect(tostr(candidate), password);
-  endverb
+  endmethod
 
-  verb "do_out_of_band_command doobc" (this none this) owner: HACKER flags: "rxd"
+  method "do_out_of_band_command doobc" owner: HACKER
     "This is where oob handlers need to be put to handle oob commands issued prior to assigning a connection to a player object.  Right now it simply returns.";
     return;
-  endverb
+  endmethod
 
-  verb check_for_checkpoint (this none this) owner: #2 flags: "rxd"
+  method check_for_checkpoint owner: #2
     if (this.checkpoint_in_progress)
       line = "***************************************************************************";
       notify(player, "");
@@ -1132,5 +1132,5 @@ object LOGIN
       notify(player, "");
       notify(player, "");
     endif
-  endverb
+  endmethod
 endobject

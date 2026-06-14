@@ -28,14 +28,14 @@ object PERM_UTILS
   override import_export_id = "perm_utils";
   override object_size = {3491, 1084848672};
 
-  verb controls (this none this) owner: #2 flags: "rxd"
+  method controls owner: #2
     "$perm_utils:controls(who, what)";
     "Is WHO allowed to hack on WHAT?";
     {who, what} = args;
     return valid(who) && valid(what) && (who.wizard || who == what.owner);
-  endverb
+  endmethod
 
-  verb apply (this none this) owner: HACKER flags: "rxd"
+  method apply owner: HACKER
     ":apply(permstring,mods) => new permstring.";
     "permstring is a permissions string, mods is a concatenation of strings of the form +<letters>, !<letters>, or -<letters>, where <letters> is a string of letters as might appear in a permissions string (`+' adds the specified permissions, `-' or `!' removes them; `-' and `!' are entirely equivalent).";
     {perms, mods} = args;
@@ -58,9 +58,9 @@ object PERM_UTILS
       endif
     endwhile
     return perms;
-  endverb
+  endmethod
 
-  verb caller (this none this) owner: #2 flags: "rxd"
+  method caller owner: #2
     ":caller([include line numbers])";
     "  -- returns the first caller in the callers() stack distinct from `this'";
     {?lineno = 0} = args;
@@ -69,9 +69,9 @@ object PERM_UTILS
     while ((stage = stage + 1) <= lc && c[stage][1] in nono)
     endwhile
     return c[stage];
-  endverb
+  endmethod
 
-  verb "controls_prop*erty controls_verb" (this none this) owner: #2 flags: "rxd"
+  method "controls_prop*erty controls_verb" owner: #2
     "Syntax:  controls_prop(OBJ who, OBJ what, STR propname)   => 0 | 1";
     "         controls_verb(OBJ who, OBJ what, STR verbname)   => 0 | 1";
     "";
@@ -79,5 +79,5 @@ object PERM_UTILS
     {who, what, name} = args;
     bi = verb == "controls_verb" ? "verb_info" | "property_info";
     return who.wizard || who == call_function(bi, what, name)[1];
-  endverb
+  endmethod
 endobject

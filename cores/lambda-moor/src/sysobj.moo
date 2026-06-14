@@ -175,7 +175,7 @@ object SYSOBJ
   override import_export_id = "sysobj";
   override object_size = {23528, 1084848672};
 
-  verb do_login_command (this none this) owner: #2 flags: "rxd"
+  method do_login_command owner: #2
     "...This code should only be run as a server task...";
     if (callers())
       return E_PERM;
@@ -206,17 +206,17 @@ object SYSOBJ
       args = $login:parse_command(@args);
       return $login:(args[1])(@listdelete(args, 1));
     endif
-  endverb
+  endmethod
 
-  verb server_started (this none this) owner: #2 flags: "rxd"
+  method server_started owner: #2
     if (!callers())
       $last_restart_time = time();
       $network:server_started();
       $login:server_started();
     endif
-  endverb
+  endmethod
 
-  verb "core_object_info core_objects" (this none this) owner: #2 flags: "rxd"
+  method "core_object_info core_objects" owner: #2
     set_task_perms($no_one);
     {?core_variant = "Imnotsurewhatthisshouldbeyetdontdependonthis", ?in_mcd = 0} = args;
     if (in_mcd)
@@ -304,9 +304,9 @@ object SYSOBJ
       "... what most people care about";
       return core_objects;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       `delete_property(this, "mail_name_db") ! E_PROPNF';
@@ -325,9 +325,9 @@ object SYSOBJ
         set_verb_code(#0, v, c);
       endfor
     endif
-  endverb
+  endmethod
 
-  verb "user_created user_connected" (this none this) owner: #2 flags: "rxd"
+  method "user_created user_connected" owner: #2
     "Copied from The System Object (#0):user_connected by Slartibartfast (#4242) Sun May 21 18:14:16 1995 PDT";
     if (callers())
       return;
@@ -344,9 +344,9 @@ object SYSOBJ
       endfor
       user:tell("(End of traceback)");
     endtry
-  endverb
+  endmethod
 
-  verb "user_disconnected user_client_disconnected" (this none this) owner: #2 flags: "rxd"
+  method "user_disconnected user_client_disconnected" owner: #2
     if (callers())
       return;
     endif
@@ -363,9 +363,9 @@ object SYSOBJ
       `where.location:disfunc(user) ! ANY => 0';
     endif
     `user.location:disfunc(user) ! ANY => 0';
-  endverb
+  endmethod
 
-  verb "bf_chparent chparent" (this none this) owner: #2 flags: "rxd"
+  method "bf_chparent chparent" owner: #2
     "chparent(object, new-parent) -- see help on the builtin.";
     who = caller_perms();
     {what, papa} = args;
@@ -395,9 +395,9 @@ object SYSOBJ
       retval = E_PERM;
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb "bf_add_verb add_verb" (this none this) owner: #2 flags: "rxd"
+  method "bf_add_verb add_verb" owner: #2
     "add_verb() -- see help on the builtin for more information. This verb is called by the server when $server_options.protect_add_verb exists and is true and caller_perms() are not wizardly.";
     who = caller_perms();
     what = args[1];
@@ -425,9 +425,9 @@ object SYSOBJ
       retval = `add_verb(@args) ! ANY';
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb "bf_add_property add_property" (this none this) owner: #2 flags: "rxd"
+  method "bf_add_property add_property" owner: #2
     "add_property() -- see help on the builtin for more information. This verb is called by the server when $server_options.protect_add_property exists and is true and caller_perms() are not wizardly.";
     who = caller_perms();
     {what, propname, value, info} = args;
@@ -452,9 +452,9 @@ object SYSOBJ
       retval = `add_property(@args) ! ANY';
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb "bf_recycle recycle" (this none this) owner: #2 flags: "rxd"
+  method "bf_recycle recycle" owner: #2
     "recycle(object) -- see help on the builtin. This verb is called by the server when $server_options.protect_recycle exists and is true and caller_perms() are not wizardly.";
     if (!valid(what = args[1]))
       retval = E_INVARG;
@@ -473,9 +473,9 @@ object SYSOBJ
       retval = `recycle(what) ! ANY';
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb user_reconnected (this none this) owner: #2 flags: "rxd"
+  method user_reconnected owner: #2
     if (callers())
       return;
     endif
@@ -497,9 +497,9 @@ object SYSOBJ
       set_task_perms(user);
       `user:confunc() ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb "bf_set_verb_info set_verb_info" (this none this) owner: #2 flags: "rxd"
+  method "bf_set_verb_info set_verb_info" owner: #2
     "set_verb_info() -- see help on the builtin for more information. This verb is called by the server when $server_options.protect_set_verb_info exists and is true and caller_perms() are not wizardly.";
     {o, v, i} = args;
     if (typeof(vi = `verb_info(o, v) ! ANY') == TYPE_ERR)
@@ -523,9 +523,9 @@ object SYSOBJ
       retval = `set_verb_info(o, v, i) ! ANY';
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb "bf_match match" (this none this) owner: #2 flags: "rxd"
+  method "bf_match match" owner: #2
     m = `match(@args) ! ANY';
     return typeof(m) == TYPE_ERR && $code_utils:dflag_on() ? raise(m) | m;
     if (length(args[1]) > 256 && index(args[2], "*"))
@@ -533,9 +533,9 @@ object SYSOBJ
     else
       return match(@args);
     endif
-  endverb
+  endmethod
 
-  verb "bf_rmatch rmatch" (this none this) owner: #2 flags: "rxd"
+  method "bf_rmatch rmatch" owner: #2
     r = `rmatch(@args) ! ANY';
     return typeof(r) == TYPE_ERR && $code_utils:dflag_on() ? raise(r) | r;
     if (length(args[1]) > 256 && index(args[2], "*"))
@@ -543,16 +543,16 @@ object SYSOBJ
     else
       return rmatch(@args);
     endif
-  endverb
+  endmethod
 
-  verb checkpoint_finished (this none this) owner: #2 flags: "rxd"
+  method checkpoint_finished owner: #2
     "Copied from The System Object (#0):checkpoint_finished [verb author Heathcliff (#89987)] at Fri May  7 12:02:22 2004 PDT";
     callers() && raise(E_PERM);
     $login.checkpoint_in_progress = 0;
     `$local.checkpoint_notification:checkpoint_finished(@args) ! ANY';
-  endverb
+  endmethod
 
-  verb "do_out_of_band_command doobc" (this none this) owner: #2 flags: "rxd"
+  method "do_out_of_band_command doobc" owner: #2
     "do_out_of_band_command -- a cheap and very dirty do_out_of_band verb.  Forwards to verb on player with same name if it exists, otherwise forwards to $login.  May only be called by the server in response to an out of band command, otherwise E_PERM is returned.";
     if (caller == #-1 && caller_perms() == #-1 && callers() == {})
       if (valid(player) && is_player(player))
@@ -564,9 +564,9 @@ object SYSOBJ
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb handle_uncaught_error (this none this) owner: #2 flags: "rxd"
+  method handle_uncaught_error owner: #2
     if (!callers())
       {code, msg, value, stack, traceback} = args;
       if (!$object_utils:connected(player))
@@ -576,15 +576,15 @@ object SYSOBJ
       "now let the player do something with it if e wants...";
       return `player:(verb)(@args) ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb checkpoint_started (this none this) owner: #2 flags: "rxd"
+  method checkpoint_started owner: #2
     callers() && raise(E_PERM);
     $login.checkpoint_in_progress = 1;
     `$local.checkpoint_notification:checkpoint_started(@args) ! ANY';
-  endverb
+  endmethod
 
-  verb bf_force_input (this none this) owner: #2 flags: "rxd"
+  method bf_force_input owner: #2
     "Copied from Jay (#3920):bf_force_input Mon Jun 16 20:55:27 1997 PDT";
     "force_input(conn, line [, at-front])";
     "see help on the builtin for more information. This verb is called by the server when $server_options.protect_force_input exists and is true and caller_perms() are not wizardly.";
@@ -598,14 +598,14 @@ object SYSOBJ
       this.force_input_count = this.force_input_count + 1;
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: #2 flags: "rxd"
+  method moveto owner: #2
     "Let's keep bozos from partying.  --Nosredna the partypooper";
     return pass(#-1);
-  endverb
+  endmethod
 
-  verb "bf_set_property_info set_property_info" (this none this) owner: #2 flags: "rxd"
+  method "bf_set_property_info set_property_info" owner: #2
     who = caller_perms();
     retval = 0;
     try
@@ -628,13 +628,13 @@ object SYSOBJ
       retval = `set_property_info(@args) ! ANY';
     endif
     return typeof(retval) == TYPE_ERR && $code_utils:dflag_on() ? raise(retval) | retval;
-  endverb
+  endmethod
 
-  verb include_for_core (this none this) owner: #2 flags: "rxd"
+  method include_for_core owner: #2
     return properties(this);
-  endverb
+  endmethod
 
-  verb handle_task_timeout (this none this) owner: #2 flags: "rxd"
+  method handle_task_timeout owner: #2
     if (!callers())
       {resource, stack, traceback} = args;
       if (!$object_utils:connected(player))
@@ -644,5 +644,5 @@ object SYSOBJ
       "now let the player do something with it if e wants...";
       return `player:(verb)(@args) ! ANY';
     endif
-  endverb
+  endmethod
 endobject

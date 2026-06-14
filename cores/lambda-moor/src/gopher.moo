@@ -47,7 +47,7 @@ object GOPHER
   override import_export_id = "gopher";
   override object_size = {15578, 1084848672};
 
-  verb get_now (this none this) owner: #2 flags: "rxd"
+  method get_now owner: #2
     "Usage:  get_now(site, port, message)";
     "Returns a list of strings, or an error if we couldn't connect.";
     {host, port, message, ?extra = {0}} = args;
@@ -89,9 +89,9 @@ object GOPHER
       suspend(0);
     endif
     return results;
-  endverb
+  endmethod
 
-  verb parse (this none this) owner: #2 flags: "rxd"
+  method parse owner: #2
     "parse gopher result line:";
     "return {host, port, tag, label}";
     "host/port/tag are what you send to the gopher server to get that line";
@@ -113,9 +113,9 @@ object GOPHER
     port = toint(tab ? string[1..tab - 1] | string);
     return {host, port, tag, label};
     "ignore extra material after port, if any";
-  endverb
+  endmethod
 
-  verb show_text (this none this) owner: #2 flags: "rxd"
+  method show_text owner: #2
     "$gopher:show_text(who, start, end, ..node..)";
     "like who:notify_lines($gopher:get(..node..)[start..end]), but pipelined";
     if (!caller_perms().wizard)
@@ -147,9 +147,9 @@ object GOPHER
     endwhile
     $network:close(con);
     return sent;
-  endverb
+  endmethod
 
-  verb type (this none this) owner: #2 flags: "rxd"
+  method type owner: #2
     type = args[1];
     if (type == "1")
       return "menu";
@@ -176,9 +176,9 @@ object GOPHER
       return "unknown";
     endif
     "not done, need to fill out";
-  endverb
+  endmethod
 
-  verb summary (this none this) owner: #2 flags: "rxd"
+  method summary owner: #2
     "return a 'nice' string showing the information in a gopher node";
     if (typeof(parse = args[1]) == TYPE_STR)
       parse = this:parse(parse);
@@ -208,9 +208,9 @@ object GOPHER
       port = tostr(" ", parse[2]);
     endif
     return {tostr("[", parse[1], port, "]"), label, parse[3]};
-  endverb
+  endmethod
 
-  verb get (this none this) owner: #2 flags: "rxd"
+  method get owner: #2
     "Usage: get(site, port, selection)";
     "returns a list of strings, or an error if it couldn't connect. Results are cached.";
     if (this.frozen)
@@ -247,9 +247,9 @@ object GOPHER
     this.cache_times[index] = time() + (typeof(value) == TYPE_ERR ? 120 | 1800);
     this.cache_values[index] = value;
     return value;
-  endverb
+  endmethod
 
-  verb clear_cache (this none this) owner: #2 flags: "rxd"
+  method clear_cache owner: #2
     if (!this:trusted(caller_perms()))
       return E_PERM;
     endif
@@ -260,9 +260,9 @@ object GOPHER
       this.cache_times = listdelete(this.cache_times, index);
       this.cache_values = listdelete(this.cache_values, index);
     endif
-  endverb
+  endmethod
 
-  verb unparse (this none this) owner: #2 flags: "rxd"
+  method unparse owner: #2
     "unparse(host, port, tag, label) => string";
     {host, port, tag, label} = args;
     if (tab = index(tag, "\t"))
@@ -270,9 +270,9 @@ object GOPHER
       tag = tag[1..tab - 1];
     endif
     return tostr(label, "\t", tag, "\t", host, "\t", port);
-  endverb
+  endmethod
 
-  verb interpret_error (this none this) owner: #2 flags: "rxd"
+  method interpret_error owner: #2
     "return an explanation for a 'false' $gopher:get result";
     value = args[1];
     if (value == E_INVARG)
@@ -284,20 +284,20 @@ object GOPHER
     else
       return "The gopher request has no results.";
     endif
-  endverb
+  endmethod
 
-  verb trusted (this none this) owner: #2 flags: "rxd"
+  method trusted owner: #2
     "default -- gopher trusts everybody";
     return 1;
-  endverb
+  endmethod
 
-  verb _textp (this none this) owner: #2 flags: "rxd"
+  method _textp owner: #2
     "_textp(parsed node)";
     "Return true iff the parsed info points to a text node.";
     return index("02", args[1][4][1]);
-  endverb
+  endmethod
 
-  verb _mail_text (this none this) owner: #2 flags: "rxd"
+  method _mail_text owner: #2
     "_mail_text(parsed node)";
     "Return the text to be mailed out for the given node.";
     where = args[1];
@@ -312,14 +312,14 @@ object GOPHER
       endfor
       return text;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       this:clear_cache();
       pass(@args);
     endif
-  endverb
+  endmethod
 
   verb display_cache (this none none) owner: #2 flags: "rxd"
     "Just for debugging -- shows what's in the gopher cache";
@@ -349,7 +349,7 @@ object GOPHER
     player:tell("--- end cache display -------------------------------------");
   endverb
 
-  verb get_cache (this none this) owner: #2 flags: "rxd"
+  method get_cache owner: #2
     "Usage: get_cache(site, port, selection)";
     "return current cache";
     request = args[1..3];
@@ -359,9 +359,9 @@ object GOPHER
       endif
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb cache_entry (this none this) owner: #2 flags: "rxd"
+  method cache_entry owner: #2
     if (index = args in this.cache_requests)
       return index;
     else
@@ -370,13 +370,13 @@ object GOPHER
       this.cache_requests = {@this.cache_requests, args};
       return length(this.cache_requests);
     endif
-  endverb
+  endmethod
 
-  verb help_msg (this none this) owner: #2 flags: "rxd"
+  method help_msg owner: #2
     return this:description();
-  endverb
+  endmethod
 
-  verb daily (this none this) owner: #2 flags: "rxd"
+  method daily owner: #2
     if (caller_perms().wizard)
       day = 24 * 3600;
       hour_of_day_GMT = 10;
@@ -388,9 +388,9 @@ object GOPHER
       "  suspend(3900)";
       this.frozen = 0;
     endif
-  endverb
+  endmethod
 
-  verb get_now_EXPERIMENTAL (this none this) owner: #2 flags: "rxd"
+  method get_now_EXPERIMENTAL owner: #2
     "Copied from Sleeper (#98232):get_now Thu Oct  2 17:15:49 2003 PDT";
     "Copied from Gopher utilities (#15357):get_now by Retired-Wizard-1 (#49853) Thu Oct  2 16:57:12 2003 PDT";
     "Usage:  get_now(site, port, message)";
@@ -440,5 +440,5 @@ object GOPHER
       suspend(0);
     endif
     return results;
-  endverb
+  endmethod
 endobject

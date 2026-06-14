@@ -13,16 +13,16 @@ object NEW_PLAYER_LOG
   override object_size = {3172, 1084848672};
   override summary_uses_body = 1;
 
-  verb display_seq_headers (this none this) owner: #2 flags: "rxd"
+  method display_seq_headers owner: #2
     ":display_seq_headers(msg_seq[,cur])";
     if (!this:ok(caller, caller_perms()))
       return E_PERM;
     endif
     player:tell("       WHEN    BY        WHO                 EMAIL-ADDRESS");
     pass(@args);
-  endverb
+  endmethod
 
-  verb msg_summary_line (this none this) owner: #2 flags: "rxd"
+  method msg_summary_line owner: #2
     when = ctime(args[1])[5..10];
     from = args[2];
     by = $string_utils:left(from[1..index(from, " (") - 1], -9);
@@ -38,9 +38,9 @@ object NEW_PLAYER_LOG
       email = "??";
     endif
     return tostr(when, "  ", by, " ", who, "  ", email);
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.mail_notify = {player};
@@ -49,12 +49,12 @@ object NEW_PLAYER_LOG
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb is_usable_by (this none this) owner: #2 flags: "rxd"
+  method is_usable_by owner: #2
     "Copied from Generic Mail Recipient (#6419):is_usable_by by Rog (#4292) Tue Mar  2 10:02:32 1993 PST";
     return !this.moderated || (this:is_writable_by(who = args[1]) || who in this.moderated || who.wizard);
-  endverb
+  endmethod
 
   verb expire_old_messages (none none none) owner: #2 flags: "rxd"
     "Stop breaking the expire task completely with out of seconds/ticks.";

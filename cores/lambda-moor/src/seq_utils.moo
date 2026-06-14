@@ -51,7 +51,7 @@ object SEQ_UTILS
   override import_export_id = "seq_utils";
   override object_size = {17130, 1084848672};
 
-  verb "add remove" (this none this) owner: HACKER flags: "rxd"
+  method "add remove" owner: HACKER
     "   add(seq,start[,end]) => seq with range added.";
     "remove(seq,start[,end]) => seq with range removed.";
     "  both assume start<=end.";
@@ -65,14 +65,14 @@ object SEQ_UTILS
       e = $list_utils:find_insert(seq, after = args[3] + 1);
       return {@seq[1..s - 1], @(s + remove) % 2 ? {start} | {}, @(e + remove) % 2 ? {after} | {}, @seq[e..$]};
     endif
-  endverb
+  endmethod
 
-  verb contains (this none this) owner: HACKER flags: "rxd"
+  method contains owner: HACKER
     ":contains(seq,elt) => true iff elt is in seq.";
     return ($list_utils:find_insert(@args) + 1) % 2;
-  endverb
+  endmethod
 
-  verb complement (this none this) owner: HACKER flags: "rxd"
+  method complement owner: HACKER
     ":complement(seq[,lower[,upper]]) => the sequence containing all integers *not* in seq.";
     "If lower/upper are given, the resulting sequence is restricted to the specified range.";
     "Bad things happen if seq is not a subset of [lower..upper]";
@@ -89,9 +89,9 @@ object SEQ_UTILS
     else
       return {lower, @seq};
     endif
-  endverb
+  endmethod
 
-  verb union (this none this) owner: HACKER flags: "rxd"
+  method union owner: HACKER
     ":union(seq1,seq2,...)        => union of all sequences...";
     if ({} in args)
       args = $list_utils:setremove_all(args, {});
@@ -100,9 +100,9 @@ object SEQ_UTILS
       return args ? args[1] | {};
     endif
     return this:_union(@args);
-  endverb
+  endmethod
 
-  verb tostr (this none this) owner: HACKER flags: "rxd"
+  method tostr owner: HACKER
     "tostr(seq [,delimiter]) -- turns a sequence into a string, delimiting ranges with delimiter, defaulting to .. (e.g. 5..7)";
     {seq, ?separator = ".."} = args;
     if (!seq)
@@ -114,9 +114,9 @@ object SEQ_UTILS
       e = e + (i % 2 ? tostr(", ", seq[i]) | seq[i] == seq[i - 1] + 1 ? "" | tostr(separator, seq[i] - 1));
     endfor
     return e + (len % 2 ? separator | "");
-  endverb
+  endmethod
 
-  verb for (this none this) owner: #2 flags: "rxd"
+  method for owner: #2
     ":for([n,]seq,obj,verb,@args) => for s in (seq) obj:verb(s,@args); endfor";
     set_task_perms(caller_perms());
     if (typeof(n = args[1]) == TYPE_INT)
@@ -144,9 +144,9 @@ object SEQ_UTILS
         i = i + 1;
       endwhile
     endif
-  endverb
+  endmethod
 
-  verb extract (this none this) owner: HACKER flags: "rxd"
+  method extract owner: HACKER
     "extract(seq,array) => list of elements of array with indices in seq.";
     {seq, array} = args;
     if (alen = length(array))
@@ -162,9 +162,9 @@ object SEQ_UTILS
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb tolist (this none this) owner: HACKER flags: "rxd"
+  method tolist owner: HACKER
     seq = args[1];
     if (!seq)
       return {};
@@ -180,14 +180,14 @@ object SEQ_UTILS
       endfor
       return l;
     endif
-  endverb
+  endmethod
 
-  verb from_list (this none this) owner: HACKER flags: "rxd"
+  method from_list owner: HACKER
     ":fromlist(list) => corresponding sequence.";
     return this:from_sorted_list($list_utils:sort(args[1]));
-  endverb
+  endmethod
 
-  verb from_sorted_list (this none this) owner: HACKER flags: "rxd"
+  method from_sorted_list owner: HACKER
     ":from_sorted_list(sorted_list) => corresponding sequence.";
     if (!(lst = args[1]))
       return {};
@@ -202,17 +202,17 @@ object SEQ_UTILS
       endfor
       return next == $minint ? seq | {@seq, next};
     endif
-  endverb
+  endmethod
 
-  verb first (this none this) owner: HACKER flags: "rxd"
+  method first owner: HACKER
     return (seq = args[1]) ? seq[1] | E_NONE;
-  endverb
+  endmethod
 
-  verb last (this none this) owner: HACKER flags: "rxd"
+  method last owner: HACKER
     return (seq = args[1]) ? length(seq) % 2 ? $minint - 1 | seq[$] - 1 | E_NONE;
-  endverb
+  endmethod
 
-  verb size (this none this) owner: HACKER flags: "rxd"
+  method size owner: HACKER
     ":size(seq) => number of elements in seq";
     "  for sequences consisting of more than half of the 4294967298 available integers, this returns a negative number, which can either be interpreted as (cardinality - 4294967298) or -(size of complement sequence)";
     n = 0;
@@ -220,9 +220,9 @@ object SEQ_UTILS
       n = i - n;
     endfor
     return length(seq) % 2 ? $minint - n | n;
-  endverb
+  endmethod
 
-  verb from_string (this none this) owner: HACKER flags: "rxd"
+  method from_string owner: HACKER
     ":from_string(string) => corresponding sequence or E_INVARG";
     "  string should be a comma separated list of numbers and";
     "  number..number ranges";
@@ -259,9 +259,9 @@ object SEQ_UTILS
       parts = {@parts, part};
     endfor
     return this:union(@parts);
-  endverb
+  endmethod
 
-  verb firstn (this none this) owner: HACKER flags: "rxd"
+  method firstn owner: HACKER
     ":firstn(seq,n) => first n elements of seq as a sequence.";
     if ((n = args[2]) <= 0)
       return {};
@@ -277,9 +277,9 @@ object SEQ_UTILS
       s = s + 2;
     endwhile
     return seq;
-  endverb
+  endmethod
 
-  verb lastn (this none this) owner: HACKER flags: "rxd"
+  method lastn owner: HACKER
     ":lastn(seq,n) => last n elements of seq as a sequence.";
     n = args[2];
     if ((l = length(seq = args[1])) % 2)
@@ -296,14 +296,14 @@ object SEQ_UTILS
       endwhile
       return seq;
     endif
-  endverb
+  endmethod
 
-  verb range (this none this) owner: HACKER flags: "rxd"
+  method range owner: HACKER
     ":range(start,end) => sequence corresponding to [start..end] range";
     return (start = args[1]) <= (end = args[2]) ? {start, end + 1} | {};
-  endverb
+  endmethod
 
-  verb expand (this none this) owner: HACKER flags: "rxd"
+  method expand owner: HACKER
     ":expand(seq,eseq[,include=0])";
     "eseq is assumed to be a finite sequence consisting of intervals ";
     "[f1..a1-1],[f2..a2-1],...  We map each element i of seq to";
@@ -364,9 +364,9 @@ object SEQ_UTILS
         o = o + 1;
       endwhile
     endwhile
-  endverb
+  endmethod
 
-  verb contract (this none this) owner: HACKER flags: "rxd"
+  method contract owner: HACKER
     ":contract(seq,cseq)";
     "cseq is assumed to be a finite sequence consisting of intervals ";
     "[f1..a1-1],[f2..a2-1],...  From seq, we remove any elements that ";
@@ -411,9 +411,9 @@ object SEQ_UTILS
       endif
     endfor
     return (olast - ofirst) % 2 ? new | {@new, rfirst - diff};
-  endverb
+  endmethod
 
-  verb _union (this none this) owner: HACKER flags: "rxd"
+  method _union owner: HACKER
     ":_union(seq,seq,...)";
     "assumes all seqs are nonempty and that there are at least 2";
     nargs = length(args);
@@ -511,9 +511,9 @@ object SEQ_UTILS
         endif
       endif
     endwhile
-  endverb
+  endmethod
 
-  verb intersection (this none this) owner: HACKER flags: "rxd"
+  method intersection owner: HACKER
     ":intersection(seq1,seq2,...) => intersection of all sequences...";
     if ((U = {$minint}) in args)
       args = $list_utils:setremove_all(args, U);
@@ -522,5 +522,5 @@ object SEQ_UTILS
       return args ? args[1] | U;
     endif
     return this:complement(this:_union(@$list_utils:map_arg(this, "complement", args)));
-  endverb
+  endmethod
 endobject

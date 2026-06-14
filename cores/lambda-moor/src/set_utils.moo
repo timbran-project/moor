@@ -35,7 +35,7 @@ object SET_UTILS
   override import_export_id = "set_utils";
   override object_size = {5574, 1084848672};
 
-  verb union (this none this) owner: HACKER flags: "rxd"
+  method union owner: HACKER
     "Returns the set union of all of the lists provided as arguments.";
     if (!args)
       return {};
@@ -47,9 +47,9 @@ object SET_UTILS
       endfor
     endfor
     return set;
-  endverb
+  endmethod
 
-  verb intersection (this none this) owner: HACKER flags: "rxd"
+  method intersection owner: HACKER
     "Returns the set intersection of all the lists provided as arguments.";
     if (!args)
       return {};
@@ -72,9 +72,9 @@ object SET_UTILS
       result = set1;
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb "diff*erence" (this none this) owner: HACKER flags: "rxd"
+  method "diff*erence" owner: HACKER
     "Usage:  diff(set 1, set 2, ..., set n)";
     "Returns all elements of set 1 that are not in sets 2..n";
     {set, @rest} = args;
@@ -84,9 +84,9 @@ object SET_UTILS
       endfor
     endfor
     return set;
-  endverb
+  endmethod
 
-  verb contains (this none this) owner: HACKER flags: "rxd"
+  method contains owner: HACKER
     "True if the first list given is a superset of all subsequent lists.";
     "False otherwise.  {} is a superset of {} and nothing else; anything is";
     "a superset of {}.  If only one list is given, return true.";
@@ -99,9 +99,9 @@ object SET_UTILS
       endfor
     endfor
     return 1;
-  endverb
+  endmethod
 
-  verb "exclusive_or xor" (this none this) owner: HACKER flags: "rxd"
+  method "exclusive_or xor" owner: HACKER
     "Usage:  exclusive_or(set, set, ...)";
     "Return the set of all elements that are in exactly one of the input sets";
     "For two sets, this is the equivalent of (A u B) - (A n B).";
@@ -121,9 +121,9 @@ object SET_UTILS
       so_far = {@so_far, @l};
     endfor
     return set;
-  endverb
+  endmethod
 
-  verb "difference_suspended diff_suspended" (this none this) owner: HACKER flags: "rxd"
+  method "difference_suspended diff_suspended" owner: HACKER
     "Usage:  diff_suspended(set 1, set 2, ..., set n)";
     "Returns all elements of set 1 that are not in sets 2..n";
     "Suspends as needed if the lists are large.";
@@ -135,9 +135,9 @@ object SET_UTILS
       endfor
     endfor
     return set;
-  endverb
+  endmethod
 
-  verb equal (this none this) owner: HACKER flags: "rxd"
+  method equal owner: HACKER
     "True if the two lists given contain the same elements.";
     "False otherwise.";
     {set1, set2} = args;
@@ -160,9 +160,9 @@ object SET_UTILS
     else
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb intersection_preserve_case (this none this) owner: HACKER flags: "rxd"
+  method intersection_preserve_case owner: HACKER
     "Copied from Fox (#54902):intersection Mon Dec 27 17:02:57 1993 PST";
     "a version of $set_utils:intersection that maintains the property that everything in the return value is in the first argument, even considering case";
     if (!args)
@@ -177,5 +177,5 @@ object SET_UTILS
       endfor
     endfor
     return result;
-  endverb
+  endmethod
 endobject

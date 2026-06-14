@@ -230,14 +230,14 @@ object CODE_UTILS
     endif
   endverb
 
-  verb "toint tonum" (this none this) owner: HACKER flags: "rxd"
+  method "toint tonum" owner: HACKER
     ":toint(STR)";
     "=> toint(s) if STR is numeric";
     "=> E_TYPE if it isn't";
     return match(s = args[1], "^ *[-+]?[0-9]+ *$") ? toint(s) | E_TYPE;
-  endverb
+  endmethod
 
-  verb toobj (this none this) owner: HACKER flags: "rxd"
+  method toobj owner: HACKER
     ":toobj(objectid as string) => objectid";
     s = args[1];
     "Handle both integer object IDs (#123) and UUID object IDs (#00004C-993A15FAC7)";
@@ -253,9 +253,9 @@ object CODE_UTILS
       return toobj(s);
     endif
     return E_TYPE;
-  endverb
+  endmethod
 
-  verb match_objid (this none this) owner: HACKER flags: "rxd"
+  method match_objid owner: HACKER
     ":match_objid(string) => match result if string contains object ID pattern";
     "Returns match() result for object ID patterns (both integer and UUID), or {} if no match";
     "Uses pcre_match for reliable pattern matching";
@@ -279,9 +279,9 @@ object CODE_UTILS
       return {match_start, match_end, {{0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}}, s};
     endif
     return {};
-  endverb
+  endmethod
 
-  verb toerr (this none this) owner: HACKER flags: "rxd"
+  method toerr owner: HACKER
     "toerr(n), toerr(\"E_FOO\"), toerr(\"FOO\") => E_FOO.";
     if (typeof(s = args[1]) != TYPE_STR)
       n = toint(s) + 1;
@@ -292,15 +292,15 @@ object CODE_UTILS
       return 1;
     endif
     return this.error_list[n];
-  endverb
+  endmethod
 
-  verb error_name (this none this) owner: HACKER flags: "rxd"
+  method error_name owner: HACKER
     "error_name(E_FOO) => \"E_FOO\"";
     return toliteral(@args);
     return this.error_names[toint(args[1]) + 1];
-  endverb
+  endmethod
 
-  verb show_object (this none this) owner: #2 flags: "rxd"
+  method show_object owner: #2
     set_task_perms(caller_perms());
     {object, ?what = {"props", "verbs"}} = args;
     player:notify(tostr("Object ID:  ", object));
@@ -361,9 +361,9 @@ object CODE_UTILS
         player:notify(tostr("    ", o.name, " (", o, ")"));
       endfor
     endif
-  endverb
+  endmethod
 
-  verb show_property (this none this) owner: #2 flags: "rxd"
+  method show_property owner: #2
     set_task_perms(caller_perms());
     {object, pname} = args;
     if (pname in this.builtin_props)
@@ -381,9 +381,9 @@ object CODE_UTILS
       player:notify(tostr("Permissions:  ", perms));
     endif
     player:notify(tostr("Value:        ", $string_utils:print(object.(pname))));
-  endverb
+  endmethod
 
-  verb show_verbdef (this none this) owner: #2 flags: "rxd"
+  method show_verbdef owner: #2
     set_task_perms(caller_perms());
     {object, vname} = args;
     if (!(hv = $object_utils:has_verb(object, vname)))
@@ -406,9 +406,9 @@ object CODE_UTILS
     player:notify(tostr("Direct Object:    ", arg_specs[1]));
     player:notify(tostr("Preposition:      ", arg_specs[2]));
     player:notify(tostr("Indirect Object:  ", arg_specs[3]));
-  endverb
+  endmethod
 
-  verb explain_verb_syntax (this none this) owner: #2 flags: "rxd"
+  method explain_verb_syntax owner: #2
     if (args[4..5] == {"none", "this"})
       return 0;
     endif
@@ -428,19 +428,19 @@ object CODE_UTILS
       return 0;
     endif
     return tostr(verb, dobj_part ? " " + dobj_part | "", prep_part ? " " + prep_part | "", iobj_part ? " " + iobj_part | "");
-  endverb
+  endmethod
 
-  verb "verb_p*erms verb_permi*ssions" (this none this) owner: #2 flags: "rxd"
+  method "verb_p*erms verb_permi*ssions" owner: #2
     "returns the permissions of the current verb (either the owner or the result of the most recent set_task_perms()).";
     return caller_perms();
-  endverb
+  endmethod
 
-  verb "verb_loc*ation" (this none this) owner: HACKER flags: "rxd"
+  method "verb_loc*ation" owner: HACKER
     "returns the object where the current verb is defined.";
     return callers()[1][4];
-  endverb
+  endmethod
 
-  verb verb_documentation (this none this) owner: #2 flags: "rxd"
+  method verb_documentation owner: #2
     ":verb_documentation([object,verbname]) => documentation at beginning of verb code, if any";
     "default is the calling verb";
     set_task_perms(caller_perms());
@@ -461,9 +461,9 @@ object CODE_UTILS
       endif
     endfor
     return doc;
-  endverb
+  endmethod
 
-  verb set_verb_documentation (this none this) owner: #2 flags: "rxd"
+  method set_verb_documentation owner: #2
     ":set_verb_documentation(object,verbname,text)";
     "  changes documentation at beginning of verb code";
     "  text is either a string or a list of strings";
@@ -491,9 +491,9 @@ object CODE_UTILS
         return 1;
       endif
     endif
-  endverb
+  endmethod
 
-  verb parse_propref (this none this) owner: #2 flags: "rxd"
+  method parse_propref owner: #2
     "$code_utils:parse_propref(string)";
     "Parses string as a MOO-code property reference, returning {object-string, prop-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object.";
     s = args[1];
@@ -516,9 +516,9 @@ object CODE_UTILS
       return 0;
     endif
     return {object, prop};
-  endverb
+  endmethod
 
-  verb parse_verbref (this none this) owner: #2 flags: "rxd"
+  method parse_verbref owner: #2
     "$code_utils:parse_verbref(string)";
     "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
     s = args[1];
@@ -538,9 +538,9 @@ object CODE_UTILS
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb parse_argspec (this none this) owner: HACKER flags: "rxd"
+  method parse_argspec owner: HACKER
     ":parse_arg_spec(@args)";
     "  attempts to parse the given sequence of args into a verb_arg specification";
     "returns {verb_args,remaining_args} if successful.";
@@ -567,16 +567,16 @@ object CODE_UTILS
       return tostr("\"", verbargs[3], "\" is not a valid indirect object specifier.");
     endif
     return {verbargs, rest};
-  endverb
+  endmethod
 
-  verb prepositions (this none this) owner: HACKER flags: "rxd"
+  method prepositions owner: HACKER
     if (server_version() != this._version)
       this:_fix_preps();
     endif
     return this.prepositions;
-  endverb
+  endmethod
 
-  verb short_prep (this none this) owner: HACKER flags: "rxd"
+  method short_prep owner: HACKER
     ":short_prep(p) => shortest preposition equivalent to p";
     "p may be a single word or one of the strings returned by verb_args().";
     if (server_version() != this._version)
@@ -591,9 +591,9 @@ object CODE_UTILS
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb full_prep (this none this) owner: HACKER flags: "rxd"
+  method full_prep owner: HACKER
     if (server_version() != this._version)
       this:_fix_preps();
     endif
@@ -605,9 +605,9 @@ object CODE_UTILS
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb get_prep (this none this) owner: HACKER flags: "rxd"
+  method get_prep owner: HACKER
     ":get_prep(@args) extracts the prepositional phrase from the front of args, returning a list consisting of the preposition (or \"\", if none) followed by the unused args.";
     ":get_prep(\"in\",\"front\",\"of\",...) => {\"in front of\",...}";
     ":get_prep(\"inside\",...)          => {\"inside\",...}";
@@ -626,7 +626,7 @@ object CODE_UTILS
       endif
     endfor
     return {prep, @args[rest..$]};
-  endverb
+  endmethod
 
   verb _fix_preps (this at this) owner: HACKER flags: "rxd"
     ":_fix_preps() updates the properties on this having to do with prepositions.";
@@ -664,7 +664,7 @@ object CODE_UTILS
     return;
   endverb
 
-  verb find_verb_named (this none this) owner: #2 flags: "rx"
+  method find_verb_named owner: #2 flags: "rx"
     ":find_verb_named(object,name[,n])";
     "  returns the *number* of the first verb on object matching the given name.";
     "  optional argument n, if given, starts the search with verb n,";
@@ -679,9 +679,9 @@ object CODE_UTILS
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb find_last_verb_named (this none this) owner: #2 flags: "rxd"
+  method find_last_verb_named owner: #2
     ":find_last_verb_named(object,name[,n])";
     "  returns the *number* of the last verb on object matching the given name.";
     "  optional argument n, if given, starts the search with verb n-1,";
@@ -699,9 +699,9 @@ object CODE_UTILS
       endif
     endfor
     return -1;
-  endverb
+  endmethod
 
-  verb find_callable_verb_named (this none this) owner: #2 flags: "rxd"
+  method find_callable_verb_named owner: #2
     ":find_callable_verb_named(object,name[,n])";
     "  returns the *number* of the first verb on object that matches the given";
     "  name and has the x flag set.";
@@ -717,9 +717,9 @@ object CODE_UTILS
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb "verbname_match(new)" (this none this) owner: HACKER flags: "rxd"
+  method "verbname_match(new)" owner: HACKER
     ":verbname_match(fullverbname,name) => TRUE iff `name' is a valid name for a verb with the given `fullname'";
     verblist = " " + args[1] + " ";
     if (index(verblist, " " + (name = args[2]) + " ") && !match(name, "[ *]"))
@@ -736,9 +736,9 @@ object CODE_UTILS
       endwhile
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb "find_verbs_containing find_verbs_matching find_verb_lines_containing find_verb_lines_matching" (this none this) owner: #2 flags: "rxd"
+  method "find_verbs_containing find_verbs_matching find_verb_lines_containing find_verb_lines_matching" owner: #2
     "$code_utils:find_verbs_containing(pattern[,object|object-list[,casematters]])";
     "$code_utils:find_verbs_matching(pattern[,object|object-list[,casematters]])";
     "$code_utils:find_verb_lines_containing(pattern[,object|object-list[,casematters]])";
@@ -773,9 +773,9 @@ object CODE_UTILS
     endif
     player:notify("");
     player:notify(tostr("Total: ", count, " verb", count != 1 ? "s." | "."));
-  endverb
+  endmethod
 
-  verb "_find_verbs_containing _find_verbs_matching" (this none this) owner: #2 flags: "rxd"
+  method "_find_verbs_containing _find_verbs_matching" owner: #2
     ":_find_verbs_containing(pattern,object[,casematters])";
     ":_find_verbs_matching(regexp,object[,casematters])";
     "number of verbs in object with code having a line containing pattern or matching regexp";
@@ -807,9 +807,9 @@ object CODE_UTILS
       endif
     endfor
     return count;
-  endverb
+  endmethod
 
-  verb _grep_verb_code (this none this) owner: #2 flags: "rxd"
+  method _grep_verb_code owner: #2
     ":_grep_verb_code(pattern,object,verbname[,casematters]) => line number or 0";
     "  returns line number on which pattern occurs in code for object:verbname";
     set_task_perms(caller_perms());
@@ -826,9 +826,9 @@ object CODE_UTILS
       endfor
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb _egrep_verb_code (this none this) owner: #2 flags: "rxd"
+  method _egrep_verb_code owner: #2
     ":_egrep_verb_code(regexp,object,verbname[,casematters]) => 0 or line number";
     "  returns line number of first line matching regexp in object:verbname code";
     set_task_perms(caller_perms());
@@ -843,9 +843,9 @@ object CODE_UTILS
       raise(E_INVARG, "Malformed regular expression.");
     endtry
     return 0;
-  endverb
+  endmethod
 
-  verb _parse_audit_args (this none this) owner: HACKER flags: "rxd"
+  method _parse_audit_args owner: HACKER
     "Parse [from <start>] [to <end>] [for <name>].";
     "Takes a series of strings, most likely @args with dobjstr removed.";
     "Returns a list {INT start, INT end, STR name}, or {} if there is an error.";
@@ -875,9 +875,9 @@ object CODE_UTILS
       args = args[3..length(args)];
     endwhile
     return fail ? {} | {start, end, match};
-  endverb
+  endmethod
 
-  verb help_db_list (this none this) owner: #2 flags: "rxd"
+  method help_db_list owner: #2
     ":help_db_list([player]) => list of help dbs";
     "in the order that they are consulted by player";
     {?who = player} = args;
@@ -900,9 +900,9 @@ object CODE_UTILS
       endif
     endfor
     return setadd(dbs, $help);
-  endverb
+  endmethod
 
-  verb help_db_search (this none this) owner: HACKER flags: "rxd"
+  method help_db_search owner: HACKER
     ":help_db_search(string,dblist)";
     "  searches each of the help db's in dblist for a topic matching string.";
     "  Returns  {db,topic}  or  {$ambiguous_match,{topic...}}  or {}";
@@ -929,9 +929,9 @@ object CODE_UTILS
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb corify_object (this none this) owner: HACKER flags: "rxd"
+  method corify_object owner: HACKER
     ":corify_object(object)  => string representing object";
     "  usually just returns tostr(object), but in the case of objects that have";
     "  corresponding #0 properties, return the appropriate $-string.";
@@ -944,9 +944,9 @@ object CODE_UTILS
       endif
     endfor
     return tostr(object);
-  endverb
+  endmethod
 
-  verb inside_quotes (this none this) owner: #2 flags: "rxd"
+  method inside_quotes owner: #2
     "See if the end of the string passed as args[1] ends 'inside' a doublequote.  Used by $code_utils:substitute.";
     {string} = args;
     quoted = 0;
@@ -957,9 +957,9 @@ object CODE_UTILS
       string = string[i + 1..$];
     endwhile
     return quoted;
-  endverb
+  endmethod
 
-  verb verb_or_property (this none this) owner: #2 flags: "rxd"
+  method verb_or_property owner: #2
     "verb_or_property(<obj>, <name> [, @<args>])";
     "Looks for a callable verb or property named <name> on <obj>.";
     "If <obj> has a callable verb named <name> then return <obj>:(<name>)(@<args>).";
@@ -968,27 +968,27 @@ object CODE_UTILS
     set_task_perms(caller_perms());
     {object, name, @rest} = args;
     return `object:(name)(@rest) ! E_VERBNF, E_INVIND => `object.(name) ! ANY'';
-  endverb
+  endmethod
 
-  verb task_valid (this none this) owner: #2 flags: "rxd"
+  method task_valid owner: #2
     "task_valid(INT id)";
     "Return true iff there is currently a valid task with the given id.";
     set_task_perms($no_one);
     {id} = args;
     t = $list_utils:slice(queued_tasks(), 1);
     return id == task_id() || id in t || E_PERM == `kill_task(id) ! ANY';
-  endverb
+  endmethod
 
-  verb task_owner (this none this) owner: #2 flags: "rxd"
+  method task_owner owner: #2
     ":task_owner(INT task_id) => returns the owner of the task belonging to the id.";
     if (a = $list_utils:assoc(args[1], queued_tasks()))
       return a[5];
     else
       return E_INVARG;
     endif
-  endverb
+  endmethod
 
-  verb argstr (this none this) owner: #2 flags: "rxd"
+  method argstr owner: #2
     ":argstr(verb,args[,argstr]) => what argstr should have been.  ";
     "Recall that the command line is parsed into a sequence of words; `verb' is";
     "assigned the first word, `args' is assigned the remaining words, and argstr";
@@ -1021,9 +1021,9 @@ object CODE_UTILS
       qs = $string_utils:word_start("\"" + argstr);
       return argstr[qs[length(qs) - length(args) + 1][1] - 1..length(argstr)];
     endif
-  endverb
+  endmethod
 
-  verb verbname_match (this none this) owner: HACKER flags: "rxd"
+  method verbname_match owner: HACKER
     ":verbname_match(fullverbname,name) => TRUE iff `name' is a valid name for a verb with the given `fullname'";
     verblist = " " + args[1] + " ";
     if (index(verblist, " " + (name = args[2]) + " ") && !(index(name, "*") || index(name, " ")))
@@ -1041,9 +1041,9 @@ object CODE_UTILS
       endwhile
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb substitute (this none this) owner: HACKER flags: "rxd"
+  method substitute owner: HACKER
     "$code_utils:substitute(string,subs) => new line";
     "Subs are a list of lists, {{\"target\",\"sub\"},{...}...}";
     "Substitutes targets for subs in a delimited string fashion, avoiding substituting anything inside quotes, e.g. player:tell(\"don't sub here!\")";
@@ -1065,9 +1065,9 @@ object CODE_UTILS
       s = prefix + s;
     endfor
     return s;
-  endverb
+  endmethod
 
-  verb show_who_listing (this none this) owner: #2 flags: "rxd"
+  method show_who_listing owner: #2
     ":show_who_listing(players[,more_players])";
     " prints a listing of the indicated players.";
     " For players in the first list, idle/connected times are shown if the player is logged in, otherwise the last_disconnect_time is shown.  For players in the second list, last_disconnect_time is shown, no matter whether the player is logged in.";
@@ -1201,9 +1201,9 @@ object CODE_UTILS
     endif
     caller:notify(tostr("Total: ", total, " player", active_str, " been active recently."));
     return total;
-  endverb
+  endmethod
 
-  verb _egrep_verb_code_all (this none this) owner: #2 flags: "rxd"
+  method _egrep_verb_code_all owner: #2
     ":_egrep_verb_code_all(regexp,object,verbname[,casematters]) => list of lines number";
     "  returns list of all lines matching regexp in object:verbname code";
     set_task_perms(caller_perms());
@@ -1215,9 +1215,9 @@ object CODE_UTILS
       endif
     endfor
     return lines;
-  endverb
+  endmethod
 
-  verb _grep_verb_code_all (this none this) owner: #2 flags: "rxd"
+  method _grep_verb_code_all owner: #2
     ":_grep_verb_code_all(pattern,object,verbname[,casematters]) => list of lines";
     "  returns list of lines on which pattern occurs in code for object:verbname";
     set_task_perms(caller_perms());
@@ -1229,9 +1229,9 @@ object CODE_UTILS
       endif
     endfor
     return lines;
-  endverb
+  endmethod
 
-  verb verb_usage (this none this) owner: #2 flags: "rxd"
+  method verb_usage owner: #2
     ":verb_usage([object,verbname]) => usage string at beginning of verb code, if any";
     "default is the calling verb";
     set_task_perms(caller_perms());
@@ -1272,19 +1272,19 @@ object CODE_UTILS
       endfor
       return doc;
     endif
-  endverb
+  endmethod
 
-  verb verb_frame (this none this) owner: HACKER flags: "rxd"
+  method verb_frame owner: HACKER
     "returns the callers() frame for the current verb.";
     return callers()[1];
-  endverb
+  endmethod
 
-  verb verb_all_frames (this none this) owner: HACKER flags: "rxd"
+  method verb_all_frames owner: HACKER
     "returns {this:verb_frame(), @callers()}.";
     return callers();
-  endverb
+  endmethod
 
-  verb move_verb (this none this) owner: #2 flags: "rxd"
+  method move_verb owner: #2
     ":move_verb(OBJ from, STR verb name, OBJ to, [STR new verb name]) -> Moves the specified verb from one object to another. Returns {OBJ, Full verb name} where the verb now resides if successful, error if not. To succeed, caller_perms() must control both objects and own the verb, unless called with wizard perms. Supplying a fourth argument moves the verb to a new name.";
     "Should handle verbnames with aliases and wildcards correctly.";
     who = caller_perms();
@@ -1324,9 +1324,9 @@ object CODE_UTILS
         return {to, vinfo[3]};
       endif
     endif
-  endverb
+  endmethod
 
-  verb "move_prop*erty" (this none this) owner: #2 flags: "rxd"
+  method "move_prop*erty" owner: #2
     ":move_prop(OBJ from, STR prop name, OBJ to, [STR new prop name]) -> Moves the specified property and its contents from one object to another. Returns {OBJ, property name} where the property now resides if successful, error if not. To succeed, caller_perms() must control both objects and own the property, unless called with wizard perms. Supplying a fourth argument gives the property a new name on the new object.";
     who = caller_perms();
     {from, origprop, to, ?destprop = origprop} = args;
@@ -1359,19 +1359,19 @@ object CODE_UTILS
         return {to, pname};
       endif
     endif
-  endverb
+  endmethod
 
-  verb eval_d_util (this none this) owner: #2 flags: "rx"
+  method eval_d_util owner: #2 flags: "rx"
     "Do not remove this verb!  This is an auxiliary verb for :eval_d().";
-  endverb
+  endmethod
 
-  verb display_callers (this none this) owner: #2 flags: "rxd"
+  method display_callers owner: #2
     ":display_callers([callers() style list]) - displays the output of the given argument, assumed to be a callers() output. See `help callers()' for details. Will use callers() explicitly if no argument is passed.";
     call = caller_perms() == player ? "notify_lines" | "tell_lines";
     player:(call)(this:callers_text(@args));
-  endverb
+  endmethod
 
-  verb callers_text (this none this) owner: #2 flags: "rxd"
+  method callers_text owner: #2
     ":callers_text([callers() style list]) - returns the output of the given argument, assumed to be a callers() output. See `help callers()' for details. Will use callers() explicitly if no argument is passed.";
     linelen = min(player:linelen(), 200);
     text = {};
@@ -1404,9 +1404,9 @@ object CODE_UTILS
     endfor
     text = listappend(text, l);
     return text;
-  endverb
+  endmethod
 
-  verb "set_property_value set_verb_or_property" (this none this) owner: #2 flags: "rx"
+  method "set_property_value set_verb_or_property" owner: #2 flags: "rx"
     ":set_property_value(object, property, value)";
     " set_verb_or_property(same) -- similar to `verb_or_property'";
     "  -- attempts to set <object>.<property> to <value>.  If there exists <object>:set_<property>, then it is called and its returned value is returned.  If not, we try to set the property directly; the result of this is returned.";
@@ -1424,23 +1424,23 @@ object CODE_UTILS
     else
       return o.(p) = args[3];
     endif
-  endverb
+  endmethod
 
-  verb owns_task (this none this) owner: #2 flags: "rxd"
+  method owns_task owner: #2
     "$code_utils:owns_task(task_id, who)";
     "The purpose of this is to be faster than $code_utils:task_owner(task_id) in those cases where you are interested in whether a certain person owns the task rather than in determining the owner of a task where you have no preconceived notion of the owner.";
     return $list_utils:assoc(args[1], $wiz_utils:queued_tasks(args[2]));
-  endverb
+  endmethod
 
-  verb dflag_on (this none this) owner: #2 flags: "rxd"
+  method dflag_on owner: #2
     "Syntax:  $code_utils:dflag_on()   => 0|1";
     "";
     "Returns true if the verb calling the verb that called this verb has the `d' flag set true. Returns false if it is !d. If there aren't that many callers, or the calling verb was a builtin such as eval, assume the debug flag is on for traceback purposes and return true.";
     "This is useful for determining whether the calling verb should return or raise an error to the verb that called it.";
     return length(c = callers()) >= 2 ? `index(verb_info(c[2][4], c[2][2])[2], "d") && 1 ! E_INVARG => 1' | 1;
-  endverb
+  endmethod
 
-  verb type_str (this none this) owner: HACKER flags: "rxd"
+  method type_str owner: HACKER
     "type_str -- returns a string describing the type of args[1]";
     x = args[1];
     type_data = {1, 3.14, "", #0, E_NONE, {}};
@@ -1451,9 +1451,9 @@ object CODE_UTILS
       endif
     endfor
     return "NONE";
-  endverb
+  endmethod
 
-  verb dump_properties (this none this) owner: #2 flags: "rxd"
+  method dump_properties owner: #2
     ":dump_properties (object, create_flag): returns the list of strings representing the property information for this object and its ancestor objects in @dump format.";
     set_task_perms(caller_perms());
     {dobj, create, ?targname = tostr(dobj)} = args;
@@ -1502,9 +1502,9 @@ object CODE_UTILS
       $command_utils:suspend_if_needed(1);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb dump_preamble (this none this) owner: #2 flags: "rxd"
+  method dump_preamble owner: #2
     ":dump_preamble(object): produces the @create command necessary to dump this object.";
     dobj = args[1];
     parent = parent(dobj);
@@ -1515,9 +1515,9 @@ object CODE_UTILS
       endif
     endfor
     return tostr("@create ", pstring, " named ", dobj.name, ":", $string_utils:from_list(dobj.aliases, ","));
-  endverb
+  endmethod
 
-  verb dump_verbs (this none this) owner: #2 flags: "rxd"
+  method dump_verbs owner: #2
     ":dump_verbs (object, create_flag): returns the list of strings representing the verb information for this object in @dump format.";
     set_task_perms(caller_perms());
     {dobj, create, ?targname = tostr(dobj)} = args;
@@ -1571,9 +1571,9 @@ object CODE_UTILS
       $command_utils:suspend_if_needed(0);
     endwhile
     return result;
-  endverb
+  endmethod
 
-  verb "_find_verb_lines_containing _find_verb_lines_matching" (this none this) owner: #2 flags: "rxd"
+  method "_find_verb_lines_containing _find_verb_lines_matching" owner: #2
     ":_find_verb_lines_containing(pattern,object[,casematters])";
     ":_find_verb_lines_matching(regexp,object[,casematters])";
     "number of verbs in object with code having a line containing pattern or matching regexp";
@@ -1610,5 +1610,5 @@ object CODE_UTILS
       endif
     endfor
     return count;
-  endverb
+  endmethod
 endobject

@@ -47,12 +47,12 @@ object HOUSEKEEPER
   override psc = "The housekeeper";
   override size_quota = {183000, 34096, 1084780981, 0};
 
-  verb look_self (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method look_self owner: HOUSEKEEPER
     player:tell_lines(this:description());
     player:tell($string_utils:pronoun_sub("%S %<is> moving around from room to room, cleaning up.", this));
-  endverb
+  endmethod
 
-  verb cleanup (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method cleanup owner: HOUSEKEEPER
     "$housekeeper:cleanup([insist]) => clean up player's objects. Argument is 'up' or 'up!' for manually requested cleanups (notify player differently)";
     if (caller_perms() != this)
       return E_PERM;
@@ -67,9 +67,9 @@ object HOUSEKEEPER
       $command_utils:suspend_if_needed(0);
     endfor
     player:tell("The housekeeper has finished cleaning up your objects.");
-  endverb
+  endmethod
 
-  verb replace (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method replace owner: HOUSEKEEPER
     "replace the object given to its proper spot (if there is one).";
     {object, ?insist = 0} = args;
     i = object in this.clean;
@@ -140,7 +140,7 @@ object HOUSEKEEPER
       endtry
     endfork
     return "";
-  endverb
+  endmethod
 
   verb cleanup_list (any none none) owner: HOUSEKEEPER flags: "rxd"
     if (args)
@@ -246,7 +246,7 @@ object HOUSEKEEPER
     endif
   endverb
 
-  verb controls (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method controls owner: HOUSEKEEPER
     "does player control entry I?";
     {i, who} = args;
     if (who in {this.owner, @this.owners} || who.wizard)
@@ -260,9 +260,9 @@ object HOUSEKEEPER
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb continuous (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method continuous owner: HOUSEKEEPER
     "start the housekeeper cleaning continuously. Kill any previous continuous";
     "task. Not meant to be called interactively.";
     if (!$perm_utils:controls(caller_perms(), this))
@@ -290,9 +290,9 @@ object HOUSEKEEPER
       endwhile
     endfork
     this.task = taskn;
-  endverb
+  endmethod
 
-  verb litterbug (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method litterbug owner: HOUSEKEEPER
     for room in (this.public_places)
       for thingy in (room.contents)
         suspend(10);
@@ -305,13 +305,13 @@ object HOUSEKEEPER
         endif
       endfor
     endfor
-  endverb
+  endmethod
 
-  verb is_watching (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method is_watching owner: HOUSEKEEPER
     return valid(thing = args[1]) && thing:is_listening();
-  endverb
+  endmethod
 
-  verb send_home (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method send_home owner: HOUSEKEEPER
     if (caller != this)
       return E_PERM;
     endif
@@ -327,9 +327,9 @@ object HOUSEKEEPER
     if ($object_utils:has_callable_verb(littering, "announce_all_but"))
       littering:announce_all_but({litter}, "The ", this.name, " sneaks in, picks up ", litter:title(), " and rushes off to put it away.");
     endif
-  endverb
+  endmethod
 
-  verb moveit (this none this) owner: #2 flags: "rxd"
+  method moveit owner: #2
     "Wizardly verb to move object with requestor's permission";
     if (caller != this)
       return E_PERM;
@@ -337,25 +337,25 @@ object HOUSEKEEPER
       set_task_perms(player = args[3]);
       return args[1]:moveto(args[2]);
     endif
-  endverb
+  endmethod
 
-  verb ejectit (this none this) owner: #2 flags: "rxd"
+  method ejectit owner: #2
     "this:ejectit(object,room): Eject args[1] from args[2].  Callable only by housekeeper's quarters verbs.";
     if (caller == this)
       args[2]:eject(args[1]);
     endif
-  endverb
+  endmethod
 
-  verb is_object_cleaned (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method is_object_cleaned owner: HOUSEKEEPER
     what = args[1];
     if (!(where = what in this.clean))
       return 0;
     else
       return {this.destination[where], this.requestors[where]};
     endif
-  endverb
+  endmethod
 
-  verb is_litter (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method is_litter owner: HOUSEKEEPER
     thingy = args[1];
     for x in (this.litter)
       if ($object_utils:isa(thingy, x[1]) && !$object_utils:isa(thingy, x[2]))
@@ -363,9 +363,9 @@ object HOUSEKEEPER
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       this.password = "Impossible password to type";
       this.last_password_time = 0;
@@ -385,9 +385,9 @@ object HOUSEKEEPER
       this.moveto_task = 0;
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb clean_status (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method clean_status owner: HOUSEKEEPER
     count = 0;
     for i in (this.requestors)
       if (i == player)
@@ -406,9 +406,9 @@ object HOUSEKEEPER
     else
       player:tell("The Housekeeper is actively cleaning.");
     endif
-  endverb
+  endmethod
 
-  verb is_cleaning (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method is_cleaning owner: HOUSEKEEPER
     "return a string status if the hosuekeeper is cleaning this object";
     cleanable = args[1];
     info = this:is_object_cleaned(cleanable);
@@ -417,19 +417,19 @@ object HOUSEKEEPER
     else
       return tostr(cleanable.name, " is kept tidy at ", $string_utils:nn(info[1]), " at the request of ", $string_utils:nn(info[2]), ".");
     endif
-  endverb
+  endmethod
 
-  verb time (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method time owner: HOUSEKEEPER
     "Returns the amount of time to suspend between objects while continuous cleaning.";
     "Currently set to try to complete cleaning circuit in one hour, but not exceed one object every 20 seconds.";
     return max(20 + $login:current_lag(), length(this.clean) ? 3600 / length(this.clean) | 0);
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: #2 flags: "rxd"
+  method acceptable owner: #2
     return caller == this;
-  endverb
+  endmethod
 
-  verb move_players_home (this none this) owner: #2 flags: "rxd"
+  method move_players_home owner: #2
     if (!$perm_utils:controls(caller_perms(), this))
       "perms don't control the $housekeeper; probably not called by $room:disfunc then. Used to let args[1] call this. No longer.";
       return E_PERM;
@@ -459,9 +459,9 @@ object HOUSEKEEPER
       endwhile
     endfork
     this.move_player_task = tid;
-  endverb
+  endmethod
 
-  verb move_em (this none this) owner: #2 flags: "rxd"
+  method move_em owner: #2
     if (caller == this)
       {who, dest} = args;
       set_task_perms(who);
@@ -491,17 +491,17 @@ object HOUSEKEEPER
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb "take_away_msg drop_off_msg" (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method "take_away_msg drop_off_msg" owner: HOUSEKEEPER
     return $string_utils:pronoun_sub(this.(verb), args[1], this);
-  endverb
+  endmethod
 
-  verb set_moveto_task (this none this) owner: HOUSEKEEPER flags: "rxd"
+  method set_moveto_task owner: HOUSEKEEPER
     "sets $housekeeper.moveto_task to the current task_id() so player:moveto's can check for validity.";
     if (caller != this)
       return E_PERM;
     endif
     this.moveto_task = task_id();
-  endverb
+  endmethod
 endobject

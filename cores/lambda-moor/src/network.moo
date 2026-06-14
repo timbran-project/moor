@@ -120,16 +120,16 @@ object NETWORK
   override import_export_id = "network";
   override object_size = {22932, 1084848672};
 
-  verb parse_address (this none this) owner: #2 flags: "rxd"
+  method parse_address owner: #2
     "Given an email address, return {userid, site}.";
     "Valid addresses are of the form `userid[@site]'.";
     "At least for now, if [@site] is left out, site will be returned as blank.";
     "Should be a default address site, or something, somewhere.";
     address = args[1];
     return (at = index(address, "@")) ? {address[1..at - 1], address[at + 1..$]} | {address, ""};
-  endverb
+  endmethod
 
-  verb local_domain (this none this) owner: #2 flags: "rxd"
+  method local_domain owner: #2
     "given a site, try to figure out what the `local' domain is.";
     "if site has a @ or a % in it, give up and return E_INVARG.";
     "blank site is returned as is; try this:local_domain(this.localhost) for the answer you probably want.";
@@ -158,9 +158,9 @@ object NETWORK
       endwhile
       return domain;
     endif
-  endverb
+  endmethod
 
-  verb open (this none this) owner: #2 flags: "rxd"
+  method open owner: #2
     ":open(address, port, [connect-connection-to])";
     "Open a network connection to address/port.  If the connect-connection-to is passed, then the connection will be connected to that object when $login gets ahold of it.  If not, then the connection is just ignored by $login, i.e. not bothered by it with $welcome_message etc.";
     "The object specified by connect-connection-to has to be a player (though it need not be a $player).";
@@ -184,9 +184,9 @@ object NETWORK
       endif
     endif
     return connection;
-  endverb
+  endmethod
 
-  verb close (this none this) owner: #2 flags: "rxd"
+  method close owner: #2
     if (!this:trust(caller_perms()))
       return E_PERM;
     endif
@@ -199,7 +199,7 @@ object NETWORK
       $network.connect_connections_to = listdelete($network.connect_connections_to, i);
     endif
     return 1;
-  endverb
+  endmethod
 
   verb sendmail (any none none) owner: #2 flags: "rxd"
     "sendmail(to, subject, line1, line2, ...)";
@@ -227,11 +227,11 @@ object NETWORK
     return result;
   endverb
 
-  verb trust (this none this) owner: #2 flags: "rxd"
+  method trust owner: #2
     return (who = args[1]).wizard || who in this.trusts;
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.active = 0;
@@ -249,7 +249,7 @@ object NETWORK
       this.trusts = {$hacker};
       this.connect_connections_to = {};
     endif
-  endverb
+  endmethod
 
   verb raw_sendmail (any none none) owner: #2 flags: "rxd"
     "Copied from sendmail fix (#88079):raw_sendmail by Lineman (#108318) Mon Feb  1 19:29:43 1999 PST";
@@ -330,7 +330,7 @@ object NETWORK
     return msg;
   endverb
 
-  verb invalid_email_address (this none this) owner: #2 flags: "rxd"
+  method invalid_email_address owner: #2
     "invalid_email_address(email) -- check to see if email looks like a valid email address. Return reason why not.";
     address = args[1];
     if (!address)
@@ -351,13 +351,13 @@ object NETWORK
       return tostr("'", name, "' doesn't look like a valid user name for internet mail");
     endif
     return "";
-  endverb
+  endmethod
 
-  verb invalid_hostname (this none this) owner: #2 flags: "rxd"
+  method invalid_hostname owner: #2
     return match(args[1], this.valid_host_regexp) ? "" | tostr("'", args[1], "' doesn't look like a valid internet host name");
-  endverb
+  endmethod
 
-  verb email_will_fail (this none this) owner: #2 flags: "rxd"
+  method email_will_fail owner: #2
     ":email_will_fail(email-address[, display?]) => Makes sure the email-address is one that can actually be used by $network:sendmail().";
     {email, ?display = 0} = args;
     reason = this:invalid_email_address(email);
@@ -387,9 +387,9 @@ object NETWORK
       return msg;
     endif
     "Last modified Tue Jun 15 00:19:01 1993 EDT by Ranma (#200).";
-  endverb
+  endmethod
 
-  verb read (this none this) owner: #2 flags: "rxd"
+  method read owner: #2
     "for trusted players, they can read from objects they own or open connections";
     if (!this:trust(caller_perms()))
       return E_PERM;
@@ -400,16 +400,16 @@ object NETWORK
       "elseif (!this:is_outgoing_connection(x) return E_PERM";
     endif
     return `read(@args) ! ANY';
-  endverb
+  endmethod
 
-  verb is_open (this none this) owner: HACKER flags: "rxd"
+  method is_open owner: HACKER
     ":is_open(object)";
     "return true if the object is somehow connected, false otherwise.";
     return typeof(`idle_seconds(@args) ! ANY') == TYPE_INT;
     "Relies on test in idle_seconds, and the error catching";
-  endverb
+  endmethod
 
-  verb incoming_connection (this none this) owner: #2 flags: "rxd"
+  method incoming_connection owner: #2
     "Peer at an incoming connection.  Decide if it should be connected to something, return that object. If it should be ignored (outbound connection), return 1. Called only by #0:do_login_command";
     if (caller != #0)
       return;
@@ -427,9 +427,9 @@ object NETWORK
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb return_address_for (this none this) owner: #2 flags: "rxd"
+  method return_address_for owner: #2
     ":return_address_for(player) => string of 'return address'. Currently inbound mail doesn't work, so this is a bogus address.";
     who = args[1];
     if (valid(who) && is_player(who))
@@ -437,21 +437,21 @@ object NETWORK
     else
       return tostr($login.registration_address, " (non-player ", who, ")");
     endif
-  endverb
+  endmethod
 
-  verb server_started (this none this) owner: #2 flags: "rxd"
+  method server_started owner: #2
     "called when restarting to clean out state.";
     if (caller != #0)
       return E_PERM;
     endif
     this.connect_connections_to = {};
-  endverb
+  endmethod
 
-  verb is_outgoing_connection (this none this) owner: #2 flags: "rxd"
+  method is_outgoing_connection owner: #2
     return index(`connection_name(args[1]) ! ANY => ""', " to ");
-  endverb
+  endmethod
 
-  verb notify (this none this) owner: #2 flags: "rxd"
+  method notify owner: #2
     "for trusted players, they can write to connections";
     if (!this:trust(caller_perms()))
       return E_PERM;
@@ -461,17 +461,17 @@ object NETWORK
       return E_PERM;
     endif
     return notify(x, args[2]);
-  endverb
+  endmethod
 
-  verb suspend_if_needed (this none this) owner: #2 flags: "rxd"
+  method suspend_if_needed owner: #2
     "$command_utils:suspend_if_needed but chowned to player";
     if ($command_utils:running_out_of_time())
       set_task_perms(caller_perms().wizard ? player | caller_perms());
       return $command_utils:suspend_if_needed(@args);
     endif
-  endverb
+  endmethod
 
-  verb error (this none this) owner: #2 flags: "rxd"
+  method error owner: #2
     ":error(ERN, host, port) interpret open_network_connection(host, port) error";
     {msg, host, port} = args;
     if (msg == E_PERM)
@@ -483,14 +483,14 @@ object NETWORK
     else
       return tostr("Unusual error: ", toliteral(msg));
     endif
-  endverb
+  endmethod
 
-  verb help_msg (this none this) owner: HACKER flags: "rxd"
+  method help_msg owner: HACKER
     "'cause this doesn't have a $_utils name";
     return this:description();
-  endverb
+  endmethod
 
-  verb adjust_postmaster_for_password (this none this) owner: #2 flags: "rxd"
+  method adjust_postmaster_for_password owner: #2
     "adjust_postmaster_for_password(enter_or_exit): permits the MOO to have two different postmasters for different kinds of bounces.  If entering password (argument \"enter\"), change to $network.password_postmaster, else (argument \"exit\") change to $network.usual_postmaster.";
     if (args[1] == "enter")
       $network.postmaster = $network.password_postmaster;
@@ -501,9 +501,9 @@ object NETWORK
       $network.errors_to_address = $network.usual_postmaster;
       $network.envelope_from = $network.blank_envelope ? "" | $network.usual_postmaster;
     endif
-  endverb
+  endmethod
 
-  verb add_queued_mail (this none this) owner: HACKER flags: "rxd"
+  method add_queued_mail owner: HACKER
     "$network:add_queued_mail( mail message )";
     "  -- where `mail message' is in the same format as passed to :raw_sendmail";
     if (caller == this)
@@ -518,9 +518,9 @@ object NETWORK
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb send_queued_mail (this none this) owner: #2 flags: "rxd"
+  method send_queued_mail owner: #2
     "$network:send_queued_mail()";
     "  -- tries to send the mail stored in the .queued_mail property";
     while (queued_mail = this.queued_mail)
@@ -532,9 +532,9 @@ object NETWORK
         suspend(3600);
       endif
     endwhile
-  endverb
+  endmethod
 
-  verb tcp_wait (this none this) owner: #2 flags: "rxd"
+  method tcp_wait owner: #2
     "Copied from sendmail fix (#88079):tcp_wait by Lineman (#108318) Mon Feb  1 19:28:18 1999 PST";
     {conn, ?timeout = 0} = args;
     if (!caller_perms().wizard)
@@ -553,5 +553,5 @@ object NETWORK
       endif
     endwhile
     return line;
-  endverb
+  endmethod
 endobject

@@ -13,7 +13,7 @@ object GENERIC_HELP
   override import_export_id = "generic_help";
   override object_size = {9501, 1084848672};
 
-  verb find_topics (this none this) owner: #2 flags: "rxd"
+  method find_topics owner: #2
     "WIZARDLY";
     if (args)
       "...check for an exact match first...";
@@ -55,9 +55,9 @@ object GENERIC_HELP
       endfor
       return props;
     endif
-  endverb
+  endmethod
 
-  verb get_topic (this none this) owner: #2 flags: "rxd"
+  method get_topic owner: #2
     "WIZARDLY";
     {topic, ?dblist = {}} = args;
     if (`$object_utils:has_property(parent(this), topic) ! ANY')
@@ -71,9 +71,9 @@ object GENERIC_HELP
       endif
     endif
     return text;
-  endverb
+  endmethod
 
-  verb sort_topics (this none this) owner: HACKER flags: "rxd"
+  method sort_topics owner: HACKER
     ":sort_topics(list_of_topics) -- sorts the given list of strings, assuming that they're help-system topic names";
     buckets = "abcdefghijklmnopqrstuvwxyz";
     keys = names = $list_utils:make(length(buckets) + 1, {});
@@ -87,9 +87,9 @@ object GENERIC_HELP
       $command_utils:suspend_if_needed(0);
     endfor
     return $list_utils:append(@names);
-  endverb
+  endmethod
 
-  verb columnize (this none this) owner: HACKER flags: "rxd"
+  method columnize owner: HACKER
     ":columnize(@list_of_strings) -- prints the given list in a number of columns wide enough to accomodate longest entry. But no more than 4 columns.";
     longest = $list_utils:longest(args);
     for d in ({4, 3, 2, 1})
@@ -97,9 +97,9 @@ object GENERIC_HELP
         return $string_utils:columnize_suspended(0, args, d);
       endif
     endfor
-  endverb
+  endmethod
 
-  verb "forward pass" (this none this) owner: HACKER flags: "rxd"
+  method "forward pass" owner: HACKER
     "{\"*forward*\", topic, @rest}  => text for topic from this help db.";
     "{\"*pass*\",    topic, @rest}  => text for topic from next help db.";
     "In both cases the text of @rest is appended.  ";
@@ -121,9 +121,9 @@ object GENERIC_HELP
     else
       return first;
     endif
-  endverb
+  endmethod
 
-  verb subst (this none this) owner: HACKER flags: "rxd"
+  method subst owner: HACKER
     "{\"*subst*\", @text} => text with the following substitutions:";
     "  \"...%[expr]....\" => \"...\"+value of expr (assumed to be a string)+\"....\"";
     "  \"%;expr\"         => @(value of expr (assumed to be a list of strings))";
@@ -171,26 +171,26 @@ object GENERIC_HELP
       endif
     endfor
     return newlines;
-  endverb
+  endmethod
 
-  verb index (this none this) owner: HACKER flags: "rxd"
+  method index owner: HACKER
     "{\"*index*\" [, title]}";
     "This produces a columnated list of topics in this help db, headed by title.";
     $command_utils:suspend_if_needed(0);
     title = args[1] ? args[1][1] | tostr(this.name, " (", this, ")");
     su = $string_utils;
     return {"", title, su:from_list($list_utils:map_arg(su, "space", su:explode(title), "-"), " "), @this:columnize(@this:sort_topics(this:find_topics()))};
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: #2 flags: "rxd"
+  method initialize owner: #2
     pass(@args);
     if ($perm_utils:controls(caller_perms(), this))
       this.r = 1;
       this.f = 0;
     endif
-  endverb
+  endmethod
 
-  verb verbdoc (this none this) owner: #2 flags: "rxd"
+  method verbdoc owner: #2
     "{\"*verbdoc*\", \"object\", \"verbname\"}  use documentation for this verb";
     set_task_perms(this.owner);
     if (!valid(object = $string_utils:match_object(args[1][1], player.location)))
@@ -200,18 +200,18 @@ object GENERIC_HELP
     else
       return $code_utils:verb_documentation(hv[1], vname);
     endif
-  endverb
+  endmethod
 
-  verb dump_topic (this none this) owner: #2 flags: "rxd"
+  method dump_topic owner: #2
     try
       text = this.(fulltopic = args[1]);
       return {tostr(";;", $code_utils:corify_object(this), ".(", toliteral(fulltopic), ") = $command_utils:read_lines()"), @$command_utils:dump_lines(text)};
     except error (ANY)
       return error[1];
     endtry
-  endverb
+  endmethod
 
-  verb objectdoc (this none this) owner: HACKER flags: "rxd"
+  method objectdoc owner: HACKER
     "{\"*objectdoc*\", \"object\"} => text for topic from object:help_msg";
     if (!valid(object = $string_utils:literal_object(args[1][1])))
       return E_INVARG;
@@ -220,9 +220,9 @@ object GENERIC_HELP
     else
       return $code_utils:verb_or_property(object, "help_msg");
     endif
-  endverb
+  endmethod
 
-  verb find_index_topics (this none this) owner: HACKER flags: "rxd"
+  method find_index_topics owner: HACKER
     ":find_index_topic([search])";
     "Return the list of index topics of this help DB";
     "(i.e., those which contain an index (list of topics)";
@@ -251,5 +251,5 @@ object GENERIC_HELP
     endfor
     this.index_cache = itopics;
     return itopics;
-  endverb
+  endmethod
 endobject

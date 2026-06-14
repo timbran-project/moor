@@ -411,7 +411,7 @@ object GENERIC_EDITOR
     player:tell("You'll have to use 'home' or a teleporter.");
   endverb
 
-  verb huh2 (this none this) owner: #2 flags: "rxd"
+  method huh2 owner: #2
     "This catches subst and find commands that don't fit into the usual model, e.g., s/.../.../ without the space after the s, and find commands without the verb `find'.  Still behaves in annoying ways (e.g., loses if the search string contains multiple whitespace), but better than before.";
     set_task_perms(caller_perms());
     if ((c = callers()) && (c[1][1] != this || length(c) > 1))
@@ -433,46 +433,46 @@ object GENERIC_EDITOR
     else
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb insertion (this none this) owner: #96 flags: "rxd"
+  method insertion owner: #96
     return this:ok(who = args[1]) && this.inserting[who];
-  endverb
+  endmethod
 
-  verb set_insertion (this none this) owner: #96 flags: "rxd"
+  method set_insertion owner: #96
     return this:ok(who = args[1]) && (((ins = toint(args[2])) < 1 ? E_INVARG | ins <= (max = length(this.texts[who]) + 1) || (ins = max)) && (this.inserting[who] = ins));
-  endverb
+  endmethod
 
-  verb "changed retain_session_on_exit" (this none this) owner: #96 flags: "rxd"
+  method "changed retain_session_on_exit" owner: #96
     return this:ok(who = args[1]) && this.changes[who];
-  endverb
+  endmethod
 
-  verb set_changed (this none this) owner: #96 flags: "rxd"
+  method set_changed owner: #96
     return this:ok(who = args[1]) && ((unchanged = !args[2]) || (this.times[who] = time()) && (this.changes[who] = !unchanged));
-  endverb
+  endmethod
 
-  verb origin (this none this) owner: #96 flags: "rxd"
+  method origin owner: #96
     return this:ok(who = args[1]) && this.original[who];
-  endverb
+  endmethod
 
-  verb set_origin (this none this) owner: #96 flags: "rxd"
+  method set_origin owner: #96
     return this:ok(who = args[1]) && (valid(origin = args[2]) && origin != this || (origin == $nothing || E_INVARG) && (this.original[who] = origin));
-  endverb
+  endmethod
 
-  verb readable (this none this) owner: #96 flags: "rxd"
+  method readable owner: #96
     return (who = args[1]) < 1 || who > length(this.active) ? E_RANGE | this.readable[who];
-  endverb
+  endmethod
 
-  verb set_readable (this none this) owner: #96 flags: "rxd"
+  method set_readable owner: #96
     return this:ok(who = args[1]) && (this.readable[who] = !!args[2]);
-  endverb
+  endmethod
 
-  verb text (this none this) owner: #96 flags: "rxd"
+  method text owner: #96
     {?who = player in this.active} = args;
     return this:readable(who) || this:ok(who) && this.texts[who];
-  endverb
+  endmethod
 
-  verb load (this none this) owner: #96 flags: "rxd"
+  method load owner: #96
     texts = args[2];
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
@@ -486,14 +486,14 @@ object GENERIC_EDITOR
     this.changes[who] = 0;
     this.readable[who] = 0;
     this.times[who] = time();
-  endverb
+  endmethod
 
-  verb working_on (this none this) owner: #96 flags: "rxd"
+  method working_on owner: #96
     "Dummy routine.  The child editor should provide something informative";
     return this:ok(who = args[1]) && "something [in " + this.name + "]";
-  endverb
+  endmethod
 
-  verb ok (this none this) owner: #96 flags: "rxd"
+  method ok owner: #96
     who = args[1];
     if (who < 1 || who > length(this.active))
       return E_RANGE;
@@ -502,20 +502,20 @@ object GENERIC_EDITOR
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb loaded (this none this) owner: #96 flags: "rxd"
+  method loaded owner: #96
     return (who = args[1] in this.active) && typeof(this.texts[who]) == TYPE_LIST && who;
-  endverb
+  endmethod
 
-  verb list_line (this none this) owner: #96 flags: "rxd"
+  method list_line owner: #96
     if (this:ok(who = args[1]))
       f = 1 + ((line = args[2]) in {(ins = this.inserting[who]) - 1, ins});
       player:tell($string_utils:right(line, 3, " _^"[f]), ":_^"[f], " ", this.texts[who][line]);
     endif
-  endverb
+  endmethod
 
-  verb insert_line (this none this) owner: #96 flags: "rxd"
+  method insert_line owner: #96
     ":insert_line([who,] line or list of lines [,quiet])";
     "  inserts the given text at the insertion point.";
     "  returns E_NONE if the session has no text loaded yet.";
@@ -551,9 +551,9 @@ object GENERIC_EDITOR
         p:tell("No lines added.");
       endif
     endif
-  endverb
+  endmethod
 
-  verb append_line (this none this) owner: #96 flags: "rxd"
+  method append_line owner: #96
     ":append_line([who,] string)";
     "  appends the given string to the line before the insertion point.";
     "  returns E_NONE if the session has no text loaded yet.";
@@ -578,9 +578,9 @@ object GENERIC_EDITOR
         p:tell("Appended to line ", append, ".");
       endif
     endif
-  endverb
+  endmethod
 
-  verb join_lines (this none this) owner: #96 flags: "rxd"
+  method join_lines owner: #96
     {who, from, to, english} = args;
     if (!(fuckup = this:ok(who)))
       return fuckup;
@@ -610,9 +610,9 @@ object GENERIC_EDITOR
       endif
       return to - from;
     endif
-  endverb
+  endmethod
 
-  verb parse_number (this none this) owner: #96 flags: "rxd"
+  method parse_number owner: #96
     "parse_number(who,string,before)   interprets string as a line number.  In the event that string is `.', `before' tells us which line to use.  Return 0 if string is bogus.";
     {who, string, before} = args;
     if (!(fuckup = this:ok(who)))
@@ -638,9 +638,9 @@ object GENERIC_EDITOR
         return start + n;
       endif
     endif
-  endverb
+  endmethod
 
-  verb parse_range (this none this) owner: #96 flags: "rxd"
+  method parse_range owner: #96
     "parse_range(who,default,@args) => {from to rest}";
     numargs = length(args);
     if (!(fuckup = this:ok(who = args[1])))
@@ -702,9 +702,9 @@ object GENERIC_EDITOR
     else
       return {from, to, $string_utils:from_list(args[a..numargs], " ")};
     endif
-  endverb
+  endmethod
 
-  verb parse_insert (this none this) owner: #96 flags: "rxd"
+  method parse_insert owner: #96
     "parse_ins(who,string)  interprets string as an insertion point, i.e., a position between lines and returns the number of the following line or 0 if bogus.";
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
@@ -738,9 +738,9 @@ object GENERIC_EDITOR
         return offset + (j && string[j] == "^") + n;
       endif
     endif
-  endverb
+  endmethod
 
-  verb parse_subst (this none this) owner: #96 flags: "rxd"
+  method parse_subst owner: #96
     {cmd, ?recognized_flags = "gcr", ?null_subst_msg = "Null substitution?"} = args;
     if (!cmd)
       return "s*ubst/<str1>/<str2>[/[g][c][r][<range>]] expected...";
@@ -756,9 +756,9 @@ object GENERIC_EDITOR
     while ((b2 = b2 + 1) <= cmdlen && index(recognized_flags, cmd[b2]))
     endwhile
     return fromstr == "" && tostr == "" ? null_subst_msg | {fromstr, tostr, cmd[1..b2 - 1], cmd[b2..$]};
-  endverb
+  endmethod
 
-  verb invoke (this none this) owner: #96 flags: "rxd"
+  method invoke owner: #96
     ":invoke(...)";
     "to find out what arguments this verb expects,";
     "see this editor's parse_invoke verb.";
@@ -803,9 +803,9 @@ object GENERIC_EDITOR
         this:init_session(player in this.active, @spec);
       endif
     endif
-  endverb
+  endmethod
 
-  verb suck_in (this none this) owner: #96 flags: "rxd"
+  method suck_in owner: #96
     "The correct way to move someone into the editor.";
     if ((loc = (who_obj = args[1]).location) != this && caller == this)
       this.invoke_task = task_id();
@@ -827,9 +827,9 @@ object GENERIC_EDITOR
       this.invoke_task = 0;
     endif
     return who_obj.location == this;
-  endverb
+  endmethod
 
-  verb new_session (this none this) owner: #2 flags: "rxd"
+  method new_session owner: #2
     "WIZARDLY";
     {who_obj, from} = args;
     if ($object_utils:isa(from, $generic_editor))
@@ -854,9 +854,9 @@ object GENERIC_EDITOR
       endfor
       return length(this.active);
     endif
-  endverb
+  endmethod
 
-  verb kill_session (this none this) owner: #2 flags: "rxd"
+  method kill_session owner: #2
     "WIZARDLY";
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
@@ -866,9 +866,9 @@ object GENERIC_EDITOR
       endfor
       return who;
     endif
-  endverb
+  endmethod
 
-  verb reset_session (this none this) owner: #2 flags: "rxd"
+  method reset_session owner: #2
     "WIZARDLY";
     if (!(fuckup = this:ok(who = args[1])))
       return fuckup;
@@ -879,9 +879,9 @@ object GENERIC_EDITOR
       this.times[who] = time();
       return who;
     endif
-  endverb
+  endmethod
 
-  verb kill_all_sessions (this none this) owner: #2 flags: "rxd"
+  method kill_all_sessions owner: #2
     "WIZARDLY";
     if (caller != this && !caller_perms().wizard)
       return E_PERM;
@@ -895,13 +895,13 @@ object GENERIC_EDITOR
       endfor
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: #96 flags: "rxd"
+  method acceptable owner: #96
     return is_player(who_obj = args[1]) && (who_obj.wizard || pass(@args));
-  endverb
+  endmethod
 
-  verb enterfunc (this none this) owner: #96 flags: "rxd"
+  method enterfunc owner: #96
     who_obj = args[1];
     if (who_obj.wizard && !(who_obj in this.active))
       this:accept(who_obj);
@@ -915,9 +915,9 @@ object GENERIC_EDITOR
     elseif (msg = this:nothing_loaded_msg())
       who_obj:tell(msg);
     endif
-  endverb
+  endmethod
 
-  verb exitfunc (this none this) owner: #96 flags: "rxd"
+  method exitfunc owner: #96
     if (!(who = (who_obj = args[1]) in this.active))
     elseif (this:retain_session_on_exit(who))
       if (msg = this:no_littering_msg())
@@ -927,7 +927,7 @@ object GENERIC_EDITOR
       this:kill_session(who);
     endif
     pass(@args);
-  endverb
+  endmethod
 
   verb "@flush" (this any any) owner: #96 flags: "rxd"
     "@flush <editor>";
@@ -1002,14 +1002,14 @@ object GENERIC_EDITOR
     endif
   endverb
 
-  verb initialize (this none this) owner: #96 flags: "rxd"
+  method initialize owner: #96
     if ($perm_utils:controls(caller_perms(), this))
       pass(@args);
       this:kill_all_sessions();
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this:kill_all_sessions();
@@ -1020,9 +1020,9 @@ object GENERIC_EDITOR
         delete_verb(this, "is_not_banned");
       endif
     endif
-  endverb
+  endmethod
 
-  verb set_stateprops (this none this) owner: #96 flags: "rxd"
+  method set_stateprops owner: #96
     remove = length(args) < 2;
     if (caller != this && !$perm_utils:controls(caller_perms(), this))
       return E_PERM;
@@ -1048,9 +1048,9 @@ object GENERIC_EDITOR
       return $object_utils:has_property(this, prop) ? E_NACC | E_PROPNF;
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb description (this none this) owner: #96 flags: "rxd"
+  method description owner: #96
     is_look_self = 1;
     for c in (callers())
       if (is_look_self && c[2] in {"enterfunc", "confunc"})
@@ -1089,9 +1089,9 @@ object GENERIC_EDITOR
       endif
     endwhile
     return {@d, "", "----  Do `help <cmdname>' for help with a given command.  ----", "", "  <ins> ::= $ (the end) | [^]n (above line n) | _n (below line n) | . (current)", "<range> ::= <lin> | <lin>-<lin> | from <lin> | to <lin> | from <lin> to <lin>", "  <lin> ::= n | [n]$ (n from the end) | [n]_ (n before .) | [n]^ (n after .)", "`help insert' and `help ranges' describe these in detail.", @this.description};
-  endverb
+  endmethod
 
-  verb commands_info (this none this) owner: #96 flags: "rxd"
+  method commands_info owner: #96
     cmd = args[1];
     if (pc = $list_utils:assoc(cmd, this.commands))
       return pc;
@@ -1100,9 +1100,9 @@ object GENERIC_EDITOR
     else
       return parent(this):commands_info(cmd);
     endif
-  endverb
+  endmethod
 
-  verb match_object (this none this) owner: #96 flags: "rxd"
+  method match_object owner: #96
     {objstr, ?who = player} = args;
     origin = this;
     while ((where = player in origin.active) && ($recycler:valid(origin = origin.original[where]) && origin != this))
@@ -1111,9 +1111,9 @@ object GENERIC_EDITOR
       endif
     endwhile
     return who:my_match_object(objstr, #-1);
-  endverb
+  endmethod
 
-  verb who_location_msg (this none this) owner: #96 flags: "rxd"
+  method who_location_msg owner: #96
     who = args[1];
     where = {#-1, @this.original}[1 + (who in this.active)];
     wherestr = `where:who_location_msg(who) ! ANY => "An Editor"';
@@ -1122,17 +1122,17 @@ object GENERIC_EDITOR
     endif
     return strsub(this.who_location_msg, "%L", wherestr);
     return $string_utils:pronoun_sub(this.who_location_msg, who, this, where);
-  endverb
+  endmethod
 
-  verb "nothing_loaded_msg no_text_msg change_msg no_change_msg no_littering_msg depart_msg return_msg previous_session_msg" (this none this) owner: #96 flags: "rxd"
+  method "nothing_loaded_msg no_text_msg change_msg no_change_msg no_littering_msg depart_msg return_msg previous_session_msg" owner: #96
     return $code_utils:verb_or_property(player, verb, this) || this.(verb);
-  endverb
+  endmethod
 
-  verb "announce announce_all announce_all_but tell_contents" (this none this) owner: #96 flags: "rxd"
+  method "announce announce_all announce_all_but tell_contents" owner: #96
     return;
-  endverb
+  endmethod
 
-  verb fill_string (this none this) owner: #96 flags: "rxd"
+  method fill_string owner: #96
     "fill(string [, width [, prefix]])";
     "tries to cut <string> into substrings of length < <width> along word boundaries.  Prefix, if supplied, will be prefixed to the 2nd..last substrings.";
     {string, ?width = 1 + player:linelen(), ?prefix = ""} = args;
@@ -1181,9 +1181,9 @@ object GENERIC_EDITOR
       endif
     endwhile
     return ret;
-  endverb
+  endmethod
 
-  verb here_huh (this none this) owner: #96 flags: "rxd"
+  method here_huh owner: #96
     "This catches subst and find commands that don't fit into the usual model, e.g., s/.../.../ without the space after the s, and find commands without the verb `find'.  Still behaves in annoying ways (e.g., loses if the search string contains multiple whitespace), but better than before.";
     if (caller != this && caller_perms() != player)
       return E_PERM;
@@ -1206,13 +1206,13 @@ object GENERIC_EDITOR
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb match (this none this) owner: #2 flags: "rxd"
+  method match owner: #2
     return $failed_match;
-  endverb
+  endmethod
 
-  verb get_room (this none this) owner: #96 flags: "rxd"
+  method get_room owner: #96
     ":get_room([player])  => correct room to match in on invocation.";
     {?who = player} = args;
     if (who.location != this)
@@ -1226,9 +1226,9 @@ object GENERIC_EDITOR
       endwhile
       return this;
     endif
-  endverb
+  endmethod
 
-  verb invoke_local_editor (this none this) owner: #2 flags: "rxd"
+  method invoke_local_editor owner: #2
     ":invoke_local_editor(name, text, upload)";
     "Spits out the magic text that invokes the local editor in the player's client.";
     "NAME is a good human-readable name for the local editor to use for this particular piece of text.";
@@ -1246,16 +1246,16 @@ object GENERIC_EDITOR
     for line in ($command_utils:dump_lines(text))
       notify(player, line);
     endfor
-  endverb
+  endmethod
 
-  verb _stateprop_length (this none this) owner: #2 flags: "rxd"
+  method _stateprop_length owner: #2
     "+c properties on children cannot necessarily be read, so we need this silliness...";
     if (caller != this)
       return E_PERM;
     else
       return length(this.(args[1]));
     endif
-  endverb
+  endmethod
 
   verb print (none none none) owner: #2 flags: "rd"
     txt = this:text(player in this.active);
@@ -1267,9 +1267,9 @@ object GENERIC_EDITOR
     player:tell("--------------------------");
   endverb
 
-  verb accept (this none this) owner: #96 flags: "rxd"
+  method accept owner: #96
     return this:acceptable(who_obj = args[1]) && this:new_session(who_obj, who_obj.location);
-  endverb
+  endmethod
 
   verb "y*ank" (any any any) owner: #2 flags: "rd"
     "Usage: yank from <note>";
@@ -1356,7 +1356,7 @@ object GENERIC_EDITOR
     endif
   endverb
 
-  verb do_flush (this none this) owner: #96 flags: "rxd"
+  method do_flush owner: #96
     "Flushes editor sessions older than args[1].  If args[2] is true, prints status as it runs.  If args[2] is false, runs silently.";
     if (!$perm_utils:controls(caller_perms(), this))
       return E_PERM;
@@ -1371,7 +1371,7 @@ object GENERIC_EDITOR
         endif
       endfor
     endif
-  endverb
+  endmethod
 
   verb "s*ubst" (any any any) owner: #96 flags: "rxd"
     if (callers() && caller != this)
@@ -1432,7 +1432,7 @@ object GENERIC_EDITOR
     endif
   endverb
 
-  verb subst_regexp (this none this) owner: #96 flags: "rxd"
+  method subst_regexp owner: #96
     "Copied from Domain (#8111):subst_regexp by Mooshie (#106469) Mon Jan  5 19:27:26 1998 PST";
     "Usage: subst_regexp(STR text, STR from string, STR to string, INT case)";
     {text, from, to, case} = args;
@@ -1443,9 +1443,9 @@ object GENERIC_EDITOR
     else
       return m;
     endif
-  endverb
+  endmethod
 
-  verb include_for_core (this none this) owner: #96 flags: "rxd"
+  method include_for_core owner: #96
     return this == $generic_editor ? {"owner"} | {};
-  endverb
+  endmethod
 endobject

@@ -12,7 +12,7 @@ object QUOTA_LOG
   override moderated = 1;
   override object_size = {1113, 1084848672};
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.mail_notify = {player};
@@ -21,5 +21,5 @@ object QUOTA_LOG
     else
       raise(E_PERM);
     endif
-  endverb
+  endmethod
 endobject

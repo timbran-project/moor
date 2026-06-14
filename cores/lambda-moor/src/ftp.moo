@@ -12,7 +12,7 @@ object FTP
   override import_export_id = "ftp";
   override object_size = {9099, 1084848672};
 
-  verb open (this none this) owner: #2 flags: "rxd"
+  method open owner: #2
     if (!this:trusted(caller_perms()))
       return E_PERM;
     endif
@@ -28,9 +28,9 @@ object FTP
       return messages;
     endif
     return conn;
-  endverb
+  endmethod
 
-  verb close (this none this) owner: #2 flags: "rxd"
+  method close owner: #2
     conn = args[1];
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -43,18 +43,18 @@ object FTP
       $network:close(info[4]);
     endif
     return info[3];
-  endverb
+  endmethod
 
-  verb do_command (this none this) owner: #2 flags: "rxd"
+  method do_command owner: #2
     {conn, cmd, ?nowait = 0} = args;
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
     endif
     $network:notify(conn, cmd);
     return nowait ? 1 | this:wait_for_response(conn);
-  endverb
+  endmethod
 
-  verb wait_for_response (this none this) owner: #2 flags: "rxd"
+  method wait_for_response owner: #2
     {conn, ?first_only = 0} = args;
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -78,13 +78,13 @@ object FTP
     else
       return result;
     endif
-  endverb
+  endmethod
 
-  verb controls (this none this) owner: #2 flags: "rxd"
+  method controls owner: #2
     return args[1].wizard || {@$list_utils:assoc(args[2], this.connections), 0, 0}[2] == args[1];
-  endverb
+  endmethod
 
-  verb get_messages (this none this) owner: #2 flags: "rxd"
+  method get_messages owner: #2
     {conn, ?keep = 0} = args;
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -95,9 +95,9 @@ object FTP
       this.connections[i][3] = {};
     endif
     return messages;
-  endverb
+  endmethod
 
-  verb open_data (this none this) owner: #2 flags: "rxd"
+  method open_data owner: #2
     conn = args[1];
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -122,9 +122,9 @@ object FTP
       endfork
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb get_data (this none this) owner: #2 flags: "rxd"
+  method get_data owner: #2
     {conn, ?nowait = 0} = args;
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -134,9 +134,9 @@ object FTP
       suspend(0);
     endwhile
     return this.connections[i][5];
-  endverb
+  endmethod
 
-  verb put_data (this none this) owner: #2 flags: "rxd"
+  method put_data owner: #2
     {conn, data} = args;
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -153,13 +153,13 @@ object FTP
       this:close_data(conn);
       this.connections[i][4] = 0;
     endif
-  endverb
+  endmethod
 
-  verb trusted (this none this) owner: #2 flags: "rxd"
+  method trusted owner: #2
     return args[1].wizard || (typeof(this.trusted) == TYPE_LIST ? args[1] in this.trusted | this.trusted);
-  endverb
+  endmethod
 
-  verb listen (this none this) owner: #2 flags: "rxd"
+  method listen owner: #2
     if (caller != this)
       return E_PERM;
     endif
@@ -174,9 +174,9 @@ object FTP
     if (i = $list_utils:iassoc(conn, this.connections))
       this.connections[i][5] = data;
     endif
-  endverb
+  endmethod
 
-  verb close_data (this none this) owner: #2 flags: "rxd"
+  method close_data owner: #2
     conn = args[1];
     if (!this:controls(caller_perms(), conn))
       return E_PERM;
@@ -189,9 +189,9 @@ object FTP
       suspend(0);
       return 1;
     endif
-  endverb
+  endmethod
 
-  verb get (this none this) owner: #2 flags: "rxd"
+  method get owner: #2
     ":get(host, username, password, filename)";
     if (!this:trusted(caller_perms()))
       return E_PERM;
@@ -203,17 +203,17 @@ object FTP
       this:close(conn);
       return result;
     endif
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       this.connections = {};
       this.trusted = 1;
       pass(@args);
     endif
-  endverb
+  endmethod
 
-  verb put (this none this) owner: #2 flags: "rxd"
+  method put owner: #2
     ":put(host, username, password, filename, data)";
     if (!this:trusted(caller_perms()))
       return E_PERM;
@@ -225,12 +225,12 @@ object FTP
       this:close(conn);
       return result;
     endif
-  endverb
+  endmethod
 
-  verb data_connection (this none this) owner: #2 flags: "rxd"
+  method data_connection owner: #2
     "return the data connection associated with the control connection args[1]";
     conn = args[1];
     i = $list_utils:iassoc(conn, this.connections);
     return this.connections[i][4];
-  endverb
+  endmethod
 endobject

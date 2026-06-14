@@ -23,7 +23,7 @@ object GUEST
   override password = 0;
   override size_quota = {0, 0, 0, 0};
 
-  verb boot (this none this) owner: #2 flags: "rxd"
+  method boot owner: #2
     if (!caller_perms().wizard)
       return;
     endif
@@ -32,9 +32,9 @@ object GUEST
     "boot_player(this)";
     return;
     "See #0:user_reconnected.";
-  endverb
+  endmethod
 
-  verb disfunc (this none this) owner: #2 flags: "rxd"
+  method disfunc owner: #2
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this) && cp != this && caller != #0)
       return E_PERM;
     endif
@@ -53,9 +53,9 @@ object GUEST
       this:do_reset();
       this.free_to_use = 1;
     endtry
-  endverb
+  endmethod
 
-  verb defer (this none this) owner: #2 flags: "rxd"
+  method defer owner: #2
     "Called by #0:connect_player when this object is about to be used as the next guest character.  Usually returns `this', but if for some reason some other guest character should be used, that player object is returned instead";
     if (!caller_perms().wizard)
       "...caller is not :do_login_command; doesn't matter what we return...";
@@ -88,11 +88,11 @@ object GUEST
       candidate:boot();
     endif
     return candidate;
-  endverb
+  endmethod
 
-  verb mail_catch_up (this none this) owner: #2 flags: "rxd"
+  method mail_catch_up owner: #2
     return;
-  endverb
+  endmethod
 
   verb create (any any any) owner: HACKER flags: "rd"
     if ($login:player_creation_enabled(player))
@@ -102,11 +102,11 @@ object GUEST
     endif
   endverb
 
-  verb eject (this none this) owner: HACKER flags: "rxd"
+  method eject owner: HACKER
     return pass(@args);
-  endverb
+  endmethod
 
-  verb log (this none this) owner: HACKER flags: "rxd"
+  method log owner: HACKER
     ":log(islogin,time,where) adds an entry to the connection log for this guest.";
     if (caller != this)
       return E_PERM;
@@ -115,9 +115,9 @@ object GUEST
     else
       this.connect_log = {args, @this.connect_log[1..this.max_connect_log - 1]};
     endif
-  endverb
+  endmethod
 
-  verb confunc (this none this) owner: #2 flags: "rxd"
+  method confunc owner: #2
     if (valid(cp = caller_perms()) && caller != this && !$perm_utils:controls(cp, this) && cp != this && caller != #0)
       return E_PERM;
     else
@@ -126,16 +126,16 @@ object GUEST
       this:tell_lines(this:extra_confunc_msg());
       return ret;
     endif
-  endverb
+  endmethod
 
-  verb log_disconnect (this none this) owner: #2 flags: "rxd"
+  method log_disconnect owner: #2
     if (caller != this)
       return E_PERM;
     else
       cname = `connection_name(this) ! ANY' || this.last_connect_place;
       $guest_log:enter(0, time(), $string_utils:connection_hostname(cname));
     endif
-  endverb
+  endmethod
 
   verb "@last-c*onnection" (any none none) owner: #2 flags: "rxd"
     if (!valid(caller_perms()))
@@ -143,44 +143,44 @@ object GUEST
     endif
   endverb
 
-  verb my_huh (this none this) owner: #2 flags: "rxd"
+  method my_huh owner: #2
     if (caller_perms() != this)
       return E_PERM;
     else
       return pass(@args);
     endif
-  endverb
+  endmethod
 
   verb "@read @peek" (any any any) owner: HACKER flags: "rd"
     return pass(@args);
   endverb
 
-  verb set_current_folder (this none this) owner: HACKER flags: "rxd"
+  method set_current_folder owner: HACKER
     return pass(@args);
     "only for setting permission";
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (caller_perms().wizard)
       pass(@args);
       this.extra_confunc_msg = "";
     endif
-  endverb
+  endmethod
 
-  verb "set_name set_aliases" (this none this) owner: #2 flags: "rxd"
+  method "set_name set_aliases" owner: #2
     "disallow guests from setting aliases on themselves";
     if ($perm_utils:controls(caller_perms(), this))
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb extra_confunc_msg (this none this) owner: #2 flags: "rxd"
+  method extra_confunc_msg owner: #2
     return $string_utils:pronoun_sub(this.(verb));
-  endverb
+  endmethod
 
-  verb do_reset (this none this) owner: #2 flags: "rxd"
+  method do_reset owner: #2
     if (!caller_perms().wizard)
       return E_PERM;
     else
@@ -211,7 +211,7 @@ object GUEST
         endif
       endfor
     endif
-  endverb
+  endmethod
 
   verb "@request" (any any any) owner: #2 flags: "rd"
     "Usage:  @request <player-name> for <email-address>";
@@ -231,7 +231,7 @@ object GUEST
     "Copied from Generic Guest (#5678):@request by Froxx (#49853) Mon Apr  4 10:49:26 1994 PDT";
   endverb
 
-  verb connection_name_hash (this none this) owner: #2 flags: "rxd"
+  method connection_name_hash owner: #2
     "Compute an encrypted hash of the guest's (last) connection, using 'crypt'. Basically, you can't tell where the guest came from, but it is unlikely that two guests will have the same hash";
     "You can use guest:connection_name_hash(seed) as a string to identify whether two guests are from the same place.";
     hash = toint(caller_perms());
@@ -240,7 +240,7 @@ object GUEST
       hash = hash * 14 + index($string_utils.ascii, host[i]);
     endfor
     return crypt(tostr(hash), @args);
-  endverb
+  endmethod
 
   verb "@subscribe*-quick @unsubscribed*-quick" (any any any) owner: #2 flags: "rd"
     if (caller_perms() != $nothing && caller_perms() != player)
@@ -264,19 +264,19 @@ object GUEST
     "Paragraph (#122534) - Tue Nov 8, 2005 - Added to prevent a silly traceback from occuring, since Guests can't read their own .current_message.";
   endverb
 
-  verb current_folder (this none this) owner: #2 flags: "rxd"
+  method current_folder owner: #2
     if (caller_perms() in {this, this.owner})
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb notify (this none this) owner: #2 flags: "rxd"
+  method notify owner: #2
     if (caller_perms().wizard || caller_perms() in {this, this.owner} || caller == this)
       return pass(@args);
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 endobject

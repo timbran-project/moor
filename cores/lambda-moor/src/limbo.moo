@@ -8,12 +8,12 @@ object LIMBO
   override import_export_id = "limbo";
   override object_size = {2330, 1084848672};
 
-  verb acceptable (this none this) owner: #2 flags: "rxd"
+  method acceptable owner: #2
     what = args[1];
     return is_player(what) && !(what in connected_players());
-  endverb
+  endmethod
 
-  verb confunc (this none this) owner: #2 flags: "rxd"
+  method confunc owner: #2
     caller == #0 || raise(E_PERM);
     {who} = args;
     "this:eject(who)";
@@ -34,17 +34,17 @@ object LIMBO
       move(who, $player_start);
     endtry
     who.location:announce_all_but({who}, who.name, " has connected.");
-  endverb
+  endmethod
 
-  verb who_location_msg (this none this) owner: HACKER flags: "rxd"
+  method who_location_msg owner: HACKER
     return $player_start:who_location_msg(@args);
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: HACKER flags: "rxd"
+  method moveto owner: HACKER
     "Don't go anywhere.";
-  endverb
+  endmethod
 
-  verb eject (this none this) owner: #2 flags: "rxd"
+  method eject owner: #2
     if ($perm_utils:controls(caller_perms(), this))
       if ((what = args[1]).wizard && what.location == this)
         move(what, what.home);
@@ -52,5 +52,5 @@ object LIMBO
         return pass(@args);
       endif
     endif
-  endverb
+  endmethod
 endobject

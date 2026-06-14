@@ -59,7 +59,7 @@ object SERVER_OPTIONS
   override import_export_id = "server_options";
   override object_size = {6853, 1084848672};
 
-  verb help_msg (this none this) owner: HACKER flags: "rxd"
+  method help_msg owner: HACKER
     output = {"On $server_options, the following settings have been established by the wizards:", ""};
     wizonly = {};
     etc = {};
@@ -80,13 +80,13 @@ object SERVER_OPTIONS
       etc = {@etc, "", "In your code, #0:(built-in)(@args) should be called rather than built-in(@args) when you would use one of the following built-in functions:", $string_utils:english_list(bf) + ".", "Example: #0:" + bf[1] + "(@args) should be used instead of " + bf[1] + "(@args)"};
     endif
     return {@this.help_msg, @output, @wizonly, "", @etc};
-  endverb
+  endmethod
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (!caller_perms().wizard)
       raise(E_PERM);
     endif
     this.support_numeric_verbname_strings = 0;
     pass(@args);
-  endverb
+  endmethod
 endobject

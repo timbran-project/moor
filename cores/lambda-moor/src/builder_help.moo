@@ -596,11 +596,11 @@ object BUILDER_HELP
   override index_cache = {"builder-index"};
   override object_size = {39390, 1084848672};
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (!caller_perms().wizard)
       raise(E_PERM);
     endif
     pass(@args);
     this.("@quota") = {"*forward*", "object-quota"};
-  endverb
+  endmethod
 endobject

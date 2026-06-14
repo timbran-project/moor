@@ -94,16 +94,16 @@ object CONTAINER
     endif
   endverb
 
-  verb look_self (this none this) owner: #2 flags: "rxd"
+  method look_self owner: #2
     pass();
     if (!this.dark)
       this:tell_contents();
     endif
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: #2 flags: "rxd"
+  method acceptable owner: #2
     return !is_player(args[1]);
-  endverb
+  endmethod
 
   verb open (this none none) owner: #2 flags: "rxd"
     perms = callers() && caller != this ? caller_perms() | player;
@@ -141,9 +141,9 @@ object CONTAINER
     endif
   endverb
 
-  verb is_openable_by (this none this) owner: #2 flags: "rxd"
+  method is_openable_by owner: #2
     return this.open_key == 0 || $lock_utils:eval_key(this.open_key, args[1]);
-  endverb
+  endmethod
 
   verb close (this none none) owner: #2 flags: "rxd"
     if (!this.opened)
@@ -167,7 +167,7 @@ object CONTAINER
     endtry
   endverb
 
-  verb tell_contents (this none this) owner: #2 flags: "rxd"
+  method tell_contents owner: #2
     if (this.contents)
       player:tell("Contents:");
       for thing in (this:contents())
@@ -176,9 +176,9 @@ object CONTAINER
     elseif (msg = this:empty_msg())
       player:tell(msg);
     endif
-  endverb
+  endmethod
 
-  verb set_opened (this none this) owner: #2 flags: "rxd"
+  method set_opened owner: #2
     if (!$perm_utils:controls(caller.owner, this))
       return E_PERM;
     else
@@ -186,7 +186,7 @@ object CONTAINER
       this.dark = this.opaque > opened;
       return opened;
     endif
-  endverb
+  endmethod
 
   verb "@opacity" (this is any) owner: #2 flags: "rd"
     if (!$perm_utils:controls(player, this))
@@ -198,7 +198,7 @@ object CONTAINER
     endif
   endverb
 
-  verb set_opaque (this none this) owner: #2 flags: "rxd"
+  method set_opaque owner: #2
     if (!$perm_utils:controls(caller.owner, this))
       return E_PERM;
     elseif (typeof(number = args[1]) != TYPE_INT)
@@ -208,13 +208,13 @@ object CONTAINER
       this.dark = number > this.opened;
       return this.opaque = number;
     endif
-  endverb
+  endmethod
 
-  verb "oclose_msg close_msg oopen_msg open_msg oput_fail_msg put_fail_msg oremove_fail_msg oremove_msg remove_fail_msg remove_msg oput_msg put_msg oopen_fail_msg open_fail_msg empty_msg" (this none this) owner: HACKER flags: "rxd"
+  method "oclose_msg close_msg oopen_msg open_msg oput_fail_msg put_fail_msg oremove_fail_msg oremove_msg remove_fail_msg remove_msg oput_msg put_msg oopen_fail_msg open_fail_msg empty_msg" owner: HACKER
     return (msg = `this.(verb) ! ANY') ? $string_utils:pronoun_sub(msg) | "";
-  endverb
+  endmethod
 
-  verb dark (this none this) owner: #2 flags: "rxd"
+  method dark owner: #2
     return this.(verb);
-  endverb
+  endmethod
 endobject

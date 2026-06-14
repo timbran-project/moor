@@ -13107,15 +13107,15 @@ object SPELL
   override import_export_id = "spell";
   override object_size = {1298817, 1084848672};
 
-  verb description (this none this) owner: HACKER flags: "rxd"
+  method description owner: HACKER
     return this.description + " There are " + tostr(this.entries) + " words in the online dictionary.";
-  endverb
+  endmethod
 
-  verb valid (this none this) owner: HACKER flags: "rxd"
+  method valid owner: HACKER
     return this:find_exact(args[1]) != $failed_match || args[1] in player.dict;
-  endverb
+  endmethod
 
-  verb get_input (this none this) owner: #2 flags: "rxd"
+  method get_input owner: #2
     set_task_perms(caller_perms());
     source = args[1];
     data = {};
@@ -13193,9 +13193,9 @@ object SPELL
       data[i] = $string_utils:strip_chars(data[i], "!@#$%^&*()_+1234567890={}[]`<>?:;,./|\"~'");
     endfor
     return data;
-  endverb
+  endmethod
 
-  verb guess_words (this none this) owner: HACKER flags: "rxd"
+  method guess_words owner: HACKER
     nastyword = args[1];
     guesses = {};
     "Transpose adjacent characters";
@@ -13259,16 +13259,16 @@ object SPELL
     guesses = $list_utils:remove_duplicates(guesses);
     guesses = $list_utils:sort(guesses);
     return guesses;
-  endverb
+  endmethod
 
-  verb find_exact (this none this) owner: HACKER flags: "rxd"
+  method find_exact owner: HACKER
     if (ticks_left() < 1000 || seconds_left() < 3)
       suspend(0);
     endif
     return pass(@args);
-  endverb
+  endmethod
 
-  verb sort (this none this) owner: HACKER flags: "rxd"
+  method sort owner: HACKER
     "sort({x1,x3,x2},{1,3,2}) => {x1,x2,x3}";
     lst = args[1];
     unsorted_keys = (use_sorted_lst = length(args) >= 2) ? args[2] | lst;
@@ -13284,9 +13284,9 @@ object SPELL
       endif
     endfor
     return sorted_lst || sorted_keys;
-  endverb
+  endmethod
 
-  verb _every_key (this none this) owner: HACKER flags: "rxd"
+  method _every_key owner: HACKER
     info = this.(" " + args[1]);
     prefix = args[1] + info[1];
     r = info[3];
@@ -13299,15 +13299,15 @@ object SPELL
       endfor
     endfor
     return r;
-  endverb
+  endmethod
 
-  verb _suspend (this none this) owner: HACKER flags: "rxd"
+  method _suspend owner: HACKER
     if (caller == this)
       suspend(@args);
     endif
-  endverb
+  endmethod
 
-  verb "insert delete delete2" (this none this) owner: HACKER flags: "rxd"
+  method "insert delete delete2" owner: HACKER
     "N.B.  use :add_word/:remove_word to actually change the contents of this db";
     ":insert(string) -- see $generic_db:insert";
     ":delete(string) -- see $generic_db:delete";
@@ -13318,9 +13318,9 @@ object SPELL
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb add_word (this none this) owner: HACKER flags: "rxd"
+  method add_word owner: HACKER
     ":add_word(string) -- adds word to the spell database";
     "Returns true iff this word wasn't already there.";
     cp = caller_perms();
@@ -13331,9 +13331,9 @@ object SPELL
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb remove_word (this none this) owner: HACKER flags: "rxd"
+  method remove_word owner: HACKER
     ":remove_word(string) -- removes word from the spell database";
     "Returns true iff word was actually there to be removed.";
     cp = caller_perms();
@@ -13344,14 +13344,14 @@ object SPELL
     else
       return E_PERM;
     endif
-  endverb
+  endmethod
 
-  verb submit (this none this) owner: HACKER flags: "rxd"
+  method submit owner: HACKER
     ":submit(word) -- add a word to this.submitted";
     this.submitted = {@this.submitted, args[1]};
-  endverb
+  endmethod
 
-  verb purge_entire_database (this none this) owner: HACKER flags: "rxd"
+  method purge_entire_database owner: HACKER
     "$spell:purge_entire_database - a nasty verb that will zap the whole dictionary.";
     "usage: eval $spell:purge_entire_database()     ";
     if (!($perm_utils:controls(caller_perms(), this) || caller == this))
@@ -13367,9 +13367,9 @@ object SPELL
     else
       this:clearall_big(@args);
     endif
-  endverb
+  endmethod
 
-  verb random (this none this) owner: HACKER flags: "rxd"
+  method random owner: HACKER
     "returns a random word from the dictionary. maybe useful for games and things";
     "that need a unique word. accepts no arguments.";
     word = "";
@@ -13387,19 +13387,19 @@ object SPELL
       endif
     endwhile
     return word;
-  endverb
+  endmethod
 
   verb help_msg (none none none) owner: HACKER flags: "rxd"
     return this.description;
   endverb
 
-  verb init_for_core (this none this) owner: #2 flags: "rxd"
+  method init_for_core owner: #2
     if (!caller_perms().wizard)
       return;
     endif
     pass(@args);
     $spell.trusted = {};
-  endverb
+  endmethod
 
   verb "clear-submitted" (none on this) owner: HACKER flags: "rxd"
     if (!(player in this.trusted))
@@ -13410,7 +13410,7 @@ object SPELL
     player:tell("$spell.submitted = {};");
   endverb
 
-  verb proxy_for_core (this none this) owner: #2 flags: "rxd"
+  method proxy_for_core owner: #2
     return this;
-  endverb
+  endmethod
 endobject
