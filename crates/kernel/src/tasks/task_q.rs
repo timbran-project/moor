@@ -197,7 +197,7 @@ impl TaskQ {
         }
     }
 
-    /// Check if a task exists and return its owner (permissions).
+    /// Check if a task exists and return its controlling principal.
     /// Checks both active and suspended tasks atomically.
     pub(crate) fn task_owner(&self, task_id: TaskId) -> Option<Obj> {
         // Check active tasks first
@@ -449,9 +449,11 @@ impl SuspensionQ {
         }
     }
 
-    /// Check if a suspended task exists and return its owner (perms).
+    /// Check if a suspended task exists and return its controlling principal.
     pub(crate) fn task_owner(&self, task_id: TaskId) -> Option<Obj> {
-        self.tasks.get(&task_id).map(|st| st.task.perms)
+        self.tasks
+            .get(&task_id)
+            .map(|st| st.task.authority_principal())
     }
 
     /// Queue a task for immediate wake.
@@ -542,7 +544,7 @@ impl SuspensionQ {
         for mut task in tasks {
             task.session = bg_session_factory
                 .clone()
-                .mk_background_session(&task.task.player)
+                .mk_background_session(&task.task.player())
                 .expect("Unable to create new background session for suspended task");
 
             let task_id = task.task.task_id;
@@ -844,7 +846,7 @@ impl SuspensionQ {
 
         // Verify the task still exists and check permissions
         let suspended_task = self.tasks.get(&task_id)?;
-        if suspended_task.task.perms.ne(player) {
+        if suspended_task.task.authority_principal().ne(player) {
             warn!(
                 ?task_id,
                 ?input_request_id,
@@ -960,7 +962,7 @@ impl SuspensionQ {
             tasks.push(TaskDescription {
                 task_id: sr.task.task_id,
                 start_time,
-                authority_principal: sr.task.perms,
+                authority_principal: sr.task.authority_principal(),
                 verb_name,
                 verb_definer,
                 line_number,
@@ -973,8 +975,8 @@ impl SuspensionQ {
     /// Check whether an authority principal controls a suspended task.
     ///
     /// LambdaMOO's suspended-task rule is dual:
-    /// - Input-waiting tasks are controlled by `task.player`.
-    /// - Computational tasks are controlled by `task.perms`.
+    /// - Input-waiting tasks are controlled by the task player.
+    /// - Computational tasks are controlled by the task authority principal.
     ///
     /// Resume filters input-waiting tasks, while kill permits them, so callers must choose whether
     /// input waits participate in the check.
@@ -993,9 +995,9 @@ impl SuspensionQ {
         }
 
         let controlling_principal = if matches!(sr.wake_condition, WakeCondition::Input(_)) {
-            sr.task.player
+            sr.task.player()
         } else {
-            sr.task.perms
+            sr.task.authority_principal()
         };
 
         authority_principal == controlling_principal
@@ -1007,7 +1009,7 @@ impl SuspensionQ {
             .tasks
             .iter()
             .filter_map(|(task_id, sr)| {
-                (!sr.task.state.is_background() && sr.task.player.eq(player)).then_some(*task_id)
+                (!sr.task.state.is_background() && sr.task.player().eq(player)).then_some(*task_id)
             })
             .collect::<Vec<_>>();
         for task_id in to_remove {

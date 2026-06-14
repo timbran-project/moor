@@ -168,8 +168,8 @@ fn extract_anonymous_refs_from_activation(
     extract_anonymous_refs_from_var(&activation.this, refs);
 
     // Check player (already an Obj, so check directly)
-    if activation.player.is_anonymous() {
-        refs.insert(activation.player);
+    if activation.player().is_anonymous() {
+        refs.insert(activation.player());
     }
 
     // Check permissions (already an Obj, so check directly)

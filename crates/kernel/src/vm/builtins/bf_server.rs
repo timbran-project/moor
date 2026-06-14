@@ -378,13 +378,13 @@ fn bf_server_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if is_error {
         error!(
             "SERVER_LOG {}: {}",
-            bf_args.exec_state.top().player,
+            bf_args.exec_state.top().player(),
             message
         );
     } else {
         info!(
             "SERVER_LOG {}: {}",
-            bf_args.exec_state.top().player,
+            bf_args.exec_state.top().player(),
             message
         );
     }
@@ -628,8 +628,8 @@ fn bf_eval(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             // Now we have to construct things to set up for eval. Which means tramping through with a
             // setup-for-eval result here.
             Ok(VmInstr(ExecutionResult::DispatchEval {
-                permissions: bf_args.task_authority_principal(),
-                player: bf_args.exec_state.top().player,
+                authority_principal: bf_args.task_authority_principal(),
+                player: bf_args.exec_state.top().player(),
                 program,
                 initial_env,
             }))

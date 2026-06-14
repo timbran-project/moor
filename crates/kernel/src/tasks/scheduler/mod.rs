@@ -412,7 +412,7 @@ impl Scheduler {
         lc: &mut TaskLifecycle,
         task_id: TaskId,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         task_start: TaskStart,
         delay_start: Option<Duration>,
         session: Arc<dyn Session>,
@@ -424,7 +424,7 @@ impl Scheduler {
         match lc.task_q.submit_new_task(
             task_id,
             player,
-            perms,
+            authority_principal,
             task_start,
             delay_start,
             session,

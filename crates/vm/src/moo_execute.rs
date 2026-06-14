@@ -372,7 +372,7 @@ pub enum ExecutionResult {
     /// been given the program to execute instead of having to look it up.
     DispatchEval {
         /// Authority principal for the eval.
-        permissions: Obj,
+        authority_principal: Obj,
         /// The player who is performing the eval.
         player: Obj,
         /// The program to execute.
@@ -2132,7 +2132,7 @@ pub fn moo_frame_execute<H: VmHost>(
 #[allow(clippy::too_many_arguments)]
 fn get_property<H: VmHost>(
     host: &mut H,
-    permissions: &Obj,
+    authority_principal: &Obj,
     obj: &Var,
     propname: Symbol,
     features_config: &FeaturesConfig,
@@ -2140,7 +2140,7 @@ fn get_property<H: VmHost>(
     // Fast path: Obj is by far the most common case for property access
     if let Some(obj_ref) = obj.as_object() {
         return host
-            .retrieve_property(permissions, &obj_ref, propname)
+            .retrieve_property(authority_principal, &obj_ref, propname)
             .map_err(|e| e.to_error());
     }
 
@@ -2172,7 +2172,7 @@ fn get_property<H: VmHost>(
         } else {
             // Now check the delegate
             let delegate = flyweight.delegate();
-            let result = host.retrieve_property(permissions, delegate, propname);
+            let result = host.retrieve_property(authority_principal, delegate, propname);
             match result {
                 Ok(v) => v,
                 Err(e) => return Err(e.to_error()),

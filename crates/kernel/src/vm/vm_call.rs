@@ -105,7 +105,7 @@ impl ExecStateBuiltinExt for ExecState {
             // We copy the flags from the calling verb, that will determine error handling 'd'
             // behaviour below.
             flags,
-            self.top().player,
+            self.top().player(),
         ));
         let mut bf_args = BfCallState {
             exec_state: self,

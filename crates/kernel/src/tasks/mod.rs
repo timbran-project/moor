@@ -284,7 +284,7 @@ pub enum TaskStart {
     /// Results are written to `result_sink` before the task reports success.
     StartBatchWorldState {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         actions: Vec<world_state_action::WorldStateAction>,
         rollback: bool,
         result_sink: BatchResultSink,

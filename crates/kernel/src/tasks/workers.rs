@@ -22,7 +22,7 @@ pub enum WorkerRequest {
     Request {
         request_id: Uuid,
         request_type: Symbol,
-        perms: Obj,
+        authority_principal: Obj,
         request: Vec<Var>,
         timeout: Option<std::time::Duration>,
     },

@@ -79,7 +79,7 @@ impl SchedulerClient {
         verb: Symbol,
         args: List,
         argstr: Var,
-        perms: &Obj,
+        authority_principal: &Obj,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
         let _timer = sched_counters()
@@ -92,7 +92,7 @@ impl SchedulerClient {
             verb,
             args,
             argstr,
-            *perms,
+            *authority_principal,
             session,
         )
     }
@@ -131,7 +131,7 @@ impl SchedulerClient {
     pub fn submit_eval_task(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         code: String,
         initial_env: Option<Vec<(Symbol, Var)>>,
         sessions: Arc<dyn Session>,
@@ -147,8 +147,13 @@ impl SchedulerClient {
             Err(e) => return Err(CompilationError(e)),
         };
 
-        self.scheduler
-            .submit_eval_task_inner(*player, *perms, program, initial_env, sessions)
+        self.scheduler.submit_eval_task_inner(
+            *player,
+            *authority_principal,
+            program,
+            initial_env,
+            sessions,
+        )
     }
 
     pub fn submit_shutdown(&self, msg: &str) -> Result<(), SchedulerError> {
@@ -158,14 +163,14 @@ impl SchedulerClient {
     pub fn submit_verb_program(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &ObjectRef,
         verb_name: Symbol,
         code: Vec<String>,
     ) -> Result<(Obj, Symbol), SchedulerError> {
         let action = WorldStateAction::ProgramVerb {
             player: *player,
-            perms: *perms,
+            authority_principal: *authority_principal,
             obj: obj.clone(),
             verb_name,
             code,
@@ -250,13 +255,13 @@ impl SchedulerClient {
     pub fn request_verbs(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &ObjectRef,
         inherited: bool,
     ) -> Result<VerbDefs, SchedulerError> {
         let action = WorldStateAction::RequestVerbs {
             player: *player,
-            perms: *perms,
+            authority_principal: *authority_principal,
             obj: obj.clone(),
             inherited,
         };
@@ -276,13 +281,13 @@ impl SchedulerClient {
     pub fn request_verb(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &ObjectRef,
         verb: Symbol,
     ) -> Result<(VerbDef, Vec<String>), SchedulerError> {
         let action = WorldStateAction::RequestVerbCode {
             player: *player,
-            perms: *perms,
+            authority_principal: *authority_principal,
             obj: obj.clone(),
             verb,
         };
@@ -302,13 +307,13 @@ impl SchedulerClient {
     pub fn request_properties(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &ObjectRef,
         inherited: bool,
     ) -> Result<Vec<(PropDef, PropPerms)>, SchedulerError> {
         let action = WorldStateAction::RequestProperties {
             player: *player,
-            perms: *perms,
+            authority_principal: *authority_principal,
             obj: obj.clone(),
             inherited,
         };
@@ -328,13 +333,13 @@ impl SchedulerClient {
     pub fn request_property(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &ObjectRef,
         property: Symbol,
     ) -> Result<(PropDef, PropPerms, Var), SchedulerError> {
         let action = WorldStateAction::RequestProperty {
             player: *player,
-            perms: *perms,
+            authority_principal: *authority_principal,
             obj: obj.clone(),
             property,
         };
@@ -384,7 +389,7 @@ impl SchedulerClient {
     pub fn submit_batch_world_state_task(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         actions: Vec<WorldStateAction>,
         rollback: bool,
         session: Arc<dyn Session>,
@@ -393,7 +398,7 @@ impl SchedulerClient {
 
         let handle = self.scheduler.submit_batch_world_state_task_inner(
             *player,
-            *perms,
+            *authority_principal,
             actions,
             rollback,
             result_sink.clone(),
@@ -506,14 +511,14 @@ impl SchedulerClient {
     pub fn update_property(
         &self,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &ObjectRef,
         property: Symbol,
         value: Var,
     ) -> Result<(), SchedulerError> {
         let action = WorldStateAction::UpdateProperty {
             player: *player,
-            perms: *perms,
+            authority_principal: *authority_principal,
             obj: obj.clone(),
             property,
             value,

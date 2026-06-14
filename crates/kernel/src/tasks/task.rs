@@ -121,9 +121,9 @@ pub struct Task {
     /// What I was asked to do and current lifecycle state.
     pub(crate) state: TaskState,
     /// The player on behalf of whom this task is running. Who owns this task.
-    pub(crate) player: Obj,
-    /// The permissions of the task -- the object on behalf of which all permissions are evaluated.
-    pub(crate) perms: Obj,
+    player: Obj,
+    /// The object on behalf of which task permissions are evaluated.
+    authority_principal: Obj,
     /// The actual VM host which is managing the execution of this task.
     pub(crate) vm_host: VmHost,
     /// True if the task should die.
@@ -147,7 +147,7 @@ impl Task {
     pub fn new(
         task_id: TaskId,
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         task_start: TaskStart,
         server_options: &ServerOptions,
         kill_switch: Arc<AtomicBool>,
@@ -211,7 +211,7 @@ impl Task {
             player,
             state,
             vm_host,
-            perms,
+            authority_principal,
             kill_switch,
             retries: 0,
             retry_state,
@@ -219,6 +219,47 @@ impl Task {
             pending_exception: None,
             program_cache: TaskProgramCache::default(),
         })
+    }
+
+    #[inline]
+    pub(crate) fn player(&self) -> Obj {
+        self.player
+    }
+
+    #[inline]
+    pub(crate) fn authority_principal(&self) -> Obj {
+        self.authority_principal
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_restored(
+        task_id: TaskId,
+        creation_time: Instant,
+        player: Obj,
+        state: TaskState,
+        vm_host: VmHost,
+        authority_principal: Obj,
+        kill_switch: Arc<AtomicBool>,
+        retries: u8,
+        retry_state: ExecState,
+        handling_uncaught_error: bool,
+        pending_exception: Option<Exception>,
+        program_cache: TaskProgramCache,
+    ) -> Self {
+        Self {
+            task_id,
+            creation_time,
+            player,
+            state,
+            vm_host,
+            authority_principal,
+            kill_switch,
+            retries,
+            retry_state,
+            handling_uncaught_error,
+            pending_exception,
+            program_cache,
+        }
     }
 
     pub fn run_task_loop(
@@ -636,7 +677,7 @@ impl Task {
                     // Try to find and invoke $handle_uncaught_error on #0 (SYSTEM_OBJECT)
                     let verb_lookup = with_current_transaction(|world_state| {
                         world_state.dispatch_verb(
-                            &self.perms,
+                            &self.authority_principal,
                             VerbDispatch::new(
                                 VerbLookup::method(&SYSTEM_OBJECT, *HANDLE_UNCAUGHT_ERROR_SYM),
                                 DispatchFlagsSource::Permissions,
@@ -676,7 +717,7 @@ impl Task {
                             verb_result.permissions_flags,
                             match with_current_transaction(|ws| {
                                 ws.retrieve_verb(
-                                    &self.perms,
+                                    &self.authority_principal,
                                     &verb_result.program_key.verb_definer,
                                     verb_result.program_key.verb_uuid,
                                 )
@@ -730,7 +771,7 @@ impl Task {
                 error!(
                     task_id = self.task_id,
                     player_id = self.player.to_literal(),
-                    perms = self.perms.to_literal(),
+                    authority_principal = self.authority_principal.to_literal(),
                     error = %exception.error,
                     "Task exception:\n{}",
                     backtrace_str
@@ -880,7 +921,7 @@ impl Task {
                 };
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &self.perms,
+                        &self.authority_principal,
                         VerbDispatch::new(
                             VerbLookup::method(&object_location, verb_name),
                             DispatchFlagsSource::Permissions,
@@ -913,7 +954,7 @@ impl Task {
                             verb_result.permissions_flags,
                             match with_current_transaction(|ws| {
                                 ws.retrieve_verb(
-                                    &self.perms,
+                                    &self.authority_principal,
                                     &verb_result.program_key.verb_definer,
                                     verb_result.program_key.verb_uuid,
                                 )
@@ -1040,7 +1081,7 @@ impl Task {
                 // Find and set up the handler verb
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &self.perms,
+                        &self.authority_principal,
                         VerbDispatch::new(
                             VerbLookup::method(&SYSTEM_OBJECT, *HANDLE_UNCAUGHT_ERROR_SYM),
                             DispatchFlagsSource::Permissions,
@@ -1068,7 +1109,7 @@ impl Task {
                             verb_result.permissions_flags,
                             match with_current_transaction(|ws| {
                                 ws.retrieve_verb(
-                                    &self.perms,
+                                    &self.authority_principal,
                                     &verb_result.program_key.verb_definer,
                                     verb_result.program_key.verb_uuid,
                                 )
@@ -1116,7 +1157,7 @@ impl Task {
         // that verb with the command as an argument. If that then fails (non-true return code)
         // we'll end up in the start_parse_command phase.
         let do_command = world_state.dispatch_verb(
-            &self.perms,
+            &self.authority_principal,
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, *DO_COMMAND_SYM),
                 DispatchFlagsSource::Permissions,
@@ -1142,7 +1183,7 @@ impl Task {
                     verb_result.permissions_flags,
                     world_state
                         .retrieve_verb(
-                            &self.perms,
+                            &self.authority_principal,
                             &verb_result.program_key.verb_definer,
                             verb_result.program_key.verb_uuid,
                         )
@@ -1223,7 +1264,7 @@ impl Task {
                 // Try to find :huh. If it exists, we'll dispatch to that, instead.
                 // If we don't find it, that's the end of the line.
                 let Ok(Some(verb_result)) = world_state.dispatch_verb(
-                    &self.perms,
+                    &self.authority_principal,
                     VerbDispatch::new(
                         VerbLookup::method(&player_location, *HUH_SYM),
                         DispatchFlagsSource::VerbOwner,
@@ -1755,7 +1796,7 @@ mod tests {
         let actions = vec![
             WorldStateAction::UpdateProperty {
                 player: SYSTEM_OBJECT,
-                perms: SYSTEM_OBJECT,
+                authority_principal: SYSTEM_OBJECT,
                 obj: ObjectRef::Id(SYSTEM_OBJECT),
                 property: Symbol::mk("name"),
                 value: v_str("modified"),

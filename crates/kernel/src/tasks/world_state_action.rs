@@ -22,7 +22,7 @@ pub enum WorldStateAction {
     /// Program a verb with new code
     ProgramVerb {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         obj: ObjectRef,
         verb_name: Symbol,
         code: Vec<String>,
@@ -38,7 +38,7 @@ pub enum WorldStateAction {
     /// Request all properties on an object
     RequestProperties {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         obj: ObjectRef,
         inherited: bool,
     },
@@ -46,7 +46,7 @@ pub enum WorldStateAction {
     /// Request a specific property's info and value
     RequestProperty {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         obj: ObjectRef,
         property: Symbol,
     },
@@ -54,7 +54,7 @@ pub enum WorldStateAction {
     /// Request all verbs on an object
     RequestVerbs {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         obj: ObjectRef,
         inherited: bool,
     },
@@ -62,7 +62,7 @@ pub enum WorldStateAction {
     /// Request verb code and definition
     RequestVerbCode {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         obj: ObjectRef,
         verb: Symbol,
     },
@@ -79,7 +79,7 @@ pub enum WorldStateAction {
     /// Update a property value
     UpdateProperty {
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         obj: ObjectRef,
         property: Symbol,
         value: Var,

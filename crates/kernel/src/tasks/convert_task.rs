@@ -1301,7 +1301,7 @@ pub(crate) fn activation_to_flatbuffer(
     let fb_this = var_to_db_flatbuffer(&activation.this)
         .map_err(|e| TaskConversionError::VarError(format!("Error encoding this: {e}")))?;
 
-    let fb_player = convert_schema::obj_to_flatbuffer_struct(&activation.player);
+    let fb_player = convert_schema::obj_to_flatbuffer_struct(&activation.player());
 
     let fb_args: Result<Vec<_>, _> = activation
         .args()
@@ -1910,10 +1910,12 @@ pub(crate) fn task_to_flatbuffer(task: &KernelTask) -> Result<fb::Task, TaskConv
     Ok(fb::Task {
         version: CURRENT_TASK_VERSION,
         task_id: task.task_id as u64,
-        player: Box::new(convert_schema::obj_to_flatbuffer_struct(&task.player)),
+        player: Box::new(convert_schema::obj_to_flatbuffer_struct(&task.player())),
         state: Box::new(fb_task_state),
         vm_host: Box::new(fb_vm_host),
-        perms: Box::new(convert_schema::obj_to_flatbuffer_struct(&task.perms)),
+        perms: Box::new(convert_schema::obj_to_flatbuffer_struct(
+            &task.authority_principal(),
+        )),
         retries: task.retries,
         retry_state: Box::new(fb_retry_state),
         handling_uncaught_error: task.handling_uncaught_error,
@@ -1977,26 +1979,26 @@ pub(crate) fn task_from_ref(fb: fb::TaskRef<'_>) -> Result<KernelTask, TaskConve
     let player = convert_schema::obj_from_ref(player_ref)
         .map_err(|e| TaskConversionError::DecodingError(format!("player: {e}")))?;
 
-    let perms_ref = fb
+    let authority_principal_ref = fb
         .perms()
         .map_err(|e| TaskConversionError::DecodingError(format!("perms: {e}")))?;
-    let perms = convert_schema::obj_from_ref(perms_ref)
+    let authority_principal = convert_schema::obj_from_ref(authority_principal_ref)
         .map_err(|e| TaskConversionError::DecodingError(format!("perms: {e}")))?;
 
-    Ok(KernelTask {
-        task_id: task_id as usize,
-        creation_time: Instant::now(),
+    Ok(KernelTask::from_restored(
+        task_id as usize,
+        Instant::now(),
         player,
-        state: task_state,
+        task_state,
         vm_host,
-        perms,
-        kill_switch: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        authority_principal,
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         retries,
         retry_state,
         handling_uncaught_error,
         pending_exception,
-        program_cache: TaskProgramCache::default(),
-    })
+        TaskProgramCache::default(),
+    ))
 }
 
 // ============================================================================
