@@ -54,7 +54,7 @@ pub enum ObjectKind {
 /// Controls which object's flags should be returned for dispatch activation setup.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum DispatchFlagsSource {
-    /// Return flags for the `perms` object passed into lookup.
+    /// Return flags for the `authority_principal` object passed into lookup.
     Permissions,
     /// Return flags for the resolved verb owner.
     VerbOwner,
@@ -252,7 +252,7 @@ impl From<WorldStateError> for Error {
 /// commit any changes to the world at the end of the transaction, or be capable of rolling back
 /// on failure.
 pub trait WorldState: Send {
-    // TODO: Combine worldstate owner & flags check into one call, to make perms check more efficient
+    // TODO: Combine worldstate owner & flags check into one call, to make authority checks more efficient.
 
     /// Get the set of all valid objects in the world.
     fn all_objects(&self) -> Result<ObjSet, WorldStateError>;
@@ -276,23 +276,23 @@ pub trait WorldState: Send {
     /// Set the flags of an object.
     fn set_flags_of(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         flags: BitEnum<ObjFlag>,
     ) -> Result<(), WorldStateError>;
 
     /// Get the location of the given object.
-    fn location_of(&self, perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
+    fn location_of(&self, authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
 
     /// Return the number of bytes used by the given object and all its attributes.
-    fn object_bytes(&self, perms: &Obj, obj: &Obj) -> Result<usize, WorldStateError>;
+    fn object_bytes(&self, authority_principal: &Obj, obj: &Obj) -> Result<usize, WorldStateError>;
 
     /// Create a new object with the specified object ID kind.
     /// If owner is #-1, the object's is set to itself.
     /// Note it is the caller's responsibility to execute :initialize).
     fn create_object(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         parent: &Obj,
         owner: &Obj,
         flags: BitEnum<ObjFlag>,
@@ -303,30 +303,39 @@ pub trait WorldState: Send {
     /// the chain, including removing property definitions inherited from the object.
     /// If the object is a location, the contents of that location are moved to #-1.
     /// (It is the caller's (bf_recycle) responsibility to execute :exitfunc for those objects).
-    fn recycle_object(&mut self, perms: &Obj, obj: &Obj) -> Result<(), WorldStateError>;
+    fn recycle_object(
+        &mut self,
+        authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<(), WorldStateError>;
 
     /// Return the highest used object # in the system.
-    fn max_object(&self, perms: &Obj) -> Result<Obj, WorldStateError>;
+    fn max_object(&self, authority_principal: &Obj) -> Result<Obj, WorldStateError>;
 
     /// Move an object to a new location.
     /// (Note it is the caller's responsibility to execute :accept, :enterfunc, :exitfunc, etc.)
-    fn move_object(&mut self, perms: &Obj, obj: &Obj, new_loc: &Obj)
-    -> Result<(), WorldStateError>;
+    fn move_object(
+        &mut self,
+        authority_principal: &Obj,
+        obj: &Obj,
+        new_loc: &Obj,
+    ) -> Result<(), WorldStateError>;
 
     /// Get the contents of a given object.
-    fn contents_of(&self, perms: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError>;
+    fn contents_of(&self, authority_principal: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError>;
 
     /// Get the names of all the verbs on the given object.
-    fn verbs(&self, perms: &Obj, obj: &Obj) -> Result<VerbDefs, WorldStateError>;
+    fn verbs(&self, authority_principal: &Obj, obj: &Obj) -> Result<VerbDefs, WorldStateError>;
 
     /// Gets a list of the names of the properties defined directly on the given object, not
     /// inherited from its parent.
-    fn properties(&self, perms: &Obj, obj: &Obj) -> Result<PropDefs, WorldStateError>;
+    fn properties(&self, authority_principal: &Obj, obj: &Obj)
+    -> Result<PropDefs, WorldStateError>;
 
     /// Retrieve a property from the given object, walking transitively up its inheritance chain.
     fn retrieve_property(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<Var, WorldStateError>;
@@ -335,7 +344,7 @@ pub trait WorldState: Send {
     /// Returns the PropDef as well as the owner of the property.
     fn get_property_info(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(PropDef, PropPerms), WorldStateError>;
@@ -343,7 +352,7 @@ pub trait WorldState: Send {
     /// Change the property info for the given property.
     fn set_property_info(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
         attrs: PropAttrs,
@@ -352,7 +361,7 @@ pub trait WorldState: Send {
     /// Update a property on the given object.
     fn update_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
         value: &Var,
@@ -361,7 +370,7 @@ pub trait WorldState: Send {
     /// Check if a property is 'clear' (value is purely inherited)
     fn is_property_clear(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<bool, WorldStateError>;
@@ -370,7 +379,7 @@ pub trait WorldState: Send {
     /// ensure that it is purely inherited.
     fn clear_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(), WorldStateError>;
@@ -380,7 +389,7 @@ pub trait WorldState: Send {
     #[allow(clippy::too_many_arguments)]
     fn define_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         definer: &Obj,
         location: &Obj,
         pname: Symbol,
@@ -391,7 +400,7 @@ pub trait WorldState: Send {
 
     fn delete_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         pname: Symbol,
     ) -> Result<(), WorldStateError>;
@@ -401,7 +410,7 @@ pub trait WorldState: Send {
     #[allow(clippy::too_many_arguments)]
     fn add_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         names: Vec<Symbol>,
         owner: &Obj,
@@ -411,12 +420,17 @@ pub trait WorldState: Send {
     ) -> Result<(), WorldStateError>;
 
     /// Remove a verb from the given object.
-    fn remove_verb(&mut self, perms: &Obj, obj: &Obj, verb: Var) -> Result<(), WorldStateError>;
+    fn remove_verb(
+        &mut self,
+        authority_principal: &Obj,
+        obj: &Obj,
+        verb: Var,
+    ) -> Result<(), WorldStateError>;
 
     /// Update data about a verb on the given object.
     fn update_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         vname: Symbol,
         verb_attrs: VerbAttrs,
@@ -425,7 +439,7 @@ pub trait WorldState: Send {
     /// Update data about a verb on the given object at a numbered offset.
     fn update_verb_at_index(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         vidx: usize,
         verb_attrs: VerbAttrs,
@@ -433,19 +447,24 @@ pub trait WorldState: Send {
 
     fn update_verb_with_id(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         uuid: Uuid,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError>;
 
     /// Get the verbdef with the given name on the given object. Without doing inheritance resolution.
-    fn get_verb(&self, perms: &Obj, obj: &Obj, vname: Symbol) -> Result<VerbDef, WorldStateError>;
+    fn get_verb(
+        &self,
+        authority_principal: &Obj,
+        obj: &Obj,
+        vname: Symbol,
+    ) -> Result<VerbDef, WorldStateError>;
 
     /// Get the verbdef at numbered offset on the given object.
     fn get_verb_at_index(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         vidx: usize,
     ) -> Result<VerbDef, WorldStateError>;
@@ -453,7 +472,7 @@ pub trait WorldState: Send {
     /// Get the verb binary for the given verbdef.
     fn retrieve_verb(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError>;
@@ -463,7 +482,7 @@ pub trait WorldState: Send {
     /// Returns `Ok(None)` when the verb is not found or the receiver object is invalid.
     fn lookup_verb(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         lookup: VerbLookup<'_>,
     ) -> Result<Option<VerbDef>, WorldStateError>;
 
@@ -474,7 +493,7 @@ pub trait WorldState: Send {
     /// updated hint/pic outcome.
     fn dispatch_verb(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError>;
 
@@ -492,27 +511,31 @@ pub trait WorldState: Send {
     fn mark_builtin_proxy_absent(&mut self, _builtin: BuiltinId) {}
 
     /// Get the object that is the parent of the given object.
-    fn parent_of(&self, perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
+    fn parent_of(&self, authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
 
     /// Change the parent of the given object.
     /// This manages the movement of property definitions between the old and new parents.
     fn change_parent(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         new_parent: &Obj,
     ) -> Result<(), WorldStateError>;
 
     /// Get the children of the given object.
-    fn children_of(&self, perms: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError>;
+    fn children_of(&self, authority_principal: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError>;
 
     /// Get all objects owned by the given object.
-    fn owned_objects(&self, perms: &Obj, owner: &Obj) -> Result<ObjSet, WorldStateError>;
+    fn owned_objects(
+        &self,
+        authority_principal: &Obj,
+        owner: &Obj,
+    ) -> Result<ObjSet, WorldStateError>;
 
     /// Get the full descendant tree of the given object.
     fn descendants_of(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError>;
@@ -520,7 +543,7 @@ pub trait WorldState: Send {
     /// Get the list of ancestors of the given object (parent + parent-parents)
     fn ancestors_of(
         &self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError>;
@@ -533,10 +556,14 @@ pub trait WorldState: Send {
     fn valid(&self, obj: &Obj) -> Result<bool, WorldStateError>;
 
     /// Get just the name of a given object.
-    fn name_of(&self, perms: &Obj, obj: &Obj) -> Result<String, WorldStateError>;
+    fn name_of(&self, authority_principal: &Obj, obj: &Obj) -> Result<String, WorldStateError>;
 
     /// Get the name & aliases of an object.
-    fn names_of(&self, perms: &Obj, obj: &Obj) -> Result<(String, Vec<String>), WorldStateError>;
+    fn names_of(
+        &self,
+        authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<(String, Vec<String>), WorldStateError>;
 
     /// Returns the (rough) total number of bytes used by database storage subsystem.
     fn db_usage(&self) -> Result<usize, WorldStateError>;
@@ -561,7 +588,7 @@ pub trait WorldState: Send {
     /// Returns the new object ID.
     fn renumber_object(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         target: Option<ObjectKind>,
     ) -> Result<Obj, WorldStateError>;
