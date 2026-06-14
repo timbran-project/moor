@@ -721,8 +721,7 @@ impl Scheduler {
             );
         };
 
-        let is_wizard = sender_permissions.is_wizard();
-        if !is_wizard && sender_permissions.principal != owner {
+        if !sender_permissions.controls(&owner) {
             return v_error(E_PERM.with_msg(|| {
                 format!("Permission denied for task_send to task ({target_task_id})")
             }));

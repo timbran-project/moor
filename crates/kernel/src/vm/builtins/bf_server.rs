@@ -123,7 +123,7 @@ fn bf_set_task_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // If the caller is not a wizard, perms_for must be the caller
     let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if !perms.is_wizard() && perms_for != perms.principal {
+    if !perms.controls(&perms_for) {
         return Err(ErrValue(E_PERM.msg(
             "set_task_perms() requires the caller to be a wizard or the caller itself",
         )));
@@ -303,7 +303,7 @@ fn bf_boot_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if task_perms.principal != player && !task_perms.is_wizard() {
+    if !task_perms.controls(&player) {
         return Err(ErrValue(E_PERM.msg(
             "boot_player() requires the caller to be a wizard or the caller itself",
         )));

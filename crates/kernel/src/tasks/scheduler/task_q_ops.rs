@@ -449,7 +449,7 @@ impl TaskQ {
             true
         } else if self.active.contains_key(&victim_task_id) {
             let tc = self.active.get(&victim_task_id).unwrap();
-            if !sender_permissions.is_wizard() && sender_permissions.principal != tc.player {
+            if !sender_permissions.controls(&tc.player) {
                 return v_err(E_PERM);
             }
             false
