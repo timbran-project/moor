@@ -120,7 +120,7 @@ pub struct TaskDescription {
     pub task_id: TaskId,
     pub start_time: Option<SystemTime>,
     /// Authority principal for the task. MOO-facing task builtins expose this as the programmer.
-    pub permissions: Obj,
+    pub authority_principal: Obj,
     pub verb_name: Symbol,
     pub verb_definer: Obj,
     pub line_number: usize,

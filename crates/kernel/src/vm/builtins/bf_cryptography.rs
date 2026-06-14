@@ -37,7 +37,7 @@ use std::{io::Read, sync::LazyLock};
 use tracing::{error, warn};
 
 use crate::vm::builtins::{
-    BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, unix_crypt_compat, world_state_bf_err,
+    BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, unix_crypt_compat,
 };
 use moor_compiler::{offset_for_builtin, to_literal};
 use moor_var::{
@@ -60,11 +60,7 @@ fn bf_age_generate_keypair(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
     }
 
     // Check for programmer permissions
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_programmer()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_programmer()?;
 
     // Get the optional as_bytes argument (defaults to false)
     let as_bytes = if bf_args.args.is_empty() {
@@ -112,11 +108,7 @@ fn bf_age_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Check for programmer permissions
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_programmer()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_programmer()?;
 
     // Get the message to encrypt
     let message = match bf_args.args[0].variant() {
@@ -230,11 +222,7 @@ fn bf_age_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Check for programmer permissions
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_programmer()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_programmer()?;
 
     // Get the encrypted message - accept both bytes and base64 string for compatibility
     let encrypted = match bf_args.args[0].variant() {
@@ -379,11 +367,7 @@ fn bf_age_passphrase_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     }
 
     // Check for programmer permissions
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_programmer()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_programmer()?;
 
     // Get the message to encrypt
     let Some(message) = bf_args.args[0].as_string() else {
@@ -441,11 +425,7 @@ fn bf_age_passphrase_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     }
 
     // Check for programmer permissions
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_programmer()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_programmer()?;
 
     // Get the encrypted message - accept both bytes and base64 string
     // When Binary, we can use the bytes directly without copying
@@ -515,11 +495,7 @@ fn bf_age_passphrase_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
 /// Wizard-only.
 fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Must be wizard.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.len() > 5 || bf_args.args.len() < 2 {
         return Err(BfErr::Code(E_ARGS));
@@ -583,11 +559,7 @@ fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Verifies a password against an Argon2 hash. Wizard-only.
 fn bf_argon2_verify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Must be wizard.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.len() != 2 {
         return Err(BfErr::Code(E_ARGS));
@@ -1010,11 +982,7 @@ fn bf_paseto_make_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         parse_symmetric_key(&bf_args.args[1])?
     } else {
         // Server key mode - requires wizard
-        bf_args
-            .task_authority()
-            .map_err(world_state_bf_err)?
-            .require_wizard()
-            .map_err(world_state_bf_err)?;
+        bf_args.require_wizard()?;
 
         let Some(key) = crate::get_server_symmetric_key() else {
             return Err(BfErr::ErrValue(
@@ -1080,11 +1048,7 @@ fn bf_paseto_verify_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
         parse_symmetric_key(&bf_args.args[1])?
     } else {
         // Server key mode - requires wizard
-        bf_args
-            .task_authority()
-            .map_err(world_state_bf_err)?
-            .require_wizard()
-            .map_err(world_state_bf_err)?;
+        bf_args.require_wizard()?;
 
         let Some(key) = crate::get_server_symmetric_key() else {
             return Err(BfErr::ErrValue(

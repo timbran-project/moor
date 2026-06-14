@@ -29,6 +29,79 @@ pub(super) enum TaskSubmission {
 
 impl TaskQ {
     #[inline]
+    fn authority_may_kill_task(
+        &self,
+        task_id: TaskId,
+        sender_authority: Authority,
+    ) -> Result<bool, ErrorCode> {
+        if self.suspended.tasks.contains_key(&task_id) {
+            if sender_authority.is_wizard()
+                || self.suspended.authority_principal_controls_task(
+                    task_id,
+                    sender_authority.principal(),
+                    true,
+                )
+            {
+                return Ok(true);
+            }
+            return Err(E_PERM);
+        }
+
+        let Some(tc) = self.active.get(&task_id) else {
+            return Err(E_INVARG);
+        };
+
+        if sender_authority.controls(&tc.player) {
+            return Ok(false);
+        }
+
+        Err(E_PERM)
+    }
+
+    #[inline]
+    fn require_resume_authority(
+        &self,
+        task_id: TaskId,
+        sender_authority: Authority,
+    ) -> Result<(), ErrorCode> {
+        if self.suspended.authority_principal_controls_task(
+            task_id,
+            sender_authority.principal(),
+            false,
+        ) {
+            return Ok(());
+        }
+
+        if !sender_authority.is_wizard() {
+            return Err(E_PERM);
+        }
+
+        if !self.suspended.tasks.contains_key(&task_id) {
+            error!(task = task_id, "Task not found for resume request");
+            return Err(E_INVARG);
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub(super) fn require_task_send_authority(
+        &self,
+        target_task_id: TaskId,
+        sender_authority: Authority,
+    ) -> Result<(), ErrorCode> {
+        let Some(owner) = self.task_owner(target_task_id) else {
+            return Err(E_INVARG);
+        };
+
+        if sender_authority.controls(&owner) {
+            return Ok(());
+        }
+
+        Err(E_PERM)
+    }
+
+    #[inline]
     pub(super) fn record_latency(
         timers: &LabeledSampledTimer<SchedulerOp>,
         op: SchedulerOp,
@@ -429,34 +502,13 @@ impl TaskQ {
         });
     }
 
-    pub(super) fn kill_task(
-        &mut self,
-        victim_task_id: TaskId,
-        sender_permissions: Authority,
-    ) -> Var {
+    pub(super) fn kill_task(&mut self, victim_task_id: TaskId, sender_authority: Authority) -> Var {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
-        let is_suspended = if self.suspended.tasks.contains_key(&victim_task_id) {
-            let is_wizard = sender_permissions.is_wizard();
-            if !is_wizard
-                && !self.suspended.perms_check(
-                    victim_task_id,
-                    sender_permissions.principal(),
-                    false,
-                )
-            {
-                return v_err(E_PERM);
-            }
-            true
-        } else if self.active.contains_key(&victim_task_id) {
-            let tc = self.active.get(&victim_task_id).unwrap();
-            if !sender_permissions.controls(&tc.player) {
-                return v_err(E_PERM);
-            }
-            false
-        } else {
-            return v_err(E_INVARG);
+        let is_suspended = match self.authority_may_kill_task(victim_task_id, sender_authority) {
+            Ok(is_suspended) => is_suspended,
+            Err(error) => return v_err(error),
         };
 
         if is_suspended {
@@ -489,7 +541,7 @@ impl TaskQ {
         &mut self,
         requesting_task_id: TaskId,
         queued_task_id: TaskId,
-        sender_permissions: Authority,
+        sender_authority: Authority,
         return_value: Var,
         scheduler: &Scheduler,
         database: &dyn Database,
@@ -504,17 +556,8 @@ impl TaskQ {
             return v_err(E_INVARG);
         }
 
-        if !self
-            .suspended
-            .perms_check(queued_task_id, sender_permissions.principal(), true)
-        {
-            if !sender_permissions.is_wizard() {
-                return v_err(E_PERM);
-            }
-            if !self.suspended.tasks.contains_key(&queued_task_id) {
-                error!(task = queued_task_id, "Task not found for resume request");
-                return v_err(E_INVARG);
-            }
+        if let Err(error) = self.require_resume_authority(queued_task_id, sender_authority) {
+            return v_err(error);
         }
 
         let sr = self.suspended.remove_task(queued_task_id).unwrap();
@@ -561,5 +604,190 @@ impl TaskQ {
             tc.kill_switch.store(true, Ordering::SeqCst);
         }
         self.suspended.prune_foreground_tasks(player);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tasks::{
+        DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions,
+    };
+    use moor_common::{model::ObjFlag, tasks::NoopClientSession, util::BitEnum};
+    use uuid::Uuid;
+
+    fn test_server_options() -> ServerOptions {
+        ServerOptions {
+            bg_seconds: 0.0,
+            bg_ticks: 0,
+            fg_seconds: 0.0,
+            fg_ticks: 0,
+            max_stack_depth: 0,
+            dump_interval: None,
+            gc_interval: None,
+            max_task_retries: DEFAULT_MAX_TASK_RETRIES,
+            max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+        }
+    }
+
+    fn authority(principal: i32, flags: BitEnum<ObjFlag>) -> Authority {
+        Authority::new(Obj::mk_id(principal), flags)
+    }
+
+    fn task_q() -> TaskQ {
+        TaskQ::new(SuspensionQ::new(Box::new(NoopTasksDb {})))
+    }
+
+    fn session() -> Arc<dyn Session> {
+        Arc::new(NoopClientSession::new())
+    }
+
+    fn task(task_id: TaskId, player: Obj, perms: Obj) -> Box<Task> {
+        Task::new(
+            task_id,
+            player,
+            perms,
+            TaskStart::StartEval {
+                player,
+                program: Default::default(),
+                initial_env: None,
+            },
+            &test_server_options(),
+            Arc::new(AtomicBool::new(false)),
+        )
+    }
+
+    fn add_suspended_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj, perms: Obj) {
+        task_q.suspended.add_task(
+            WakeCondition::Never,
+            task(task_id, player, perms),
+            session(),
+            None,
+        );
+    }
+
+    fn add_input_suspended_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj, perms: Obj) {
+        task_q.suspended.add_task(
+            WakeCondition::Input(Uuid::new_v4()),
+            task(task_id, player, perms),
+            session(),
+            None,
+        );
+    }
+
+    fn add_active_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj) {
+        task_q.active.insert(
+            task_id,
+            RunningTask {
+                player,
+                task_start: TaskStart::StartEval {
+                    player,
+                    program: Default::default(),
+                    initial_env: None,
+                },
+                kill_switch: Arc::new(AtomicBool::new(false)),
+                session: session(),
+                result_sender: None,
+            },
+        );
+    }
+
+    #[test]
+    fn kill_authority_matches_suspended_task_permissions_or_wizard() {
+        let mut task_q = task_q();
+        let player = Obj::mk_id(2);
+        let perms = Obj::mk_id(3);
+        add_suspended_task(&mut task_q, 10, player, perms);
+
+        assert_eq!(
+            task_q.authority_may_kill_task(10, authority(3, BitEnum::new())),
+            Ok(true)
+        );
+        assert_eq!(
+            task_q.authority_may_kill_task(10, authority(4, BitEnum::new())),
+            Err(E_PERM)
+        );
+        assert_eq!(
+            task_q.authority_may_kill_task(10, authority(4, BitEnum::new_with(ObjFlag::Wizard))),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn kill_authority_controls_active_task_player() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+
+        assert_eq!(
+            task_q.authority_may_kill_task(10, authority(2, BitEnum::new())),
+            Ok(false)
+        );
+        assert_eq!(
+            task_q.authority_may_kill_task(10, authority(3, BitEnum::new())),
+            Err(E_PERM)
+        );
+        assert_eq!(
+            task_q.authority_may_kill_task(99, authority(1, BitEnum::new())),
+            Err(E_INVARG)
+        );
+    }
+
+    #[test]
+    fn resume_authority_filters_input_tasks_for_non_wizards() {
+        let mut task_q = task_q();
+        let player = Obj::mk_id(2);
+        let perms = Obj::mk_id(3);
+        add_input_suspended_task(&mut task_q, 10, player, perms);
+
+        assert_eq!(
+            task_q.require_resume_authority(10, authority(2, BitEnum::new())),
+            Err(E_PERM)
+        );
+        assert_eq!(
+            task_q.require_resume_authority(10, authority(3, BitEnum::new())),
+            Err(E_PERM)
+        );
+        assert_eq!(
+            task_q.require_resume_authority(10, authority(1, BitEnum::new_with(ObjFlag::Wizard))),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn resume_authority_reports_missing_task_for_wizard() {
+        let task_q = task_q();
+
+        assert_eq!(
+            task_q.require_resume_authority(10, authority(1, BitEnum::new())),
+            Err(E_PERM)
+        );
+        assert_eq!(
+            task_q.require_resume_authority(10, authority(1, BitEnum::new_with(ObjFlag::Wizard))),
+            Err(E_INVARG)
+        );
+    }
+
+    #[test]
+    fn task_send_authority_controls_target_task_owner() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+
+        assert_eq!(
+            task_q.require_task_send_authority(10, authority(2, BitEnum::new())),
+            Ok(())
+        );
+        assert_eq!(
+            task_q.require_task_send_authority(10, authority(3, BitEnum::new())),
+            Err(E_PERM)
+        );
+        assert_eq!(
+            task_q
+                .require_task_send_authority(10, authority(3, BitEnum::new_with(ObjFlag::Wizard))),
+            Ok(())
+        );
+        assert_eq!(
+            task_q.require_task_send_authority(99, authority(2, BitEnum::new())),
+            Err(E_INVARG)
+        );
     }
 }

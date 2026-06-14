@@ -50,18 +50,21 @@ pub use exec_state::{Caller, ExecState, ProgramCacheLocalSnapshot};
 pub type PhantomUnsync = PhantomData<Cell<()>>;
 
 /// Services the VM needs from its host environment.
+///
+/// Permission-sensitive methods receive the current VM authority principal. This is the object the
+/// running activation acts as, not the stack-sensitive `caller_perms()` value.
 /// Monomorphized at the call site for zero-cost dispatch.
 pub trait VmHost {
     fn retrieve_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         prop: Symbol,
     ) -> Result<Var, WorldStateError>;
 
     fn update_property(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         prop: Symbol,
         value: &Var,
@@ -73,16 +76,16 @@ pub trait VmHost {
 
     fn dispatch_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError>;
 
-    fn parent_of(&mut self, perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
+    fn parent_of(&mut self, authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
 
     /// Resolve a verb's program by UUID. Used by the program cache.
     fn retrieve_verb(
         &mut self,
-        perms: &Obj,
+        authority_principal: &Obj,
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError>;

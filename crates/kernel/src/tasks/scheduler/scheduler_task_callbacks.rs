@@ -536,24 +536,24 @@ impl Scheduler {
         &self,
         _task_id: TaskId,
         victim_task_id: TaskId,
-        sender_permissions: Authority,
+        sender_authority: Authority,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
-        lc.task_q.kill_task(victim_task_id, sender_permissions)
+        lc.task_q.kill_task(victim_task_id, sender_authority)
     }
 
     pub fn handle_resume_task(
         &self,
         task_id: TaskId,
         queued_task_id: TaskId,
-        sender_permissions: Authority,
+        sender_authority: Authority,
         return_value: Var,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
         lc.task_q.resume_task(
             task_id,
             queued_task_id,
-            sender_permissions,
+            sender_authority,
             return_value,
             self,
             self.database.as_ref(),
@@ -711,20 +711,24 @@ impl Scheduler {
         task_id: TaskId,
         target_task_id: TaskId,
         value: Var,
-        sender_permissions: Authority,
+        sender_authority: Authority,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
 
-        let Some(owner) = lc.task_q.task_owner(target_task_id) else {
-            return v_error(
-                E_INVARG.with_msg(|| format!("Task ({target_task_id}) not found for task_send")),
-            );
-        };
-
-        if !sender_permissions.controls(&owner) {
-            return v_error(E_PERM.with_msg(|| {
-                format!("Permission denied for task_send to task ({target_task_id})")
-            }));
+        if let Err(error) = lc
+            .task_q
+            .require_task_send_authority(target_task_id, sender_authority)
+        {
+            return match error {
+                E_INVARG => v_error(
+                    E_INVARG
+                        .with_msg(|| format!("Task ({target_task_id}) not found for task_send")),
+                ),
+                E_PERM => v_error(E_PERM.with_msg(|| {
+                    format!("Permission denied for task_send to task ({target_task_id})")
+                })),
+                _ => v_err(error),
+            };
         }
 
         // Check mailbox size limit (committed queue + pending sends

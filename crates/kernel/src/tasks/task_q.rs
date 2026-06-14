@@ -960,7 +960,7 @@ impl SuspensionQ {
             tasks.push(TaskDescription {
                 task_id: sr.task.task_id,
                 start_time,
-                permissions: sr.task.perms,
+                authority_principal: sr.task.perms,
                 verb_name,
                 verb_definer,
                 line_number,
@@ -970,28 +970,35 @@ impl SuspensionQ {
         tasks
     }
 
-    /// Check if the given sender has permission to operate on the suspended task.
-    /// Uses LambdaMOO's dual permission model:
-    /// - I/O tasks (waiting for input): sender must match task.player
-    /// - Computational tasks: sender must match task.perms
-    ///   If `filter_input` is true, filter out Input-waiting tasks.
-    pub(crate) fn perms_check(&self, task_id: TaskId, sender: Obj, filter_input: bool) -> bool {
+    /// Check whether an authority principal controls a suspended task.
+    ///
+    /// LambdaMOO's suspended-task rule is dual:
+    /// - Input-waiting tasks are controlled by `task.player`.
+    /// - Computational tasks are controlled by `task.perms`.
+    ///
+    /// Resume filters input-waiting tasks, while kill permits them, so callers must choose whether
+    /// input waits participate in the check.
+    pub(crate) fn authority_principal_controls_task(
+        &self,
+        task_id: TaskId,
+        authority_principal: Obj,
+        include_input_waiting: bool,
+    ) -> bool {
         let Some(sr) = self.tasks.get(&task_id) else {
             return false;
         };
 
-        if filter_input && matches!(sr.wake_condition, WakeCondition::Input(_)) {
+        if !include_input_waiting && matches!(sr.wake_condition, WakeCondition::Input(_)) {
             return false;
         }
 
-        // LambdaMOO dual model: I/O tasks use player, computational tasks use perms
-        let required_perm = if matches!(sr.wake_condition, WakeCondition::Input(_)) {
-            sr.task.player // Session owner for I/O
+        let controlling_principal = if matches!(sr.wake_condition, WakeCondition::Input(_)) {
+            sr.task.player
         } else {
-            sr.task.perms // Programmer for computational
+            sr.task.perms
         };
 
-        sender == required_perm
+        authority_principal == controlling_principal
     }
 
     /// Remove all non-background tasks for the given player.

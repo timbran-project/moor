@@ -613,8 +613,8 @@ impl ExecState {
 
         // Defer program materialization/slot resolution to VmHost so it can source programs
         // from the task-owned cache.
-        ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-            permissions: self.top().authority_principal(),
+        ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
+            self.top().authority_principal(),
             permissions_flags,
             resolved_verb,
             verb_name,
@@ -622,9 +622,9 @@ impl ExecState {
             player,
             args,
             caller,
-            argstr: v_empty_str(),
+            v_empty_str(),
             program_key,
-        }))
+        )))
     }
 
     pub fn exec_eval_request(
@@ -692,20 +692,20 @@ impl ExecState {
 
         let player = self.top().player;
         let args_list = args.clone();
-        let permissions = self.top().authority_principal();
+        let lookup_principal = self.top().authority_principal();
         Ok(Some(ExecutionResult::DispatchVerb(Box::new(
-            VerbExecutionRequest {
-                permissions,
+            VerbExecutionRequest::new(
+                lookup_principal,
                 permissions_flags,
                 resolved_verb,
-                verb_name: bf_override_name,
-                this: v_obj(SYSTEM_OBJECT),
+                bf_override_name,
+                v_obj(SYSTEM_OBJECT),
                 player,
-                args: args_list,
+                args_list,
                 caller,
-                argstr: v_empty_str(),
+                v_empty_str(),
                 program_key,
-            },
+            ),
         ))))
     }
 }

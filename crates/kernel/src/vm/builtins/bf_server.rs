@@ -152,11 +152,7 @@ fn bf_shutdown(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         Some(msg.to_string())
     };
 
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     current_task_scheduler_client().shutdown(msg);
 
@@ -302,12 +298,10 @@ fn bf_boot_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if !authority.controls(&player) {
-        return Err(ErrValue(E_PERM.msg(
-            "boot_player() requires the caller to be a wizard or the caller itself",
-        )));
-    }
+    bf_args.require_controls_msg(
+        &player,
+        "boot_player() requires the caller to be a wizard or the caller itself",
+    )?;
 
     current_task_scheduler_client().boot_player(player);
 
@@ -379,15 +373,7 @@ fn bf_server_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         false
     };
 
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(
-            E_PERM.msg("server_log() requires the caller to be a wizard"),
-        ));
-    }
+    bf_args.require_wizard_msg("server_log() requires the caller to be a wizard")?;
 
     if is_error {
         error!(
@@ -416,15 +402,7 @@ fn bf_log_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(
-            E_PERM.msg("Only wizards may call log_cache_stats()"),
-        ));
-    }
+    bf_args.require_wizard_msg("Only wizards may call log_cache_stats()")?;
 
     let log_moor_cache = |name: &str, stats: &moor_db::CacheStats| {
         let hits = stats.hit_count();
@@ -565,11 +543,7 @@ pub const BF_SERVER_EVAL_TRAMPOLINE_RESUME: usize = 1;
 /// When verbosity=3, error result is a map with diagnostic data instead of formatted strings.
 /// Use `format_compile_error()` to format the structured map into human-readable text.
 fn bf_eval(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_programmer()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_programmer()?;
     if bf_args.args.is_empty() || bf_args.args.len() > 4 {
         return Err(ErrValue(E_ARGS.msg("bf_eval() requires 1-4 arguments")));
     }
@@ -674,11 +648,7 @@ fn bf_eval(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Usage: `bool dump_database([int blocking])`
 /// Triggers a database checkpoint. If blocking is true, waits for completion. Wizard-only.
 fn bf_dump_database(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     if bf_args.args.len() > 1 {
         return Err(ErrValue(
@@ -712,11 +682,7 @@ fn bf_gc_collect(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Must be wizard.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     // Send ForceGC message to scheduler
     current_task_scheduler_client().force_gc();
@@ -734,11 +700,7 @@ fn bf_memory_usage(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Must be wizard.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     // Get system page size
     let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
@@ -791,11 +753,7 @@ fn db_disk_size(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Must be wizard.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     let disk_size = with_current_transaction(|world_state| world_state.db_usage())
         .map_err(world_state_bf_err)?;
@@ -812,11 +770,7 @@ fn load_server_options(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     current_task_scheduler_client().refresh_server_options();
 
@@ -869,11 +823,7 @@ fn bf_counter_entries() -> Vec<MetricEntry> {
 /// Usage: `map bf_counters()`
 /// Returns performance counters for builtin functions as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     let _counters = bf_perf_counters();
     Ok(Ret(counter_map_from_entries(
@@ -885,11 +835,7 @@ fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Usage: `map db_counters()`
 /// Returns performance counters for database operations as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     Ok(Ret(counter_map_from_entries(
         &db_counter_entries(),
@@ -900,11 +846,7 @@ fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Usage: `map sched_counters()`
 /// Returns performance counters for scheduler operations as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_sched_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     let _counters = sched_counters();
     Ok(Ret(counter_map_from_entries(
@@ -922,11 +864,7 @@ fn bf_rotate_enrollment_token(bf_args: &mut BfCallState<'_>) -> Result<BfRet, Bf
         ));
     }
 
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_wizard()
-        .map_err(world_state_bf_err)?;
+    bf_args.require_wizard()?;
 
     match current_task_scheduler_client().rotate_enrollment_token() {
         Ok(token) => Ok(Ret(v_str(&token))),
@@ -979,11 +917,7 @@ fn bf_player_event_log_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     };
 
     // Ensure caller has permission to manage the target player's history.
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_controls(&player)
-        .map_err(world_state_bf_err)?;
+    bf_args.require_controls(&player)?;
 
     let since = if bf_args.args.len() >= 2 {
         parse_optional_timestamp(&bf_args.args[1], "since")?
@@ -1045,11 +979,7 @@ fn bf_purge_player_event_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
         )));
     };
 
-    bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .require_controls(&player)
-        .map_err(world_state_bf_err)?;
+    bf_args.require_controls(&player)?;
 
     let before = if bf_args.args.len() >= 2 {
         parse_optional_timestamp(&bf_args.args[1], "before")?
@@ -1115,15 +1045,7 @@ fn bf_verb_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_ARGS.msg("verb_cache_stats() does not take any arguments"),
         ));
     }
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(
-            E_PERM.msg("Only wizards may call verb_cache_stats()"),
-        ));
-    }
+    bf_args.require_wizard_msg("Only wizards may call verb_cache_stats()")?;
 
     Ok(Ret(make_cache_stats_list(&VERB_CACHE_STATS)))
 }
@@ -1138,15 +1060,7 @@ fn bf_property_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
             E_ARGS.msg("property_cache_stats() does not take any arguments"),
         ));
     }
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(
-            E_PERM.msg("Only wizards may call property_cache_stats()"),
-        ));
-    }
+    bf_args.require_wizard_msg("Only wizards may call property_cache_stats()")?;
 
     Ok(Ret(make_cache_stats_list(&PROP_CACHE_STATS)))
 }
@@ -1161,15 +1075,7 @@ fn bf_ancestry_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
             E_ARGS.msg("ancestry_cache_stats() does not take any arguments"),
         ));
     }
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(
-            E_PERM.msg("Only wizards may call ancestry_cache_stats()"),
-        ));
-    }
+    bf_args.require_wizard_msg("Only wizards may call ancestry_cache_stats()")?;
 
     Ok(Ret(make_cache_stats_list(&ANCESTRY_CACHE_STATS)))
 }
@@ -1186,15 +1092,7 @@ fn bf_program_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
             E_ARGS.msg("program_cache_stats() does not take any arguments"),
         ));
     }
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(
-            E_PERM.msg("Only wizards may call program_cache_stats()"),
-        ));
-    }
+    bf_args.require_wizard_msg("Only wizards may call program_cache_stats()")?;
 
     let global = program_cache_global_stats();
     let task = bf_args.exec_state.program_cache_stats;
@@ -1242,13 +1140,7 @@ fn bf_flush_caches(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_ARGS.msg("flush_caches() does not take any arguments"),
         ));
     }
-    if !bf_args
-        .task_authority()
-        .map_err(world_state_bf_err)?
-        .is_wizard()
-    {
-        return Err(ErrValue(E_PERM.msg("Only wizards may call flush_caches()")));
-    }
+    bf_args.require_wizard_msg("Only wizards may call flush_caches()")?;
 
     with_current_transaction_mut(|tx| tx.flush_caches());
     Ok(RetNil)
