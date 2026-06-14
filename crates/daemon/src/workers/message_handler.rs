@@ -213,7 +213,7 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
             WorkerRequest::Request {
                 request_id,
                 request_type,
-                perms,
+                authority_principal,
                 request,
                 timeout,
             } => {
@@ -248,8 +248,13 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
 
                 let timeout_ms = timeout.map(|d| d.as_millis() as u64).unwrap_or(0);
 
-                let fb_message =
-                    mk_worker_request_msg(worker.id, request_id, &perms, request_vars, timeout_ms);
+                let fb_message = mk_worker_request_msg(
+                    worker.id,
+                    request_id,
+                    &authority_principal,
+                    request_vars,
+                    timeout_ms,
+                );
 
                 let mut builder = Builder::new();
                 let event_bytes = builder.finish(&fb_message, None);
@@ -268,7 +273,9 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
                 );
 
                 // Then shove it into the queue for the given worker
-                worker.requests.push((request_id, perms, request));
+                worker
+                    .requests
+                    .push((request_id, authority_principal, request));
                 Ok(())
             }
         }
