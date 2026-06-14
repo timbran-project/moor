@@ -11,6 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Database-local authorization predicates.
+//!
+//! VM `Authority` records the object an activation runs as. `AuthContext` is the DB-side view of
+//! that authority after resolving the principal's current object flags, and it owns checks that
+//! depend on object, property, or verb metadata.
+
 use moor_common::{
     model::{ObjFlag, PropFlag, PropPerms, VerbFlag, WorldStateError},
     util::BitEnum,
@@ -18,12 +24,12 @@ use moor_common::{
 use moor_var::Obj;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub(crate) struct AuthPrincipal {
+pub(crate) struct DbAuthPrincipal {
     pub(crate) who: Obj,
     pub(crate) flags: BitEnum<ObjFlag>,
 }
 
-impl AuthPrincipal {
+impl DbAuthPrincipal {
     #[inline]
     pub(crate) fn new(who: Obj, flags: BitEnum<ObjFlag>) -> Self {
         Self { who, flags }
@@ -32,12 +38,12 @@ impl AuthPrincipal {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AuthContext {
-    principal: AuthPrincipal,
+    principal: DbAuthPrincipal,
 }
 
 impl AuthContext {
     #[inline]
-    pub(crate) fn new(principal: AuthPrincipal) -> Self {
+    pub(crate) fn new(principal: DbAuthPrincipal) -> Self {
         Self { principal }
     }
 

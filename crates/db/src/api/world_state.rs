@@ -22,7 +22,7 @@ use std::sync::LazyLock;
 use uuid::Uuid;
 
 use crate::{
-    api::auth::{AuthContext, AuthPrincipal},
+    api::auth::{AuthContext, DbAuthPrincipal},
     api::gc::{GCError, GCInterface},
     engine::moor_db::WorldStateTransaction,
 };
@@ -91,7 +91,7 @@ impl DbWorldState {
     }
     fn auth(&self, who: &Obj) -> Result<AuthContext, WorldStateError> {
         let flags = self.flags_of(who)?;
-        Ok(AuthContext::new(AuthPrincipal::new(*who, flags)))
+        Ok(AuthContext::new(DbAuthPrincipal::new(*who, flags)))
     }
 
     fn update_property_internal(
