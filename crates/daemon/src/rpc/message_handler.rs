@@ -2294,7 +2294,7 @@ impl RpcMessageHandler {
                 let property = Symbol::mk(req.property().rpc_err()?.value().rpc_err()?);
                 Ok(WorldStateAction::RequestProperty {
                     player: *player,
-                    perms: *player,
+                    authority_principal: *player,
                     obj,
                     property,
                 })
@@ -2304,7 +2304,7 @@ impl RpcMessageHandler {
                 let inherited = req.inherited().unwrap_or(false);
                 Ok(WorldStateAction::RequestProperties {
                     player: *player,
-                    perms: *player,
+                    authority_principal: *player,
                     obj,
                     inherited,
                 })
@@ -2323,7 +2323,7 @@ impl RpcMessageHandler {
                 let inherited = req.inherited().unwrap_or(false);
                 Ok(WorldStateAction::RequestVerbs {
                     player: *player,
-                    perms: *player,
+                    authority_principal: *player,
                     obj,
                     inherited,
                 })
@@ -2333,7 +2333,7 @@ impl RpcMessageHandler {
                 let verb = Symbol::mk(req.verb().rpc_err()?.value().rpc_err()?);
                 Ok(WorldStateAction::RequestVerbCode {
                     player: *player,
-                    perms: *player,
+                    authority_principal: *player,
                     obj,
                     verb,
                 })
@@ -2357,7 +2357,7 @@ impl RpcMessageHandler {
                 let value = var_from_ref(req.value().rpc_err()?).rpc_err()?;
                 Ok(WorldStateAction::UpdateProperty {
                     player: *player,
-                    perms: *player,
+                    authority_principal: *player,
                     obj,
                     property,
                     value,
@@ -2373,7 +2373,7 @@ impl RpcMessageHandler {
                     .collect();
                 Ok(WorldStateAction::ProgramVerb {
                     player: *player,
-                    perms: *player,
+                    authority_principal: *player,
                     obj,
                     verb_name,
                     code,
