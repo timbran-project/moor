@@ -22,14 +22,15 @@ use moor_var::Obj;
 pub struct Authority {
     /// The object whose authority the activation executes under.
     ///
-    /// This is the "task perms" object. It starts as the resolved verb owner and can be changed by
-    /// `set_task_perms()`.
-    pub principal: Obj,
+    /// This starts as the resolved verb owner. The MOO-visible `set_task_perms()` builtin changes
+    /// this principal for the current task.
+    principal: Obj,
     /// Cached flags for the principal, to avoid repeated DB lookups.
-    pub principal_flags: BitEnum<ObjFlag>,
+    principal_flags: BitEnum<ObjFlag>,
 }
 
 impl Authority {
+    /// Build an authority value from a principal and the principal's cached object flags.
     #[inline]
     #[must_use]
     pub fn new(principal: Obj, principal_flags: BitEnum<ObjFlag>) -> Self {
@@ -39,12 +40,28 @@ impl Authority {
         }
     }
 
+    /// Object whose authority the activation runs under.
+    #[inline]
+    #[must_use]
+    pub fn principal(&self) -> Obj {
+        self.principal
+    }
+
+    /// Cached object flags for the authority principal.
+    #[inline]
+    #[must_use]
+    pub fn principal_flags(&self) -> BitEnum<ObjFlag> {
+        self.principal_flags
+    }
+
+    /// Whether the authority principal has the wizard bit.
     #[inline]
     #[must_use]
     pub fn is_wizard(&self) -> bool {
         self.principal_flags.contains(ObjFlag::Wizard)
     }
 
+    /// Require wizard authority for operations that do not have an owner fallback.
     #[inline]
     pub fn require_wizard(&self) -> Result<(), WorldStateError> {
         if self.is_wizard() {
@@ -53,12 +70,14 @@ impl Authority {
         Err(WorldStateError::ObjectPermissionDenied)
     }
 
+    /// Whether the authority principal has the programmer bit.
     #[inline]
     #[must_use]
     pub fn is_programmer(&self) -> bool {
         self.principal_flags.contains(ObjFlag::Programmer)
     }
 
+    /// Require programmer authority for operations that compile or update executable code.
     #[inline]
     pub fn require_programmer(&self) -> Result<(), WorldStateError> {
         if self.is_programmer() {
@@ -67,17 +86,56 @@ impl Authority {
         Err(WorldStateError::ObjectPermissionDenied)
     }
 
+    /// Whether this authority controls an owner-only operation.
     #[inline]
     #[must_use]
     pub fn controls(&self, owner: &Obj) -> bool {
         self.is_wizard() || self.principal == *owner
     }
 
+    /// Require owner-or-wizard authority.
     #[inline]
     pub fn require_controls(&self, owner: &Obj) -> Result<(), WorldStateError> {
         if self.controls(owner) {
             return Ok(());
         }
         Err(WorldStateError::ObjectPermissionDenied)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn authority(principal: i32, flags: BitEnum<ObjFlag>) -> Authority {
+        Authority::new(Obj::mk_id(principal), flags)
+    }
+
+    #[test]
+    fn wizard_controls_any_owner() {
+        let auth = authority(1, BitEnum::new_with(ObjFlag::Wizard));
+
+        assert!(auth.is_wizard());
+        assert!(auth.controls(&Obj::mk_id(2)));
+        assert!(auth.require_controls(&Obj::mk_id(2)).is_ok());
+    }
+
+    #[test]
+    fn non_wizard_controls_only_self() {
+        let auth = authority(1, BitEnum::new());
+
+        assert!(auth.controls(&Obj::mk_id(1)));
+        assert!(!auth.controls(&Obj::mk_id(2)));
+        assert!(auth.require_controls(&Obj::mk_id(2)).is_err());
+    }
+
+    #[test]
+    fn programmer_does_not_imply_wizard() {
+        let auth = authority(1, BitEnum::new_with(ObjFlag::Programmer));
+
+        assert!(auth.is_programmer());
+        assert!(!auth.is_wizard());
+        assert!(auth.require_programmer().is_ok());
+        assert!(auth.require_wizard().is_err());
     }
 }

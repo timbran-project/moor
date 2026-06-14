@@ -629,8 +629,8 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // create_at is wizard-only
-    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
-    task_perms.require_wizard().map_err(world_state_bf_err)?;
+    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+    authority.require_wizard().map_err(world_state_bf_err)?;
 
     let tramp = bf_args
         .bf_frame_mut()
@@ -696,7 +696,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    // Check if the given task perms can control the object before continuing.
+    // Check whether the current task authority can control the object before continuing.
     if !with_current_transaction(|world_state| {
         world_state.controls(&bf_args.task_authority_principal(), &obj)
     })
@@ -906,7 +906,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // 'Trampoline' state machine:
     //    None => look up :accept, if it exists, set tramp to 1, and ask for it to be invoked.
-    //            if it doesn't & perms not wizard, set raise E_NACC (as if :accept returned false)
+    //            if it doesn't & caller not wizard, set raise E_NACC (as if :accept returned false)
     //            If the destination is #-1 (NOTHING), we can skip straight through to 1/.
     //    1    => if verb call was a success (look at stack), set tramp to 2, move the object,
     //            then prepare :exitfunc on the original object source
@@ -921,7 +921,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .unwrap_or(BF_MOVE_TRAMPOLINE_START_ACCEPT);
     trace!(what = ?what, where_to = ?whereto, tramp, "move: looking up :accept verb");
 
-    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
     let mut shortcircuit = None;
     loop {
         match tramp {
@@ -959,7 +959,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         }))));
                     }
                     Ok(None) => {
-                        if !perms.is_wizard() {
+                        if !authority.is_wizard() {
                             return Err(BfErr::Code(E_NACC));
                         }
                         // Short-circuit fake-tramp state change.
@@ -983,7 +983,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     Some(n) => v_int(n),
                 };
                 // If the result is false, and we're not a wizard, then raise E_NACC.
-                if !result.is_true() && !perms.is_wizard() {
+                if !result.is_true() && !authority.is_wizard() {
                     return Err(BfErr::Code(E_NACC));
                 }
 
@@ -1202,11 +1202,11 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     })
     .map_err(world_state_bf_err)?;
 
-    // If the object was player, update the VM's copy of the perms.
+    // If the object is the current authority principal, refresh the VM's cached flags.
     if obj.eq(&bf_args
         .task_authority()
         .map_err(world_state_bf_err)?
-        .principal)
+        .principal())
     {
         bf_args
             .exec_state
@@ -2073,7 +2073,7 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
             // Override caller_perms() to return #-1 (NOTHING) to mimic top-level command execution
             // behavior. This makes the dispatched verb behave as if it's at the root of the call
             // chain, matching how LambdaMOO handles commands.
-            bf_frame.caller_perms_override = Some(NOTHING);
+            bf_frame.set_caller_perms_override(Some(NOTHING));
 
             // Dispatch the command verb
             Ok(VmInstr(

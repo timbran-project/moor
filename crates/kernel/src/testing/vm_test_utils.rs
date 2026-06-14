@@ -526,14 +526,14 @@ pub fn run_activation_assembly_cycle_for_bench(state: &mut ActivationAssemblyBen
 
     frame.set_gvar(GlobalName::args, args.into());
 
-    let activation = moor_vm::Activation {
-        frame: moor_vm::Frame::Moo(frame),
+    let activation = moor_vm::Activation::from_parts(
+        moor_vm::Frame::Moo(frame),
         this,
-        player: state.player,
-        verb_name: state.verb_name,
+        state.player,
+        state.verb_name,
         verbdef,
-        authority: moor_vm::Authority::new(verbdef.owner(), state.permissions_flags),
-    };
+        moor_vm::Authority::new(verbdef.owner(), state.permissions_flags),
+    );
     let activation = std::hint::black_box(activation);
     let args = activation.args().clone();
 

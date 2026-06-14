@@ -440,9 +440,11 @@ impl TaskQ {
         let is_suspended = if self.suspended.tasks.contains_key(&victim_task_id) {
             let is_wizard = sender_permissions.is_wizard();
             if !is_wizard
-                && !self
-                    .suspended
-                    .perms_check(victim_task_id, sender_permissions.principal, false)
+                && !self.suspended.perms_check(
+                    victim_task_id,
+                    sender_permissions.principal(),
+                    false,
+                )
             {
                 return v_err(E_PERM);
             }
@@ -504,7 +506,7 @@ impl TaskQ {
 
         if !self
             .suspended
-            .perms_check(queued_task_id, sender_permissions.principal, true)
+            .perms_check(queued_task_id, sender_permissions.principal(), true)
         {
             if !sender_permissions.is_wizard() {
                 return v_err(E_PERM);

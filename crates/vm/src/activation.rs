@@ -111,7 +111,7 @@ pub struct Activation {
     /// Compact resolved metadata for the running verb.
     pub verbdef: ResolvedVerb,
     /// The current task authority for this activation.
-    pub authority: Authority,
+    authority: Authority,
 }
 
 // Boxing MooStackFrame would add pointer indirection on every opcode dispatch,
@@ -200,20 +200,86 @@ pub struct BuiltinFrame {
     /// by this builtin. When set, caller_perms() returns this value instead of filtering out
     /// this frame. Used by dispatch_command_verb to make dispatched verbs see the player as
     /// the caller rather than the wizard who invoked dispatch_command_verb.
-    pub caller_perms_override: Option<Obj>,
+    caller_perms_override: Option<Obj>,
 }
 
-impl Activation {
+impl BuiltinFrame {
     #[inline]
     #[must_use]
-    pub fn permissions(&self) -> Obj {
-        self.authority.principal
+    pub fn new(bf_id: BuiltinId, args: List) -> Self {
+        Self {
+            bf_id,
+            args,
+            bf_trampoline: None,
+            bf_trampoline_arg: None,
+            return_value: None,
+            caller_perms_override: None,
+        }
     }
 
     #[inline]
     #[must_use]
-    pub fn permissions_flags(&self) -> BitEnum<ObjFlag> {
-        self.authority.principal_flags
+    pub fn from_parts(
+        bf_id: BuiltinId,
+        args: List,
+        bf_trampoline: Option<usize>,
+        bf_trampoline_arg: Option<Var>,
+        return_value: Option<Var>,
+    ) -> Self {
+        Self {
+            bf_id,
+            args,
+            bf_trampoline,
+            bf_trampoline_arg,
+            return_value,
+            caller_perms_override: None,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn caller_perms_override(&self) -> Option<Obj> {
+        self.caller_perms_override
+    }
+
+    #[inline]
+    pub fn set_caller_perms_override(&mut self, caller_perms_override: Option<Obj>) {
+        self.caller_perms_override = caller_perms_override;
+    }
+}
+
+impl Activation {
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    #[must_use]
+    pub fn from_parts(
+        frame: Frame,
+        this: Var,
+        player: Obj,
+        verb_name: Symbol,
+        verbdef: ResolvedVerb,
+        authority: Authority,
+    ) -> Self {
+        Self {
+            frame,
+            this,
+            player,
+            verb_name,
+            verbdef,
+            authority,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn authority_principal(&self) -> Obj {
+        self.authority.principal()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn authority_flags(&self) -> BitEnum<ObjFlag> {
+        self.authority.principal_flags()
     }
 
     #[inline]
@@ -520,7 +586,7 @@ impl Activation {
             player: current_activation.player,
             verbdef: current_activation.verbdef,
             verb_name: Symbol::mk(&lambda_name),
-            authority: current_activation.authority,
+            authority: current_activation.authority(),
         })
     }
 
@@ -589,14 +655,7 @@ impl Activation {
             VerbArgsSpec::this_none_this(),
         );
 
-        let bf_frame = BuiltinFrame {
-            bf_id,
-            args,
-            bf_trampoline: None,
-            bf_trampoline_arg: None,
-            return_value: None,
-            caller_perms_override: None,
-        };
+        let bf_frame = BuiltinFrame::new(bf_id, args);
         let frame = Frame::Bf(bf_frame);
         Self {
             frame,
@@ -613,5 +672,23 @@ impl Activation {
             Frame::Bf(_) => NOTHING,
             _ => self.verbdef.location(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_frame_caller_perms_override_is_explicit() {
+        let mut frame = BuiltinFrame::new(BuiltinId(1), List::mk_list(&[]));
+
+        assert_eq!(frame.caller_perms_override(), None);
+
+        frame.set_caller_perms_override(Some(Obj::mk_id(5)));
+        assert_eq!(frame.caller_perms_override(), Some(Obj::mk_id(5)));
+
+        frame.set_caller_perms_override(None);
+        assert_eq!(frame.caller_perms_override(), None);
     }
 }
