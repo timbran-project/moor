@@ -215,10 +215,11 @@ impl ExecState {
         NOTHING
     }
 
-    /// Return the permissions of the current task, which is the "starting"
-    /// permissions of the current task, but note that this can be modified by
-    /// the `set_task_perms` built-in function.
-    pub fn task_perms(&self) -> Obj {
+    /// Return the object whose authority the current task is running under.
+    ///
+    /// This starts as the resolved verb owner and can be modified by the
+    /// `set_task_perms` built-in function.
+    pub fn task_authority_principal(&self) -> Obj {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
         stack_top.map(Activation::permissions).unwrap_or(NOTHING)
     }
