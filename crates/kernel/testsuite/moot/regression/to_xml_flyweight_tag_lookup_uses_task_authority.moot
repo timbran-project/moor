@@ -1,0 +1,11 @@
+@wizard
+; add_property($system, "auth_to_xml_delegate", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($auth_to_xml_delegate, "tag", "authxmlout", {$wizard_player, ""});
+; add_property($system, "auth_to_xml_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $auth_to_xml_helper.r = 1;
+; add_verb($auth_to_xml_helper, {$wizard_player, "rxd", "try_to_xml"}, {"this", "none", "this"});
+; set_verb_code($auth_to_xml_helper, "try_to_xml", {"return to_xml(<$auth_to_xml_delegate>) == \"<authxmlout />\";"});
+
+@programmer
+; return $auth_to_xml_helper:try_to_xml();
+1

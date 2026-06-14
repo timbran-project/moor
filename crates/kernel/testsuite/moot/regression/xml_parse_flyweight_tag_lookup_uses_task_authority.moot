@@ -1,0 +1,11 @@
+@wizard
+; add_property($system, "auth_xml_parse_delegate", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "tag_authxmlprobe", $auth_xml_parse_delegate, {$wizard_player, ""});
+; add_property($system, "auth_xml_parse_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $auth_xml_parse_helper.r = 1;
+; add_verb($auth_xml_parse_helper, {$wizard_player, "rxd", "try_parse"}, {"this", "none", "this"});
+; set_verb_code($auth_xml_parse_helper, "try_parse", {"return xml_parse(\"<authxmlprobe/>\", TYPE_FLYWEIGHT).delegate == $auth_xml_parse_delegate;"});
+
+@programmer
+; return $auth_xml_parse_helper:try_parse();
+1
