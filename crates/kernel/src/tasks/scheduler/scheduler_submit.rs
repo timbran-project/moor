@@ -50,7 +50,7 @@ impl Scheduler {
         verb: Symbol,
         args: List,
         argstr: Var,
-        perms: Obj,
+        authority_principal: Obj,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
         // We need to translate Vloc and any of the arguments into valid references
@@ -60,7 +60,8 @@ impl Scheduler {
         let need_tx_oref = !matches!(vloc, ObjectRef::Id(_));
         let vloc = if need_tx_oref {
             let mut tx = self.database.new_world_state().unwrap();
-            let Ok(vloc) = match_object_ref(&player, &perms, &vloc, tx.as_mut()) else {
+            let Ok(vloc) = match_object_ref(&player, &authority_principal, &vloc, tx.as_mut())
+            else {
                 return Err(CommandExecutionError(CommandError::NoObjectMatch));
             };
             v_obj(vloc)
@@ -85,7 +86,15 @@ impl Scheduler {
             argstr,
         };
 
-        self.submit_task(&mut lc, task_id, &player, &perms, task_start, None, session)
+        self.submit_task(
+            &mut lc,
+            task_id,
+            &player,
+            &authority_principal,
+            task_start,
+            None,
+            session,
+        )
     }
 
     pub(crate) fn submit_task_input_inner(
@@ -148,7 +157,7 @@ impl Scheduler {
     pub(crate) fn submit_eval_task_inner(
         &self,
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         program: moor_compiler::Program,
         initial_env: Option<Vec<(Symbol, Var)>>,
         session: Arc<dyn Session>,
@@ -165,7 +174,15 @@ impl Scheduler {
             initial_env,
         };
 
-        self.submit_task(&mut lc, task_id, &player, &perms, task_start, None, session)
+        self.submit_task(
+            &mut lc,
+            task_id,
+            &player,
+            &authority_principal,
+            task_start,
+            None,
+            session,
+        )
     }
 
     pub(crate) fn handle_shutdown_request(&self, msg: String) -> Result<(), SchedulerError> {
@@ -412,7 +429,7 @@ impl Scheduler {
     pub(crate) fn submit_batch_world_state_task_inner(
         &self,
         player: Obj,
-        perms: Obj,
+        authority_principal: Obj,
         actions: Vec<WorldStateAction>,
         rollback: bool,
         result_sink: crate::tasks::BatchResultSink,
@@ -424,12 +441,20 @@ impl Scheduler {
 
         let task_start = TaskStart::StartBatchWorldState {
             player,
-            perms,
+            authority_principal,
             actions,
             rollback,
             result_sink,
         };
 
-        self.submit_task(&mut lc, task_id, &player, &perms, task_start, None, session)
+        self.submit_task(
+            &mut lc,
+            task_id,
+            &player,
+            &authority_principal,
+            task_start,
+            None,
+            session,
+        )
     }
 }

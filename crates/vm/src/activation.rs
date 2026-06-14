@@ -105,7 +105,7 @@ pub struct Activation {
     /// The object that is the receiver of the current verb call.
     pub this: Var,
     /// The object that is the 'player' role; that is, the active user of this task.
-    pub player: Obj,
+    player: Obj,
     /// The name of the verb that is currently being executed.
     pub verb_name: Symbol,
     /// Compact resolved metadata for the running verb.
@@ -268,6 +268,12 @@ impl Activation {
             verbdef,
             authority,
         }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn player(&self) -> Obj {
+        self.player
     }
 
     #[inline]
@@ -560,7 +566,7 @@ impl Activation {
 
         // Inherit global variables from current activation (this, player, etc.)
         frame.set_global_variable(GlobalName::this, current_activation.this.clone());
-        frame.set_global_variable(GlobalName::player, v_obj(current_activation.player));
+        frame.set_global_variable(GlobalName::player, v_obj(current_activation.player()));
         frame.set_global_variable(GlobalName::caller, current_activation.this.clone());
         // Format verb name: show function name if available, otherwise just <fn>
         let lambda_name = if let Some(self_var) = lambda.0.self_var {
@@ -583,7 +589,7 @@ impl Activation {
         Ok(Self {
             frame,
             this: current_activation.this.clone(),
-            player: current_activation.player,
+            player: current_activation.player(),
             verbdef: current_activation.verbdef,
             verb_name: Symbol::mk(&lambda_name),
             authority: current_activation.authority(),
@@ -591,8 +597,8 @@ impl Activation {
     }
 
     pub fn for_eval(
-        permissions: Obj,
-        permissions_flags: BitEnum<ObjFlag>,
+        authority_principal: Obj,
+        authority_flags: BitEnum<ObjFlag>,
         player: &Obj,
         program: Program,
         initial_env: Option<&[(Symbol, Var)]>,
@@ -633,7 +639,7 @@ impl Activation {
             player: *player,
             verbdef,
             verb_name: *EVAL_SYMBOL,
-            authority: Authority::new(permissions, permissions_flags),
+            authority: Authority::new(authority_principal, authority_flags),
         }
     }
 

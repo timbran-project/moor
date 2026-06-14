@@ -296,7 +296,7 @@ impl BfCallState<'_> {
     }
 
     pub fn player(&self) -> Obj {
-        self.exec_state.top().player
+        self.exec_state.top().player()
     }
 
     pub fn task_authority(&self) -> Result<Authority, WorldStateError> {

@@ -109,7 +109,7 @@ impl TaskProgramCache {
     pub fn resolve_verb_slot(
         &mut self,
         world_state: &dyn WorldState,
-        perms: &Obj,
+        authority_principal: &Obj,
         verb_definer: &Obj,
         verb_uuid: uuid::Uuid,
     ) -> Result<ResolveVerbSlotResult, WorldStateError> {
@@ -132,7 +132,8 @@ impl TaskProgramCache {
         self.local_misses += 1;
         PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Misses);
 
-        let (program, _) = world_state.retrieve_verb(perms, verb_definer, verb_uuid)?;
+        let (program, _) =
+            world_state.retrieve_verb(authority_principal, verb_definer, verb_uuid)?;
         let ProgramType::MooR(program) = program;
         let entry = CachedProgramSlot { program };
 

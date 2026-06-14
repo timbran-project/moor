@@ -63,7 +63,7 @@ impl ExecState {
                     v_str(&a.verb_name.as_string()),
                     v_obj(a.authority_principal()),
                     v_obj(a.verb_definer()),
-                    v_obj(a.player),
+                    v_obj(a.player()),
                     line_no,
                 ])),
                 Frame::Bf(bf_frame) => {
@@ -73,7 +73,7 @@ impl ExecState {
                         v_arc_str(bf_name.as_arc_str()),
                         v_obj(a.authority_principal()),
                         v_obj(NOTHING),
-                        v_obj(a.player),
+                        v_obj(a.player()),
                         v_int(0),
                     ]));
                 }

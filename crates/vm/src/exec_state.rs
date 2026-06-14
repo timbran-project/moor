@@ -133,7 +133,7 @@ impl ExecState {
         for activation in callers_iter {
             let verb_name = activation.verb_name;
             let definer = activation.verb_definer();
-            let player = activation.player;
+            let player = activation.player();
             let line_number = activation.frame.find_line_no().unwrap_or(0);
             let this = activation.this.clone();
             let authority_principal = activation.authority_principal();
@@ -555,7 +555,7 @@ impl ExecState {
         let caller = self.caller();
 
         // Only wizards can propagate a modified player value to called verbs.
-        let activation_player = self.top().player;
+        let activation_player = self.top().player();
         let player = if let Frame::Moo(frame) = &self.top().frame {
             frame
                 .get_gvar(GlobalName::player)
@@ -630,15 +630,15 @@ impl ExecState {
     pub fn exec_eval_request(
         &mut self,
         host: &mut impl VmHost,
-        permissions: &Obj,
+        authority_principal: &Obj,
         player: &Obj,
         program: moor_compiler::Program,
         initial_env: Option<&[(Symbol, Var)]>,
     ) {
-        let permissions_flags = host.flags_of(permissions).unwrap_or_default();
+        let authority_flags = host.flags_of(authority_principal).unwrap_or_default();
         let a = Activation::for_eval(
-            *permissions,
-            permissions_flags,
+            *authority_principal,
+            authority_flags,
             player,
             program,
             initial_env,
@@ -690,7 +690,7 @@ impl ExecState {
         let resolved_verb = verb_result.verbdef;
         let permissions_flags = verb_result.permissions_flags;
 
-        let player = self.top().player;
+        let player = self.top().player();
         let args_list = args.clone();
         let lookup_principal = self.top().authority_principal();
         Ok(Some(ExecutionResult::DispatchVerb(Box::new(

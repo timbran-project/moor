@@ -169,7 +169,7 @@ impl TaskQ {
         &mut self,
         task_id: TaskId,
         player: &Obj,
-        perms: &Obj,
+        authority_principal: &Obj,
         task_start: TaskStart,
         delay_start: Option<Duration>,
         session: Arc<dyn Session>,
@@ -184,7 +184,7 @@ impl TaskQ {
         let task = Task::new(
             task_id,
             *player,
-            *perms,
+            *authority_principal,
             task_start.clone(),
             server_options,
             kill_switch.clone(),
@@ -244,7 +244,7 @@ impl TaskQ {
         };
 
         let task_id = task.task_id;
-        let player = task.perms;
+        let player = task.authority_principal();
 
         // Brand new kill switch for the resumed task.
         let kill_switch = Arc::new(AtomicBool::new(false));
@@ -422,7 +422,7 @@ impl TaskQ {
         task.kill_switch = kill_switch.clone();
 
         let task_control = RunningTask {
-            player: task.player,
+            player: task.player(),
             kill_switch,
             session: new_session.clone(),
             result_sender,
@@ -440,7 +440,7 @@ impl TaskQ {
             }
         };
         let task_scheduler_client = TaskSchedulerClient::new(task_id, scheduler.clone());
-        let player = task.player;
+        let player = task.player();
         let wake_to_dispatch_started_at = Instant::now();
         let dispatch_started_at = Instant::now();
         self.thread_pool.spawn(move || {
@@ -642,11 +642,11 @@ mod tests {
         Arc::new(NoopClientSession::new())
     }
 
-    fn task(task_id: TaskId, player: Obj, perms: Obj) -> Box<Task> {
+    fn task(task_id: TaskId, player: Obj, authority_principal: Obj) -> Box<Task> {
         Task::new(
             task_id,
             player,
-            perms,
+            authority_principal,
             TaskStart::StartEval {
                 player,
                 program: Default::default(),
@@ -657,19 +657,29 @@ mod tests {
         )
     }
 
-    fn add_suspended_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj, perms: Obj) {
+    fn add_suspended_task(
+        task_q: &mut TaskQ,
+        task_id: TaskId,
+        player: Obj,
+        authority_principal: Obj,
+    ) {
         task_q.suspended.add_task(
             WakeCondition::Never,
-            task(task_id, player, perms),
+            task(task_id, player, authority_principal),
             session(),
             None,
         );
     }
 
-    fn add_input_suspended_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj, perms: Obj) {
+    fn add_input_suspended_task(
+        task_q: &mut TaskQ,
+        task_id: TaskId,
+        player: Obj,
+        authority_principal: Obj,
+    ) {
         task_q.suspended.add_task(
             WakeCondition::Input(Uuid::new_v4()),
-            task(task_id, player, perms),
+            task(task_id, player, authority_principal),
             session(),
             None,
         );
@@ -696,8 +706,8 @@ mod tests {
     fn kill_authority_matches_suspended_task_permissions_or_wizard() {
         let mut task_q = task_q();
         let player = Obj::mk_id(2);
-        let perms = Obj::mk_id(3);
-        add_suspended_task(&mut task_q, 10, player, perms);
+        let authority_principal = Obj::mk_id(3);
+        add_suspended_task(&mut task_q, 10, player, authority_principal);
 
         assert_eq!(
             task_q.authority_may_kill_task(10, authority(3, BitEnum::new())),
@@ -736,8 +746,8 @@ mod tests {
     fn resume_authority_filters_input_tasks_for_non_wizards() {
         let mut task_q = task_q();
         let player = Obj::mk_id(2);
-        let perms = Obj::mk_id(3);
-        add_input_suspended_task(&mut task_q, 10, player, perms);
+        let authority_principal = Obj::mk_id(3);
+        add_input_suspended_task(&mut task_q, 10, player, authority_principal);
 
         assert_eq!(
             task_q.require_resume_authority(10, authority(2, BitEnum::new())),

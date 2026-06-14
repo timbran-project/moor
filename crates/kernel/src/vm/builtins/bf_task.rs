@@ -192,8 +192,8 @@ fn bf_read(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 E_ARGS.msg("read() requires an object as the first argument"),
             ));
         };
-        let player = &bf_args.exec_state.top().player;
-        if requested_player != *player {
+        let player = bf_args.exec_state.top().player();
+        if requested_player != player {
             // We log this because we'd like to know if cores are trying to do this.
             warn!(
                 requested_player = ?requested_player,

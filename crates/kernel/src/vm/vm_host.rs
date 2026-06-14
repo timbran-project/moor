@@ -345,7 +345,7 @@ impl VmHost {
                     return ContinueOk;
                 }
                 ExecutionResult::DispatchEval {
-                    permissions,
+                    authority_principal,
                     player,
                     program,
                     initial_env,
@@ -353,7 +353,7 @@ impl VmHost {
                     let mut host = KernelHost;
                     self.vm_exec_state.exec_eval_request(
                         &mut host,
-                        &permissions,
+                        &authority_principal,
                         &player,
                         program,
                         initial_env.as_deref(),
@@ -399,7 +399,7 @@ impl VmHost {
                         frame.materialize_program_for_handoff();
                     }
                     let fork_request = Box::new(Fork {
-                        player: a.player,
+                        player: a.player(),
                         progr: a.authority_principal(),
                         parent_task_id,
                         delay,
@@ -473,13 +473,14 @@ impl VmHost {
         let verb_name = activation.verb_name;
         let verb_definer = activation.verb_definer();
         let authority = activation.authority();
+        let player = activation.player();
 
         let (result, new_tick_count) = match &mut activation.frame {
             Frame::Moo(fr) => {
                 let mut host = KernelHost;
                 let frame_context = FrameExecutionContext::new(
                     authority,
-                    activation.player,
+                    player,
                     &activation.this,
                     verb_name,
                     verb_definer,

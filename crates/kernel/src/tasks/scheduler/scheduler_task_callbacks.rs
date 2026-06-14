@@ -421,7 +421,7 @@ impl Scheduler {
                 if let Err(e) = workers_sender.send(WorkerRequest::Request {
                     request_id: worker_request_id,
                     request_type: worker_type,
-                    perms: task.perms,
+                    authority_principal: task.authority_principal(),
                     request: args,
                     timeout,
                 }) {
@@ -857,7 +857,7 @@ impl Scheduler {
             })?
             .connection_obj;
 
-        // Update the task's player
+        // Update the active task's player.
         task.player = new_player;
 
         drop(lc);
