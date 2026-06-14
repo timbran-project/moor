@@ -262,6 +262,9 @@ impl VmHost {
                     continue;
                 }
                 ExecutionResult::DispatchVerb(exec_request) => {
+                    // Program cache resolution is permission-sensitive and uses the lookup
+                    // principal from dispatch. The activation pushed below runs as the resolved
+                    // verb owner with the dispatch-selected cached flags.
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
@@ -301,6 +304,9 @@ impl VmHost {
                     return ContinueOk;
                 }
                 ExecutionResult::DispatchCommandVerb(exec_request) => {
+                    // Program cache resolution is permission-sensitive and uses the lookup
+                    // principal from dispatch. The activation pushed below runs as the resolved
+                    // verb owner with the dispatch-selected cached flags.
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
@@ -394,7 +400,7 @@ impl VmHost {
                     }
                     let fork_request = Box::new(Fork {
                         player: a.player,
-                        progr: a.permissions(),
+                        progr: a.authority_principal(),
                         parent_task_id,
                         delay,
                         activation: new_activation,
@@ -466,20 +472,18 @@ impl VmHost {
         let activation = self.vm_exec_state.top_mut();
         let verb_name = activation.verb_name;
         let verb_definer = activation.verb_definer();
-        let permissions = activation.permissions();
-        let permissions_flags = activation.permissions_flags();
+        let authority = activation.authority();
 
         let (result, new_tick_count) = match &mut activation.frame {
             Frame::Moo(fr) => {
                 let mut host = KernelHost;
-                let frame_context = FrameExecutionContext {
-                    permissions,
-                    task_permissions_flags: permissions_flags,
-                    activation_player: activation.player,
-                    this: &activation.this,
+                let frame_context = FrameExecutionContext::new(
+                    authority,
+                    activation.player,
+                    &activation.this,
                     verb_name,
                     verb_definer,
-                };
+                );
                 let result = moo_frame_execute(
                     &mut host,
                     tick_slice,
@@ -570,8 +574,8 @@ impl VmHost {
             .expect("Could not set forked task id");
     }
 
-    pub fn permissions(&self) -> Obj {
-        self.vm_exec_state.top().permissions()
+    pub fn authority_principal(&self) -> Obj {
+        self.vm_exec_state.top().authority_principal()
     }
 
     pub fn set_program_cache_sizes(

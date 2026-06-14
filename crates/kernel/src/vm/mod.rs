@@ -173,8 +173,8 @@ fn extract_anonymous_refs_from_activation(
     }
 
     // Check permissions (already an Obj, so check directly)
-    if activation.permissions().is_anonymous() {
-        refs.insert(activation.permissions());
+    if activation.authority_principal().is_anonymous() {
+        refs.insert(activation.authority_principal());
     }
 
     // Scan arguments

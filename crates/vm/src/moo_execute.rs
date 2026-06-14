@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    VmHost,
+    Authority, VmHost,
     config::FeaturesConfig,
     moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeType},
     scatter_assign::scatter_assign,
@@ -40,9 +40,15 @@ use std::{sync::LazyLock, time::Duration};
 /// The set of parameters for a scheduler-requested *resolved* verb method dispatch.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VerbExecutionRequest {
-    /// The applicable permissions.
+    /// Principal used for permission-sensitive program lookup and cache resolution.
+    ///
+    /// This is not necessarily the authority principal of the activation that will be pushed. For
+    /// normal verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and
+    /// program materialization still use this principal.
     pub permissions: Obj,
-    /// The precomputed flags for `permissions`.
+    /// Cached flags for the activation authority selected by dispatch.
+    ///
+    /// `Activation::for_call` pairs these flags with `resolved_verb.owner()`.
     pub permissions_flags: BitEnum<ObjFlag>,
     /// The resolved verb.
     pub resolved_verb: ResolvedVerb,
@@ -65,9 +71,15 @@ pub struct VerbExecutionRequest {
 /// The set of parameters for a command verb dispatch with full command environment.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandVerbExecutionRequest {
-    /// The applicable permissions.
+    /// Principal used for permission-sensitive program lookup and cache resolution.
+    ///
+    /// This is not necessarily the authority principal of the activation that will be pushed. For
+    /// normal verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and
+    /// program materialization still use this principal.
     pub permissions: Obj,
-    /// The precomputed flags for `permissions`.
+    /// Cached flags for the activation authority selected by dispatch.
+    ///
+    /// `Activation::for_call` pairs these flags with `resolved_verb.owner()`.
     pub permissions_flags: BitEnum<ObjFlag>,
     /// The resolved verb.
     pub resolved_verb: ResolvedVerb,
@@ -88,23 +100,44 @@ pub struct CommandVerbExecutionRequest {
 /// Activation data needed by opcodes that prepare host-level execution requests.
 #[derive(Debug, Clone)]
 pub struct FrameExecutionContext<'a> {
-    pub permissions: Obj,
-    pub task_permissions_flags: BitEnum<ObjFlag>,
-    pub activation_player: Obj,
-    pub this: &'a Var,
-    pub verb_name: Symbol,
-    pub verb_definer: Obj,
+    /// Authority of the activation currently executing this frame.
+    authority: Authority,
+    activation_player: Obj,
+    this: &'a Var,
+    verb_name: Symbol,
+    verb_definer: Obj,
 }
 
-impl FrameExecutionContext<'_> {
+impl<'a> FrameExecutionContext<'a> {
+    #[inline]
+    #[must_use]
+    pub fn new(
+        authority: Authority,
+        activation_player: Obj,
+        this: &'a Var,
+        verb_name: Symbol,
+        verb_definer: Obj,
+    ) -> Self {
+        Self {
+            authority,
+            activation_player,
+            this,
+            verb_name,
+            verb_definer,
+        }
+    }
+
     fn player_for_frame(&self, frame: &MooStackFrame) -> Obj {
         frame
             .get_gvar(GlobalName::player)
             .and_then(|v| v.as_object())
             .filter(|fp| fp != &self.activation_player)
             .map_or(self.activation_player, |fp| {
-                let is_wiz = self.task_permissions_flags.contains(ObjFlag::Wizard);
-                if is_wiz { fp } else { self.activation_player }
+                if self.authority.is_wizard() {
+                    fp
+                } else {
+                    self.activation_player
+                }
             })
     }
 }
@@ -134,7 +167,7 @@ pub struct Fork {
     /// The player. This is in the activation as well, but it's nicer to have it up here and
     /// explicit
     pub player: Obj,
-    /// The permissions context for the forked task.
+    /// Authority principal for the forked task.
     pub progr: Obj,
     /// The task ID of the task that forked us
     pub parent_task_id: usize,
@@ -177,7 +210,7 @@ pub enum ExecutionResult {
     /// Request `eval` execution, which is a kind of special activation creation where we've already
     /// been given the program to execute instead of having to look it up.
     DispatchEval {
-        /// The permissions context for the eval.
+        /// Authority principal for the eval.
         permissions: Obj,
         /// The player who is performing the eval.
         player: Obj,
@@ -435,8 +468,9 @@ fn prepare_verb_dispatch<H: VmHost>(
             }
         }
     };
+    let authority_principal = context.authority.principal();
     let prop_val = host
-        .retrieve_property(&context.permissions, &SYSTEM_OBJECT, sysprop_sym)
+        .retrieve_property(&authority_principal, &SYSTEM_OBJECT, sysprop_sym)
         .map_err(|e| e.to_error())?;
     let Some(prop_val) = prop_val.as_object() else {
         return Err(E_TYPE.with_msg(|| {
@@ -473,7 +507,8 @@ fn prepare_pass_verb<H: VmHost>(
     context: &FrameExecutionContext<'_>,
     args: List,
 ) -> ExecutionResult {
-    let parent = match host.parent_of(&context.permissions, &context.verb_definer) {
+    let authority_principal = context.authority.principal();
+    let parent = match host.parent_of(&authority_principal, &context.verb_definer) {
         Ok(p) => p,
         Err(WorldStateError::RollbackRetry) => {
             return ExecutionResult::TaskRollbackRestart;
@@ -486,7 +521,7 @@ fn prepare_pass_verb<H: VmHost>(
     }
 
     let verb_result = host.dispatch_verb(
-        &context.permissions,
+        &authority_principal,
         VerbDispatch::new(
             VerbLookup::method(&parent, context.verb_name),
             DispatchFlagsSource::Permissions,
@@ -505,7 +540,7 @@ fn prepare_pass_verb<H: VmHost>(
     };
 
     ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-        permissions: context.permissions,
+        permissions: authority_principal,
         permissions_flags,
         resolved_verb,
         verb_name: context.verb_name,
@@ -527,6 +562,7 @@ fn prepare_call_verb<H: VmHost>(
     verb_name: Symbol,
     args: List,
 ) -> ExecutionResult {
+    let authority_principal = context.authority.principal();
     let player = context.player_for_frame(frame);
 
     if !host.valid(&location).unwrap_or_default() {
@@ -536,7 +572,7 @@ fn prepare_call_verb<H: VmHost>(
     }
 
     let verb_result = host.dispatch_verb(
-        &context.permissions,
+        &authority_principal,
         VerbDispatch::new(
             VerbLookup::method(&location, verb_name),
             DispatchFlagsSource::VerbOwner,
@@ -569,7 +605,7 @@ fn prepare_call_verb<H: VmHost>(
     };
 
     ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-        permissions: context.permissions,
+        permissions: authority_principal,
         permissions_flags,
         resolved_verb,
         verb_name,
@@ -627,6 +663,7 @@ pub fn moo_frame_execute<H: VmHost>(
     let opcodes_ptr = opcodes.as_ptr();
     let opcodes_len = opcodes.len();
     let tick_slice_end = (*tick_count).saturating_add(tick_slice);
+    let authority_principal = context.authority.principal();
     while *tick_count < tick_slice_end {
         *tick_count += 1;
 
@@ -1425,7 +1462,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 };
 
                 let value =
-                    get_property(host, &context.permissions, &obj, propname, features_config);
+                    get_property(host, &authority_principal, &obj, propname, features_config);
                 match value {
                     Ok(v) => {
                         f.poke(0, v);
@@ -1443,7 +1480,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 };
 
                 let value =
-                    get_property(host, &context.permissions, obj, propname, features_config);
+                    get_property(host, &authority_principal, obj, propname, features_config);
                 match value {
                     Ok(v) => {
                         f.push(v);
@@ -1463,7 +1500,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     return push_error_cold(invalid_property_name_error(&propname));
                 };
                 let update_result =
-                    host.update_property(&context.permissions, &obj, propname, &rhs);
+                    host.update_property(&authority_principal, &obj, propname, &rhs);
 
                 match update_result {
                     Ok(()) => {
@@ -1500,7 +1537,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 };
 
                 let update_result = if let Some(obj) = base.as_object() {
-                    host.update_property(&context.permissions, &obj, propname, &rhs)
+                    host.update_property(&authority_principal, &obj, propname, &rhs)
                         .map(|()| base)
                         .map_err(|e| e.to_error())
                 } else if let Some(flyweight) = base.as_flyweight() {

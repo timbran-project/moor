@@ -136,10 +136,10 @@ impl ExecState {
             let player = activation.player;
             let line_number = activation.frame.find_line_no().unwrap_or(0);
             let this = activation.this.clone();
-            let perms = activation.permissions();
+            let authority_principal = activation.authority_principal();
             let programmer = match activation.frame {
                 Frame::Bf(_) => NOTHING,
-                _ => perms,
+                _ => authority_principal,
             };
             callers.push(Caller {
                 verb_name,
@@ -192,7 +192,7 @@ impl ExecState {
         for activation in stack_iter {
             // Check if this is a builtin frame with an override
             if let Frame::Bf(bf_frame) = &activation.frame {
-                if let Some(override_perms) = bf_frame.caller_perms_override {
+                if let Some(override_perms) = bf_frame.caller_perms_override() {
                     return override_perms;
                 }
                 // Regular builtin frame without override - skip it
@@ -208,7 +208,7 @@ impl ExecState {
             }
 
             // Return the second non-builtin (caller frame)
-            return activation.permissions();
+            return activation.authority_principal();
         }
 
         // No caller found
@@ -221,14 +221,16 @@ impl ExecState {
     /// `set_task_perms` built-in function.
     pub fn task_authority_principal(&self) -> Obj {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
-        stack_top.map(Activation::permissions).unwrap_or(NOTHING)
+        stack_top
+            .map(Activation::authority_principal)
+            .unwrap_or(NOTHING)
     }
 
-    /// Return the cached flags for the task permissions object.
-    pub fn task_perms_flags(&self) -> BitEnum<ObjFlag> {
+    /// Return the cached flags for the current task authority principal.
+    pub fn task_authority_flags(&self) -> BitEnum<ObjFlag> {
         let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
         stack_top
-            .map(Activation::permissions_flags)
+            .map(Activation::authority_flags)
             .unwrap_or_else(BitEnum::new)
     }
 
@@ -237,16 +239,16 @@ impl ExecState {
         stack_top.map(|a| a.this.clone()).unwrap_or(v_obj(NOTHING))
     }
 
-    /// Update the permissions of the current task, as called by the `set_task_perms`
+    /// Update the authority principal of the current task, as called by the `set_task_perms`
     /// built-in.
-    pub fn set_task_perms(&mut self, host: &mut impl VmHost, perms: Obj) {
-        // Look up the flags for the new perms object
-        let perms_flags = host.flags_of(&perms).unwrap_or_default();
+    pub fn set_task_perms(&mut self, host: &mut impl VmHost, authority_principal: Obj) {
+        // Look up the flags for the new authority principal.
+        let authority_flags = host.flags_of(&authority_principal).unwrap_or_default();
 
-        // Copy the stack perms up to the last non-builtin. That is, make sure builtin-frames
-        // get the permissions update, and the first non-builtin, too.
+        // Copy the authority up to the last non-builtin frame so builtin frames and the current
+        // MOO frame see the same principal.
         for activation in self.stack.iter_mut().rev() {
-            activation.set_authority(Authority::new(perms, perms_flags));
+            activation.set_authority(Authority::new(authority_principal, authority_flags));
             if !activation.is_builtin_frame() {
                 break;
             }
@@ -516,9 +518,9 @@ impl ExecState {
                 }
             }
         };
-        let perms = self.top().permissions();
+        let authority_principal = self.top().authority_principal();
         let prop_val = host
-            .retrieve_property(&perms, &SYSTEM_OBJECT, sysprop_sym)
+            .retrieve_property(&authority_principal, &SYSTEM_OBJECT, sysprop_sym)
             .map_err(|e| e.to_error())?;
         let Some(prop_val) = prop_val.as_object() else {
             return Err(E_TYPE.with_msg(|| {
@@ -560,7 +562,7 @@ impl ExecState {
                 .and_then(|v| v.as_object())
                 .filter(|fp| fp != &activation_player)
                 .map_or(activation_player, |fp| {
-                    let is_wiz = self.task_perms_flags().contains(ObjFlag::Wizard);
+                    let is_wiz = self.task_authority_flags().contains(ObjFlag::Wizard);
                     if is_wiz { fp } else { activation_player }
                 })
         } else {
@@ -574,7 +576,7 @@ impl ExecState {
         }
 
         let verb_result = host.dispatch_verb(
-            &self.top().permissions(),
+            &self.top().authority_principal(),
             VerbDispatch::new(
                 VerbLookup::method(&location, verb_name),
                 DispatchFlagsSource::VerbOwner,
@@ -612,7 +614,7 @@ impl ExecState {
         // Defer program materialization/slot resolution to VmHost so it can source programs
         // from the task-owned cache.
         ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest {
-            permissions: self.top().permissions(),
+            permissions: self.top().authority_principal(),
             permissions_flags,
             resolved_verb,
             verb_name,
@@ -675,7 +677,7 @@ impl ExecState {
         caller: Var,
     ) -> Result<Option<ExecutionResult>, WorldStateError> {
         let Some(verb_result) = host.dispatch_verb(
-            &self.top().permissions(),
+            &self.top().authority_principal(),
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, bf_override_name),
                 DispatchFlagsSource::Permissions,
@@ -690,7 +692,7 @@ impl ExecState {
 
         let player = self.top().player;
         let args_list = args.clone();
-        let permissions = self.top().permissions();
+        let permissions = self.top().authority_principal();
         Ok(Some(ExecutionResult::DispatchVerb(Box::new(
             VerbExecutionRequest {
                 permissions,

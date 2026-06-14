@@ -119,6 +119,7 @@ impl TaskHandle {
 pub struct TaskDescription {
     pub task_id: TaskId,
     pub start_time: Option<SystemTime>,
+    /// Authority principal for the task. MOO-facing task builtins expose this as the programmer.
     pub permissions: Obj,
     pub verb_name: Symbol,
     pub verb_definer: Obj,

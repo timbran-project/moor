@@ -1235,14 +1235,13 @@ pub(crate) fn bf_frame_from_ref(
         .bf_id()
         .map_err(|e| TaskConversionError::DecodingError(format!("bf_id: {e}")))?;
 
-    Ok(KernelBuiltinFrame {
-        bf_id: moor_compiler::BuiltinId(bf_id),
-        args: moor_var::List::mk_list(&[]),
+    Ok(KernelBuiltinFrame::from_parts(
+        moor_compiler::BuiltinId(bf_id),
+        moor_var::List::mk_list(&[]),
         bf_trampoline,
         bf_trampoline_arg,
         return_value,
-        caller_perms_override: None,
-    })
+    ))
 }
 
 // ============================================================================
@@ -1318,7 +1317,8 @@ pub(crate) fn activation_to_flatbuffer(
     let fb_verbdef = convert_schema::verbdef_to_flatbuffer(&serialized_verbdef)
         .map_err(|e| TaskConversionError::EncodingError(format!("Error encoding verbdef: {e}")))?;
 
-    let fb_permissions = convert_schema::obj_to_flatbuffer_struct(&activation.permissions());
+    let fb_permissions =
+        convert_schema::obj_to_flatbuffer_struct(&activation.authority_principal());
 
     Ok(fb::Activation {
         frame: Box::new(fb_frame),
@@ -1328,7 +1328,7 @@ pub(crate) fn activation_to_flatbuffer(
         verb_name: Box::new(fb_verb_name),
         verbdef: Box::new(fb_verbdef),
         permissions: Box::new(fb_permissions),
-        permissions_flags: activation.permissions_flags().to_u16(),
+        permissions_flags: activation.authority_flags().to_u16(),
     })
 }
 
@@ -1399,14 +1399,14 @@ pub(crate) fn activation_from_ref(
         .map_err(|e| TaskConversionError::DecodingError(format!("permissions_flags: {e}")))?;
     let permissions_flags = BitEnum::from_u16(permissions_flags_raw);
 
-    Ok(KernelActivation {
+    Ok(KernelActivation::from_parts(
         frame,
         this,
         player,
         verb_name,
-        verbdef: verbdef.as_resolved(),
-        authority: moor_vm::Authority::new(permissions, permissions_flags),
-    })
+        verbdef.as_resolved(),
+        moor_vm::Authority::new(permissions, permissions_flags),
+    ))
 }
 
 // ============================================================================

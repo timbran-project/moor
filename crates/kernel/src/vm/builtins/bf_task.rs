@@ -274,16 +274,16 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let tasks = current_task_scheduler_client().task_list();
 
     // Wizards see all tasks, others see only tasks where they are the programmer.
-    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
-    let is_wizard = task_perms.is_wizard();
-    let perms_who = task_perms.principal;
+    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let is_wizard = authority.is_wizard();
+    let authority_principal = authority.principal();
 
     // return in form:
     //     {<task-id>, <start-time>, <x>, <y>,
     //      <programmer>, <verb-loc>, <verb-name>, <line>, <this>}
     let tasks = tasks
         .iter()
-        .filter(|task| is_wizard || task.permissions == perms_who)
+        .filter(|task| is_wizard || task.permissions == authority_principal)
         .map(|task| {
             let task_id = v_int(task.task_id as i64);
             let start_time = match task.start_time {
@@ -319,15 +319,15 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     };
 
-    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
-    let is_wizard = task_perms.is_wizard();
-    let perms_who = task_perms.principal;
+    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let is_wizard = authority.is_wizard();
+    let authority_principal = authority.principal();
 
     let results = tasks.iter().filter(|(_, player_id, _)| {
         if is_wizard {
             true
         } else {
-            *player_id == perms_who
+            *player_id == authority_principal
         }
     });
 

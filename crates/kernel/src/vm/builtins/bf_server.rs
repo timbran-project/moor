@@ -302,8 +302,8 @@ fn bf_boot_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if !task_perms.controls(&player) {
+    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+    if !authority.controls(&player) {
         return Err(ErrValue(E_PERM.msg(
             "boot_player() requires the caller to be a wizard or the caller itself",
         )));

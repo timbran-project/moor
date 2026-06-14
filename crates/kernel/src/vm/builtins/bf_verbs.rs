@@ -710,7 +710,7 @@ fn bf_respond_to(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_TYPE));
     };
 
-    let task_perms = bf_args.task_authority_principal();
+    let task_authority = bf_args.task_authority_principal();
 
     // Invalid object is E_INVARG.
     if !with_current_transaction(|world_state| world_state.valid(&obj))
@@ -719,8 +719,8 @@ fn bf_respond_to(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     }
 
-    // Invalid task perms is false
-    if !with_current_transaction(|world_state| world_state.valid(&task_perms))
+    // Invalid task authority is false
+    if !with_current_transaction(|world_state| world_state.valid(&task_authority))
         .map_err(world_state_bf_err)?
     {
         return Ok(Ret(bf_args.v_bool(false)));
@@ -729,7 +729,7 @@ fn bf_respond_to(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let name = bf_args.args[1].as_symbol().map_err(BfErr::ErrValue)?;
 
     let Ok(Some(vd)) = with_current_transaction(|world_state| {
-        world_state.lookup_verb(&task_perms, VerbLookup::method(&obj, name))
+        world_state.lookup_verb(&task_authority, VerbLookup::method(&obj, name))
     }) else {
         return Ok(Ret(bf_args.v_bool(false)));
     };
@@ -737,7 +737,7 @@ fn bf_respond_to(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let oflags = with_current_transaction(|world_state| world_state.flags_of(&obj))
         .map_err(world_state_bf_err)?;
 
-    if with_current_transaction(|world_state| world_state.controls(&task_perms, &obj))
+    if with_current_transaction(|world_state| world_state.controls(&task_authority, &obj))
         .map_err(world_state_bf_err)?
         || oflags.contains(ObjFlag::Read)
     {

@@ -61,7 +61,7 @@ impl ExecState {
                 Frame::Moo(_) => stack_list.push(v_list(&[
                     a.this.clone(),
                     v_str(&a.verb_name.as_string()),
-                    v_obj(a.permissions()),
+                    v_obj(a.authority_principal()),
                     v_obj(a.verb_definer()),
                     v_obj(a.player),
                     line_no,
@@ -71,7 +71,7 @@ impl ExecState {
                     stack_list.push(v_list(&[
                         a.this.clone(),
                         v_arc_str(bf_name.as_arc_str()),
-                        v_obj(a.permissions()),
+                        v_obj(a.authority_principal()),
                         v_obj(NOTHING),
                         v_obj(a.player),
                         v_int(0),
