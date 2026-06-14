@@ -1,6 +1,6 @@
 {
   "name": "@moor/schema",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "FlatBuffer schemas and TypeScript bindings for mooR",
   "type": "module",
   "main": "./generated/all_schemas.ts",

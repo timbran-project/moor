@@ -5,6 +5,28 @@ All notable changes to mooR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-06-14
+
+### Fixed
+
+`kernel`:
+
+- `add_verb()` no longer requires the caller to have the programmer bit when the caller otherwise
+  has object write permission and owner authority, matching LambdaMOO/ToastStunt behavior.
+- `verb_code()` no longer requires the caller to have the programmer bit when the caller has read
+  permission on the verb.
+- `recycle()` now requires wizard authority or ownership of the object being recycled, matching
+  LambdaMOO/ToastStunt behavior.
+
+`db`:
+
+- `queue_info()` is now available to regular callers instead of requiring wizard permissions.
+
+`docs`:
+
+- Corrected book documentation for `verb_info()`, `verb_code()`, `set_verb_code()`, `add_verb()`,
+  `delete_verb()`, and `queue_info()` permission and error behavior.
+
 ## [1.0.0] - 2026-06-04
 
 ### Stable 1.0 release

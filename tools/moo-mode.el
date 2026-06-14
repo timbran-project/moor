@@ -3,7 +3,7 @@
 ;; Copyright (C) 2025 Ryan Daum
 ;; Author: Ryan Daum <ryan.daum@gmail.com>
 ;; Keywords: languages, moo
-;; Version: 1.0.0
+;; Version: 1.0.1
 
 ;;; Commentary:
 ;; A major mode for editing MOO language files with syntax highlighting
