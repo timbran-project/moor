@@ -89,15 +89,15 @@ object BIG_MAIL_RECIPIENT
   endverb
 
   verb _get (this none this) owner: HACKER flags: "rxd"
-    return caller == this._mgr ? `this.((args[1])) ! ANY' | E_PERM;
+    return caller == this._mgr ? `this.(args[1]) ! ANY' | E_PERM;
   endverb
 
   verb _put (this none this) owner: HACKER flags: "rxd"
-    return caller == this._mgr ? this.((args[1])) = listdelete(args, 1) | E_PERM;
+    return caller == this._mgr ? (this.(args[1]) = listdelete(args, 1)) | E_PERM;
   endverb
 
   verb _ord (this none this) owner: HACKER flags: "rxd"
-    return (args[1])[2..3];
+    return args[1][2..3];
   endverb
 
   verb _makemsg (this none this) owner: HACKER flags: "rxd"
@@ -136,7 +136,7 @@ object BIG_MAIL_RECIPIENT
   verb _message_text (this none this) owner: HACKER flags: "rxd"
     if (caller == this || this:is_readable_by(caller_perms()))
       "perms check added HTC 16 Feb 1999";
-      return {@args[3..$], @args[1] ? {"", @this.((args[1]))} | {}};
+      return {@args[3..$], @args[1] ? {"", @this.(args[1])} | {}};
     else
       return E_PERM;
     endif
@@ -228,7 +228,7 @@ object BIG_MAIL_RECIPIENT
           if (keep_seq[k] <= (mcount = mcount + 1))
             k = k + 1;
           endif
-          annot = x[3] > last_old ? "+" | (k % 2 ? " " | "=");
+          annot = x[3] > last_old ? "+" | k % 2 ? " " | "=";
           line = tostr($string_utils:right(x[2], 5, cur == x[2] ? ">" | " "), ":", annot, " ", this:msg_summary_line(@this:(getmsg)(@x)));
           player:tell(line[1..min(width, $)]);
         endfor
@@ -402,7 +402,7 @@ object BIG_MAIL_RECIPIENT
       n = 1;
       subtree = msgtree;
       if (msgtree[3][1] == 1)
-        while ((node = this.((subtree[1])))[1])
+        while ((node = this.(subtree[1]))[1])
           "...subtree[3][1]==n...";
           kids = node[2];
           n = n + subtree[2];
@@ -637,7 +637,7 @@ object BIG_MAIL_RECIPIENT
       handle = this._mgr:start(this.messages, i = mask[2 * m - 1], mask[2 * m] - 1);
       while (handle)
         for msg in (handle[1])
-          if (msg[1] && (body = this.((msg[1]))) && index(tostr(@body), target))
+          if (msg[1] && (body = this.(msg[1])) && index(tostr(@body), target))
             seq = $seq_utils:add(seq, i, i);
             "Above saves ticks. Munges the whole message into one string and indexes it. Old code follows.";
             "l = length(body);";
@@ -821,7 +821,7 @@ object BIG_MAIL_RECIPIENT
     "First check that the properties referred to really exist.  This must be done for all levels.";
     for item in (val[2])
       try
-        biglist.((item[1]));
+        biglist.(item[1]);
       except (E_PROPNF)
         player:notify(tostr("Item ", toliteral(item), " is invalid in property ", toliteral(propname), ".  It is being removed."));
         val[2] = setremove(val[2], item);
@@ -844,7 +844,7 @@ object BIG_MAIL_RECIPIENT
     if (level == 0)
       "Count the messages for message count.";
       "Use first message number and time for first_msgnum and first_time.";
-      result = {propname, length(val[2]), (val[2][1])[2..3]};
+      result = {propname, length(val[2]), val[2][1][2..3]};
     else
       "Use message count that is sum of inferior counts.";
       "Just propagate first node's first_msgnum and first_time upward literally.";
@@ -928,7 +928,7 @@ object BIG_MAIL_RECIPIENT
               suspend(0);
             endif
             try
-              body = old.((msg[1]));
+              body = old.(msg[1]);
             except e (E_PROPNF)
               body = {lost_body};
               lostcount = lostcount + 1;

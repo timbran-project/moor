@@ -37,12 +37,12 @@ object PARANOID_DB
       return E_PERM;
     else
       try
-        this.((args[2]));
+        this.(args[2]);
       except (E_PROPNF)
         add_property(this, args[2], {}, {$hacker, ""});
       endtry
       try
-        this.((args[3]));
+        this.(args[3]);
       except (E_PROPNF)
         add_property(this, args[3], 5, {$hacker, ""});
       endtry
@@ -74,7 +74,7 @@ object PARANOID_DB
       lines = this.(l);
       "Icky G7 code copied straight out of $player:tell.";
       if ((len = length(this.(d) = {@data, newdata})) * 2 > lines * 3)
-        this.(d) = (this.(d))[len - lines + 1..len];
+        this.(d) = this.(d)[len - lines + 1..len];
       endif
     else
       return E_PERM;

@@ -589,7 +589,7 @@ object PLAYER
         endif
         s = this:whodunnit(q[1], trust, mistrust);
         text = valid(s[1]) ? s[1].name | "** NONE **";
-        this:notify(tostr($string_utils:left(tostr(length(text) > 13 ? text[1..13] | text, " (", s[1], ")"), 20), $string_utils:left(s[2], 15), $string_utils:left(tostr(length(s[3].name) > 13 ? (s[3].name)[1..13] | s[3].name, " (", s[3], ")"), 20), msg));
+        this:notify(tostr($string_utils:left(tostr(length(text) > 13 ? text[1..13] | text, " (", s[1], ")"), 20), $string_utils:left(s[2], 15), $string_utils:left(tostr(length(s[3].name) > 13 ? s[3].name[1..13] | s[3].name, " (", s[3], ")"), 20), msg));
       endfor
       this:notify("*** finished ***");
     else
@@ -905,7 +905,7 @@ object PLAYER
       dobj:tell(player.name, " tried to ", verb, " you.");
       return;
     endif
-    iobj:((verb == "@eject" ? "eject" | "eject_basic"))(dobj);
+    iobj:(verb == "@eject" ? "eject" | "eject_basic")(dobj);
     player:notify($object_utils:has_callable_verb(iobj, "ejection_msg") ? iobj:ejection_msg() | $room:ejection_msg());
     if (verb != "@eject!!")
       dobj:tell($object_utils:has_callable_verb(iobj, "victim_ejection_msg") ? iobj:victim_ejection_msg() | $room:victim_ejection_msg());
@@ -1944,7 +1944,7 @@ object PLAYER
     su = $string_utils;
     player:notify("Block Size   # In Use    # Free    Bytes In Use   Bytes Free");
     player:notify("----------   --------   --------   ------------   ----------");
-    nused = nfree = bytesused = bytesfree = 0;
+    nused = nfree = (bytesused = (bytesfree = 0));
     kilo = 1024;
     meg = kilo * kilo;
     for x in (stats)
@@ -2133,7 +2133,7 @@ object PLAYER
       player:tell("You have requested a listing of ", length(folks), " players.  That is too long a list; specify individual players you are interested in.");
       return;
     endif
-    day = week = month = ever = never = {};
+    day = week = (month = (ever = (never = {})));
     a_day = 24 * 60 * 60;
     a_week = 7 * a_day;
     a_month = 30 * a_day;

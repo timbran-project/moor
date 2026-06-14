@@ -141,7 +141,7 @@ object NOTE_EDITOR
     if (typeof(spec = args[1]) == TYPE_OBJ)
       text = spec:text();
     else
-      text = `spec[1].((spec[2])) ! ANY';
+      text = `spec[1].(spec[2]) ! ANY';
     endif
     if ((tt = typeof(text)) in {TYPE_ERR, TYPE_STR} || (tt == TYPE_LIST && (!text || typeof(text[1]) == TYPE_STR)))
       return text;
@@ -160,10 +160,10 @@ object NOTE_EDITOR
     if (typeof(spec = args[1]) == TYPE_OBJ)
       return spec:set_text(args[2]);
     elseif ($object_utils:has_callable_verb(spec[1], "set_" + spec[2]))
-      attempt = spec[1]:(("set_" + spec[2]))(args[2]);
+      attempt = spec[1]:("set_" + spec[2])(args[2]);
     endif
     if (typeof(attempt) == TYPE_ERR)
-      return `spec[1].((spec[2])) = args[2] ! ANY';
+      return `spec[1].(spec[2]) = args[2] ! ANY';
     else
       return attempt;
     endif

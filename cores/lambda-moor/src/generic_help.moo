@@ -61,9 +61,9 @@ object GENERIC_HELP
     "WIZARDLY";
     {topic, ?dblist = {}} = args;
     if (`$object_utils:has_property(parent(this), topic) ! ANY')
-      text = `this.((" " + topic)) ! ANY';
+      text = `this.(" " + topic) ! ANY';
     else
-      text = `this.(topic) || this.((" " + topic)) ! ANY';
+      text = `this.(topic) || this.(" " + topic) ! ANY';
     endif
     if (typeof(text) == TYPE_LIST)
       if (text && text[1] == "*" + (vb = strsub(text[1], "*", "")) + "*")
@@ -204,7 +204,7 @@ object GENERIC_HELP
 
   verb dump_topic (this none this) owner: #2 flags: "rxd"
     try
-      text = this.((fulltopic = args[1]));
+      text = this.(fulltopic = args[1]);
       return {tostr(";;", $code_utils:corify_object(this), ".(", toliteral(fulltopic), ") = $command_utils:read_lines()"), @$command_utils:dump_lines(text)};
     except error (ANY)
       return error[1];

@@ -457,7 +457,7 @@ object ROOM
     endif
     iobj = this;
     player:tell(this:ejection_msg());
-    this:((verb == "@eject" ? "eject" | "eject_basic"))(dobj);
+    this:(verb == "@eject" ? "eject" | "eject_basic")(dobj);
     if (verb != "@eject!!")
       dobj:tell(this:victim_ejection_msg());
     endif

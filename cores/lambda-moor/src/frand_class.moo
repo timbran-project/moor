@@ -533,9 +533,9 @@ object FRAND_CLASS
             for ii in [1..length(i)]
               $command_utils:suspend_if_needed(0);
               if (!$spell:valid(i[ii]))
-                if (rindex(i[ii], "s") == length(i[ii]) && $spell:valid((i[ii])[1..$ - 1]))
+                if (rindex(i[ii], "s") == length(i[ii]) && $spell:valid(i[ii][1..$ - 1]))
                   msg = "Possible match: " + i[ii];
-                elseif (rindex(i[ii], "'s") == length(i[ii]) - 1 && $spell:valid((i[ii])[1..$ - 2]))
+                elseif (rindex(i[ii], "'s") == length(i[ii]) - 1 && $spell:valid(i[ii][1..$ - 2]))
                   msg = "Possible match: " + i[ii];
                 else
                   msg = "Unknown word: " + i[ii];
@@ -791,10 +791,10 @@ object FRAND_CLASS
           for ii in [1..length(line)]
             $command_utils:suspend_if_needed(0);
             if (!$spell:valid(line[ii]))
-              if (rindex(line[ii], "s") == length(line[ii]) && $spell:valid((line[ii])[1..$ - 1]))
+              if (rindex(line[ii], "s") == length(line[ii]) && $spell:valid(line[ii][1..$ - 1]))
                 msg = "Possible match: " + line[ii];
                 msg = msg + " " + (length(data) != 1 ? "(line " + tostr(i) + ")  " | "  ");
-              elseif (rindex(line[ii], "'s") == length(line[ii]) - 1 && $spell:valid((line[ii])[1..$ - 2]))
+              elseif (rindex(line[ii], "'s") == length(line[ii]) - 1 && $spell:valid(line[ii][1..$ - 2]))
                 msg = "Possible match: " + line[ii];
                 msg = msg + " " + (length(data) != 1 ? "(line " + tostr(i) + ")  " | "  ");
               else
@@ -1258,13 +1258,13 @@ object FRAND_CLASS
     {origin, action, @extra_args} = args;
     extra_args = {origin, @extra_args};
     rorigin = this:player_to_refusal_origin(origin);
-    if ((which = rorigin in this.refused_origins) && action in this.refused_actions[which] && this:(("refuses_action_" + action))(which, @extra_args))
+    if ((which = rorigin in this.refused_origins) && action in this.refused_actions[which] && this:("refuses_action_" + action)(which, @extra_args))
       return 1;
-    elseif (typeof(rorigin) == TYPE_OBJ && valid(rorigin) && (which = rorigin.owner in this.refused_origins) && action in this.refused_actions[which] && this:(("refuses_action_" + action))(which, @extra_args))
+    elseif (typeof(rorigin) == TYPE_OBJ && valid(rorigin) && (which = rorigin.owner in this.refused_origins) && action in this.refused_actions[which] && this:("refuses_action_" + action)(which, @extra_args))
       return 1;
-    elseif ((which = $nothing in this.refused_origins) && rorigin != this && action in this.refused_actions[which] && this:(("refuses_action_" + action))(which, @extra_args))
+    elseif ((which = $nothing in this.refused_origins) && rorigin != this && action in this.refused_actions[which] && this:("refuses_action_" + action)(which, @extra_args))
       return 1;
-    elseif ((which = "all guests" in this.refused_origins) && $object_utils:isa(origin, $guest) && action in this.refused_actions[which] && this:(("refuses_action_" + action))(which, @extra_args))
+    elseif ((which = "all guests" in this.refused_origins) && $object_utils:isa(origin, $guest) && action in this.refused_actions[which] && this:("refuses_action_" + action)(which, @extra_args))
       return 1;
     endif
     return 0;
@@ -1561,7 +1561,7 @@ object FRAND_CLASS
       if ($command_utils:yes_or_no("Do you wish to review the list first?"))
         return player:notify_lines($string_utils:columnize($list_utils:sort($spell.submitted), abs(player.linelen) / (length($list_utils:longest($spell.submitted)) + 1)));
       else
-        num_learned = num_skipped = num_errors = num_rejects = 0;
+        num_learned = num_skipped = (num_errors = (num_rejects = 0));
         if ($command_utils:yes_or_no("Do you wish to process each word individually? Recommended, but may take a couple minutes."))
           for candidate in ($spell.submitted)
             $command_utils:suspend_if_needed(0);

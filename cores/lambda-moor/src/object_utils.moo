@@ -73,7 +73,7 @@ object OBJECT_UTILS
     if (prop in $code_utils.builtin_props)
       return valid(object);
     else
-      return !(!property_info(object, prop));
+      return !!property_info(object, prop);
     endif
   endverb
 
@@ -365,7 +365,7 @@ object OBJECT_UTILS
   verb "has_any_verb has_any_property" (this none this) owner: #2 flags: "rxd"
     ":has_any_verb(object) / :has_any_property(object)";
     " -- does `object' have any verbs/properties?";
-    return !(!`verb == "has_any_verb" ? verbs(args[1]) | properties(args[1]) ! E_INVARG => 0');
+    return !!(`verb == "has_any_verb" ? verbs(args[1]) | properties(args[1]) ! E_INVARG => 0');
   endverb
 
   verb "has_readable_prop*erty hrp" (this none this) owner: #2 flags: "rxd"

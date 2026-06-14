@@ -247,7 +247,7 @@ object BIGLIST
           tree = kids[ik[1]];
           before = ik[2];
         endfor
-        return {(caller:_get(tree[1])[2])[before + 1..before + howmany], @spine};
+        return {caller:_get(tree[1])[2][before + 1..before + howmany], @spine};
       endif
     else
       return {};
@@ -271,7 +271,7 @@ object BIGLIST
         node = nnode[1];
       endfor
       test = caller:_get(node);
-      return {(test[2])[n..size], @spine};
+      return {test[2][n..size], @spine};
     else
       return {};
     endif
@@ -447,7 +447,7 @@ object BIGLIST
         S = max(llen - 1, (mlen + 1) / 2);
         home:_put(ltree[1], height, mkids[1..S]);
         home:_put(rtree[1], height, mkids[S + 1..$]);
-        xfer = -lkids[llen][2];
+        xfer = -(lkids[llen][2]);
         for k in (mkids[llen..S])
           xfer = xfer + k[2];
         endfor
@@ -576,7 +576,7 @@ object BIGLIST
         parent[2] = parent[2] + isize - m[2][2];
         m = {parent, listset(m[2], home:_make(h + iheight, {m[2]}), 1)};
       else
-        home:_put(parent[1], @listset(hgp, {@(hgp[2])[1..plen - 1], @m}, 2));
+        home:_put(parent[1], @listset(hgp, {@hgp[2][1..plen - 1], @m}, 2));
         for p in (rspine[h + 1..length(rspine)])
           parent[2] = parent[2] + isize;
           tree = parent;
@@ -626,7 +626,7 @@ object BIGLIST
   endverb
 
   verb debug (this none this) owner: HACKER flags: "rxd"
-    return $perm_utils:controls(caller_perms(), this) ? this:((args[1]))(@listdelete(args, 1)) | E_PERM;
+    return $perm_utils:controls(caller_perms(), this) ? this:(args[1])(@listdelete(args, 1)) | E_PERM;
   endverb
 
   verb _call (this none this) owner: #2 flags: "rxd"

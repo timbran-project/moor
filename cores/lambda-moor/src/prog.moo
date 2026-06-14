@@ -163,7 +163,7 @@ object PROG
       endif
     elseif (valid(object = player:my_match_object(what)))
       perms = $perm_utils:apply((object.r ? "r" | "") + (object.w ? "w" | "") + (object.f ? "f" | ""), perms);
-      r = w = f = 0;
+      r = w = (f = 0);
       for i in [1..length(perms)]
         if (perms[i] == "r")
           r = 1;
@@ -224,7 +224,7 @@ object PROG
         elseif (pas[2])
           player:notify(tostr("\"", pas[2][1], "\" unexpected."));
         else
-          info[2] = (info[2])[1..index(info[2] + "/", "/") - 1];
+          info[2] = info[2][1..index(info[2] + "/", "/") - 1];
           info = {@newargs, @info[length(newargs) + 1..$]};
           try
             result = set_verb_args(object, name, info);
@@ -259,7 +259,7 @@ object PROG
     result = player:eval_cmd_string(argstr, verb != "eval-d");
     if (result[1])
       player:notify(this:eval_value_to_string(result[2]));
-      if (player:prog_option("eval_time") && !`output_delimiters(player)[2] ! ANY')
+      if (player:prog_option("eval_time") && !(`output_delimiters(player)[2] ! ANY'))
         player:notify(tostr("[used ", result[3], " tick", result[3] != 1 ? "s, " | ", ", result[4], " second", result[4] != 1 ? "s" | "", ".]"));
       endif
     else
@@ -447,7 +447,7 @@ object PROG
         if (verbose || (index(vname, "suspend") && vloc == $command_utils))
           "Display the first (or, if verbose, every) line of the callers() list, which is gotten by taking the second through last elements of task_stack().";
           stack = `task_stack(q_id, 1) ! E_INVARG => {}';
-          for frame in (stack[2..(verbose ? $ | 2)])
+          for frame in (stack[2..verbose ? $ | 2])
             {sthis, svname, sprogger, svloc, splayer, slineno} = frame;
             player:notify(tostr("                    Called By...  ", su:left(valid(sprogger) ? sprogger.name | tostr("Dead ", sprogger), 19), "  ", svloc, ":", svname, sthis != svloc ? tostr(" [", sthis, "]") | "", " (", slineno, ")"));
           endfor
@@ -516,7 +516,7 @@ object PROG
       endif
     elseif (percent = args[1][1] == "%")
       l = length(args[1]);
-      digits = toint((args[1])[2..l]);
+      digits = toint(args[1][2..l]);
       percent = toint("1" + "0000000000"[1..l - 1]);
     elseif (colon = index(argstr, ":"))
       whatstr = argstr[1..colon - 1];
@@ -644,7 +644,7 @@ object PROG
         player:notify("Won't be able to delete old verb.  Treating this as regular @copy.");
       endif
     endif
-    to_firstname = strsub((to[2])[1..index(to[2] + " ", " ") - 1], "*", "") || "*";
+    to_firstname = strsub(to[2][1..index(to[2] + " ", " ") - 1], "*", "") || "*";
     if (!(hv = $object_utils:has_verb(to[1], to_firstname)) || hv[1] != to[1])
       if (!(info = `verb_info(@from) ! ANY') || !(vargs = `verb_args(@from) ! ANY'))
         player:notify(tostr("Retrieving ", from[1], ":", from[2], " --> ", info && vargs));
@@ -1019,14 +1019,14 @@ object PROG
           this:notify(tostr("  ** property not found, \"", q, "\" **"));
         endif
       else
-        pname = $string_utils:left(tostr(q in `properties(it) ! ANY => {}' ? "." | (`is_clear_property(it, q) ! ANY' ? " " | ","), q, " "), 25);
+        pname = $string_utils:left(tostr(q in `properties(it) ! ANY => {}' ? "." | `is_clear_property(it, q) ! ANY' ? " " | ",", q, " "), 25);
         if (inf == E_PERM)
           this:notify(pname + "   ** unreadable **");
         else
           oname = inf[1].name;
           truncate_owner_names && (length(oname) > 12 && (oname = oname[1..12]));
-          `inf[2][1] != "r" ! E_RANGE => 1' && ((inf[2])[1..0] = " ");
-          `inf[2][2] != "w" ! E_RANGE => 1' && ((inf[2])[2..1] = " ");
+          `inf[2][1] != "r" ! E_RANGE => 1' && (inf[2][1..0] = " ");
+          `inf[2][2] != "w" ! E_RANGE => 1' && (inf[2][2..1] = " ");
           this:notify($string_utils:left(tostr($string_utils:left(tostr(pname, oname, " (", inf[1], ") "), 47), inf[2], " "), 54) + $string_utils:abbreviated_value(it.(q), max, depth));
         endif
       endif
@@ -1129,7 +1129,7 @@ object PROG
     player:notify("");
     egrep = verb[2] == "e";
     all = index(verb, "a");
-    $code_utils:((all ? egrep ? "find_verb_lines_matching" | "find_verb_lines_containing" | (egrep ? "find_verbs_matching" | "find_verbs_containing")))(pattern, @objlist);
+    $code_utils:(all ? egrep ? "find_verb_lines_matching" | "find_verb_lines_containing" | egrep ? "find_verbs_matching" | "find_verbs_containing")(pattern, @objlist);
   endverb
 
   verb "@s*how" (any any any) owner: #2 flags: "rd"
@@ -1407,7 +1407,7 @@ object PROG
   verb eval_value_to_string (this none this) owner: #2 flags: "rxd"
     set_task_perms(caller_perms());
     if (typeof(val = args[1]) == TYPE_OBJ)
-      return tostr("=> ", val, "  ", valid(val) ? "(" + val.name + ")" | ((a = $list_utils:assoc(val, {{#-1, "<$nothing>"}, {#-2, "<$ambiguous_match>"}, {#-3, "<$failed_match>"}})) ? a[2] | "<invalid>"));
+      return tostr("=> ", val, "  ", valid(val) ? "(" + val.name + ")" | (a = $list_utils:assoc(val, {{#-1, "<$nothing>"}, {#-2, "<$ambiguous_match>"}, {#-3, "<$failed_match>"}})) ? a[2] | "<invalid>");
     elseif (typeof(val) == TYPE_ERR)
       return tostr("=> ", toliteral(val), "  (", val, ")");
     else

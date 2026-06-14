@@ -35,11 +35,11 @@ object GENERIC_BIGLIST_HOME
   endverb
 
   verb _get (this none this) owner: HACKER flags: "rxd"
-    return caller == this._mgr ? this.((args[1])) | E_PERM;
+    return caller == this._mgr ? this.(args[1]) | E_PERM;
   endverb
 
   verb _put (this none this) owner: HACKER flags: "rxd"
-    return caller == this._mgr ? this.((args[1])) = listdelete(args, 1) | E_PERM;
+    return caller == this._mgr ? (this.(args[1]) = listdelete(args, 1)) | E_PERM;
   endverb
 
   verb _genprop (this none this) owner: HACKER flags: "rxd"

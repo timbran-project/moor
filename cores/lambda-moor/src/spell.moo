@@ -13162,14 +13162,14 @@ object SPELL
             if (!index(data[i], "\""))
               data[i] = "";
             else
-              data[i] = (data[i])[index(data[i], "\"") + 1..$];
-              data[i] = (data[i])[1..rindex(data[i], "\"") - 1];
+              data[i] = data[i][index(data[i], "\"") + 1..$];
+              data[i] = data[i][1..rindex(data[i], "\"") - 1];
               foo = "";
               while (index(data[i], "\""))
-                foo = foo + (data[i])[1..index(data[i], "\"") - 1];
+                foo = foo + data[i][1..index(data[i], "\"") - 1];
                 foo = foo + " ";
-                data[i] = (data[i])[index(data[i], "\"") + 1..$];
-                data[i] = (data[i])[index(data[i], "\"") + 1..$];
+                data[i] = data[i][index(data[i], "\"") + 1..$];
+                data[i] = data[i][index(data[i], "\"") + 1..$];
               endwhile
               if (foo == "")
                 foo = data[i];
@@ -13287,7 +13287,7 @@ object SPELL
   endverb
 
   verb _every_key (this none this) owner: HACKER flags: "rxd"
-    info = this.((" " + args[1]));
+    info = this.(" " + args[1]);
     prefix = args[1] + info[1];
     r = info[3];
     for i in [1..length(branches = info[2])]

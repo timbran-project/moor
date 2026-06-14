@@ -184,7 +184,7 @@ object MAIL_AGENT
           "...player-recipient was already getting a notification...";
           "...make sure notification includes a mention of him/her/itself.";
           if (!(recip in listdelete(biffs[i], 1)))
-            (biffs[i])[2..1] = {recip};
+            biffs[i][2..1] = {recip};
           endif
         else
           "...player-recipient wasn't originally being notified at all...";
@@ -348,7 +348,7 @@ object MAIL_AGENT
     elseif (string[1] == "*" && string != "*")
       return this:match(@args);
     elseif (string[1] == "`")
-      (args[1])[1..1] = "";
+      args[1][1..1] = "";
       return $string_utils:match_player(@args);
     elseif (valid(o = $string_utils:match_player(@args)) || o == $ambiguous_match)
       return o;
@@ -489,7 +489,7 @@ object MAIL_AGENT
       if (keep_seq[k] <= (mcount = mcount + 1))
         k = k + 1;
       endif
-      annot = (d = x[2][1]) > last_old ? "+" | (k % 2 ? " " | "=");
+      annot = (d = x[2][1]) > last_old ? "+" | k % 2 ? " " | "=";
       line = tostr($string_utils:right(x[1], 4, cur == x[1] ? ">" | " "), ":", annot, " ", caller:msg_summary_line(@x[2]));
       player:tell(line[1..min(width, $)]);
       if (ticks_left() < 500 || seconds_left() < 2)
@@ -504,7 +504,7 @@ object MAIL_AGENT
     "...removed messages are saved in .messages_going for possible restoration.";
     set_task_perms(caller_perms());
     old = caller.messages;
-    new = save = nums = {};
+    new = save = (nums = {});
     next = 1;
     for i in [1..length(seq = args[1]) / 2]
       if ($command_utils:running_out_of_time())
@@ -667,7 +667,7 @@ object MAIL_AGENT
       c = player:ctime(args[1]);
       date = c[5..11] + c[21..25];
     else
-      date = (player:ctime(args[1]))[5..16];
+      date = player:ctime(args[1])[5..16];
     endif
     from = args[2];
     if (args[4] != " ")
@@ -716,12 +716,12 @@ object MAIL_AGENT
           elseif (keywd[1] == "%")
             pattern = $string_utils:explode(pattern, "|");
           else
-            pattern = this:((keywd == "to" ? "_parse_to" | "_parse_from"))(pattern);
+            pattern = this:(keywd == "to" ? "_parse_to" | "_parse_from")(pattern);
             if (typeof(pattern) == TYPE_STR)
               return pattern;
             endif
           endif
-          seq = caller:((keywd + "_msg_seq"))(pattern, seq);
+          seq = caller:(keywd + "_msg_seq")(pattern, seq);
           if (typeof(seq) == TYPE_STR)
             if (strnum == 1)
               return seq;
@@ -743,7 +743,7 @@ object MAIL_AGENT
         elseif (k <= 63)
           "...first, last...";
           if (n = toint(string[c + 1..$]))
-            seq = $seq_utils:((keywd + "n"))(seq, n);
+            seq = $seq_utils:(keywd + "n")(seq, n);
           else
             return tostr("Bad number in `", string, "'");
           endif
@@ -751,7 +751,7 @@ object MAIL_AGENT
           "...kept, unkept...";
           if (c < length(string))
             return tostr("Unexpected junk after `", keywd, ":'");
-          elseif (!(seq = caller:((keywd + "_msg_seq"))(seq)) && strnum == 1)
+          elseif (!(seq = caller:(keywd + "_msg_seq")(seq)) && strnum == 1)
             return tostr("%f %<has> no ", keywd, " messages.");
           endif
         endif
@@ -1144,7 +1144,7 @@ object MAIL_AGENT
     if (typeof(msgs = args[1]) != TYPE_LIST)
       return caller.messages[msgs];
     elseif (length(msgs) == 2)
-      return (caller.messages)[msgs[1]..msgs[2] - 1];
+      return caller.messages[msgs[1]..msgs[2] - 1];
     else
       return $seq_utils:extract(msgs, caller.messages);
     endif
@@ -1160,7 +1160,7 @@ object MAIL_AGENT
       start = 1;
     else
       start = 2;
-      if (!((colon = index(args[2], ":")) && (args[2])[1..colon] in {"From:", "To:", "Subject:"}))
+      if (!((colon = index(args[2], ":")) && args[2][1..colon] in {"From:", "To:", "Subject:"}))
         return args;
       endif
     endif
@@ -1391,9 +1391,9 @@ object MAIL_AGENT
     {i, body} = args;
     bstart = "" in caller.messages[i][2];
     if (bstart)
-      (caller.messages[i][2])[bstart + 1..$] = body;
+      caller.messages[i][2][bstart + 1..$] = body;
     else
-      (caller.messages[i][2])[$ + 1..$] = {"", @body};
+      caller.messages[i][2][$ + 1..$] = {"", @body};
     endif
   endverb
 
@@ -1408,6 +1408,6 @@ object MAIL_AGENT
     {i} = args;
     msg = caller:messages_in_seq({i, i + 1})[1][2];
     bstart = "" in msg;
-    return msg[(bstart ? bstart + 1 | $ + 1)..$];
+    return msg[bstart ? bstart + 1 | $ + 1..$];
   endverb
 endobject

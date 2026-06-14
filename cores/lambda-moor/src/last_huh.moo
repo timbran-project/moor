@@ -27,7 +27,7 @@ object LAST_HUH
     if ($command_utils:object_match_failed(dobj, dobjstr))
       "... oh well ...";
     elseif (pos == nargs)
-      if (E_PROPNF == (get = `dobj.((msg_name + "_msg")) ! ANY'))
+      if (E_PROPNF == (get = `dobj.(msg_name + "_msg") ! ANY'))
         player:notify(tostr(dobj.name, " (", dobj, ") has no \"", msg_name, "\" message."));
       elseif (typeof(get) == TYPE_ERR)
         player:notify(tostr(get));

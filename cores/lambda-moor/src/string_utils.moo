@@ -387,7 +387,7 @@ object STRING_UTILS
     elseif (string[1] == "$")
       string[1..1] = "";
       object = #0;
-      while (pn = string[1..((dot = index(string, ".")) ? dot - 1 | $)])
+      while (pn = string[1..(dot = index(string, ".")) ? dot - 1 | $])
         if (!$object_utils:has_property(object, pn) || typeof(object = object.(pn)) != TYPE_OBJ)
           return $failed_match;
         endif
@@ -694,7 +694,7 @@ object STRING_UTILS
     if (numb == 0)
       return "zeroth";
     elseif (numb % 100)
-      hundreds = abs(numb) > 100 ? this:english_number(numb / 100 * 100) + " " | (numb < 0 ? "negative " | "");
+      hundreds = abs(numb) > 100 ? this:english_number(numb / 100 * 100) + " " | numb < 0 ? "negative " | "";
       numb = abs(numb) % 100;
       specials = {1, 2, 3, 5, 8, 9, 12, 20, 30, 40, 50, 60, 70, 80, 90};
       ordinals = {"first", "second", "third", "fifth", "eighth", "ninth", "twelfth", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth", "eightieth", "ninetieth"};
@@ -845,7 +845,7 @@ object STRING_UTILS
     ucase = prop && strcmp(prop, "a") < 0 || ucase;
     if (!prop)
       return valid(what) ? ucase ? what:titlec() | what:title() | (ucase ? "N" | "n") + "othing";
-    elseif (!ucase || typeof(s = `what.((prop + "c")) ! ANY') == TYPE_ERR)
+    elseif (!ucase || typeof(s = `what.(prop + "c") ! ANY') == TYPE_ERR)
       if (prop == "name")
         s = valid(what) ? what.name | "nothing";
         ucase = ucase && !is_player(what);
@@ -871,7 +871,7 @@ object STRING_UTILS
     "%<foo> -> whatever <who> does when normal people foo. This is determined by calling :verb_sub() on the <who>.";
     "%<d:foo> -> whatever <dobj> does when normal people foo.";
     {string, ?who = player, ?thing = caller, ?where = $nothing, ?dobject = dobj, ?iobject = iobj} = args;
-    where = valid(where) ? where | (valid(who) ? who.location | where);
+    where = valid(where) ? where | valid(who) ? who.location | where;
     set_task_perms($no_one);
     if (typeof(string) == TYPE_LIST)
       plines = {};
@@ -931,7 +931,7 @@ object STRING_UTILS
         elseif (s != "%")
           s = "%" + s;
         endif
-        new = new + old[1..prcnt - 1] + (!cp_args ? s | (typeof(sub = $string_utils:_cap_property(@cp_args)) != TYPE_ERR ? sub | "%(" + tostr(sub) + ")"));
+        new = new + old[1..prcnt - 1] + (!cp_args ? s | typeof(sub = $string_utils:_cap_property(@cp_args)) != TYPE_ERR ? sub | "%(" + tostr(sub) + ")");
       endif
       old = old[k + 1..oldlen];
       oldlen = oldlen - k;
@@ -1048,7 +1048,7 @@ object STRING_UTILS
         elseif (s != "%")
           s = "%" + s;
         endif
-        new = new + old[1..prcnt - 1] + (!cp_args ? s | (typeof(sub = $string_utils:_cap_property(@cp_args)) != TYPE_ERR ? sub | "%(" + tostr(sub) + ")"));
+        new = new + old[1..prcnt - 1] + (!cp_args ? s | typeof(sub = $string_utils:_cap_property(@cp_args)) != TYPE_ERR ? sub | "%(" + tostr(sub) + ")");
       endif
       old = old[k + 1..oldlen];
       oldlen = oldlen - k;
@@ -1166,7 +1166,7 @@ object STRING_UTILS
     if (!string)
       return {0, "empty string"};
     elseif (w = index("{\"", string[1]))
-      result = this:(({"_tolist", "_unquote"}[w]))(string[2..slen]);
+      result = this:({"_tolist", "_unquote"}[w])(string[2..slen]);
       if (typeof(result[1]) != TYPE_INT)
         return result;
       elseif (result[1] == 0)
@@ -1196,7 +1196,7 @@ object STRING_UTILS
     while (1)
       rlen = length(rest);
       if (w = index("{\"", rest[1]))
-        result = this:(({"_tolist", "_unquote"}[w]))(rest[2..rlen]);
+        result = this:({"_tolist", "_unquote"}[w])(rest[2..rlen]);
         if (typeof(result[1]) == TYPE_INT)
           return result;
         endif
@@ -1786,7 +1786,7 @@ object STRING_UTILS
       endif
     elseif (type == TYPE_STR)
       result = "\"";
-      while ((q = index(value, "\"")) ? q = min(q, index(value, "\\")) | (q = index(value, "\\")))
+      while ((q = index(value, "\"")) ? (q = min(q, index(value, "\\"))) | (q = index(value, "\\")))
         result = result + value[1..q - 1] + "\\" + value[q];
         value = value[q + 1..$];
       endwhile

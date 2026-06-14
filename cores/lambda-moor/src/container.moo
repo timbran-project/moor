@@ -182,7 +182,7 @@ object CONTAINER
     if (!$perm_utils:controls(caller.owner, this))
       return E_PERM;
     else
-      this.opened = opened = !(!args[1]);
+      this.opened = opened = !!args[1];
       this.dark = this.opaque > opened;
       return opened;
     endif
@@ -204,7 +204,7 @@ object CONTAINER
     elseif (typeof(number = args[1]) != TYPE_INT)
       return E_INVARG;
     else
-      number = number < 0 ? 0 | (number > 2 ? 2 | number);
+      number = number < 0 ? 0 | number > 2 ? 2 | number;
       this.dark = number > this.opened;
       return this.opaque = number;
     endif

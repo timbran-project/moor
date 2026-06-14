@@ -183,7 +183,7 @@ object LIST_EDITOR
       return E_PERM;
     endif
     set_task_perms(player);
-    return args[1].((args[2]));
+    return args[1].(args[2]);
   endverb
 
   verb set_property (this none this) owner: #2 flags: "rx"
@@ -195,11 +195,11 @@ object LIST_EDITOR
     {object, pname, value} = args;
     set_task_perms(player);
     if ($object_utils:has_callable_verb(object, "set_" + pname))
-      if (typeof(attempt = object:(("set_" + pname))(value)) != TYPE_ERR)
+      if (typeof(attempt = object:("set_" + pname)(value)) != TYPE_ERR)
         return attempt;
       endif
     endif
-    return typeof(e = object.(pname) = value) == TYPE_ERR ? e | 1;
+    return typeof(e = (object.(pname) = value)) == TYPE_ERR ? e | 1;
   endverb
 
   verb explode_line (this none this) owner: #96 flags: "rxd"
@@ -215,7 +215,7 @@ object LIST_EDITOR
       return {prev, @newlines};
     elseif (line[1] == "}")
       if (this:is_delimiter(prev) && !index(prev, "{"))
-        return {tostr((args[2])[1..indent], su:trim(prev), " ", line)};
+        return {tostr(args[2][1..indent], su:trim(prev), " ", line)};
       else
         return args;
       endif

@@ -161,7 +161,7 @@ object LOGIN
     try
       "=================================================================";
       "=== Is our candidate name invalid?";
-      if (!valid(candidate = orig_candidate = this:_match_player(name)))
+      if (!valid(candidate = (orig_candidate = this:_match_player(name))))
         raise(E_INVARG, tostr("`", name, "' matches no player name."));
       endif
       "=================================================================";
@@ -634,8 +634,8 @@ object LOGIN
       this.welcome_message_content_type = "text/djot";
       this.help_message = "# Getting Started\n\nTo sign in to an existing account, use your **player name** and **password**.\n\nTo create a new account, choose a unique player name and password.\n\n## Available commands (for telnet users)\n\n- `connect <name> <password>` - Sign in to an existing account\n- `create <name> <password>` - Create a new account\n- `who` - See who is currently connected\n- `quit` - Disconnect from the server\n\nFor more detailed help once you're logged in, type `help` after connecting.";
       this.help_message_content_type = "text/djot";
-      this.redlist = this.blacklist = this.graylist = this.spooflist = {{}, {}};
-      this.temporary_redlist = this.temporary_blacklist = this.temporary_graylist = this.temporary_spooflist = {{}, {}};
+      this.redlist = this.blacklist = (this.graylist = (this.spooflist = {{}, {}}));
+      this.temporary_redlist = this.temporary_blacklist = (this.temporary_graylist = (this.temporary_spooflist = {{}, {}}));
       this.who_masks_wizards = 0;
       this.newted = this.temporary_newts = {};
       this.downtimes = {};
@@ -659,7 +659,7 @@ object LOGIN
     ":blacklisted(hostname) => is hostname on the .blacklist";
     ":graylisted(hostname)  => is hostname on the .graylist";
     ":redlisted(hostname)   => is hostname on the .redlist";
-    sitelist = this.((this:listname(verb)));
+    sitelist = this.(this:listname(verb));
     if (!caller_perms().wizard)
       return E_PERM;
     elseif ((hostname = args[1]) in sitelist[1] || hostname in sitelist[2])
@@ -685,7 +685,7 @@ object LOGIN
         endif
       endfor
     endif
-    return this:((verb + "_temp"))(hostname);
+    return this:(verb + "_temp")(hostname);
   endverb
 
   verb "blacklist_add*_temp graylist_add*_temp redlist_add*_temp spooflist_add*_temp" (this none this) owner: #2 flags: "rxd"
@@ -771,7 +771,7 @@ object LOGIN
       return E_PERM;
     endif
     lag = time() - this.last_lag_sample - 15;
-    this.lag_samples = {lag, @(this.lag_samples)[1..3]};
+    this.lag_samples = {lag, @this.lag_samples[1..3]};
     "Now compute the current lag and store it in a property, instead of computing it in :current_lag, which is called a hundred times a second.";
     thislag = max(0, time() - this.last_lag_sample - this.lag_sample_interval);
     if (thislag > 60 * 60)
@@ -976,7 +976,7 @@ object LOGIN
     "Called by #0:server_started when the server restarts.";
     if (caller_perms().wizard)
       this.lag_samples = {0, 0, 0, 0, 0};
-      this.downtimes = {{time(), this.last_lag_sample}, @(this.downtimes)[1..min($, 100)]};
+      this.downtimes = {{time(), this.last_lag_sample}, @this.downtimes[1..min($, 100)]};
       this.intercepted_players = this.intercepted_actions = {};
       this.checkpoint_in_progress = 0;
     endif
@@ -1020,7 +1020,7 @@ object LOGIN
     "";
     "... and the time limit hasn't run out.";
     lname = this:listname(verb);
-    sitelist = this.(("temporary_" + lname));
+    sitelist = this.("temporary_" + lname);
     if (!caller_perms().wizard)
       return E_PERM;
     elseif (entry = $list_utils:assoc(hostname = args[1], sitelist[1]))
@@ -1059,7 +1059,7 @@ object LOGIN
       return E_PERM;
     endif
     if (this:uptime_since(start) > duration)
-      this:((lname + "_remove_temp"))(hname);
+      this:(lname + "_remove_temp")(hname);
       return 0;
     else
       return 1;

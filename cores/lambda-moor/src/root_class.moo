@@ -191,7 +191,7 @@ object ROOT_CLASS
     if (!(caller == this || $perm_utils:controls(caller_perms(), this)))
       return E_PERM;
     else
-      return `this.((args[1] + "_msg")) = args[2] ! ANY' && 1;
+      return `this.(args[1] + "_msg") = args[2] ! ANY' && 1;
     endif
   endverb
 
@@ -335,7 +335,7 @@ object ROOT_CLASS
     "=> {E_NONE, error message} ";
     if (!(caller == this || $perm_utils:controls(caller_perms(), this)))
       return E_PERM;
-    elseif ((t = typeof(msg = `this.((args[1] + "_msg")) ! ANY')) in {TYPE_ERR, TYPE_STR} || (t == TYPE_LIST && msg && typeof(msg[1]) == TYPE_STR))
+    elseif ((t = typeof(msg = `this.(args[1] + "_msg") ! ANY')) in {TYPE_ERR, TYPE_STR} || (t == TYPE_LIST && msg && typeof(msg[1]) == TYPE_STR))
       return msg;
     else
       return {1, msg};

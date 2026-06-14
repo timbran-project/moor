@@ -258,7 +258,7 @@ object BUILDING_UTILS
       loc = loc[1..37] + "..]";
     endif
     namelen = min(length(o.name), name_field_len - 1);
-    return tostr(vstr, $string_utils:right(o, olen), " ", $string_utils:left((o.name)[1..namelen], name_field_len), loc);
+    return tostr(vstr, $string_utils:right(o, olen), " ", $string_utils:left(o.name[1..namelen], name_field_len), loc);
   endverb
 
   verb "do_audit do_prospectus" (this none this) owner: #2 flags: "rxd"

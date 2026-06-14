@@ -21,8 +21,6 @@ object ERROR
     E_INVARG,
     E_QUOTA,
     E_FLOAT
-  
-  
   };
   property names (owner: HACKER, flags: "rc") = {
     "E_NONE",

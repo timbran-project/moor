@@ -204,7 +204,7 @@ object SYSOBJ
     "...checks to see if the login is spamming the server with too many commands...";
     if (!$login:maybe_limit_commands())
       args = $login:parse_command(@args);
-      return $login:((args[1]))(@listdelete(args, 1));
+      return $login:(args[1])(@listdelete(args, 1));
     endif
   endverb
 
@@ -220,13 +220,13 @@ object SYSOBJ
     set_task_perms($no_one);
     {?core_variant = "Imnotsurewhatthisshouldbeyetdontdependonthis", ?in_mcd = 0} = args;
     if (in_mcd)
-      {vb, perms, loc} = (callers()[1])[2..4];
+      {vb, perms, loc} = callers()[1][2..4];
       if (vb != "make-core-database" || !perms.wizard || loc != $wiz)
         raise(E_PERM);
       endif
     endif
     core_objects = {};
-    proxy_original = proxy_incore = core_properties = skipped_parents = {};
+    proxy_original = proxy_incore = (core_properties = (skipped_parents = {}));
     todo = {{#0, {"sysobj", "owner"}}};
     "...lucky for us #0 has a self-referential property";
     while ({?sfc, @todo} = todo)
@@ -517,7 +517,7 @@ object SYSOBJ
     elseif (!$perm_utils:controls(cp, no))
       "perms don't control prospective verb owner";
       retval = E_PERM;
-    elseif (index(i[2], "w") && !`$server_options.permit_writable_verbs ! E_PROPNF, E_INVIND => 1')
+    elseif (index(i[2], "w") && !(`$server_options.permit_writable_verbs ! E_PROPNF, E_INVIND => 1'))
       retval = E_INVARG;
     else
       retval = `set_verb_info(o, v, i) ! ANY';

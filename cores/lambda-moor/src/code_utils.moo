@@ -93,8 +93,6 @@ object CODE_UTILS
     E_INVARG,
     E_QUOTA,
     E_FLOAT
-  
-  
   };
   property error_names (owner: HACKER, flags: "rc") = {
     "E_NONE",
@@ -419,9 +417,9 @@ object CODE_UTILS
     ".........`any' => `to' (arbitrary),... `none' => empty string...";
     if (adobj == "this" && dobj == thisobj)
       dobj_part = dobjstr;
-      iobj_part = !prep_part || aiobj == "none" ? "" | (aiobj == "this" ? dobjstr | iobjstr);
+      iobj_part = !prep_part || aiobj == "none" ? "" | aiobj == "this" ? dobjstr | iobjstr;
     elseif (aiobj == "this" && iobj == thisobj)
-      dobj_part = adobj == "any" ? dobjstr | (adobj == "this" ? iobjstr | "");
+      dobj_part = adobj == "any" ? dobjstr | adobj == "this" ? iobjstr | "";
       iobj_part = iobjstr;
     elseif (!("this" in args[3..5]))
       dobj_part = adobj == "any" ? dobjstr | "";
@@ -634,7 +632,7 @@ object CODE_UTILS
     ":_fix_preps() updates the properties on this having to do with prepositions.";
     "_fix_preps should be called whenever we detect that a new server version has been installed.";
     orig_args = verb_args(this, verb);
-    multis = nothers = others = shorts = longs = {};
+    multis = nothers = (others = (shorts = (longs = {})));
     i = 0;
     while (typeof(`set_verb_args(this, verb, {"this", tostr(i), "this"}) ! ANY') != TYPE_ERR)
       l = verb_args(this, verb)[2];
@@ -1074,8 +1072,8 @@ object CODE_UTILS
     " prints a listing of the indicated players.";
     " For players in the first list, idle/connected times are shown if the player is logged in, otherwise the last_disconnect_time is shown.  For players in the second list, last_disconnect_time is shown, no matter whether the player is logged in.";
     {plist, ?more_plist = {}} = args;
-    idles = itimes = offs = otimes = {};
-    argstr = dobjstr = iobjstr = prepstr = "";
+    idles = itimes = (offs = (otimes = {}));
+    argstr = dobjstr = (iobjstr = (prepstr = ""));
     for p in (more_plist)
       if (!valid(p))
         caller:notify(tostr(p, " <invalid>"));
@@ -1124,7 +1122,7 @@ object CODE_UTILS
     for lst in ({@idles, @offs})
       $command_utils:suspend_if_needed(0);
       p = lst[3];
-      namestr = tostr((p.name)[1..min(max_name, $)], " (", p, ")");
+      namestr = tostr(p.name[1..min(max_name, $)], " (", p, ")");
       name_width = max(length(namestr), name_width);
       names = {@names, namestr};
       if (typeof(wlm = `p.location:who_location_msg(p) ! ANY') != TYPE_STR)
@@ -1387,9 +1385,9 @@ object CODE_UTILS
     verbwidth = 3 + verbwidth;
     numwidth = (linelen - verbwidth) / 4 - 1;
     widths = {numwidth, verbwidth, numwidth, numwidth, numwidth};
-    top = l = between = "";
+    top = l = (between = "");
     for x in [1..5]
-      top = top + between + su:left({"This", "Verb", "Permissions", "VerbLocation", "Player"}[x], -widths[x]);
+      top = top + between + su:left({"This", "Verb", "Permissions", "VerbLocation", "Player"}[x], -(widths[x]));
       l = l + between + su:space(widths[x], "-");
       between = " ";
     endfor
@@ -1400,7 +1398,7 @@ object CODE_UTILS
       for bit in [1..5]
         $command_utils:suspend_if_needed(3);
         "bit == 2 below for verb: append line number.";
-        output = {@output, su:left(typeof(word = line[bit]) == TYPE_STR ? bit == 2 ? tostr(word, "(", `line[6] ! ANY => 0', ")") | word | tostr(word, "(", valid(word) ? lu:shortest({word.name, @word.aliases}) | (word == $nothing ? "invalid" | (word == $ambiguous_match ? "ambiguous match" | "Error")), ")"), -widths[bit]), " "};
+        output = {@output, su:left(typeof(word = line[bit]) == TYPE_STR ? bit == 2 ? tostr(word, "(", `line[6] ! ANY => 0', ")") | word | tostr(word, "(", valid(word) ? lu:shortest({word.name, @word.aliases}) | word == $nothing ? "invalid" | word == $ambiguous_match ? "ambiguous match" | "Error", ")"), -(widths[bit])), " "};
       endfor
       text = listappend(text, su:trimr(tostr(@output)));
     endfor

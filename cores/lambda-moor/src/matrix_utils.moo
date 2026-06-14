@@ -105,7 +105,7 @@ object MATRIX_UTILS
           $command_utils:suspend_if_needed(0);
         endfor
         if (lcurr > lresult)
-          results[lresult + 1..lcurr] = (args[n])[lresult + 1..lcurr];
+          results[lresult + 1..lcurr] = args[n][lresult + 1..lcurr];
         endif
       elseif (type == "sub")
         for m in [1..min(lcurr = length(args[n]), lresult)]
@@ -114,7 +114,7 @@ object MATRIX_UTILS
         endfor
         if (lcurr > lresult)
           for m in [lresult + 1..lcurr]
-            results = {@results, -args[n][m]};
+            results = {@results, -(args[n][m])};
             $command_utils:suspend_if_needed(0);
           endfor
         endif
@@ -124,7 +124,7 @@ object MATRIX_UTILS
           $command_utils:suspend_if_needed(0);
         endfor
         if (lcurr > lresult)
-          results[lresult + 1..lcurr] = (args[n])[lresult + 1..lcurr];
+          results[lresult + 1..lcurr] = args[n][lresult + 1..lcurr];
         endif
       else
         for m in [1..min(lcurr = length(args[n]), lresult)]
@@ -156,7 +156,7 @@ object MATRIX_UTILS
       endfor
     else
       for n in [1..length(results)]
-        results[n] = this:(("vector_" + type))(results[n], @$list_utils:slice(args[2..$], n));
+        results[n] = this:("vector_" + type)(results[n], @$list_utils:slice(args[2..$], n));
       endfor
     endif
     return results;
@@ -522,7 +522,7 @@ object MATRIX_UTILS
       endfor
     else
       for n in [1..length(mval)]
-        results = {@results, this:(("scalar_vector_" + type))(mval[n], sval)};
+        results = {@results, this:("scalar_vector_" + type)(mval[n], sval)};
       endfor
     endif
     return results;

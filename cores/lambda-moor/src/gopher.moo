@@ -193,7 +193,7 @@ object GOPHER
         label = label[2..$];
         if (type == "menu")
         elseif (type == "search")
-          label = "<" + (parse[3])[rindex(parse[3], "\t") + 1..$] + "> " + label;
+          label = "<" + parse[3][rindex(parse[3], "\t") + 1..$] + "> " + label;
         else
           label = type + ": " + label;
         endif
@@ -254,7 +254,7 @@ object GOPHER
       return E_PERM;
     endif
     if (!args)
-      this.cache_values = this.cache_times = this.cache_requests = {};
+      this.cache_values = this.cache_times = (this.cache_requests = {});
     elseif (index = args[1..3] in this.cache_requests)
       this.cache_requests = listdelete(this.cache_requests, index);
       this.cache_times = listdelete(this.cache_times, index);

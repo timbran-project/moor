@@ -145,7 +145,7 @@ object GENERIC_EDITOR
     elseif (range[3] && !(nonum = "nonum" == $string_utils:trim(range[3])))
       player:tell("Don't understand this:  ", range[3]);
     elseif (nonum)
-      player:tell_lines((this.texts[who])[range[1]..range[2]]);
+      player:tell_lines(this.texts[who][range[1]..range[2]]);
     else
       for line in [range[1]..range[2]]
         this:list_line(who, line);
@@ -329,7 +329,7 @@ object GENERIC_EDITOR
       player:tell(this:nothing_loaded_msg());
     elseif (typeof(range = this:parse_range(who, {"_", "1"}, @args)) != TYPE_LIST)
       player:tell(range);
-    elseif (range[3] && (range[3][1] != "@" || (fill_column = toint((range[3])[2..$])) < 10))
+    elseif (range[3] && (range[3][1] != "@" || (fill_column = toint(range[3][2..$])) < 10))
       player:tell("Usage:  fill [<range>] [@ column]   (where column >= 10).");
     else
       join = this:join_lines(who, @range[1..2], 1);
@@ -464,7 +464,7 @@ object GENERIC_EDITOR
   endverb
 
   verb set_readable (this none this) owner: #96 flags: "rxd"
-    return this:ok(who = args[1]) && (this.readable[who] = !(!args[2]));
+    return this:ok(who = args[1]) && (this.readable[who] = !!args[2]);
   endverb
 
   verb text (this none this) owner: #96 flags: "rxd"
@@ -677,8 +677,8 @@ object GENERIC_EDITOR
         a = a - 1;
         not_done = 0;
       elseif (i = index(args[a], "-"))
-        from = this:parse_number(who, (args[a])[1..i - 1], 0);
-        to = this:parse_number(who, (args[a])[i + 1..$], 1);
+        from = this:parse_number(who, args[a][1..i - 1], 0);
+        to = this:parse_number(who, args[a][i + 1..$], 1);
         not_done = 0;
       elseif (f = this:parse_number(who, args[a], 0))
         from = f;
@@ -850,7 +850,7 @@ object GENERIC_EDITOR
       return -1;
     else
       for p in ({{"active", who_obj}, {"original", valid(from) ? from | $nothing}, {"times", time()}, @this.stateprops})
-        this.((p[1])) = {@this.((p[1])), p[2]};
+        this.(p[1]) = {@this.(p[1]), p[2]};
       endfor
       return length(this.active);
     endif
@@ -862,7 +862,7 @@ object GENERIC_EDITOR
       return fuckup;
     else
       for p in ({@this.stateprops, {"original"}, {"active"}, {"times"}})
-        this.((p[1])) = listdelete(this.((p[1])), who);
+        this.(p[1]) = listdelete(this.(p[1]), who);
       endfor
       return who;
     endif
@@ -874,7 +874,7 @@ object GENERIC_EDITOR
       return fuckup;
     else
       for p in (this.stateprops)
-        this.((p[1]))[who] = p[2];
+        this.(p[1])[who] = p[2];
       endfor
       this.times[who] = time();
       return who;
@@ -888,10 +888,10 @@ object GENERIC_EDITOR
     else
       for victim in (this.contents)
         victim:tell("Sorry, ", this.name, " is going down.  Your editing session is hosed.");
-        victim:moveto((who = victim in this.active) && valid(origin = this.original[who]) ? origin | (valid(victim.home) ? victim.home | $player_start));
+        victim:moveto((who = victim in this.active) && valid(origin = this.original[who]) ? origin | valid(victim.home) ? victim.home | $player_start);
       endfor
       for p in ({@this.stateprops, {"original"}, {"active"}, {"times"}})
-        this.((p[1])) = {};
+        this.(p[1]) = {};
       endfor
       return 1;
     endif
@@ -986,7 +986,7 @@ object GENERIC_EDITOR
       prop = dobjstr;
     endif
     if (typeof(result = this:set_stateprops(prop, default)) == TYPE_ERR)
-      player:tell(result == E_RANGE ? tostr(".", prop, " needs to hold a list of the same length as .active (", length(this.active), ").") | (result != E_NACC ? result | prop + " is already a property on an ancestral editor."));
+      player:tell(result == E_RANGE ? tostr(".", prop, " needs to hold a list of the same length as .active (", length(this.active), ").") | result != E_NACC ? result | prop + " is already a property on an ancestral editor.");
     else
       player:tell("Property added.");
     endif
@@ -1253,7 +1253,7 @@ object GENERIC_EDITOR
     if (caller != this)
       return E_PERM;
     else
-      return length(this.((args[1])));
+      return length(this.(args[1]));
     endif
   endverb
 
@@ -1300,7 +1300,7 @@ object GENERIC_EDITOR
       o = player:my_match_object(pr[1]);
       if ($command_utils:object_match_failed(o, pr[1]))
         return;
-      elseif ((lines = `o.((pr[2])) ! ANY') == E_PROPNF)
+      elseif ((lines = `o.(pr[2]) ! ANY') == E_PROPNF)
         player:notify(tostr("There is no `", pr[2], "' property on ", $string_utils:nn(o), "."));
         return;
       elseif (lines == E_PERM)

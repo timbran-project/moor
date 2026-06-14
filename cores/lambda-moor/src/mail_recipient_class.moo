@@ -158,7 +158,7 @@ object MAIL_RECIPIENT_CLASS
         "Whoops, this got trashed---fix it up!";
         this.current_message = {0, time(), @this.current_message};
       endif
-      return (this.current_message)[1..2];
+      return this.current_message[1..2];
     elseif (a = $list_utils:assoc(args[1], this.current_message))
       return a[2..3];
     else
@@ -179,7 +179,7 @@ object MAIL_RECIPIENT_CLASS
       if (number != E_NONE)
         this.current_message[1] = number;
       endif
-      return (this.current_message)[1..2];
+      return this.current_message[1..2];
     elseif (i = $list_utils:iassoc(recip, cm))
       if (force)
         "`force' is assumed to come from `@unread'";
@@ -299,7 +299,7 @@ object MAIL_RECIPIENT_CLASS
         return {folder, pms[1], cur, rest};
       elseif (used = length(pfs[2]) + 1 - length(pms))
         "...:parse_message_seq used some words, but didn't get anything out of it";
-        pms = "%f %<has> no `" + $string_utils:from_list((pfs[2])[1..used], " ") + "' messages.";
+        pms = "%f %<has> no `" + $string_utils:from_list(pfs[2][1..used], " ") + "' messages.";
       elseif (typeof(pms = folder:parse_message_seq(default, @cur)) == TYPE_LIST)
         "...:parse_message_seq used nothing, try the default; wow it worked";
         return {folder, pms[1], cur, rest};
@@ -510,7 +510,7 @@ object MAIL_RECIPIENT_CLASS
     if (msgtxt[4] != " ")
       subject = tostr("[", from, ":  ", msgtxt[4], "]");
     elseif ((h = "" in msgtxt) && h < length(msgtxt))
-      subject = tostr("[", from, ":  `", (msgtxt[h + 1])[1..min(20, $)], "']");
+      subject = tostr("[", from, ":  `", msgtxt[h + 1][1..min(20, $)], "']");
     else
       subject = tostr("[", from, "]");
     endif
@@ -593,7 +593,7 @@ object MAIL_RECIPIENT_CLASS
     endif
     fname = {@args, 0}[1];
     if (!fname)
-      ml = $list_utils:slice((this.current_message)[3..$]);
+      ml = $list_utils:slice(this.current_message[3..$]);
       all_mlists = {@$mail_agent.contents, @this.mail_lists};
       if (length(all_mlists) > 50 && !$command_utils:yes_or_no(tostr("There are ", length(all_mlists), " mailing lists.  Are you sure you want the whole list?")))
         return player:tell("OK, aborting.");
@@ -673,7 +673,7 @@ object MAIL_RECIPIENT_CLASS
   verb mail_catch_up (this none this) owner: #2 flags: "rxd"
     set_task_perms(caller == this ? this.owner | caller_perms());
     this:set_current_folder(this);
-    dates = new_cm = head = {};
+    dates = new_cm = (head = {});
     sort = this:mail_option("rn_order") || "read";
     for n in (this.current_message)
       $command_utils:suspend_if_needed(0);
@@ -1125,7 +1125,7 @@ object MAIL_RECIPIENT_CLASS
       minmsg = minmsg ? min(msg[1], minmsg) | msg[1];
       maxmsg = maxmsg ? max(msg[1], maxmsg) | msg[1];
       lines = {tostr("Message ", msg[1], folderstr, ":"), tostr("Date:     ", ctime(msg[2][1])), "From:     " + msg[2][2], "To:       " + msg[2][3], @length(subj = msg[2][4]) > 1 ? {"Subject:  " + subj} | {}};
-      for line in ((msg[2])[5..$])
+      for line in (msg[2][5..$])
         if (typeof(line) != TYPE_STR)
           "I don't know how this can happen, but apparently non-strings can end up in the mail message.  So, cope.";
           line = tostr(line);
@@ -1150,7 +1150,7 @@ object MAIL_RECIPIENT_CLASS
       minmsg = minmsg ? min(msg[1], minmsg) | msg[1];
       maxmsg = maxmsg ? max(msg[1], maxmsg) | msg[1];
       lines = {tostr("Message ", msg[1], folderstr, ":"), tostr("Date:     ", ctime(msg[2][1])), "From:     " + msg[2][2], "To:       " + msg[2][3], @length(subj = msg[2][4]) > 1 ? {"Subject:  " + subj} | {}};
-      for line in ((msg[2])[5..$])
+      for line in (msg[2][5..$])
         if (typeof(line) != TYPE_STR)
           "I don't know how this can happen, but apparently non-strings can end up in the mail message.  So, cope.";
           line = tostr(line);
@@ -1385,8 +1385,8 @@ object MAIL_RECIPIENT_CLASS
     elseif (!(recipients = $mail_editor:parse_recipients({}, $string_utils:explode(args[1]))))
       return;
     else
-      if (length(args) > 1 && ((eq = index(args[2], "=")) && index("subject", (args[2])[1..eq - 1]) == 1))
-        subject = $string_utils:trim((args[2])[eq + 1..$]);
+      if (length(args) > 1 && ((eq = index(args[2], "=")) && index("subject", args[2][1..eq - 1]) == 1))
+        subject = $string_utils:trim(args[2][eq + 1..$]);
         ws = $string_utils:word_start(argstr);
         argstr = argstr[1..ws[1][2]] + argstr[ws[2][2] + 1..$];
         args = listdelete(args, 2);
@@ -1394,7 +1394,7 @@ object MAIL_RECIPIENT_CLASS
         subject = "";
       endif
       if (length(args) > 1)
-        unbroken = argstr[(argstr[1] == "\"" ? length(args[1]) + 4 | length(args[1]) + 2)..$] + "^";
+        unbroken = argstr[argstr[1] == "\"" ? length(args[1]) + 4 | length(args[1]) + 2..$] + "^";
         message = {};
         while (unbroken)
           if (i = index(unbroken, "^"))

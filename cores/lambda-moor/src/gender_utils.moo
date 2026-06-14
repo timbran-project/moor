@@ -132,7 +132,7 @@ object GENDER_UTILS
       save = {@save, e = `object.(p) ! ANY'};
       if (typeof(e) != TYPE_STR || typeof(e = `object.(p) = this.(p)[gnum] ! ANY') == TYPE_ERR)
         for i in [1..length(save) - 1]
-          object.((prons[i])) = save[i];
+          object.(prons[i]) = save[i];
         endfor
         return e;
       endif
@@ -231,7 +231,7 @@ object GENDER_UTILS
     if (len >= 3 && rindex(st, "n't") == len - 2)
       return this:_verb_plural(st[1..len - 3], idx) + "n't";
     elseif (i = st in {"has", "is"})
-      return this.(({"have", "be"}[i]))[idx];
+      return this.({"have", "be"}[i])[idx];
     elseif (st == "was")
       return idx > 6 ? "were" | st;
     elseif (len <= 3 || st[len] != "s")
@@ -265,7 +265,7 @@ object GENDER_UTILS
     if (len >= 3 && rindex(st, "n't") == len - 2)
       return this:_verb_singular(st[1..len - 3], idx) + "n't";
     elseif (i = st in {"have", "are"})
-      return this.(({"have", "be"}[i]))[idx];
+      return this.({"have", "be"}[i])[idx];
     elseif (st[len] == "y" && !index("aeiou", st[len - 1]))
       return st[1..len - 1] + "ies";
     elseif (index("sz", st[len]) && index("aeiou", st[len - 1]))
@@ -371,7 +371,7 @@ object GENDER_UTILS
       elseif (s != "%")
         s = "%" + s;
       endif
-      new = new + old[1..prcnt - 1] + (!cp_args ? s | (typeof(sub = $string_utils:_cap_property(@cp_args)) != TYPE_ERR ? sub | "%(" + tostr(sub) + ")"));
+      new = new + old[1..prcnt - 1] + (!cp_args ? s | typeof(sub = $string_utils:_cap_property(@cp_args)) != TYPE_ERR ? sub | "%(" + tostr(sub) + ")");
       old = old[k + 1..oldlen];
       oldlen = oldlen - k;
     endwhile

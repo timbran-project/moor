@@ -479,7 +479,7 @@ object WIZ
     delete_property($server_options, "__mcd__savesopt");
     delete_property($server_options, "bg_seconds");
     for pv in (spi)
-      $server_options.((pv[1])) = pv[2];
+      $server_options.(pv[1]) = pv[2];
     endfor
     load_server_options();
     "----------------------------------------";
@@ -606,8 +606,8 @@ object WIZ
     if (e && ($object_utils:isa(who.location, $room) && (msg = player:toad_msg())))
       who.location:announce_all_but({who}, msg);
     endif
-    if (listname && !$login:((listname + "ed"))(cname = $string_utils:connection_hostname(who.last_connect_place)))
-      $login:((listname + "_add"))(cname);
+    if (listname && !$login:(listname + "ed")(cname = $string_utils:connection_hostname(who.last_connect_place)))
+      $login:(listname + "_add")(cname);
       player:notify(tostr("Site ", cname, " ", listname, "ed."));
     else
       cname = "";
@@ -848,7 +848,7 @@ object WIZ
     regexp = verb == "@egrepcore";
     player:notify(tostr("Searching for core verbs ", regexp ? "matching the regular expression " | "containing the string ", toliteral(pattern), " ..."));
     player:notify("");
-    $code_utils:((regexp ? "find_verbs_matching" | "find_verbs_containing"))(pattern, $core_objects());
+    $code_utils:(regexp ? "find_verbs_matching" | "find_verbs_containing")(pattern, $core_objects());
   endverb
 
   verb "@net-who @@who" (any any any) owner: #2 flags: "rd"
@@ -1180,8 +1180,8 @@ object WIZ
       if ($command_utils:yes_or_no(tostr("Remove e", ntries, " for ", namelist, "?")))
         dg = undo && (downgrade && $command_utils:yes_or_no(downgrade + " them?"));
         for s in (rm)
-          $login:((which + "_remove"))(s);
-          dg && ($login:((downgrade + "_add"))(s) && (downgraded = {@downgraded, s}));
+          $login:(which + "_remove")(s);
+          dg && ($login:(downgrade + "_add")(s) && (downgraded = {@downgraded, s}));
         endfor
         player:notify(tostr("E", ntries, " removed", @dg ? {" and ", downgrade, "ed."} | {"."}));
       else
@@ -1192,7 +1192,7 @@ object WIZ
     if (downgraded)
       comment[1..0] = {tostr(downgrade, "ed ", $string_utils:english_list(downgraded), ".")};
     endif
-    tempentrylist = $login.(("temporary_" + which))[1 + !is_literal];
+    tempentrylist = $login.("temporary_" + which)[1 + !is_literal];
     if (!undo && target in $list_utils:slice(tempentrylist))
       player:notify(tostr(fullname, " is already temporarily ", which, "ed."));
       return;
@@ -1212,8 +1212,8 @@ object WIZ
         dg = undo && (downgrade && $command_utils:yes_or_no(downgrade + " them?"));
         for s in (rmtemp)
           old = $list_utils:assoc(s, tempentrylist);
-          $login:((which + "_remove_temp"))(s);
-          dg && ($login:((downgrade + "_add_temp"))(s, old[2], old[3]) && (tempdowngraded = {@tempdowngraded, s}));
+          $login:(which + "_remove_temp")(s);
+          dg && ($login:(downgrade + "_add_temp")(s, old[2], old[3]) && (tempdowngraded = {@tempdowngraded, s}));
         endfor
         player:notify(tostr("E", ntries, " removed", @dg ? {" and ", downgrade, "ed with durations transferred."} | {"."}));
       else
@@ -1226,10 +1226,10 @@ object WIZ
     endif
     if (!undo)
       if (parse[1])
-        $login:((which + "_add_temp"))(target, start, duration);
+        $login:(which + "_add_temp")(target, start, duration);
         player:notify(tostr(fullname, " ", which, "ed for ", $time_utils:english_time(duration)));
       else
-        $login:((which + "_add"))(target);
+        $login:(which + "_add")(target);
         player:notify(tostr(fullname, " ", which, "ed."));
       endif
       if (rm)
@@ -1238,11 +1238,11 @@ object WIZ
       if (rmtemp)
         comment[1..0] = {tostr("Subsumes temporary ", which, "ing for ", tempnamelist, ".")};
       endif
-    elseif ($login:((which + "_remove"))(target))
+    elseif ($login:(which + "_remove")(target))
       player:notify(tostr(fullname, " un", which, "ed."));
       if (!downgrade)
       elseif ($command_utils:yes_or_no(downgrade + " it?"))
-        $login:((downgrade + "_add"))(target) && (downgraded = {target, @downgraded});
+        $login:(downgrade + "_add")(target) && (downgraded = {target, @downgraded});
         player:notify(tostr(fullname, " ", downgrade, "ed."));
       else
         player:notify(tostr(fullname, " not ", downgrade, "ed."));
@@ -1254,11 +1254,11 @@ object WIZ
       if (rm)
         comment[1..0] = {tostr("Also removed ", namelist, ".")};
       endif
-    elseif ((old = $list_utils:assoc(target, $login.(("temporary_" + which))[1 + !is_literal])) && $login:((which + "_remove_temp"))(target))
+    elseif ((old = $list_utils:assoc(target, $login.("temporary_" + which)[1 + !is_literal])) && $login:(which + "_remove_temp")(target))
       player:notify(tostr(fullname, " un", which, "ed."));
       if (!downgrade)
       elseif ($command_utils:yes_or_no(downgrade + " it?"))
-        $login:((downgrade + "_add_temp"))(target, old[2], old[3]) && (tempdowngraded = {target, @tempdowngraded});
+        $login:(downgrade + "_add_temp")(target, old[2], old[3]) && (tempdowngraded = {target, @tempdowngraded});
         player:notify(tostr(fullname, " ", downgrade, "ed, currently for ", $time_utils:english_time(old[3]), " from ", $time_utils:time_sub("$1/$3", old[2])));
       else
         player:notify(tostr(fullname, " not ", downgrade, "ed."));
@@ -1282,7 +1282,7 @@ object WIZ
     "... make sure we haven't screwed ourselves...";
     uhoh = {};
     for site in (player.all_connect_places)
-      if (index(site, target) && $login:((which + "ed"))(site))
+      if (index(site, target) && $login:(which + "ed")(site))
         uhoh = {@uhoh, site};
       endif
     endfor
@@ -1455,14 +1455,14 @@ object WIZ
     if (s = $login.(which)[2])
       slist = {@slist, "--- Domains ---", @s};
     endif
-    if (s = $login.(("temporary_" + which))[1])
+    if (s = $login.("temporary_" + which)[1])
       slist = {@slist, "--- Temporary Subnets ---"};
       for d in (s)
         slist = {@slist, tostr(d[1], " until ", $time_utils:time_sub("$1/$3 $H:$M", d[2] + d[3]))};
         $command_utils:suspend_if_needed(2);
       endfor
     endif
-    if (s = $login.(("temporary_" + which))[2])
+    if (s = $login.("temporary_" + which)[2])
       slist = {@slist, "--- Temporary Domains ---"};
       for d in (s)
         slist = {@slist, tostr(d[1], " until ", $time_utils:time_sub("$1/$3 $H:$M", d[2] + d[3]))};

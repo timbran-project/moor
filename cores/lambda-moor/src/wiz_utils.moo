@@ -852,7 +852,7 @@ object WIZ_UTILS
     endif
     connection = length(args) > 2 ? args[3] | parsed[2];
     check_connection = $wiz_utils.registration_domain_restricted && verb == "check_player_request";
-    if (connection[max($ - 2, 1)..$] == ".uk" && (parsed[2])[1..3] == "uk.")
+    if (connection[max($ - 2, 1)..$] == ".uk" && parsed[2][1..3] == "uk.")
       return tostr("Addresses must be in internet form. Try ", parsed[1], "@", $string_utils:from_list($list_utils:reverse($string_utils:explode(parsed[2], ".")), "."), ".");
     elseif (check_connection && match(connection, "^[0-9.]+$"))
       "Allow reregistration from various things we wouldn't allow registration from.  Let them register to their yahoo acct...";

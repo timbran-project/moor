@@ -266,22 +266,22 @@ object LOCK_UTILS
     elseif (op == "||")
       return this:eval_key(key[2], who) || this:eval_key(key[3], who);
     elseif (op == ".")
-      if ($object_utils:has_property(who, key[2]) && who.((key[2])))
+      if ($object_utils:has_property(who, key[2]) && who.(key[2]))
         return 1;
       else
         for thing in ($object_utils:all_contents(who))
-          if ($object_utils:has_property(thing, key[2]) && thing.((key[2])))
+          if ($object_utils:has_property(thing, key[2]) && thing.(key[2]))
             return 1;
           endif
         endfor
       endif
       return 0;
     elseif (op == ":")
-      if ($object_utils:has_verb(who, key[2]) && who:((key[2]))())
+      if ($object_utils:has_verb(who, key[2]) && who:(key[2])())
         return 1;
       else
         for thing in ($object_utils:all_contents(who))
-          if ($object_utils:has_verb(thing, key[2]) && thing:((key[2]))())
+          if ($object_utils:has_verb(thing, key[2]) && thing:(key[2])())
             return 1;
           endif
         endfor

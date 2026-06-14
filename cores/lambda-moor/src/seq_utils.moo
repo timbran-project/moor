@@ -111,7 +111,7 @@ object SEQ_UTILS
     e = tostr(seq[1] == $minint ? "" | seq[1]);
     len = length(seq);
     for i in [2..len]
-      e = e + (i % 2 ? tostr(", ", seq[i]) | (seq[i] == seq[i - 1] + 1 ? "" | tostr(separator, seq[i] - 1)));
+      e = e + (i % 2 ? tostr(", ", seq[i]) | seq[i] == seq[i - 1] + 1 ? "" | tostr(separator, seq[i] - 1));
     endfor
     return e + (len % 2 ? separator | "");
   endverb
@@ -467,11 +467,11 @@ object SEQ_UTILS
         heap[nargs] = 0;
         if ((nargs = nargs - 1) > 1)
         elseif (args[h][nexts[h]] > current_end)
-          return {@rseq, current_end, @(args[h])[nexts[h]..$]};
+          return {@rseq, current_end, @args[h][nexts[h]..$]};
         elseif ((i = $list_utils:find_insert(args[h], current_end)) % 2)
-          return {@rseq, current_end, @(args[h])[i..$]};
+          return {@rseq, current_end, @args[h][i..$]};
         else
-          return {@rseq, @(args[h])[i..$]};
+          return {@rseq, @args[h][i..$]};
         endif
       endif
       "...";

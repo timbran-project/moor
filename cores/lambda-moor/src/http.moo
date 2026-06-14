@@ -64,7 +64,7 @@ object HTTP
           if ($object_utils:has_callable_verb(objid, "html"))
             new_player = $no_one;
             if (length(keys) >= 3 && length(keys[3]) > 2)
-              if (keys[3] == this:gen_key(keys[1], keys[2], (keys[3])[1..2]))
+              if (keys[3] == this:gen_key(keys[1], keys[2], keys[3][1..2]))
                 new_player = toobj(keys[2]);
                 keys = length(keys) > 3 ? keys[4..$] | {};
               endif
@@ -89,7 +89,7 @@ object HTTP
         if (typeof(html) == TYPE_STR)
           html = {html};
         endif
-        if (`(html[1])[1..6] == "<HTML>" ! ANY => 0')
+        if (`html[1][1..6] == "<HTML>" ! ANY => 0')
           html = {@html_header, @html};
         endif
         if (typeof(html) == TYPE_LIST && length(html) == 0)

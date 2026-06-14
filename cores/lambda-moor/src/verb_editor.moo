@@ -319,7 +319,7 @@ object VERB_EDITOR
         cut = min(cut, `match(text[line], "[^ ]")[1] ! E_RANGE => 1');
       endfor
       for line in [from..to]
-        text[line] = toliteral((text[line])[cut..$]) + ";";
+        text[line] = toliteral(text[line][cut..$]) + ";";
       endfor
       this.texts[who] = text;
       player:tell(to == from ? "Line" | "Lines", " changed.");

@@ -128,7 +128,7 @@ object BYTE_QUOTA_UTILS
     set_task_perms(caller_perms());
     who = this:parse_create_args(@args);
     "Because who can be E_INVARG, need to catch E_TYPE. Let $recycler:_create deal with returning E_PERM since that's what's going to happen. Ho_Yan 11/19/96.";
-    if (!`who.wizard ! E_TYPE => 0' && $recycler.contents)
+    if (!(`who.wizard ! E_TYPE => 0') && $recycler.contents)
       return $recycler:_create(@args);
     elseif (this:creation_permitted(who))
       this:enable_create(who);
@@ -751,6 +751,6 @@ object BYTE_QUOTA_UTILS
   verb property_exists (this none this) owner: #2 flags: "rxd"
     "this:property_exists(object, property)";
     " => does the specified property exist?";
-    return !(!`property_info(@args) ! ANY');
+    return !!(`property_info(@args) ! ANY');
   endverb
 endobject

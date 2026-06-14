@@ -22,7 +22,7 @@ object GENERIC_DB
     rest = search;
     prefix = search[1..sofar];
     rest[1..sofar] = "";
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     data = verb == "find" ? this.data | 3;
     if (i = search in info[3])
       "...exact match for one of the strings in this node...";
@@ -52,7 +52,7 @@ object GENERIC_DB
     rest = search;
     prefix = search[1..sofar];
     rest[1..sofar] = "";
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     if (i = search in info[3])
       return info[this.data][i];
     elseif (length(rest) <= (common = length(info[1])) || rest[1..common] != info[1])
@@ -71,11 +71,11 @@ object GENERIC_DB
     rest = search;
     prefix = search[1..sofar];
     rest[1..sofar] = "";
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     data = verb == "find_all" ? this.data | 3;
     if (index(info[1], rest) == 1)
       "...return entire subtree.";
-      return this:((data == 3 ? "_every_key" | "_every"))(prefix);
+      return this:(data == 3 ? "_every_key" | "_every")(prefix);
     elseif (index(rest, info[1]) != 1)
       "...common portion doesn't agree.";
       return {};
@@ -100,7 +100,7 @@ object GENERIC_DB
       raise(E_PERM);
     endif
     {prefix, data} = args;
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     if (data == 3)
       "... life is much simpler if there's no separate datum.";
       "... if there's more than one string here, we barf.";
@@ -141,7 +141,7 @@ object GENERIC_DB
     if (caller != this)
       raise(E_PERM);
     endif
-    info = this.((" " + args[1]));
+    info = this.(" " + args[1]);
     prefix = args[1] + info[1];
     r = $list_utils:remove_duplicates(info[4]);
     for i in [1..length(branches = info[2])]
@@ -156,7 +156,7 @@ object GENERIC_DB
     if (caller != this)
       raise(E_PERM);
     endif
-    info = this.((" " + args[1]));
+    info = this.(" " + args[1]);
     prefix = args[1] + info[1];
     r = info[3];
     for i in [1..length(branches = info[2])]
@@ -186,7 +186,7 @@ object GENERIC_DB
       datum = has_datum ? args[2] | 0;
     endif
     prefix = search[1..sofar];
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     if (i = search in info[3])
       "... exact match ...";
       if (has_datum)
@@ -204,8 +204,8 @@ object GENERIC_DB
       "... find where new string disagrees with common portion...";
       c = $string_utils:common(rest, info[1]) + 1;
       "... make a new node with a shorter common portion....";
-      this:make_node(prefix + (info[1])[1..c], @listset(info, (info[1])[c + 1..$], 1));
-      this:set_node(prefix, (info[1])[1..c - 1], info[1][c], {search}, @has_datum ? {{datum}} | {});
+      this:make_node(prefix + info[1][1..c], @listset(info, info[1][c + 1..$], 1));
+      this:set_node(prefix, info[1][1..c - 1], info[1][c], {search}, @has_datum ? {{datum}} | {});
       return 0;
     elseif (rest == info[1])
       ".. new string == common portion, insert...";
@@ -254,7 +254,7 @@ object GENERIC_DB
     rest = search;
     prefix = search[1..sofar];
     rest[1..sofar] = "";
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     if (i = search in info[3])
       previous = {info[this.data][i]};
       info[3] = listdelete(info[3], i);
@@ -266,7 +266,7 @@ object GENERIC_DB
       return 0;
     elseif ((previous = this:delete(search, d)) && length(previous) > 1)
       i = index(info[2], search[d]);
-      (info[2])[i..i] = "";
+      info[2][i..i] = "";
       info[3] = {previous[2], @info[3]};
       if (this.data > 3)
         info[this.data] = {previous[3], @info[this.data]};
@@ -282,7 +282,7 @@ object GENERIC_DB
       this:kill_node(prefix);
       return {@previous, info[3][1], info[this.data][1]};
     else
-      sub = this.((" " + (p = tostr(prefix, info[1], info[2]))));
+      sub = this.(" " + (p = tostr(prefix, info[1], info[2])));
       this:kill_node(p);
       this:set_node(prefix, @listset(sub, tostr(info[1], info[2], sub[1]), 1));
       return previous;
@@ -304,7 +304,7 @@ object GENERIC_DB
     rest = search;
     prefix = search[1..sofar];
     rest[1..sofar] = "";
-    info = this.((" " + prefix));
+    info = this.(" " + prefix);
     if (i = search in info[3])
       previous = {info[this.data][i]};
       if (previous[1] != datum)
@@ -319,7 +319,7 @@ object GENERIC_DB
       return 0;
     elseif ((previous = this:delete2(search, datum, d)) && length(previous) > 1)
       i = index(info[2], search[d]);
-      (info[2])[i..i] = "";
+      info[2][i..i] = "";
       info[3] = {previous[2], @info[3]};
       if (this.data > 3)
         info[this.data] = {previous[3], @info[this.data]};
@@ -335,7 +335,7 @@ object GENERIC_DB
       this:kill_node(prefix);
       return {@previous, info[3][1], info[this.data][1]};
     else
-      sub = this.((" " + (p = tostr(prefix, info[1], info[2]))));
+      sub = this.(" " + (p = tostr(prefix, info[1], info[2])));
       this:kill_node(p);
       this:set_node(prefix, @listset(sub, tostr(info[1], info[2], sub[1]), 1));
       return previous;
@@ -343,7 +343,7 @@ object GENERIC_DB
   endverb
 
   verb set_node (this none this) owner: HACKER flags: "rxd"
-    return caller != this ? E_PERM | (this.((" " + args[1])) = listdelete(args, 1));
+    return caller != this ? E_PERM | (this.(" " + args[1]) = listdelete(args, 1));
   endverb
 
   verb make_node (this none this) owner: #2 flags: "rxd"
@@ -398,7 +398,7 @@ object GENERIC_DB
     if (!($perm_utils:controls(caller_perms(), this) || caller == this))
       return E_PERM;
     endif
-    info = this.((" " + (prefix = args[1])));
+    info = this.(" " + (prefix = args[1]));
     count = args[2];
     if (ticks_left() < 500 || seconds_left() < 2)
       player:tell("...", count);
@@ -412,7 +412,7 @@ object GENERIC_DB
   endverb
 
   verb depth (this none this) owner: HACKER flags: "rxd"
-    info = this.((" " + (prefix = (args || {""})[1])));
+    info = this.(" " + (prefix = (args || {""})[1]));
     depth = 0;
     string = prefix;
     if (ticks_left() < 500 || seconds_left() < 2)
@@ -429,7 +429,7 @@ object GENERIC_DB
   endverb
 
   verb count_entries (this none this) owner: HACKER flags: "rxd"
-    info = this.((" " + (prefix = args[1])));
+    info = this.(" " + (prefix = args[1]));
     count = length(info[3]) + args[2];
     if (ticks_left() < 500 || seconds_left() < 2)
       player:tell("...", count);
@@ -442,7 +442,7 @@ object GENERIC_DB
   endverb
 
   verb count_chars (this none this) owner: HACKER flags: "rxd"
-    info = this.((" " + (prefix = args[1])));
+    info = this.(" " + (prefix = args[1]));
     count = args[2];
     for s in (info[3])
       count = count + length(s);
