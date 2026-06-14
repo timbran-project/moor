@@ -47,10 +47,7 @@ fn bf_force_input(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    if !authority.controls(&conn) {
-        return Err(Code(E_PERM));
-    }
+    bf_args.require_controls_code(&conn)?;
 
     let Some(line) = bf_args.args[1].as_string() else {
         return Err(Code(E_TYPE));
@@ -465,6 +462,17 @@ fn check_connection_ownership(
         .any(|detail| detail.connection_obj == connection_obj))
 }
 
+fn require_connection_ownership(
+    connection_obj: moor_var::Obj,
+    bf_args: &mut BfCallState<'_>,
+) -> Result<(), BfErr> {
+    if check_connection_ownership(connection_obj, bf_args)? {
+        return Ok(());
+    }
+
+    Err(ErrValue(E_PERM.msg("Permission denied")))
+}
+
 /// Usage: `list connection_options(obj conn)`
 /// Returns all options for connection object as `{name, value}` pairs.
 /// Argument must be a connection object (negative ID), not a player.
@@ -486,10 +494,7 @@ fn bf_connection_options(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> 
         )));
     }
 
-    // Permission check: can only query connection options if user owns the connection or is wizard
-    if !check_connection_ownership(obj, bf_args)? {
-        return Err(ErrValue(E_PERM.msg("Permission denied")));
-    }
+    require_connection_ownership(obj, bf_args)?;
 
     // Get the attributes from the connection registry
     let attributes = match current_session().connection_attributes(obj) {
@@ -543,10 +548,7 @@ fn bf_connection_option(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         )));
     }
 
-    // Permission check: can only query connection options if user owns the connection or is wizard
-    if !check_connection_ownership(obj, bf_args)? {
-        return Err(ErrValue(E_PERM.msg("Permission denied")));
-    }
+    require_connection_ownership(obj, bf_args)?;
 
     // Get the attributes from the connection registry
     let attributes = match current_session().connection_attributes(obj) {
@@ -606,9 +608,7 @@ fn bf_set_connection_option(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
         )));
     }
 
-    if !check_connection_ownership(obj, bf_args)? {
-        return Err(ErrValue(E_PERM.msg("Permission denied")));
-    }
+    require_connection_ownership(obj, bf_args)?;
 
     let event =
         NarrativeEvent::set_connection_option(bf_args.exec_state.this(), obj, option_symbol, value);

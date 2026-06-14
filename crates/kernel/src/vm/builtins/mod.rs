@@ -350,11 +350,39 @@ impl BfCallState<'_> {
             .map_err(world_state_bf_err)
     }
 
+    /// Require owner-or-wizard authority and preserve builtins that raise bare `E_PERM`.
+    pub fn require_controls_code(&self, owner: &Obj) -> Result<(), BfErr> {
+        self.task_authority()
+            .map_err(world_state_bf_err)?
+            .require_controls(owner)
+            .map_err(|_| BfErr::Code(E_PERM))
+    }
+
     pub fn require_controls_msg(&self, owner: &Obj, message: &'static str) -> Result<(), BfErr> {
         self.task_authority()
             .map_err(world_state_bf_err)?
             .require_controls(owner)
             .map_err(|_| BfErr::ErrValue(E_PERM.msg(message)))
+    }
+
+    /// Require object control through `WorldState::controls()` and use a builtin-specific message.
+    ///
+    /// This is for gates that control a database object rather than an owner principal already
+    /// available to the builtin.
+    pub fn require_object_control_msg(
+        &self,
+        obj: &Obj,
+        message: &'static str,
+    ) -> Result<(), BfErr> {
+        let authority_principal = self.task_authority_principal();
+        let controls =
+            with_current_transaction(|world_state| world_state.controls(&authority_principal, obj))
+                .map_err(world_state_bf_err)?;
+        if controls {
+            return Ok(());
+        }
+
+        Err(BfErr::ErrValue(E_PERM.msg(message)))
     }
 
     pub fn bf_frame(&self) -> &BuiltinFrame {

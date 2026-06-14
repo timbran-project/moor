@@ -695,14 +695,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    // Check whether the current task authority can control the object before continuing.
-    if !with_current_transaction(|world_state| {
-        world_state.controls(&bf_args.task_authority_principal(), &obj)
-    })
-    .map_err(world_state_bf_err)?
-    {
-        return Err(BfErr::ErrValue(E_PERM.msg("recycle() permission denied")));
-    }
+    bf_args.require_object_control_msg(&obj, "recycle() permission denied")?;
 
     // Before actually recycling the object, we need to move all its contents to #-1. While
     // `recycle_object` will actually do this, we need to make sure :exitfunc is called on each
