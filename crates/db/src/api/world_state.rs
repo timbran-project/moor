@@ -358,7 +358,7 @@ impl WorldState for DbWorldState {
         self.get_tx_mut().set_object_flags(obj, new_flags)
     }
 
-    fn location_of(&self, _perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {
+    fn location_of(&self, _authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {
         // MOO permits location query even if the object is unreadable!
         self.get_tx().get_object_location(obj)
     }
@@ -427,7 +427,7 @@ impl WorldState for DbWorldState {
         self.get_tx_mut().recycle_object(obj)
     }
 
-    fn max_object(&self, _perms: &Obj) -> Result<Obj, WorldStateError> {
+    fn max_object(&self, _authority_principal: &Obj) -> Result<Obj, WorldStateError> {
         self.get_tx().get_max_object()
     }
 
@@ -456,7 +456,11 @@ impl WorldState for DbWorldState {
         Ok(())
     }
 
-    fn contents_of(&self, _perms: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError> {
+    fn contents_of(
+        &self,
+        _authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<ObjSet, WorldStateError> {
         // MOO does not check authority for contents:
         // https://github.com/wrog/lambdamoo/blob/master/db_properties.c#L351
         self.get_tx().get_object_contents(obj)
@@ -1000,7 +1004,7 @@ impl WorldState for DbWorldState {
         self.get_tx_mut().mark_builtin_proxy_absent(builtin);
     }
 
-    fn parent_of(&self, _perms: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {
+    fn parent_of(&self, _authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError> {
         self.get_tx().get_object_parent(obj)
     }
 
@@ -1033,14 +1037,22 @@ impl WorldState for DbWorldState {
         self.get_tx_mut().set_object_parent(obj, new_parent)
     }
 
-    fn children_of(&self, _perms: &Obj, obj: &Obj) -> Result<ObjSet, WorldStateError> {
+    fn children_of(
+        &self,
+        _authority_principal: &Obj,
+        obj: &Obj,
+    ) -> Result<ObjSet, WorldStateError> {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::ChildrenOf);
         self.get_tx().get_object_children(obj)
     }
 
-    fn owned_objects(&self, _perms: &Obj, owner: &Obj) -> Result<ObjSet, WorldStateError> {
+    fn owned_objects(
+        &self,
+        _authority_principal: &Obj,
+        owner: &Obj,
+    ) -> Result<ObjSet, WorldStateError> {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::OwnedObjects);
@@ -1053,7 +1065,7 @@ impl WorldState for DbWorldState {
 
     fn descendants_of(
         &self,
-        _perms: &Obj,
+        _authority_principal: &Obj,
         obj: &Obj,
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError> {
@@ -1065,7 +1077,7 @@ impl WorldState for DbWorldState {
 
     fn ancestors_of(
         &self,
-        _perms: &Obj,
+        _authority_principal: &Obj,
         obj: &Obj,
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError> {
@@ -1079,7 +1091,7 @@ impl WorldState for DbWorldState {
         self.get_tx().object_valid(obj)
     }
 
-    fn name_of(&self, _perms: &Obj, obj: &Obj) -> Result<String, WorldStateError> {
+    fn name_of(&self, _authority_principal: &Obj, obj: &Obj) -> Result<String, WorldStateError> {
         let name = self.get_tx().get_object_name(obj)?;
 
         Ok(name)
