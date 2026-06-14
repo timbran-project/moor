@@ -65,7 +65,7 @@ fn create_object_with_initialize(
 ) -> Result<BfRet, BfErr> {
     let new_obj = with_current_transaction_mut(|ws| {
         ws.create_object(
-            &bf_args.task_perms_who(),
+            &bf_args.task_authority_principal(),
             parent,
             owner,
             BitEnum::new(),
@@ -75,7 +75,7 @@ fn create_object_with_initialize(
     .map_err(world_state_bf_err)?;
 
     // Try to call :initialize on the new object
-    let permissions = bf_args.task_perms_who();
+    let permissions = bf_args.task_authority_principal();
     let Ok(Some(verb_result)) = with_current_transaction(|world_state| {
         world_state.dispatch_verb(
             &permissions,
@@ -149,7 +149,7 @@ fn bf_parent(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let parent = with_current_transaction(|world_state| {
-        world_state.parent_of(&bf_args.task_perms_who(), &obj)
+        world_state.parent_of(&bf_args.task_authority_principal(), &obj)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(v_obj(parent)))
@@ -186,7 +186,7 @@ fn bf_chparent(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     with_current_transaction_mut(|world_state| {
-        world_state.change_parent(&bf_args.task_perms_who(), &obj, &new_parent)
+        world_state.change_parent(&bf_args.task_authority_principal(), &obj, &new_parent)
     })
     .map_err(world_state_bf_err)?;
     Ok(RetNil)
@@ -212,7 +212,7 @@ fn bf_children(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let children = with_current_transaction(|world_state| {
-        world_state.children_of(&bf_args.task_perms_who(), &obj)
+        world_state.children_of(&bf_args.task_authority_principal(), &obj)
     })
     .map_err(world_state_bf_err)?;
 
@@ -242,7 +242,7 @@ fn bf_descendants(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let descendants = with_current_transaction(|world_state| {
-        world_state.descendants_of(&bf_args.task_perms_who(), &obj, false)
+        world_state.descendants_of(&bf_args.task_authority_principal(), &obj, false)
     })
     .map_err(world_state_bf_err)?;
 
@@ -278,7 +278,7 @@ fn bf_ancestors(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let ancestors = with_current_transaction(|world_state| {
-        world_state.ancestors_of(&bf_args.task_perms_who(), &obj, add_self)
+        world_state.ancestors_of(&bf_args.task_authority_principal(), &obj, add_self)
     })
     .map_err(world_state_bf_err)?;
 
@@ -343,7 +343,7 @@ fn bf_isa(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     let ancestors = with_current_transaction(|world_state| {
-        world_state.ancestors_of(&bf_args.task_perms_who(), &obj, true)
+        world_state.ancestors_of(&bf_args.task_authority_principal(), &obj, true)
     })
     .map_err(world_state_bf_err)?;
 
@@ -414,7 +414,7 @@ fn bf_locations(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     loop {
         // Get the location of the current object
         let location = with_current_transaction(|world_state| {
-            world_state.location_of(&bf_args.task_perms_who(), &current)
+            world_state.location_of(&bf_args.task_authority_principal(), &current)
         })
         .map_err(world_state_bf_err)?;
 
@@ -442,7 +442,7 @@ fn bf_locations(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         {
             // If is_parent is true, check if location is a child of stop
             let ancestors = with_current_transaction(|world_state| {
-                world_state.ancestors_of(&bf_args.task_perms_who(), &location, false)
+                world_state.ancestors_of(&bf_args.task_authority_principal(), &location, false)
             })
             .map_err(world_state_bf_err)?;
             if ancestors.contains(stop) {
@@ -482,7 +482,7 @@ fn bf_create(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         };
         owner
     } else {
-        bf_args.task_perms_who()
+        bf_args.task_authority_principal()
     };
 
     // Third argument is object type: 0=numbered, 1=anon (unsupported), 2=uuid
@@ -613,7 +613,7 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         };
         owner
     } else {
-        bf_args.task_perms_who()
+        bf_args.task_authority_principal()
     };
 
     // Fourth argument is "init-args" - must be a list if provided
@@ -629,7 +629,7 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // create_at is wizard-only
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms.require_wizard().map_err(world_state_bf_err)?;
 
     let tramp = bf_args
@@ -698,7 +698,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Check if the given task perms can control the object before continuing.
     if !with_current_transaction(|world_state| {
-        world_state.controls(&bf_args.task_perms_who(), &obj)
+        world_state.controls(&bf_args.task_authority_principal(), &obj)
     })
     .map_err(world_state_bf_err)?
     {
@@ -718,7 +718,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 // objects to move/call :exitfunc on. So let's get the initial list of objects
                 // now
                 let object_contents = with_current_transaction(|world_state| {
-                    world_state.contents_of(&bf_args.task_perms_who(), &obj)
+                    world_state.contents_of(&bf_args.task_authority_principal(), &obj)
                 })
                 .map_err(world_state_bf_err)?;
                 // Filter contents for objects that have an :exitfunc verb.
@@ -726,7 +726,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 for o in object_contents.iter() {
                     match with_current_transaction(|world_state| {
                         world_state.lookup_verb(
-                            &bf_args.task_perms_who(),
+                            &bf_args.task_authority_principal(),
                             VerbLookup::method(&o, *EXITFUNC_SYM),
                         )
                     }) {
@@ -743,7 +743,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     }
                 }
                 let contents = v_list(&contents);
-                let permissions = bf_args.task_perms_who();
+                let permissions = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &permissions,
@@ -810,7 +810,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     // :exitfunc *should* exist because we looked for it earlier, and we're supposed to
                     // be transactionally isolated. But we need to do resolution anyways, so we will
                     // look again anyways.
-                    let permissions = bf_args.task_perms_who();
+                    let permissions = bf_args.task_authority_principal();
                     let Ok(Some(verb_result)) = with_current_transaction(|world_state| {
                         world_state.dispatch_verb(
                             &permissions,
@@ -847,7 +847,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Some(BF_RECYCLE_TRAMPOLINE_DONE_MOVE) => {
                 debug!(obj = ?obj, "Recycling object");
                 with_current_transaction_mut(|world_state| {
-                    world_state.recycle_object(&bf_args.task_perms_who(), &obj)
+                    world_state.recycle_object(&bf_args.task_authority_principal(), &obj)
                 })
                 .map_err(world_state_bf_err)?;
                 return Ok(Ret(v_int(0)));
@@ -868,9 +868,10 @@ fn bf_max_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_ARGS.msg("max_object() takes no arguments"),
         ));
     }
-    let max_obj =
-        with_current_transaction(|world_state| world_state.max_object(&bf_args.task_perms_who()))
-            .map_err(world_state_bf_err)?;
+    let max_obj = with_current_transaction(|world_state| {
+        world_state.max_object(&bf_args.task_authority_principal())
+    })
+    .map_err(world_state_bf_err)?;
     Ok(Ret(v_obj(max_obj)))
 }
 
@@ -920,7 +921,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .unwrap_or(BF_MOVE_TRAMPOLINE_START_ACCEPT);
     trace!(what = ?what, where_to = ?whereto, tramp, "move: looking up :accept verb");
 
-    let perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     let mut shortcircuit = None;
     loop {
         match tramp {
@@ -930,7 +931,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     tramp = BF_MOVE_TRAMPOLINE_MOVE_CALL_EXITFUNC;
                     continue;
                 }
-                let permissions = bf_args.task_perms_who();
+                let permissions = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &permissions,
@@ -990,13 +991,13 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 trace!(what = ?what, where_to = ?whereto, tramp, "move: moving object & calling enterfunc");
 
                 let original_location = with_current_transaction(|world_state| {
-                    world_state.location_of(&bf_args.task_perms_who(), &what)
+                    world_state.location_of(&bf_args.task_authority_principal(), &what)
                 })
                 .map_err(world_state_bf_err)?;
 
                 // Failure here is likely due to permissions, so we'll just propagate that error.
                 with_current_transaction_mut(|world_state| {
-                    world_state.move_object(&bf_args.task_perms_who(), &what, &whereto)
+                    world_state.move_object(&bf_args.task_authority_principal(), &what, &whereto)
                 })
                 .map_err(world_state_bf_err)?;
 
@@ -1007,7 +1008,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 }
 
                 // Call exitfunc...
-                let permissions = bf_args.task_perms_who();
+                let permissions = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &permissions,
@@ -1056,7 +1057,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
                 // Exitfunc has been called, and returned. Result is irrelevant. Prepare to call
                 // :enterfunc on the destination.
-                let permissions = bf_args.task_perms_who();
+                let permissions = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &permissions,
@@ -1121,9 +1122,10 @@ fn bf_verbs(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_TYPE.msg("verbs() first argument must be an object"),
         ));
     };
-    let verbs =
-        with_current_transaction(|world_state| world_state.verbs(&bf_args.task_perms_who(), &obj))
-            .map_err(world_state_bf_err)?;
+    let verbs = with_current_transaction(|world_state| {
+        world_state.verbs(&bf_args.task_authority_principal(), &obj)
+    })
+    .map_err(world_state_bf_err)?;
     let verbs: Vec<_> = verbs
         .iter()
         .map(|v| v_arc_str(v.names().first().unwrap().as_arc_str()))
@@ -1144,7 +1146,7 @@ fn bf_properties(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
     let props = with_current_transaction(|world_state| {
-        world_state.properties(&bf_args.task_perms_who(), &obj)
+        world_state.properties(&bf_args.task_authority_principal(), &obj)
     })
     .map_err(world_state_bf_err)?;
     let props: Vec<_> = if bf_args.config.use_symbols_in_builtins {
@@ -1180,7 +1182,7 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // User must be a wizard.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -1196,12 +1198,16 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     with_current_transaction_mut(|world_state| {
-        world_state.set_flags_of(&bf_args.task_perms_who(), &obj, flags)
+        world_state.set_flags_of(&bf_args.task_authority_principal(), &obj, flags)
     })
     .map_err(world_state_bf_err)?;
 
     // If the object was player, update the VM's copy of the perms.
-    if obj.eq(&bf_args.task_perms().map_err(world_state_bf_err)?.principal) {
+    if obj.eq(&bf_args
+        .task_authority()
+        .map_err(world_state_bf_err)?
+        .principal)
+    {
         bf_args
             .exec_state
             .set_task_perms(&mut crate::vm::kernel_host::KernelHost, obj);
@@ -1226,7 +1232,7 @@ fn bf_players(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Returns a list of all valid objects in the database. Wizard-only.
 fn bf_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -1263,7 +1269,7 @@ fn bf_owned_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     let owned_objects = with_current_transaction(|world_state| {
-        world_state.owned_objects(&bf_args.task_perms_who(), &owner)
+        world_state.owned_objects(&bf_args.task_authority_principal(), &owner)
     })
     .map_err(world_state_bf_err)?;
 
@@ -1333,7 +1339,7 @@ fn bf_renumber(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Call the world state renumber_object method
     let new_obj = with_current_transaction_mut(|world_state| {
-        world_state.renumber_object(&bf_args.task_perms_who(), &obj, target)
+        world_state.renumber_object(&bf_args.task_authority_principal(), &obj, target)
     })
     .map_err(world_state_bf_err)?;
 
@@ -1589,13 +1595,13 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let matcher: Box<dyn ObjectNameMatcher> = if complex_match {
         Box::new(moor_common::matching::ComplexObjectNameMatcher {
             env,
-            player: bf_args.task_perms_who(),
+            player: bf_args.task_authority_principal(),
             fuzzy_threshold,
         })
     } else {
         Box::new(moor_common::matching::DefaultObjectNameMatcher {
             env,
-            player: bf_args.task_perms_who(),
+            player: bf_args.task_authority_principal(),
         })
     };
 
@@ -1816,7 +1822,7 @@ fn bf_find_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         // Look for command verb on this target
         let match_result = with_current_transaction(|world_state| {
             world_state.lookup_verb(
-                &bf_args.task_perms_who(),
+                &bf_args.task_authority_principal(),
                 VerbLookup::command(
                     &target,
                     verb_sym,
@@ -1885,7 +1891,7 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
 
     // Must be a wizard to use this function
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -1992,7 +1998,7 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
             }
 
             // Look up the command verb
-            let caller_perms = bf_args.task_perms_who();
+            let caller_perms = bf_args.task_authority_principal();
             let match_result = with_current_transaction(|world_state| {
                 world_state.dispatch_verb(
                     &caller_perms,

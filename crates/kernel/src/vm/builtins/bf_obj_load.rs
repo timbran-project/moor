@@ -89,7 +89,7 @@ fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Check permissions: wizard only (object dumps can expose properties owned by others)
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms.require_wizard().map_err(world_state_bf_err)?;
 
     // Use the task scheduler client to request the dump from the scheduler.
@@ -525,7 +525,7 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Check permissions: wizard only (object creation with arbitrary properties/verbs)
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms.require_wizard().map_err(world_state_bf_err)?;
 
     // Create options object for the loader
@@ -638,7 +638,7 @@ fn bf_reload_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Check permissions: wizard only
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms.require_wizard().map_err(world_state_bf_err)?;
 
     // Use the current task's transaction via loader interface

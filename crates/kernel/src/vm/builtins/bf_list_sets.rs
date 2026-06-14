@@ -1226,7 +1226,7 @@ fn bf_complex_match(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
         // Get the object's name using name_of
         let name_result = with_current_transaction(|world_state| {
-            world_state.name_of(&bf_args.task_perms_who(), &obj)
+            world_state.name_of(&bf_args.task_authority_principal(), &obj)
         });
         let Ok(name_str) = name_result else {
             continue; // Skip objects without valid name
