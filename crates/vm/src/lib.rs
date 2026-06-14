@@ -19,6 +19,7 @@ use moor_var::{Obj, Symbol, Var, program::ProgramType};
 use uuid::Uuid;
 
 pub(crate) mod activation;
+pub(crate) mod auth;
 pub(crate) mod config;
 pub(crate) mod environment;
 pub(crate) mod moo_execute;
@@ -26,7 +27,8 @@ pub(crate) mod moo_frame;
 pub(crate) mod scatter_assign;
 pub(crate) mod vm_unwind;
 
-pub use activation::{Activation, Authority, BuiltinFrame, CallProgram, Frame};
+pub use activation::{Activation, BuiltinFrame, CallProgram, Frame};
+pub use auth::Authority;
 pub use config::FeaturesConfig;
 pub use environment::Environment;
 pub use moo_execute::{
