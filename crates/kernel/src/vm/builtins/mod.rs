@@ -291,7 +291,7 @@ impl BfCallState<'_> {
     pub fn caller_perms(&self) -> Obj {
         self.exec_state.caller_perms()
     }
-    pub fn task_perms_who(&self) -> Obj {
+    pub fn task_authority_principal(&self) -> Obj {
         self.exec_state.task_perms()
     }
 
@@ -299,8 +299,8 @@ impl BfCallState<'_> {
         self.exec_state.top().player
     }
 
-    pub fn task_perms(&self) -> Result<Authority, WorldStateError> {
-        let who = self.task_perms_who();
+    pub fn task_authority(&self) -> Result<Authority, WorldStateError> {
+        let who = self.task_authority_principal();
         // Always do a live lookup here - object flags can change mid-execution
         // (e.g., player.programmer = 0) and builtins need to see current state
         let flags = with_current_transaction(|ws| ws.flags_of(&who))?;

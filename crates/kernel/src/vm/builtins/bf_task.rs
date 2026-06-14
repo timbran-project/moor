@@ -140,7 +140,7 @@ fn bf_commit(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn bf_rollback(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Rollback is wizard only
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -274,7 +274,7 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let tasks = current_task_scheduler_client().task_list();
 
     // Wizards see all tasks, others see only tasks where they are the programmer.
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     let is_wizard = task_perms.is_wizard();
     let perms_who = task_perms.principal;
 
@@ -319,7 +319,7 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     };
 
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     let is_wizard = task_perms.is_wizard();
     let perms_who = task_perms.principal;
 
@@ -485,7 +485,7 @@ fn bf_kill_task(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let result = current_task_scheduler_client().kill_task(
         victim_task_id,
-        bf_args.task_perms().map_err(world_state_bf_err)?,
+        bf_args.task_authority().map_err(world_state_bf_err)?,
     );
     if let Some(err) = result.as_error() {
         return Err(ErrValue(err.clone()));
@@ -525,7 +525,7 @@ fn bf_resume(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let result = current_task_scheduler_client().resume_task(
         task_id,
-        bf_args.task_perms().map_err(world_state_bf_err)?,
+        bf_args.task_authority().map_err(world_state_bf_err)?,
         return_value.clone(),
     );
     if let Some(err) = result.as_error() {
@@ -656,7 +656,7 @@ fn bf_task_send(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let result = current_task_scheduler_client().task_send(
         target_task_id,
         value,
-        bf_args.task_perms().map_err(world_state_bf_err)?,
+        bf_args.task_authority().map_err(world_state_bf_err)?,
     );
     if let Some(err) = result.as_error() {
         return Err(ErrValue(err.clone()));

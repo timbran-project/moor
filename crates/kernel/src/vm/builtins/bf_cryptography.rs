@@ -61,7 +61,7 @@ fn bf_age_generate_keypair(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
 
     // Check for programmer permissions
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_programmer()
         .map_err(world_state_bf_err)?;
@@ -113,7 +113,7 @@ fn bf_age_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Check for programmer permissions
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_programmer()
         .map_err(world_state_bf_err)?;
@@ -231,7 +231,7 @@ fn bf_age_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Check for programmer permissions
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_programmer()
         .map_err(world_state_bf_err)?;
@@ -380,7 +380,7 @@ fn bf_age_passphrase_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
 
     // Check for programmer permissions
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_programmer()
         .map_err(world_state_bf_err)?;
@@ -442,7 +442,7 @@ fn bf_age_passphrase_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
 
     // Check for programmer permissions
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_programmer()
         .map_err(world_state_bf_err)?;
@@ -516,7 +516,7 @@ fn bf_age_passphrase_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
 fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Must be wizard.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -584,7 +584,7 @@ fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn bf_argon2_verify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Must be wizard.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -1011,7 +1011,7 @@ fn bf_paseto_make_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     } else {
         // Server key mode - requires wizard
         bf_args
-            .task_perms()
+            .task_authority()
             .map_err(world_state_bf_err)?
             .require_wizard()
             .map_err(world_state_bf_err)?;
@@ -1081,7 +1081,7 @@ fn bf_paseto_verify_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
     } else {
         // Server key mode - requires wizard
         bf_args
-            .task_perms()
+            .task_authority()
             .map_err(world_state_bf_err)?
             .require_wizard()
             .map_err(world_state_bf_err)?;

@@ -48,7 +48,7 @@ fn bf_force_input(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Must be either player or wizard
-    let perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
 
     if perms.principal != conn && !perms.is_wizard() {
         return Err(Code(E_PERM));
@@ -69,7 +69,7 @@ fn bf_force_input(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Options may include `timeout_seconds` (float) and may be a map or alist. Wizard-only.
 fn bf_worker_request(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -155,7 +155,7 @@ fn bf_connections(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Permission check: if requesting for another player, must be wizard or same player
     if let Some(target_player) = player {
-        let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+        let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
         if target_player != task_perms.principal && !task_perms.is_wizard() {
             return Err(ErrValue(E_PERM.msg(
                 "connections() requires the caller to be a wizard or requesting their own connections",
@@ -267,7 +267,7 @@ fn bf_switch_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
 
     // Only wizards can switch players
     if !task_perms.is_wizard() {
@@ -342,7 +342,7 @@ fn bf_workers(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Must be wizard
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -384,7 +384,7 @@ fn bf_output_delimiters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Permission check: can only query own delimiters unless wizard
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     if player != task_perms.principal && !task_perms.is_wizard() {
         return Err(ErrValue(E_PERM.msg("Permission denied")));
     }
@@ -467,7 +467,7 @@ fn check_connection_ownership(
     connection_obj: moor_var::Obj,
     bf_args: &mut BfCallState<'_>,
 ) -> Result<bool, BfErr> {
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
 
     // Wizards can access any connection
     if task_perms.is_wizard() {
@@ -666,7 +666,7 @@ fn bf_notify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // If player is not the calling task perms, or a caller is not a wizard, raise E_PERM.
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms
         .require_controls(&player)
         .map_err(world_state_bf_err)?;
@@ -769,7 +769,7 @@ fn bf_emit_data(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let payload = bf_args.args[3].clone();
 
     // If player is not the calling task perms, and caller is not a wizard, raise E_PERM.
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms
         .require_controls(&player)
         .map_err(world_state_bf_err)?;
@@ -820,7 +820,7 @@ fn bf_event_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // If player is not the calling task perms, or a caller is not a wizard, raise E_PERM.
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms
         .require_controls(&player)
         .map_err(world_state_bf_err)?;
@@ -911,7 +911,7 @@ fn bf_present(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // If player is not the calling task perms, or a caller is not a wizard, raise E_PERM.
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     task_perms
         .require_controls(&player)
         .map_err(world_state_bf_err)?;
@@ -1140,7 +1140,7 @@ fn bf_connection_name(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     if !task_perms.is_wizard() && task_perms.principal != player {
         return Err(ErrValue(E_PERM.msg(
             "connection_name() requires the caller to be a wizard or the caller itself",
@@ -1227,7 +1227,7 @@ fn bf_listeners(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn bf_unlisten(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Requires wizard permissions.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -1280,7 +1280,7 @@ fn bf_unlisten(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn bf_listen(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Requires wizard permissions.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;

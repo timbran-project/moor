@@ -122,7 +122,7 @@ fn bf_set_task_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // If the caller is not a wizard, perms_for must be the caller
-    let perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     if !perms.is_wizard() && perms_for != perms.principal {
         return Err(ErrValue(E_PERM.msg(
             "set_task_perms() requires the caller to be a wizard or the caller itself",
@@ -153,7 +153,7 @@ fn bf_shutdown(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -302,7 +302,7 @@ fn bf_boot_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
+    let task_perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     if task_perms.principal != player && !task_perms.is_wizard() {
         return Err(ErrValue(E_PERM.msg(
             "boot_player() requires the caller to be a wizard or the caller itself",
@@ -380,7 +380,7 @@ fn bf_server_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
@@ -417,7 +417,7 @@ fn bf_log_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
@@ -566,7 +566,7 @@ pub const BF_SERVER_EVAL_TRAMPOLINE_RESUME: usize = 1;
 /// Use `format_compile_error()` to format the structured map into human-readable text.
 fn bf_eval(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_programmer()
         .map_err(world_state_bf_err)?;
@@ -654,7 +654,7 @@ fn bf_eval(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             // Now we have to construct things to set up for eval. Which means tramping through with a
             // setup-for-eval result here.
             Ok(VmInstr(ExecutionResult::DispatchEval {
-                permissions: bf_args.task_perms_who(),
+                permissions: bf_args.task_authority_principal(),
                 player: bf_args.exec_state.top().player,
                 program,
                 initial_env,
@@ -675,7 +675,7 @@ fn bf_eval(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Triggers a database checkpoint. If blocking is true, waits for completion. Wizard-only.
 fn bf_dump_database(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -713,7 +713,7 @@ fn bf_gc_collect(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Must be wizard.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -735,7 +735,7 @@ fn bf_memory_usage(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Must be wizard.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -792,7 +792,7 @@ fn db_disk_size(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Must be wizard.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -813,7 +813,7 @@ fn load_server_options(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -870,7 +870,7 @@ fn bf_counter_entries() -> Vec<MetricEntry> {
 /// Returns performance counters for builtin functions as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -886,7 +886,7 @@ fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Returns performance counters for database operations as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -901,7 +901,7 @@ fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Returns performance counters for scheduler operations as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_sched_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -923,7 +923,7 @@ fn bf_rotate_enrollment_token(bf_args: &mut BfCallState<'_>) -> Result<BfRet, Bf
     }
 
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_wizard()
         .map_err(world_state_bf_err)?;
@@ -980,7 +980,7 @@ fn bf_player_event_log_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
 
     // Ensure caller has permission to manage the target player's history.
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_controls(&player)
         .map_err(world_state_bf_err)?;
@@ -1046,7 +1046,7 @@ fn bf_purge_player_event_log(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     };
 
     bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .require_controls(&player)
         .map_err(world_state_bf_err)?;
@@ -1116,7 +1116,7 @@ fn bf_verb_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
@@ -1139,7 +1139,7 @@ fn bf_property_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
         ));
     }
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
@@ -1162,7 +1162,7 @@ fn bf_ancestry_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
         ));
     }
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
@@ -1187,7 +1187,7 @@ fn bf_program_cache_stats(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
         ));
     }
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
@@ -1243,7 +1243,7 @@ fn bf_flush_caches(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     if !bf_args
-        .task_perms()
+        .task_authority()
         .map_err(world_state_bf_err)?
         .is_wizard()
     {
