@@ -36,6 +36,12 @@ impl DbAuthPrincipal {
     }
 }
 
+/// Resolved DB authorization facts for one operation.
+///
+/// `AuthContext` contains the current task authority principal and that object's flags as read from
+/// the transaction at the point of the check. It deliberately does not know which builtin or
+/// `WorldState` method is being executed; callers provide an `AuthRule` built from already-resolved
+/// object, property, or verb metadata.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AuthContext {
     principal: DbAuthPrincipal,
@@ -45,7 +51,11 @@ pub(super) struct AuthContext {
 ///
 /// These rules intentionally describe the authorization shape, not the operation name. WorldState
 /// call sites should pass the owner, flags, or metadata they have already resolved and let
-/// `AuthContext` choose the matching denial error.
+/// `AuthContext` choose the matching denial error:
+///
+/// - object-domain rules deny with `WorldStateError::ObjectPermissionDenied`
+/// - property-domain rules deny with `WorldStateError::PropertyPermissionDenied`
+/// - verb-domain rules deny with `WorldStateError::VerbPermissionDenied`
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AuthRule<'a> {
     /// Principal must have the wizard bit for an object-domain operation.
@@ -53,6 +63,8 @@ pub(super) enum AuthRule<'a> {
     /// Principal must own an object-domain resource or have the wizard bit.
     ObjectOwnerOrWizard { owner: &'a Obj },
     /// Object owner, wizard bit, or all requested object flags authorize access.
+    ///
+    /// When more than one object flag is requested, public access requires every requested flag.
     ObjectAllows {
         owner: &'a Obj,
         flags: BitEnum<ObjFlag>,
@@ -312,6 +324,7 @@ mod tests {
         let owner = Obj::mk_id(1);
         let other = Obj::mk_id(2);
         let public_read = BitEnum::new_with(ObjFlag::Read);
+        let public_read_write = BitEnum::new_with(ObjFlag::Read) | ObjFlag::Write;
 
         assert!(context(1, BitEnum::new()).allows(AuthRule::object_allows(
             &owner,
@@ -334,6 +347,16 @@ mod tests {
             &owner,
             BitEnum::new(),
             ObjFlag::Read.into()
+        )));
+        assert!(!context(2, BitEnum::new()).allows(AuthRule::object_allows(
+            &owner,
+            public_read,
+            public_read_write
+        )));
+        assert!(context(2, BitEnum::new()).allows(AuthRule::object_allows(
+            &owner,
+            public_read_write,
+            public_read_write
         )));
         assert!(
             context(2, BitEnum::new())
@@ -371,6 +394,99 @@ mod tests {
             context(2, BitEnum::new())
                 .require(AuthRule::property_allows(&propperms, PropFlag::Write))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn property_owner_rules_allow_self_or_wizard_and_reject_transfer() {
+        let owner = Obj::mk_id(1);
+        let other = Obj::mk_id(2);
+
+        assert!(
+            context(1, BitEnum::new())
+                .require(AuthRule::property_owner_or_wizard(&owner))
+                .is_ok()
+        );
+        assert!(
+            context(3, BitEnum::new_with(ObjFlag::Wizard))
+                .require(AuthRule::property_owner_or_wizard(&owner))
+                .is_ok()
+        );
+        assert!(
+            context(1, BitEnum::new())
+                .require(AuthRule::property_owner_unchanged_or_wizard(&owner, &owner))
+                .is_ok()
+        );
+        assert!(
+            context(1, BitEnum::new())
+                .require(AuthRule::property_owner_unchanged_or_wizard(&owner, &other))
+                .is_err()
+        );
+        assert!(
+            context(3, BitEnum::new_with(ObjFlag::Wizard))
+                .require(AuthRule::property_owner_unchanged_or_wizard(&owner, &other))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn verb_allows_owner_wizard_or_verb_flag() {
+        let owner = Obj::mk_id(1);
+        let readable = BitEnum::new_with(VerbFlag::Read);
+
+        assert!(context(1, BitEnum::new()).allows(AuthRule::verb_allows(
+            &owner,
+            BitEnum::new(),
+            VerbFlag::Write
+        )));
+        assert!(
+            context(2, BitEnum::new_with(ObjFlag::Wizard)).allows(AuthRule::verb_allows(
+                &owner,
+                BitEnum::new(),
+                VerbFlag::Write
+            ))
+        );
+        assert!(context(2, BitEnum::new()).allows(AuthRule::verb_allows(
+            &owner,
+            readable,
+            VerbFlag::Read
+        )));
+        assert!(!context(2, BitEnum::new()).allows(AuthRule::verb_allows(
+            &owner,
+            readable,
+            VerbFlag::Write
+        )));
+    }
+
+    #[test]
+    fn verb_owner_rules_allow_self_or_wizard_and_reject_transfer() {
+        let owner = Obj::mk_id(1);
+        let other = Obj::mk_id(2);
+
+        assert!(
+            context(1, BitEnum::new())
+                .require(AuthRule::verb_owner_or_wizard(&owner))
+                .is_ok()
+        );
+        assert!(
+            context(3, BitEnum::new_with(ObjFlag::Wizard))
+                .require(AuthRule::verb_owner_or_wizard(&owner))
+                .is_ok()
+        );
+        assert!(
+            context(1, BitEnum::new())
+                .require(AuthRule::verb_owner_unchanged_or_wizard(&owner, &owner))
+                .is_ok()
+        );
+        assert!(
+            context(1, BitEnum::new())
+                .require(AuthRule::verb_owner_unchanged_or_wizard(&owner, &other))
+                .is_err()
+        );
+        assert!(
+            context(3, BitEnum::new_with(ObjFlag::Wizard))
+                .require(AuthRule::verb_owner_unchanged_or_wizard(&owner, &other))
+                .is_ok()
         );
     }
 
