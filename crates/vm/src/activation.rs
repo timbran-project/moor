@@ -17,7 +17,7 @@ use strum::EnumCount;
 use uuid::Uuid;
 
 use moor_common::{
-    model::{ObjFlag, ResolvedVerb, VerbArgsSpec, VerbFlag, WorldStateError},
+    model::{ObjFlag, ResolvedVerb, VerbArgsSpec, VerbFlag},
     util::BitEnum,
 };
 use moor_compiler::{BuiltinId, Program, ScatterLabel};
@@ -26,8 +26,11 @@ use moor_var::{
     v_str, v_symbol_str,
 };
 
-use crate::moo_frame::{MooStackFrame, ProgramSlot};
-use crate::scatter_assign::scatter_assign;
+use crate::{
+    auth::Authority,
+    moo_frame::{MooStackFrame, ProgramSlot},
+    scatter_assign::scatter_assign,
+};
 use moor_var::program::{
     ProgramType,
     names::{GlobalName, Name},
@@ -109,71 +112,6 @@ pub struct Activation {
     pub verbdef: ResolvedVerb,
     /// The current task authority for this activation.
     pub authority: Authority,
-}
-
-/// Compact authority facts for the current activation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Authority {
-    /// The object whose authority the activation executes under.
-    ///
-    /// This is the "task perms" object. It starts as the resolved verb owner and can be changed by
-    /// `set_task_perms()`.
-    pub principal: Obj,
-    /// Cached flags for the principal, to avoid repeated DB lookups.
-    pub principal_flags: BitEnum<ObjFlag>,
-}
-
-impl Authority {
-    #[inline]
-    #[must_use]
-    pub fn new(principal: Obj, principal_flags: BitEnum<ObjFlag>) -> Self {
-        Self {
-            principal,
-            principal_flags,
-        }
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn is_wizard(&self) -> bool {
-        self.principal_flags.contains(ObjFlag::Wizard)
-    }
-
-    #[inline]
-    pub fn require_wizard(&self) -> Result<(), WorldStateError> {
-        if self.is_wizard() {
-            return Ok(());
-        }
-        Err(WorldStateError::ObjectPermissionDenied)
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn is_programmer(&self) -> bool {
-        self.principal_flags.contains(ObjFlag::Programmer)
-    }
-
-    #[inline]
-    pub fn require_programmer(&self) -> Result<(), WorldStateError> {
-        if self.is_programmer() {
-            return Ok(());
-        }
-        Err(WorldStateError::ObjectPermissionDenied)
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn controls(&self, owner: &Obj) -> bool {
-        self.is_wizard() || self.principal == *owner
-    }
-
-    #[inline]
-    pub fn require_controls(&self, owner: &Obj) -> Result<(), WorldStateError> {
-        if self.controls(owner) {
-            return Ok(());
-        }
-        Err(WorldStateError::ObjectPermissionDenied)
-    }
 }
 
 // Boxing MooStackFrame would add pointer indirection on every opcode dispatch,
