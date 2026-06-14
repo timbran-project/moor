@@ -93,11 +93,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Permission compatibility fixes for regular programmer/user operations:
+  - Built-in object attribute assignment for `.name`, `.r`, `.w`, and `.f`, `move()`, `chparent()`,
+    and `recycle()` now require owner-or-wizard authority instead of accepting public object write
+    alone.
+  - `add_verb()` no longer requires the caller to have the programmer bit when the caller otherwise
+    has object write permission and owner authority.
+  - `verb_code()` no longer requires the caller to have the programmer bit when the caller has read
+    permission on the verb.
+  - `delete_verb()` is authorized by write permission on the object defining the verb, not ownership
+    of or write permission on the verb itself.
+  - `object_bytes()` and `connection_name()` now check current task permissions rather than
+    `caller_perms()`.
 - `parse_command()` result map: `argstr` key/value types were swapped (key used `v_str`, value used
   `use_sym_or_str`) and `prep` key used `v_str` instead of `use_sym_or_str`.
 - Stale timer wheel entries no longer cause spurious task wakes; added monotonic generation counter
   to `TimerEntry` and `SuspendedTask` so that re-suspended tasks discard leftover timer entries from
   previous suspensions
+
+`db`:
+
+- `delete_property()` is authorized by write permission on the object defining the property, not
+  ownership of or write permission on the property itself.
+- `queue_info()` is now available to regular callers instead of requiring wizard permissions.
+
+`docs`:
+
+- Corrected book documentation for `verb_info()`, `verb_code()`, `set_verb_code()`, `add_verb()`,
+  `delete_verb()`, and `queue_info()` permission and error behavior.
 
 `compiler`:
 
