@@ -44,14 +44,14 @@ use crate::{
     },
 };
 use fast_telemetry::{Counter, Histogram, MetricKind, MetricLabel, MetricLabels, MetricMeta};
-use moor_common::model::{Perms, WorldStateError};
+use moor_common::model::WorldStateError;
 use moor_common::util::hot_stride;
 use moor_compiler::{BUILTINS, BuiltinId, DiagnosticRenderOptions, DiagnosticVerbosity};
 use moor_var::{
     E_INVARG, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant, v_bool_int,
     v_map,
 };
-use moor_vm::{BuiltinFrame, ExecState, Frame};
+use moor_vm::{Authority, BuiltinFrame, ExecState, Frame};
 
 mod bf_cryptography;
 mod bf_documents;
@@ -299,12 +299,12 @@ impl BfCallState<'_> {
         self.exec_state.top().player
     }
 
-    pub fn task_perms(&self) -> Result<Perms, WorldStateError> {
+    pub fn task_perms(&self) -> Result<Authority, WorldStateError> {
         let who = self.task_perms_who();
         // Always do a live lookup here - object flags can change mid-execution
         // (e.g., player.programmer = 0) and builtins need to see current state
         let flags = with_current_transaction(|ws| ws.flags_of(&who))?;
-        Ok(Perms { who, flags })
+        Ok(Authority::new(who, flags))
     }
 
     pub fn bf_frame(&self) -> &BuiltinFrame {

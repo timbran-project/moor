@@ -63,7 +63,7 @@ fn bf_age_generate_keypair(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_programmer()
+        .require_programmer()
         .map_err(world_state_bf_err)?;
 
     // Get the optional as_bytes argument (defaults to false)
@@ -115,7 +115,7 @@ fn bf_age_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_programmer()
+        .require_programmer()
         .map_err(world_state_bf_err)?;
 
     // Get the message to encrypt
@@ -233,7 +233,7 @@ fn bf_age_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_programmer()
+        .require_programmer()
         .map_err(world_state_bf_err)?;
 
     // Get the encrypted message - accept both bytes and base64 string for compatibility
@@ -382,7 +382,7 @@ fn bf_age_passphrase_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_programmer()
+        .require_programmer()
         .map_err(world_state_bf_err)?;
 
     // Get the message to encrypt
@@ -444,7 +444,7 @@ fn bf_age_passphrase_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_programmer()
+        .require_programmer()
         .map_err(world_state_bf_err)?;
 
     // Get the encrypted message - accept both bytes and base64 string
@@ -518,7 +518,7 @@ fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_wizard()
+        .require_wizard()
         .map_err(world_state_bf_err)?;
 
     if bf_args.args.len() > 5 || bf_args.args.len() < 2 {
@@ -586,7 +586,7 @@ fn bf_argon2_verify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_wizard()
+        .require_wizard()
         .map_err(world_state_bf_err)?;
 
     if bf_args.args.len() != 2 {
@@ -1013,7 +1013,7 @@ fn bf_paseto_make_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         bf_args
             .task_perms()
             .map_err(world_state_bf_err)?
-            .check_wizard()
+            .require_wizard()
             .map_err(world_state_bf_err)?;
 
         let Some(key) = crate::get_server_symmetric_key() else {
@@ -1083,7 +1083,7 @@ fn bf_paseto_verify_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
         bf_args
             .task_perms()
             .map_err(world_state_bf_err)?
-            .check_wizard()
+            .require_wizard()
             .map_err(world_state_bf_err)?;
 
         let Some(key) = crate::get_server_symmetric_key() else {

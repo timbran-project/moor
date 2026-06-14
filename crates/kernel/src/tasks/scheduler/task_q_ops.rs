@@ -429,29 +429,27 @@ impl TaskQ {
         });
     }
 
-    pub(super) fn kill_task(&mut self, victim_task_id: TaskId, sender_permissions: Perms) -> Var {
+    pub(super) fn kill_task(
+        &mut self,
+        victim_task_id: TaskId,
+        sender_permissions: Authority,
+    ) -> Var {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
         let is_suspended = if self.suspended.tasks.contains_key(&victim_task_id) {
-            let is_wizard = sender_permissions
-                .check_is_wizard()
-                .expect("Could not check wizard status for kill request");
+            let is_wizard = sender_permissions.is_wizard();
             if !is_wizard
                 && !self
                     .suspended
-                    .perms_check(victim_task_id, sender_permissions.who, false)
+                    .perms_check(victim_task_id, sender_permissions.principal, false)
             {
                 return v_err(E_PERM);
             }
             true
         } else if self.active.contains_key(&victim_task_id) {
             let tc = self.active.get(&victim_task_id).unwrap();
-            if !sender_permissions
-                .check_is_wizard()
-                .expect("Could not check wizard status for kill request")
-                && sender_permissions.who != tc.player
-            {
+            if !sender_permissions.is_wizard() && sender_permissions.principal != tc.player {
                 return v_err(E_PERM);
             }
             false
@@ -489,7 +487,7 @@ impl TaskQ {
         &mut self,
         requesting_task_id: TaskId,
         queued_task_id: TaskId,
-        sender_permissions: Perms,
+        sender_permissions: Authority,
         return_value: Var,
         scheduler: &Scheduler,
         database: &dyn Database,
@@ -506,12 +504,9 @@ impl TaskQ {
 
         if !self
             .suspended
-            .perms_check(queued_task_id, sender_permissions.who, true)
+            .perms_check(queued_task_id, sender_permissions.principal, true)
         {
-            if !sender_permissions
-                .check_is_wizard()
-                .expect("Could not check wizard status for resume request")
-            {
+            if !sender_permissions.is_wizard() {
                 return v_err(E_PERM);
             }
             if !self.suspended.tasks.contains_key(&queued_task_id) {

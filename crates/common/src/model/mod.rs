@@ -16,7 +16,6 @@ pub use crate::model::{
     r#match::{ArgSpec, PrepSpec, VerbArgsSpec, parse_preposition_spec, preposition_to_string},
     objects::{ObjAttr, ObjAttrs, ObjFlag, ObjectQuery, ObjectRef, obj_flags_string},
     objset::{ObjSet, ObjSetIter},
-    permissions::Perms,
     propdef::{PropDef, PropDefs},
     props::{PropAttr, PropAttrs, PropFlag, PropPerms, prop_flags_string},
     verbdef::{ResolvedVerb, VerbDef, VerbDefs},
@@ -36,7 +35,6 @@ pub mod loader;
 mod r#match;
 mod objects;
 mod objset;
-mod permissions;
 mod propdef;
 mod props;
 mod verbdef;

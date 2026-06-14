@@ -142,7 +142,7 @@ fn bf_rollback(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .check_wizard()
+        .require_wizard()
         .map_err(world_state_bf_err)?;
 
     if bf_args.args.len() > 1 {
@@ -275,8 +275,8 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Wizards see all tasks, others see only tasks where they are the programmer.
     let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
-    let is_wizard = task_perms.check_is_wizard().map_err(world_state_bf_err)?;
-    let perms_who = task_perms.who;
+    let is_wizard = task_perms.is_wizard();
+    let perms_who = task_perms.principal;
 
     // return in form:
     //     {<task-id>, <start-time>, <x>, <y>,
@@ -320,8 +320,8 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
-    let is_wizard = task_perms.check_is_wizard().map_err(world_state_bf_err)?;
-    let perms_who = task_perms.who;
+    let is_wizard = task_perms.is_wizard();
+    let perms_who = task_perms.principal;
 
     let results = tasks.iter().filter(|(_, player_id, _)| {
         if is_wizard {

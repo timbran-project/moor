@@ -17,7 +17,7 @@ use strum::EnumCount;
 use uuid::Uuid;
 
 use moor_common::{
-    model::{ObjFlag, ResolvedVerb, VerbArgsSpec, VerbFlag},
+    model::{ObjFlag, ResolvedVerb, VerbArgsSpec, VerbFlag, WorldStateError},
     util::BitEnum,
 };
 use moor_compiler::{BuiltinId, Program, ScatterLabel};
@@ -131,6 +131,48 @@ impl Authority {
             principal,
             principal_flags,
         }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn is_wizard(&self) -> bool {
+        self.principal_flags.contains(ObjFlag::Wizard)
+    }
+
+    #[inline]
+    pub fn require_wizard(&self) -> Result<(), WorldStateError> {
+        if self.is_wizard() {
+            return Ok(());
+        }
+        Err(WorldStateError::ObjectPermissionDenied)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn is_programmer(&self) -> bool {
+        self.principal_flags.contains(ObjFlag::Programmer)
+    }
+
+    #[inline]
+    pub fn require_programmer(&self) -> Result<(), WorldStateError> {
+        if self.is_programmer() {
+            return Ok(());
+        }
+        Err(WorldStateError::ObjectPermissionDenied)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn controls(&self, owner: &Obj) -> bool {
+        self.is_wizard() || self.principal == *owner
+    }
+
+    #[inline]
+    pub fn require_controls(&self, owner: &Obj) -> Result<(), WorldStateError> {
+        if self.controls(owner) {
+            return Ok(());
+        }
+        Err(WorldStateError::ObjectPermissionDenied)
     }
 }
 

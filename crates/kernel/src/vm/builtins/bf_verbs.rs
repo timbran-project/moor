@@ -441,14 +441,11 @@ fn bf_set_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Setting verb code is limited to programmers in LambdaMOO/ToastStunt.
-    if !bf_args
+    bf_args
         .task_perms()
         .map_err(world_state_bf_err)?
-        .flags
-        .contains(ObjFlag::Programmer)
-    {
-        return Err(BfErr::Code(E_PERM));
-    }
+        .require_programmer()
+        .map_err(world_state_bf_err)?;
 
     let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
 

@@ -41,9 +41,10 @@ use std::{
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use moor_common::model::{CommitResult, Perms, WorldState};
+use moor_common::model::{CommitResult, WorldState};
 use moor_compiler::to_literal;
 use moor_db::Database;
+use moor_vm::Authority;
 
 use crate::{
     config::Config,
