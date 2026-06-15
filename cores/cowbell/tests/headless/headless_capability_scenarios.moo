@@ -251,6 +251,95 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_update_passage_requires_source_room_grant (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: updating an existing passage requires only source-room dig_from capability.";
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      original = $passage:mk(room_a, "east", {"east", "e"}, "", true, room_b, "", {}, "", false, true);
+      replacement = $passage:mk(room_a, "portal", {"portal", "p"}, "", true, room_b, "", {}, "", false, true);
+      test_area:create_passage(room_a, room_b, original);
+      $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      updated = this:_update_passage_as_player(test_area, room_a, room_b, replacement);
+      $test_utils:assert_eq(updated, replacement, "capability update_passage should return the replacement passage");
+      $test_utils:assert_eq(test_area:passage_for(room_a, room_b), replacement, "capability update_passage should replace the existing passage");
+    finally
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_update_passage_missing_source_grant_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: update_passage must deny a non-owner without source-room dig_from capability.";
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      original = $passage:mk(room_a, "east", {"east", "e"}, "", true, room_b, "", {}, "", false, true);
+      replacement = $passage:mk(room_a, "portal", {"portal", "p"}, "", true, room_b, "", {}, "", false, true);
+      test_area:create_passage(room_a, room_b, original);
+      denied = false;
+      try
+        this:_update_passage_as_player(test_area, room_a, room_b, replacement);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "missing source dig_from should deny update_passage");
+      $test_utils:assert_eq(test_area:passage_for(room_a, room_b), original, "denied update_passage should preserve original passage");
+    finally
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_agent_building_tools_use_stored_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: agent building tools find stored area and room capabilities for delegated building.";
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    built_room = #-1;
+    old_player_location = $player.location;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      room_a:set_name_aliases("agent source room", {"agent-source"});
+      room_b:set_name_aliases("agent target room", {"agent-target"});
+      $player:moveto(room_a);
+      $root:grant_capability(test_area, {'add_room, 'create_passage, 'remove_passage}, $player, 'area);
+      $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      $root:grant_capability(room_b, {'dig_into}, $player, 'room);
+      build_result = $agent_building_tools:build_room(["name" -> "agent cap room", "area" -> tostr(test_area)], $player);
+      built_room = this:_find_room_named_in_area(test_area, "agent cap room");
+      $test_utils:assert_true(valid(built_room), "agent build_room should create a room through stored area grant");
+      $test_utils:assert_true(index(build_result, "Created \"agent cap room\"") == 1, "agent build_room should report creation");
+      dig_result = $agent_building_tools:dig_passage(["source_room" -> tostr(room_a), "direction" -> "north,n", "target_room" -> tostr(room_b), "oneway" -> true], $player);
+      $test_utils:assert_true(index(dig_result, "Dug passage: north,n") == 1, "agent dig_passage should report passage creation");
+      $test_utils:assert_true(typeof(test_area:passage_for(room_a, room_b)) == TYPE_FLYWEIGHT, "agent dig_passage should register passage");
+      remove_result = $agent_building_tools:remove_passage(["source_room" -> room_a, "target_room" -> room_b], $player);
+      $test_utils:assert_true(index(remove_result, "Removed passage") == 1, "agent remove_passage should report removal");
+      $test_utils:assert_false(test_area:passage_for(room_a, room_b), "agent remove_passage should clear passage");
+    finally
+      valid(built_room) && built_room:destroy();
+      valid(old_player_location) && $player:moveto(old_player_location);
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_create_child_allows_non_owner_nonfertile_create (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: create_child capability lets a non-owner create from a non-fertile parent.";
     parent_obj = #-1;
@@ -519,6 +608,23 @@ object HEADLESS_CAPABILITY_SCENARIOS
     "Use supplied area and room capabilities to remove a passage as PLAYER.";
     {area_cap, from_room, to_room} = args;
     return area_cap:remove_passage(from_room, to_room);
+  endverb
+
+  verb _update_passage_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Update a passage as PLAYER.";
+    {area, from_room, to_room, passage} = args;
+    return area:update_passage(from_room, to_room, passage);
+  endverb
+
+  verb _find_room_named_in_area (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Return the first room in area with the given name.";
+    {area, room_name} = args;
+    for candidate in (area:contents())
+      if (valid(candidate) && candidate.name == room_name)
+        return candidate;
+      endif
+    endfor
+    return #-1;
   endverb
 
   verb _create_child_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
