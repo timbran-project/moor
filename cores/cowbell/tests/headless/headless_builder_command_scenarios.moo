@@ -60,6 +60,59 @@ object HEADLESS_BUILDER_COMMAND_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_builder_commands_missing_grants_deny_cleanly (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: builder command wrappers deny missing grants without mutating the world.";
+    player == $player || raise(E_INVARG, "This scenario must run with --test-task-player set to PLAYER.");
+    test_area = #-1;
+    build_room = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    old_player_location = $player.location;
+    old_is_builder = $player.is_builder;
+    stubbed_inform = false;
+    added_inform_log = false;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      room_a:set_name_aliases("builder denied source", {"builder-denied-source"});
+      room_b:set_name_aliases("builder denied target", {"builder-denied-target"});
+      $player.is_builder = true;
+      add_property($player, "headless_last_inform", false, {$arch_wizard, "r"});
+      added_inform_log = true;
+      add_verb($player, {$arch_wizard, "rxd", "inform_current"}, {"this", "none", "this"});
+      compile_errors = set_verb_code($player, "inform_current", {"this.headless_last_inform = args;", "return true;"}, 2, 1);
+      $test_utils:assert_false(compile_errors, "temporary inform_current stub should compile");
+      stubbed_inform = true;
+      $player:moveto(room_a);
+      $root:grant_capability(test_area, {'create_passage}, $player, 'area);
+      build_result = this:_dispatch_builder_any("@build", "denied builder room in " + tostr(test_area), {});
+      build_room = this:_find_room_named_in_area(test_area, "denied builder room");
+      $test_utils:assert_false(build_result, "@build without add_room should return falsey");
+      $test_utils:assert_false(valid(build_room), "denied @build should not create a room");
+      $root:grant_capability(room_b, {'dig_into}, $player, 'room);
+      dig_result = this:_dispatch_builder_any("@dig", "oneway north to builder denied target", {"oneway north"}, "to", "builder denied target");
+      $test_utils:assert_false(dig_result, "@dig without source dig_from should return falsey");
+      $test_utils:assert_false(test_area:passage_for(room_a, room_b), "denied @dig should not register a passage");
+      passage = $passage:mk(room_a, "east", {"east"}, "", true, room_b, "", {}, "", false, true);
+      test_area:create_passage(room_a, room_b, passage);
+      $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      undig_result = this:_dispatch_builder_dobj("@undig", "east");
+      $test_utils:assert_false(undig_result, "@undig without area remove_passage should return falsey");
+      $test_utils:assert_eq(test_area:passage_for(room_a, room_b), passage, "denied @undig should preserve passage");
+    finally
+      stubbed_inform && `delete_verb($player, "inform_current") ! E_VERBNF => 0';
+      added_inform_log && `delete_property($player, "headless_last_inform") ! E_PROPNF => 0';
+      valid(build_room) && build_room:destroy();
+      $player.is_builder = old_is_builder;
+      valid(old_player_location) && $player:moveto(old_player_location);
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb _dispatch_builder_any (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Dispatch a builder command declared as any/any/any.";
     {verb_name, arg_string, command_args, ?prep_string = "", ?iobj_string = ""} = args;
