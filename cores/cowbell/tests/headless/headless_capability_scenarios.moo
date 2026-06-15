@@ -95,6 +95,44 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_grant_requires_target_owner_or_wizard (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: non-owners cannot grant capabilities for objects they do not control.";
+    key = this:_test_key();
+    test_area = #-1;
+    try
+      test_area = create($area);
+      denied = false;
+      try
+        this:_grant_area_capability_as_player(test_area, {'add_room}, $player, 'area, key);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner grant_capability should be denied");
+      $test_utils:assert_false($player:find_capability_for(test_area, 'area), "denied grant should not be stored");
+    finally
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_owner_can_grant_for_owned_target (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: a non-wizard owner can grant capabilities for an owned target.";
+    key = this:_test_key();
+    test_area = #-1;
+    try
+      test_area = create($area);
+      test_area:set_owner($player);
+      cap = this:_grant_area_capability_as_player(test_area, {'add_room}, $player, 'area, key);
+      $test_utils:assert_type(cap, TYPE_FLYWEIGHT, "owner grant should return a capability");
+      $test_utils:assert_eq($player:find_capability_for(test_area, 'area), cap, "owner grant should be stored");
+      {target, _} = cap:challenge_for_with_key({'add_room}, key);
+      $test_utils:assert_eq(target, test_area, "owner grant should validate target");
+    finally
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_grant_allows_non_owner_room_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: a non-owner with an area add_room grant can create a room in that area.";
     test_area = #-1;
@@ -815,6 +853,12 @@ object HEADLESS_CAPABILITY_SCENARIOS
     cap = $player:find_capability_for(target_area, 'area);
     typeof(cap) == TYPE_FLYWEIGHT || raise(E_PERM);
     return cap:challenge_for_with_key({'add_room}, key);
+  endverb
+
+  verb _grant_area_capability_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to grant capabilities as PLAYER.";
+    {target, cap_list, grantee, category, key} = args;
+    return $root:grant_capability(target, cap_list, grantee, category, key);
   endverb
 
   verb _call_make_player_as_player (this none this) owner: PLAYER flags: "rxd"
