@@ -284,11 +284,13 @@ object AREA
 
   verb _move_room_here (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Move a room into this area, raising if containment fails.";
-    caller == this || caller_perms().wizard || raise(E_PERM);
-    {room, perms} = args;
+    if (caller != this && !caller_perms().wizard)
+      typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == this || raise(E_PERM);
+    endif
+    {room, move_perms} = args;
     typeof(room) == TYPE_OBJ && valid(room) && isa(room, $room) || raise(E_TYPE);
-    valid(perms) || raise(E_INVARG);
-    set_task_perms(perms);
+    valid(move_perms) || raise(E_INVARG);
+    set_task_perms(move_perms);
     result = room:moveto(this);
     if (typeof(result) == TYPE_ERR)
       raise(error_code(result), "Could not move room into area.");
@@ -307,7 +309,7 @@ object AREA
     "Create room with caller's ownership";
     new_room = parent_obj:create();
     try
-      return target:_move_room_here(new_room, perms);
+      return target:_move_room_here(new_room, actor);
     except e (ANY)
       valid(new_room) && new_room:destroy();
       raise(e[1], length(e) >= 2 ? e[2] | "Could not create room in area.");
@@ -321,7 +323,7 @@ object AREA
     {room} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
     set_task_perms(perms);
-    return this:_move_room_here(room, perms);
+    return this:_move_room_here(room, actor);
   endverb
 
   verb create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"

@@ -95,6 +95,196 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_grant_allows_non_owner_room_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: a non-owner with an area add_room grant can create a room in that area.";
+    test_area = #-1;
+    created = #-1;
+    try
+      test_area = create($area);
+      $root:grant_capability(test_area, {'add_room}, $player, 'area);
+      created = this:_make_room_with_area_grant_as_player(test_area);
+      $test_utils:assert_true(valid(created), "stored area grant should create a valid room");
+      $test_utils:assert_eq(created.location, test_area, "stored area grant should place created room in area");
+      $test_utils:assert_true(created in test_area:contents(), "stored area grant should add created room to area contents");
+    finally
+      valid(created) && created:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_missing_add_room_denies_room_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: an area grant without add_room must not create rooms.";
+    test_area = #-1;
+    created = #-1;
+    try
+      test_area = create($area);
+      $root:grant_capability(test_area, {'create_passage}, $player, 'area);
+      denied = false;
+      try
+        created = this:_make_room_with_area_grant_as_player(test_area);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "area grant missing add_room should deny room creation");
+      $test_utils:assert_false(valid(created), "denied missing-add_room grant should not leave a created room");
+    finally
+      valid(created) && created:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_wrong_category_denies_room_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: an add_room grant stored under the wrong category must not authorize area room creation.";
+    test_area = #-1;
+    created = #-1;
+    try
+      test_area = create($area);
+      $root:grant_capability(test_area, {'add_room}, $player, 'room);
+      denied = false;
+      try
+        created = this:_make_room_with_area_grant_as_player(test_area);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "wrong-category add_room grant should not be found as an area grant");
+      $test_utils:assert_false(valid(created), "denied wrong-category grant should not leave a created room");
+    finally
+      valid(created) && created:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_direct_bearer_allows_non_owner_room_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: a bearer area add_room capability can create a room when used by a non-owner.";
+    test_area = #-1;
+    created = #-1;
+    try
+      test_area = create($area);
+      cap = $root:issue_capability(test_area, {'add_room});
+      created = this:_make_room_with_cap_as_player(cap);
+      $test_utils:assert_true(valid(created), "bearer add_room capability should create a valid room");
+      $test_utils:assert_eq(created.location, test_area, "bearer add_room capability should place created room in area");
+    finally
+      valid(created) && created:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_passage_creation_requires_area_and_room_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: passage creation by non-owner requires area and room capabilities together.";
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      area_cap = $root:grant_capability(test_area, {'create_passage}, $player, 'area);
+      from_cap = $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      to_cap = $root:grant_capability(room_b, {'dig_into}, $player, 'room);
+      passage = $passage:mk(room_a, "east", {"east", "e"}, "", true, room_b, "", {}, "", false, true);
+      created = this:_create_passage_with_caps_as_player(area_cap, from_cap, to_cap, passage);
+      $test_utils:assert_eq(created, passage, "capability passage creation should return the passage");
+      $test_utils:assert_eq(test_area:passage_for(room_a, room_b), passage, "capability passage creation should register the passage");
+    finally
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_passage_creation_missing_room_grant_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: area create_passage and source dig_from are not enough without destination dig_into.";
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      area_cap = $root:grant_capability(test_area, {'create_passage}, $player, 'area);
+      from_cap = $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      passage = $passage:mk(room_a, "east", {"east", "e"}, "", true, room_b, "", {}, "", false, true);
+      denied = false;
+      try
+        this:_create_passage_with_caps_as_player(area_cap, from_cap, room_b, passage);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "missing destination dig_into should deny passage creation");
+      $test_utils:assert_false(test_area:passage_for(room_a, room_b), "denied passage creation should not register a passage");
+    finally
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_passage_removal_requires_area_and_room_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: passage removal by non-owner requires area remove_passage and source room dig_from.";
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      passage = $passage:mk(room_a, "east", {"east", "e"}, "", true, room_b, "", {}, "", false, true);
+      test_area:create_passage(room_a, room_b, passage);
+      $test_utils:assert_eq(test_area:passage_for(room_a, room_b), passage, "wizard setup should register passage");
+      area_cap = $root:grant_capability(test_area, {'remove_passage}, $player, 'area);
+      from_cap = $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      result = this:_remove_passage_with_caps_as_player(area_cap, from_cap, room_b);
+      $test_utils:assert_true(result, "capability passage removal should report success");
+      $test_utils:assert_false(test_area:passage_for(room_a, room_b), "capability passage removal should clear the passage");
+    finally
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_create_child_allows_non_owner_nonfertile_create (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: create_child capability lets a non-owner create from a non-fertile parent.";
+    parent_obj = #-1;
+    child = #-1;
+    try
+      parent_obj = create($thing);
+      parent_obj.f = 0;
+      cap = $root:issue_capability(parent_obj, {'create_child});
+      child = this:_create_child_with_cap_as_player(cap);
+      $test_utils:assert_true(valid(child), "create_child capability should create a valid child");
+      $test_utils:assert_eq(parent(child), parent_obj, "create_child capability should create under the target parent");
+      $test_utils:assert_eq(child.owner, $player, "capability child creation should still own the child to the caller");
+    finally
+      valid(child) && child:destroy();
+      valid(parent_obj) && parent_obj:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_description_allows_non_owner_object_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: set_description capability lets a non-owner update only the delegated object.";
+    target = #-1;
+    try
+      target = create($thing);
+      target:set_description("unchanged");
+      cap = $root:issue_capability(target, {'set_description}, 0, $arch_wizard);
+      this:_set_description_with_cap_as_player(cap, "capability description");
+      $test_utils:assert_eq(target.description, "capability description", "set_description capability should update target description");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_revoke_denies_stored_grant_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: revoking a stored grant prevents later lookup-mediated use by the grantee.";
     key = this:_test_key();
@@ -228,6 +418,37 @@ object HEADLESS_CAPABILITY_SCENARIOS
     cap = $player:find_capability_for(target_area, 'area);
     typeof(cap) == TYPE_FLYWEIGHT || raise(E_PERM);
     return cap:make_room_in($room);
+  endverb
+
+  verb _make_room_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied area capability to create a room as PLAYER.";
+    {cap} = args;
+    typeof(cap) == TYPE_FLYWEIGHT || raise(E_INVARG);
+    return cap:make_room_in($room);
+  endverb
+
+  verb _create_passage_with_caps_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use supplied area and room capabilities to create a passage as PLAYER.";
+    {area_cap, from_room, to_room, passage} = args;
+    return area_cap:create_passage(from_room, to_room, passage);
+  endverb
+
+  verb _remove_passage_with_caps_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use supplied area and room capabilities to remove a passage as PLAYER.";
+    {area_cap, from_room, to_room} = args;
+    return area_cap:remove_passage(from_room, to_room);
+  endverb
+
+  verb _create_child_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied create_child capability as PLAYER.";
+    {cap} = args;
+    return cap:create();
+  endverb
+
+  verb _set_description_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_description capability as PLAYER.";
+    {cap, description} = args;
+    return cap:set_description(description);
   endverb
 
   verb _validate_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
