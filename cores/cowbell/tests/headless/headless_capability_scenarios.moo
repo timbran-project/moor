@@ -378,6 +378,105 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_agent_build_room_missing_grant_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: agent build_room denies non-owner room creation without add_room.";
+    test_area = #-1;
+    try
+      test_area = create($area);
+      $root:grant_capability(test_area, {'create_passage}, $player, 'area);
+      result = $agent_building_tools:build_room(["name" -> "agent denied room", "area" -> tostr(test_area)], $player);
+      $test_utils:assert_true(index(result, "Permission denied:") == 1, "agent build_room should report denied add_room");
+      $test_utils:assert_false(valid(this:_find_room_named_in_area(test_area, "agent denied room")), "denied agent build_room should not create a room");
+    finally
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_agent_dig_passage_missing_grants_deny (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: agent dig_passage denies missing area, source-room, or destination-room grants.";
+    area_missing = #-1;
+    from_missing = #-1;
+    to_missing = #-1;
+    try
+      area_missing = create($area);
+      room_a = area_missing:make_room_in($room);
+      room_b = area_missing:make_room_in($room);
+      $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      $root:grant_capability(room_b, {'dig_into}, $player, 'room);
+      denied = false;
+      try
+        $agent_building_tools:dig_passage(["source_room" -> tostr(room_a), "direction" -> "north", "target_room" -> tostr(room_b), "oneway" -> true], $player);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "agent dig_passage should deny missing area create_passage");
+      $test_utils:assert_false(area_missing:passage_for(room_a, room_b), "denied missing-area dig should not register passage");
+      from_missing = create($area);
+      room_c = from_missing:make_room_in($room);
+      room_d = from_missing:make_room_in($room);
+      $root:grant_capability(from_missing, {'create_passage}, $player, 'area);
+      $root:grant_capability(room_d, {'dig_into}, $player, 'room);
+      result = $agent_building_tools:dig_passage(["source_room" -> tostr(room_c), "direction" -> "east", "target_room" -> tostr(room_d), "oneway" -> true], $player);
+      $test_utils:assert_true(index(result, "Permission denied:") == 1, "agent dig_passage should report denied source dig_from");
+      $test_utils:assert_false(from_missing:passage_for(room_c, room_d), "denied missing-source dig should not register passage");
+      to_missing = create($area);
+      room_e = to_missing:make_room_in($room);
+      room_f = to_missing:make_room_in($room);
+      $root:grant_capability(to_missing, {'create_passage}, $player, 'area);
+      $root:grant_capability(room_e, {'dig_from}, $player, 'room);
+      result = $agent_building_tools:dig_passage(["source_room" -> tostr(room_e), "direction" -> "west", "target_room" -> tostr(room_f), "oneway" -> true], $player);
+      $test_utils:assert_true(index(result, "Permission denied:") == 1, "agent dig_passage should report denied destination dig_into");
+      $test_utils:assert_false(to_missing:passage_for(room_e, room_f), "denied missing-destination dig should not register passage");
+    finally
+      valid(to_missing) && to_missing:destroy();
+      valid(from_missing) && from_missing:destroy();
+      valid(area_missing) && area_missing:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_agent_remove_passage_missing_grants_deny (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: agent remove_passage denies missing area or source-room grants.";
+    area_missing = #-1;
+    from_missing = #-1;
+    old_player_location = $player.location;
+    try
+      area_missing = create($area);
+      room_a = area_missing:make_room_in($room);
+      room_b = area_missing:make_room_in($room);
+      passage = $passage:mk(room_a, "north", {"north"}, "", true, room_b, "", {}, "", false, true);
+      area_missing:create_passage(room_a, room_b, passage);
+      $test_utils:assert_eq(room_a.location, area_missing, "remove fixture source should be in area");
+      $test_utils:assert_eq(room_b.location, area_missing, "remove fixture target should be in area");
+      $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      $player:moveto(room_a);
+      denied = false;
+      try
+        $agent_building_tools:remove_passage(["source_room" -> room_a, "target_room" -> room_b], $player);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "agent remove_passage should deny missing area remove_passage");
+      $test_utils:assert_eq(area_missing:passage_for(room_a, room_b), passage, "denied missing-area remove should preserve passage");
+      from_missing = create($area);
+      room_c = from_missing:make_room_in($room);
+      room_d = from_missing:make_room_in($room);
+      passage2 = $passage:mk(room_c, "east", {"east"}, "", true, room_d, "", {}, "", false, true);
+      from_missing:create_passage(room_c, room_d, passage2);
+      $root:grant_capability(from_missing, {'remove_passage}, $player, 'area);
+      $player:moveto(room_c);
+      result = $agent_building_tools:remove_passage(["source_room" -> room_c, "target_room" -> room_d], $player);
+      $test_utils:assert_true(index(result, "Permission denied:") == 1, "agent remove_passage should report denied source dig_from");
+      $test_utils:assert_eq(from_missing:passage_for(room_c, room_d), passage2, "denied missing-source remove should preserve passage");
+    finally
+      valid(old_player_location) && $player:moveto(old_player_location);
+      valid(from_missing) && from_missing:destroy();
+      valid(area_missing) && area_missing:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_create_child_allows_non_owner_nonfertile_create (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: create_child capability lets a non-owner create from a non-fertile parent.";
     parent_obj = #-1;
