@@ -268,6 +268,22 @@ object HEADLESS_OBJECT_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_wizard_make_room_in_allowed (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: wizard task permissions can create rooms in areas without an explicit grant.";
+    area = #-1;
+    created = #-1;
+    try
+      area = create($area);
+      created = area:make_room_in($room);
+      $test_utils:assert_true(valid(created), "wizard make_room_in should create a valid room");
+      $test_utils:assert_eq(created.location, area, "wizard make_room_in should place the room in the area");
+    finally
+      valid(created) && created:destroy();
+      valid(area) && area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_destroy_cleans_containment (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: destroying a container detaches its contents from the recycled location.";
     room = #-1;

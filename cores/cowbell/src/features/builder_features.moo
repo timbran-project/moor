@@ -191,7 +191,7 @@ object BUILDER_FEATURES
   verb "@recycle @destroy" (any none none) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> -- Destroy an object permanently.";
     player.is_builder || raise(E_PERM);
-    set_task_perms(caller_perms());
+    set_task_perms(player);
     if (!dobjstr)
       raise(E_INVARG, "Usage: @recycle OBJECT");
     endif

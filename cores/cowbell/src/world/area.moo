@@ -282,10 +282,13 @@ object AREA
     return false;
   endverb
 
-  verb _move_room_here (this none this) owner: HACKER flags: "rxd"
+  verb _move_room_here (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Move a room into this area, raising if containment fails.";
-    {room} = args;
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {room, perms} = args;
     typeof(room) == TYPE_OBJ && valid(room) && isa(room, $room) || raise(E_TYPE);
+    valid(perms) || raise(E_INVARG);
+    set_task_perms(perms);
     result = room:moveto(this);
     if (typeof(result) == TYPE_ERR)
       raise(error_code(result), "Could not move room into area.");
@@ -304,7 +307,7 @@ object AREA
     "Create room with caller's ownership";
     new_room = parent_obj:create();
     try
-      return target:_move_room_here(new_room);
+      return target:_move_room_here(new_room, perms);
     except e (ANY)
       valid(new_room) && new_room:destroy();
       raise(e[1], length(e) >= 2 ? e[2] | "Could not create room in area.");
@@ -318,7 +321,7 @@ object AREA
     {room} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
     set_task_perms(perms);
-    return this:_move_room_here(room);
+    return this:_move_room_here(room, perms);
   endverb
 
   verb create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
