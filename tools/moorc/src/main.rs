@@ -478,6 +478,12 @@ fn main() -> Result<(), eyre::Report> {
         return Ok(());
     }
 
+    if let Err(e) =
+        moor_kernel::initialize_server_symmetric_key(*b"moor-test-server-symmetric-key!!")
+    {
+        warn!("Server symmetric key already initialized for test run: {e}");
+    }
+
     let wizard = Obj::mk_id(args.test_wizard.expect("Must specify wizard object"));
 
     let tasks_db = Box::new(NoopTasksDb {});
