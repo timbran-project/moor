@@ -2,11 +2,14 @@
 # Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
 HEADLESS_FILTERS ?= 90000 90001 90002 90003 90004 90005 90006 90007
+HEADLESS_PLAYER_FILTERS ?= 90008
+HEADLESS_TASK_PLAYER ?= 5
 HEADLESS_TIMEOUT ?= 10
 HEADLESS_SRC_DIRECTORY ?= .runtime-headless-src
 HEADLESS_SRC_STAMP = $(HEADLESS_SRC_DIRECTORY)/.prepared
 HASH := \#
 HEADLESS_FILTER_IDS = $(patsubst $(HASH)%,%,$(HEADLESS_FILTERS))
+HEADLESS_PLAYER_FILTER_IDS = $(patsubst $(HASH)%,%,$(HEADLESS_PLAYER_FILTERS))
 
 # DEBUG controls whether to run moorc under gdb
 # Set DEBUG=1 to enable gdb debugging
@@ -80,6 +83,11 @@ runtime-headless: runtime-headless-src
 	set -e; for filter in $(HEADLESS_FILTER_IDS); do \
 		$(MOORC) --src-objdef-dir $(HEADLESS_SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true \
+		--test-filter "#$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
+	done
+	set -e; for filter in $(HEADLESS_PLAYER_FILTER_IDS); do \
+		$(MOORC) --src-objdef-dir $(HEADLESS_SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+		--test-wizard=2 --test-programmer=6 --test-player=4 --test-task-player=$(HEADLESS_TASK_PLAYER) --run-tests true \
 		--test-filter "#$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
 	done
 
