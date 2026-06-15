@@ -645,6 +645,38 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_llm_api_key_cap_allows_non_owner_update (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: set_api_key capability lets a non-owner update the LLM client key.";
+    original_key = $llm_client.api_key;
+    try
+      cap = $root:issue_capability($llm_client, {'set_api_key}, 0, $arch_wizard);
+      this:_set_api_key_with_cap_as_player(cap, "cap-test-api-key");
+      $test_utils:assert_eq($llm_client.api_key, "cap-test-api-key", "set_api_key capability should update the key");
+    finally
+      $llm_client.api_key = original_key;
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_llm_api_key_without_cap_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: set_api_key denies non-owner calls without a capability.";
+    original_key = $llm_client.api_key;
+    try
+      $llm_client.api_key = "original-api-key";
+      denied = false;
+      try
+        this:_set_api_key_as_player("unauthorized-api-key");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_api_key should deny non-owner without capability");
+      $test_utils:assert_eq($llm_client.api_key, "original-api-key", "denied set_api_key should preserve the key");
+    finally
+      $llm_client.api_key = original_key;
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_revoke_denies_stored_grant_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: revoking a stored grant prevents later lookup-mediated use by the grantee.";
     key = this:_test_key();
@@ -944,6 +976,18 @@ object HEADLESS_CAPABILITY_SCENARIOS
     "Attempt to set another player's profile picture as PLAYER without a capability.";
     {target, content_type, picbin} = args;
     return target:set_profile_picture(content_type, picbin);
+  endverb
+
+  verb _set_api_key_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_api_key capability as PLAYER.";
+    {cap, new_key} = args;
+    return cap:set_api_key(new_key);
+  endverb
+
+  verb _set_api_key_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set the LLM API key as PLAYER without a capability.";
+    {new_key} = args;
+    return $llm_client:set_api_key(new_key);
   endverb
 
   verb _validate_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
