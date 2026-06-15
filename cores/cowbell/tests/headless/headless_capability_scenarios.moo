@@ -285,6 +285,72 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_root_mutation_caps_allow_expected_operations (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: root mutation capabilities allow delegated metadata, ownership, movement, and recycle operations.";
+    target = #-1;
+    new_home = #-1;
+    doomed = #-1;
+    try
+      target = create($thing);
+      new_home = create($room);
+      name_cap = $root:issue_capability(target, {'set_name_aliases}, 0, $arch_wizard);
+      owner_cap = $root:issue_capability(target, {'set_owner}, 0, $arch_wizard);
+      move_cap = $root:issue_capability(target, {'move}, 0, $arch_wizard);
+      thumbnail_cap = $root:issue_capability(target, {'set_thumbnail}, 0, $arch_wizard);
+      this:_set_name_aliases_with_cap_as_player(name_cap, "cap named thing", {"cap-alias"});
+      this:_set_owner_with_cap_as_player(owner_cap, $player);
+      this:_move_with_cap_as_player(move_cap, new_home);
+      thumbnail = {"image/png", b"iVBORw0KGgo="};
+      this:_set_thumbnail_with_cap_as_player(thumbnail_cap, @thumbnail);
+      $test_utils:assert_eq(target.name, "cap named thing", "set_name_aliases capability should update name");
+      $test_utils:assert_eq(target.aliases, {"cap-alias"}, "set_name_aliases capability should update aliases");
+      $test_utils:assert_eq(target.owner, $player, "set_owner capability should update owner");
+      $test_utils:assert_eq(target.location, new_home, "move capability should update location");
+      $test_utils:assert_eq(target.thumbnail, thumbnail, "set_thumbnail capability should update thumbnail");
+      doomed = create($thing);
+      recycle_cap = $root:issue_capability(doomed, {'recycle});
+      this:_destroy_with_cap_as_player(recycle_cap);
+      $test_utils:assert_false(valid(doomed), "recycle capability should destroy the target");
+      doomed = #-1;
+    finally
+      valid(doomed) && doomed:destroy();
+      valid(target) && target:destroy();
+      valid(new_home) && new_home:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_player_mutation_caps_allow_expected_operations (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: player mutation capabilities allow delegated account metadata changes.";
+    target = #-1;
+    try
+      target = create($player);
+      password_cap = $root:issue_capability(target, {'set_password}, 0, $arch_wizard);
+      programmer_cap = $root:issue_capability(target, {'set_programmer}, 0, $arch_wizard);
+      email_cap = $root:issue_capability(target, {'set_email_address}, 0, $arch_wizard);
+      oauth_cap = $root:issue_capability(target, {'set_oauth2_identities}, 0, $arch_wizard);
+      pronouns_cap = $root:issue_capability(target, {'set_pronouns}, 0, $arch_wizard);
+      profile_cap = $root:issue_capability(target, {'set_profile_picture}, 0, $arch_wizard);
+      this:_set_password_with_cap_as_player(password_cap, "cap-test-password");
+      this:_set_programmer_with_cap_as_player(programmer_cap, true);
+      this:_set_email_address_with_cap_as_player(email_cap, "cap-test@example.invalid");
+      identities = {["provider" -> "test", "subject" -> "cap-subject"]};
+      this:_set_oauth2_identities_with_cap_as_player(oauth_cap, identities);
+      this:_set_pronouns_with_cap_as_player(pronouns_cap, "they/them");
+      profile = {"image/png", b"iVBORw0KGgo="};
+      this:_set_profile_picture_with_cap_as_player(profile_cap, @profile);
+      $test_utils:assert_true(target.password:challenge("cap-test-password"), "set_password capability should update password");
+      $test_utils:assert_true(target.programmer, "set_programmer capability should update programmer flag");
+      $test_utils:assert_eq(target.email_address, "cap-test@example.invalid", "set_email_address capability should update email");
+      $test_utils:assert_eq(target.oauth2_identities, identities, "set_oauth2_identities capability should update identities");
+      $test_utils:assert_eq(target:pronouns_display(), "they/them", "set_pronouns capability should update pronouns");
+      $test_utils:assert_eq(target.profile_picture, profile, "set_profile_picture capability should update profile picture");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_revoke_denies_stored_grant_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: revoking a stored grant prevents later lookup-mediated use by the grantee.";
     key = this:_test_key();
@@ -363,10 +429,12 @@ object HEADLESS_CAPABILITY_SCENARIOS
   endverb
 
   verb test_headless_capability_make_player_setup_can_mark_player (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Runtime scenario: a player setup capability can complete the wizard-only player flag step.";
+    "Runtime scenario: a player setup capability can complete login's initial player setup operations.";
     key = this:_test_key();
     created = #-1;
+    start_room = #-1;
     try
+      start_room = create($room);
       setup_cap = $player:_make_player_setup_cap($arch_wizard, key);
       $test_utils:assert_type(setup_cap, TYPE_FLYWEIGHT, "make_player should return a setup capability");
       created = setup_cap.delegate;
@@ -374,16 +442,30 @@ object HEADLESS_CAPABILITY_SCENARIOS
       {target, run_as} = setup_cap:challenge_for_with_key({'set_player_flag}, key);
       $test_utils:assert_eq(target, created, "setup capability should target the new player");
       $test_utils:assert_eq(run_as, $arch_wizard, "setup capability should run as $arch_wizard for player flag setup");
-      setup_cap:challenge_for_with_key({'set_home}, key);
       this:_set_player_flag_with_key(setup_cap, 1, key);
+      this:_set_name_aliases_with_key(setup_cap, "setup cap player", {"setup-cap-player"}, key);
+      this:_set_password_with_key(setup_cap, "setup-password", key);
+      this:_set_email_address_with_key(setup_cap, "setup@example.invalid", key);
+      identities = {["provider" -> "setup", "subject" -> "subject-1"]};
+      this:_set_oauth2_identities_with_key(setup_cap, identities, key);
       this:_set_home_with_key(setup_cap, $first_room, key);
+      this:_move_with_key(setup_cap, start_room, key);
+      this:_set_owner_with_key(setup_cap, created, key);
       $test_utils:assert_true(is_player(created), "setup capability should be able to mark the new object as a player");
+      $test_utils:assert_eq(created.name, "setup cap player", "setup capability should set player name");
+      $test_utils:assert_eq(created.aliases, {"setup-cap-player"}, "setup capability should set player aliases");
+      $test_utils:assert_true(created.password:challenge("setup-password"), "setup capability should set password");
+      $test_utils:assert_eq(created.email_address, "setup@example.invalid", "setup capability should set email");
+      $test_utils:assert_eq(created.oauth2_identities, identities, "setup capability should set oauth identities");
       $test_utils:assert_eq(created.home, $first_room, "setup capability should be able to set the new player's home");
+      $test_utils:assert_eq(created.location, start_room, "setup capability should move the player to the start room");
+      $test_utils:assert_eq(created.owner, created, "setup capability should transfer ownership to the new player");
     finally
       if (valid(created))
         set_player_flag(created, 0);
         recycle(created);
       endif
+      valid(start_room) && start_room:destroy();
     endtry
     return true;
   endverb
@@ -451,6 +533,72 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return cap:set_description(description);
   endverb
 
+  verb _set_thumbnail_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_thumbnail capability as PLAYER.";
+    {cap, content_type, picbin} = args;
+    return cap:set_thumbnail(content_type, picbin);
+  endverb
+
+  verb _set_name_aliases_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_name_aliases capability as PLAYER.";
+    {cap, new_name, new_aliases} = args;
+    return cap:set_name_aliases(new_name, new_aliases);
+  endverb
+
+  verb _set_owner_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_owner capability as PLAYER.";
+    {cap, new_owner} = args;
+    return cap:set_owner(new_owner);
+  endverb
+
+  verb _move_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied move capability as PLAYER.";
+    {cap, destination} = args;
+    return cap:moveto(destination);
+  endverb
+
+  verb _destroy_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied recycle capability as PLAYER.";
+    {cap} = args;
+    return cap:destroy();
+  endverb
+
+  verb _set_password_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_password capability as PLAYER.";
+    {cap, new_password} = args;
+    return cap:set_password(new_password);
+  endverb
+
+  verb _set_programmer_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_programmer capability as PLAYER.";
+    {cap, flag_value} = args;
+    return cap:set_programmer(flag_value);
+  endverb
+
+  verb _set_email_address_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_email_address capability as PLAYER.";
+    {cap, email} = args;
+    return cap:set_email_address(email);
+  endverb
+
+  verb _set_oauth2_identities_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_oauth2_identities capability as PLAYER.";
+    {cap, identities} = args;
+    return cap:set_oauth2_identities(identities);
+  endverb
+
+  verb _set_pronouns_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_pronouns capability as PLAYER.";
+    {cap, pronouns_str} = args;
+    return cap:set_pronouns(pronouns_str);
+  endverb
+
+  verb _set_profile_picture_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Use a supplied set_profile_picture capability as PLAYER.";
+    {cap, content_type, picbin} = args;
+    return cap:set_profile_picture(content_type, picbin);
+  endverb
+
   verb _validate_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
     "Validate PLAYER's stored area grant with a test key.";
     {target_area, key} = args;
@@ -473,11 +621,59 @@ object HEADLESS_CAPABILITY_SCENARIOS
     set_player_flag(target, flag_value);
   endverb
 
+  verb _set_name_aliases_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set name and aliases through a test-key setup capability.";
+    {cap, new_name, new_aliases, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_name_aliases}, key);
+    set_task_perms(perms);
+    target:set_name_aliases(new_name, new_aliases);
+  endverb
+
+  verb _set_password_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set password through a test-key setup capability.";
+    {cap, new_password, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_password}, key);
+    set_task_perms(perms);
+    target:set_password(new_password);
+  endverb
+
+  verb _set_email_address_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set email address through a test-key setup capability.";
+    {cap, email, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_email_address}, key);
+    set_task_perms(perms);
+    target:set_email_address(email);
+  endverb
+
+  verb _set_oauth2_identities_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set OAuth2 identities through a test-key setup capability.";
+    {cap, identities, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_oauth2_identities}, key);
+    set_task_perms(perms);
+    target:set_oauth2_identities(identities);
+  endverb
+
   verb _set_home_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Set a player home through a test-key setup capability.";
     {cap, home, key} = args;
     {target, perms} = cap:challenge_for_with_key({'set_home}, key);
     set_task_perms(perms);
     target.home = home;
+  endverb
+
+  verb _move_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Move a player through a test-key setup capability.";
+    {cap, destination, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'move}, key);
+    set_task_perms(perms);
+    target:moveto(destination);
+  endverb
+
+  verb _set_owner_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set owner through a test-key setup capability.";
+    {cap, new_owner, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_owner}, key);
+    set_task_perms(perms);
+    target:set_owner(new_owner);
   endverb
 endobject

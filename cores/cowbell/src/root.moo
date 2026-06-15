@@ -47,8 +47,8 @@ object ROOT
 
   verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Destroy this object. Permission: wizard, owner, or capability.";
-    this:check_permissions_as(caller_perms(), 'recycle);
-    recycle(this);
+    {target, _} = this:check_permissions_as(caller_perms(), 'recycle);
+    recycle(target);
   endverb
 
   verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"
