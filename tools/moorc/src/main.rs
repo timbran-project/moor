@@ -124,6 +124,12 @@ pub struct Args {
     )]
     test_player: Option<i32>,
 
+    #[clap(
+        long,
+        help = "The hardcoded object number to use as the task player for unit-style test_ verbs. Defaults to test-wizard."
+    )]
+    test_task_player: Option<i32>,
+
     #[clap(long, help = "Enable debug logging")]
     debug: bool,
 
@@ -616,16 +622,17 @@ fn main() -> Result<(), eyre::Report> {
 
     // Run unit tests
     if args.run_tests == Some(true) && !unit_tests.is_empty() {
+        let test_task_player = args.test_task_player.map(Obj::mk_id).unwrap_or(wizard);
         'outer: for (o, verb) in unit_tests {
             let test_name = format!("{o}:{verb}");
             info!("Running {}:{}....", o, verb);
             let session = test_session_factory
                 .clone()
-                .mk_background_session(&wizard)
+                .mk_background_session(&test_task_player)
                 .expect("Failed to create session");
             let handle = scheduler_client
                 .submit_verb_task(
-                    &wizard,
+                    &test_task_player,
                     &ObjectRef::Id(o),
                     verb,
                     test_args_list.clone(),
