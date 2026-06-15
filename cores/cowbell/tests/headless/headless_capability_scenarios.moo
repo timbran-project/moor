@@ -722,6 +722,44 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_revoke_denies_passage_area_grant (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: revoked create_passage grants should deny copied tokens and passage creation.";
+    key = this:_test_key();
+    test_area = #-1;
+    room_a = #-1;
+    room_b = #-1;
+    try
+      test_area = create($area);
+      room_a = test_area:make_room_in($room);
+      room_b = test_area:make_room_in($room);
+      area_cap = $root:grant_capability(test_area, {'create_passage}, $player, 'area, key);
+      from_cap = $root:grant_capability(room_a, {'dig_from}, $player, 'room, key);
+      to_cap = $root:grant_capability(room_b, {'dig_into}, $player, 'room, key);
+      $test_utils:assert_true($root:revoke_capability(test_area, $player, 'area), "revoke should remove stored create_passage grant");
+      denied = false;
+      try
+        area_cap:challenge_for_with_key({'create_passage}, key);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "revoked copied create_passage token should be denied");
+      passage = $passage:mk(room_a, "north", {"north"}, "", true, room_b, "", {}, "", false, true);
+      denied = false;
+      try
+        this:_create_passage_with_caps_as_player(area_cap, from_cap, to_cap, passage);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "revoked create_passage grant should deny passage creation");
+      $test_utils:assert_false(test_area:passage_for(room_a, room_b), "revoked create_passage grant should not register passage");
+    finally
+      valid(room_b) && room_b:destroy();
+      valid(room_a) && room_a:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_make_player_requires_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Security challenge: a non-owner helper must not create players through the wizard-owned make_player wrapper.";
     created = #-1;
@@ -750,6 +788,37 @@ object HEADLESS_CAPABILITY_SCENARIOS
         set_player_flag(created, 0);
         recycle(created);
       endif
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_setup_cap_denies_extra_mutations (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: setup capabilities should not authorize player mutations outside the setup grant list.";
+    key = this:_test_key();
+    created = #-1;
+    try
+      setup_cap = $player:make_player(0, key);
+      created = setup_cap.delegate;
+      original_pronouns = created.pronouns;
+      original_profile = created.profile_picture;
+      denied = false;
+      try
+        this:_set_pronouns_with_cap_as_player(setup_cap, "they/them");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "setup capability should not grant set_pronouns");
+      $test_utils:assert_eq(created.pronouns, original_pronouns, "denied setup set_pronouns should preserve pronouns");
+      denied = false;
+      try
+        this:_set_profile_picture_with_cap_as_player(setup_cap, "image/png", b"iVBORw0KGgo=");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "setup capability should not grant set_profile_picture");
+      $test_utils:assert_eq(created.profile_picture, original_profile, "denied setup set_profile_picture should preserve profile picture");
+    finally
+      valid(created) && created:destroy();
     endtry
     return true;
   endverb
