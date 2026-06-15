@@ -440,6 +440,74 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_player_mutation_without_caps_denies_expected_operations (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: player mutation helpers deny non-owner calls without matching capabilities.";
+    target = #-1;
+    try
+      target = create($player);
+      target:set_password("original-password");
+      target:set_programmer(false);
+      target:set_email_address("original@example.invalid");
+      original_identities = {["provider" -> "test", "subject" -> "original-subject"]};
+      target:set_oauth2_identities(original_identities);
+      target:set_pronouns("they/them");
+      original_pronouns = target.pronouns;
+      original_profile = {"image/png", b"iVBORw0KGgo="};
+      target:set_profile_picture(@original_profile);
+      denied = false;
+      try
+        this:_set_password_as_player(target, "unauthorized-password");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_password should deny non-owner without capability");
+      $test_utils:assert_true(target.password:challenge("original-password"), "denied set_password should preserve password");
+      denied = false;
+      try
+        this:_set_programmer_as_player(target, true);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_programmer should deny non-owner without capability");
+      $test_utils:assert_false(target.programmer, "denied set_programmer should preserve programmer flag");
+      denied = false;
+      try
+        this:_set_email_address_as_player(target, "unauthorized@example.invalid");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_email_address should deny non-owner without capability");
+      $test_utils:assert_eq(target.email_address, "original@example.invalid", "denied set_email_address should preserve email");
+      denied = false;
+      try
+        this:_set_oauth2_identities_as_player(target, {["provider" -> "test", "subject" -> "unauthorized-subject"]});
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_oauth2_identities should deny non-owner without capability");
+      $test_utils:assert_eq(target.oauth2_identities, original_identities, "denied set_oauth2_identities should preserve identities");
+      denied = false;
+      try
+        this:_set_pronouns_as_player(target, "she/her");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_pronouns should deny non-owner without capability");
+      $test_utils:assert_eq(target.pronouns, original_pronouns, "denied set_pronouns should preserve pronouns");
+      denied = false;
+      try
+        this:_set_profile_picture_as_player(target, "image/png", b"iVBORw0KGgo=");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "set_profile_picture should deny non-owner without capability");
+      $test_utils:assert_eq(target.profile_picture, original_profile, "denied set_profile_picture should preserve profile picture");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_revoke_denies_stored_grant_operation (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: revoking a stored grant prevents later lookup-mediated use by the grantee.";
     key = this:_test_key();
@@ -703,6 +771,42 @@ object HEADLESS_CAPABILITY_SCENARIOS
     "Use a supplied set_profile_picture capability as PLAYER.";
     {cap, content_type, picbin} = args;
     return cap:set_profile_picture(content_type, picbin);
+  endverb
+
+  verb _set_password_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set another player's password as PLAYER without a capability.";
+    {target, new_password} = args;
+    return target:set_password(new_password);
+  endverb
+
+  verb _set_programmer_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set another player's programmer flag as PLAYER without a capability.";
+    {target, flag_value} = args;
+    return target:set_programmer(flag_value);
+  endverb
+
+  verb _set_email_address_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set another player's email address as PLAYER without a capability.";
+    {target, email} = args;
+    return target:set_email_address(email);
+  endverb
+
+  verb _set_oauth2_identities_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set another player's OAuth2 identities as PLAYER without a capability.";
+    {target, identities} = args;
+    return target:set_oauth2_identities(identities);
+  endverb
+
+  verb _set_pronouns_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set another player's pronouns as PLAYER without a capability.";
+    {target, pronouns_str} = args;
+    return target:set_pronouns(pronouns_str);
+  endverb
+
+  verb _set_profile_picture_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt to set another player's profile picture as PLAYER without a capability.";
+    {target, content_type, picbin} = args;
+    return target:set_profile_picture(content_type, picbin);
   endverb
 
   verb _validate_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
