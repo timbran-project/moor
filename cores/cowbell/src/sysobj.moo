@@ -403,7 +403,7 @@ object SYSOBJ
     server_log("Core starting...");
     "Issue capability for $login to create players";
     player_class = $login.default_player_class;
-    $login.player_setup_capability = $player:issue_capability(player_class, {'create_child, 'make_player}, 0, 0);
+    $login.player_setup_capability = $player:issue_capability(player_class, {'create_child, 'make_player}, 0, $arch_wizard);
     server_log("Issued player creation capability to $login");
     "Resume scheduler if needed";
     $scheduler:resume_if_needed();

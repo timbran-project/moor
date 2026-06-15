@@ -293,8 +293,8 @@ object LLM_AGENT
         endif
       endif
     endfor
-    old_messages = this.context[2..split_point - 1];
-    recent_messages = this.context[split_point..$];
+    old_messages = (this.context)[2..split_point - 1];
+    recent_messages = (this.context)[split_point..$];
     length(old_messages) == 0 && return;
     "Try to summarize, fall back to sliding window on failure";
     summary_prompt = "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages);
@@ -394,10 +394,7 @@ object LLM_AGENT
     typeof(todo_id) != TYPE_INT && raise(E_TYPE, "todo_id must be integer");
     !(new_status in {'pending, 'in_progress, 'completed}) && raise(E_INVARG, "status must be 'pending, 'in_progress, or 'completed");
     !this.todos:find({t} => t["id"] == todo_id) && raise(E_INVARG, "todo not found: " + tostr(todo_id));
-    this.todos = this.todos:map(fn (t) begin
-      t["id"] == todo_id && return ["id" -> t["id"], "content" -> t["content"], "status" -> new_status];
-      return t;
-    end endfn);
+    this.todos = this.todos:map(fn (t) t["id"] == todo_id && return ["id" -> t["id"], "content" -> t["content"], "status" -> new_status]; return t; endfn);
     return true;
   endverb
 
@@ -449,10 +446,7 @@ object LLM_AGENT
     "Format todos as human-readable string for display.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     !this.todos && return "No todos.";
-    return this.todos:map(fn (t) begin
-      status_str = t["status"] == 'completed ? "[x]" | t["status"] == 'in_progress ? "[>]" | "[ ]";
-      return status_str + " " + t["content"];
-    end endfn):join("\n");
+    return this.todos:map(fn (t) status_str = t["status"] == 'completed ? "[x]" | (t["status"] == 'in_progress ? "[>]" | "[ ]"); return status_str + " " + t["content"]; endfn):join("\n");
   endverb
 
   verb create_task (this none this) owner: ARCH_WIZARD flags: "rxd"

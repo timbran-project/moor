@@ -18,7 +18,7 @@ object LLM_CLIENT
     "      model_override, stream, tools";
     {input, ?opts = false, ?model_override = false, ?stream = false, ?tools = false} = args;
     this.api_key || raise(E_PERM, "LLM API key not configured");
-    messages = typeof(input) == TYPE_STR ? {["role" -> "user", "content" -> input]} | typeof(input) == TYPE_LIST ? input | raise(E_TYPE);
+    messages = typeof(input) == TYPE_STR ? {["role" -> "user", "content" -> input]} | (typeof(input) == TYPE_LIST ? input | raise(E_TYPE));
     model = model_override || this.model;
     body = ["model" -> model, "messages" -> messages, "stream" -> stream];
     tools && (body["tools"] = tools);
@@ -134,7 +134,7 @@ object LLM_CLIENT
       if (typeof(limit) == TYPE_INT && limit > 0 && typeof(parsed) == TYPE_MAP && maphaskey(parsed, "data") && typeof(parsed["data"]) == TYPE_LIST)
         count = length(parsed["data"]);
         if (count > limit)
-          parsed["data"] = parsed["data"][1..limit];
+          parsed["data"] = (parsed["data"])[1..limit];
         endif
       endif
       return parsed;

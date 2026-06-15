@@ -284,7 +284,7 @@ object SUB_UTILS
     typeof(content) != TYPE_LIST && raise(E_TYPE, "content must be list");
     result = "";
     for item in (content)
-      result = result + (typeof(item) == TYPE_STR ? item | typeof(item) == TYPE_FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item));
+      result = result + (typeof(item) == TYPE_STR ? item | (typeof(item) == TYPE_FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item)));
     endfor
     return result;
   endverb

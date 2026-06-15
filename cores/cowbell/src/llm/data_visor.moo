@@ -570,7 +570,7 @@ object DATA_VISOR
     result = {"=== MOO Builtin Functions ===", "Total: " + tostr(length(all_funcs)) + " functions", ""};
     for func_info in (all_funcs)
       {name, min_args, max_args, types} = func_info;
-      arg_sig = max_args == 0 ? "()" | max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + { maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types) }:join(", ") + ")";
+      arg_sig = max_args == 0 ? "()" | (max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + { maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types) }:join(", ") + ")");
       result = {@result, name + arg_sig};
     endfor
     return result:join("\n");
@@ -1401,7 +1401,7 @@ object DATA_VISOR
     reason = maphaskey(tool_args, "reason") ? tool_args["reason"] | "";
     message = "";
     if (tool_name == "find_object")
-      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "?";
+      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | (maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "?");
       message = $ansi:colorize("[SCAN]", 'cyan) + " Object database query: " + $ansi:colorize(ref, 'white);
     elseif (tool_name == "list_verbs")
       message = $ansi:colorize("[SCAN]", 'cyan) + " Method topology: " + $ansi:colorize(tool_args["object"], 'white);
@@ -1512,7 +1512,7 @@ object DATA_VISOR
     endif
     "Read-only operations";
     if (tool_name == "find_object")
-      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "unknown";
+      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | (maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "unknown");
       return "Scanning database for " + ref;
     elseif (tool_name == "list_verbs")
       return "Listing verbs on " + tool_args["object"];

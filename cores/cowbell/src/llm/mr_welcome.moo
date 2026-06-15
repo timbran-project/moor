@@ -795,8 +795,8 @@ object MR_WELCOME
     r2 = $room:create(true);
     try
       area.name = "Welcome Test Area";
-      r1.name = "Welcome Test Start";
-      r2.name = "Welcome Test End";
+      (r1).name = "Welcome Test Start";
+      (r2).name = "Welcome Test End";
       move(r1, area);
       move(r2, area);
       move(this, r1);

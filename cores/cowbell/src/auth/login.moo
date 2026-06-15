@@ -125,7 +125,7 @@ object LOGIN
     endtry
     try
       "Is our candidate name invalid?";
-      if (!valid(candidate = (orig_candidate = this:_match_player(name))))
+      if (!valid(candidate = orig_candidate = this:_match_player(name)))
         raise(E_INVARG, tostr("`", name, "' matches no player name."));
       endif
       "We have a valid candidate, so we can now attempt to challenge it.";
@@ -427,7 +427,7 @@ object LOGIN
       try
         setup_cap:set_home(default_home);
       except ex (ANY)
-        server_log(tostr("_create_player: couldn't set home for ", new_player, ": ", ex));
+        this:_server_log(tostr("_create_player: couldn't set home for ", new_player, ": ", ex));
       endtry
     endif
     "Move the player into the first room BEFORE handing ownership to the player.";
@@ -441,14 +441,21 @@ object LOGIN
       try
         setup_cap:moveto(start_room);
       except ex (ANY)
-        server_log(tostr("_create_player: couldn't move ", new_player, " to ", start_room, ": ", ex));
+        this:_server_log(tostr("_create_player: couldn't move ", new_player, " to ", start_room, ": ", ex));
       endtry
     else
-      server_log(tostr("_create_player: #0.first_room not valid; leaving ", new_player, " where it is"));
+      this:_server_log(tostr("_create_player: #0.first_room not valid; leaving ", new_player, " where it is"));
     endif
     "Now hand ownership to the player (self-owned)";
     setup_cap:set_owner(new_player);
     return new_player;
+  endverb
+
+  verb _server_log (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Write an internal login service message to the server log.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {message} = args;
+    server_log(message);
   endverb
 
   verb _password_state (this none this) owner: ARCH_WIZARD flags: "rxd"

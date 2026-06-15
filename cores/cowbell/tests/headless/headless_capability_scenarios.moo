@@ -172,6 +172,32 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_make_player_setup_can_mark_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: a player setup capability can complete the wizard-only player flag step.";
+    key = this:_test_key();
+    created = #-1;
+    try
+      setup_cap = $player:_make_player_setup_cap($arch_wizard, key);
+      $test_utils:assert_type(setup_cap, TYPE_FLYWEIGHT, "make_player should return a setup capability");
+      created = setup_cap.delegate;
+      $test_utils:assert_true(valid(created), "setup capability delegate should be a valid player object");
+      {target, run_as} = setup_cap:challenge_for_with_key({'set_player_flag}, key);
+      $test_utils:assert_eq(target, created, "setup capability should target the new player");
+      $test_utils:assert_eq(run_as, $arch_wizard, "setup capability should run as $arch_wizard for player flag setup");
+      setup_cap:challenge_for_with_key({'set_home}, key);
+      this:_set_player_flag_with_key(setup_cap, 1, key);
+      this:_set_home_with_key(setup_cap, $first_room, key);
+      $test_utils:assert_true(is_player(created), "setup capability should be able to mark the new object as a player");
+      $test_utils:assert_eq(created.home, $first_room, "setup capability should be able to set the new player's home");
+    finally
+      if (valid(created))
+        set_player_flag(created, 0);
+        recycle(created);
+      endif
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_merge_rejects_wrong_target (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: merging capabilities for different targets is denied.";
     key = this:_test_key();
@@ -216,5 +242,21 @@ object HEADLESS_CAPABILITY_SCENARIOS
     "Attempt player creation through a non-owner player-owned helper.";
     cap = $player:make_player();
     return cap.delegate;
+  endverb
+
+  verb _set_player_flag_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set a player flag through a test-key setup capability.";
+    {cap, flag_value, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_player_flag}, key);
+    set_task_perms(perms);
+    set_player_flag(target, flag_value);
+  endverb
+
+  verb _set_home_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Set a player home through a test-key setup capability.";
+    {cap, home, key} = args;
+    {target, perms} = cap:challenge_for_with_key({'set_home}, key);
+    set_task_perms(perms);
+    target.home = home;
   endverb
 endobject

@@ -692,10 +692,17 @@ object PLAYER
     "Create a player and return a setup capability for initial configuration.";
     actor = caller_perms();
     {_, perms} = this:check_permissions_as(actor, 'make_player);
+    return this:_make_player_setup_cap(perms);
+  endverb
+
+  verb _make_player_setup_cap (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Create a player and return a setup capability that runs as perms.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    {perms, ?key = 0} = args;
+    valid(perms) || raise(E_INVARG);
     set_task_perms(perms);
-    new_player = this:create(@args);
-    setup_cap = $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'move});
-    return setup_cap;
+    new_player = this:create();
+    return $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'set_home, 'move}, 0, perms, key);
   endverb
 
   verb "exam*ine x" (any none none) owner: ARCH_WIZARD flags: "rxd"
