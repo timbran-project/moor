@@ -68,7 +68,7 @@ fn bf_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             }
             let verb_index = (verb_index as usize) - 1;
             with_current_transaction(|world_state| {
-                world_state.get_verb_at_index(&bf_args.task_authority_principal(), &obj, verb_index)
+                world_state.get_verb_at_index(&bf_args.task_permissions(), &obj, verb_index)
             })
             .map_err(world_state_bf_err)?
         }
@@ -78,7 +78,7 @@ fn bf_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             };
 
             with_current_transaction(|world_state| {
-                world_state.get_verb(&bf_args.task_authority_principal(), &obj, verb_name)
+                world_state.get_verb(&bf_args.task_permissions(), &obj, verb_name)
             })
             .map_err(world_state_bf_err)?
         }
@@ -109,7 +109,7 @@ fn get_verbdef(obj: &Obj, verbspec: Var, bf_args: &BfCallState<'_>) -> Result<Ve
             }
             let verb_index = (verb_index as usize) - 1;
             with_current_transaction(|world_state| {
-                world_state.get_verb_at_index(&bf_args.task_authority_principal(), obj, verb_index)
+                world_state.get_verb_at_index(&bf_args.task_permissions(), obj, verb_index)
             })
         }
         _ => {
@@ -118,7 +118,7 @@ fn get_verbdef(obj: &Obj, verbspec: Var, bf_args: &BfCallState<'_>) -> Result<Ve
             };
 
             with_current_transaction(|world_state| {
-                world_state.get_verb(&bf_args.task_authority_principal(), obj, verb_desc)
+                world_state.get_verb(&bf_args.task_permissions(), obj, verb_desc)
             })
         }
     };
@@ -210,7 +210,7 @@ fn bf_set_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             let verb_index = (verb_index as usize) - 1;
             with_current_transaction_mut(|world_state| {
                 world_state.update_verb_at_index(
-                    &bf_args.task_authority_principal(),
+                    &bf_args.task_permissions(),
                     &obj,
                     verb_index,
                     update_attrs,
@@ -223,12 +223,7 @@ fn bf_set_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 return Err(BfErr::Code(E_TYPE));
             };
             with_current_transaction_mut(|world_state| {
-                world_state.update_verb(
-                    &bf_args.task_authority_principal(),
-                    &obj,
-                    verb_name,
-                    update_attrs,
-                )
+                world_state.update_verb(&bf_args.task_permissions(), &obj, verb_name, update_attrs)
             })
             .map_err(world_state_bf_err)?;
         }
@@ -328,7 +323,7 @@ fn bf_set_verb_args(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             let verb_index = (verb_index as usize) - 1;
             with_current_transaction_mut(|world_state| {
                 world_state.update_verb_at_index(
-                    &bf_args.task_authority_principal(),
+                    &bf_args.task_permissions(),
                     &obj,
                     verb_index,
                     update_attrs,
@@ -341,12 +336,7 @@ fn bf_set_verb_args(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 return Err(BfErr::Code(E_TYPE));
             };
             with_current_transaction_mut(|world_state| {
-                world_state.update_verb(
-                    &bf_args.task_authority_principal(),
-                    &obj,
-                    verb_name,
-                    update_attrs,
-                )
+                world_state.update_verb(&bf_args.task_permissions(), &obj, verb_name, update_attrs)
             })
             .map_err(world_state_bf_err)?;
         }
@@ -388,7 +378,7 @@ fn bf_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Retrieve the binary for the verb.
     let verb_info = with_current_transaction(|world_state| {
-        world_state.retrieve_verb(&bf_args.task_authority_principal(), &obj, verbdef.uuid())
+        world_state.retrieve_verb(&bf_args.task_permissions(), &obj, verbdef.uuid())
     })
     .map_err(world_state_bf_err)?;
 
@@ -516,7 +506,7 @@ fn bf_set_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
     with_current_transaction_mut(|world_state| {
         world_state.update_verb_with_id(
-            &bf_args.task_authority_principal(),
+            &bf_args.task_permissions(),
             &obj,
             verbdef.uuid(),
             update_attrs,
@@ -553,7 +543,7 @@ fn bf_add_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     with_current_transaction_mut(|world_state| {
         world_state.add_verb(
-            &bf_args.task_authority_principal(),
+            &bf_args.task_permissions(),
             &obj,
             verbinfo.names.unwrap(),
             &verbinfo.owner.unwrap(),
@@ -598,7 +588,7 @@ fn bf_delete_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     with_current_transaction_mut(|world_state| {
-        world_state.remove_verb(&bf_args.task_authority_principal(), &obj, verb)
+        world_state.remove_verb(&bf_args.task_permissions(), &obj, verb)
     })
     .map_err(world_state_bf_err)?;
 
@@ -624,7 +614,7 @@ fn bf_disassemble(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
 
     let (program, _) = with_current_transaction(|world_state| {
-        world_state.retrieve_verb(&bf_args.task_authority_principal(), &obj, verbdef.uuid())
+        world_state.retrieve_verb(&bf_args.task_permissions(), &obj, verbdef.uuid())
     })
     .map_err(world_state_bf_err)?;
 
@@ -725,7 +715,7 @@ fn bf_respond_to(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let name = bf_args.args[1].as_symbol().map_err(BfErr::ErrValue)?;
 
     let Ok(Some(vd)) = with_current_transaction(|world_state| {
-        world_state.lookup_verb(&task_authority, VerbLookup::method(&obj, name))
+        world_state.lookup_verb(&bf_args.task_permissions(), VerbLookup::method(&obj, name))
     }) else {
         return Ok(Ret(bf_args.v_bool(false)));
     };

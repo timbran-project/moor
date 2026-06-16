@@ -53,8 +53,8 @@ use crate::{
 use moor_common::tasks::AbortLimitReason;
 use moor_common::{
     model::{
-        CommitResult, DispatchFlagsSource, ObjFlag, ResolvedVerb, VerbDispatch, VerbLookup,
-        WorldState, WorldStateError, command_verb_argspec,
+        CommitResult, DispatchFlagsSource, ObjFlag, ResolvedVerb, TaskPermissions, VerbDispatch,
+        VerbLookup, WorldState, WorldStateError, command_verb_argspec,
     },
     tasks::{CommandError, CommandError::PermissionDenied, Exception, TaskId},
     util::{BitEnum, Instant, parse_into_words},
@@ -229,6 +229,11 @@ impl Task {
     #[inline]
     pub(crate) fn authority_principal(&self) -> Obj {
         self.authority_principal
+    }
+
+    #[inline]
+    fn task_permissions(&self) -> TaskPermissions {
+        TaskPermissions::new(self.authority_principal, BitEnum::new())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -686,7 +691,7 @@ impl Task {
                     // Try to find and invoke $handle_uncaught_error on #0 (SYSTEM_OBJECT)
                     let verb_lookup = with_current_transaction(|world_state| {
                         world_state.dispatch_verb(
-                            &self.authority_principal,
+                            &self.task_permissions(),
                             VerbDispatch::new(
                                 VerbLookup::method(&SYSTEM_OBJECT, *HANDLE_UNCAUGHT_ERROR_SYM),
                                 DispatchFlagsSource::Permissions,
@@ -726,7 +731,7 @@ impl Task {
                             verb_result.permissions_flags,
                             match with_current_transaction(|ws| {
                                 ws.retrieve_verb(
-                                    &self.authority_principal,
+                                    &self.task_permissions(),
                                     &verb_result.program_key.verb_definer,
                                     verb_result.program_key.verb_uuid,
                                 )
@@ -930,7 +935,7 @@ impl Task {
                 };
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &self.authority_principal,
+                        &self.task_permissions(),
                         VerbDispatch::new(
                             VerbLookup::method(&object_location, verb_name),
                             DispatchFlagsSource::Permissions,
@@ -963,7 +968,7 @@ impl Task {
                             verb_result.permissions_flags,
                             match with_current_transaction(|ws| {
                                 ws.retrieve_verb(
-                                    &self.authority_principal,
+                                    &self.task_permissions(),
                                     &verb_result.program_key.verb_definer,
                                     verb_result.program_key.verb_uuid,
                                 )
@@ -1090,7 +1095,7 @@ impl Task {
                 // Find and set up the handler verb
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &self.authority_principal,
+                        &self.task_permissions(),
                         VerbDispatch::new(
                             VerbLookup::method(&SYSTEM_OBJECT, *HANDLE_UNCAUGHT_ERROR_SYM),
                             DispatchFlagsSource::Permissions,
@@ -1118,7 +1123,7 @@ impl Task {
                             verb_result.permissions_flags,
                             match with_current_transaction(|ws| {
                                 ws.retrieve_verb(
-                                    &self.authority_principal,
+                                    &self.task_permissions(),
                                     &verb_result.program_key.verb_definer,
                                     verb_result.program_key.verb_uuid,
                                 )
@@ -1166,7 +1171,7 @@ impl Task {
         // that verb with the command as an argument. If that then fails (non-true return code)
         // we'll end up in the start_parse_command phase.
         let do_command = world_state.dispatch_verb(
-            &self.authority_principal,
+            &self.task_permissions(),
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, *DO_COMMAND_SYM),
                 DispatchFlagsSource::Permissions,
@@ -1192,7 +1197,7 @@ impl Task {
                     verb_result.permissions_flags,
                     world_state
                         .retrieve_verb(
-                            &self.authority_principal,
+                            &self.task_permissions(),
                             &verb_result.program_key.verb_definer,
                             verb_result.program_key.verb_uuid,
                         )
@@ -1224,9 +1229,10 @@ impl Task {
         let (player_location, parsed_command) = {
             let perfc = sched_counters();
             let _t = perfc.timers.start(SchedulerOp::ParseCommand);
+            let player_permissions = TaskPermissions::new(*player, BitEnum::new());
 
             // We need the player's location, and we'll just die if we can't get it.
-            let player_location = match world_state.location_of(player, player) {
+            let player_location = match world_state.location_of(&player_permissions, player) {
                 Ok(loc) => loc,
                 Err(WorldStateError::VerbPermissionDenied)
                 | Err(WorldStateError::ObjectPermissionDenied)
@@ -1273,7 +1279,7 @@ impl Task {
                 // Try to find :huh. If it exists, we'll dispatch to that, instead.
                 // If we don't find it, that's the end of the line.
                 let Ok(Some(verb_result)) = world_state.dispatch_verb(
-                    &self.authority_principal,
+                    &self.task_permissions(),
                     VerbDispatch::new(
                         VerbLookup::method(&player_location, *HUH_SYM),
                         DispatchFlagsSource::VerbOwner,
@@ -1285,7 +1291,7 @@ impl Task {
                     (
                         world_state
                             .retrieve_verb(
-                                player,
+                                &self.task_permissions(),
                                 &verb_result.program_key.verb_definer,
                                 verb_result.program_key.verb_uuid,
                             )
@@ -1386,10 +1392,11 @@ fn find_verb_for_command(
     ];
     let dobj = pc.dobj.unwrap_or(NOTHING);
     let iobj = pc.iobj.unwrap_or(NOTHING);
+    let player_permissions = TaskPermissions::new(*player, BitEnum::new());
     for target in targets_to_search {
         let argspec = command_verb_argspec(&target, &dobj, pc.prep, &iobj);
         let match_result = ws.dispatch_verb(
-            player,
+            &player_permissions,
             VerbDispatch::new(
                 VerbLookup::command(&target, pc.verb, argspec),
                 DispatchFlagsSource::VerbOwner,
@@ -1410,7 +1417,7 @@ fn find_verb_for_command(
             return Ok(Some((
                 (
                     ws.retrieve_verb(
-                        player,
+                        &player_permissions,
                         &verb_result.program_key.verb_definer,
                         verb_result.program_key.verb_uuid,
                     )
@@ -1471,6 +1478,10 @@ mod tests {
         }
     }
 
+    fn system_permissions() -> moor_common::model::TaskPermissions {
+        moor_common::model::TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+    }
+
     /// Create a TxDB, populate it with a system object (wizard/programmer),
     /// optionally add verbs, commit, then create a Scheduler + SchedulerClient.
     fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, Scheduler) {
@@ -1479,7 +1490,7 @@ mod tests {
 
         let sysobj = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -1487,16 +1498,26 @@ mod tests {
             )
             .unwrap();
         tx.update_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &sysobj,
             Symbol::mk("name"),
             &v_str("system"),
         )
         .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("programmer"), &v_int(1))
-            .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("wizard"), &v_int(1))
-            .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("programmer"),
+            &v_int(1),
+        )
+        .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("wizard"),
+            &v_int(1),
+        )
+        .unwrap();
 
         for TestVerb {
             name,
@@ -1505,7 +1526,7 @@ mod tests {
         } in verbs
         {
             tx.add_verb(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 vec![*name],
                 &SYSTEM_OBJECT,

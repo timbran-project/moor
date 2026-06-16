@@ -16,8 +16,8 @@ mod tests {
     use crate::{api::world_state::DbWorldState, config::DatabaseConfig, engine::moor_db::MoorDB};
     use moor_common::{
         model::{
-            ArgSpec, CommitResult, ObjectKind, PrepSpec, PropFlag, ValSet, VerbArgsSpec, VerbFlag,
-            WorldState,
+            ArgSpec, CommitResult, ObjectKind, PrepSpec, PropFlag, TaskPermissions, ValSet,
+            VerbArgsSpec, VerbFlag, WorldState,
         },
         util::BitEnum,
     };
@@ -35,6 +35,10 @@ mod tests {
         },
     };
 
+    fn permissions(principal: Obj) -> TaskPermissions {
+        TaskPermissions::new(principal, BitEnum::new())
+    }
+
     fn setup_test_db() -> Arc<MoorDB> {
         let (db, _) = MoorDB::open(None, DatabaseConfig::default());
 
@@ -45,7 +49,7 @@ mod tests {
         // Create root object #0
         let _root = ws
             .create_object(
-                &SYSTEM_OBJECT,
+                &permissions(SYSTEM_OBJECT),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 BitEnum::new(),
@@ -57,7 +61,7 @@ mod tests {
         for i in 1..=5 {
             let obj = ws
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &permissions(SYSTEM_OBJECT),
                     &SYSTEM_OBJECT,
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -84,7 +88,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -112,18 +116,20 @@ mod tests {
                                     let mut ws = DbWorldState { tx };
 
                                     // Read current value
-                                    let current =
-                                        match ws.retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
-                                        {
-                                            Ok(val) => val.as_integer().unwrap_or(0),
-                                            Err(_) => 0,
-                                        };
+                                    let current = match ws.retrieve_property(
+                                        &permissions(SYSTEM_OBJECT),
+                                        &obj,
+                                        prop_name,
+                                    ) {
+                                        Ok(val) => val.as_integer().unwrap_or(0),
+                                        Err(_) => 0,
+                                    };
 
                                     // Increment and write back
                                     let new_value = current + 1;
                                     if ws
                                         .update_property(
-                                            &SYSTEM_OBJECT,
+                                            &permissions(SYSTEM_OBJECT),
                                             &obj,
                                             prop_name,
                                             &v_int(new_value),
@@ -162,7 +168,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_value = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
                 assert_eq!(final_value.as_integer().unwrap(), 80); // 4 threads * 20 increments
 
@@ -187,7 +193,7 @@ mod tests {
                     for i in 0..10 {
                         let verb_name = format!("test_verb_{i}");
                         ws.add_verb(
-                            &SYSTEM_OBJECT,
+                            &permissions(SYSTEM_OBJECT),
                             &obj,
                             vec![Symbol::mk(&verb_name)],
                             &SYSTEM_OBJECT,
@@ -222,14 +228,17 @@ mod tests {
                                 let ws = DbWorldState { tx };
 
                                 // Test verb lookup - this should hit the verb cache
-                                if ws.get_verb(&SYSTEM_OBJECT, &obj, verb_name).is_ok() {
+                                if ws
+                                    .get_verb(&permissions(SYSTEM_OBJECT), &obj, verb_name)
+                                    .is_ok()
+                                {
                                     success_count.fetch_add(1, Ordering::Relaxed);
                                 }
 
                                 // Also test method resolution which uses verb cache heavily
                                 if matches!(
                                     ws.dispatch_verb(
-                                        &SYSTEM_OBJECT,
+                                        &permissions(SYSTEM_OBJECT),
                                         moor_common::model::VerbDispatch::new(
                                             moor_common::model::VerbLookup::method(&obj, verb_name),
                                             moor_common::model::DispatchFlagsSource::Permissions,
@@ -269,7 +278,7 @@ mod tests {
 
                     let parent = ws
                         .create_object(
-                            &SYSTEM_OBJECT,
+                            &permissions(SYSTEM_OBJECT),
                             &SYSTEM_OBJECT,
                             &SYSTEM_OBJECT,
                             BitEnum::new(),
@@ -281,7 +290,7 @@ mod tests {
                     for i in 7..=10 {
                         let child = ws
                             .create_object(
-                                &SYSTEM_OBJECT,
+                                &permissions(SYSTEM_OBJECT),
                                 &parent,
                                 &SYSTEM_OBJECT,
                                 BitEnum::new(),
@@ -309,7 +318,7 @@ mod tests {
                                 let ws = DbWorldState { tx };
 
                                 // Test concurrent hierarchy queries
-                                match ws.children_of(&SYSTEM_OBJECT, &Obj::mk_id(6)) {
+                                match ws.children_of(&permissions(SYSTEM_OBJECT), &Obj::mk_id(6)) {
                                     Ok(children) => {
                                         assert_eq!(children.len(), 4);
                                         operation_count.fetch_add(1, Ordering::Relaxed);
@@ -320,7 +329,7 @@ mod tests {
                                 }
 
                                 // Test parent lookup
-                                match ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(7)) {
+                                match ws.parent_of(&permissions(SYSTEM_OBJECT), &Obj::mk_id(7)) {
                                     Ok(parent) => {
                                         assert_eq!(parent, Obj::mk_id(6));
                                         operation_count.fetch_add(1, Ordering::Relaxed);
@@ -331,7 +340,11 @@ mod tests {
                                 }
 
                                 // Test descendants query
-                                match ws.descendants_of(&SYSTEM_OBJECT, &Obj::mk_id(6), true) {
+                                match ws.descendants_of(
+                                    &permissions(SYSTEM_OBJECT),
+                                    &Obj::mk_id(6),
+                                    true,
+                                ) {
                                     Ok(descendants) => {
                                         assert_eq!(descendants.len(), 5); // parent + 4 children
                                         operation_count.fetch_add(1, Ordering::Relaxed);
@@ -384,7 +397,7 @@ mod tests {
                                     let mut ws = DbWorldState { tx };
 
                                     match ws.define_property(
-                                        &SYSTEM_OBJECT,
+                                        &permissions(SYSTEM_OBJECT),
                                         &obj,
                                         &obj,
                                         prop_name,
@@ -434,14 +447,17 @@ mod tests {
                                 let ws = DbWorldState { tx };
 
                                 // List all properties
-                                if let Ok(props) = ws.properties(&SYSTEM_OBJECT, &obj) {
+                                if let Ok(props) = ws.properties(&permissions(SYSTEM_OBJECT), &obj)
+                                {
                                     access_count.fetch_add(props.len(), Ordering::Relaxed);
 
                                     // Try to access each property
                                     for prop in props.iter() {
-                                        if let Ok(_value) =
-                                            ws.retrieve_property(&SYSTEM_OBJECT, &obj, prop.name())
-                                        {
+                                        if let Ok(_value) = ws.retrieve_property(
+                                            &permissions(SYSTEM_OBJECT),
+                                            &obj,
+                                            prop.name(),
+                                        ) {
                                             access_count.fetch_add(1, Ordering::Relaxed);
                                         }
                                     }
@@ -466,7 +482,7 @@ mod tests {
                 // Verify final state
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
-                let final_props = ws.properties(&SYSTEM_OBJECT, &obj).unwrap();
+                let final_props = ws.properties(&permissions(SYSTEM_OBJECT), &obj).unwrap();
                 assert_eq!(final_props.len(), 20); // 2 threads * 10 properties each
             },
             10,
@@ -487,7 +503,7 @@ mod tests {
                     // Create parent objects
                     let parent1 = ws
                         .create_object(
-                            &SYSTEM_OBJECT,
+                            &permissions(SYSTEM_OBJECT),
                             &SYSTEM_OBJECT,
                             &SYSTEM_OBJECT,
                             BitEnum::new(),
@@ -496,7 +512,7 @@ mod tests {
                         .unwrap();
                     let parent2 = ws
                         .create_object(
-                            &SYSTEM_OBJECT,
+                            &permissions(SYSTEM_OBJECT),
                             &parent1,
                             &SYSTEM_OBJECT,
                             BitEnum::new(),
@@ -505,7 +521,7 @@ mod tests {
                         .unwrap();
                     let child = ws
                         .create_object(
-                            &SYSTEM_OBJECT,
+                            &permissions(SYSTEM_OBJECT),
                             &parent2,
                             &SYSTEM_OBJECT,
                             BitEnum::new(),
@@ -515,7 +531,7 @@ mod tests {
 
                     // Add verbs at different levels
                     ws.add_verb(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &parent1,
                         vec![Symbol::mk("parent_verb")],
                         &SYSTEM_OBJECT,
@@ -530,7 +546,7 @@ mod tests {
                     .unwrap();
 
                     ws.add_verb(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &parent2,
                         vec![Symbol::mk("override_verb")],
                         &SYSTEM_OBJECT,
@@ -545,7 +561,7 @@ mod tests {
                     .unwrap();
 
                     ws.add_verb(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &child,
                         vec![Symbol::mk("child_verb")],
                         &SYSTEM_OBJECT,
@@ -593,7 +609,7 @@ mod tests {
 
                                     // Test method resolution (heavily uses verb cache)
                                     let result = ws.dispatch_verb(
-                                        &SYSTEM_OBJECT,
+                                        &permissions(SYSTEM_OBJECT),
                                         moor_common::model::VerbDispatch::new(
                                             moor_common::model::VerbLookup::method(
                                                 &child_obj, verb_sym,
@@ -685,7 +701,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -712,7 +728,11 @@ mod tests {
                                     let mut ws1 = DbWorldState { tx: tx1 };
 
                                     let initial_value = ws1
-                                        .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                        .retrieve_property(
+                                            &permissions(SYSTEM_OBJECT),
+                                            &obj,
+                                            prop_name,
+                                        )
                                         .unwrap()
                                         .as_integer()
                                         .unwrap();
@@ -732,7 +752,11 @@ mod tests {
                                     let ws2 = DbWorldState { tx: tx2 };
 
                                     let _concurrent_value = ws2
-                                        .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                        .retrieve_property(
+                                            &permissions(SYSTEM_OBJECT),
+                                            &obj,
+                                            prop_name,
+                                        )
                                         .unwrap()
                                         .as_integer()
                                         .unwrap();
@@ -741,7 +765,7 @@ mod tests {
                                     let new_value = initial_value + thread_id as i64;
                                     if ws1
                                         .update_property(
-                                            &SYSTEM_OBJECT,
+                                            &permissions(SYSTEM_OBJECT),
                                             &obj,
                                             prop_name,
                                             &v_int(new_value),
@@ -780,7 +804,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_value = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
                 assert!(final_value.as_integer().unwrap() >= 100); // At least the initial value
             },
@@ -805,7 +829,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -833,7 +857,7 @@ mod tests {
                                 let tx2 = db.start_transaction();
                                 let mut ws2 = DbWorldState { tx: tx2 };
                                 ws2.update_property(
-                                    &SYSTEM_OBJECT,
+                                    &permissions(SYSTEM_OBJECT),
                                     &obj,
                                     prop_name,
                                     &v_int(write_value),
@@ -849,7 +873,7 @@ mod tests {
                                     let ws1 = DbWorldState { tx: tx1 };
 
                                     // T1 reads the property
-                                    if let Ok(value) = ws1.retrieve_property(&SYSTEM_OBJECT, &obj, prop_name) {
+                                    if let Ok(value) = ws1.retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name) {
                                         let read_value = value.as_integer().unwrap_or(-1);
 
                                         // T1 started AFTER T2 committed, so MUST see T2's write
@@ -901,7 +925,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -928,15 +952,20 @@ mod tests {
 
                             // Read list (this snapshot read will be the 'base' for merge)
                             let current_list = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
 
                             // Append value - this sets OP_HINT_LIST_APPEND
                             let val = v_int(thread_id as i64);
                             let new_list = current_list.push(&val).unwrap();
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_list)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_list,
+                            )
+                            .unwrap();
 
                             barrier.wait();
 
@@ -958,7 +987,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_list = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
 
                 let list = final_list.as_list().unwrap();
@@ -981,7 +1010,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1006,7 +1035,7 @@ mod tests {
 
                             // Read map (base for merge)
                             let current_map = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
 
                             // Insert unique key-value pair - this sets OP_HINT_MAP_INSERT
@@ -1018,8 +1047,13 @@ mod tests {
                                 .set(&key, &val, moor_var::IndexMode::ZeroBased)
                                 .unwrap();
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_map)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_map,
+                            )
+                            .unwrap();
 
                             if let Ok(CommitResult::Success { .. }) = Box::new(ws).commit() {
                                 success_count.fetch_add(1, Ordering::Relaxed);
@@ -1039,7 +1073,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_map = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
 
                 // Should contain both keys
@@ -1065,7 +1099,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1094,7 +1128,7 @@ mod tests {
 
                             // Read flyweight
                             let current_fw_var = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
                             let current_fw = current_fw_var.as_flyweight().unwrap();
 
@@ -1107,8 +1141,13 @@ mod tests {
                             let new_fw_var =
                                 Var::from_flyweight_with_hint(new_fw, OP_HINT_FLYWEIGHT_ADD_SLOT);
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_fw_var)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_fw_var,
+                            )
+                            .unwrap();
 
                             if let Ok(CommitResult::Success { .. }) = Box::new(ws).commit() {
                                 success_count.fetch_add(1, Ordering::Relaxed);
@@ -1128,7 +1167,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_fw_var = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
                 let final_fw = final_fw_var.as_flyweight().unwrap();
 
@@ -1153,7 +1192,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1182,7 +1221,7 @@ mod tests {
 
                             // Read flyweight
                             let current_fw_var = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
                             let current_fw = current_fw_var.as_flyweight().unwrap();
 
@@ -1198,8 +1237,13 @@ mod tests {
                                 OP_HINT_FLYWEIGHT_APPEND_CONTENTS,
                             );
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_fw_var)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_fw_var,
+                            )
+                            .unwrap();
 
                             if let Ok(CommitResult::Success { .. }) = Box::new(ws).commit() {
                                 success_count.fetch_add(1, Ordering::Relaxed);
@@ -1219,7 +1263,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_fw_var = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
                 let final_fw = final_fw_var.as_flyweight().unwrap();
 
@@ -1246,7 +1290,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1273,15 +1317,20 @@ mod tests {
 
                             // Read string
                             let current_str = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
 
                             // Append value - Var::add for strings sets OP_HINT_STR_APPEND via Str::str_append
                             let suffix = v_str(&format!("+Suffix{}", thread_id));
                             let new_str = current_str.add(&suffix).unwrap();
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_str)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_str,
+                            )
+                            .unwrap();
 
                             barrier.wait();
 
@@ -1303,7 +1352,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_str = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
                 let s = final_str.as_string().unwrap();
 
@@ -1332,7 +1381,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1360,7 +1409,7 @@ mod tests {
 
                             // Read map (base for merge)
                             let current_map = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
 
                             // Insert SAME key with DIFFERENT values
@@ -1371,8 +1420,13 @@ mod tests {
                                 .set(&key, &val, moor_var::IndexMode::ZeroBased)
                                 .unwrap();
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_map)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_map,
+                            )
+                            .unwrap();
 
                             // Wait for both threads to have read and prepared their writes
                             barrier.wait();
@@ -1395,7 +1449,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_map = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
 
                 let map = final_map.as_map().unwrap();
@@ -1425,7 +1479,7 @@ mod tests {
                     let mut ws = DbWorldState { tx };
                     let initial_list = v_empty_list().push(&v_int(0)).unwrap();
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1454,7 +1508,7 @@ mod tests {
                             let mut ws = DbWorldState { tx };
 
                             let current_list = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
 
                             let new_list = if thread_id == 0 {
@@ -1466,8 +1520,13 @@ mod tests {
                                 List::build(&[v_int(999)])
                             };
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_list)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_list,
+                            )
+                            .unwrap();
 
                             // Wait for both threads to have read and prepared their writes
                             barrier.wait();
@@ -1504,7 +1563,7 @@ mod tests {
                     let tx = db.start_transaction();
                     let mut ws = DbWorldState { tx };
                     ws.define_property(
-                        &SYSTEM_OBJECT,
+                        &permissions(SYSTEM_OBJECT),
                         &obj,
                         &obj,
                         prop_name,
@@ -1530,15 +1589,20 @@ mod tests {
                             let mut ws = DbWorldState { tx };
 
                             let current_list = ws
-                                .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                                .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
 
                             // Append value - this sets OP_HINT_LIST_APPEND
                             let val = v_int(thread_id as i64);
                             let new_list = current_list.push(&val).unwrap();
 
-                            ws.update_property(&SYSTEM_OBJECT, &obj, prop_name, &new_list)
-                                .unwrap();
+                            ws.update_property(
+                                &permissions(SYSTEM_OBJECT),
+                                &obj,
+                                prop_name,
+                                &new_list,
+                            )
+                            .unwrap();
 
                             barrier.wait();
 
@@ -1560,7 +1624,7 @@ mod tests {
                 let tx = db.start_transaction();
                 let ws = DbWorldState { tx };
                 let final_list = ws
-                    .retrieve_property(&SYSTEM_OBJECT, &obj, prop_name)
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
 
                 assert_eq!(

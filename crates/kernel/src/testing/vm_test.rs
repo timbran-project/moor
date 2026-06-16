@@ -20,7 +20,10 @@ mod tests {
     use triomphe::Arc as TArc;
 
     use moor_common::{
-        model::{ObjFlag, ObjectKind, PropFlag, VerbArgsSpec, VerbFlag, WorldStateSource},
+        model::{
+            ObjFlag, ObjectKind, PropFlag, TaskPermissions, VerbArgsSpec, VerbFlag,
+            WorldStateSource,
+        },
         util::BitEnum,
     };
     use moor_var::{List, Symbol, Var, v_bool, v_int, v_list, v_objid, v_str};
@@ -32,6 +35,10 @@ mod tests {
     use moor_compiler::{Names, Op, Op::*, Program};
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::program::{ProgramType, program::PrgInner};
+
+    fn system_permissions() -> TaskPermissions {
+        TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+    }
 
     fn mk_program(main_vector: Vec<Op>, literals: Vec<Var>, var_names: Names) -> Program {
         Program(TArc::new(PrgInner {
@@ -61,7 +68,7 @@ mod tests {
         let mut tx = state.new_world_state().unwrap();
         let sysobj = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -69,19 +76,29 @@ mod tests {
             )
             .unwrap();
         tx.update_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &sysobj,
             Symbol::mk("name"),
             &v_str("system"),
         )
         .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("programmer"), &v_int(1))
-            .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("wizard"), &v_int(1))
-            .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("programmer"),
+            &v_int(1),
+        )
+        .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("wizard"),
+            &v_int(1),
+        )
+        .unwrap();
 
         tx.define_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &sysobj,
             &sysobj,
             Symbol::mk("test"),
@@ -93,7 +110,7 @@ mod tests {
 
         for (verb_name, program) in verbs {
             tx.add_verb(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &sysobj.clone(),
                 vec![Symbol::mk(verb_name)],
                 &sysobj.clone(),
@@ -258,7 +275,7 @@ mod tests {
         {
             state
                 .define_property(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &SYSTEM_OBJECT,
                     &SYSTEM_OBJECT,
                     Symbol::mk("test_prop"),

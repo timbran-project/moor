@@ -18,7 +18,8 @@ use tracing::warn;
 
 use moor_common::matching::ParsedCommand;
 use moor_common::model::{
-    DispatchFlagsSource, ObjFlag, ResolvedVerb, VerbDispatch, VerbFlag, VerbLookup, WorldStateError,
+    DispatchFlagsSource, ObjFlag, ResolvedVerb, TaskPermissions, VerbDispatch, VerbFlag,
+    VerbLookup, WorldStateError,
 };
 use moor_common::tasks::TaskId;
 use moor_common::util::BitEnum;
@@ -32,7 +33,8 @@ use moor_var::{
 
 use crate::activation::CallProgram;
 use crate::moo_execute::{ExecutionResult, Fork, VerbExecutionRequest};
-use crate::{Activation, Frame, PhantomUnsync, TaskPermissions, VmHost};
+use crate::{Activation, Frame, PhantomUnsync, VmHost};
+use moor_common::model::CapabilityGrants;
 
 static LIST_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("list_proto"));
 static MAP_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("map_proto"));
@@ -231,6 +233,16 @@ impl ExecState {
             .unwrap_or(NOTHING)
     }
 
+    /// Return the current task permissions.
+    ///
+    /// Like `task_authority_principal()`, this skips builtin frames.
+    pub fn task_permissions(&self) -> TaskPermissions {
+        let stack_top = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
+        stack_top
+            .map(Activation::authority)
+            .unwrap_or_else(|| TaskPermissions::new(NOTHING, BitEnum::new()))
+    }
+
     /// Return the cached flags for the current task authority principal.
     ///
     /// Like `task_authority_principal()`, this skips builtin frames. Kernel builtins that need
@@ -253,13 +265,23 @@ impl ExecState {
     /// The new authority is copied through any active builtin frames and into the current MOO
     /// frame so subsequent builtin calls and DB checks observe the same task authority.
     pub fn set_task_perms(&mut self, host: &mut impl VmHost, authority_principal: Obj) {
+        self.set_task_perms_with_grants(host, authority_principal, CapabilityGrants::empty());
+    }
+
+    pub fn set_task_perms_with_grants(
+        &mut self,
+        host: &mut impl VmHost,
+        authority_principal: Obj,
+        grants: CapabilityGrants,
+    ) {
         // Look up the flags for the new authority principal.
         let authority_flags = host.flags_of(&authority_principal).unwrap_or_default();
+        let authority = TaskPermissions::with_grants(authority_principal, authority_flags, grants);
 
         // Copy the authority up to the last non-builtin frame so builtin frames and the current
         // MOO frame see the same principal.
         for activation in self.stack.iter_mut().rev() {
-            activation.set_authority(TaskPermissions::new(authority_principal, authority_flags));
+            activation.set_authority(authority.clone());
             if !activation.is_builtin_frame() {
                 break;
             }
@@ -529,9 +551,9 @@ impl ExecState {
                 }
             }
         };
-        let authority_principal = self.top().authority_principal();
+        let permissions = self.top().authority();
         let prop_val = host
-            .retrieve_property(&authority_principal, &SYSTEM_OBJECT, sysprop_sym)
+            .retrieve_property(&permissions, &SYSTEM_OBJECT, sysprop_sym)
             .map_err(|e| e.to_error())?;
         let Some(prop_val) = prop_val.as_object() else {
             return Err(E_TYPE.with_msg(|| {
@@ -587,7 +609,7 @@ impl ExecState {
         }
 
         let verb_result = host.dispatch_verb(
-            &self.top().authority_principal(),
+            &self.top().authority(),
             VerbDispatch::new(
                 VerbLookup::method(&location, verb_name),
                 DispatchFlagsSource::VerbOwner,
@@ -688,7 +710,7 @@ impl ExecState {
         caller: Var,
     ) -> Result<Option<ExecutionResult>, WorldStateError> {
         let Some(verb_result) = host.dispatch_verb(
-            &self.top().authority_principal(),
+            &self.top().authority(),
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, bf_override_name),
                 DispatchFlagsSource::Permissions,

@@ -12,12 +12,13 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    TaskPermissions, VmHost,
+    VmHost,
     config::FeaturesConfig,
     moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeType},
     scatter_assign::scatter_assign,
     vm_unwind::FinallyReason,
 };
+use moor_common::model::TaskPermissions;
 use moor_common::{
     matching::ParsedCommand,
     model::{
@@ -422,8 +423,8 @@ static SYM_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("sym_proto"
 /// Build a captured environment from a list of captured variables
 /// This recreates the environment structure needed by lambda execution
 fn build_captured_environment(
-    captured_vars: &[(moor_var::program::names::Name, Var)],
-    lambda_program: &moor_compiler::Program,
+    captured_vars: &[(Name, Var)],
+    lambda_program: &Program,
 ) -> Vec<Vec<Var>> {
     if captured_vars.is_empty() {
         return vec![];
@@ -455,7 +456,7 @@ fn build_captured_environment(
             // For non-global scopes, start with a minimum size and expand as needed
             16
         };
-        let mut scope_env = vec![moor_var::v_none(); expected_var_count];
+        let mut scope_env = vec![v_none(); expected_var_count];
 
         if !vars_in_scope.is_empty() {
             // Find the maximum offset to ensure we have enough space
@@ -465,7 +466,7 @@ fn build_captured_environment(
                 .max()
                 .unwrap_or(0);
             if max_offset >= scope_env.len() {
-                scope_env.resize(max_offset + 1, moor_var::v_none());
+                scope_env.resize(max_offset + 1, v_none());
             }
 
             for &(var_offset, ref value) in vars_in_scope {
@@ -629,9 +630,8 @@ fn prepare_verb_dispatch<H: VmHost>(
             }
         }
     };
-    let authority_principal = context.authority.principal();
     let prop_val = host
-        .retrieve_property(&authority_principal, &SYSTEM_OBJECT, sysprop_sym)
+        .retrieve_property(&context.authority, &SYSTEM_OBJECT, sysprop_sym)
         .map_err(|e| e.to_error())?;
     let Some(prop_val) = prop_val.as_object() else {
         return Err(E_TYPE.with_msg(|| {
@@ -668,8 +668,7 @@ fn prepare_pass_verb<H: VmHost>(
     context: &FrameExecutionContext<'_>,
     args: List,
 ) -> ExecutionResult {
-    let authority_principal = context.authority.principal();
-    let parent = match host.parent_of(&authority_principal, &context.verb_definer) {
+    let parent = match host.parent_of(&context.authority, &context.verb_definer) {
         Ok(p) => p,
         Err(WorldStateError::RollbackRetry) => {
             return ExecutionResult::TaskRollbackRestart;
@@ -682,7 +681,7 @@ fn prepare_pass_verb<H: VmHost>(
     }
 
     let verb_result = host.dispatch_verb(
-        &authority_principal,
+        &context.authority,
         VerbDispatch::new(
             VerbLookup::method(&parent, context.verb_name),
             DispatchFlagsSource::Permissions,
@@ -701,7 +700,7 @@ fn prepare_pass_verb<H: VmHost>(
     };
 
     ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
-        authority_principal,
+        context.authority.principal(),
         permissions_flags,
         resolved_verb,
         context.verb_name,
@@ -723,7 +722,6 @@ fn prepare_call_verb<H: VmHost>(
     verb_name: Symbol,
     args: List,
 ) -> ExecutionResult {
-    let authority_principal = context.authority.principal();
     let player = context.player_for_frame(frame);
 
     if !host.valid(&location).unwrap_or_default() {
@@ -733,7 +731,7 @@ fn prepare_call_verb<H: VmHost>(
     }
 
     let verb_result = host.dispatch_verb(
-        &authority_principal,
+        &context.authority,
         VerbDispatch::new(
             VerbLookup::method(&location, verb_name),
             DispatchFlagsSource::VerbOwner,
@@ -766,7 +764,7 @@ fn prepare_call_verb<H: VmHost>(
     };
 
     ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
-        authority_principal,
+        context.authority.principal(),
         permissions_flags,
         resolved_verb,
         verb_name,
@@ -811,7 +809,7 @@ pub fn moo_frame_execute<H: VmHost>(
     //
     // Opcode stream is selected once for this execute call. This relies on pc_type staying
     // stable while a frame is running in this function.
-    let program_ptr = f.program_ref() as *const moor_compiler::Program;
+    let program_ptr = f.program_ref() as *const Program;
     // SAFETY: pointer is resolved from either the frame-owned program or a tx-local program slot.
     // The pointer remains valid for this execute call.
     let program = unsafe { &*program_ptr };
@@ -824,7 +822,7 @@ pub fn moo_frame_execute<H: VmHost>(
     let opcodes_ptr = opcodes.as_ptr();
     let opcodes_len = opcodes.len();
     let tick_slice_end = (*tick_count).saturating_add(tick_slice);
-    let authority_principal = context.authority.principal();
+    let permissions = context.authority.clone();
     while *tick_count < tick_slice_end {
         *tick_count += 1;
 
@@ -1622,8 +1620,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     return push_error_cold(invalid_property_name_error(&propname));
                 };
 
-                let value =
-                    get_property(host, &authority_principal, &obj, propname, features_config);
+                let value = get_property(host, &permissions, &obj, propname, features_config);
                 match value {
                     Ok(v) => {
                         f.poke(0, v);
@@ -1640,8 +1637,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     return push_error_cold(invalid_property_name_error(propname));
                 };
 
-                let value =
-                    get_property(host, &authority_principal, obj, propname, features_config);
+                let value = get_property(host, &permissions, obj, propname, features_config);
                 match value {
                     Ok(v) => {
                         f.push(v);
@@ -1660,8 +1656,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 let Ok(propname) = propname.as_symbol() else {
                     return push_error_cold(invalid_property_name_error(&propname));
                 };
-                let update_result =
-                    host.update_property(&authority_principal, &obj, propname, &rhs);
+                let update_result = host.update_property(&permissions, &obj, propname, &rhs);
 
                 match update_result {
                     Ok(()) => {
@@ -1698,7 +1693,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 };
 
                 let update_result = if let Some(obj) = base.as_object() {
-                    host.update_property(&authority_principal, &obj, propname, &rhs)
+                    host.update_property(&permissions, &obj, propname, &rhs)
                         .map(|()| base)
                         .map_err(|e| e.to_error())
                 } else if let Some(flyweight) = base.as_flyweight() {
@@ -2056,7 +2051,7 @@ pub fn moo_frame_execute<H: VmHost>(
                     f.push_capture(var_name, value.clone());
                 } else {
                     // Variable not found - capture None/v_none
-                    f.push_capture(var_name, moor_var::v_none());
+                    f.push_capture(var_name, v_none());
                 }
             }
             Op::MakeLambda {
@@ -2132,7 +2127,7 @@ pub fn moo_frame_execute<H: VmHost>(
 #[allow(clippy::too_many_arguments)]
 fn get_property<H: VmHost>(
     host: &mut H,
-    authority_principal: &Obj,
+    permissions: &TaskPermissions,
     obj: &Var,
     propname: Symbol,
     features_config: &FeaturesConfig,
@@ -2140,7 +2135,7 @@ fn get_property<H: VmHost>(
     // Fast path: Obj is by far the most common case for property access
     if let Some(obj_ref) = obj.as_object() {
         return host
-            .retrieve_property(authority_principal, &obj_ref, propname)
+            .retrieve_property(permissions, &obj_ref, propname)
             .map_err(|e| e.to_error());
     }
 
@@ -2172,7 +2167,7 @@ fn get_property<H: VmHost>(
         } else {
             // Now check the delegate
             let delegate = flyweight.delegate();
-            let result = host.retrieve_property(authority_principal, delegate, propname);
+            let result = host.retrieve_property(permissions, delegate, propname);
             match result {
                 Ok(v) => v,
                 Err(e) => return Err(e.to_error()),

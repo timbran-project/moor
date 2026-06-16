@@ -20,7 +20,8 @@ mod tests {
 
     use moor_common::model::CompileError;
     use moor_common::model::{
-        ObjFlag, ObjectKind, PropFlag, VerbArgsSpec, VerbFlag, WorldState, WorldStateSource,
+        ObjFlag, ObjectKind, PropFlag, TaskPermissions, VerbArgsSpec, VerbFlag, WorldState,
+        WorldStateSource,
     };
     use moor_common::tasks::NoopClientSession;
     use moor_compiler::{CompileOptions, Program, compile};
@@ -36,13 +37,17 @@ mod tests {
     use crate::testing::vm_test_utils::{call_eval_builtin_with_env, call_verb};
     use crate::vm::builtins::BuiltinRegistry;
 
+    fn system_permissions() -> TaskPermissions {
+        TaskPermissions::new(SYSTEM_OBJECT, moor_common::util::BitEnum::new())
+    }
+
     /// Create an in-memory db with a single object (#0) containing verbs.
     fn test_db_with_verbs(verbs: &[(&str, &Program)]) -> TxDB {
         let (state, _) = TxDB::open(None, DatabaseConfig::default());
         let mut tx = state.new_world_state().unwrap();
         let sysobj = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -50,19 +55,29 @@ mod tests {
             )
             .unwrap();
         tx.update_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &sysobj,
             Symbol::mk("name"),
             &v_str("system"),
         )
         .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("programmer"), &v_int(1))
-            .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("wizard"), &v_int(1))
-            .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("programmer"),
+            &v_int(1),
+        )
+        .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("wizard"),
+            &v_int(1),
+        )
+        .unwrap();
 
         tx.define_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &sysobj,
             &sysobj,
             Symbol::mk("test"),
@@ -74,7 +89,7 @@ mod tests {
 
         for (verb_name, program) in verbs {
             tx.add_verb(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &sysobj.clone(),
                 vec![Symbol::mk(verb_name)],
                 &sysobj.clone(),
@@ -2438,7 +2453,7 @@ mod tests {
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -2446,7 +2461,7 @@ mod tests {
             )
             .unwrap();
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 Symbol::mk("programmer"),
                 &v_int(1),
@@ -2479,7 +2494,7 @@ mod tests {
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -2487,7 +2502,7 @@ mod tests {
             )
             .unwrap();
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 Symbol::mk("programmer"),
                 &v_int(1),
@@ -2521,7 +2536,7 @@ mod tests {
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -2529,7 +2544,7 @@ mod tests {
             )
             .unwrap();
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 Symbol::mk("programmer"),
                 &v_int(1),
@@ -2562,7 +2577,7 @@ mod tests {
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -2570,7 +2585,7 @@ mod tests {
             )
             .unwrap();
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 Symbol::mk("programmer"),
                 &v_int(1),

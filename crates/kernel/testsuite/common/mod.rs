@@ -21,8 +21,9 @@ use semver::Version;
 use uuid::Uuid;
 
 use moor_common::{
-    model::{CommitResult, Named, VerbArgsSpec, VerbFlag, WorldStateSource},
+    model::{CommitResult, Named, TaskPermissions, VerbArgsSpec, VerbFlag, WorldStateSource},
     tasks::{NoopClientSession, Session},
+    util::BitEnum,
 };
 use moor_compiler::{CompileOptions, Program, compile};
 use moor_db::{Database, DatabaseConfig, TxDB};
@@ -62,13 +63,17 @@ pub fn create_db() -> Box<dyn Database> {
     db
 }
 
+fn programmer_permissions() -> TaskPermissions {
+    TaskPermissions::new(Obj::mk_id(3), BitEnum::new())
+}
+
 #[allow(dead_code)]
 pub fn compile_verbs(db: &dyn Database, verbs: &[(&str, &Program)]) {
     let mut tx = db.new_world_state().unwrap();
     for (verb_name, program) in verbs {
         let verb_name = Symbol::mk(verb_name);
         tx.add_verb(
-            &Obj::mk_id(3),
+            &programmer_permissions(),
             &SYSTEM_OBJECT,
             vec![verb_name],
             &Obj::mk_id(3),
@@ -80,7 +85,7 @@ pub fn compile_verbs(db: &dyn Database, verbs: &[(&str, &Program)]) {
 
         // Verify it was added.
         let verb = tx
-            .get_verb(&Obj::mk_id(3), &SYSTEM_OBJECT, verb_name)
+            .get_verb(&programmer_permissions(), &SYSTEM_OBJECT, verb_name)
             .unwrap();
         assert!(verb.matches_name(verb_name));
     }
@@ -91,7 +96,7 @@ pub fn compile_verbs(db: &dyn Database, verbs: &[(&str, &Program)]) {
     for (verb_name, _) in verbs {
         let verb_name = Symbol::mk(verb_name);
         let verb = tx
-            .get_verb(&Obj::mk_id(3), &SYSTEM_OBJECT, verb_name)
+            .get_verb(&programmer_permissions(), &SYSTEM_OBJECT, verb_name)
             .unwrap();
         assert!(verb.matches_name(verb_name));
     }

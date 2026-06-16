@@ -16,12 +16,16 @@ use crate::{
     tasks::world_state_action::{WorldStateAction, WorldStateResult},
 };
 use moor_common::model::ObjAttrs;
+use moor_common::util::BitEnum;
 use moor_common::{
     matching::{
         ObjectNameMatcher, complex_object_matcher::ComplexObjectNameMatcher,
         ws_match_env::WsMatchEnv,
     },
-    model::{CommitResult, HasUuid, ObjectRef, ValSet, VerbAttrs, WorldState, WorldStateError},
+    model::{
+        CommitResult, HasUuid, ObjectRef, TaskPermissions, ValSet, VerbAttrs, WorldState,
+        WorldStateError,
+    },
     tasks::{
         CommandError, SchedulerError,
         SchedulerError::{CommandExecutionError, VerbProgramFailed},
@@ -37,6 +41,10 @@ use std::sync::Arc;
 pub struct WorldStateActionExecutor {
     tx: Box<dyn WorldState>,
     config: Arc<Config>,
+}
+
+fn permissions(principal: &Obj) -> TaskPermissions {
+    TaskPermissions::new(*principal, BitEnum::new())
 }
 
 impl WorldStateActionExecutor {
@@ -101,7 +109,7 @@ impl WorldStateActionExecutor {
                 // should be able to program verbs that are readable but not executable).
                 let verbdef = self
                     .tx
-                    .get_verb(&authority_principal, &object, verb_name)
+                    .get_verb(&permissions(&authority_principal), &object, verb_name)
                     .map_err(|e| match e {
                         WorldStateError::VerbPermissionDenied => {
                             VerbProgramFailed(VerbProgramError::PermissionDenied)
@@ -126,7 +134,7 @@ impl WorldStateActionExecutor {
                 };
                 self.tx
                     .update_verb_with_id(
-                        &authority_principal,
+                        &permissions(&authority_principal),
                         &object,
                         verbdef.uuid(),
                         update_attrs,
@@ -155,7 +163,7 @@ impl WorldStateActionExecutor {
 
                 let value = self
                     .tx
-                    .retrieve_property(&SYSTEM_OBJECT, &object, property)
+                    .retrieve_property(&permissions(&SYSTEM_OBJECT), &object, property)
                     .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
                 Ok(WorldStateResult::SystemProperty(value))
@@ -181,14 +189,15 @@ impl WorldStateActionExecutor {
                     // Get full inheritance chain including self
                     let ancestors = self
                         .tx
-                        .ancestors_of(&authority_principal, &object, true)
+                        .ancestors_of(&permissions(&authority_principal), &object, true)
                         .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
 
                     // Collect properties from all ancestors (including self)
                     for ancestor in ancestors.iter() {
                         // Skip ancestors that error during retrieval (permission denied, etc)
-                        let Ok(ancestor_properties) =
-                            self.tx.properties(&authority_principal, &ancestor)
+                        let Ok(ancestor_properties) = self
+                            .tx
+                            .properties(&permissions(&authority_principal), &ancestor)
                         else {
                             continue;
                         };
@@ -196,7 +205,7 @@ impl WorldStateActionExecutor {
                         for prop in ancestor_properties.iter() {
                             // Skip properties that error during info retrieval
                             let Ok((info, prop_perms)) = self.tx.get_property_info(
-                                &authority_principal,
+                                &permissions(&authority_principal),
                                 &ancestor,
                                 prop.name(),
                             ) else {
@@ -209,13 +218,17 @@ impl WorldStateActionExecutor {
                     // Just get properties directly defined on this object
                     let properties = self
                         .tx
-                        .properties(&authority_principal, &object)
+                        .properties(&permissions(&authority_principal), &object)
                         .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
 
                     for prop in properties.iter() {
                         let (info, prop_perms) = self
                             .tx
-                            .get_property_info(&authority_principal, &object, prop.name())
+                            .get_property_info(
+                                &permissions(&authority_principal),
+                                &object,
+                                prop.name(),
+                            )
                             .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
                         props.push((info, prop_perms));
                     }
@@ -236,12 +249,12 @@ impl WorldStateActionExecutor {
 
                 let value = self
                     .tx
-                    .retrieve_property(&player, &object, property)
+                    .retrieve_property(&permissions(&player), &object, property)
                     .map_err(SchedulerError::PropertyRetrievalFailed)?;
 
                 let (info, prop_perms) = self
                     .tx
-                    .get_property_info(&authority_principal, &object, property)
+                    .get_property_info(&permissions(&authority_principal), &object, property)
                     .map_err(SchedulerError::PropertyRetrievalFailed)?;
 
                 Ok(WorldStateResult::Property(info, prop_perms, value))
@@ -265,14 +278,15 @@ impl WorldStateActionExecutor {
                     // Get full inheritance chain including self
                     let ancestors = self
                         .tx
-                        .ancestors_of(&authority_principal, &object, true)
+                        .ancestors_of(&permissions(&authority_principal), &object, true)
                         .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
 
                     // Collect verbs from all ancestors (including self)
                     let mut all_verbs = Vec::new();
                     for ancestor in ancestors.iter() {
                         // Skip ancestors that error during retrieval (permission denied, etc)
-                        let Ok(ancestor_verbs) = self.tx.verbs(&authority_principal, &ancestor)
+                        let Ok(ancestor_verbs) =
+                            self.tx.verbs(&permissions(&authority_principal), &ancestor)
                         else {
                             continue;
                         };
@@ -282,7 +296,7 @@ impl WorldStateActionExecutor {
                 } else {
                     // Just get verbs directly defined on this object
                     self.tx
-                        .verbs(&authority_principal, &object)
+                        .verbs(&permissions(&authority_principal), &object)
                         .map_err(SchedulerError::VerbRetrievalFailed)?
                 };
 
@@ -307,12 +321,12 @@ impl WorldStateActionExecutor {
                 // This matches the behavior of bf_verb_code builtin
                 let verbdef = self
                     .tx
-                    .get_verb(&authority_principal, &object, verb)
+                    .get_verb(&permissions(&authority_principal), &object, verb)
                     .map_err(SchedulerError::VerbRetrievalFailed)?;
 
                 let (program, _) = self
                     .tx
-                    .retrieve_verb(&authority_principal, &object, verbdef.uuid())
+                    .retrieve_verb(&permissions(&authority_principal), &object, verbdef.uuid())
                     .map_err(SchedulerError::VerbRetrievalFailed)?;
 
                 // If the binary is empty, just return empty code
@@ -398,7 +412,12 @@ impl WorldStateActionExecutor {
 
                 // Set the property value (this will check permissions internally)
                 self.tx
-                    .update_property(&authority_principal, &object, property, &value)
+                    .update_property(
+                        &permissions(&authority_principal),
+                        &object,
+                        property,
+                        &value,
+                    )
                     .map_err(SchedulerError::PropertyRetrievalFailed)?;
 
                 Ok(WorldStateResult::PropertyUpdated)
@@ -435,16 +454,22 @@ impl WorldStateActionExecutor {
             .tx
             .owner_of(obj)
             .map_err(SchedulerError::PropertyRetrievalFailed)?;
-        let parent = self.tx.parent_of(player, obj).unwrap_or(moor_var::NOTHING);
+        let parent = self
+            .tx
+            .parent_of(&permissions(player), obj)
+            .unwrap_or(moor_var::NOTHING);
         let location = self
             .tx
-            .location_of(player, obj)
+            .location_of(&permissions(player), obj)
             .unwrap_or(moor_var::NOTHING);
         let flags = self
             .tx
             .flags_of(obj)
             .map_err(SchedulerError::PropertyRetrievalFailed)?;
-        let name = self.tx.name_of(player, obj).unwrap_or_default();
+        let name = self
+            .tx
+            .name_of(&permissions(player), obj)
+            .unwrap_or_default();
 
         // Construct ObjAttrs
         let attrs = ObjAttrs::new(owner, parent, location, flags, &name);
@@ -452,14 +477,14 @@ impl WorldStateActionExecutor {
         // Count verbs
         let verbs = self
             .tx
-            .verbs(player, obj)
+            .verbs(&permissions(player), obj)
             .map_err(SchedulerError::VerbRetrievalFailed)?;
         let verbs_count = verbs.len();
 
         // Count properties
         let props = self
             .tx
-            .properties(player, obj)
+            .properties(&permissions(player), obj)
             .map_err(SchedulerError::PropertyRetrievalFailed)?;
         let props_count = props.len();
         Ok((attrs, verbs_count, props_count))
@@ -501,7 +526,7 @@ fn execute_single_action(
                 .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
             let verbdef = tx
-                .get_verb(&authority_principal, &object, verb_name)
+                .get_verb(&permissions(&authority_principal), &object, verb_name)
                 .map_err(|e| match e {
                     WorldStateError::VerbPermissionDenied => {
                         VerbProgramFailed(VerbProgramError::PermissionDenied)
@@ -520,13 +545,18 @@ fn execute_single_action(
                 args_spec: None,
                 program: Some(ProgramType::MooR(program)),
             };
-            tx.update_verb_with_id(&authority_principal, &object, verbdef.uuid(), update_attrs)
-                .map_err(|e| match e {
-                    WorldStateError::VerbPermissionDenied => {
-                        VerbProgramFailed(VerbProgramError::PermissionDenied)
-                    }
-                    _ => VerbProgramFailed(VerbProgramError::DatabaseError),
-                })?;
+            tx.update_verb_with_id(
+                &permissions(&authority_principal),
+                &object,
+                verbdef.uuid(),
+                update_attrs,
+            )
+            .map_err(|e| match e {
+                WorldStateError::VerbPermissionDenied => {
+                    VerbProgramFailed(VerbProgramError::PermissionDenied)
+                }
+                _ => VerbProgramFailed(VerbProgramError::DatabaseError),
+            })?;
 
             Ok(WorldStateResult::VerbProgrammed {
                 object,
@@ -543,7 +573,7 @@ fn execute_single_action(
                 .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
             let value = tx
-                .retrieve_property(&SYSTEM_OBJECT, &object, property)
+                .retrieve_property(&permissions(&SYSTEM_OBJECT), &object, property)
                 .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
             Ok(WorldStateResult::SystemProperty(value))
@@ -562,19 +592,22 @@ fn execute_single_action(
 
             if inherited {
                 let ancestors = tx
-                    .ancestors_of(&authority_principal, &object, true)
+                    .ancestors_of(&permissions(&authority_principal), &object, true)
                     .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
 
                 for ancestor in ancestors.iter() {
-                    let Ok(ancestor_properties) = tx.properties(&authority_principal, &ancestor)
+                    let Ok(ancestor_properties) =
+                        tx.properties(&permissions(&authority_principal), &ancestor)
                     else {
                         continue;
                     };
 
                     for prop in ancestor_properties.iter() {
-                        let Ok((info, prop_perms)) =
-                            tx.get_property_info(&authority_principal, &ancestor, prop.name())
-                        else {
+                        let Ok((info, prop_perms)) = tx.get_property_info(
+                            &permissions(&authority_principal),
+                            &ancestor,
+                            prop.name(),
+                        ) else {
                             continue;
                         };
                         props.push((info, prop_perms));
@@ -582,12 +615,12 @@ fn execute_single_action(
                 }
             } else {
                 let properties = tx
-                    .properties(&authority_principal, &object)
+                    .properties(&permissions(&authority_principal), &object)
                     .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
 
                 for prop in properties.iter() {
                     let (info, prop_perms) = tx
-                        .get_property_info(&authority_principal, &object, prop.name())
+                        .get_property_info(&permissions(&authority_principal), &object, prop.name())
                         .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
                     props.push((info, prop_perms));
                 }
@@ -606,11 +639,11 @@ fn execute_single_action(
                 .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
             let value = tx
-                .retrieve_property(&player, &object, property)
+                .retrieve_property(&permissions(&player), &object, property)
                 .map_err(SchedulerError::PropertyRetrievalFailed)?;
 
             let (info, prop_perms) = tx
-                .get_property_info(&authority_principal, &object, property)
+                .get_property_info(&permissions(&authority_principal), &object, property)
                 .map_err(SchedulerError::PropertyRetrievalFailed)?;
 
             Ok(WorldStateResult::Property(info, prop_perms, value))
@@ -627,19 +660,21 @@ fn execute_single_action(
 
             let verbs = if inherited {
                 let ancestors = tx
-                    .ancestors_of(&authority_principal, &object, true)
+                    .ancestors_of(&permissions(&authority_principal), &object, true)
                     .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
 
                 let mut all_verbs = Vec::new();
                 for ancestor in ancestors.iter() {
-                    let Ok(ancestor_verbs) = tx.verbs(&authority_principal, &ancestor) else {
+                    let Ok(ancestor_verbs) =
+                        tx.verbs(&permissions(&authority_principal), &ancestor)
+                    else {
                         continue;
                     };
                     all_verbs.extend(ancestor_verbs.iter());
                 }
                 all_verbs.into_iter().collect()
             } else {
-                tx.verbs(&authority_principal, &object)
+                tx.verbs(&permissions(&authority_principal), &object)
                     .map_err(SchedulerError::VerbRetrievalFailed)?
             };
 
@@ -656,11 +691,11 @@ fn execute_single_action(
                 .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
             let verbdef = tx
-                .get_verb(&authority_principal, &object, verb)
+                .get_verb(&permissions(&authority_principal), &object, verb)
                 .map_err(SchedulerError::VerbRetrievalFailed)?;
 
             let (program, _) = tx
-                .retrieve_verb(&authority_principal, &object, verbdef.uuid())
+                .retrieve_verb(&permissions(&authority_principal), &object, verbdef.uuid())
                 .map_err(SchedulerError::VerbRetrievalFailed)?;
 
             if program.is_empty() {
@@ -737,8 +772,13 @@ fn execute_single_action(
             let object = match_object_ref(&player, &authority_principal, &obj, tx)
                 .map_err(|_| CommandExecutionError(CommandError::NoObjectMatch))?;
 
-            tx.update_property(&authority_principal, &object, property, &value)
-                .map_err(SchedulerError::PropertyRetrievalFailed)?;
+            tx.update_property(
+                &permissions(&authority_principal),
+                &object,
+                property,
+                &value,
+            )
+            .map_err(SchedulerError::PropertyRetrievalFailed)?;
 
             Ok(WorldStateResult::PropertyUpdated)
         }
@@ -769,22 +809,26 @@ fn get_object_info(
     let owner = tx
         .owner_of(obj)
         .map_err(SchedulerError::PropertyRetrievalFailed)?;
-    let parent = tx.parent_of(player, obj).unwrap_or(moor_var::NOTHING);
-    let location = tx.location_of(player, obj).unwrap_or(moor_var::NOTHING);
+    let parent = tx
+        .parent_of(&permissions(player), obj)
+        .unwrap_or(moor_var::NOTHING);
+    let location = tx
+        .location_of(&permissions(player), obj)
+        .unwrap_or(moor_var::NOTHING);
     let flags = tx
         .flags_of(obj)
         .map_err(SchedulerError::PropertyRetrievalFailed)?;
-    let name = tx.name_of(player, obj).unwrap_or_default();
+    let name = tx.name_of(&permissions(player), obj).unwrap_or_default();
 
     let attrs = ObjAttrs::new(owner, parent, location, flags, &name);
 
     let verbs = tx
-        .verbs(player, obj)
+        .verbs(&permissions(player), obj)
         .map_err(SchedulerError::VerbRetrievalFailed)?;
     let verbs_count = verbs.len();
 
     let props = tx
-        .properties(player, obj)
+        .properties(&permissions(player), obj)
         .map_err(SchedulerError::PropertyRetrievalFailed)?;
     let props_count = props.len();
     Ok((attrs, verbs_count, props_count))
@@ -810,7 +854,9 @@ pub fn match_object_ref(
             // The final value has to be an object, or this is an error.
             let mut obj = SYSTEM_OBJECT;
             for name in names {
-                let Ok(value) = tx.retrieve_property(authority_principal, &obj, *name) else {
+                let Ok(value) =
+                    tx.retrieve_property(&permissions(authority_principal), &obj, *name)
+                else {
                     return Err(WorldStateError::ObjectNotFound(obj_ref.clone()));
                 };
                 let Some(o) = value.as_object() else {
@@ -852,13 +898,17 @@ mod tests {
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
 
+    fn system_permissions() -> TaskPermissions {
+        TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+    }
+
     fn setup_test_db() -> (TxDB, Box<dyn WorldState>) {
         let (db, _) = TxDB::open(None, DatabaseConfig::default());
         let mut tx = db.new_world_state().unwrap();
 
         let sysobj = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &NOTHING,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -866,16 +916,26 @@ mod tests {
             )
             .unwrap();
         tx.update_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &sysobj,
             Symbol::mk("name"),
             &v_str("system"),
         )
         .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("programmer"), &v_int(1))
-            .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &sysobj, Symbol::mk("wizard"), &v_int(1))
-            .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("programmer"),
+            &v_int(1),
+        )
+        .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &sysobj,
+            Symbol::mk("wizard"),
+            &v_int(1),
+        )
+        .unwrap();
 
         (db, tx)
     }
@@ -1065,20 +1125,25 @@ mod tests {
         // Create a child of SYSTEM_OBJECT with User+Programmer flags
         let child = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 &SYSTEM_OBJECT,
                 BitEnum::new_with(ObjFlag::User) | ObjFlag::Programmer,
                 ObjectKind::NextObjid,
             )
             .unwrap();
-        tx.update_property(&SYSTEM_OBJECT, &child, Symbol::mk("name"), &v_str("child"))
-            .unwrap();
+        tx.update_property(
+            &system_permissions(),
+            &child,
+            Symbol::mk("name"),
+            &v_str("child"),
+        )
+        .unwrap();
 
         // Create another object parented to child, no flags
         let grandchild = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &child,
                 &SYSTEM_OBJECT,
                 BitEnum::new(),
@@ -1086,7 +1151,7 @@ mod tests {
             )
             .unwrap();
         tx.update_property(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &grandchild,
             Symbol::mk("name"),
             &v_str("grandchild"),

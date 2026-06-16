@@ -46,7 +46,7 @@ fn bf_property_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
     let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
     let (_, perms) = with_current_transaction(|world_state| {
-        world_state.get_property_info(&bf_args.task_authority_principal(), &obj, prop_name)
+        world_state.get_property_info(&bf_args.task_permissions(), &obj, prop_name)
     })
     .map_err(world_state_bf_err)?;
     let owner = perms.owner();
@@ -130,7 +130,7 @@ fn bf_set_property_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     with_current_transaction_mut(|world_state| {
-        world_state.set_property_info(&bf_args.task_authority_principal(), &obj, prop_name, attrs)
+        world_state.set_property_info(&bf_args.task_permissions(), &obj, prop_name, attrs)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(v_empty_list()))
@@ -147,7 +147,7 @@ fn bf_is_clear_property(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
     let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
     let is_clear = with_current_transaction(|world_state| {
-        world_state.is_property_clear(&bf_args.task_authority_principal(), &obj, prop_name)
+        world_state.is_property_clear(&bf_args.task_permissions(), &obj, prop_name)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(bf_args.v_bool(is_clear)))
@@ -165,7 +165,7 @@ fn bf_clear_property(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
     let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
     with_current_transaction_mut(|world_state| {
-        world_state.clear_property(&bf_args.task_authority_principal(), &obj, prop_name)
+        world_state.clear_property(&bf_args.task_permissions(), &obj, prop_name)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(v_empty_list()))
@@ -199,7 +199,7 @@ fn bf_add_property(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     with_current_transaction_mut(|world_state| {
         world_state.define_property(
-            &bf_args.task_authority_principal(),
+            &bf_args.task_permissions(),
             &location,
             &location,
             prop_name,
@@ -224,7 +224,7 @@ fn bf_delete_property(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
     let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
     with_current_transaction_mut(|world_state| {
-        world_state.delete_property(&bf_args.task_authority_principal(), &obj, prop_name)
+        world_state.delete_property(&bf_args.task_permissions(), &obj, prop_name)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(v_empty_list()))

@@ -19,13 +19,17 @@
 #[cfg(test)]
 mod tests {
     use moor_common::{
-        model::{ObjFlag, ObjectKind, PropFlag, WorldStateSource},
+        model::{ObjFlag, ObjectKind, PropFlag, TaskPermissions, WorldStateSource},
         util::BitEnum,
     };
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_int};
     use rand::Rng;
     use std::{collections::HashMap, path::Path, sync::Arc};
+
+    fn permissions(principal: Obj) -> TaskPermissions {
+        TaskPermissions::new(principal, BitEnum::new())
+    }
 
     fn test_db(path: &Path) -> Arc<TxDB> {
         Arc::new(TxDB::open(Some(path), DatabaseConfig::default()).0)
@@ -47,7 +51,7 @@ mod tests {
         for _ in 0..num_objects {
             let o = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &permissions(SYSTEM_OBJECT),
                     &NOTHING,
                     &SYSTEM_OBJECT,
                     BitEnum::new_with(ObjFlag::Read) | ObjFlag::Write,
@@ -64,7 +68,7 @@ mod tests {
                 let prop_value = v_int(prop_value_i);
 
                 tx.define_property(
-                    &SYSTEM_OBJECT,
+                    &permissions(SYSTEM_OBJECT),
                     &o,
                     &o,
                     Symbol::mk(&prop_name),
@@ -98,20 +102,24 @@ mod tests {
 
         for (o, to) in objects.iter() {
             for (prop_name, prop_value) in to.properties.iter() {
-                let info = tx.get_property_info(&SYSTEM_OBJECT, o, *prop_name).unwrap();
+                let info = tx
+                    .get_property_info(&permissions(SYSTEM_OBJECT), o, *prop_name)
+                    .unwrap();
                 assert_eq!(info.0.name(), *prop_name);
                 assert_eq!(info.0.location(), *o);
                 assert_eq!(info.0.definer(), *o);
                 assert_eq!(info.1.flags(), BitEnum::new_with(PropFlag::Read));
 
-                let value = tx.retrieve_property(&SYSTEM_OBJECT, o, *prop_name).unwrap();
+                let value = tx
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), o, *prop_name)
+                    .unwrap();
                 assert_eq!(value, *prop_value);
             }
         }
 
         // Max object should be consistent
         assert_eq!(
-            tx.max_object(&SYSTEM_OBJECT).unwrap().id().0,
+            tx.max_object(&permissions(SYSTEM_OBJECT)).unwrap().id().0,
             (objects.len() as i32) - 1
         );
     }
@@ -136,20 +144,24 @@ mod tests {
 
         for (o, to) in objects.iter() {
             for (prop_name, prop_value) in to.properties.iter() {
-                let info = tx.get_property_info(&SYSTEM_OBJECT, o, *prop_name).unwrap();
+                let info = tx
+                    .get_property_info(&permissions(SYSTEM_OBJECT), o, *prop_name)
+                    .unwrap();
                 assert_eq!(info.0.name(), *prop_name);
                 assert_eq!(info.0.location(), *o);
                 assert_eq!(info.0.definer(), *o);
                 assert_eq!(info.1.flags(), BitEnum::new_with(PropFlag::Read));
 
-                let value = tx.retrieve_property(&SYSTEM_OBJECT, o, *prop_name).unwrap();
+                let value = tx
+                    .retrieve_property(&permissions(SYSTEM_OBJECT), o, *prop_name)
+                    .unwrap();
                 assert_eq!(value, *prop_value);
             }
         }
 
         // Max object should be consistent
         assert_eq!(
-            tx.max_object(&SYSTEM_OBJECT).unwrap().id().0,
+            tx.max_object(&permissions(SYSTEM_OBJECT)).unwrap().id().0,
             (objects.len() as i32) - 1
         );
     }

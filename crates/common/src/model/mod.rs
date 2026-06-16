@@ -18,6 +18,7 @@ pub use crate::model::{
     objset::{ObjSet, ObjSetIter},
     propdef::{PropDef, PropDefs},
     props::{PropAttr, PropAttrs, PropFlag, PropPerms, prop_flags_string},
+    task_permissions::{CapabilityGrant, CapabilityGrants, TaskPermissions},
     verbdef::{ResolvedVerb, VerbDef, VerbDefs},
     verbs::{BinaryType, VerbAttr, VerbAttrs, VerbFlag, Vid, verb_perms_string},
     world_state::{
@@ -37,6 +38,7 @@ mod objects;
 mod objset;
 mod propdef;
 mod props;
+mod task_permissions;
 mod verbdef;
 mod verbs;
 mod world_state;

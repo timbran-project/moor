@@ -23,7 +23,10 @@ use crate::{
     },
     vm::{Fork, vm_host::VmHost as KernelVmHost},
 };
-use moor_common::util::{BitEnum, Instant, Timestamp};
+use moor_common::{
+    model::TaskPermissions,
+    util::{BitEnum, Instant, Timestamp},
+};
 use moor_compiler::{Label, Offset};
 use moor_schema::{
     common as fb_common, convert as convert_schema,
@@ -1405,7 +1408,7 @@ pub(crate) fn activation_from_ref(
         player,
         verb_name,
         verbdef.as_resolved(),
-        moor_vm::TaskPermissions::new(permissions, permissions_flags),
+        TaskPermissions::new(permissions, permissions_flags),
     ))
 }
 

@@ -113,7 +113,13 @@ fn mk_builtin_table() -> Vec<Builtin> {
     builtins.extend([
         mk_builtin("is_player", Q(1), Q(1), vec![Typed(TYPE_OBJ)], true),
         mk_builtin("caller_perms", Q(0), Q(0), vec![], true),
-        mk_builtin("set_task_perms", Q(1), Q(1), vec![Typed(TYPE_OBJ)], true),
+        mk_builtin(
+            "set_task_perms",
+            Q(1),
+            Q(2),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_LIST)],
+            true,
+        ),
         mk_builtin("time", Q(0), Q(0), vec![], true),
         mk_builtin("ftime", Q(0), Q(1), vec![Typed(TYPE_INT)], true),
         mk_builtin("ctime", Q(0), Q(1), vec![Typed(TYPE_INT)], true),

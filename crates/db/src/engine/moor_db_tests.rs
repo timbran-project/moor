@@ -20,8 +20,8 @@ mod tests {
     use moor_common::{
         model::{
             CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind, ObjectQuery,
-            ObjectRef, PropAttrs, PropFlag, ValSet, VerbArgsSpec, VerbAttrs, VerbFlag,
-            WorldStateError,
+            ObjectRef, PropAttrs, PropFlag, TaskPermissions, ValSet, VerbArgsSpec, VerbAttrs,
+            VerbFlag, WorldStateError,
         },
         util::BitEnum,
     };
@@ -31,6 +31,10 @@ mod tests {
         v_int, v_none, v_str,
     };
     use std::sync::Arc;
+
+    fn permissions(principal: Obj) -> TaskPermissions {
+        TaskPermissions::new(principal, BitEnum::new())
+    }
 
     fn test_db() -> Arc<MoorDB> {
         MoorDB::open(None, DatabaseConfig::default()).0
@@ -462,16 +466,17 @@ mod tests {
 
         // Initially, last_move should be empty map
         let last_move = ws
-            .retrieve_property(&SYSTEM_OBJECT, &obj, Symbol::mk("last_move"))
+            .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
             .unwrap();
         assert!(matches!(last_move.variant(), Variant::Map(_)));
 
         // Move the object
-        ws.move_object(&SYSTEM_OBJECT, &obj, &location).unwrap();
+        ws.move_object(&permissions(SYSTEM_OBJECT), &obj, &location)
+            .unwrap();
 
         // Check last_move property via WorldState interface
         let last_move = ws
-            .retrieve_property(&SYSTEM_OBJECT, &obj, Symbol::mk("last_move"))
+            .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
             .unwrap();
         assert!(matches!(last_move.variant(), Variant::Map(_)));
 
@@ -482,7 +487,7 @@ mod tests {
         let tx = db.start_transaction();
         let ws = DbWorldState { tx };
         let last_move = ws
-            .retrieve_property(&SYSTEM_OBJECT, &obj, Symbol::mk("last_move"))
+            .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
             .unwrap();
         assert!(matches!(last_move.variant(), Variant::Map(_)));
     }
@@ -504,7 +509,7 @@ mod tests {
 
         let mut ws = DbWorldState { tx };
         ws.define_property(
-            &SYSTEM_OBJECT,
+            &permissions(SYSTEM_OBJECT),
             &obj,
             &obj,
             Symbol::mk("test_prop"),
@@ -514,7 +519,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = ws.clear_property(&SYSTEM_OBJECT, &obj, Symbol::mk("test_prop"));
+        let result = ws.clear_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("test_prop"));
         assert_eq!(
             result,
             Err(WorldStateError::CannotClearPropertyOnDefiner(
@@ -567,12 +572,22 @@ mod tests {
         let new_owner_var = Var::from(new_owner);
 
         assert_eq!(
-            ws.update_property(&player, &target, Symbol::mk("owner"), &new_owner_var),
+            ws.update_property(
+                &permissions(player),
+                &target,
+                Symbol::mk("owner"),
+                &new_owner_var
+            ),
             Err(WorldStateError::ObjectPermissionDenied)
         );
 
-        ws.update_property(&wizard, &target, Symbol::mk("owner"), &new_owner_var)
-            .unwrap();
+        ws.update_property(
+            &permissions(wizard),
+            &target,
+            Symbol::mk("owner"),
+            &new_owner_var,
+        )
+        .unwrap();
         assert_eq!(ws.owner_of(&target).unwrap(), new_owner);
     }
 
@@ -617,7 +632,7 @@ mod tests {
 
         let mut ws = DbWorldState { tx };
         ws.define_property(
-            &wizard,
+            &permissions(wizard),
             &target,
             &target,
             Symbol::mk("p"),
@@ -635,7 +650,12 @@ mod tests {
             flags: Some(BitEnum::new_with(PropFlag::Write)),
         };
         assert_eq!(
-            ws.set_property_info(&player, &target, Symbol::mk("p"), transfer_attrs),
+            ws.set_property_info(
+                &permissions(player),
+                &target,
+                Symbol::mk("p"),
+                transfer_attrs
+            ),
             Err(WorldStateError::PropertyPermissionDenied)
         );
 
@@ -646,8 +666,13 @@ mod tests {
             owner: Some(player),
             flags: Some(BitEnum::new_with(PropFlag::Read)),
         };
-        ws.set_property_info(&player, &target, Symbol::mk("p"), same_owner_attrs)
-            .unwrap();
+        ws.set_property_info(
+            &permissions(player),
+            &target,
+            Symbol::mk("p"),
+            same_owner_attrs,
+        )
+        .unwrap();
 
         let transfer_by_wizard = PropAttrs {
             name: None,
@@ -656,10 +681,15 @@ mod tests {
             owner: Some(new_owner),
             flags: Some(BitEnum::new_with(PropFlag::Read)),
         };
-        ws.set_property_info(&wizard, &target, Symbol::mk("p"), transfer_by_wizard)
-            .unwrap();
+        ws.set_property_info(
+            &permissions(wizard),
+            &target,
+            Symbol::mk("p"),
+            transfer_by_wizard,
+        )
+        .unwrap();
         let (_pdef, perms) = ws
-            .get_property_info(&wizard, &target, Symbol::mk("p"))
+            .get_property_info(&permissions(wizard), &target, Symbol::mk("p"))
             .unwrap();
         assert_eq!(perms.owner(), new_owner);
     }
@@ -707,7 +737,7 @@ mod tests {
 
         assert_eq!(
             ws.add_verb(
-                &player,
+                &permissions(player),
                 &target,
                 vec![Symbol::mk("testverb")],
                 &new_owner,
@@ -719,7 +749,7 @@ mod tests {
         );
 
         ws.add_verb(
-            &player,
+            &permissions(player),
             &target,
             vec![Symbol::mk("testverb")],
             &player,
@@ -739,7 +769,7 @@ mod tests {
         };
         assert_eq!(
             ws.update_verb(
-                &player,
+                &permissions(player),
                 &target,
                 Symbol::mk("testverb"),
                 transfer_owner.clone()
@@ -747,10 +777,15 @@ mod tests {
             Err(WorldStateError::VerbPermissionDenied)
         );
 
-        ws.update_verb(&wizard, &target, Symbol::mk("testverb"), transfer_owner)
-            .unwrap();
+        ws.update_verb(
+            &permissions(wizard),
+            &target,
+            Symbol::mk("testverb"),
+            transfer_owner,
+        )
+        .unwrap();
         let verb = ws
-            .get_verb(&wizard, &target, Symbol::mk("testverb"))
+            .get_verb(&permissions(wizard), &target, Symbol::mk("testverb"))
             .unwrap();
         assert_eq!(verb.owner(), new_owner);
     }

@@ -13,13 +13,14 @@
 
 use std::{cell::Cell, marker::PhantomData};
 
-use moor_common::model::{ObjFlag, VerbDef, VerbDispatch, VerbDispatchResult, WorldStateError};
+use moor_common::model::{
+    ObjFlag, TaskPermissions, VerbDef, VerbDispatch, VerbDispatchResult, WorldStateError,
+};
 use moor_common::util::BitEnum;
 use moor_var::{Obj, Symbol, Var, program::ProgramType};
 use uuid::Uuid;
 
 pub(crate) mod activation;
-pub(crate) mod auth;
 pub(crate) mod config;
 pub(crate) mod environment;
 pub(crate) mod moo_execute;
@@ -28,7 +29,6 @@ pub(crate) mod scatter_assign;
 pub(crate) mod vm_unwind;
 
 pub use activation::{Activation, BuiltinFrame, CallProgram, Frame};
-pub use auth::TaskPermissions;
 pub use config::FeaturesConfig;
 pub use environment::Environment;
 pub use moo_execute::{
@@ -51,20 +51,20 @@ pub type PhantomUnsync = PhantomData<Cell<()>>;
 
 /// Services the VM needs from its host environment.
 ///
-/// Permission-sensitive methods receive the current VM authority principal. This is the object the
-/// running activation acts as, not the stack-sensitive `caller_perms()` value.
+/// Permission-sensitive methods receive the current VM task permissions, not the stack-sensitive
+/// `caller_perms()` value.
 /// Monomorphized at the call site for zero-cost dispatch.
 pub trait VmHost {
     fn retrieve_property(
         &mut self,
-        authority_principal: &Obj,
+        permissions: &TaskPermissions,
         obj: &Obj,
         prop: Symbol,
     ) -> Result<Var, WorldStateError>;
 
     fn update_property(
         &mut self,
-        authority_principal: &Obj,
+        permissions: &TaskPermissions,
         obj: &Obj,
         prop: Symbol,
         value: &Var,
@@ -76,16 +76,20 @@ pub trait VmHost {
 
     fn dispatch_verb(
         &mut self,
-        authority_principal: &Obj,
+        permissions: &TaskPermissions,
         dispatch: VerbDispatch<'_>,
     ) -> Result<Option<VerbDispatchResult>, WorldStateError>;
 
-    fn parent_of(&mut self, authority_principal: &Obj, obj: &Obj) -> Result<Obj, WorldStateError>;
+    fn parent_of(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+    ) -> Result<Obj, WorldStateError>;
 
     /// Resolve a verb's program by UUID. Used by the program cache.
     fn retrieve_verb(
         &mut self,
-        authority_principal: &Obj,
+        permissions: &TaskPermissions,
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError>;

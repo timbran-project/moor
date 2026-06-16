@@ -16,7 +16,9 @@
 use std::{cmp::max, sync::Arc, time::Duration};
 
 use moor_common::matching::ParsedCommand;
-use moor_common::model::{DispatchFlagsSource, ObjFlag, VerbDispatch, VerbLookup, WorldState};
+use moor_common::model::{
+    DispatchFlagsSource, ObjFlag, TaskPermissions, VerbDispatch, VerbLookup, WorldState,
+};
 use moor_common::util::BitEnum;
 use moor_compiler::Program;
 use moor_var::{
@@ -299,9 +301,10 @@ pub fn call_verb(
 ) -> ExecResult {
     // Set up the verb call before starting transaction context
     let verb_name = Symbol::mk(verb_name);
+    let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
     let verb_result = world_state
         .dispatch_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions,
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, verb_name),
                 DispatchFlagsSource::Permissions,
@@ -311,7 +314,7 @@ pub fn call_verb(
         .unwrap();
     let program = world_state
         .retrieve_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions,
             &verb_result.program_key.verb_definer,
             verb_result.program_key.verb_uuid,
         )
@@ -532,7 +535,7 @@ pub fn run_activation_assembly_cycle_for_bench(state: &mut ActivationAssemblyBen
         state.player,
         state.verb_name,
         verbdef,
-        moor_vm::TaskPermissions::new(verbdef.owner(), state.permissions_flags),
+        TaskPermissions::new(verbdef.owner(), state.permissions_flags),
     );
     let activation = std::hint::black_box(activation);
     let args = activation.args().clone();

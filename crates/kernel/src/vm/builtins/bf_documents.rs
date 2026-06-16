@@ -141,7 +141,7 @@ fn parse_xml_to_flyweights(
                         // resolve via system object
                         let prop_value = with_current_transaction(|world_state| {
                             world_state.retrieve_property(
-                                &bf_args.task_authority_principal(),
+                                &bf_args.task_permissions(),
                                 &SYSTEM_OBJECT,
                                 key,
                             )
@@ -619,11 +619,7 @@ fn bf_to_xml(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             None => {
                 let key = Symbol::mk("tag");
                 let tag = with_current_transaction(|world_state| {
-                    world_state.retrieve_property(
-                        &bf_args.task_authority_principal(),
-                        fl.delegate(),
-                        key,
-                    )
+                    world_state.retrieve_property(&bf_args.task_permissions(), fl.delegate(), key)
                 })
                 .map_err(world_state_bf_err)?;
 

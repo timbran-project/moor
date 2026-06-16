@@ -12,6 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use moor_common::util::BitEnum;
 
 static SERVER_OPTIONS: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("server_options"));
 static BG_SECONDS: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bg_seconds"));
@@ -25,7 +26,8 @@ static MAX_TASK_RETRIES: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_tas
 static MAX_TASK_MAILBOX: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_task_mailbox"));
 
 fn load_int_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldState) -> Option<u64> {
-    let Ok(value) = tx.retrieve_property(&SYSTEM_OBJECT, server_options_obj, name) else {
+    let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+    let Ok(value) = tx.retrieve_property(&system_permissions, server_options_obj, name) else {
         return None;
     };
     match value.as_integer() {
@@ -38,7 +40,8 @@ fn load_int_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldState)
 }
 
 fn load_float_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldState) -> Option<f64> {
-    let Ok(value) = tx.retrieve_property(&SYSTEM_OBJECT, server_options_obj, name) else {
+    let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+    let Ok(value) = tx.retrieve_property(&system_permissions, server_options_obj, name) else {
         return None;
     };
     match value.as_float_numeric() {
@@ -60,8 +63,9 @@ impl Scheduler {
 
         let mut so = (**self.server_options.load()).clone();
 
+        let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
         let Ok(server_options_obj) =
-            tx.retrieve_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, *SERVER_OPTIONS)
+            tx.retrieve_property(&system_permissions, &SYSTEM_OBJECT, *SERVER_OPTIONS)
         else {
             info!("No server options object found; using defaults");
             tx.rollback().unwrap();

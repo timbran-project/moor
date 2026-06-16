@@ -17,7 +17,7 @@ use strum::EnumCount;
 use uuid::Uuid;
 
 use moor_common::{
-    model::{ObjFlag, ResolvedVerb, VerbArgsSpec, VerbFlag},
+    model::{ObjFlag, ResolvedVerb, TaskPermissions, VerbArgsSpec, VerbFlag},
     util::BitEnum,
 };
 use moor_compiler::{BuiltinId, Program, ScatterLabel};
@@ -27,7 +27,6 @@ use moor_var::{
 };
 
 use crate::{
-    auth::TaskPermissions,
     moo_frame::{MooStackFrame, ProgramSlot},
     scatter_assign::scatter_assign,
 };
@@ -291,7 +290,7 @@ impl Activation {
     #[inline]
     #[must_use]
     pub fn authority(&self) -> TaskPermissions {
-        self.authority
+        self.authority.clone()
     }
 
     #[inline]

@@ -44,14 +44,14 @@ use crate::{
     },
 };
 use fast_telemetry::{Counter, Histogram, MetricKind, MetricLabel, MetricLabels, MetricMeta};
-use moor_common::model::WorldStateError;
+use moor_common::model::{TaskPermissions, WorldStateError};
 use moor_common::util::hot_stride;
 use moor_compiler::{BUILTINS, BuiltinId, DiagnosticRenderOptions, DiagnosticVerbosity};
 use moor_var::{
     E_INVARG, E_PERM, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant,
     v_bool_int, v_map,
 };
-use moor_vm::{BuiltinFrame, ExecState, Frame, TaskPermissions};
+use moor_vm::{BuiltinFrame, ExecState, Frame};
 
 mod bf_cryptography;
 mod bf_documents;
@@ -305,6 +305,11 @@ impl BfCallState<'_> {
         self.exec_state.task_authority_principal()
     }
 
+    /// Return the current task permissions for DB authorization checks.
+    pub fn task_permissions(&self) -> TaskPermissions {
+        self.exec_state.task_permissions()
+    }
+
     pub fn player(&self) -> Obj {
         self.exec_state.top().player()
     }
@@ -315,11 +320,12 @@ impl BfCallState<'_> {
     /// `task_authority_principal()`, while flags are read from the current transaction so changes
     /// to object flags during the task are observed.
     pub fn task_authority(&self) -> Result<TaskPermissions, WorldStateError> {
-        let who = self.task_authority_principal();
+        let permissions = self.task_permissions();
+        let who = permissions.principal();
         // Always do a live lookup here - object flags can change mid-execution
         // (e.g., player.programmer = 0) and builtins need to see current state
         let flags = with_current_transaction(|ws| ws.flags_of(&who))?;
-        Ok(TaskPermissions::new(who, flags))
+        Ok(permissions.with_principal_flags(flags))
     }
 
     pub fn require_wizard(&self) -> Result<(), BfErr> {

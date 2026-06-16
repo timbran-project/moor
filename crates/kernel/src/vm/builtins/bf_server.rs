@@ -42,7 +42,7 @@ use crate::{
 };
 use moor_common::{
     build,
-    model::{ObjFlag, WorldStateError},
+    model::{CapabilityGrant, CapabilityGrants, ObjFlag, WorldStateError},
     util::{
         MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
     },
@@ -53,8 +53,9 @@ use moor_compiler::{
 };
 use moor_db::{ANCESTRY_CACHE_STATS, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters};
 use moor_var::{
-    Associative, E_ARGS, E_INVARG, E_INVIND, E_QUOTA, E_TYPE, Error, Var, VarType::TYPE_NONE,
-    v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
+    Associative, E_ARGS, E_INVARG, E_INVIND, E_QUOTA, E_TYPE, Error, Obj, Symbol, Var,
+    VarType::TYPE_NONE, v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str,
+    v_string, v_sym,
 };
 
 /// Placeholder function for unimplemented builtins.
@@ -107,12 +108,117 @@ fn bf_caller_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_obj(bf_args.caller_perms())))
 }
 
-/// Usage: `none set_task_perms(obj perms)`
+fn parse_capability_grants(value: &Var) -> Result<CapabilityGrants, BfErr> {
+    let Some(grants_list) = value.as_list() else {
+        return Err(ErrValue(
+            E_TYPE.msg("set_task_perms() capability grants must be a list"),
+        ));
+    };
+
+    let mut grants = Vec::with_capacity(grants_list.len());
+    for grant in grants_list.iter() {
+        grants.push(parse_capability_grant(&grant)?);
+    }
+
+    Ok(CapabilityGrants::from_vec(grants))
+}
+
+fn parse_capability_grant(value: &Var) -> Result<CapabilityGrant, BfErr> {
+    let Some(spec) = value.as_list() else {
+        return Err(ErrValue(
+            E_TYPE.msg("set_task_perms() capability grant entries must be lists"),
+        ));
+    };
+    let spec = spec.iter().collect::<Vec<_>>();
+    if spec.is_empty() {
+        return Err(ErrValue(
+            E_INVARG.msg("set_task_perms() capability grant entry cannot be empty"),
+        ));
+    }
+
+    let grant_name = spec[0].as_symbol().map_err(ErrValue)?;
+    match grant_name.as_str() {
+        "object_read" => parse_object_grant(&spec, CapabilityGrant::ObjectRead),
+        "object_write" => parse_object_grant(&spec, CapabilityGrant::ObjectWrite),
+        "property_read" => parse_property_grant(&spec, |obj, prop| CapabilityGrant::PropertyRead {
+            obj,
+            prop,
+        }),
+        "property_write" => parse_property_grant(&spec, |obj, prop| {
+            CapabilityGrant::PropertyWrite { obj, prop }
+        }),
+        "verb_read" => parse_verb_grant(&spec, |obj, verb| CapabilityGrant::VerbRead { obj, verb }),
+        "verb_write" => {
+            parse_verb_grant(&spec, |obj, verb| CapabilityGrant::VerbWrite { obj, verb })
+        }
+        _ => Err(ErrValue(
+            E_INVARG.msg("set_task_perms() capability grant name is not supported"),
+        )),
+    }
+}
+
+fn parse_object_grant(
+    spec: &[Var],
+    grant: impl FnOnce(Obj) -> CapabilityGrant,
+) -> Result<CapabilityGrant, BfErr> {
+    if spec.len() != 2 {
+        return Err(ErrValue(E_INVARG.msg(
+            "set_task_perms() object capability grants require 2 elements",
+        )));
+    }
+    let Some(obj) = spec[1].as_object() else {
+        return Err(ErrValue(E_TYPE.msg(
+            "set_task_perms() object capability target must be an object",
+        )));
+    };
+    Ok(grant(obj))
+}
+
+fn parse_property_grant(
+    spec: &[Var],
+    grant: impl FnOnce(Obj, Symbol) -> CapabilityGrant,
+) -> Result<CapabilityGrant, BfErr> {
+    if spec.len() != 3 {
+        return Err(ErrValue(E_INVARG.msg(
+            "set_task_perms() property capability grants require 3 elements",
+        )));
+    }
+    let Some(obj) = spec[1].as_object() else {
+        return Err(ErrValue(E_TYPE.msg(
+            "set_task_perms() property capability target must be an object",
+        )));
+    };
+    let prop = spec[2].as_symbol().map_err(ErrValue)?;
+    Ok(grant(obj, prop))
+}
+
+fn parse_verb_grant(
+    spec: &[Var],
+    grant: impl FnOnce(Obj, Symbol) -> CapabilityGrant,
+) -> Result<CapabilityGrant, BfErr> {
+    if spec.len() != 3 {
+        return Err(ErrValue(
+            E_INVARG.msg("set_task_perms() verb capability grants require 3 elements"),
+        ));
+    }
+    let Some(obj) = spec[1].as_object() else {
+        return Err(ErrValue(
+            E_TYPE.msg("set_task_perms() verb capability target must be an object"),
+        ));
+    };
+    let verb = spec[2].as_symbol().map_err(ErrValue)?;
+    Ok(grant(obj, verb))
+}
+
+/// Usage: `none set_task_perms(obj perms[, list grants])`
 /// Changes the permissions of the current task to those of the given object.
-/// Raises E_PERM if caller is not a wizard and perms is not the caller.
+/// Raises E_PERM if caller is not a wizard and perms is not the caller. The optional grants list
+/// is wizard-only.
 fn bf_set_task_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() != 1 {
-        return Err(ErrValue(E_ARGS.msg("set_task_perms() requires 1 argument")));
+    if !(1..=2).contains(&bf_args.args.len()) {
+        return Err(ErrValue(
+            E_ARGS.msg("set_task_perms() requires 1 or 2 arguments"),
+        ));
     }
     let Some(perms_for) = bf_args.args[0].as_object() else {
         return Err(ErrValue(
@@ -120,13 +226,25 @@ fn bf_set_task_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    bf_args.require_controls_msg(
-        &perms_for,
-        "set_task_perms() requires the caller to be a wizard or the caller itself",
-    )?;
-    bf_args
-        .exec_state
-        .set_task_perms(&mut crate::vm::kernel_host::KernelHost, perms_for);
+    if bf_args.args.len() == 2 {
+        bf_args.require_wizard_msg(
+            "set_task_perms() with capability grants requires wizard permissions",
+        )?;
+        let grants = parse_capability_grants(&bf_args.args[1])?;
+        bf_args.exec_state.set_task_perms_with_grants(
+            &mut crate::vm::kernel_host::KernelHost,
+            perms_for,
+            grants,
+        );
+    } else {
+        bf_args.require_controls_msg(
+            &perms_for,
+            "set_task_perms() requires the caller to be a wizard or the caller itself",
+        )?;
+        bf_args
+            .exec_state
+            .set_task_perms(&mut crate::vm::kernel_host::KernelHost, perms_for);
+    }
 
     Ok(RetNil)
 }
@@ -1199,4 +1317,45 @@ pub(crate) fn register_bf_server(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("player_event_log_stats")] = bf_player_event_log_stats;
     builtins[offset_for_builtin("purge_player_event_log")] = bf_purge_player_event_log;
     builtins[offset_for_builtin("program_cache_stats")] = bf_program_cache_stats;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_supported_capability_grants() {
+        let obj = Obj::mk_id(10);
+        let grants = parse_capability_grants(&v_list(&[
+            v_list(&[v_str("object_read"), v_obj(obj)]),
+            v_list(&[v_str("property_write"), v_obj(obj), v_str("p")]),
+            v_list(&[v_sym(Symbol::mk("verb_read")), v_obj(obj), v_str("v")]),
+        ]))
+        .unwrap();
+
+        let parsed = grants.iter().collect::<Vec<_>>();
+        assert_eq!(
+            parsed,
+            vec![
+                CapabilityGrant::ObjectRead(obj),
+                CapabilityGrant::PropertyWrite {
+                    obj,
+                    prop: Symbol::mk("p"),
+                },
+                CapabilityGrant::VerbRead {
+                    obj,
+                    verb: Symbol::mk("v"),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_capability_grants() {
+        let obj = Obj::mk_id(10);
+        assert!(
+            parse_capability_grants(&v_list(&[v_list(&[v_str("object_move"), v_obj(obj)])]))
+                .is_err()
+        );
+    }
 }

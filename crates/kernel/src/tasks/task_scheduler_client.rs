@@ -18,14 +18,13 @@ use crate::{
     vm::{Fork, TaskSuspend},
 };
 use moor_common::{
-    model::WorldState,
+    model::{TaskPermissions, WorldState},
     tasks::{
         AbortLimitReason, CommandError, EventLogPurgeResult, EventLogStats, Exception,
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
 use moor_var::{Error, Obj, Symbol, Var};
-use moor_vm::TaskPermissions;
 
 use crate::tasks::scheduler::Scheduler;
 

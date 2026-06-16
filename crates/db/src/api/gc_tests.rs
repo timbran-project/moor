@@ -17,12 +17,16 @@
 mod tests {
     use crate::{Database, DatabaseConfig, TxDB};
     use moor_common::{
-        model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, WorldStateSource},
+        model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, TaskPermissions, WorldStateSource},
         util::BitEnum,
     };
     use moor_var::{NOTHING, Obj, Symbol, v_int, v_list, v_map, v_obj, v_str};
 
     const WIZARD: Obj = Obj::mk_id(2);
+
+    fn permissions(principal: Obj) -> TaskPermissions {
+        TaskPermissions::new(principal, BitEnum::new())
+    }
 
     fn test_db() -> TxDB {
         let db = TxDB::open(None, DatabaseConfig::default()).0;
@@ -46,7 +50,7 @@ mod tests {
         let mut tx = db.new_world_state().unwrap();
         let anon1 = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -55,7 +59,7 @@ mod tests {
             .unwrap();
         let anon2 = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -76,7 +80,7 @@ mod tests {
         let mut tx2 = db.new_world_state().unwrap();
         let anon3 = tx2
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -101,7 +105,7 @@ mod tests {
         let mut tx = db.new_world_state().unwrap();
         let anon1 = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -110,7 +114,7 @@ mod tests {
             .unwrap();
         let anon2 = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -148,7 +152,7 @@ mod tests {
         let mut create_tx = db.new_world_state().unwrap();
         let anon_parent = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -157,7 +161,7 @@ mod tests {
             .unwrap();
         let anon_location = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -166,7 +170,7 @@ mod tests {
             .unwrap();
         let anon_child = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -185,7 +189,7 @@ mod tests {
         // Create regular object with anonymous parent and location
         let obj = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &anon_parent,
                 &WIZARD,
                 BitEnum::new(),
@@ -193,10 +197,12 @@ mod tests {
             )
             .unwrap();
 
-        tx.move_object(&WIZARD, &obj, &anon_location).unwrap();
+        tx.move_object(&permissions(WIZARD), &obj, &anon_location)
+            .unwrap();
 
         // Create another object with anonymous child (anon_child located in obj)
-        tx.move_object(&WIZARD, &anon_child, &obj).unwrap();
+        tx.move_object(&permissions(WIZARD), &anon_child, &obj)
+            .unwrap();
 
         assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
 
@@ -235,7 +241,7 @@ mod tests {
         let mut create_tx = db.new_world_state().unwrap();
         let anon1 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -244,7 +250,7 @@ mod tests {
             .unwrap();
         let anon2 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -253,7 +259,7 @@ mod tests {
             .unwrap();
         let anon3 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -269,7 +275,7 @@ mod tests {
         let mut tx = db.new_world_state().unwrap();
         let obj = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -291,7 +297,7 @@ mod tests {
         ]);
 
         tx.define_property(
-            &WIZARD,
+            &permissions(WIZARD),
             &obj,
             &obj,
             Symbol::mk("deeply_nested"),
@@ -331,7 +337,7 @@ mod tests {
         let mut create_tx = db.new_world_state().unwrap();
         let anon1 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -340,7 +346,7 @@ mod tests {
             .unwrap();
         let anon2 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -349,7 +355,7 @@ mod tests {
             .unwrap();
         let anon3 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -358,7 +364,7 @@ mod tests {
             .unwrap();
         let anon4 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -374,7 +380,7 @@ mod tests {
         let mut tx = db.new_world_state().unwrap();
         let obj = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -384,7 +390,7 @@ mod tests {
 
         // Only reference anon1 and anon3, leaving anon2 and anon4 unreachable
         tx.define_property(
-            &WIZARD,
+            &permissions(WIZARD),
             &obj,
             &obj,
             Symbol::mk("ref1"),
@@ -395,7 +401,7 @@ mod tests {
         .unwrap();
 
         tx.define_property(
-            &WIZARD,
+            &permissions(WIZARD),
             &obj,
             &obj,
             Symbol::mk("ref2"),
@@ -436,7 +442,7 @@ mod tests {
         let mut create_tx = db.new_world_state().unwrap();
         let anon1 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -445,7 +451,7 @@ mod tests {
             .unwrap();
         let anon2 = create_tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -461,7 +467,7 @@ mod tests {
         let mut tx = db.new_world_state().unwrap();
         let obj = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -470,7 +476,7 @@ mod tests {
             .unwrap();
 
         tx.define_property(
-            &WIZARD,
+            &permissions(WIZARD),
             &obj,
             &obj,
             Symbol::mk("anon_ref"),
@@ -520,7 +526,7 @@ mod tests {
         let mut tx = db.new_world_state().unwrap();
         let obj1 = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -529,7 +535,7 @@ mod tests {
             .unwrap();
         let obj2 = tx
             .create_object(
-                &WIZARD,
+                &permissions(WIZARD),
                 &NOTHING,
                 &WIZARD,
                 BitEnum::new(),
@@ -538,7 +544,7 @@ mod tests {
             .unwrap();
 
         tx.define_property(
-            &WIZARD,
+            &permissions(WIZARD),
             &obj1,
             &obj1,
             Symbol::mk("regular_ref"),
@@ -549,7 +555,7 @@ mod tests {
         .unwrap();
 
         tx.define_property(
-            &WIZARD,
+            &permissions(WIZARD),
             &obj1,
             &obj1,
             Symbol::mk("simple_data"),

@@ -23,8 +23,8 @@ use moor_common::matching::{
 use moor_common::model::{ObjSet, PrepSpec, verb_perms_string};
 use moor_common::{
     model::{
-        DispatchFlagsSource, Named, ObjFlag, ObjectKind, ValSet, VerbDispatch, VerbLookup,
-        WorldStateError, command_verb_argspec,
+        DispatchFlagsSource, Named, ObjFlag, ObjectKind, TaskPermissions, ValSet, VerbDispatch,
+        VerbLookup, WorldStateError, command_verb_argspec,
     },
     util::BitEnum,
 };
@@ -65,7 +65,7 @@ fn create_object_with_initialize(
 ) -> Result<BfRet, BfErr> {
     let new_obj = with_current_transaction_mut(|ws| {
         ws.create_object(
-            &bf_args.task_authority_principal(),
+            &bf_args.task_permissions(),
             parent,
             owner,
             BitEnum::new(),
@@ -78,7 +78,7 @@ fn create_object_with_initialize(
     let authority_principal = bf_args.task_authority_principal();
     let Ok(Some(verb_result)) = with_current_transaction(|world_state| {
         world_state.dispatch_verb(
-            &authority_principal,
+            &bf_args.task_permissions(),
             VerbDispatch::new(
                 VerbLookup::method(&new_obj, *INITIALIZE_SYM),
                 DispatchFlagsSource::Permissions,
@@ -149,7 +149,7 @@ fn bf_parent(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let parent = with_current_transaction(|world_state| {
-        world_state.parent_of(&bf_args.task_authority_principal(), &obj)
+        world_state.parent_of(&bf_args.task_permissions(), &obj)
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(v_obj(parent)))
@@ -186,7 +186,7 @@ fn bf_chparent(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     with_current_transaction_mut(|world_state| {
-        world_state.change_parent(&bf_args.task_authority_principal(), &obj, &new_parent)
+        world_state.change_parent(&bf_args.task_permissions(), &obj, &new_parent)
     })
     .map_err(world_state_bf_err)?;
     Ok(RetNil)
@@ -212,7 +212,7 @@ fn bf_children(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let children = with_current_transaction(|world_state| {
-        world_state.children_of(&bf_args.task_authority_principal(), &obj)
+        world_state.children_of(&bf_args.task_permissions(), &obj)
     })
     .map_err(world_state_bf_err)?;
 
@@ -242,7 +242,7 @@ fn bf_descendants(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let descendants = with_current_transaction(|world_state| {
-        world_state.descendants_of(&bf_args.task_authority_principal(), &obj, false)
+        world_state.descendants_of(&bf_args.task_permissions(), &obj, false)
     })
     .map_err(world_state_bf_err)?;
 
@@ -278,7 +278,7 @@ fn bf_ancestors(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     let ancestors = with_current_transaction(|world_state| {
-        world_state.ancestors_of(&bf_args.task_authority_principal(), &obj, add_self)
+        world_state.ancestors_of(&bf_args.task_permissions(), &obj, add_self)
     })
     .map_err(world_state_bf_err)?;
 
@@ -343,7 +343,7 @@ fn bf_isa(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     let ancestors = with_current_transaction(|world_state| {
-        world_state.ancestors_of(&bf_args.task_authority_principal(), &obj, true)
+        world_state.ancestors_of(&bf_args.task_permissions(), &obj, true)
     })
     .map_err(world_state_bf_err)?;
 
@@ -414,7 +414,7 @@ fn bf_locations(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     loop {
         // Get the location of the current object
         let location = with_current_transaction(|world_state| {
-            world_state.location_of(&bf_args.task_authority_principal(), &current)
+            world_state.location_of(&bf_args.task_permissions(), &current)
         })
         .map_err(world_state_bf_err)?;
 
@@ -442,7 +442,7 @@ fn bf_locations(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         {
             // If is_parent is true, check if location is a child of stop
             let ancestors = with_current_transaction(|world_state| {
-                world_state.ancestors_of(&bf_args.task_authority_principal(), &location, false)
+                world_state.ancestors_of(&bf_args.task_permissions(), &location, false)
             })
             .map_err(world_state_bf_err)?;
             if ancestors.contains(stop) {
@@ -710,7 +710,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 // objects to move/call :exitfunc on. So let's get the initial list of objects
                 // now
                 let object_contents = with_current_transaction(|world_state| {
-                    world_state.contents_of(&bf_args.task_authority_principal(), &obj)
+                    world_state.contents_of(&bf_args.task_permissions(), &obj)
                 })
                 .map_err(world_state_bf_err)?;
                 // Filter contents for objects that have an :exitfunc verb.
@@ -718,7 +718,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 for o in object_contents.iter() {
                     match with_current_transaction(|world_state| {
                         world_state.lookup_verb(
-                            &bf_args.task_authority_principal(),
+                            &bf_args.task_permissions(),
                             VerbLookup::method(&o, *EXITFUNC_SYM),
                         )
                     }) {
@@ -738,7 +738,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &authority_principal,
+                        &bf_args.task_permissions(),
                         VerbDispatch::new(
                             VerbLookup::method(&obj, *RECYCLE_SYM),
                             DispatchFlagsSource::Permissions,
@@ -805,7 +805,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     let authority_principal = bf_args.task_authority_principal();
                     let Ok(Some(verb_result)) = with_current_transaction(|world_state| {
                         world_state.dispatch_verb(
-                            &authority_principal,
+                            &bf_args.task_permissions(),
                             VerbDispatch::new(
                                 VerbLookup::method(&head_obj, *EXITFUNC_SYM),
                                 DispatchFlagsSource::Permissions,
@@ -839,7 +839,7 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Some(BF_RECYCLE_TRAMPOLINE_DONE_MOVE) => {
                 debug!(obj = ?obj, "Recycling object");
                 with_current_transaction_mut(|world_state| {
-                    world_state.recycle_object(&bf_args.task_authority_principal(), &obj)
+                    world_state.recycle_object(&bf_args.task_permissions(), &obj)
                 })
                 .map_err(world_state_bf_err)?;
                 return Ok(Ret(v_int(0)));
@@ -860,10 +860,9 @@ fn bf_max_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_ARGS.msg("max_object() takes no arguments"),
         ));
     }
-    let max_obj = with_current_transaction(|world_state| {
-        world_state.max_object(&bf_args.task_authority_principal())
-    })
-    .map_err(world_state_bf_err)?;
+    let max_obj =
+        with_current_transaction(|world_state| world_state.max_object(&bf_args.task_permissions()))
+            .map_err(world_state_bf_err)?;
     Ok(Ret(v_obj(max_obj)))
 }
 
@@ -926,7 +925,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &authority_principal,
+                        &bf_args.task_permissions(),
                         VerbDispatch::new(
                             VerbLookup::method(&whereto, *ACCEPT_SYM),
                             DispatchFlagsSource::Permissions,
@@ -983,13 +982,13 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 trace!(what = ?what, where_to = ?whereto, tramp, "move: moving object & calling enterfunc");
 
                 let original_location = with_current_transaction(|world_state| {
-                    world_state.location_of(&bf_args.task_authority_principal(), &what)
+                    world_state.location_of(&bf_args.task_permissions(), &what)
                 })
                 .map_err(world_state_bf_err)?;
 
                 // Failure here is likely due to permissions, so we'll just propagate that error.
                 with_current_transaction_mut(|world_state| {
-                    world_state.move_object(&bf_args.task_authority_principal(), &what, &whereto)
+                    world_state.move_object(&bf_args.task_permissions(), &what, &whereto)
                 })
                 .map_err(world_state_bf_err)?;
 
@@ -1003,7 +1002,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &authority_principal,
+                        &bf_args.task_permissions(),
                         VerbDispatch::new(
                             VerbLookup::method(&original_location, *EXITFUNC_SYM),
                             DispatchFlagsSource::Permissions,
@@ -1052,7 +1051,7 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
-                        &authority_principal,
+                        &bf_args.task_permissions(),
                         VerbDispatch::new(
                             VerbLookup::method(&whereto, *ENTERFUNC_SYM),
                             DispatchFlagsSource::Permissions,
@@ -1115,7 +1114,7 @@ fn bf_verbs(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
     let verbs = with_current_transaction(|world_state| {
-        world_state.verbs(&bf_args.task_authority_principal(), &obj)
+        world_state.verbs(&bf_args.task_permissions(), &obj)
     })
     .map_err(world_state_bf_err)?;
     let verbs: Vec<_> = verbs
@@ -1138,7 +1137,7 @@ fn bf_properties(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
     let props = with_current_transaction(|world_state| {
-        world_state.properties(&bf_args.task_authority_principal(), &obj)
+        world_state.properties(&bf_args.task_permissions(), &obj)
     })
     .map_err(world_state_bf_err)?;
     let props: Vec<_> = if bf_args.config.use_symbols_in_builtins {
@@ -1186,7 +1185,7 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     with_current_transaction_mut(|world_state| {
-        world_state.set_flags_of(&bf_args.task_authority_principal(), &obj, flags)
+        world_state.set_flags_of(&bf_args.task_permissions(), &obj, flags)
     })
     .map_err(world_state_bf_err)?;
 
@@ -1253,7 +1252,7 @@ fn bf_owned_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     let owned_objects = with_current_transaction(|world_state| {
-        world_state.owned_objects(&bf_args.task_authority_principal(), &owner)
+        world_state.owned_objects(&bf_args.task_permissions(), &owner)
     })
     .map_err(world_state_bf_err)?;
 
@@ -1323,7 +1322,7 @@ fn bf_renumber(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Call the world state renumber_object method
     let new_obj = with_current_transaction_mut(|world_state| {
-        world_state.renumber_object(&bf_args.task_authority_principal(), &obj, target)
+        world_state.renumber_object(&bf_args.task_permissions(), &obj, target)
     })
     .map_err(world_state_bf_err)?;
 
@@ -1461,7 +1460,7 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Create a custom MatchEnvironment that uses the provided environment list
     struct ListMatchEnvironment {
-        who: Obj,
+        permissions: TaskPermissions,
         location_override: Option<Obj>,
         name_map: std::collections::HashMap<Obj, Vec<String>>,
     }
@@ -1473,7 +1472,7 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             name_map: HashMap<Obj, Vec<String>>,
         ) -> Result<Self, WorldStateError> {
             Ok(Self {
-                who,
+                permissions: TaskPermissions::new(who, BitEnum::new()),
                 location_override,
                 name_map,
             })
@@ -1494,8 +1493,9 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             }
 
             // Fall back to getting names from world state
-            let names =
-                with_current_transaction(|world_state| world_state.names_of(&self.who, oid))?;
+            let names = with_current_transaction(|world_state| {
+                world_state.names_of(&self.permissions, oid)
+            })?;
             let mut result = vec![names.0];
             result.extend(names.1);
             Ok(result)
@@ -1514,7 +1514,9 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             if let Some(loc) = self.location_override {
                 return Ok(loc);
             }
-            with_current_transaction(|world_state| world_state.location_of(&self.who, player))
+            with_current_transaction(|world_state| {
+                world_state.location_of(&self.permissions, player)
+            })
         }
     }
 
@@ -1806,7 +1808,7 @@ fn bf_find_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         // Look for command verb on this target
         let match_result = with_current_transaction(|world_state| {
             world_state.lookup_verb(
-                &bf_args.task_authority_principal(),
+                &bf_args.task_permissions(),
                 VerbLookup::command(
                     &target,
                     verb_sym,
@@ -1978,10 +1980,9 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
             }
 
             // Look up the command verb
-            let authority_principal = bf_args.task_authority_principal();
             let match_result = with_current_transaction(|world_state| {
                 world_state.dispatch_verb(
-                    &authority_principal,
+                    &bf_args.task_permissions(),
                     VerbDispatch::new(
                         VerbLookup::command(
                             &target,
