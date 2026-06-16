@@ -361,6 +361,8 @@ object ROOT
     claims2 = key ? paseto_verify_local((cap2).token, key) | paseto_verify_local((cap2).token);
     $root:_capability_is_revoked(claims1) && raise(E_PERM);
     $root:_capability_is_revoked(claims2) && raise(E_PERM);
+    maphaskey(claims1, "exp") && time() > claims1["exp"] && raise(E_PERM);
+    maphaskey(claims2, "exp") && time() > claims2["exp"] && raise(E_PERM);
     "Combine capability lists (remove duplicates)";
     all_caps = {@claims1["caps"], @claims2["caps"]};
     unique_caps = {};

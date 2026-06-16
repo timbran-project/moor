@@ -917,6 +917,34 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_merge_rejects_expired_inputs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: expired capabilities cannot be laundered through merge.";
+    key = this:_test_key();
+    target = #-1;
+    try
+      target = create($thing);
+      expired_cap = target:issue_capability(target, {'read}, time() - 1, 0, key);
+      live_cap = target:issue_capability(target, {'write}, time() + 3600, 0, key);
+      expired_denied = false;
+      try
+        expired_cap:challenge_for_with_key({'read}, key);
+      except (E_PERM)
+        expired_denied = true;
+      endtry
+      $test_utils:assert_true(expired_denied, "expired fixture capability should be denied before merge");
+      merge_denied = false;
+      try
+        $root:merge_capability(expired_cap, live_cap, key);
+      except (E_PERM)
+        merge_denied = true;
+      endtry
+      $test_utils:assert_true(merge_denied, "merge should reject expired input instead of reissuing its permissions");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
   verb _make_room_with_area_grant_as_player (this none this) owner: PLAYER flags: "rxd"
     "Use PLAYER's stored area grant to create a room in target_area.";
     {target_area} = args;
