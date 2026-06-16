@@ -521,11 +521,11 @@ object DATA_VISOR
     "Tool: Find an object by name, reference, or ID and return detailed information";
     {args_map, actor} = args;
     wearer = this:_action_perms_check(actor);
-    set_task_perms(wearer);
     ref = args_map["reference"];
     typeof(ref) == TYPE_STR || raise(E_TYPE("Expected reference string"));
     try
       o = $match:match_object(ref, wearer);
+      set_task_perms(wearer, {{"object_read", o}});
       return {"=== Object: " + tostr(o) + " ===", "Name: " + o:name(), "Parent: " + tostr(`parent(o) ! ANY => #-1'), "Owner: " + tostr(o.owner), "Location: " + tostr(o.location), "Properties: " + toliteral(properties(o)), "Verbs: " + toliteral(verbs(o))}:join("\n");
     except e (ANY)
       return toliteral(["found" -> false, "error" -> e[2]]);
@@ -629,72 +629,71 @@ object DATA_VISOR
   method _tool_present_verb_code owner: ARCH_WIZARD
     "Tool: Present formatted verb code to the user";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
-    show_line_numbers = maphaskey(args_map, "show_line_numbers") ? args_map["show_line_numbers"] | true;
-    typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
-    typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
-    valid(wearer) || raise(E_INVARG("Visor has no wearer"));
-    verb_location = o:find_verb_definer(verb_name);
-    verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
-    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
-    metadata || raise(E_VERBNF("Could not retrieve verb metadata"));
-    code_lines = verb_code(verb_location, verb_name, false, true);
-    verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
-    args_spec = metadata:args_spec();
-    headers = {"Verb", "Args", "Owner", "Flags"};
-    row = {verb_signature, args_spec, tostr(metadata:verb_owner()), metadata:flags()};
-    metadata_table = $format.table:mk(headers, {row});
-    "Add line numbers if requested";
-    if (show_line_numbers)
-      code_lines = $prog_utils:format_line_numbers(code_lines);
-    endif
-    "Format as code block";
-    formatted_code = $format.code:mk(code_lines, 'moo);
-    "Combine table and code";
-    content = $format.block:mk(metadata_table, formatted_code);
+    wearer = this:_action_perms_check(actor);
+    payload = this:_tool_build_present_verb_code_payload(args_map, actor, false);
     "Send to wearer";
-    listing_event = $event:mk_eval_result(wearer, "", content);
+    set_task_perms(wearer);
+    listing_event = $event:mk_eval_result(wearer, "", payload["content"]);
     wearer:inform_current(listing_event);
-    return "Code presented to user: " + verb_signature;
+    return "Code presented to user: " + payload["verb_signature"];
   endmethod
 
   method _tool_present_verb_code_range owner: ARCH_WIZARD
     "Tool: Present a range of verb code to the user";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
+    payload = this:_tool_build_present_verb_code_payload(args_map, actor, true);
+    "Send to wearer";
     set_task_perms(wearer);
+    listing_event = $event:mk_eval_result(wearer, "", payload["content"]);
+    wearer:inform_current(listing_event);
+    return "Code range presented to user: " + payload["verb_signature"] + " lines " + tostr(payload["actual_start"]) + "-" + tostr(payload["actual_end"]);
+  endmethod
+
+  method _tool_build_present_verb_code_payload owner: ARCH_WIZARD
+    "Build present_* verb content under scoped read grants.";
+    caller == this || raise(E_PERM);
+    {args_map, actor, range_mode} = args;
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
-    start_line = args_map["start_line"];
-    end_line = args_map["end_line"];
-    context_lines = maphaskey(args_map, "context_lines") ? args_map["context_lines"] | 0;
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     "Find where verb is defined";
-    verb_location = o:find_verb_definer(verb_name);
+    verb_location = this:_tool_find_present_verb_definer(o, verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
+    set_task_perms(wearer, {{"object_read", o}, {"verb_read", verb_location, verb_name}});
     "Get verb metadata";
-    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
-    if (!metadata)
-      raise(E_VERBNF("Could not retrieve verb metadata"));
-    endif
-    {verb_owner, verb_flags, dobj, prep, iobj} = metadata;
+    {verb_owner, verb_flags, verb_names} = verb_info(verb_location, verb_name);
+    {dobj, prep, iobj} = verb_args(verb_location, verb_name);
     "Get verb code";
     code_lines = verb_code(verb_location, verb_name, false, true);
+    verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
+    args_spec = dobj + " " + prep + " " + iobj;
+    if (!range_mode)
+      show_line_numbers = maphaskey(args_map, "show_line_numbers") ? args_map["show_line_numbers"] | true;
+      headers = {"Verb", "Args", "Owner", "Flags"};
+      row = {verb_signature, args_spec, tostr(verb_owner), verb_flags};
+      metadata_table = $format.table:mk(headers, {row});
+      "Add line numbers if requested";
+      if (show_line_numbers)
+        code_lines = $prog_utils:format_line_numbers(code_lines);
+      endif
+      formatted_code = $format.code:mk(code_lines, 'moo);
+      content = $format.block:mk(metadata_table, formatted_code);
+      return ["verb_signature" -> verb_signature, "content" -> content, "actual_start" -> 0, "actual_end" -> 0];
+    endif
+    start_line = args_map["start_line"];
+    end_line = args_map["end_line"];
+    context_lines = maphaskey(args_map, "context_lines") ? args_map["context_lines"] | 0;
     "Apply context and validate range";
     actual_start = max(1, start_line - context_lines);
     actual_end = min(length(code_lines), end_line + context_lines);
     actual_start > actual_end && raise(E_INVARG("Invalid line range"));
     "Build metadata table with line range info";
-    verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
-    args_spec = dobj + " " + prep + " " + iobj;
     line_range = "Lines " + tostr(actual_start) + "-" + tostr(actual_end) + " of " + tostr(length(code_lines));
-    headers = {"Verb", "Args", "Range"};
-    row = {verb_signature, args_spec, line_range};
-    metadata_table = $format.table:mk(headers, {row});
+    metadata_table = $format.table:mk({"Verb", "Args", "Range"}, {{verb_signature, args_spec, line_range}});
     "Extract range and add line numbers";
     range_lines = code_lines[actual_start..actual_end];
     numbered_lines = $prog_utils:format_line_numbers(range_lines);
@@ -702,10 +701,14 @@ object DATA_VISOR
     formatted_code = $format.code:mk(numbered_lines, 'moo);
     "Combine table and code";
     content = $format.block:mk(metadata_table, formatted_code);
-    "Send to wearer";
-    listing_event = $event:mk_eval_result(wearer, "", content);
-    wearer:inform_current(listing_event);
-    return "Code range presented to user: " + verb_signature + " lines " + tostr(actual_start) + "-" + tostr(actual_end);
+    return ["verb_signature" -> verb_signature, "content" -> content, "actual_start" -> actual_start, "actual_end" -> actual_end];
+  endmethod
+
+  method _tool_find_present_verb_definer owner: ARCH_WIZARD
+    "Resolve the verb definer before scoped verb grants are installed.";
+    caller == this || raise(E_PERM);
+    {o, verb_name} = args;
+    return o:find_verb_definer(verb_name);
   endmethod
 
   method _tool_add_verb owner: ARCH_WIZARD
@@ -1676,34 +1679,52 @@ object DATA_VISOR
     return "Investigation #" + tostr(task_obj.task_id) + " completed.";
   endmethod
 
-  method test_read_tool_scoped_grants owner: HACKER
+  method test_read_tool_scoped_grants owner: ARCH_WIZARD
     "Read-only inspection tools should use narrow grants for private targets.";
+    actor = $actor:create(0);
     visor = $data_visor:create(true);
     target = $thing:create(0);
     try
-      visor:moveto($test_player);
+      actor.name = "Data Visor Read Actor";
+      actor.programmer = true;
+      add_verb(actor, {$hacker, "xd", "is_wearing"}, {"this", "none", "this"});
+      set_verb_code(actor, "is_wearing", {"{item} = args;", "return item in this.wearing;"});
+      add_verb(actor, {$hacker, "xd", "inform_current"}, {"this", "none", "this"});
+      errors = set_verb_code(actor, "inform_current", {"return true;"}, 2, 1);
+      $test_utils:assert_false(errors, "temporary inform_current stub should compile");
+      visor:moveto(actor);
+      actor.wearing = {visor};
       target.name = "Data Visor Private Probe";
       target.r = 0;
       add_property(target, "visor_private_probe", "secret", {$hacker, ""});
       add_verb(target, {$hacker, "xd", "visor_private_verb"}, {"this", "none", "this"});
       set_verb_code(target, "visor_private_verb", {"return \"secret\";"});
-      prop_result = visor:_tool_read_property(["object" -> tostr(target), "property" -> "visor_private_probe"], $test_player);
+      prop_result = visor:_tool_read_property(["object" -> tostr(target), "property" -> "visor_private_probe"], actor);
       $test_utils:assert_eq(prop_result, "\"secret\"", "read_property should read a non-readable property through a property_read grant");
-      code_result = visor:_tool_get_verb_code(["object" -> tostr(target), "verb" -> "visor_private_verb"], $test_player);
+      code_result = visor:_tool_get_verb_code(["object" -> tostr(target), "verb" -> "visor_private_verb"], actor);
       $test_utils:assert_true(index(code_result, "return \"secret\";") > 0, "get_verb_code should read non-readable verb code through a verb_read grant");
-      range_result = visor:_tool_get_verb_code_range(["object" -> tostr(target), "verb" -> "visor_private_verb", "start_line" -> 1, "end_line" -> 1], $test_player);
+      range_result = visor:_tool_get_verb_code_range(["object" -> tostr(target), "verb" -> "visor_private_verb", "start_line" -> 1, "end_line" -> 1], actor);
       $test_utils:assert_true(index(range_result, "1: return \"secret\";") > 0, "get_verb_code_range should read non-readable verb code through a verb_read grant");
-      verbs_result = visor:_tool_list_verbs(["object" -> tostr(target)], $test_player);
+      verbs_result = visor:_tool_list_verbs(["object" -> tostr(target)], actor);
       $test_utils:assert_true(index(verbs_result, "visor_private_verb") > 0, "list_verbs should enumerate a non-readable object through an object_read grant");
-      metadata_result = visor:_tool_get_verb_metadata(["object" -> tostr(target), "verb" -> "visor_private_verb"], $test_player);
+      metadata_result = visor:_tool_get_verb_metadata(["object" -> tostr(target), "verb" -> "visor_private_verb"], actor);
       $test_utils:assert_true(index(metadata_result, "visor_private_verb") > 0, "get_verb_metadata should inspect a non-readable verb through grants");
-      properties_result = visor:_tool_get_properties(["object" -> tostr(target)], $test_player);
+      properties_result = visor:_tool_get_properties(["object" -> tostr(target)], actor);
       $test_utils:assert_true(index(properties_result, "visor_private_probe") > 0, "get_properties should enumerate a non-readable object through object_read and property_read grants");
-      dump_result = visor:_tool_dump_object(["object" -> "$data_visor"], $test_player);
+      dump_result = visor:_tool_dump_object(["object" -> "$data_visor"], actor);
       $test_utils:assert_true(index(dump_result, "_tool_dump_object") > 0, "dump_object should use a scoped builtin_call grant");
+      find_result = visor:_tool_find_object(["reference" -> tostr(target)], actor);
+      $test_utils:assert_true(index(find_result, "visor_private_probe") > 0, "find_object should inspect through an object_read grant");
+      present_result = visor:_tool_present_verb_code(["object" -> tostr(target), "verb" -> "visor_private_verb"], actor);
+      $test_utils:assert_true(index(present_result, "Code presented to user") > 0, "present_verb_code should use scoped object_read and verb_read grants");
+      present_range_result = visor:_tool_present_verb_code_range(["object" -> tostr(target), "verb" -> "visor_private_verb", "start_line" -> 1, "end_line" -> 1], actor);
+      $test_utils:assert_true(index(present_range_result, "Code range presented to user") > 0, "present_verb_code_range should use scoped object_read and verb_read grants");
     finally
-      $test_utils:destroy_if_valid(target);
-      $test_utils:destroy_if_valid(visor);
+      if (caller_perms() == $arch_wizard)
+        $test_utils:destroy_if_valid(target);
+        $test_utils:destroy_if_valid(visor);
+        $test_utils:destroy_if_valid(actor);
+      endif
     endtry
     return true;
   endmethod
