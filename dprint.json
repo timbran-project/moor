@@ -8,7 +8,7 @@
   },
   "excludes": [
     "book/**",
-    "cores/cowbell/**"
+    "cores/**"
   ],
   "markdown": {
     "lineWidth": 100,
