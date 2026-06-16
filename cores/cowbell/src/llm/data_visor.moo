@@ -1359,44 +1359,11 @@ object DATA_VISOR
       if (verb_index % 5 == 0)
         suspend_if_needed();
       endif
-      code_lines = `verb_code(o, verb_index) ! E_VERBNF => false';
-      if (!code_lines)
-        continue;
+      match_result = $prog_utils:grep_verb_code(pattern, o, verb_index, false, true);
+      if (typeof(match_result) == TYPE_LIST)
+        {line_num, matching_line} = match_result;
+        matches = {@matches, {o, verb_names[verb_index], line_num, matching_line}};
       endif
-      suspend_if_needed();
-      if (!index(tostr(@code_lines), pattern, false))
-        continue;
-      endif
-      line_count = 0;
-      for line in (code_lines)
-        line_count = line_count + 1;
-        if (line_count % 10 == 0)
-          suspend_if_needed();
-        endif
-        if (match_pos = index(line, pattern, false))
-          max_len = 50;
-          line_len = length(line);
-          if (line_len <= max_len)
-            matching_line = line;
-          else
-            pattern_len = length(pattern);
-            start_pos = max(1, match_pos - (max_len - pattern_len) / 2);
-            end_pos = min(line_len, start_pos + max_len - 1);
-            if (end_pos == line_len && end_pos - start_pos < max_len - 1)
-              start_pos = max(1, end_pos - max_len + 1);
-            endif
-            matching_line = line[start_pos..end_pos];
-            if (start_pos > 1)
-              matching_line = "..." + matching_line;
-            endif
-            if (end_pos < line_len)
-              matching_line = matching_line + "...";
-            endif
-          endif
-          matches = {@matches, {o, verb_names[verb_index], line_count, matching_line}};
-          break;
-        endif
-      endfor
     endfor
     return matches;
   endmethod

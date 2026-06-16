@@ -12,9 +12,11 @@ object PROG_UTILS
   method grep_verb_code owner: ARCH_WIZARD
     "Search within a single verb's code for a pattern.";
     "Returns {line_number, truncated_line} if found, or 0 if no match.";
-    "Args: {pattern, object, verb_num, casematters}";
-    set_task_perms(caller_perms());
-    {pattern, object, vnum, casematters} = args;
+    "Args: {pattern, object, verb_num, casematters[, preserve_task_perms]}";
+    {pattern, object, vnum, casematters, ?preserve_task_perms = false} = args;
+    if (!preserve_task_perms)
+      set_task_perms(caller_perms());
+    endif
     "A missing verb is not a match; other failures should surface to the caller.";
     vc = `verb_code(object, vnum) ! E_VERBNF => false';
     if (!vc)
