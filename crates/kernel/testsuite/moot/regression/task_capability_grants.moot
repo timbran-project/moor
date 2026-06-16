@@ -69,6 +69,12 @@
 ; set_verb_code($cap_helper, "builtin_call_notify_no_grant", {"set_task_perms($player);", "notify($wizard_player, \"capability grant notify without grant\");", "return 1;"});
 ; add_verb($cap_helper, {$wizard_player, "rxd", "builtin_call_notify_with_grant"}, {"this", "none", "this"});
 ; set_verb_code($cap_helper, "builtin_call_notify_with_grant", {"set_task_perms($player, {{\"builtin_call\", \"notify\"}});", "notify($wizard_player, \"capability grant notify with grant\");", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_list_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_list_no_grant", {"set_task_perms($player);", "objects();", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_list_builtin_call_does_not_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_list_builtin_call_does_not_grant", {"set_task_perms($player, {{\"builtin_call\", \"objects\"}});", "objects();", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_list_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_list_with_grant", {"set_task_perms($player, {{\"object_list\"}});", "return length(objects()) > 0;"});
 
 ; add_verb($cap_helper, {$wizard_player, "rxd", "object_rename_no_grant"}, {"this", "none", "this"});
 ; set_verb_code($cap_helper, "object_rename_no_grant", {"set_task_perms($player);", "$cap_object_rename_no_grant_obj.name = \"renamed without grant\";", "return 1;"});
@@ -168,6 +174,12 @@ E_PERM
 ; return $cap_helper:builtin_call_notify_no_grant();
 E_PERM
 ; return $cap_helper:builtin_call_notify_with_grant();
+1
+; return $cap_helper:object_list_no_grant();
+E_PERM
+; return $cap_helper:object_list_builtin_call_does_not_grant();
+E_PERM
+; return $cap_helper:object_list_with_grant();
 1
 ; return $cap_helper:object_rename_no_grant();
 E_PERM

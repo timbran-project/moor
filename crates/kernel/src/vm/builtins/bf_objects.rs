@@ -1226,7 +1226,10 @@ fn bf_players(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Usage: `list objects()`
 /// Returns a list of all valid objects in the database. Wizard-only.
 fn bf_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args.require_wizard_or_builtin_call()?;
+    let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+    if !authority.is_wizard() && !authority.can_list_objects() {
+        return Err(world_state_bf_err(WorldStateError::ObjectPermissionDenied));
+    }
 
     if !bf_args.args.is_empty() {
         return Err(BfErr::ErrValue(E_ARGS.msg("objects() takes no arguments")));

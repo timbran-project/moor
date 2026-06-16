@@ -160,6 +160,7 @@ fn parse_capability_grant(
         "object_move" => parse_object_grant(&spec, CapabilityGrant::ObjectMove),
         "object_recycle" => parse_object_grant(&spec, CapabilityGrant::ObjectRecycle),
         "object_chparent" => parse_object_grant(&spec, CapabilityGrant::ObjectChparent),
+        "object_list" => parse_zero_argument_grant(&spec, CapabilityGrant::ObjectList),
         "property_read" => parse_property_grant(&spec, |obj, prop| CapabilityGrant::PropertyRead {
             obj,
             prop,
@@ -213,6 +214,18 @@ fn parse_builtin_call_grant(spec: &[Var]) -> Result<CapabilityGrant, BfErr> {
         )));
     }
     Ok(CapabilityGrant::BuiltinCall(builtin))
+}
+
+fn parse_zero_argument_grant(
+    spec: &[Var],
+    grant: CapabilityGrant,
+) -> Result<CapabilityGrant, BfErr> {
+    if spec.len() != 1 {
+        return Err(ErrValue(E_INVARG.msg(
+            "set_task_perms() zero-argument capability grants require 1 element",
+        )));
+    }
+    Ok(grant)
 }
 
 fn parse_object_grant(
@@ -1427,6 +1440,7 @@ mod tests {
                 v_list(&[v_str("object_move"), v_obj(obj)]),
                 v_list(&[v_str("object_recycle"), v_obj(obj)]),
                 v_list(&[v_str("object_chparent"), v_obj(obj)]),
+                v_list(&[v_str("object_list")]),
                 v_list(&[v_str("property_define"), v_obj(obj)]),
                 v_list(&[v_str("property_write"), v_obj(obj), v_str("p")]),
                 v_list(&[v_str("property_delete"), v_obj(obj), v_str("p")]),
@@ -1451,6 +1465,7 @@ mod tests {
                 CapabilityGrant::ObjectMove(obj),
                 CapabilityGrant::ObjectRecycle(obj),
                 CapabilityGrant::ObjectChparent(obj),
+                CapabilityGrant::ObjectList,
                 CapabilityGrant::PropertyDefine(obj),
                 CapabilityGrant::PropertyWrite {
                     obj,
@@ -1500,6 +1515,18 @@ mod tests {
             parse_capability_grants(
                 &v_list(&[v_list(&[v_str("builtin_call"), v_str("not_a_builtin")])]),
                 |_, _, _| panic!("builtin grants should not resolve verbs")
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_arguments_for_zero_argument_capability_grants() {
+        let obj = Obj::mk_id(10);
+        assert!(
+            parse_capability_grants(
+                &v_list(&[v_list(&[v_str("object_list"), v_obj(obj)])]),
+                |_, _, _| panic!("zero-argument grants should not resolve verbs")
             )
             .is_err()
         );

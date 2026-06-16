@@ -39,6 +39,7 @@ pub enum CapabilityGrant {
     VerbProgram { obj: Obj, verb: Uuid },
     VerbAdd(Obj),
     VerbCall { obj: Obj, verb: Uuid },
+    ObjectList,
     BuiltinCall(Symbol),
 }
 
@@ -151,6 +152,15 @@ impl TaskPermissions {
         self.grants
             .iter()
             .any(|grant| matches!(grant, CapabilityGrant::BuiltinCall(grant) if grant == builtin))
+    }
+
+    /// Whether these task permissions include an explicit grant to enumerate all objects.
+    #[inline]
+    #[must_use]
+    pub fn can_list_objects(&self) -> bool {
+        self.grants
+            .iter()
+            .any(|grant| matches!(grant, CapabilityGrant::ObjectList))
     }
 
     /// Whether the permissions principal has the wizard bit.
