@@ -194,47 +194,85 @@ object OBJ_UTILS
   method set_compiled_message owner: ARCH_WIZARD
     "Set a compiled message property with elevated permissions.";
     "Args: {target_obj, prop_name, compiled_list, who}";
-    {target_obj, prop_name, compiled_list, who} = args;
-    set_task_perms(who);
+    {target_obj, prop_name, compiled_list, who, ?grants = {}} = args;
+    set_task_perms(who, grants);
     target_obj.(prop_name) = compiled_list;
+  endmethod
+
+  method property_key owner: ARCH_WIZARD
+    "Return the real property key matching a string property name, or E_PROPNF.";
+    {target_obj, prop_name} = args;
+    typeof(target_obj) != TYPE_OBJ && raise(E_TYPE, "target_obj must be object");
+    typeof(prop_name) != TYPE_STR && raise(E_TYPE, "prop_name must be string");
+    for existing_prop in (target_obj:all_properties())
+      if (tostr(existing_prop) == prop_name)
+        return existing_prop;
+      endif
+    endfor
+    return E_PROPNF;
   endmethod
 
   method message_properties owner: ARCH_WIZARD
     "Return list of readable message properties (ending with _msg/_msgs/_msg_bag) on an object.";
-    "Args: {target_obj}";
+    "Args: {target_obj, ?who, ?grant_reads}";
     "Returns: list of {property_name, current_value}";
-    set_task_perms(caller_perms());
-    {target_obj} = args;
+    {target_obj, ?who = caller_perms(), ?grant_reads = false} = args;
+    if (!grant_reads)
+      set_task_perms(who);
+    endif
     !valid(target_obj) && return {};
     result = {};
+    msg_props = {};
     all_props = target_obj:all_properties();
     typeof(all_props) != TYPE_LIST && return {};
     for prop_name in (all_props)
-      "Check if property ends with message suffix";
-      if (prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag"))
-        prop_value = target_obj.(prop_name);
-        result = {@result, {prop_name, prop_value}};
+      prop_text = tostr(prop_name);
+      if (prop_text:ends_with("_msg") || prop_text:ends_with("_msgs") || prop_text:ends_with("_msg_bag"))
+        msg_props = {@msg_props, prop_name};
       endif
+    endfor
+    if (grant_reads)
+      grants = {};
+      for prop_name in (msg_props)
+        grants = {@grants, {"property_read", target_obj, prop_name}};
+      endfor
+      set_task_perms(who, grants);
+    endif
+    for prop_name in (msg_props)
+      prop_value = target_obj.(prop_name);
+      result = {@result, {prop_name, prop_value}};
     endfor
     return result;
   endmethod
 
   method rule_properties owner: ARCH_WIZARD
     "Return list of readable rule properties (ending with _rule) on an object.";
-    "Args: {target_obj}";
+    "Args: {target_obj, ?who, ?grant_reads}";
     "Returns: list of {property_name, current_value}";
-    set_task_perms(caller_perms());
-    {target_obj} = args;
+    {target_obj, ?who = caller_perms(), ?grant_reads = false} = args;
+    if (!grant_reads)
+      set_task_perms(who);
+    endif
     !valid(target_obj) && return {};
     result = {};
+    rule_props = {};
     all_props = target_obj:all_properties();
     typeof(all_props) != TYPE_LIST && return {};
     for prop_name in (all_props)
-      "Check if property ends with _rule";
-      if (prop_name:ends_with("_rule"))
-        prop_value = target_obj.(prop_name);
-        result = {@result, {prop_name, prop_value}};
+      if (tostr(prop_name):ends_with("_rule"))
+        rule_props = {@rule_props, prop_name};
       endif
+    endfor
+    if (grant_reads)
+      grants = {};
+      for prop_name in (rule_props)
+        grants = {@grants, {"property_read", target_obj, prop_name}};
+      endfor
+      set_task_perms(who, grants);
+    endif
+    for prop_name in (rule_props)
+      prop_value = target_obj.(prop_name);
+      result = {@result, {prop_name, prop_value}};
     endfor
     return result;
   endmethod

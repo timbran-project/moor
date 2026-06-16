@@ -820,25 +820,13 @@ object LLM_WEARABLE
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    msg_props = {};
-    for prop_name in (target_obj:all_properties())
-      prop_text = tostr(prop_name);
-      if (prop_text:ends_with("_msg") || prop_text:ends_with("_msgs") || prop_text:ends_with("_msg_bag"))
-        msg_props = {@msg_props, prop_name};
-      endif
-    endfor
+    msg_props = $obj_utils:message_properties(target_obj, wearer, true);
     !msg_props && return tostr(target_obj) + " has no message properties. (@messages command available)";
-    grants = {};
-    for prop_name in (msg_props)
-      grants = {@grants, {"property_read", target_obj, prop_name}};
-    endfor
-    set_task_perms(wearer, grants);
     lines = {"Message properties for " + tostr(target_obj) + ":"};
-    for prop_name in (msg_props)
-      prop_value = target_obj.(prop_name);
-      prop_text = tostr(prop_name);
+    for prop_info in (msg_props)
+      {prop_name, prop_value} = prop_info;
       value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value);
-      lines = {@lines, " - " + prop_text + ": " + value_summary};
+      lines = {@lines, " - " + tostr(prop_name) + ": " + value_summary};
     endfor
     return lines:join("\n");
   endmethod
@@ -880,15 +868,8 @@ object LLM_WEARABLE
     {success, compiled} = $obj_utils:validate_and_compile_template(template);
     success || raise(E_INVARG, "Template compilation failed: " + compiled);
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-    prop_key = prop_name;
-    prop_exists = false;
-    for existing_prop in (target_obj:all_properties())
-      if (tostr(existing_prop) == prop_name)
-        prop_key = existing_prop;
-        prop_exists = true;
-      endif
-    endfor
-    if (!prop_exists)
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    if (prop_key == E_PROPNF)
       "Property doesn't exist - try to create it";
       if (!wearer.wizard && target_obj.owner != wearer)
         raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
@@ -907,8 +888,7 @@ object LLM_WEARABLE
       target_obj.(prop_key) = $msg_bag:mk(compiled);
       return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
     endif
-    set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-    target_obj.(prop_key) = compiled;
+    $obj_utils:set_compiled_message(target_obj, prop_key, compiled, wearer, {{"property_write", target_obj, prop_key}});
     return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
   endmethod
 
@@ -923,15 +903,8 @@ object LLM_WEARABLE
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     compiled = $sub_utils:compile(template);
-    prop_key = prop_name;
-    prop_exists = false;
-    for existing_prop in (target_obj:all_properties())
-      if (tostr(existing_prop) == prop_name)
-        prop_key = existing_prop;
-        prop_exists = true;
-      endif
-    endfor
-    if (!prop_exists)
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    if (prop_key == E_PROPNF)
       if (!wearer.wizard && target_obj.owner != wearer)
         raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
       endif
@@ -943,12 +916,11 @@ object LLM_WEARABLE
     endif
     bag = target_obj.(prop_key);
     if (typeof(bag) == TYPE_OBJ && isa(bag, $msg_bag))
-      entries = bag.entries;
       set_task_perms(wearer, {{"property_write", bag, "entries"}});
-      bag.entries = {@entries, compiled};
+      bag:add(compiled, true);
     elseif (typeof(bag) == TYPE_FLYWEIGHT && bag.delegate == $msg_bag)
       set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = toflyweight($msg_bag, flyslots(bag), {@flycontents(bag), compiled});
+      target_obj.(prop_key) = bag:add(compiled, true);
     else
       new_bag = $msg_bag:create(true);
       new_bag.entries = {compiled};
@@ -968,26 +940,15 @@ object LLM_WEARABLE
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_key = prop_name;
-    prop_exists = false;
-    for existing_prop in (target_obj:all_properties())
-      if (tostr(existing_prop) == prop_name)
-        prop_key = existing_prop;
-        prop_exists = true;
-      endif
-    endfor
-    !prop_exists && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
     bag = target_obj.(prop_key);
     if (typeof(bag) == TYPE_OBJ && isa(bag, $msg_bag))
-      entries = bag.entries;
-      idx < 1 || idx > length(entries) && raise(E_RANGE);
       set_task_perms(wearer, {{"property_write", bag, "entries"}});
-      bag.entries = listdelete(entries, idx);
+      bag:remove(idx, true);
     elseif (typeof(bag) == TYPE_FLYWEIGHT && bag.delegate == $msg_bag)
-      entries = flycontents(bag);
-      idx < 1 || idx > length(entries) && raise(E_RANGE);
       set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = toflyweight($msg_bag, flyslots(bag), listdelete(entries, idx));
+      target_obj.(prop_key) = bag:remove(idx, true);
     else
       raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
     endif
@@ -1001,19 +962,11 @@ object LLM_WEARABLE
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    rule_props = {};
-    for prop_name in (target_obj:all_properties())
-      tostr(prop_name):ends_with("_rule") && (rule_props = {@rule_props, prop_name});
-    endfor
+    rule_props = $obj_utils:rule_properties(target_obj, wearer, true);
     !rule_props && return tostr(target_obj) + " has no rule properties. (@rules command available)";
-    grants = {};
-    for prop_name in (rule_props)
-      grants = {@grants, {"property_read", target_obj, prop_name}};
-    endfor
-    set_task_perms(wearer, grants);
     lines = {"Rule properties for " + tostr(target_obj) + ":"};
-    for prop_name in (rule_props)
-      prop_value = target_obj.(prop_name);
+    for prop_info in (rule_props)
+      {prop_name, prop_value} = prop_info;
       lines = {@lines, " - " + tostr(prop_name) + ": " + (prop_value == 0 ? "(not set)" | $rule_engine:decompile_rule(prop_value))};
     endfor
     return lines:join("\n");

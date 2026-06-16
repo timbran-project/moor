@@ -13,8 +13,10 @@ object MSG_BAG
 
   method add owner: ARCH_WIZARD
     "Add a message template. Returns new flyweight or entry count for objects.";
-    set_task_perms(caller_perms());
-    {text} = args;
+    {text, ?preserve_task_perms = false} = args;
+    if (!preserve_task_perms)
+      set_task_perms(caller_perms());
+    endif
     if (typeof(this) == TYPE_FLYWEIGHT)
       return toflyweight($msg_bag, flyslots(this), {@flycontents(this), text});
     endif
@@ -24,8 +26,10 @@ object MSG_BAG
 
   method remove owner: ARCH_WIZARD
     "Remove a message by 1-based index. Returns new flyweight or entry count for objects.";
-    set_task_perms(caller_perms());
-    {idx} = args;
+    {idx, ?preserve_task_perms = false} = args;
+    if (!preserve_task_perms)
+      set_task_perms(caller_perms());
+    endif
     typeof(idx) == TYPE_INT || raise(E_TYPE);
     entries = typeof(this) == TYPE_FLYWEIGHT ? flycontents(this) | this.entries;
     idx < 1 || idx > length(entries) && raise(E_RANGE);
