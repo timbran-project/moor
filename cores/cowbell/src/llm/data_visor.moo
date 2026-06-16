@@ -451,13 +451,13 @@ object DATA_VISOR
   method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Get the code of a specific verb on an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
+    set_task_perms(wearer, {{"verb_read", o, verb_name}});
     code_lines = verb_code(o, verb_name, false, true);
     return code_lines:join("\n");
   endmethod
@@ -465,11 +465,11 @@ object DATA_VISOR
   method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List all verb names on an object and its ancestors";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    set_task_perms(wearer, {{"object_read", o}});
     result = {};
     "Add verbs for the object itself";
     result = {@result, {tostr(o), o:name(), verbs(o)}};
@@ -483,13 +483,13 @@ object DATA_VISOR
   method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
+    set_task_perms(wearer, {{"property_read", o, prop_name}});
     value = o.(prop_name);
     return toliteral(value);
   endmethod
@@ -579,11 +579,11 @@ object DATA_VISOR
   method _tool_get_verb_code_range owner: ARCH_WIZARD
     "Tool: Get specific lines from a verb's code";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
+    wearer = this:_action_perms_check(actor);
+    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
+    set_task_perms(wearer, {{"verb_read", o, verb_name}});
     code_lines = verb_code(o, verb_name, false, true);
     start_line = max(1, maphaskey(args_map, "start_line") ? args_map["start_line"] | 1);
     end_line = min(length(code_lines), maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines));
@@ -594,28 +594,34 @@ object DATA_VISOR
   method _tool_get_verb_metadata owner: ARCH_WIZARD
     "Tool: Get metadata about a verb";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"])};
+    wearer = this:_action_perms_check(actor);
+    {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
-    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
-    return {"Verb: " + tostr(verb_location) + ":" + verb_name, "Owner: " + tostr(metadata:verb_owner()), "Flags: " + metadata:flags(), "Args: " + metadata:args_spec(), "Defined on: " + tostr(verb_location)}:join("\n");
+    set_task_perms(wearer, {{"object_read", o}, {"verb_read", verb_location, verb_name}});
+    verb_info_data = verb_info(verb_location, verb_name);
+    verb_args_data = verb_args(verb_location, verb_name);
+    return {"Verb: " + tostr(verb_location) + ":" + verb_name, "Owner: " + tostr(verb_info_data[1]), "Flags: " + verb_info_data[2], "Args: " + verb_args_data:join(" "), "Defined on: " + tostr(verb_location)}:join("\n");
   endmethod
 
   method _tool_get_properties owner: ARCH_WIZARD
     "Tool: Get list of properties on an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    o = $match:match_object(args_map["object"]);
+    wearer = this:_action_perms_check(actor);
+    o = $match:match_object(args_map["object"], wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    prop_names = properties(o);
+    grants = {{"object_read", o}};
+    for prop_name in (prop_names)
+      grants = {@grants, {"property_read", o, prop_name}};
+    endfor
+    set_task_perms(wearer, grants);
     result = {};
-    for prop_name in (properties(o))
-      metadata = $prog_utils:get_property_metadata(o, prop_name);
-      result = {@result, "." + prop_name + " (owner: " + tostr(metadata:owner()) + ", flags: " + metadata:perms() + (metadata:is_clear() ? ", clear)" | ")")};
+    for prop_name in (prop_names)
+      prop_info_data = property_info(o, prop_name);
+      result = {@result, "." + tostr(prop_name) + " (owner: " + tostr(prop_info_data[1]) + ", flags: " + prop_info_data[2] + (is_clear_property(o, prop_name) ? ", clear)" | ")")};
     endfor
     return result:join("\n");
   endmethod
@@ -1666,6 +1672,36 @@ object DATA_VISOR
     task_obj:mark_complete(result);
     this.current_investigation_task = -1;
     return "Investigation #" + tostr(task_obj.task_id) + " completed.";
+  endmethod
+
+  method test_read_tool_scoped_grants owner: HACKER
+    "Read-only inspection tools should use narrow grants for private targets.";
+    visor = $data_visor:create(true);
+    target = $thing:create(0);
+    try
+      visor:moveto($test_player);
+      target.name = "Data Visor Private Probe";
+      target.r = 0;
+      add_property(target, "visor_private_probe", "secret", {$hacker, ""});
+      add_verb(target, {$hacker, "xd", "visor_private_verb"}, {"this", "none", "this"});
+      set_verb_code(target, "visor_private_verb", {"return \"secret\";"});
+      prop_result = visor:_tool_read_property(["object" -> tostr(target), "property" -> "visor_private_probe"], $test_player);
+      $test_utils:assert_eq(prop_result, "\"secret\"", "read_property should read a non-readable property through a property_read grant");
+      code_result = visor:_tool_get_verb_code(["object" -> tostr(target), "verb" -> "visor_private_verb"], $test_player);
+      $test_utils:assert_true(index(code_result, "return \"secret\";") > 0, "get_verb_code should read non-readable verb code through a verb_read grant");
+      range_result = visor:_tool_get_verb_code_range(["object" -> tostr(target), "verb" -> "visor_private_verb", "start_line" -> 1, "end_line" -> 1], $test_player);
+      $test_utils:assert_true(index(range_result, "1: return \"secret\";") > 0, "get_verb_code_range should read non-readable verb code through a verb_read grant");
+      verbs_result = visor:_tool_list_verbs(["object" -> tostr(target)], $test_player);
+      $test_utils:assert_true(index(verbs_result, "visor_private_verb") > 0, "list_verbs should enumerate a non-readable object through an object_read grant");
+      metadata_result = visor:_tool_get_verb_metadata(["object" -> tostr(target), "verb" -> "visor_private_verb"], $test_player);
+      $test_utils:assert_true(index(metadata_result, "visor_private_verb") > 0, "get_verb_metadata should inspect a non-readable verb through grants");
+      properties_result = visor:_tool_get_properties(["object" -> tostr(target)], $test_player);
+      $test_utils:assert_true(index(properties_result, "visor_private_probe") > 0, "get_properties should enumerate a non-readable object through object_read and property_read grants");
+    finally
+      $test_utils:destroy_if_valid(target);
+      $test_utils:destroy_if_valid(visor);
+    endtry
+    return true;
   endmethod
 
   method help_topics owner: ARCH_WIZARD
