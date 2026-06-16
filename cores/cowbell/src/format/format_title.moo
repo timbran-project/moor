@@ -8,15 +8,15 @@ object FORMAT_TITLE
   override import_export_hierarchy = {"format"};
   override import_export_id = "format_title";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create a title flyweight. Args: (content) or (content, level)";
     {content, ?level = 3} = args;
     typeof(level) == TYPE_INT || raise(E_TYPE, "Level must be an integer");
     level >= 1 && level <= 6 || raise(E_INVARG, "Level must be between 1 and 6");
     return <this, .level = level, {content}>;
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     {render_for, content_type, event} = args;
     pieces = {};
     contents = flycontents(this);
@@ -41,5 +41,5 @@ object FORMAT_TITLE
     else
       return result + "\n";
     endif
-  endverb
+  endmethod
 endobject

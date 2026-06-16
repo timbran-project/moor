@@ -9,7 +9,7 @@ object PROG_UTILS
   override import_export_hierarchy = {"utils"};
   override import_export_id = "prog_utils";
 
-  verb grep_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method grep_verb_code owner: ARCH_WIZARD
     "Search within a single verb's code for a pattern.";
     "Returns {line_number, truncated_line} if found, or 0 if no match.";
     "Args: {pattern, object, verb_num, casematters}";
@@ -62,9 +62,9 @@ object PROG_UTILS
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb is_valid_prep (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_valid_prep owner: ARCH_WIZARD
     "Check if a string is a valid preposition spec";
     "Returns true if prep is 'none', 'any', or a valid preposition form";
     "Args: {prep_string}";
@@ -91,9 +91,9 @@ object PROG_UTILS
       endfor
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb grep_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method grep_object owner: ARCH_WIZARD
     "Search all verbs on an object for a pattern.";
     "Returns list of matches: {{obj, verb_name, line_num, matching_line}, ...}";
     "Args: {pattern, search_obj, casematters}";
@@ -122,9 +122,9 @@ object PROG_UTILS
       endif
     endfor
     return matches;
-  endverb
+  endmethod
 
-  verb format_line_numbers (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_line_numbers owner: ARCH_WIZARD
     "Format code lines with aligned line numbers.";
     "Returns list of strings with padded line numbers prepended.";
     "Args: {code_lines}";
@@ -142,9 +142,9 @@ object PROG_UTILS
       numbered_lines = {@numbered_lines, padding + line_num_str + ":  " + code_lines[i]};
     endfor
     return numbered_lines;
-  endverb
+  endmethod
 
-  verb get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_verb_metadata owner: ARCH_WIZARD
     "Get metadata for a verb as a flyweight with $verb delegate.";
     "Slots: owner_obj, location, name, verb_owner, flags, dobj, prep, iobj, index";
     "Args: {object, verb_name}";
@@ -167,9 +167,9 @@ object PROG_UTILS
     endtry
     "Return as flyweight with $verb delegate and slots for metadata";
     return <$verb, .owner_obj = verb_obj, .location = verb_obj, .name = verb_name, .verb_owner = verb_owner, .flags = verb_flags, .dobj = dobj, .prep = prep, .iobj = iobj, .index = verb_index>;
-  endverb
+  endmethod
 
-  verb get_verbs_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_verbs_metadata owner: ARCH_WIZARD
     "Get metadata for all verbs on an object as a list of flyweights.";
     "Returns list of $verb flyweights, one for each verb";
     "Args: {object}";
@@ -187,9 +187,9 @@ object PROG_UTILS
       metadata_list = {@metadata_list, metadata};
     endfor
     return metadata_list;
-  endverb
+  endmethod
 
-  verb get_property_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_property_metadata owner: ARCH_WIZARD
     "Get metadata for a property as a flyweight with $property delegate.";
     "Slots: owner_obj, location, name, owner, perms, is_clear";
     "Args: {object, property_name}";
@@ -200,9 +200,9 @@ object PROG_UTILS
     is_clear = is_clear_property(prop_obj, prop_name);
     "Return as flyweight with $property delegate and slots for metadata";
     return <$property, .owner_obj = prop_obj, .location = prop_obj, .name = prop_name, .owner = prop_owner, .perms = prop_perms, .is_clear = is_clear>;
-  endverb
+  endmethod
 
-  verb test_format_line_numbers (this none this) owner: HACKER flags: "rxd"
+  method test_format_line_numbers owner: HACKER
     "Test line number formatting";
     lines = {"line one", "line two", "line three"};
     numbered = this:format_line_numbers(lines);
@@ -225,9 +225,9 @@ object PROG_UTILS
       return E_ASSERT;
     endif
     return true;
-  endverb
+  endmethod
 
-  verb test_is_valid_prep (this none this) owner: HACKER flags: "rxd"
+  method test_is_valid_prep owner: HACKER
     "Test preposition validation";
     "Should accept 'none'";
     if (!this:is_valid_prep("none"))
@@ -246,9 +246,9 @@ object PROG_UTILS
       return E_ASSERT;
     endif
     return true;
-  endverb
+  endmethod
 
-  verb parse_target_spec (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method parse_target_spec owner: ARCH_WIZARD
     "Parse a target specification for @show command.";
     "New syntax:";
     "  obj        -> object summary";
@@ -346,9 +346,9 @@ object PROG_UTILS
       return 0;
     endif
     return ['type -> 'compound, 'object_str -> object_str, 'selectors -> selectors];
-  endverb
+  endmethod
 
-  verb test_parse_target_spec (this none this) owner: HACKER flags: "rxd"
+  method test_parse_target_spec owner: HACKER
     "Test target spec parsing";
     "Test object reference";
     result = this:parse_target_spec("me");
@@ -415,9 +415,9 @@ object PROG_UTILS
     result['selectors][1]['inherited] == true || raise(E_ASSERT, "me:: should select inherited verbs");
     result['selectors][1]['item_name] == "" || raise(E_ASSERT, "me:: should have empty item name");
     return true;
-  endverb
+  endmethod
 
-  verb test_get_verb_metadata_accepts_string_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_get_verb_metadata_accepts_string_name owner: ARCH_WIZARD
     "Regression test: string verb names still resolve against symbol-returning verbs().";
     target = #-1;
     try
@@ -432,9 +432,9 @@ object PROG_UTILS
       valid(target) && target:destroy();
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb eval_literal (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method eval_literal owner: ARCH_WIZARD
     "Safely evaluate a MOO literal from a string, returning value and remaining text";
     "Returns {true, value, remaining_text} on success";
     "Returns {false, error_message, ''} on failure";
@@ -481,9 +481,9 @@ object PROG_UTILS
       return {false, tostr(eval_result[2]), ""};
     endif
     return {true, eval_result[2], remaining};
-  endverb
+  endmethod
 
-  verb test_eval_literal (this none this) owner: HACKER flags: "rxd"
+  method test_eval_literal owner: HACKER
     "Test literal evaluation";
     "Test simple integer literal";
     result = this:eval_literal("42");
@@ -504,5 +504,5 @@ object PROG_UTILS
     result = this:eval_literal("$root");
     result[1] && result[2] == $root || raise(E_ASSERT, "$root should parse as object");
     return true;
-  endverb
+  endmethod
 endobject

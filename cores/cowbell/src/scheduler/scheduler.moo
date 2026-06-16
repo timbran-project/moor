@@ -13,7 +13,7 @@ object SCHEDULER
   override import_export_hierarchy = {"scheduler"};
   override import_export_id = "scheduler";
 
-  verb schedule_after (this none this) owner: HACKER flags: "rxd"
+  method schedule_after owner: HACKER
     "Schedule a verb to run after N seconds: schedule_after(seconds, object, verb, [args]).";
     if (length(args) < 3)
       raise(E_INVARG, "Usage: schedule_after(seconds, object, verb, [args])");
@@ -34,9 +34,9 @@ object SCHEDULER
     add_property(this, prop_name, task, {this.owner, "r"});
     this:_ensure_running();
     return schedule_id;
-  endverb
+  endmethod
 
-  verb schedule_at (this none this) owner: HACKER flags: "rxd"
+  method schedule_at owner: HACKER
     "Schedule a verb to run at a specific timestamp: schedule_at(timestamp, object, verb, [args]).";
     if (length(args) < 3)
       raise(E_INVARG, "Usage: schedule_at(timestamp, object, verb, [args])");
@@ -59,9 +59,9 @@ object SCHEDULER
     add_property(this, prop_name, task, {this.owner, "r"});
     this:_ensure_running();
     return schedule_id;
-  endverb
+  endmethod
 
-  verb schedule_every (this none this) owner: HACKER flags: "rxd"
+  method schedule_every owner: HACKER
     "Schedule a recurring task: schedule_every(interval, object, verb, [args]).";
     "Interval can be: INT/FLOAT (seconds), STR (HH:MM:SS for daily), LIST {min, range} for random.";
     if (length(args) < 3)
@@ -99,9 +99,9 @@ object SCHEDULER
     add_property(this, prop_name, task, {this.owner, "r"});
     this:_ensure_running();
     return schedule_id;
-  endverb
+  endmethod
 
-  verb cancel (this none this) owner: HACKER flags: "rxd"
+  method cancel owner: HACKER
     "Cancel a scheduled task by schedule ID. Returns true if found and cancelled.";
     {schedule_id} = args;
     typeof(schedule_id) == TYPE_INT || raise(E_TYPE, "Schedule ID must be integer");
@@ -113,9 +113,9 @@ object SCHEDULER
     except (E_PROPNF)
       return false;
     endtry
-  endverb
+  endmethod
 
-  verb is_scheduled (this none this) owner: HACKER flags: "rxd"
+  method is_scheduled owner: HACKER
     "Check if a specific verb on an object is scheduled. Returns schedule ID or 0.";
     {target, verb_name} = args;
     typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be object");
@@ -131,9 +131,9 @@ object SCHEDULER
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb when_scheduled (this none this) owner: HACKER flags: "rxd"
+  method when_scheduled owner: HACKER
     "Get the next run time for a scheduled task by ID. Returns timestamp or 0 if not found.";
     {schedule_id} = args;
     typeof(schedule_id) == TYPE_INT || raise(E_TYPE, "Schedule ID must be integer");
@@ -143,9 +143,9 @@ object SCHEDULER
     except (E_PROPNF)
       return 0;
     endtry
-  endverb
+  endmethod
 
-  verb list_tasks (this none this) owner: HACKER flags: "rxd"
+  method list_tasks owner: HACKER
     "Return list of all scheduled tasks (as flyweights).";
     tasks = {};
     for prop_name in (properties(this))
@@ -155,9 +155,9 @@ object SCHEDULER
       endif
     endfor
     return tasks;
-  endverb
+  endmethod
 
-  verb start (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method start owner: ARCH_WIZARD
     "Start the scheduler loop. Called automatically when tasks are added.";
     caller == #0 || caller_perms().wizard || raise(E_PERM);
     if (this.running && valid_task(this.running))
@@ -170,9 +170,9 @@ object SCHEDULER
     this.running = loop;
     this.loop_task_id = loop;
     return true;
-  endverb
+  endmethod
 
-  verb resume_if_needed (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method resume_if_needed owner: ARCH_WIZARD
     "Resume scheduler if there are persisted tasks. Called on server startup.";
     caller == #0 || caller_perms().wizard || raise(E_PERM);
     if (this.running && valid_task(this.running))
@@ -196,9 +196,9 @@ object SCHEDULER
       return true;
     endif
     return false;
-  endverb
+  endmethod
 
-  verb stop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method stop owner: ARCH_WIZARD
     "Stop the scheduler loop and clear all tasks.";
     caller_perms().wizard || raise(E_PERM);
     if (!this.running || !valid_task(this.running))
@@ -222,9 +222,9 @@ object SCHEDULER
       endif
     endfor
     return true;
-  endverb
+  endmethod
 
-  verb sweep (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method sweep owner: ARCH_WIZARD
     "Sweep scheduled tasks and verify their task IDs are still queued. Clears stale IDs.";
     "Get currently queued tasks (requires wizard perms)";
     queued = queued_tasks();
@@ -255,9 +255,9 @@ object SCHEDULER
       endif
     endfor
     return stale_count;
-  endverb
+  endmethod
 
-  verb _sweep_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _sweep_loop owner: ARCH_WIZARD
     "Internal: Periodic sweep loop running every 5 minutes.";
     caller == this || raise(E_PERM);
     while (this.running)
@@ -268,9 +268,9 @@ object SCHEDULER
         this:_log("Sweep error: " + tostr(e));
       endtry
     endwhile
-  endverb
+  endmethod
 
-  verb _ensure_running (this none this) owner: HACKER flags: "rxd"
+  method _ensure_running owner: HACKER
     "Internal: Ensure scheduler loop is running.";
     caller == this || raise(E_PERM);
     if (!this.running || !valid_task(this.running))
@@ -282,9 +282,9 @@ object SCHEDULER
       "Start sweep loop";
       this:_start_sweep_loop();
     endif
-  endverb
+  endmethod
 
-  verb _start_sweep_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _start_sweep_loop owner: ARCH_WIZARD
     "Internal: Start the periodic sweep loop.";
     caller == this || raise(E_PERM);
     if (this.sweep_task_id == 0)
@@ -293,9 +293,9 @@ object SCHEDULER
       endfork
       this.sweep_task_id = sweep_loop;
     endif
-  endverb
+  endmethod
 
-  verb _run_loop (this none this) owner: HACKER flags: "rxd"
+  method _run_loop owner: HACKER
     "Internal: Main scheduler loop that processes tasks.";
     caller == this || raise(E_PERM);
     while (this.running)
@@ -308,9 +308,9 @@ object SCHEDULER
         this:_log("Scheduler error: " + toliteral(e));
       endtry
     endwhile
-  endverb
+  endmethod
 
-  verb _process_tasks (this none this) owner: HACKER flags: "rxd"
+  method _process_tasks owner: HACKER
     "Internal: Check and execute ready tasks.";
     caller == this || raise(E_PERM);
     now = time();
@@ -341,9 +341,9 @@ object SCHEDULER
     if (task_count == 0)
       this.running = 0;
     endif
-  endverb
+  endmethod
 
-  verb _execute_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _execute_task owner: ARCH_WIZARD
     "Internal: Execute a scheduled task with proper permissions.";
     caller == this || raise(E_PERM);
     {schedule_id, target, verb_name, task_args, recurring} = args;
@@ -376,15 +376,15 @@ object SCHEDULER
     except e (ANY)
       "Task property may have been deleted, ignore";
     endtry
-  endverb
+  endmethod
 
-  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _log owner: ARCH_WIZARD
     {message} = args;
     caller == this || caller.wizard || raise(E_PERM);
     server_log("SCHEDULER(" + tostr(this) + ") " + message);
-  endverb
+  endmethod
 
-  verb _calculate_next_run (this none this) owner: HACKER flags: "rxd"
+  method _calculate_next_run owner: HACKER
     "Internal: Calculate next run time for recurring task.";
     caller == this || raise(E_PERM);
     {interval, current_time} = args;
@@ -398,9 +398,9 @@ object SCHEDULER
       return current_time + min_delay + random(toint(range_delay));
     endif
     raise(E_TYPE, "Invalid interval type");
-  endverb
+  endmethod
 
-  verb test_schedule_after (this none this) owner: HACKER flags: "rxd"
+  method test_schedule_after owner: HACKER
     "Test scheduling a task to run after a delay.";
     "Clean up any leftover properties from previous test runs";
     for prop in (properties(this))
@@ -427,9 +427,9 @@ object SCHEDULER
     this.running || raise(E_ASSERT, "Scheduler should be running");
     "Clean up";
     this:cancel(schedule_id);
-  endverb
+  endmethod
 
-  verb test_schedule_at (this none this) owner: HACKER flags: "rxd"
+  method test_schedule_at owner: HACKER
     "Test scheduling a task at a specific time.";
     "Clean up any leftover properties from previous test runs";
     for prop in (properties(this))
@@ -446,9 +446,9 @@ object SCHEDULER
     run_at == future_time || raise(E_ASSERT, "Wrong run time: " + tostr(run_at) + " vs " + tostr(future_time));
     "Clean up";
     this:cancel(schedule_id);
-  endverb
+  endmethod
 
-  verb test_cancel (this none this) owner: HACKER flags: "rxd"
+  method test_cancel owner: HACKER
     "Test cancelling scheduled tasks.";
     "Clean up any leftover properties from previous test runs";
     for prop in (properties(this))
@@ -473,9 +473,9 @@ object SCHEDULER
     "Cancelling again should return false";
     result = this:cancel(schedule_id);
     result == false || raise(E_ASSERT, "Second cancel should return false");
-  endverb
+  endmethod
 
-  verb test_is_scheduled (this none this) owner: HACKER flags: "rxd"
+  method test_is_scheduled owner: HACKER
     "Test checking if a verb is scheduled.";
     "Clean up any leftover properties from previous test runs";
     for prop in (properties(this))
@@ -494,9 +494,9 @@ object SCHEDULER
     result == schedule_id || raise(E_ASSERT, "Should return schedule ID");
     "Clean up";
     this:cancel(schedule_id);
-  endverb
+  endmethod
 
-  verb test_sweep (this none this) owner: HACKER flags: "rxd"
+  method test_sweep owner: HACKER
     "Test sweep verb for stale task ID detection.";
     "Clean up any leftover properties from previous test runs";
     for prop in (properties(this))
@@ -514,9 +514,9 @@ object SCHEDULER
     result == 0 || raise(E_ASSERT, "Sweep should return 0 for scheduled tasks without task_ids");
     "Clean up";
     this:cancel(schedule_id);
-  endverb
+  endmethod
 
-  verb test_list_tasks (this none this) owner: HACKER flags: "rxd"
+  method test_list_tasks owner: HACKER
     "Test listing scheduled tasks.";
     "Start with clean slate - remove all scheduled_task_* properties";
     for prop in (properties(this))
@@ -547,9 +547,9 @@ object SCHEDULER
     "Clean up";
     this:cancel(sched1);
     this:cancel(sched2);
-  endverb
+  endmethod
 
-  verb test_validation (this none this) owner: HACKER flags: "rxd"
+  method test_validation owner: HACKER
     "Test input validation for schedule verbs.";
     "Test invalid object rejection";
     try
@@ -571,10 +571,10 @@ object SCHEDULER
     endtry
     "Clean up";
     this:cancel(schedule_id);
-  endverb
+  endmethod
 
-  verb scheduler_test_executed (this none this) owner: HACKER flags: "rxd"
+  method scheduler_test_executed owner: HACKER
     "Placeholder verb for testing execution.";
     return true;
-  endverb
+  endmethod
 endobject

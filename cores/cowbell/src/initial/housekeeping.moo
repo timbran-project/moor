@@ -12,7 +12,7 @@ object HOUSEKEEPING
   override import_export_hierarchy = {"initial"};
   override import_export_id = "housekeeping";
 
-  verb sweep (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method sweep owner: ARCH_WIZARD
     "Sweep disconnected players back to their home rooms.";
     "Called periodically by the scheduler.";
     caller_perms().wizard || caller == $scheduler || raise(E_PERM);
@@ -77,9 +77,9 @@ object HOUSEKEEPING
     endfor
     total_swept > 0 && `server_log(tostr("Housekeeping swept ", total_swept, " sleeping player(s) home.")) ! E_PERM';
     return total_swept;
-  endverb
+  endmethod
 
-  verb start (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method start owner: ARCH_WIZARD
     "Start the housekeeping sweep schedule.";
     caller_perms().wizard || raise(E_PERM);
     existing = $scheduler:is_scheduled(this, "sweep");
@@ -89,9 +89,9 @@ object HOUSEKEEPING
     endif
     this.schedule_id = $scheduler:schedule_every(this.sweep_interval, this, "sweep", {});
     return "Housekeeping started (schedule_id: " + tostr(this.schedule_id) + ", interval: " + tostr(this.sweep_interval) + "s)";
-  endverb
+  endmethod
 
-  verb stop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method stop owner: ARCH_WIZARD
     "Stop the housekeeping sweep schedule.";
     caller_perms().wizard || raise(E_PERM);
     existing = $scheduler:is_scheduled(this, "sweep");
@@ -102,5 +102,5 @@ object HOUSEKEEPING
     $scheduler:cancel(existing);
     this.schedule_id = 0;
     return "Housekeeping stopped (was schedule_id: " + tostr(existing) + ")";
-  endverb
+  endmethod
 endobject

@@ -276,7 +276,7 @@ object HENRI
   };
   override pronouns = <PRONOUNS, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
 
-  verb _pick_message (this none this) owner: HACKER flags: "rxd"
+  method _pick_message owner: HACKER
     "Pick a message from a bag/string or use a compiled list directly, returning empty string on failure.";
     {source} = args;
     if ($msg_bag:is_msg_bag(source))
@@ -289,39 +289,39 @@ object HENRI
       return source;
     endif
     return "";
-  endverb
+  endmethod
 
-  verb fact_is_grouchy (this none this) owner: HACKER flags: "rxd"
+  method fact_is_grouchy owner: HACKER
     "Rule predicate: Is Henri in a grouchy mood?";
     {henri} = args;
     return henri.mood == "grouchy";
-  endverb
+  endmethod
 
-  verb fact_is_sleepy (this none this) owner: HACKER flags: "rxd"
+  method fact_is_sleepy owner: HACKER
     "Rule predicate: Is Henri in a sleepy mood?";
     {henri} = args;
     return henri.mood == "sleepy";
-  endverb
+  endmethod
 
-  verb fact_is_curious (this none this) owner: HACKER flags: "rxd"
+  method fact_is_curious owner: HACKER
     "Rule predicate: Is Henri in a curious mood?";
     {henri} = args;
     return henri.mood == "curious";
-  endverb
+  endmethod
 
-  verb fact_is_playful (this none this) owner: HACKER flags: "rxd"
+  method fact_is_playful owner: HACKER
     "Rule predicate: Is Henri in a playful mood?";
     {henri} = args;
     return henri.mood == "playful";
-  endverb
+  endmethod
 
-  verb fact_tolerates (this none this) owner: HACKER flags: "rxd"
+  method fact_tolerates owner: HACKER
     "Rule predicate: Has accessor petted Henri enough to be tolerated?";
     {henri, accessor} = args;
     return henri.pets_received > 10;
-  endverb
+  endmethod
 
-  verb can_be_petted (this none this) owner: HACKER flags: "rxd"
+  method can_be_petted owner: HACKER
     "Check if accessor can pet Henri. Returns {allowed, reason}.";
     {accessor} = args;
     "No rule = anyone can try to pet";
@@ -335,9 +335,9 @@ object HENRI
     else
       return ['allowed -> false, 'reason -> this:_pick_message(this.pet_denied_msg_bag)];
     endif
-  endverb
+  endmethod
 
-  verb can_be_fed (this none this) owner: HACKER flags: "rxd"
+  method can_be_fed owner: HACKER
     "Check if accessor can feed Henri with food item. Returns {allowed, reason}.";
     {accessor, food} = args;
     "No rule = anyone can feed";
@@ -351,7 +351,7 @@ object HENRI
     else
       return ['allowed -> false, 'reason -> this.feed_denied_msg];
     endif
-  endverb
+  endmethod
 
   verb "pet stroke" (this none none) owner: HACKER flags: "rxd"
     "Handle petting Henri - uses rule system to determine if allowed";
@@ -471,7 +471,7 @@ object HENRI
     endif
   endverb
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  method look_self owner: HACKER
     look_data = pass(@args);
     base_desc = look_data.description;
     desc_parts = typeof(base_desc) == TYPE_LIST ? base_desc | {base_desc};
@@ -481,7 +481,7 @@ object HENRI
     endif
     merged = mood_extra ? {@desc_parts, "\n", @mood_extra} | desc_parts;
     return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = merged>;
-  endverb
+  endmethod
 
   verb "feed give" (this with any) owner: HACKER flags: "rxd"
     "Handle feeding Henri - uses rule system to determine if allowed";
@@ -566,7 +566,7 @@ object HENRI
     endif
   endverb
 
-  verb start_behaviours (this none this) owner: HACKER flags: "rxd"
+  method start_behaviours owner: HACKER
     "Start Henri's periodic autonomous behaviours";
     set_task_perms(this.owner);
     "Clear disabled flag";
@@ -602,9 +602,9 @@ object HENRI
     if (valid(this.location))
       this.location:announce(this:mk_emote_event("seems to settle into a routine of periodic sulking and grooming."));
     endif
-  endverb
+  endmethod
 
-  verb stop_behaviours (this none this) owner: HACKER flags: "rxd"
+  method stop_behaviours owner: HACKER
     "Stop Henri's periodic autonomous behaviours";
     set_task_perms(this.owner);
     "Set disabled flag to prevent auto-restart";
@@ -625,9 +625,9 @@ object HENRI
     if (valid(this.location))
       this.location:announce(this:mk_emote_event("seems to settle into a more permanent state of annoyance."));
     endif
-  endverb
+  endmethod
 
-  verb _autonomous_groom (this none this) owner: HACKER flags: "rxd"
+  method _autonomous_groom owner: HACKER
     "Autonomous grooming behaviour - called periodically by scheduler";
     "Only announce if in a valid location";
     if (!valid(this.location))
@@ -638,9 +638,9 @@ object HENRI
     behaviour = grooming_behaviours[random(length(grooming_behaviours))];
     "Announce to room";
     this.location:announce(this:mk_emote_event(behaviour));
-  endverb
+  endmethod
 
-  verb _autonomous_stretch (this none this) owner: HACKER flags: "rxd"
+  method _autonomous_stretch owner: HACKER
     "Autonomous stretching behaviour - called periodically by scheduler";
     "Only announce if in a valid location";
     if (!valid(this.location))
@@ -651,9 +651,9 @@ object HENRI
     behaviour = stretching_behaviours[random(length(stretching_behaviours))];
     "Announce to room";
     this.location:announce(this:mk_emote_event(behaviour));
-  endverb
+  endmethod
 
-  verb _autonomous_complain (this none this) owner: HACKER flags: "rxd"
+  method _autonomous_complain owner: HACKER
     "Autonomous complaining behaviour - called periodically by scheduler";
     "Only announce if in a valid location";
     if (!valid(this.location))
@@ -682,9 +682,9 @@ object HENRI
     endif
     "Announce to room";
     this.location:announce(this:mk_emote_event(behaviour));
-  endverb
+  endmethod
 
-  verb _autonomous_mood_shift (this none this) owner: HACKER flags: "rxd"
+  method _autonomous_mood_shift owner: HACKER
     "Autonomous mood shifting behaviour - called periodically by scheduler";
     "Only process if in a valid location";
     if (!valid(this.location))
@@ -714,9 +714,9 @@ object HENRI
       announcement = mood_announcements[new_mood] || "seems to be in a different mood.";
       this.location:announce(this:mk_emote_event(announcement));
     endif
-  endverb
+  endmethod
 
-  verb _autonomous_sigh (this none this) owner: HACKER flags: "rxd"
+  method _autonomous_sigh owner: HACKER
     "Autonomous dramatic sighing behaviour - called periodically by scheduler";
     "Only announce if in a valid location";
     if (!valid(this.location))
@@ -727,9 +727,9 @@ object HENRI
     behaviour = sighing_behaviours[random(length(sighing_behaviours))];
     "Announce to room";
     this.location:announce(this:mk_emote_event(behaviour));
-  endverb
+  endmethod
 
-  verb _autonomous_construction_reaction (this none this) owner: HACKER flags: "rxd"
+  method _autonomous_construction_reaction owner: HACKER
     "Autonomous construction-specific reactions - called periodically by scheduler";
     "Only announce if in a valid location";
     if (!valid(this.location))
@@ -740,7 +740,7 @@ object HENRI
     behaviour = construction_reactions[random(length(construction_reactions))];
     "Announce to room";
     this.location:announce(this:mk_emote_event(behaviour));
-  endverb
+  endmethod
 
   verb behaviour_status (none none none) owner: HACKER flags: "rxd"
     "Show status of Henri's autonomous behaviours";
@@ -814,9 +814,9 @@ object HENRI
     return result;
   endverb
 
-  verb on_location_enter (this none this) owner: HACKER flags: "rxd"
+  method on_location_enter owner: HACKER
     "Called by room when a player enters. Auto-start behaviors if needed.";
     {who} = args;
     this:_maybe_start_behaviours();
-  endverb
+  endmethod
 endobject

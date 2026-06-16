@@ -8,7 +8,7 @@ object SCHEDULED_TASK
   override import_export_hierarchy = {"scheduler"};
   override import_export_id = "scheduled_task";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create a new scheduled task flyweight.";
     "Args: schedule_id, target, verb, args, run_at, recurring, [task_id], [interval]";
     if (length(args) < 6)
@@ -25,49 +25,49 @@ object SCHEDULED_TASK
       slots['interval] = interval;
     endif
     return toflyweight(this, slots);
-  endverb
+  endmethod
 
-  verb schedule_id (this none this) owner: HACKER flags: "rxd"
+  method schedule_id owner: HACKER
     "Get schedule ID (scheduler's internal tracking ID).";
     return this.schedule_id;
-  endverb
+  endmethod
 
-  verb task_id (this none this) owner: HACKER flags: "rxd"
+  method task_id owner: HACKER
     "Get MOO runtime task ID (from fork), or 0 if not yet executed.";
     return this.task_id;
-  endverb
+  endmethod
 
-  verb target (this none this) owner: HACKER flags: "rxd"
+  method target owner: HACKER
     "Get task target object.";
     return this.target;
-  endverb
+  endmethod
 
-  verb verb (this none this) owner: HACKER flags: "rxd"
+  method verb owner: HACKER
     "Get task verb name.";
     return this.verb;
-  endverb
+  endmethod
 
-  verb args (this none this) owner: HACKER flags: "rxd"
+  method args owner: HACKER
     "Get task arguments list.";
     return this.args;
-  endverb
+  endmethod
 
-  verb run_at (this none this) owner: HACKER flags: "rxd"
+  method run_at owner: HACKER
     "Get task run time.";
     return this.run_at;
-  endverb
+  endmethod
 
-  verb recurring (this none this) owner: HACKER flags: "rxd"
+  method recurring owner: HACKER
     "Check if task is recurring.";
     return this.recurring;
-  endverb
+  endmethod
 
-  verb interval (this none this) owner: HACKER flags: "rxd"
+  method interval owner: HACKER
     "Get recurring interval (only for recurring tasks).";
     return this.interval;
-  endverb
+  endmethod
 
-  verb set_run_at (this none this) owner: HACKER flags: "rxd"
+  method set_run_at owner: HACKER
     "Update the run_at time for this task. Returns new flyweight.";
     {new_run_at} = args;
     typeof(new_run_at) == TYPE_INT || raise(E_TYPE, "Run_at must be timestamp");
@@ -75,9 +75,9 @@ object SCHEDULED_TASK
     new_slots = this.slots;
     new_slots['run_at] = new_run_at;
     return toflyweight(this.delegate, new_slots);
-  endverb
+  endmethod
 
-  verb set_task_id (this none this) owner: HACKER flags: "rxd"
+  method set_task_id owner: HACKER
     "Update the MOO runtime task_id for this task. Returns new flyweight.";
     {new_task_id} = args;
     typeof(new_task_id) == TYPE_INT || raise(E_TYPE, "Task ID must be integer");
@@ -85,5 +85,5 @@ object SCHEDULED_TASK
     new_slots = this.slots;
     new_slots['task_id] = new_task_id;
     return toflyweight(this.delegate, new_slots);
-  endverb
+  endmethod
 endobject

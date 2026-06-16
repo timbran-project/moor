@@ -8,25 +8,25 @@ object PLAYER_ACTIVITY
   override import_export_hierarchy = 0;
   override import_export_id = "player_activity";
 
-  verb make_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method make_entry owner: ARCH_WIZARD
     "Build an activity entry map.";
     {kind, task_id, label} = args;
     return ['kind -> kind, 'task_id -> task_id, 'label -> label, 'started_at -> time()];
-  endverb
+  endmethod
 
-  verb task_id_of (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method task_id_of owner: ARCH_WIZARD
     "Extract task id from an activity entry.";
     {entry} = args;
     return `entry['task_id] ! E_RANGE, E_TYPE => 0';
-  endverb
+  endmethod
 
-  verb kind_of (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method kind_of owner: ARCH_WIZARD
     "Extract kind from an activity entry.";
     {entry} = args;
     return `entry['kind] ! E_RANGE, E_TYPE => ""';
-  endverb
+  endmethod
 
-  verb cancel_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method cancel_entry owner: ARCH_WIZARD
     "Cancel the task referenced by an activity entry.";
     {entry} = args;
     task_id = this:task_id_of(entry);
@@ -35,9 +35,9 @@ object PLAYER_ACTIVITY
     endif
     `kill_task(task_id) ! E_INVARG';
     return 1;
-  endverb
+  endmethod
 
-  verb description_of (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method description_of owner: ARCH_WIZARD
     "Return display description for an activity entry.";
     {entry} = args;
     label = `entry['label] ! E_RANGE, E_TYPE => ""';
@@ -51,5 +51,5 @@ object PLAYER_ACTIVITY
       return tostr(kind);
     endif
     return "that";
-  endverb
+  endmethod
 endobject

@@ -9,12 +9,12 @@ object INT_PROTO
   override import_export_hierarchy = {"types"};
   override import_export_id = "int_proto";
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     "Return string representation for event composition";
     return tostr(args[1]);
-  endverb
+  endmethod
 
-  verb format_time_seconds (this none this) owner: HACKER flags: "rxd"
+  method format_time_seconds owner: HACKER
     "Convert integer seconds to human-readable time format";
     "Usage: seconds_value:format_time_seconds()";
     {seconds} = args;
@@ -30,29 +30,29 @@ object INT_PROTO
     days = hours / 24;
     remaining_hours = hours % 24;
     return tostr(days, "d", remaining_hours, "h");
-  endverb
+  endmethod
 
-  verb test_format_time_seconds_basic (this none this) owner: HACKER flags: "rxd"
+  method test_format_time_seconds_basic owner: HACKER
     "Test basic time formatting for seconds, minutes, hours";
     "Test seconds only";
-    (30):format_time_seconds() != "30s" && return E_ASSERT;
-    (0):format_time_seconds() != "0s" && return E_ASSERT;
-    (59):format_time_seconds() != "59s" && return E_ASSERT;
+    30:format_time_seconds() != "30s" && return E_ASSERT;
+    0:format_time_seconds() != "0s" && return E_ASSERT;
+    59:format_time_seconds() != "59s" && return E_ASSERT;
     "Test minutes and seconds";
-    (60):format_time_seconds() != "1m0s" && return E_ASSERT;
-    (90):format_time_seconds() != "1m30s" && return E_ASSERT;
-    (3599):format_time_seconds() != "59m59s" && return E_ASSERT;
+    60:format_time_seconds() != "1m0s" && return E_ASSERT;
+    90:format_time_seconds() != "1m30s" && return E_ASSERT;
+    3599:format_time_seconds() != "59m59s" && return E_ASSERT;
     "Test hours and minutes";
-    (3600):format_time_seconds() != "1h0m" && return E_ASSERT;
-    (7890):format_time_seconds() != "2h11m" && return E_ASSERT;
+    3600:format_time_seconds() != "1h0m" && return E_ASSERT;
+    7890:format_time_seconds() != "2h11m" && return E_ASSERT;
     return true;
-  endverb
+  endmethod
 
-  verb test_format_time_seconds_edge_cases (this none this) owner: HACKER flags: "rxd"
+  method test_format_time_seconds_edge_cases owner: HACKER
     "Test edge cases and error conditions";
     "Test days";
-    (86400):format_time_seconds() != "1d0h" && return E_ASSERT;
-    (90061):format_time_seconds() != "1d1h" && return E_ASSERT;
+    86400:format_time_seconds() != "1d0h" && return E_ASSERT;
+    90061:format_time_seconds() != "1d1h" && return E_ASSERT;
     "Test error conditions";
     try
       (-1):format_time_seconds();
@@ -61,21 +61,21 @@ object INT_PROTO
       "Expected error for negative seconds";
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_format_time_seconds_realistic (this none this) owner: HACKER flags: "rxd"
+  method test_format_time_seconds_realistic owner: HACKER
     "Test realistic idle/connection times";
     "Test typical idle times";
-    (180):format_time_seconds() != "3m0s" && return E_ASSERT;
-    (1800):format_time_seconds() != "30m0s" && return E_ASSERT;
-    (5400):format_time_seconds() != "1h30m" && return E_ASSERT;
+    180:format_time_seconds() != "3m0s" && return E_ASSERT;
+    1800:format_time_seconds() != "30m0s" && return E_ASSERT;
+    5400:format_time_seconds() != "1h30m" && return E_ASSERT;
     "Test long connection times";
-    (28800):format_time_seconds() != "8h0m" && return E_ASSERT;
-    (172800):format_time_seconds() != "2d0h" && return E_ASSERT;
+    28800:format_time_seconds() != "8h0m" && return E_ASSERT;
+    172800:format_time_seconds() != "2d0h" && return E_ASSERT;
     return true;
-  endverb
+  endmethod
 
-  verb format_bytes (this none this) owner: HACKER flags: "rxd"
+  method format_bytes owner: HACKER
     "Format bytes as human-readable size string";
     "Usage: bytes_value:format_bytes()";
     {bytes} = args;
@@ -85,22 +85,22 @@ object INT_PROTO
     kb = bytes / 1024;
     kb < 10 && return " " + tostr(kb) + "K";
     return tostr(kb) + "K";
-  endverb
+  endmethod
 
-  verb test_format_bytes (this none this) owner: HACKER flags: "rxd"
+  method test_format_bytes owner: HACKER
     "Test byte formatting";
     "Test less than 1KB";
-    (0):format_bytes() != "<1K" && return E_ASSERT;
-    (512):format_bytes() != "<1K" && return E_ASSERT;
-    (1023):format_bytes() != "<1K" && return E_ASSERT;
+    0:format_bytes() != "<1K" && return E_ASSERT;
+    512:format_bytes() != "<1K" && return E_ASSERT;
+    1023:format_bytes() != "<1K" && return E_ASSERT;
     "Test KB formatting";
-    (1024):format_bytes() != " 1K" && return E_ASSERT;
-    (5120):format_bytes() != " 5K" && return E_ASSERT;
-    (9216):format_bytes() != " 9K" && return E_ASSERT;
+    1024:format_bytes() != " 1K" && return E_ASSERT;
+    5120:format_bytes() != " 5K" && return E_ASSERT;
+    9216:format_bytes() != " 9K" && return E_ASSERT;
     "Test larger KB values";
-    (10240):format_bytes() != "10K" && return E_ASSERT;
-    (15360):format_bytes() != "15K" && return E_ASSERT;
-    (1048576):format_bytes() != "1024K" && return E_ASSERT;
+    10240:format_bytes() != "10K" && return E_ASSERT;
+    15360:format_bytes() != "15K" && return E_ASSERT;
+    1048576:format_bytes() != "1024K" && return E_ASSERT;
     return true;
-  endverb
+  endmethod
 endobject

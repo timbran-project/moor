@@ -66,7 +66,7 @@ object PASSAGE
   override import_export_hierarchy = {"world"};
   override import_export_id = "passage";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     {room_a, label_a, aliases_a, description_a, ambient_a, room_b, label_b, aliases_b, description_b, ambient_b, ?is_open = true} = args;
     typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
     label_a = typeof(label_a) == TYPE_STR ? label_a | "";
@@ -87,9 +87,9 @@ object PASSAGE
     ambient_b = ambient_b ? true | false;
     is_open = is_open ? true | false;
     return <this, .side_a_room = room_a, .side_a_label = label_a, .side_a_aliases = aliases_a, .side_a_description = description_a, .side_a_ambient = ambient_a, .side_a_leave_msg = {}, .side_a_arrive_msg = {}, .side_a_prose_style = 'fragment, .side_a_departure_phrase = "", .side_a_arrival_phrase = "", .side_b_room = room_b, .side_b_label = label_b, .side_b_aliases = aliases_b, .side_b_description = description_b, .side_b_ambient = ambient_b, .side_b_leave_msg = {}, .side_b_arrive_msg = {}, .side_b_prose_style = 'fragment, .side_b_departure_phrase = "", .side_b_arrival_phrase = "", .is_open = is_open>;
-  endverb
+  endmethod
 
-  verb _value (this none this) owner: HACKER flags: "rxd"
+  method _value owner: HACKER
     {prop, default} = args;
     typeof(prop) == TYPE_STR || raise(E_TYPE);
     if (typeof(this) == TYPE_OBJ)
@@ -107,9 +107,9 @@ object PASSAGE
       endtry
     endif
     return default;
-  endverb
+  endmethod
 
-  verb _side_lookup (this none this) owner: HACKER flags: "rxd"
+  method _side_lookup owner: HACKER
     {side, attr} = args;
     prop = "";
     default = 0;
@@ -182,9 +182,9 @@ object PASSAGE
       return default;
     endif
     return this:_value(prop, default);
-  endverb
+  endmethod
 
-  verb configure (this none this) owner: HACKER flags: "rxd"
+  method configure owner: HACKER
     {room_a, label_a, aliases_a, description_a, ambient_a, room_b, label_b, aliases_b, description_b, ambient_b} = args;
     typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
     this.side_a_room = room_a;
@@ -210,21 +210,21 @@ object PASSAGE
     this.side_b_description = typeof(description_b) == TYPE_STR ? description_b | "";
     this.side_b_ambient = ambient_b ? true | false;
     return this;
-  endverb
+  endmethod
 
-  verb includes (this none this) owner: HACKER flags: "rxd"
+  method includes owner: HACKER
     {room} = args;
     return room == this:_side_lookup('a, 'room) || room == this:_side_lookup('b, 'room);
-  endverb
+  endmethod
 
-  verb side_for (this none this) owner: HACKER flags: "rxd"
+  method side_for owner: HACKER
     {room} = args;
     room == this:_side_lookup('a, 'room) && return 'a;
     room == this:_side_lookup('b, 'room) && return 'b;
     return 'none;
-  endverb
+  endmethod
 
-  verb other_room (this none this) owner: HACKER flags: "rxd"
+  method other_room owner: HACKER
     {room} = args;
     if (room == this:_side_lookup('a, 'room))
       return this:_side_lookup('b, 'room);
@@ -233,9 +233,9 @@ object PASSAGE
     else
       return #-1;
     endif
-  endverb
+  endmethod
 
-  verb label_for (this none this) owner: HACKER flags: "rxd"
+  method label_for owner: HACKER
     {room} = args;
     if (room == this:_side_lookup('a, 'room))
       return this:_side_lookup('a, 'label);
@@ -244,9 +244,9 @@ object PASSAGE
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb aliases_for (this none this) owner: HACKER flags: "rxd"
+  method aliases_for owner: HACKER
     {room} = args;
     aliases = {};
     if (room == this:_side_lookup('a, 'room))
@@ -256,9 +256,9 @@ object PASSAGE
     endif
     typeof(aliases) == TYPE_LIST || (aliases = typeof(aliases) == TYPE_STR ? {aliases} | {});
     return aliases;
-  endverb
+  endmethod
 
-  verb description_for (this none this) owner: HACKER flags: "rxd"
+  method description_for owner: HACKER
     {room} = args;
     if (room == this:_side_lookup('a, 'room))
       return this:_side_lookup('a, 'description);
@@ -267,9 +267,9 @@ object PASSAGE
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb matches_command (this none this) owner: HACKER flags: "rxd"
+  method matches_command owner: HACKER
     "Check if command matches this passage's label or aliases from given room.";
     "Also handles direction abbreviations (n/north, e/east, etc).";
     {room, command} = args;
@@ -298,9 +298,9 @@ object PASSAGE
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb travel_from (this none this) owner: HACKER flags: "rxd"
+  method travel_from owner: HACKER
     "Handle passage traversal using movement context and passage messages";
     {player, from_room, parsed} = args;
     valid(player) || return false;
@@ -393,17 +393,17 @@ object PASSAGE
       endif
     endfork
     return true;
-  endverb
+  endmethod
 
-  verb _move_actor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _move_actor owner: ARCH_WIZARD
     "Privileged final movement step for checked passage traversal.";
     caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate) || raise(E_PERM);
     {actor, destination} = args;
     valid(actor) && valid(destination) || raise(E_INVARG);
     return move(actor, destination);
-  endverb
+  endmethod
 
-  verb _notify_blocked (this none this) owner: HACKER flags: "rxd"
+  method _notify_blocked owner: HACKER
     "Notify player that passage is blocked/closed.";
     {player, from_room} = args;
     close_msg = this:_value("close_msg", "");
@@ -415,9 +415,9 @@ object PASSAGE
     endif
     player:inform_current($event:mk_error(player, message));
     return true;
-  endverb
+  endmethod
 
-  verb expand_direction_aliases (this none this) owner: HACKER flags: "rxd"
+  method expand_direction_aliases owner: HACKER
     "Expand common directions to include standard aliases.";
     {directions} = args;
     result = {};
@@ -432,9 +432,9 @@ object PASSAGE
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb side_info_for (this none this) owner: HACKER flags: "rxd"
+  method side_info_for owner: HACKER
     "Get label, description, ambient flag, and prose_style for a given room side.";
     "Returns [label, description, ambient, prose_style] or empty list if room not found.";
     {room} = args;
@@ -447,14 +447,14 @@ object PASSAGE
     ambient = this:_side_lookup(side, 'ambient);
     prose_style = this:_side_lookup(side, 'prose_style);
     return {label, description, ambient, prose_style};
-  endverb
+  endmethod
 
-  verb _extract_all (this none this) owner: HACKER flags: "rxd"
+  method _extract_all owner: HACKER
     "Extract all passage properties into a map. Internal helper for transformer verbs.";
     return ['room_a -> this:_side_lookup('a, 'room), 'room_b -> this:_side_lookup('b, 'room), 'label_a -> this:_side_lookup('a, 'label), 'label_b -> this:_side_lookup('b, 'label), 'aliases_a -> this:_side_lookup('a, 'aliases), 'aliases_b -> this:_side_lookup('b, 'aliases), 'desc_a -> this:_side_lookup('a, 'description), 'desc_b -> this:_side_lookup('b, 'description), 'ambient_a -> this:_side_lookup('a, 'ambient), 'ambient_b -> this:_side_lookup('b, 'ambient), 'leave_msg_a -> this:_side_lookup('a, 'leave_msg), 'leave_msg_b -> this:_side_lookup('b, 'leave_msg), 'arrive_msg_a -> this:_side_lookup('a, 'arrive_msg), 'arrive_msg_b -> this:_side_lookup('b, 'arrive_msg), 'prose_style_a -> this:_side_lookup('a, 'prose_style), 'prose_style_b -> this:_side_lookup('b, 'prose_style), 'departure_phrase_a -> this:_side_lookup('a, 'departure_phrase), 'departure_phrase_b -> this:_side_lookup('b, 'departure_phrase), 'arrival_phrase_a -> this:_side_lookup('a, 'arrival_phrase), 'arrival_phrase_b -> this:_side_lookup('b, 'arrival_phrase), 'is_open -> this:_value("is_open", true), 'is_locked -> this:_value("is_locked", false), 'is_door -> this:_value("is_door", false), 'unlock_rule -> this:_value("unlock_rule", 0), 'locked_msg -> this:_value("locked_msg", "")];
-  endverb
+  endmethod
 
-  verb with_label_from (this none this) owner: HACKER flags: "rxd"
+  method with_label_from owner: HACKER
     "Update the label visible from a given room. Returns new passage flyweight.";
     {room, label} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
@@ -468,9 +468,9 @@ object PASSAGE
       props['label_b] = label;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb with_description_from (this none this) owner: HACKER flags: "rxd"
+  method with_description_from owner: HACKER
     "Update the description visible from a given room. Returns new passage flyweight.";
     {room, description} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
@@ -494,9 +494,9 @@ object PASSAGE
       props['desc_b] = description;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb with_aliases_from (this none this) owner: HACKER flags: "rxd"
+  method with_aliases_from owner: HACKER
     "Update the aliases visible from a given room. Accepts string or list. Returns new passage flyweight.";
     {room, aliases} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
@@ -515,9 +515,9 @@ object PASSAGE
       props['aliases_b] = aliases;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb with_ambient_from (this none this) owner: HACKER flags: "rxd"
+  method with_ambient_from owner: HACKER
     "Update the ambient flag for the side visible from a given room. Returns new passage flyweight.";
     {room, is_ambient} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
@@ -530,26 +530,26 @@ object PASSAGE
       props['ambient_b] = is_ambient ? true | false;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb with_open (this none this) owner: HACKER flags: "rxd"
+  method with_open owner: HACKER
     "Update whether the passage is open/traversable. Returns new passage flyweight.";
     {is_open} = args;
     props = this:_extract_all();
     props['is_open] = is_open ? true | false;
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb mk_movement_context (this none this) owner: HACKER flags: "rxd"
+  method mk_movement_context owner: HACKER
     "Create a movement context flyweight with get_binding() support for message rendering.";
     {actor, from_room, to_room, from_direction, to_direction} = args;
     typeof(actor) == TYPE_OBJ || raise(E_TYPE);
     typeof(from_room) == TYPE_OBJ || raise(E_TYPE);
     typeof(to_room) == TYPE_OBJ || raise(E_TYPE);
     return <$passage, .actor = actor, .from_room = from_room, .to_room = to_room, .passage = this, .from_direction = from_direction, .to_direction = to_direction>;
-  endverb
+  endmethod
 
-  verb get_binding (this none this) owner: HACKER flags: "rxd"
+  method get_binding owner: HACKER
     "Implement the binding protocol for message substitution.";
     {name} = args;
     if (name == 'actor)
@@ -574,9 +574,9 @@ object PASSAGE
       return this.passage;
     endif
     return false;
-  endverb
+  endmethod
 
-  verb prose_style_for (this none this) owner: HACKER flags: "rxd"
+  method prose_style_for owner: HACKER
     "Get the prose style for the side facing a given room.";
     "Returns 'sentence (include as-is) or 'fragment (wrap in 'You see X').";
     {room} = args;
@@ -587,9 +587,9 @@ object PASSAGE
     else
       return 'fragment;
     endif
-  endverb
+  endmethod
 
-  verb departure_phrase_for (this none this) owner: HACKER flags: "rxd"
+  method departure_phrase_for owner: HACKER
     "Get the departure phrase for the side facing a given room.";
     "Used in messages like 'heads [direction] through [phrase]'.";
     {room} = args;
@@ -600,9 +600,9 @@ object PASSAGE
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb arrival_phrase_for (this none this) owner: HACKER flags: "rxd"
+  method arrival_phrase_for owner: HACKER
     "Get the arrival phrase for the side facing a given room.";
     "Used in messages like 'arrives from [phrase]'.";
     {room} = args;
@@ -613,15 +613,15 @@ object PASSAGE
     else
       return "";
     endif
-  endverb
+  endmethod
 
-  verb _mk_from_props (this none this) owner: HACKER flags: "rxd"
+  method _mk_from_props owner: HACKER
     "Construct a passage flyweight from a props map. Internal helper for transformer verbs.";
     {props} = args;
     return <$passage, .side_a_room = props['room_a], .side_a_label = props['label_a], .side_a_aliases = props['aliases_a], .side_a_description = props['desc_a], .side_a_ambient = props['ambient_a], .side_a_leave_msg = props['leave_msg_a], .side_a_arrive_msg = props['arrive_msg_a], .side_a_prose_style = props['prose_style_a], .side_a_departure_phrase = props['departure_phrase_a], .side_a_arrival_phrase = props['arrival_phrase_a], .side_b_room = props['room_b], .side_b_label = props['label_b], .side_b_aliases = props['aliases_b], .side_b_description = props['desc_b], .side_b_ambient = props['ambient_b], .side_b_leave_msg = props['leave_msg_b], .side_b_arrive_msg = props['arrive_msg_b], .side_b_prose_style = props['prose_style_b], .side_b_departure_phrase = props['departure_phrase_b], .side_b_arrival_phrase = props['arrival_phrase_b], .is_open = props['is_open], .is_locked = props['is_locked], .is_door = props['is_door], .unlock_rule = props['unlock_rule], .locked_msg = props['locked_msg]>;
-  endverb
+  endmethod
 
-  verb with_prose_style_from (this none this) owner: HACKER flags: "rxd"
+  method with_prose_style_from owner: HACKER
     "Update the prose style for the side visible from a given room. Returns new passage flyweight.";
     "'sentence means include description as-is; 'fragment means wrap in 'You see X'.";
     {room, style} = args;
@@ -636,9 +636,9 @@ object PASSAGE
       props['prose_style_b] = style;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb with_departure_phrase_from (this none this) owner: HACKER flags: "rxd"
+  method with_departure_phrase_from owner: HACKER
     "Update the departure phrase for the side visible from a given room. Returns new passage flyweight.";
     "Used in messages like 'heads [direction] through [phrase]'.";
     {room, phrase} = args;
@@ -653,9 +653,9 @@ object PASSAGE
       props['departure_phrase_b] = phrase;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
-  verb with_arrival_phrase_from (this none this) owner: HACKER flags: "rxd"
+  method with_arrival_phrase_from owner: HACKER
     "Update the arrival phrase for the side visible from a given room. Returns new passage flyweight.";
     "Used in messages like 'arrives from [phrase]'.";
     {room, phrase} = args;
@@ -670,7 +670,7 @@ object PASSAGE
       props['arrival_phrase_b] = phrase;
     endif
     return this:_mk_from_props(props);
-  endverb
+  endmethod
 
   verb with_locked (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Update whether the passage is locked. Returns new passage flyweight.";
@@ -773,7 +773,7 @@ object PASSAGE
     return this:_mk_from_props(props);
   endverb
 
-  verb door_name_for (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method door_name_for owner: ARCH_WIZARD
     "Return a display name for this passage when used as a door.";
     "If the passage has open/locked state, it's a door - return 'door'.";
     "Otherwise return the directional label.";
@@ -785,14 +785,14 @@ object PASSAGE
     endif
     "Not a door, use the directional label";
     return this:label_for(from_room);
-  endverb
+  endmethod
 
-  verb test_with_description_from_reports_template_errors (this none this) owner: HACKER flags: "rxd"
+  method test_with_description_from_reports_template_errors owner: HACKER
     "Unit test: passage description updates reject malformed substitution templates.";
     passage = this:mk($room, "east", {"east"}, "", true, $room, "west", {"west"}, "", true);
     $test_utils:assert_raises(E_INVARG, passage, "with_description_from", {$room, "broken {template"}, "with_description_from should reject malformed templates");
     updated = passage:with_description_from($room, "{the direction}");
     $test_utils:assert_type(updated.side_a_description, TYPE_LIST, "valid substitution descriptions should be compiled");
     return true;
-  endverb
+  endmethod
 endobject

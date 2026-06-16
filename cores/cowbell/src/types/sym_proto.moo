@@ -9,14 +9,14 @@ object SYM_PROTO
   override import_export_hierarchy = {"types"};
   override import_export_id = "sym_proto";
 
-  verb as_string (this none this) owner: HACKER flags: "rxd"
+  method as_string owner: HACKER
     "Return the symbol's text.";
     {sym} = args;
     typeof(sym) == TYPE_SYM || raise(E_TYPE, "Method must be called on symbol");
     return tostr(sym);
-  endverb
+  endmethod
 
-  verb starts_with (this none this) owner: HACKER flags: "rxd"
+  method starts_with owner: HACKER
     "Return whether the symbol text starts with prefix.";
     {sym, prefix} = args;
     typeof(sym) == TYPE_SYM || raise(E_TYPE, "Method must be called on symbol");
@@ -25,9 +25,9 @@ object SYM_PROTO
     endif
     typeof(prefix) == TYPE_STR || raise(E_TYPE, "Prefix must be a string or symbol");
     return tostr(sym):starts_with(prefix);
-  endverb
+  endmethod
 
-  verb ends_with (this none this) owner: HACKER flags: "rxd"
+  method ends_with owner: HACKER
     "Return whether the symbol text ends with suffix.";
     {sym, suffix} = args;
     typeof(sym) == TYPE_SYM || raise(E_TYPE, "Method must be called on symbol");
@@ -36,9 +36,9 @@ object SYM_PROTO
     endif
     typeof(suffix) == TYPE_STR || raise(E_TYPE, "Suffix must be a string or symbol");
     return tostr(sym):ends_with(suffix);
-  endverb
+  endmethod
 
-  verb contains (this none this) owner: HACKER flags: "rxd"
+  method contains owner: HACKER
     "Return whether the symbol text contains needle.";
     {sym, needle} = args;
     typeof(sym) == TYPE_SYM || raise(E_TYPE, "Method must be called on symbol");
@@ -47,9 +47,9 @@ object SYM_PROTO
     endif
     typeof(needle) == TYPE_STR || raise(E_TYPE, "Needle must be a string or symbol");
     return tostr(sym):contains(needle);
-  endverb
+  endmethod
 
-  verb test_symbol_text_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_symbol_text_helpers owner: HACKER
     "Cover symbol text projection and matching helpers.";
     $test_utils:assert_eq('topic_say:as_string(), "topic_say", "as_string returns symbol text");
     $test_utils:assert_true('topic_say:starts_with('topic_), "starts_with accepts symbol prefix");
@@ -61,5 +61,5 @@ object SYM_PROTO
     $test_utils:assert_false('topic_say:contains("emote"), "contains rejects absent needle");
     $test_utils:assert_raises(E_TYPE, 'topic_say, "starts_with", {1}, "starts_with rejects non-text prefix");
     return true;
-  endverb
+  endmethod
 endobject

@@ -9,35 +9,35 @@ object TEST_UTILS
   override import_export_hierarchy = {"utils"};
   override import_export_id = "test_utils";
 
-  verb assert_true (this none this) owner: HACKER flags: "rxd"
+  method assert_true owner: HACKER
     "Assert that condition is true.";
     {condition, ?message = "Expected true"} = args;
     condition || raise(E_ASSERT, message);
     return true;
-  endverb
+  endmethod
 
-  verb assert_false (this none this) owner: HACKER flags: "rxd"
+  method assert_false owner: HACKER
     "Assert that condition is false.";
     {condition, ?message = "Expected false"} = args;
     !condition || raise(E_ASSERT, message);
     return true;
-  endverb
+  endmethod
 
-  verb assert_eq (this none this) owner: HACKER flags: "rxd"
+  method assert_eq owner: HACKER
     "Assert that actual equals expected.";
     {actual, expected, ?message = "Values differ"} = args;
     actual == expected || raise(E_ASSERT, message + ": expected " + toliteral(expected) + ", got " + toliteral(actual));
     return true;
-  endverb
+  endmethod
 
-  verb assert_type (this none this) owner: HACKER flags: "rxd"
+  method assert_type owner: HACKER
     "Assert that value has the expected MOO type constant.";
     {value, expected_type, ?message = "Type mismatch"} = args;
     typeof(value) == expected_type || raise(E_ASSERT, message + ": expected type " + tostr(expected_type) + ", got " + tostr(typeof(value)));
     return true;
-  endverb
+  endmethod
 
-  verb assert_raises (this none this) owner: HACKER flags: "rxd"
+  method assert_raises owner: HACKER
     "Assert that obj:verb(@call_args) raises expected_error.";
     {expected_error, obj, verb_name, ?call_args = {}, ?message = "Expected error"} = args;
     try
@@ -47,24 +47,24 @@ object TEST_UTILS
       return true;
     endtry
     raise(E_ASSERT, message + ": no error raised");
-  endverb
+  endmethod
 
-  verb anonymous (this none this) owner: HACKER flags: "rxd"
+  method anonymous owner: HACKER
     "Create an anonymous child of proto for test fixtures.";
     {proto} = args;
     return proto:create(true);
-  endverb
+  endmethod
 
-  verb destroy_if_valid (this none this) owner: HACKER flags: "rxd"
+  method destroy_if_valid owner: HACKER
     "Destroy a persistent fixture if it is valid. Anonymous objects cannot be destroyed.";
     {obj} = args;
     if (valid(obj) && !is_anonymous(obj))
       obj:destroy();
     endif
     return true;
-  endverb
+  endmethod
 
-  verb test_assertions (this none this) owner: HACKER flags: "rxd"
+  method test_assertions owner: HACKER
     "Exercise the basic assertion helpers.";
     this:assert_true(true, "true should pass");
     this:assert_false(false, "false should pass");
@@ -74,9 +74,9 @@ object TEST_UTILS
     this:assert_eq($arch_wizard:pronouns_display(), "they/them", "player pronouns display should be readable");
     this:assert_eq($henri:pronouns_display(), "he/him", "actor pronouns display should be readable");
     return true;
-  endverb
+  endmethod
 
-  verb test_anonymous_fixture_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_anonymous_fixture_helpers owner: HACKER
     "Exercise anonymous creation and safe cleanup helpers.";
     anon = this:anonymous($root);
     this:assert_true(is_anonymous(anon), "anonymous helper should create anonymous objects");
@@ -91,5 +91,5 @@ object TEST_UTILS
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 endobject

@@ -9,7 +9,7 @@ object MATCH
   override import_export_hierarchy = {"utils"};
   override import_export_id = "match";
 
-  verb match_object (this none this) owner: HACKER flags: "rxd"
+  method match_object owner: HACKER
     "Match an object reference string to an actual object.";
     "Handles: #123, #UUID-style, $system.prop, @playername, or plain name matching.";
     "Usage: $match:match_object(ref_string [, context_object])";
@@ -49,9 +49,9 @@ object MATCH
     else
       return this:match_by_name(ref_string, context);
     endif
-  endverb
+  endmethod
 
-  verb match_player (this none this) owner: HACKER flags: "rxd"
+  method match_player owner: HACKER
     "Match player by name or object number using complex_match builtin.";
     {player_name, ?context = player} = args;
     "Handle 'me'/'myself' as special case";
@@ -70,9 +70,9 @@ object MATCH
     result = complex_match(player_name, all_players);
     result == $failed_match && raise(E_INVARG, "No player found matching '" + player_name + "'");
     return result;
-  endverb
+  endmethod
 
-  verb match_by_name (this none this) owner: HACKER flags: "rxd"
+  method match_by_name owner: HACKER
     "Match object by name in current context using complex_match builtin.";
     {name_string, ?context = player} = args;
     if (name_string == "here")
@@ -105,9 +105,9 @@ object MATCH
     result = complex_match(name_string, search_objects, keys);
     result == $failed_match && raise(E_INVARG, "No object found matching '" + name_string + "'");
     return result;
-  endverb
+  endmethod
 
-  verb resolve_in_scope (this none this) owner: HACKER flags: "rxd"
+  method resolve_in_scope owner: HACKER
     "Resolve a token against a list of scope entries (objects or {obj, aliases...}).";
     "The optional third argument is a map of options (unusual for MOO, but keeps flags extensible):";
     "  'allow_literals (bool, default true) - skip straight to literal #obj/uuobjid lookups";
@@ -165,9 +165,9 @@ object MATCH
     keys_arg = has_keys ? keys | false;
     result = complex_match(token_trimmed, targets, keys_arg, fuzzy_threshold);
     return result;
-  endverb
+  endmethod
 
-  verb test_match_object (this none this) owner: HACKER flags: "rxd"
+  method test_match_object owner: HACKER
     "Test object matching - returns actual objects.";
     result = this:match_object("#1");
     result != #1 && raise(E_ASSERT, "Should return actual object #1: " + toliteral(result));
@@ -195,9 +195,9 @@ object MATCH
     endif
     result = this:match_object("archwizard");
     valid(result) || raise(E_ASSERT, "Should match 'archwizard' to ArchWizard object: " + toliteral(result));
-  endverb
+  endmethod
 
-  verb test_resolve_in_scope_literals (this none this) owner: HACKER flags: "rxd"
+  method test_resolve_in_scope_literals owner: HACKER
     scope = {#49, #50};
     result = this:resolve_in_scope("#49", scope);
     result != #49 && raise(E_ASSERT, "Literal numeric ID should resolve to #49: " + toliteral(result));
@@ -211,29 +211,29 @@ object MATCH
     endtry
     result = this:resolve_in_scope("#999999", scope);
     result != #-3 && raise(E_ASSERT, "Unknown literal should fail: " + toliteral(result));
-  endverb
+  endmethod
 
-  verb test_resolve_in_scope_aliases (this none this) owner: HACKER flags: "rxd"
+  method test_resolve_in_scope_aliases owner: HACKER
     scope = {{#49, "first room", "lobby"}, {#50, "first area"}};
     result = this:resolve_in_scope("lobby", scope);
     result != #49 && raise(E_ASSERT, "Alias should resolve to first room: " + toliteral(result));
     result = this:resolve_in_scope("first area", scope);
     result != #50 && raise(E_ASSERT, "Text alias should resolve to first area: " + toliteral(result));
-  endverb
+  endmethod
 
-  verb test_resolve_in_scope_ordinals (this none this) owner: HACKER flags: "rxd"
+  method test_resolve_in_scope_ordinals owner: HACKER
     scope = {{#49, "room"}, {#50, "room"}};
     result = this:resolve_in_scope("second room", scope);
     result != #50 && raise(E_ASSERT, "Ordinal should pick second entry: " + toliteral(result));
     result = this:resolve_in_scope("third room", scope);
     result != #-3 && raise(E_ASSERT, "Out-of-range ordinal should fail: " + toliteral(result));
-  endverb
+  endmethod
 
-  verb test_resolve_in_scope_fuzzy (this none this) owner: HACKER flags: "rxd"
+  method test_resolve_in_scope_fuzzy owner: HACKER
     scope = {{#49, "lobby"}};
     result = this:resolve_in_scope("lobbi", scope, ['fuzzy_threshold -> 0.8]);
     result != #49 && raise(E_ASSERT, "Fuzzy match should succeed with threshold: " + toliteral(result));
     result = this:resolve_in_scope("lobbi", scope, ['fuzzy_threshold -> 0.0]);
     result != #-3 && raise(E_ASSERT, "Fuzzy disabled should fail: " + toliteral(result));
-  endverb
+  endmethod
 endobject

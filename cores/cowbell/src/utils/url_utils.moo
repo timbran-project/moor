@@ -8,7 +8,7 @@ object URL_UTILS
   override import_export_hierarchy = {"utils"};
   override import_export_id = "url_utils";
 
-  verb fetch_preview (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fetch_preview owner: ARCH_WIZARD
     "Fetch URL and extract OpenGraph/meta preview data.";
     "Args: {url} => map with url, title, description, image, site_name";
     {url} = args;
@@ -31,9 +31,9 @@ object URL_UTILS
     "Extract OpenGraph and meta tags";
     result = this:_parse_meta(body, result);
     return result;
-  endverb
+  endmethod
 
-  verb _parse_meta (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _parse_meta owner: ARCH_WIZARD
     "Parse HTML for OpenGraph and meta tags using html_query.";
     {html, result} = args;
     "Query for OpenGraph meta tags";
@@ -61,9 +61,9 @@ object URL_UTILS
       endif
     endif
     return result;
-  endverb
+  endmethod
 
-  verb to_curie_str (this none this) owner: HACKER flags: "rxd"
+  method to_curie_str owner: HACKER
     "Convert an object reference to a CURIE string for web-host RESTful paths.";
     "Returns strings like 'uuid:...', 'oid:...' depending on object type.";
     "Usage: $url_utils:to_curie_str(target)";
@@ -75,5 +75,5 @@ object URL_UTILS
     else
       return "oid:" + target_str[2..$];
     endif
-  endverb
+  endmethod
 endobject

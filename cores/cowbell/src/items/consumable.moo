@@ -113,7 +113,7 @@ object CONSUMABLE
     "- `action_consume(who, context, ?amount)`: Reaction handler for programmatic use"
   };
 
-  verb can_consume (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method can_consume owner: ARCH_WIZARD
     "Check if accessor can consume this. Returns ['allowed -> bool, 'reason -> msg].";
     {who} = args;
     "Check if empty";
@@ -131,9 +131,9 @@ object CONSUMABLE
     else
       return ['allowed -> false, 'reason -> this.consume_denied_msg];
     endif
-  endverb
+  endmethod
 
-  verb do_consume (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_consume owner: ARCH_WIZARD
     "Core consumption logic. Decrements portions, announces, fires triggers.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_consume must be called by this object");
@@ -169,9 +169,9 @@ object CONSUMABLE
       endif
     endif
     return true;
-  endverb
+  endmethod
 
-  verb action_consume (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_consume owner: ARCH_WIZARD
     "Action handler for reactions: make actor consume this item.";
     set_task_perms(this.owner);
     {who, context, ?amount = 1} = args;
@@ -184,9 +184,9 @@ object CONSUMABLE
     !check['allowed] && return false;
     "Do the consumption";
     return this:do_consume(who, amount);
-  endverb
+  endmethod
 
-  verb consume_for_test (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method consume_for_test owner: ARCH_WIZARD
     "Test verb for consumption - bypasses caller check for testing.";
     {who, amount} = args;
     "Check first";
@@ -203,13 +203,13 @@ object CONSUMABLE
       this:fire_trigger('on_empty, ['Actor -> who]);
     endif
     return ["allowed" -> true, "old_portions" -> old_portions, "new_portions" -> this.portions];
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for consumable items.";
     {for_player, ?topic = ""} = args;
     "Base consumable - no specific commands, children define them";
     topic == "" && return {};
     return 0;
-  endverb
+  endmethod
 endobject

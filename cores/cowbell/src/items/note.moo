@@ -110,7 +110,7 @@ object NOTE
     "```"
   };
 
-  verb can_read (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method can_read owner: ARCH_WIZARD
     "Check if accessor can read this note. Returns {allowed, reason}.";
     {accessor} = args;
     "No rule = public access";
@@ -124,9 +124,9 @@ object NOTE
     else
       return ['allowed -> false, 'reason -> this.read_denied_msg];
     endif
-  endverb
+  endmethod
 
-  verb can_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method can_write owner: ARCH_WIZARD
     "Check if accessor can write on this note. Returns {allowed, reason}.";
     {accessor} = args;
     "No rule = public access";
@@ -140,9 +140,9 @@ object NOTE
     else
       return ['allowed -> false, 'reason -> this.write_denied_msg];
     endif
-  endverb
+  endmethod
 
-  verb do_read (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_read owner: ARCH_WIZARD
     "Core: display the note's text to the reader.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_read must be called by this object");
@@ -164,9 +164,9 @@ object NOTE
     endif
     this:fire_trigger('on_read, ['Actor -> who]);
     return true;
-  endverb
+  endmethod
 
-  verb do_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_write owner: ARCH_WIZARD
     "Core: append a line to the note.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_write must be called by this object");
@@ -178,9 +178,9 @@ object NOTE
     endif
     this:fire_trigger('on_write, ['Actor -> who, 'Line -> line]);
     return true;
-  endverb
+  endmethod
 
-  verb do_erase (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_erase owner: ARCH_WIZARD
     "Core: erase the note's text.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_erase must be called by this object");
@@ -192,7 +192,7 @@ object NOTE
     endif
     this:fire_trigger('on_erase, ['Actor -> who]);
     return true;
-  endverb
+  endmethod
 
   verb "read r*ead" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Read this note";
@@ -270,31 +270,31 @@ object NOTE
     this:do_write(player, dobjstr);
   endverb
 
-  verb action_read (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_read owner: ARCH_WIZARD
     "Action handler: actor reads this note.";
     set_task_perms(this.owner);
     {who, context} = args;
     !this:can_read(who)['allowed] && return false;
     return this:do_read(who);
-  endverb
+  endmethod
 
-  verb action_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_write owner: ARCH_WIZARD
     "Action handler: actor writes on this note.";
     set_task_perms(this.owner);
     {who, context, line} = args;
     !this:can_write(who)['allowed] && return false;
     return this:do_write(who, line);
-  endverb
+  endmethod
 
-  verb action_erase (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_erase owner: ARCH_WIZARD
     "Action handler: actor erases this note.";
     set_task_perms(this.owner);
     {who, context} = args;
     !this:can_write(who)['allowed] && return false;
     return this:do_erase(who);
-  endverb
+  endmethod
 
-  verb text (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method text owner: ARCH_WIZARD
     "Return the text content if caller can read it.";
     cp = caller_perms();
     "Owner and wizards can always read";
@@ -305,9 +305,9 @@ object NOTE
       return this.text;
     endif
     raise(E_PERM, "You can't read this.");
-  endverb
+  endmethod
 
-  verb set_text (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_text owner: ARCH_WIZARD
     "Set the text content if caller can write.";
     {new_text} = args;
     cp = caller_perms();
@@ -321,9 +321,9 @@ object NOTE
     endif
     this.text = new_text;
     return true;
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method look_self owner: ARCH_WIZARD
     "Custom look that indicates if there's writing on the note.";
     set_task_perms(caller_perms());
     description = this.description;
@@ -331,9 +331,9 @@ object NOTE
       description = description + "  There appears to be some writing on it.";
     endif
     return <$look, .what = this, .title = this:name(), .description = description>;
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics this object provides.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("read", "Read a note", "Use 'read <note>' to display the note's contents.", {"r"}, 'commands, {"write", "erase"}), $help:mk("write", "Write on a note", "Use 'write <text> on <note>' to add a line of text.", {}, 'commands, {"read", "erase"}), $help:mk("erase", "Erase a note", "Use 'erase <note>' to clear all text from it.", {}, 'commands, {"read", "write"}), $help:mk("delete", "Delete a line", "Use 'delete <line#> from <note>' to remove a specific line. Use negative numbers to count from end (-1 = last line).", {"remove"}, 'commands, {"write", "erase"})};
@@ -342,5 +342,5 @@ object NOTE
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 endobject

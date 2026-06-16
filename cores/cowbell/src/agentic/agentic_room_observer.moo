@@ -13,7 +13,7 @@ object AGENTIC_ROOM_OBSERVER
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_room_observer";
 
-  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method configure owner: ARCH_WIZARD
     "Create a fresh agent and runner for this observer.";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     this.agent = $agentic.agent:create(true);
@@ -22,9 +22,9 @@ object AGENTIC_ROOM_OBSERVER
     this.runner = create($agentic.runner, this.owner);
     this.runner:attach_agent(this.agent);
     return this.agent;
-  endverb
+  endmethod
 
-  verb respond_once (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method respond_once owner: ARCH_WIZARD
     "Run one response pass for a prompt and optionally announce speech.";
     this.enabled || return "Observer disabled.";
     valid(this.runner) || this:configure();
@@ -34,10 +34,10 @@ object AGENTIC_ROOM_OBSERVER
       this.location:announce($event:mk_say(this, this:name(), " says, \"", response, "\""));
     endif
     return response;
-  endverb
+  endmethod
 
-  verb observer_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method observer_status owner: ARCH_WIZARD
     "Return a compact observer diagnostics map.";
     return ["enabled" -> this.enabled, "agent" -> this.agent, "runner" -> this.runner, "agent_valid" -> valid(this.agent), "runner_valid" -> valid(this.runner)];
-  endverb
+  endmethod
 endobject

@@ -14,7 +14,7 @@ object PRONOUNS
   override description = "Pronoun system providing preset and custom pronoun sets for objects and players.";
   override import_export_id = "pronouns";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create a custom pronoun set as a flyweight.";
     "Usage: $pronouns:mk(subject, object, possessive_adj, possessive_noun, reflexive [, is_plural])";
     "Example: $pronouns:mk(\"ze\", \"zir\", \"zir\", \"zirs\", \"zirself\")";
@@ -28,9 +28,9 @@ object PRONOUNS
     verb_have = is_plural ? "have" | "has";
     display = ps + "/" + po;
     return <this, .display = display, .ps = ps, .po = po, .pp = pp, .pq = pq, .pr = pr, .is_plural = is_plural, .verb_be = verb_be, .verb_have = verb_have>;
-  endverb
+  endmethod
 
-  verb display (this none this) owner: HACKER flags: "rxd"
+  method display owner: HACKER
     "Display pronouns in common format like 'they/them' or 'it/its'.";
     "Can be called on preset or custom flyweight.";
     {pronoun_set} = args;
@@ -40,9 +40,9 @@ object PRONOUNS
     except (E_PROPNF)
       return pronoun_set.ps + "/" + pronoun_set.po;
     endtry
-  endverb
+  endmethod
 
-  verb lookup (this none this) owner: HACKER flags: "rxd"
+  method lookup owner: HACKER
     "Look up a pronoun set by display name like 'they/them' or 'he/him'.";
     "Returns the pronoun object if found, or false if not found.";
     {search} = args;
@@ -58,11 +58,11 @@ object PRONOUNS
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb list_presets (this none this) owner: HACKER flags: "rxd"
+  method list_presets owner: HACKER
     "Return a list of available preset pronoun display names.";
     presets = {this.he_him, this.she_her, this.they_them, this.it_its, this.spivak};
     return { this:display(p) for p in (presets) };
-  endverb
+  endmethod
 endobject

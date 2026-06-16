@@ -72,12 +72,12 @@ object MR_WELCOME
     " pause. \"Actually, I have no idea what I was thinking about.\""
   };
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  method acceptable owner: HACKER
     "Mr. Welcome accepts gifts graciously";
     return true;
-  endverb
+  endmethod
 
-  verb enterfunc (this none this) owner: HACKER flags: "rxd"
+  method enterfunc owner: HACKER
     "React when someone gives Mr. Welcome something";
     "Skip if LLM client is not configured";
     if (!$llm_client:is_configured())
@@ -91,9 +91,9 @@ object MR_WELCOME
     this:_ensure_loop();
     `task_send(this.loop_task, ["type" -> "observation", "content" -> prompt]) ! ANY';
     `task_send(this.loop_task, ["type" -> "nudge"]) ! ANY';
-  endverb
+  endmethod
 
-  verb exitfunc (this none this) owner: HACKER flags: "rxd"
+  method exitfunc owner: HACKER
     "React when someone takes something from Mr. Welcome";
     "Skip if LLM client is not configured";
     if (!$llm_client:is_configured())
@@ -106,9 +106,9 @@ object MR_WELCOME
     this:_ensure_loop();
     `task_send(this.loop_task, ["type" -> "observation", "content" -> prompt]) ! ANY';
     `task_send(this.loop_task, ["type" -> "nudge"]) ! ANY';
-  endverb
+  endmethod
 
-  verb _setup_agent (this none this) owner: HACKER flags: "rxd"
+  method _setup_agent owner: HACKER
     "Configure agent with social tools and Mr. Welcome personality";
     {agent} = args;
     "Build the agent prompt without mutating inherited prompt properties.";
@@ -155,9 +155,9 @@ object MR_WELCOME
     agent:add_tool("help_lookup", help_lookup_tool);
     "Register memory tools for long-term fact retention";
     this:_register_memory_tools(agent);
-  endverb
+  endmethod
 
-  verb _tool_list_players (this none this) owner: HACKER flags: "rxd"
+  method _tool_list_players owner: HACKER
     "Tool: Get list of all connected players with activity information";
     {args_map, actor} = args;
     player_list = connected_players();
@@ -180,9 +180,9 @@ object MR_WELCOME
       endif
     endfor
     return toliteral(result);
-  endverb
+  endmethod
 
-  verb _tool_player_info (this none this) owner: HACKER flags: "rxd"
+  method _tool_player_info owner: HACKER
     "Tool: Get information about a specific player";
     {args_map, actor} = args;
     player_name = args_map["player_name"];
@@ -258,9 +258,9 @@ object MR_WELCOME
       info = {@info, "Status: Not connected"};
     endif
     return info:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_area_map (this none this) owner: HACKER flags: "rxd"
+  method _tool_area_map owner: HACKER
     "Tool: Get list of all rooms in the current area";
     {args_map, actor} = args;
     "Get the current room and area";
@@ -285,9 +285,9 @@ object MR_WELCOME
       endif
     endfor
     return result:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_find_route (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_find_route owner: ARCH_WIZARD
     "Tool: Find route from current location to a destination";
     {args_map, actor} = args;
     destination_name = args_map["destination"];
@@ -350,9 +350,9 @@ object MR_WELCOME
       endif
     endfor
     return result:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_find_object owner: ARCH_WIZARD
     "Tool: Find an object by name in current room";
     try
       {args_map, actor} = args;
@@ -413,9 +413,9 @@ object MR_WELCOME
     except e (ANY)
       return "Error finding object: " + toliteral(e);
     endtry
-  endverb
+  endmethod
 
-  verb _tool_list_commands (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_list_commands owner: ARCH_WIZARD
     "Tool: List command verbs available on an object (includes inherited, readable verbs only)";
     try
       {args_map, actor} = args;
@@ -485,7 +485,7 @@ object MR_WELCOME
     except e (ANY)
       return "Error listing commands: " + toliteral(e);
     endtry
-  endverb
+  endmethod
 
   verb "ask this about any" (this for any) owner: HACKER flags: "rd"
     "Ask Mr. Welcome about a topic";
@@ -521,7 +521,7 @@ object MR_WELCOME
     player:inform_current($event:mk_info(player, response));
   endverb
 
-  verb _tool_emote (this none this) owner: HACKER flags: "rxd"
+  method _tool_emote owner: HACKER
     "Tool: Express an action or emotion through an emote";
     {args_map, actor} = args;
     action = args_map["action"];
@@ -531,9 +531,9 @@ object MR_WELCOME
     endif
     this.location:announce(this:mk_emote_event(action));
     return "Emoted: " + this:name() + " " + action;
-  endverb
+  endmethod
 
-  verb _tool_directed_say (this none this) owner: HACKER flags: "rxd"
+  method _tool_directed_say owner: HACKER
     "Tool: Say something directed at a specific person";
     {args_map, actor} = args;
     "Check required parameters exist";
@@ -565,9 +565,9 @@ object MR_WELCOME
       this.agent.cancel_requested = true;
     endif
     return "Said to " + target:name() + ": " + message;
-  endverb
+  endmethod
 
-  verb _tool_think (this none this) owner: HACKER flags: "rxd"
+  method _tool_think owner: HACKER
     "Tool: Express an internal thought";
     {args_map, actor} = args;
     thought = args_map["thought"];
@@ -577,9 +577,9 @@ object MR_WELCOME
     endif
     this.location:announce(this:mk_think_event(thought));
     return "Thought: " + thought;
-  endverb
+  endmethod
 
-  verb _tool_inspect_object (this none this) owner: HACKER flags: "rxd"
+  method _tool_inspect_object owner: HACKER
     "Tool: Inspect an object and return detailed information using examination flyweight";
     {args_map, actor} = args;
     object_name = args_map["object_name"];
@@ -662,9 +662,9 @@ object MR_WELCOME
       endfor
     endif
     return result:join("\n");
-  endverb
+  endmethod
 
-  verb on_tool_call (this none this) owner: HACKER flags: "rxd"
+  method on_tool_call owner: HACKER
     "Callback when agent uses a tool - announce to room";
     {tool_name, tool_args} = args;
     if (valid(this.location))
@@ -676,16 +676,16 @@ object MR_WELCOME
         this.location:announce(this:mk_emote_event(message));
       endif
     endif
-  endverb
+  endmethod
 
-  verb on_compaction_start (this none this) owner: HACKER flags: "rxd"
+  method on_compaction_start owner: HACKER
     "Callback when agent starts compacting context";
     if (valid(this.location))
       this.location:announce(this:mk_emote_event(this.compaction_start_message));
     endif
-  endverb
+  endmethod
 
-  verb on_compaction_end (this none this) owner: HACKER flags: "rxd"
+  method on_compaction_end owner: HACKER
     "Callback when agent finishes compacting context - inject memories then emote";
     "Call parent to inject remembered facts into context";
     pass();
@@ -693,9 +693,9 @@ object MR_WELCOME
     if (valid(this.location))
       this.location:announce(this:mk_emote_event(this.compaction_end_message));
     endif
-  endverb
+  endmethod
 
-  verb on_tool_error (this none this) owner: HACKER flags: "rxd"
+  method on_tool_error owner: HACKER
     "Callback when a tool execution fails - announce to room";
     {tool_name, tool_args, error_msg} = args;
     "Don't emote for blocked tools - the LLM already knows and we don't want spam";
@@ -712,17 +712,17 @@ object MR_WELCOME
     if (valid(this.location))
       this.location:announce(this:mk_emote_event("frowns slightly, looking puzzled for a moment."));
     endif
-  endverb
+  endmethod
 
-  verb on_agent_error (this none this) owner: HACKER flags: "rxd"
+  method on_agent_error owner: HACKER
     "Callback when the agent itself errors - announce to room";
     {context, error} = args;
     if (valid(this.location))
       this.location:announce(this:mk_emote_event("blinks and shakes his head, as if clearing mental cobwebs."));
     endif
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for Mr. Welcome.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("mr welcome", "Talking to Mr. Welcome", "Mr. Welcome is a friendly guide who can answer questions about this world. Just say or ask things in his presence and he'll respond. You can also use 'ask mr welcome about <topic>' for specific questions.", {"welcome", "guide"}, 'social, {"directions", "players"}), $help:mk("directions", "Getting directions", "Ask Mr. Welcome how to get somewhere. Say things like 'how do I get to the garden?' or 'where is the kitchen?' and he'll give you step-by-step directions.\n\nYou can also navigate automatically:\n- `walk to <place>` - walk automatically to a destination\n- `join <player>` - walk to where another player is\n- `walk stop` - stop walking", {"navigate", "route", "path", "walk", "join"}, 'basics, {"mr welcome", "movement", "walk", "join"}), $help:mk("players", "Finding other people", "Ask Mr. Welcome who's around. Say 'who's here?' or 'who is online?' and he'll tell you about connected players and where they are.\n\nYou can also use `join <player>` to automatically walk to where someone is.", {"who", "people", "online"}, 'social, {"mr welcome", "join"})};
@@ -731,9 +731,9 @@ object MR_WELCOME
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_help_lookup owner: ARCH_WIZARD
     "Tool: Look up a help topic to get information about commands and features.";
     {args_map, actor} = args;
     topic = args_map["topic"];
@@ -774,9 +774,9 @@ object MR_WELCOME
       endif
     endfor
     return "No help found for: " + topic;
-  endverb
+  endmethod
 
-  verb on_tool_complete (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_tool_complete owner: ARCH_WIZARD
     "Called when a tool completes. Show visual feedback for certain tools.";
     {tool_name, tool_args, result} = args;
     if (tool_name == "remember_fact" && result:starts_with("Successfully"))
@@ -785,9 +785,9 @@ object MR_WELCOME
         this.location:announce(this:mk_emote_event("scribbles something in his notebook..."));
       endif
     endif
-  endverb
+  endmethod
 
-  verb test_navigation_tool_metadata (this none this) owner: HACKER flags: "rxd"
+  method test_navigation_tool_metadata owner: HACKER
     "Mr. Welcome route tools should expose real room, area, and passage metadata.";
     original_location = this.location;
     area = $area:create(true);
@@ -795,8 +795,8 @@ object MR_WELCOME
     r2 = $room:create(true);
     try
       area.name = "Welcome Test Area";
-      (r1).name = "Welcome Test Start";
-      (r2).name = "Welcome Test End";
+      r1.name = "Welcome Test Start";
+      r2.name = "Welcome Test End";
       move(r1, area);
       move(r2, area);
       move(this, r1);
@@ -815,5 +815,5 @@ object MR_WELCOME
       $test_utils:destroy_if_valid(area);
     endtry
     return true;
-  endverb
+  endmethod
 endobject

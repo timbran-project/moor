@@ -5,7 +5,10 @@ object COUCH
   owner: HACKER
   readable: true
 
-  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {{'is_sitting, {'var, 'This}, HENRI}, {'not_is, {'var, 'This}, {'var, 'Actor}, HENRI}}, .variables = {'This, 'Actor}, .head = 'henri_sitting>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .fired_at = 0>;
+  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {
+        {'is_sitting, {'var, 'This}, HENRI},
+        {'not_is, {'var, 'This}, {'var, 'Actor}, HENRI}
+      }, .variables = {'This, 'Actor}, .head = 'henri_sitting>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .fired_at = 0>;
 
   override aliases = {"couch", "sofa", "ratty couch"};
   override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";
@@ -34,20 +37,20 @@ object COUCH
     ", brushing off some cat hair."
   };
 
-  verb fact_is_portable (this none this) owner: HACKER flags: "rxd"
+  method fact_is_portable owner: HACKER
     "Couches are not portable.";
     return false;
-  endverb
+  endmethod
 
-  verb fact_is_sitting (this none this) owner: HACKER flags: "rxd"
+  method fact_is_sitting owner: HACKER
     "Rule predicate: Is target sitting on this furniture?";
     {furniture, who} = args;
     return who in furniture.sitting;
-  endverb
+  endmethod
 
-  verb fact_not_is (this none this) owner: HACKER flags: "rxd"
+  method fact_not_is owner: HACKER
     "Rule predicate: Are two values not equal? First arg is this (for rule dispatch).";
     {_, a, b} = args;
     return a != b;
-  endverb
+  endmethod
 endobject

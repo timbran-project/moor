@@ -8,15 +8,15 @@ object EVENT
   override import_export_hierarchy = {"events"};
   override import_export_id = "event";
 
-  verb "mk_*" (this none this) owner: HACKER flags: "rxd"
+  method "mk_*" owner: HACKER
     "mk_<verb>(actor, ... content ... )";
     action = verb[4..length(verb)];
     {actor, @content} = args;
     normalized = this:normalize_content(@content);
     return <this, .actor = actor, .actor_name = actor.name, .verb = action, .dobj = false, .iobj = false, .timestamp = time(), .this_obj = false, normalized>;
-  endverb
+  endmethod
 
-  verb "with_dobj with_iobj with_this" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "with_dobj with_iobj with_this" owner: ARCH_WIZARD
     {value} = args;
     wut = tosym(verb[6..length(verb)]);
     wut = wut == 'this ? 'this_obj | wut;
@@ -27,9 +27,9 @@ object EVENT
       this.(wut_name) = value.name;
     endif
     return this;
-  endverb
+  endmethod
 
-  verb transform_for (this none this) owner: HACKER flags: "rxd"
+  method transform_for owner: HACKER
     "Call 'compose(content_type, this)' on all content, then render to final string format.";
     {render_for, ?content_type = 'text_plain} = args;
     this:validate() || raise(E_INVARG);
@@ -56,9 +56,9 @@ object EVENT
       raise(E_INVARG("Unknown event content entry type: " + toliteral(entry_type)));
     endfor
     return composed;
-  endverb
+  endmethod
 
-  verb validate (this none this) owner: HACKER flags: "rxd"
+  method validate owner: HACKER
     "Validate that the event has all the correct fields. Return false if not.";
     typeof(this) == TYPE_FLYWEIGHT || return false;
     s = flyslots(this);
@@ -75,13 +75,13 @@ object EVENT
       endtry
     endfor
     return true;
-  endverb
+  endmethod
 
-  verb normalize_content (this none this) owner: HACKER flags: "rxd"
+  method normalize_content owner: HACKER
     return { this:wrap_content_entry(e) for e in (args) };
-  endverb
+  endmethod
 
-  verb wrap_content_entry (this none this) owner: HACKER flags: "rxd"
+  method wrap_content_entry owner: HACKER
     entry = args[1];
     typeof(entry) == TYPE_ERR && raise(E_INVARG("Event content cannot contain error values: " + toliteral(entry)));
     typeof(entry) == TYPE_STR && return {'string, entry};
@@ -89,9 +89,9 @@ object EVENT
     typeof(entry) == TYPE_LIST && length(entry) == 2 && entry[1] in {'string, 'flyweight, 'list} && return entry;
     typeof(entry) == TYPE_LIST && return {'list, entry};
     raise(E_TYPE("Unsupported event content entry type: " + toliteral(entry)));
-  endverb
+  endmethod
 
-  verb append_rendered (this none this) owner: HACKER flags: "rxd"
+  method append_rendered owner: HACKER
     {acc, value} = args;
     if (typeof(value) == TYPE_LIST && length(value) == 2 && value[1] in {'string, 'flyweight, 'list})
       return this:append_rendered(acc, value[2]);
@@ -120,45 +120,45 @@ object EVENT
       raise(E_TYPE("Event content evaluated to error: " + toliteral(value)));
     endif
     raise(E_TYPE("Unsupported rendered event content: " + toliteral(value)));
-  endverb
+  endmethod
 
-  verb with_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method with_metadata owner: ARCH_WIZARD
     "Set arbitrary metadata on the event.";
     {key, value} = args;
     this.(key) = value;
     return this;
-  endverb
+  endmethod
 
-  verb preferred_content_types (this none this) owner: HACKER flags: "rxd"
+  method preferred_content_types owner: HACKER
     "Return the event's preferred content types for negotiation.";
     return `this.preferred_content_types ! E_PROPNF => {}';
-  endverb
+  endmethod
 
-  verb audience (this none this) owner: HACKER flags: "rxd"
+  method audience owner: HACKER
     "Return the audience classification stored on this event.";
     return `this.audience ! E_PROPNF => 'narrative';
-  endverb
+  endmethod
 
-  verb with_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method with_audience owner: ARCH_WIZARD
     "Attach an audience classification to the event.";
     {audience} = args;
     this.audience = audience;
     return this;
-  endverb
+  endmethod
 
-  verb presentation_hint (this none this) owner: HACKER flags: "rxd"
+  method presentation_hint owner: HACKER
     "Return the presentation hint stored on this event.";
     return `this.presentation_hint ! E_PROPNF => false';
-  endverb
+  endmethod
 
-  verb with_presentation_hint (this none this) owner: HACKER flags: "rxd"
+  method with_presentation_hint owner: HACKER
     "Attach a presentation hint to the event.";
     {hint} = args;
     this.presentation_hint = hint;
     return this;
-  endverb
+  endmethod
 
-  verb with_group (this none this) owner: HACKER flags: "rxd"
+  method with_group owner: HACKER
     "Attach a group_id for client-side message bundling.";
     "Call with (prefix) for unique per-event grouping, or (prefix, target) for stable grouping.";
     {prefix, ?target = $nothing} = args;
@@ -169,31 +169,31 @@ object EVENT
     endif
     this.group_id = group_id;
     return this;
-  endverb
+  endmethod
 
-  verb with_tts (this none this) owner: HACKER flags: "rxd"
+  method with_tts owner: HACKER
     "Attach TTS-friendly text for screen readers.";
     {text} = args;
     this.tts_text = text;
     return this;
-  endverb
+  endmethod
 
-  verb get_binding (this none this) owner: HACKER flags: "rxd"
+  method get_binding owner: HACKER
     "Resolve a binding name to a value from the event context.";
     {name} = args;
     bindings = ['dobj -> this.dobj, 'd -> this.dobj, 'dc -> this.dobj, 'iobj -> this.iobj, 'i -> this.iobj, 'ic -> this.iobj, 'actor -> this.actor, 'n -> this.actor, 'nc -> this.actor, 'location -> this.actor.location, 'l -> this.actor.location, 'lc -> this.actor.location, 'this -> this.this_obj, 't -> this.this_obj, 'tc -> this.this_obj];
     return maphaskey(bindings, name) ? bindings[name] | false;
-  endverb
+  endmethod
 
-  verb ensure_audience (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method ensure_audience owner: ARCH_WIZARD
     "Ensure event has the specified audience, return event.";
     {audience} = args;
     `this.audience ! E_PROPNF => 0' == audience && return this;
     this.audience = audience;
     return this;
-  endverb
+  endmethod
 
-  verb with_rewritable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method with_rewritable owner: ARCH_WIZARD
     "Mark event as rewritable. Caller provides ID, optional TTL (default 60s), optional fallback.";
     {rewrite_id, ?ttl = 60, ?fallback = 0} = args;
     this.rewritable_id = rewrite_id;
@@ -201,7 +201,7 @@ object EVENT
     this.rewritable_ttl = ttl;
     fallback && (this.rewritable_fallback = fallback);
     return this;
-  endverb
+  endmethod
 
   verb with_content_type (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Add a preferred content type for rendering. Additive - chain calls to add multiple.";

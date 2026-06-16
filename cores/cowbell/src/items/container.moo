@@ -296,18 +296,18 @@ object CONTAINER
     "```"
   };
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  method acceptable owner: HACKER
     "Containers accept items by default";
     return true;
-  endverb
+  endmethod
 
-  verb fact_is_locked (this none this) owner: HACKER flags: "rxd"
+  method fact_is_locked owner: HACKER
     "Rule predicate: Is this container locked?";
     {container} = args;
     return container.locked;
-  endverb
+  endmethod
 
-  verb can_lock (this none this) owner: HACKER flags: "rxd"
+  method can_lock owner: HACKER
     "Check if accessor can lock this container with key. Returns {allowed, reason}.";
     {accessor, key} = args;
     "No rule = public access";
@@ -322,13 +322,13 @@ object CONTAINER
       reason = this.lock_denied_msg;
       return ['allowed -> false, 'reason -> reason];
     endif
-  endverb
+  endmethod
 
-  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _log owner: ARCH_WIZARD
     server_log(@args);
-  endverb
+  endmethod
 
-  verb can_unlock (this none this) owner: HACKER flags: "rxd"
+  method can_unlock owner: HACKER
     "Check if accessor can unlock this container with key. Returns {allowed, reason}.";
     {accessor, key} = args;
     "No rule = public access";
@@ -343,9 +343,9 @@ object CONTAINER
       reason = this.unlock_denied_msg;
       return ['allowed -> false, 'reason -> reason];
     endif
-  endverb
+  endmethod
 
-  verb can_take_from (this none this) owner: HACKER flags: "rxd"
+  method can_take_from owner: HACKER
     "Check if accessor can take dobj from this container. Returns {allowed, reason}.";
     {accessor, dobj} = args;
     "Check if container is open";
@@ -364,9 +364,9 @@ object CONTAINER
       reason = this.take_denied_msg;
       return ['allowed -> false, 'reason -> reason];
     endif
-  endverb
+  endmethod
 
-  verb can_put_into (this none this) owner: HACKER flags: "rxd"
+  method can_put_into owner: HACKER
     "Check if accessor can put dobj into this container. Returns {allowed, reason}.";
     {accessor, dobj} = args;
     "Check if container is open";
@@ -385,9 +385,9 @@ object CONTAINER
       reason = this.put_denied_msg;
       return ['allowed -> false, 'reason -> reason];
     endif
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method look_self owner: ARCH_WIZARD
     "Custom look that shows contents with container-appropriate language";
     set_task_perms(caller_perms());
     description = this.description;
@@ -416,7 +416,7 @@ object CONTAINER
       description = description + "  " + rendered_msg:capitalize() + ".";
     endif
     return <$look, .what = this, .title = this:name(), .description = description>;
-  endverb
+  endmethod
 
   verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd"
     "Take an object from this container";
@@ -611,7 +611,7 @@ object CONTAINER
     this:do_unlock(player, key);
   endverb
 
-  verb can_open (this none this) owner: HACKER flags: "rxd"
+  method can_open owner: HACKER
     "Check if accessor can open this container. Returns {allowed, reason}.";
     {accessor} = args;
     "No rule = public access";
@@ -626,9 +626,9 @@ object CONTAINER
       reason = this.open_denied_msg;
       return ['allowed -> false, 'reason -> reason];
     endif
-  endverb
+  endmethod
 
-  verb can_close (this none this) owner: HACKER flags: "rxd"
+  method can_close owner: HACKER
     "Check if accessor can close this container. Returns {allowed, reason}.";
     {accessor} = args;
     "No rule = public access";
@@ -643,7 +643,7 @@ object CONTAINER
       reason = this.close_denied_msg;
       return ['allowed -> false, 'reason -> reason];
     endif
-  endverb
+  endmethod
 
   verb "open op*" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Open this container";
@@ -689,12 +689,12 @@ object CONTAINER
     this:do_close(player);
   endverb
 
-  verb fact_is_open (this none this) owner: HACKER flags: "rxd"
+  method fact_is_open owner: HACKER
     "Rule predicate: Is this container open?";
     return this.open;
-  endverb
+  endmethod
 
-  verb do_take_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_take_from owner: ARCH_WIZARD
     "Core: move item from container to actor's inventory.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_take_from must be called by this object");
@@ -706,9 +706,9 @@ object CONTAINER
     endif
     this:fire_trigger('on_take, ['Actor -> who, 'Item -> item]);
     return true;
-  endverb
+  endmethod
 
-  verb do_put_into (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_put_into owner: ARCH_WIZARD
     "Core: move item from actor into this container.";
     "Only callable by this object itself.";
     caller != this && raise(E_PERM, "do_put_into must be called by this object");
@@ -723,9 +723,9 @@ object CONTAINER
       who.location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb do_open (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_open owner: ARCH_WIZARD
     "Core: open this container.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_open must be called by this object");
@@ -737,9 +737,9 @@ object CONTAINER
       who.location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb do_close (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_close owner: ARCH_WIZARD
     "Core: close this container.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_close must be called by this object");
@@ -751,9 +751,9 @@ object CONTAINER
       who.location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb do_lock (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_lock owner: ARCH_WIZARD
     "Core: lock this container with key.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_lock must be called by this object");
@@ -765,9 +765,9 @@ object CONTAINER
       who.location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb do_unlock (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_unlock owner: ARCH_WIZARD
     "Core: unlock this container with key.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_unlock must be called by this object");
@@ -779,9 +779,9 @@ object CONTAINER
       who.location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb action_take_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_take_from owner: ARCH_WIZARD
     "Action handler: actor takes item from this container.";
     set_task_perms(this.owner);
     {who, context, item} = args;
@@ -789,9 +789,9 @@ object CONTAINER
     !this:can_take_from(who, item)['allowed] && return false;
     !who:acceptable(item) && return false;
     return this:do_take_from(who, item);
-  endverb
+  endmethod
 
-  verb action_put_into (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_put_into owner: ARCH_WIZARD
     "Action handler: actor puts item into this container.";
     set_task_perms(this.owner);
     {who, context, item} = args;
@@ -799,9 +799,9 @@ object CONTAINER
     !this:can_put_into(who, item)['allowed] && return false;
     !this:acceptable(item) && return false;
     return this:do_put_into(who, item);
-  endverb
+  endmethod
 
-  verb action_open (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_open owner: ARCH_WIZARD
     "Action handler: actor opens this container.";
     set_task_perms(this.owner);
     {who, context} = args;
@@ -809,36 +809,36 @@ object CONTAINER
     this.locked && return false;
     !this:can_open(who)['allowed] && return false;
     return this:do_open(who);
-  endverb
+  endmethod
 
-  verb action_close (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_close owner: ARCH_WIZARD
     "Action handler: actor closes this container.";
     set_task_perms(this.owner);
     {who, context} = args;
     !this.open && return false;
     !this:can_close(who)['allowed] && return false;
     return this:do_close(who);
-  endverb
+  endmethod
 
-  verb action_lock (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_lock owner: ARCH_WIZARD
     "Action handler: actor locks this container with key.";
     set_task_perms(this.owner);
     {who, context, key} = args;
     this.locked && return false;
     !this:can_lock(who, key)['allowed] && return false;
     return this:do_lock(who, key);
-  endverb
+  endmethod
 
-  verb action_unlock (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_unlock owner: ARCH_WIZARD
     "Action handler: actor unlocks this container with key.";
     set_task_perms(this.owner);
     {who, context, key} = args;
     !this.locked && return false;
     !this:can_unlock(who, key)['allowed] && return false;
     return this:do_unlock(who, key);
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for containers.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("open", "Open a container", "Use 'open <container>' to open it and see its contents.", {}, 'commands, {"close", "put"}), $help:mk("close", "Close a container", "Use 'close <container>' to close it.", {"shut"}, 'commands, {"open"}), $help:mk("put", "Put something inside", "Use 'put <thing> in <container>' to place an object inside.", {"place"}, 'commands, {"get", "open"}), $help:mk("lock", "Lock a container", "Use 'lock <container> with <key>' to lock it.", {}, 'commands, {"unlock", "open"}), $help:mk("unlock", "Unlock a container", "Use 'unlock <container> with <key>' to unlock it.", {}, 'commands, {"lock", "open"})};
@@ -847,5 +847,5 @@ object CONTAINER
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 endobject

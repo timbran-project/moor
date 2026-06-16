@@ -16,13 +16,13 @@ object ROOM
   override import_export_hierarchy = {"world"};
   override import_export_id = "room";
 
-  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method initialize owner: ARCH_WIZARD
     "Set sensible defaults for newly created rooms.";
     pass();
     set_task_perms(caller_perms());
     this.description = "An empty room awaiting a description.";
     this.import_export_hierarchy = {"rooms"};
-  endverb
+  endmethod
 
   verb emote (any any any) owner: HACKER flags: "rxd"
     this:announce(player:mk_emote_event(argstr));
@@ -87,7 +87,7 @@ object ROOM
     endif
   endverb
 
-  verb confunc (this none this) owner: HACKER flags: "rxd"
+  method confunc owner: HACKER
     "Called when a player connects in this room.";
     "Args: who, ?is_new_player, ?should_announce";
     {who, ?is_new_player = false, ?should_announce = true} = args;
@@ -98,16 +98,16 @@ object ROOM
     endif
     "Always show the room to the connecting player";
     `who:emit_room_look(this) ! ANY';
-  endverb
+  endmethod
 
-  verb disfunc (this none this) owner: HACKER flags: "rxd"
+  method disfunc owner: HACKER
     "Called when a player disconnects from this room.";
     "By the time this runs, all connections are gone (daemon handles soft detach).";
     discon_event = player:mk_disconnected_event():with_audience('utility);
     this:announce(discon_event);
-  endverb
+  endmethod
 
-  verb enterfunc (this none this) owner: HACKER flags: "rxd"
+  method enterfunc owner: HACKER
     "Show room description to arriving players and refresh room snapshot state.";
     {who} = args;
     valid(who) || return;
@@ -131,9 +131,9 @@ object ROOM
       endfor
     endfork
     `pass(@args) ! E_TYPE, E_VERBNF => 0';
-  endverb
+  endmethod
 
-  verb exitfunc (this none this) owner: HACKER flags: "rxd"
+  method exitfunc owner: HACKER
     "Notify room contents of departure, then refresh room snapshot state.";
     {who} = args;
     "Defer expensive room fanout until after the move commits.";
@@ -153,14 +153,14 @@ object ROOM
       endfor
     endfork
     `pass(@args) ! E_TYPE, E_VERBNF => 0';
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  method acceptable owner: HACKER
     "TODO: support locking/unlocking etc";
     return true;
-  endverb
+  endmethod
 
-  verb match_scope_for (this none this) owner: HACKER flags: "rxd"
+  method match_scope_for owner: HACKER
     "Expose the room and visible occupants to the command scope.";
     {actor, ?context = []} = args;
     "In case we have a parent that wants to establish initial occupancy, ask it first...";
@@ -177,24 +177,24 @@ object ROOM
     "Add the room itself last.";
     entries = {@entries, this};
     return entries;
-  endverb
+  endmethod
 
-  verb maybe_handle_passage (this none this) owner: HACKER flags: "rxd"
+  method maybe_handle_passage owner: HACKER
     "Let our location (area) potentially handle passage commands...";
     {parsed} = args;
     if (!valid(this.location) || !respond_to(this.location, 'handle_passage_command))
       return false;
     endif
     return this.location:handle_passage_command(parsed);
-  endverb
+  endmethod
 
-  verb maybe_handle_command (this none this) owner: HACKER flags: "rxd"
+  method maybe_handle_command owner: HACKER
     "Handle any potential commands that the command matcher didn't already handle on the player, for example for furniture or exits";
     {pc} = args;
     return this:maybe_handle_passage(pc);
-  endverb
+  endmethod
 
-  verb announce (this none this) owner: HACKER flags: "rxd"
+  method announce owner: HACKER
     {event} = args;
     "Local announcement";
     for who in (this:contents())
@@ -293,9 +293,9 @@ object ROOM
       `room:announce_distant(transformed, this) ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
       `this:_acoustic_debug_bump("propagated") ! E_VERBNF, E_ARGS, E_TYPE, E_INVARG, E_INVIND, E_PERM';
     endfor
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: HACKER flags: "rxd"
+  method look_self owner: HACKER
     "Override look_self to include exit information and actions";
     "Get base look from parent";
     look_data = pass(@args);
@@ -326,23 +326,23 @@ object ROOM
       look_data.actions = actions;
     endif
     return look_data;
-  endverb
+  endmethod
 
-  verb check_can_dig_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method check_can_dig_from owner: ARCH_WIZARD
     "Check if caller can dig passages from this room. Wizard, owner, or 'dig_from capability.";
     actor = caller_perms();
     set_task_perms(actor);
     {this, perms} = this:check_permissions_as(actor, 'dig_from);
     return true;
-  endverb
+  endmethod
 
-  verb check_can_dig_into (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method check_can_dig_into owner: ARCH_WIZARD
     "Check if caller can dig passages into this room. Wizard, owner, or 'dig_into capability.";
     actor = caller_perms();
     set_task_perms(actor);
     {this, perms} = this:check_permissions_as(actor, 'dig_into);
     return true;
-  endverb
+  endmethod
 
   verb "exits ways" (none none none) owner: ARCH_WIZARD flags: "rd"
     "List the ways out of this room.";
@@ -392,7 +392,7 @@ object ROOM
     player:inform_current(event);
   endverb
 
-  verb action_go (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_go owner: ARCH_WIZARD
     "Action handler: make actor go in a direction from this room.";
     {who, context, direction} = args;
     who.location != this && return false;
@@ -404,9 +404,9 @@ object ROOM
     !passage && return false;
     "Traverse the passage";
     return passage:travel_from(who, this, []);
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Room-local help topics for passage/door interaction.";
     {for_player, ?topic = ""} = args;
     doors_help = $help:mk("doors", "Door commands", "Door commands operate only on door-like passages.\n\nA passage is treated as a door when either:\n- `is_door` is true, or\n- it has an `unlock_rule`\n\nBuilders can toggle door behavior with:\n- `@set-passage <dir> is_door true|false`", {"door", "doors", "open", "close", "lock", "unlock"}, 'basics, {"movement", "exits"});
@@ -423,17 +423,17 @@ object ROOM
     lock_help:matches(topic) && return lock_help;
     unlock_help:matches(topic) && return unlock_help;
     return 0;
-  endverb
+  endmethod
 
-  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method recycle owner: ARCH_WIZARD
     "Clean up passages when room is recycled.";
     area = this.location;
     if (valid(area) && respond_to(area, 'on_room_recycle))
       `area:on_room_recycle(this) ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb notify_pre_exit (this none this) owner: HACKER flags: "rxd"
+  method notify_pre_exit owner: HACKER
     "Notify contents before a player leaves (called by passage before departure message).";
     {who} = args;
     if (valid(who) && is_player(who))
@@ -446,7 +446,7 @@ object ROOM
         endif
       endfor
     endif
-  endverb
+  endmethod
 
   verb unlock (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Unlock a passage, or defer to an object's unlock verb.";
@@ -921,14 +921,14 @@ object ROOM
     this:announce(event);
   endverb
 
-  verb command_hints (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method command_hints owner: ARCH_WIZARD
     "Return special commands available in this room for LLM suggestions.";
     "Returns list of maps: [{command -> 'press 1', description -> 'Go to floor 1'}, ...]";
     "Override in subclasses to expose room-specific commands handled by maybe_handle_command.";
     return {};
-  endverb
+  endmethod
 
-  verb engage_actor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method engage_actor owner: ARCH_WIZARD
     "Register an actor as engaged with an object (sitting, swimming, etc.).";
     "If actor is already engaged with something else, disengage them first.";
     {actor, object} = args;
@@ -953,16 +953,16 @@ object ROOM
     "Record new engagement.";
     this.engagements[actor] = object;
     return true;
-  endverb
+  endmethod
 
-  verb disengage_actor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method disengage_actor owner: ARCH_WIZARD
     "Remove an actor's engagement record from this room.";
     "Does NOT call remove_occupant - use this after the object has already removed them.";
     {actor} = args;
     this.engagements = `mapdelete(this.engagements, actor) ! E_RANGE => this.engagements';
-  endverb
+  endmethod
 
-  verb get_engagement (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_engagement owner: ARCH_WIZARD
     "Return what object an actor is engaged with in this room, or #-1 if none.";
     {actor} = args;
     engaged = `this.engagements[actor] ! E_RANGE => #-1';
@@ -974,9 +974,9 @@ object ROOM
       return #-1;
     endif
     return engaged;
-  endverb
+  endmethod
 
-  verb transport_destinations (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method transport_destinations owner: ARCH_WIZARD
     "Return destinations reachable via transport objects in this room.";
     "Scans contents for objects implementing :transport_connections().";
     "Returns list of {destination_room, label, transport_object} tuples.";
@@ -996,9 +996,9 @@ object ROOM
       endif
     endfor
     return results;
-  endverb
+  endmethod
 
-  verb _default_distant_transform (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _default_distant_transform owner: ARCH_WIZARD
     "Transform an event for distant announcement. Returns new event or 0 to suppress.";
     {event, prefix} = args;
     "Get event info safely";
@@ -1029,9 +1029,9 @@ object ROOM
     content = $ansi:wrap(msg, 'dim, 'italic);
     normalized = $event:normalize_content(content);
     return <$event, .actor = $nothing, .actor_name = "", .verb = "distant", .dobj = false, .iobj = false, .timestamp = time(), .this_obj = false, normalized>;
-  endverb
+  endmethod
 
-  verb announce_distant (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method announce_distant owner: ARCH_WIZARD
     "Receive a distant event from another room and announce it locally.";
     {event, source_room} = args;
     if (typeof(event) == TYPE_FLYWEIGHT && valid(source_room))
@@ -1042,7 +1042,7 @@ object ROOM
       suspend_if_needed();
       `who:tell(event) ! E_VERBNF';
     endfor
-  endverb
+  endmethod
 
   verb "shout yell" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Shout something loudly - propagates to acoustic neighbors.";
@@ -1050,7 +1050,7 @@ object ROOM
     this:announce(player:mk_shout_event(argstr));
   endverb
 
-  verb rewrite_announced (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method rewrite_announced owner: ARCH_WIZARD
     "Rewrite a previously announced rewritable event for all players in this room.";
     "Args: rewrite_id, new_event";
     "Usage: room:rewrite_announced(rewrite_id, $event:mk_info(actor, new_content))";
@@ -1074,13 +1074,13 @@ object ROOM
         "Skip players we can't rewrite for; let unexpected errors bubble.";
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb input_placeholders (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method input_placeholders owner: ARCH_WIZARD
     "Return a list of placeholder strings for the input field, or false for default.";
     "Override on specific rooms to provide context-sensitive hints.";
     return false;
-  endverb
+  endmethod
 
   verb _acoustic_debug_bump (this none none) owner: ARCH_WIZARD flags: "rxd"
     {reason, ?entry = 0} = args;
@@ -1115,7 +1115,7 @@ object ROOM
     endif
   endverb
 
-  verb room_snapshot (this none this) owner: HACKER flags: "rxd"
+  method room_snapshot owner: HACKER
     "Return structured room state for OOB clients.";
     "{?viewer = player, ?look_data = this:look_self()}";
     {?viewer = player, ?look_data = 0} = args;
@@ -1151,5 +1151,5 @@ object ROOM
       endif
     endfor
     return ["room" -> this, "title" -> this:name(), "description" -> this:description(), "exits" -> all_exits, "ambient_passages" -> ambient_passages, "actions" -> available_actions, "actors" -> actors, "things" -> things];
-  endverb
+  endmethod
 endobject

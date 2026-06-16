@@ -9,7 +9,7 @@ object LIST_PROTO
   override import_export_hierarchy = {"types"};
   override import_export_id = "list_proto";
 
-  verb append (this none this) owner: HACKER flags: "rxd"
+  method append owner: HACKER
     "Return a single list containing every element from each argument list, in order.";
     "Example: append({a, b, c}, {d, e}, {}, {f, g, h}) => {a, b, c, d, e, f, g, h}.";
     n = length(args);
@@ -21,9 +21,9 @@ object LIST_PROTO
       l = {@l, @a};
     endfor
     return l;
-  endverb
+  endmethod
 
-  verb assoc (this none this) owner: HACKER flags: "rxd"
+  method assoc owner: HACKER
     "Return the first list element whose index-th value equals target; index defaults to 1.";
     "Returns {} when no matching nested list is found.";
     {lst, target, ?indx = 1} = args;
@@ -36,9 +36,9 @@ object LIST_PROTO
       endif
     endfor
     return {};
-  endverb
+  endmethod
 
-  verb assoc_prefix (this none this) owner: HACKER flags: "rxd"
+  method assoc_prefix owner: HACKER
     "Return the first list element whose index-th string value starts with target; index defaults to 1.";
     "Returns {} when no matching nested list is found.";
     {lst, target, ?indx = 1} = args;
@@ -51,9 +51,9 @@ object LIST_PROTO
       endif
     endfor
     return {};
-  endverb
+  endmethod
 
-  verb check_type (this none this) owner: HACKER flags: "rxd"
+  method check_type owner: HACKER
     "Return true if every list element has one of the requested MOO type constants.";
     "The type argument may be a single type constant or a list of type constants.";
     typelist = typeof(args[2]) == TYPE_LIST ? args[2] | {args[2]};
@@ -63,9 +63,9 @@ object LIST_PROTO
       endif
     endfor
     return true;
-  endverb
+  endmethod
 
-  verb compress (this none this) owner: HACKER flags: "rxd"
+  method compress owner: HACKER
     "Return a list with consecutive repeated elements collapsed to one occurrence.";
     "Example: compress({a, b, b, c, b, b, b, d, d, e}) => {a, b, c, b, d, e}.";
     l = args[1];
@@ -84,9 +84,9 @@ object LIST_PROTO
       return out;
     endfn
     return compress_consecutive(l);
-  endverb
+  endmethod
 
-  verb join (this none this) owner: HACKER flags: "rxd"
+  method join owner: HACKER
     "Return the list elements converted to strings and joined by separator, which defaults to a space.";
     {l, ?separator = " "} = args;
     typeof(separator) == TYPE_STR || raise(E_TYPE("join() separator must be string; got " + toliteral(separator)));
@@ -97,9 +97,9 @@ object LIST_PROTO
       result = result + separator + tostr(l[i]);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb english_list (this none this) owner: #184 flags: "rxd"
+  method english_list owner: #184
     "Return a human-readable English list such as \"a, b, and c\" or \"a and b\".";
     "Optional arguments customize the empty-list text, conjunction, comma separator, and final comma separator.";
     {things, ?nothingstr = "nothing", ?andstr = " and ", ?commastr = ", ", ?finalcommastr = ","} = args;
@@ -115,9 +115,9 @@ object LIST_PROTO
       ret = tostr(ret, things[k], commastr);
     endfor
     return tostr(ret, andstr, things[nthings]);
-  endverb
+  endmethod
 
-  verb map (this none this) owner: HACKER flags: "rxd"
+  method map owner: HACKER
     "Return a new list containing func(item) for each item in the input list.";
     "Example: {1, 2, 3}:map({x} => x * 2) => {2, 4, 6}.";
     {lst, func} = args;
@@ -126,9 +126,9 @@ object LIST_PROTO
       result = {@result, func(item)};
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb filter (this none this) owner: HACKER flags: "rxd"
+  method filter owner: HACKER
     "Return a new list containing only items for which pred(item) is true.";
     "Example: {1, 2, 3, 4, 5}:filter({x} => x % 2 == 0) => {2, 4}.";
     {lst, pred} = args;
@@ -139,9 +139,9 @@ object LIST_PROTO
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb reduce (this none this) owner: HACKER flags: "rxd"
+  method reduce owner: HACKER
     "Fold the list from left to right by repeatedly calling func(accumulator, item).";
     "Returns initial when the input list is empty.";
     {lst, func, initial} = args;
@@ -150,9 +150,9 @@ object LIST_PROTO
       accumulator = func(accumulator, item);
     endfor
     return accumulator;
-  endverb
+  endmethod
 
-  verb find (this none this) owner: HACKER flags: "rxd"
+  method find owner: HACKER
     "Return the first item for which pred(item) is true, or 0 when no item matches.";
     {lst, pred} = args;
     for item in (lst)
@@ -161,9 +161,9 @@ object LIST_PROTO
       endif
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb any (this none this) owner: HACKER flags: "rxd"
+  method any owner: HACKER
     "Return true if pred(item) is true for at least one item in the list.";
     {lst, pred} = args;
     for item in (lst)
@@ -172,21 +172,21 @@ object LIST_PROTO
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb all (this none this) owner: HACKER flags: "rxd"
+  method all owner: HACKER
     "Return true if pred(item) is true for every item in the list.";
     "The empty list returns true.";
     {lst, pred} = args;
     for item in (lst)
-      if (!pred(item))
+      if (!(pred(item)))
         return false;
       endif
     endfor
     return true;
-  endverb
+  endmethod
 
-  verb unique (this none this) owner: HACKER flags: "rxd"
+  method unique owner: HACKER
     "Return a list with duplicate elements removed while preserving first-seen order.";
     "Example: {1, 2, 2, 3, 1, 4}:unique() => {1, 2, 3, 4}.";
     lst = args[1];
@@ -199,9 +199,9 @@ object LIST_PROTO
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb group_by (this none this) owner: HACKER flags: "rxd"
+  method group_by owner: HACKER
     "Return a map from key_func(item) to the list of items with that key.";
     "Each group preserves the original item order.";
     {lst, key_func} = args;
@@ -215,9 +215,9 @@ object LIST_PROTO
       endif
     endfor
     return groups;
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     "Compose each list element for the requested content type and combine the results.";
     "HTML composition returns the composed list; text composition joins rendered text parts.";
     {lst, render_for, content_type, @rest} = args;
@@ -242,9 +242,9 @@ object LIST_PROTO
       endif
     endfor
     return text_parts:join("");
-  endverb
+  endmethod
 
-  verb test_core_list_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_core_list_helpers owner: HACKER
     "Cover append, assoc, assoc_prefix, check_type, join, and english_list.";
     $test_utils:assert_eq(this:append({"a", "b"}, {"c"}, {}, {"d", "e"}), {"a", "b", "c", "d", "e"}, "append concatenates argument lists");
     nested = {{"id", 1}, {"name", "cowbell"}, "skip", {"name", "moor"}};
@@ -265,9 +265,9 @@ object LIST_PROTO
     $test_utils:assert_eq({"red", "blue", "green"}:english_list(), "red, blue, and green", "english_list three items");
     $test_utils:assert_eq({"red", "blue", "green"}:english_list("nothing", " or ", "; ", ";"), "red; blue; or green", "english_list custom separators");
     return true;
-  endverb
+  endmethod
 
-  verb test_functional_list_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_functional_list_helpers owner: HACKER
     "Cover map, filter, reduce, find, any, and all.";
     $test_utils:assert_eq({1, 2, 3}:map({x} => x * 2), {2, 4, 6}, "map transforms every item");
     $test_utils:assert_eq({}:map({x} => x + 1), {}, "map preserves empty lists");
@@ -284,9 +284,9 @@ object LIST_PROTO
     $test_utils:assert_false({1, 2, 3}:all({x} => x % 2 == 0), "all false case");
     $test_utils:assert_true({}:all({x} => x > 100), "all empty list is true");
     return true;
-  endverb
+  endmethod
 
-  verb test_set_group_and_compose_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_set_group_and_compose_helpers owner: HACKER
     "Cover unique, group_by, compress, and compose.";
     $test_utils:assert_eq({1, 2, 2, 3, 1, 4}:unique(), {1, 2, 3, 4}, "unique preserves first-seen order");
     $test_utils:assert_eq({}:unique(), {}, "unique preserves empty list");
@@ -300,5 +300,5 @@ object LIST_PROTO
     $test_utils:assert_eq({"a", "b"}:compose(player, 'text), "ab", "compose joins text results");
     $test_utils:assert_eq({"a", "b"}:compose(player, 'text_html), {"a", "b"}, "compose preserves HTML result list");
     return true;
-  endverb
+  endmethod
 endobject

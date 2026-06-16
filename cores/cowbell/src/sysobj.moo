@@ -116,14 +116,14 @@ object SYSOBJ
   override description = "System object containing global properties and core server event handlers.";
   override import_export_id = "sysobj";
 
-  verb do_login_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_login_command owner: ARCH_WIZARD
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;
     args = $login:parse_command(@args);
     return $login:(args[1])(@listdelete(args, 1));
-  endverb
+  endmethod
 
-  verb "user_created user_connected" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "user_created user_connected" owner: ARCH_WIZARD
     "Called by the server when a user connects (or reconnects, or is created).";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
@@ -161,9 +161,9 @@ object SYSOBJ
     endif
     "Player confunc handles DM/mail notifications, then updates last_connected.";
     `user:confunc() ! E_VERBNF';
-  endverb
+  endmethod
 
-  verb "user_disconnected user_client_disconnected" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "user_disconnected user_client_disconnected" owner: ARCH_WIZARD
     "Called when a user disconnects (only when last connection is removed).";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
@@ -178,9 +178,9 @@ object SYSOBJ
     "Room disfunc and player disfunc run inline, no fork.";
     `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
     `user:disfunc() ! E_VERBNF';
-  endverb
+  endmethod
 
-  verb user_reconnected (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method user_reconnected owner: ARCH_WIZARD
     "Called by the server when a user reconnects (network blip, browser wake, etc).";
     "Quiet reconnect: no room description, no announce, just update last_connected.";
     callers() && !caller_perms().wizard && return E_PERM;
@@ -190,9 +190,9 @@ object SYSOBJ
     endif
     "Update last_connected.";
     `user.last_connected = time() ! E_PROPNF, E_PERM';
-  endverb
+  endmethod
 
-  verb do_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_command owner: ARCH_WIZARD
     "Custom command handler which is capable of handling ambiguous object matches by attempting to find matching verb candidates.";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;
@@ -214,9 +214,9 @@ object SYSOBJ
     "Run the parts that need wizard permissions";
     "We let this throw otherwise errors in commands would not propagate.";
     return this:_command_handler(command, env);
-  endverb
+  endmethod
 
-  verb _command_handler (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _command_handler owner: ARCH_WIZARD
     "The wizard-permissioned portion of the custom command handler";
     caller == this || raise(E_PERM);
     {command, match_env} = args;
@@ -321,9 +321,9 @@ object SYSOBJ
     endtry
     player:inform_current($event:mk_do_not_understand(player, "I don't know how to do that."):with_audience('utility));
     return true;
-  endverb
+  endmethod
 
-  verb bf_recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method bf_recycle owner: ARCH_WIZARD
     "Intercept recycle() to enforce permission checking through :destroy.";
     "Allows direct recycle() if: wizard, object not rooted in #1, or called from :destroy";
     {target} = args;
@@ -349,9 +349,9 @@ object SYSOBJ
     endfor
     "Not authorized - must go through :destroy for permission checking";
     raise(E_PERM);
-  endverb
+  endmethod
 
-  verb list_builder_prototypes (this none this) owner: HACKER flags: "rxd"
+  method list_builder_prototypes owner: HACKER
     "Return list of builder prototypes with descriptions.";
     result = {};
     seen = [];
@@ -372,9 +372,9 @@ object SYSOBJ
       result = {@result, ["object" -> toliteral(proto), "name" -> proto_name, "description" -> desc]};
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb test_list_builder_prototypes (this none this) owner: HACKER flags: "rxd"
+  method test_list_builder_prototypes owner: HACKER
     "Builder prototype catalog should expose sysobj names and descriptions.";
     prototypes = this:list_builder_prototypes();
     found_room = false;
@@ -393,9 +393,9 @@ object SYSOBJ
     $test_utils:assert_true(found_room, "builder prototypes should include $room: " + toliteral(prototypes));
     $test_utils:assert_true(found_thing, "builder prototypes should include $thing: " + toliteral(prototypes));
     return true;
-  endverb
+  endmethod
 
-  verb server_started (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method server_started owner: ARCH_WIZARD
     "Called on server start to kick off initial state after being out of existence for a bit...";
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;
@@ -406,9 +406,9 @@ object SYSOBJ
     server_log("Issued player creation capability to $login");
     "Resume scheduler if needed";
     $scheduler:resume_if_needed();
-  endverb
+  endmethod
 
-  verb handle_uncaught_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method handle_uncaught_error owner: ARCH_WIZARD
     "Called when there's an uncaught error in a task...";
     if (callers() && !caller_perms().wizard)
       server_log("Illegal call to `handle_uncaught_error` from " + toliteral(callers()));
@@ -418,9 +418,9 @@ object SYSOBJ
     server_log("Uncaught error: " + toliteral(code) + "(" + toliteral(msg) + ") (value: " + toliteral(value) + ")\n" + toliteral(traceback));
     "Let the player object handle it if it wants to";
     return `player:(verb)(@args) ! ANY';
-  endverb
+  endmethod
 
-  verb external_agent_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method external_agent_tools owner: ARCH_WIZARD
     "Return tool definitions for external AI agents (MCP/Claude Code etc.)";
     "Returns list of maps with: name, description, input_schema, target_obj, target_verb";
     "Tools are executed as the authenticated player, not as wizard";
@@ -431,9 +431,9 @@ object SYSOBJ
       tools = {@tools, tool:to_mcp_schema()};
     endfor
     return tools;
-  endverb
+  endmethod
 
-  verb external_agent_resources (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method external_agent_resources owner: ARCH_WIZARD
     "Return resource definitions for external AI agents (MCP/Claude Code etc.)";
     "Returns list of maps with: uri, name, description, mimeType, content";
     "Resources are read-only context that agents can browse";
@@ -442,13 +442,13 @@ object SYSOBJ
     "Building guide from $agent_building_tools";
     resources = {@resources, ["uri" -> "moor://building-guide", "name" -> "Building Guide", "description" -> "Instructions for using building tools to create rooms, objects, and configure behaviors.", "mimeType" -> "text/plain", "content" -> $agent_building_tools.guide]};
     return resources;
-  endverb
+  endmethod
 
-  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _log owner: ARCH_WIZARD
     callers() && !caller_perms().wizard && return E_PERM;
     server_log(@args);
-  endverb
+  endmethod
 
-  verb user_reconnected (this none this) owner: ARCH_WIZARD flags: "rxd"
-  endverb
+  method user_reconnected owner: ARCH_WIZARD
+  endmethod
 endobject

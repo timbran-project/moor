@@ -9,7 +9,7 @@ object AGENTIC_LOOP
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_loop";
 
-  verb run_turn (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method run_turn owner: ARCH_WIZARD
     "Run one agent turn: call LLM, execute tools, append context, and return status map.";
     {agent, ?opts = false} = args;
     typeof(agent) == TYPE_OBJ && valid(agent) || raise(E_INVARG, "agent must be a valid object");
@@ -38,5 +38,5 @@ object AGENTIC_LOOP
       return ["status" -> "all_failed", "tool_results" -> tool_results];
     endif
     return ["status" -> "tool_calls", "tool_results" -> tool_results];
-  endverb
+  endmethod
 endobject

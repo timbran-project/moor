@@ -8,7 +8,7 @@ object GRANT_UTILS
   override import_export_hierarchy = {"utils"};
   override import_export_id = "grant_utils";
 
-  verb format_grant (this none this) owner: HACKER flags: "rxd"
+  method format_grant owner: HACKER
     "Format a grant specification as target.category(cap1,cap2,...).";
     {target, category, cap_list} = args;
     typeof(target) == TYPE_OBJ || raise(E_TYPE);
@@ -19,9 +19,9 @@ object GRANT_UTILS
     cap_names = { tostr(c) for c in (cap_list) };
     caps_str = cap_names:join(",");
     return target_str + "." + category_str + "(" + caps_str + ")";
-  endverb
+  endmethod
 
-  verb format_grant_with_name (this none this) owner: HACKER flags: "rxd"
+  method format_grant_with_name owner: HACKER
     "Format a grant specification including the target object's name.";
     {target, category, cap_list} = args;
     typeof(target) == TYPE_OBJ || raise(E_TYPE);
@@ -33,9 +33,9 @@ object GRANT_UTILS
     cap_names = { tostr(c) for c in (cap_list) };
     caps_str = cap_names:join(",");
     return target_str + "." + category_str + "(" + caps_str + ")";
-  endverb
+  endmethod
 
-  verb parse_grant (this none this) owner: HACKER flags: "rxd"
+  method parse_grant owner: HACKER
     "Parse a grant specification like #38.area(add_room,create_passage) into components.";
     "Returns {target, category, cap_list} or raises E_INVARG on parse error.";
     {grant_str} = args;
@@ -82,9 +82,9 @@ object GRANT_UTILS
       endfor
     endif
     return {target, category, cap_list};
-  endverb
+  endmethod
 
-  verb format_denial (this none this) owner: HACKER flags: "rxd"
+  method format_denial owner: HACKER
     "Format a permission denial message for missing capabilities.";
     {target, category, required_caps} = args;
     typeof(target) == TYPE_OBJ || raise(E_TYPE);
@@ -98,9 +98,9 @@ object GRANT_UTILS
     message = "You don't have permission to perform this action on " + target_str + ".";
     message = message + " Required: " + grant_spec + " (or ownership/wizard status).";
     return message;
-  endverb
+  endmethod
 
-  verb test_format_grant (this none this) owner: HACKER flags: "rxd"
+  method test_format_grant owner: HACKER
     "Test basic grant formatting.";
     result = this:format_grant(#38, 'area, {'add_room, 'create_passage});
     result == "#38.area(add_room,create_passage)" || raise(E_ASSERT, "format_grant failed: " + result);
@@ -110,18 +110,18 @@ object GRANT_UTILS
     "Test empty capability list";
     result = this:format_grant(#1, 'test, {});
     result == "#1.test()" || raise(E_ASSERT, "Empty cap list failed: " + result);
-  endverb
+  endmethod
 
-  verb test_format_grant_with_name (this none this) owner: HACKER flags: "rxd"
+  method test_format_grant_with_name owner: HACKER
     "Test grant formatting with object names.";
     "Test with valid object";
     result = this:format_grant_with_name($first_area, 'area, {'add_room});
     "First Area" in result || raise(E_ASSERT, "Name not included: " + result);
     "#50" in result || raise(E_ASSERT, "Object ID not included: " + result);
     ".area(add_room)" in result || raise(E_ASSERT, "Grant spec malformed: " + result);
-  endverb
+  endmethod
 
-  verb test_parse_grant (this none this) owner: HACKER flags: "rxd"
+  method test_parse_grant owner: HACKER
     "Test parsing valid grant specifications.";
     {target, category, cap_list} = this:parse_grant("#38.area(add_room,create_passage)");
     target == #38 || raise(E_ASSERT, "Wrong target: " + tostr(target));
@@ -140,9 +140,9 @@ object GRANT_UTILS
     target == #1 || raise(E_ASSERT, "Wrong target (empty caps)");
     category == 'test || raise(E_ASSERT, "Wrong category (empty caps)");
     length(cap_list) == 0 || raise(E_ASSERT, "Cap list should be empty");
-  endverb
+  endmethod
 
-  verb test_parse_grant_errors (this none this) owner: HACKER flags: "rxd"
+  method test_parse_grant_errors owner: HACKER
     "Test parse_grant error handling.";
     "Missing dot separator";
     caught = `this:parse_grant("#38area(test)") ! E_INVARG => true';
@@ -159,18 +159,18 @@ object GRANT_UTILS
     "Empty string";
     caught = `this:parse_grant("") ! E_INVARG => true';
     caught || raise(E_ASSERT, "Should reject empty string");
-  endverb
+  endmethod
 
-  verb test_format_denial (this none this) owner: HACKER flags: "rxd"
+  method test_format_denial owner: HACKER
     "Test denial message formatting.";
     message = this:format_denial($first_area, 'area, {'add_room, 'create_passage});
     "First Area" in message || raise(E_ASSERT, "Name not in denial: " + message);
     "#50" in message || raise(E_ASSERT, "Object ID not in denial: " + message);
     "#50.area(add_room,create_passage)" in message || raise(E_ASSERT, "Grant spec not in denial: " + message);
     "permission" in message || raise(E_ASSERT, "No permission text in denial: " + message);
-  endverb
+  endmethod
 
-  verb test_round_trip (this none this) owner: HACKER flags: "rxd"
+  method test_round_trip owner: HACKER
     "Test format->parse round trip.";
     original_target = #38;
     original_category = 'area;
@@ -183,5 +183,5 @@ object GRANT_UTILS
     for cap in (original_caps)
       cap in parsed_caps || raise(E_ASSERT, "Round trip: missing cap " + tostr(cap));
     endfor
-  endverb
+  endmethod
 endobject

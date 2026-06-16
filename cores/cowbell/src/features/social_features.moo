@@ -19,7 +19,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Nod at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Nod at/to whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -40,7 +40,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Wave at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Wave at/to whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -61,7 +61,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Bow to/at whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Bow to/at whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -85,7 +85,7 @@ object SOCIAL_FEATURES
     try
       target = this:_match_social_target(dobjstr);
     except e (E_INVARG)
-      msg = e[2] == "missing_target" ? "Bonk whom?" | (e[2] == "not_found" ? "I don't see \"" + dobjstr + "\" here." | tostr(e[2]));
+      msg = e[2] == "missing_target" ? "Bonk whom?" | e[2] == "not_found" ? "I don't see \"" + dobjstr + "\" here." | tostr(e[2]);
       player:inform_current($event:mk_error(player, msg));
       return;
     endtry
@@ -117,7 +117,7 @@ object SOCIAL_FEATURES
       try
         target = this:_match_social_target(iobjstr);
       except e (E_INVARG)
-        msg = e[2] == "missing_target" ? "Smile at/to whom?" | (e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]));
+        msg = e[2] == "missing_target" ? "Smile at/to whom?" | e[2] == "not_found" ? "I don't see \"" + iobjstr + "\" here." | tostr(e[2]);
         player:inform_current($event:mk_error(player, msg));
         return;
       endtry
@@ -291,7 +291,7 @@ object SOCIAL_FEATURES
     player.location:announce(event);
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for social actions.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("socializing", "Social actions and gestures", "Express yourself with gestures and actions that others can see.\n\n`nod`, `wave`, `bow`, `smile`, `frown`, `laugh`, `dance`, `shrug`, `ponder`, `applaud`/`clap`, `cheer`, `sigh`, `yawn`, `stretch`, `bonk`, `oif`, `think`\n\nMost gestures can be directed at someone:\n\n`wave at Henri`\n`bow to Ryan`\n`bonk someone`\n\nThe `think` command shows a visible thought:\n\n`think I wonder what's for dinner` \u2192 _Ryan . o O ( I wonder what's for dinner )_\n\n**The bonk/oif balance**: When someone bonks you, tradition holds that you must say `oif` to acknowledge it. Failing to oif after being bonked is said to upset the cosmic bonk/oif balance, causing much trouble in the universe.", {"socials", "gestures", "actions"}, 'social, {"communicating", "emote"})};
@@ -305,9 +305,9 @@ object SOCIAL_FEATURES
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'social) ! ANY => 0';
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
-  endverb
+  endmethod
 
-  verb _match_social_target (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _match_social_target owner: ARCH_WIZARD
     "Resolve a social target with clearer ambiguity feedback.";
     "Args: query string. Returns object or raises E_INVARG with message.";
     {query} = args;
@@ -360,5 +360,5 @@ object SOCIAL_FEATURES
       raise(E_INVARG, "not_found");
     endif
     return target;
-  endverb
+  endmethod
 endobject

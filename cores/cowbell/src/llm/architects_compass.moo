@@ -22,7 +22,7 @@ object ARCHITECTS_COMPASS
   override requires_wearing_only = false;
   override tool_name = "COMPASS";
 
-  verb _setup_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _setup_agent owner: ARCH_WIZARD
     "Configure agent with compass-specific prompts and tools";
     {agent} = args;
     agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
@@ -47,16 +47,16 @@ object ARCHITECTS_COMPASS
     agent:add_tool("record_creation", record_creation_tool);
     project_status_tool = $llm_agent_tool:mk("project_status", "Get status of the current building project including what stages/rooms have been completed and overall progress.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "project_status");
     agent:add_tool("project_status", project_status_tool);
-  endverb
+  endmethod
 
-  verb _check_user_eligible (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _check_user_eligible owner: ARCH_WIZARD
     "Compass requires user to have builder features";
     {wearer} = args;
     caller == this || caller == this.owner || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     wearer.is_builder || raise(E_PERM, "The compass can only be used by builders");
-  endverb
+  endmethod
 
-  verb _resolve_display_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _resolve_display_name owner: ARCH_WIZARD
     "Convert object spec to human-readable display name";
     {obj_spec, wearer} = args;
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
@@ -64,9 +64,9 @@ object ARCHITECTS_COMPASS
     set_task_perms(wearer);
     target_obj = `$match:match_object(obj_spec, wearer) ! ANY => #-1';
     return valid(target_obj) ? `target_obj:name() ! ANY => obj_spec' | obj_spec;
-  endverb
+  endmethod
 
-  verb _format_hud_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_hud_message owner: ARCH_WIZARD
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
     wearer = this:wearer();
@@ -236,17 +236,17 @@ object ARCHITECTS_COMPASS
       message = $ansi:colorize("[PROCESS]", 'cyan) + " " + tool_name;
     endif
     return message;
-  endverb
+  endmethod
 
-  verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
+  method _get_tool_content_types owner: HACKER
     "Specify djot rendering for all tool messages to support markdown formatting";
     {tool_name, tool_args} = args;
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "All compass tool messages can contain markdown, so render as djot";
     return {'text_djot, 'text_plain};
-  endverb
+  endmethod
 
-  verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
+  method _format_tts_message owner: HACKER
     "Format TTS-friendly message for screen readers - no ANSI codes or brackets";
     {tool_name, tool_args} = args;
     wearer = this:wearer();
@@ -350,9 +350,9 @@ object ARCHITECTS_COMPASS
       return "Question: " + question + suffix;
     endif
     return "Processing: " + tool_name;
-  endverb
+  endmethod
 
-  verb _tool_create_project (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_create_project owner: ARCH_WIZARD
     "Tool: Create a new building project task";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -362,9 +362,9 @@ object ARCHITECTS_COMPASS
     this.current_building_task = task.task_id;
     task:mark_in_progress();
     return "Building project #" + tostr(task.task_id) + " started: " + description;
-  endverb
+  endmethod
 
-  verb _tool_record_creation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_record_creation owner: ARCH_WIZARD
     "Tool: Record a creation in current project's knowledge base";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -376,9 +376,9 @@ object ARCHITECTS_COMPASS
     !valid(task_obj) && return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
     task_obj:add_finding(subject, key, value);
     return "Recorded [" + subject + "/" + key + "]";
-  endverb
+  endmethod
 
-  verb _tool_project_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_project_status owner: ARCH_WIZARD
     "Tool: Get current building project status";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -392,24 +392,24 @@ object ARCHITECTS_COMPASS
     status["status"] == 'blocked && (status_lines = {@status_lines, "Blocked: " + status["error"]});
     status["subtask_count"] > 0 && (status_lines = {@status_lines, "Stages: " + tostr(status["subtask_count"])});
     return {@status_lines, "Started: " + tostr(ctime(status["started_at"]))}:join("\n");
-  endverb
+  endmethod
 
-  verb on_wear (this none this) owner: HACKER flags: "rxd"
+  method on_wear owner: HACKER
     "Activate when worn";
     !valid(this.agent) && this:configure();
     wearer = this.location;
     valid(wearer) || return;
     wearer:inform_current($event:mk_info(wearer, "The compass needle spins and aligns. Spatial construction interface ready. Use 'use compass' or 'interact with compass' to begin."):with_tts("Architect's Compass ready. Spatial construction interface active."));
     this:_show_token_usage(wearer);
-  endverb
+  endmethod
 
-  verb on_remove (this none this) owner: HACKER flags: "rxd"
+  method on_remove owner: HACKER
     "Deactivate when removed";
     wearer = this.location;
     valid(wearer) || return;
     this:_show_token_usage(wearer);
     wearer:inform_current($event:mk_info(wearer, "The compass needle falls idle. Spatial construction interface offline."):with_tts("Architect's Compass offline."));
-  endverb
+  endmethod
 
   verb plan_building (none none none) owner: HACKER flags: "rd"
     "Create a new building project task to track construction progress";
@@ -448,7 +448,7 @@ object ARCHITECTS_COMPASS
     player:inform_current($event:mk_info(player, progress_lines:join("\n")):with_presentation_hint('inset):with_group('llm, this));
   endverb
 
-  verb complete_building (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method complete_building owner: ARCH_WIZARD
     "Mark current building project as completed";
     {?result = "Building project concluded."} = args;
     this.current_building_task == -1 && return "No active building project";
@@ -457,9 +457,9 @@ object ARCHITECTS_COMPASS
     task_obj:mark_complete(result);
     this.current_building_task = -1;
     return "Building project #" + tostr(task_obj.task_id) + " completed.";
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for the Architect's Compass.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("compass", "Using the Architect's Compass", "The Architect's Compass is a wearable tool for building and shaping the world. Wear it with 'wear compass', then use 'use compass' or 'interact with compass' to start a conversation with it about what you want to build.", {"architects compass", "building tool"}, 'items, {"building", "rooms"}), $help:mk("building", "Building rooms and spaces", "Use the compass to create new rooms in an area. Say things like 'build a kitchen' or 'create a cozy study'. The compass will guide you through naming and describing your new spaces. Equivalent command: @build", {"build", "construct"}, 'building, {"compass", "passages"}), $help:mk("passages", "Creating passages between rooms", "Use the compass to dig passages connecting rooms. Describe what you want: 'connect the kitchen to the dining room' or 'dig a passage north to the garden'. Equivalent command: @dig", {"dig", "exits", "connections"}, 'building, {"building", "compass"}), $help:mk("@build", "Create a new room", "Usage: @build <room name> [in <area>]\n\nCreates a new room. If no area is specified, builds in your current area.", {}, 'commands, {"@dig", "building"}), $help:mk("@dig", "Create a passage between rooms", "Usage: @dig <direction> to <room>\n\nCreates a passage from your current room to another room in the same area.", {}, 'commands, {"@build", "passages"})};
@@ -468,5 +468,5 @@ object ARCHITECTS_COMPASS
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 endobject

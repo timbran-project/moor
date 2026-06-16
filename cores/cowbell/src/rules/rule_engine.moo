@@ -113,7 +113,7 @@ object RULE_ENGINE
     "Then use in rules: `Accessor has_key(\"rusty key\")?`"
   };
 
-  verb evaluate (this none this) owner: HACKER flags: "rxd"
+  method evaluate owner: HACKER
     "Evaluate a rule to find all satisfying variable bindings.";
     "Returns: {success: bool, bindings: map, alternatives: list of maps, warnings: list}";
     {rule, ?initial_bindings = []} = args;
@@ -125,9 +125,9 @@ object RULE_ENGINE
     result = is_branches ? this:_prove_alternatives(body, initial_bindings) | this:_prove_goals(body, initial_bindings, {});
     result['warnings] = warnings;
     return result;
-  endverb
+  endmethod
 
-  verb _prove_alternatives (this none this) owner: HACKER flags: "rxd"
+  method _prove_alternatives owner: HACKER
     "Prove a list of alternative goal branches (OR).";
     {alternatives, bindings} = args;
     typeof(alternatives) == TYPE_LIST || raise(E_TYPE, "alternatives must be list");
@@ -147,9 +147,9 @@ object RULE_ENGINE
     endfor
     length(all_solutions) == 0 && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
     return ['success -> true, 'bindings -> all_solutions[1], 'alternatives -> all_solutions[2..$]];
-  endverb
+  endmethod
 
-  verb _prove_goals (this none this) owner: HACKER flags: "rxd"
+  method _prove_goals owner: HACKER
     "Prove a list of goals with backtracking. Returns all solutions.";
     {goals, bindings, ?_choice_stack = {}} = args;
     typeof(goals) == TYPE_LIST || raise(E_TYPE, "goals must be list");
@@ -172,9 +172,9 @@ object RULE_ENGINE
     endfor
     length(all_results) == 0 && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
     return ['success -> true, 'bindings -> all_results[1], 'alternatives -> all_results[2..$]];
-  endverb
+  endmethod
 
-  verb _solve_goal (this none this) owner: HACKER flags: "rxd"
+  method _solve_goal owner: HACKER
     "Solve a single goal by calling fact predicates. Returns list of bindings.";
     {goal, bindings} = args;
     typeof(goal) == TYPE_LIST || raise(E_TYPE, "goal must be list");
@@ -199,22 +199,22 @@ object RULE_ENGINE
       new_bindings != false && (unified_solutions = {@unified_solutions, new_bindings});
     endfor
     return unified_solutions;
-  endverb
+  endmethod
 
-  verb _substitute_args (this none this) owner: HACKER flags: "rxd"
+  method _substitute_args owner: HACKER
     "Replace variables in args with their bindings.";
     {args, bindings} = args;
     substituted = term_substitute(args, bindings, ['unbound -> 'leave]);
     return this:_predicate_call_value(substituted, bindings);
-  endverb
+  endmethod
 
-  verb _substitute_value (this none this) owner: HACKER flags: "rxd"
+  method _substitute_value owner: HACKER
     "Substitute a single value, resolving variables.";
     {value, bindings} = args;
     return this:_predicate_call_value(term_substitute(value, bindings, ['unbound -> 'leave]), bindings);
-  endverb
+  endmethod
 
-  verb _predicate_call_value (this none this) owner: HACKER flags: "rxd"
+  method _predicate_call_value owner: HACKER
     "Convert unbound variables and bound legacy symbols for fact predicate calls.";
     {value, bindings} = args;
     this:_is_var(value) && return this:_var_name(value);
@@ -227,9 +227,9 @@ object RULE_ENGINE
       return result;
     endif
     return value;
-  endverb
+  endmethod
 
-  verb _unify_goal (this none this) owner: HACKER flags: "rxd"
+  method _unify_goal owner: HACKER
     "Unify a goal with a result, returning new bindings or false.";
     {goal, result, bindings} = args;
     goal_args = goal[2..$];
@@ -242,22 +242,22 @@ object RULE_ENGINE
     endfor
     "No unbound variables - ground goal. Only explicit false means failure.";
     return result == false ? false | bindings;
-  endverb
+  endmethod
 
-  verb _is_var (this none this) owner: HACKER flags: "rxd"
+  method _is_var owner: HACKER
     "Return true when value is a normalized logic variable marker.";
     {value} = args;
     return typeof(value) == TYPE_LIST && length(value) == 2 && value[1] == 'var && typeof(value[2]) == TYPE_SYM;
-  endverb
+  endmethod
 
-  verb _var_name (this none this) owner: HACKER flags: "rxd"
+  method _var_name owner: HACKER
     "Return the symbol identifier from a normalized logic variable marker.";
     {value} = args;
     this:_is_var(value) || raise(E_TYPE, "value is not a variable marker");
     return value[2];
-  endverb
+  endmethod
 
-  verb parse_expression (this none this) owner: HACKER flags: "rxd"
+  method parse_expression owner: HACKER
     "Parse a builder-friendly expression into a rule flyweight.";
     "Expression syntax: 'Object predicate? AND Object predicate2? OR NOT Object predicate3?'";
     "Capitalized words are variables, lowercase are constants. ? marks a predicate.";
@@ -272,9 +272,9 @@ object RULE_ENGINE
     variables = this:_extract_variables_from_goals(goals);
     "Return rule flyweight";
     return <$rule, .name = rule_name, .head = rule_name, .body = goals, .variables = variables>;
-  endverb
+  endmethod
 
-  verb validate_rule (this none this) owner: HACKER flags: "rxd"
+  method validate_rule owner: HACKER
     "Validate a rule for bounded negation violations without evaluating it.";
     "Returns: {valid, warnings} where warnings is list of error/warning strings";
     {rule} = args;
@@ -306,9 +306,9 @@ object RULE_ENGINE
       endif
     endfor
     return ['valid -> !has_error, 'warnings -> warnings];
-  endverb
+  endmethod
 
-  verb _check_branch_negation (this none this) owner: HACKER flags: "rxd"
+  method _check_branch_negation owner: HACKER
     "Check a single branch for bounded negation violations.";
     {branch, all_vars} = args;
     warnings = {};
@@ -339,9 +339,9 @@ object RULE_ENGINE
       endif
     endfor
     return warnings;
-  endverb
+  endmethod
 
-  verb _tokenize (this none this) owner: HACKER flags: "rxd"
+  method _tokenize owner: HACKER
     "Tokenize an expression string into a list of tokens.";
     "Returns: list of strings, each token is a word, operator, or complex term";
     "Complex terms like 'predicate(arg)?' are kept as single tokens";
@@ -461,9 +461,9 @@ object RULE_ENGINE
       tokens = {@tokens, current_token};
     endif
     return tokens;
-  endverb
+  endmethod
 
-  verb _parse_goals (this none this) owner: HACKER flags: "rxd"
+  method _parse_goals owner: HACKER
     "Parse a token list into a goal structure.";
     "Handles AND, OR, NOT operators and parentheses.";
     "Returns either a flat goal list (no OR) or a list of branches (OR present)";
@@ -478,9 +478,9 @@ object RULE_ENGINE
       "Multiple branches (OR expressions) - return as list of branches";
       return branches;
     endif
-  endverb
+  endmethod
 
-  verb _parse_or_expression (this none this) owner: HACKER flags: "rxd"
+  method _parse_or_expression owner: HACKER
     "Parse OR expressions: term OR term OR term";
     "Returns: {branches_list, next_position}";
     "Each branch is a list of goals (AND'd together)";
@@ -500,9 +500,9 @@ object RULE_ENGINE
       branches = {@branches, or_branch};
     endwhile
     return {branches, pos};
-  endverb
+  endmethod
 
-  verb _parse_and_expression (this none this) owner: HACKER flags: "rxd"
+  method _parse_and_expression owner: HACKER
     "Parse AND expressions: term AND term AND term";
     "Returns: {goals_list, next_position}";
     {tokens, pos, match_perspective} = args;
@@ -520,9 +520,9 @@ object RULE_ENGINE
       goals = {@goals, @term_goals};
     endwhile
     return {goals, pos};
-  endverb
+  endmethod
 
-  verb _parse_term (this none this) owner: HACKER flags: "rxd"
+  method _parse_term owner: HACKER
     "Parse a single term: either 'NOT term', '(expression)', or 'object predicate(args)?'";
     "Returns: {goals_list, next_position}";
     {tokens, pos, match_perspective} = args;
@@ -581,9 +581,9 @@ object RULE_ENGINE
       goal = {@goal, arg_ref};
     endfor
     return {{goal}, pos};
-  endverb
+  endmethod
 
-  verb _parse_predicate_with_args (this none this) owner: HACKER flags: "rxd"
+  method _parse_predicate_with_args owner: HACKER
     "Parse a predicate with arguments: 'predicate(arg1, arg2)?'";
     "Returns: {predicate_name, args_list}";
     {predicate_spec} = args;
@@ -621,9 +621,9 @@ object RULE_ENGINE
       endif
     endif
     return {predicate_name, args};
-  endverb
+  endmethod
 
-  verb _resolve_name (this none this) owner: HACKER flags: "rxd"
+  method _resolve_name owner: HACKER
     "Resolve a name to variable marker, object, or constant.";
     {name, match_perspective} = args;
     "Quoted string - match to object";
@@ -649,17 +649,17 @@ object RULE_ENGINE
     lower_name = name:lowercase();
     maphaskey(constants, lower_name) && return constants[lower_name];
     raise(E_INVARG, "Unknown object constant: " + name);
-  endverb
+  endmethod
 
-  verb _extract_variables_from_goals (this none this) owner: HACKER flags: "rxd"
+  method _extract_variables_from_goals owner: HACKER
     "Extract all variables from a goal list.";
     {goals} = args;
     variables = {};
     variables = this:_collect_variables(goals, variables);
     return variables;
-  endverb
+  endmethod
 
-  verb _collect_variables (this none this) owner: HACKER flags: "rxd"
+  method _collect_variables owner: HACKER
     "Append normalized variable names found in value to variables.";
     {value, variables} = args;
     if (this:_is_var(value))
@@ -673,9 +673,9 @@ object RULE_ENGINE
       endfor
     endif
     return variables;
-  endverb
+  endmethod
 
-  verb _check_negation_warnings (this none this) owner: HACKER flags: "rxd"
+  method _check_negation_warnings owner: HACKER
     "Check for problematic negation patterns and return warnings/errors.";
     "Bounded negation: 0-1 unbound variables OK, 2+ is an error.";
     "Returns: list of warning/error strings";
@@ -710,9 +710,9 @@ object RULE_ENGINE
       endif
     endfor
     return warnings;
-  endverb
+  endmethod
 
-  verb decompile_rule (this none this) owner: HACKER flags: "rxd"
+  method decompile_rule owner: HACKER
     "Convert a rule flyweight back to DSL expression string.";
     {rule} = args;
     typeof(rule) == TYPE_FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
@@ -721,15 +721,15 @@ object RULE_ENGINE
     is_or = length(body) > 0 && typeof(body[1]) == TYPE_LIST && length(body[1]) > 0 && typeof(body[1][1]) == TYPE_LIST;
     is_or || return this:_decompile_goals(body);
     return { this:_decompile_goals(branch) for branch in (body) }:join(" OR ");
-  endverb
+  endmethod
 
-  verb _decompile_goals (this none this) owner: HACKER flags: "rxd"
+  method _decompile_goals owner: HACKER
     "Decompile a list of goals into DSL syntax.";
     {goals} = args;
     return { this:_decompile_goal(g) for g in (goals) }:join(" AND ");
-  endverb
+  endmethod
 
-  verb _decompile_goal (this none this) owner: HACKER flags: "rxd"
+  method _decompile_goal owner: HACKER
     "Decompile a single goal into DSL syntax.";
     {goal} = args;
     typeof(goal) == TYPE_LIST || raise(E_TYPE, "goal must be list");
@@ -743,16 +743,16 @@ object RULE_ENGINE
     predicate_str = tostr(predicate);
     length(remaining_args) > 0 && (predicate_str = predicate_str + "(" + { this:_decompile_value(a) for a in (remaining_args) }:join(", ") + ")");
     return obj_str + " " + predicate_str + "?";
-  endverb
+  endmethod
 
-  verb _decompile_value (this none this) owner: HACKER flags: "rxd"
+  method _decompile_value owner: HACKER
     "Convert a value back to DSL representation.";
     {value} = args;
     this:_is_var(value) && return tostr(this:_var_name(value));
     return tostr(value);
-  endverb
+  endmethod
 
-  verb test_simple_goal (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_simple_goal owner: ARCH_WIZARD
     "Test evaluating a simple goal.";
     "Create a test object with a fact predicate";
     test_obj = $root:create(true);
@@ -770,9 +770,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
     length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
     return true;
-  endverb
+  endmethod
 
-  verb test_conjunction (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_conjunction owner: ARCH_WIZARD
     "Test proving multiple goals (conjunction).";
     "Two goals: reputation >= 5 AND reputation >= 3 (both should succeed)";
     test_guild = #64;
@@ -782,9 +782,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Both goals should succeed");
     return true;
-  endverb
+  endmethod
 
-  verb test_failed_goal (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_failed_goal owner: ARCH_WIZARD
     "Test a goal that should fail.";
     "Reputation >= 10 should fail (#64 has reputation 8)";
     test_guild = #64;
@@ -794,9 +794,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
     length(result) == 0 || raise(E_ASSERT, "Should have no solutions");
     return true;
-  endverb
+  endmethod
 
-  verb test_variable_binding (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_variable_binding owner: ARCH_WIZARD
     "Test variable unification in goals.";
     "Query: what X satisfies parent(test_obj, X)?";
     test_obj = #64;
@@ -813,9 +813,9 @@ object RULE_ENGINE
     typeof(first_solution) == TYPE_MAP || raise(E_ASSERT, "Solution should be map");
     first_solution['X] == $root || raise(E_ASSERT, "'X should be bound to $root");
     return true;
-  endverb
+  endmethod
 
-  verb test_multiple_solutions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_multiple_solutions owner: ARCH_WIZARD
     "Test goals that have multiple solutions via alternatives.";
     "Create a test object with both father and mother";
     test_obj = #64;
@@ -832,9 +832,9 @@ object RULE_ENGINE
     typeof(alternatives) == TYPE_LIST || raise(E_ASSERT, "Alternatives should be list");
     length(alternatives) > 0 || raise(E_ASSERT, "Should have alternative solutions");
     return true;
-  endverb
+  endmethod
 
-  verb test_transitive_uncle (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_transitive_uncle owner: ARCH_WIZARD
     "Test transitive relationship: uncle = parent's parent.";
     "Set up family: test_obj has mother, mother has father";
     test_obj = #64;
@@ -856,9 +856,9 @@ object RULE_ENGINE
     first_binding['X] == $arch_wizard || raise(E_ASSERT, "X should be $arch_wizard (grandfather)");
     first_binding['Y] == mother_obj || raise(E_ASSERT, "Y should be mother_obj");
     return true;
-  endverb
+  endmethod
 
-  verb test_cousin_relationship (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_cousin_relationship owner: ARCH_WIZARD
     "Test cousin relationship: verify cousin shares grandparent.";
     "Build family tree:";
     "  $arch_wizard (grandparent)";
@@ -900,9 +900,9 @@ object RULE_ENGINE
     "Verify they share the same grandparent";
     test_grandparent == cousin_grandparent || raise(E_ASSERT, "Cousin and test_obj should share grandparent");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_simple_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_simple_expression owner: ARCH_WIZARD
     "Test parsing a simple expression into a rule.";
     "Parse: 'player has_key?'";
     expression = "player has_key?";
@@ -917,9 +917,9 @@ object RULE_ENGINE
     length(goal) == 2 || raise(E_ASSERT, "Goal should have 2 elements");
     goal[1] == 'has_key || raise(E_ASSERT, "Predicate should be has_key");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_variable_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_variable_expression owner: ARCH_WIZARD
     "Test parsing expression with variables.";
     "Parse: 'Player has_key? AND Player is_trusted?'";
     expression = "Player has_key? AND Player is_trusted?";
@@ -938,9 +938,9 @@ object RULE_ENGINE
     goal2[1] == 'is_trusted || raise(E_ASSERT, "Second predicate should be is_trusted");
     goal2[2] == {'var, 'Player} || raise(E_ASSERT, "Second goal arg should be Player variable");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_mixed_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_mixed_expression owner: ARCH_WIZARD
     "Test parsing expression with both constants and variables.";
     "Parse: 'Player has_key? AND location is_open?'";
     expression = "Player has_key? AND location is_open?";
@@ -953,9 +953,9 @@ object RULE_ENGINE
     goal2[1] == 'is_open || raise(E_ASSERT, "Second predicate should be is_open");
     goal2[2] == 'location || raise(E_ASSERT, "Second arg should be location constant");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_and_evaluate_family (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_and_evaluate_family owner: ARCH_WIZARD
     "Test parsing a family relationship expression and evaluating it.";
     "Parse: 'Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?'";
     expression = "Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?";
@@ -978,9 +978,9 @@ object RULE_ENGINE
     result_bindings['Grandparent] == mother_obj || raise(E_ASSERT, "Grandparent should be mother_obj");
     result_bindings['GreatGrandparent] == $arch_wizard || raise(E_ASSERT, "GreatGrandparent should be $arch_wizard");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_or_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_or_expression owner: ARCH_WIZARD
     "Test parsing OR expressions from strings.";
     "Parse: 'Player has_key? OR Player has_lockpick?'";
     expression = "Player has_key? OR Player has_lockpick?";
@@ -999,9 +999,9 @@ object RULE_ENGINE
     length(branch2) == 1 || raise(E_ASSERT, "Second branch should have 1 goal");
     branch2[1][1] == 'has_lockpick || raise(E_ASSERT, "Second goal should be has_lockpick");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_and_evaluate_or (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_and_evaluate_or owner: ARCH_WIZARD
     "Test parsing and evaluating OR expressions.";
     "Parse: 'Player has_key? OR Player has_lockpick?'";
     expression = "Player has_key? OR Player has_lockpick?";
@@ -1016,9 +1016,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should succeed (lockpick branch works)");
     return true;
-  endverb
+  endmethod
 
-  verb test_or_alternatives (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_or_alternatives owner: ARCH_WIZARD
     "Test evaluating OR expressions with alternatives.";
     "Query: (Player has_key?) OR (Player has_lockpick?)";
     test_obj = #64;
@@ -1035,9 +1035,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "Should succeed (second branch succeeds)");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_and_evaluate_cousin (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_and_evaluate_cousin owner: ARCH_WIZARD
     "Test parsing cousin relationship: find shared grandparents.";
     "Parse: 'Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?'";
     expression = "Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?";
@@ -1071,9 +1071,9 @@ object RULE_ENGINE
     result_bindings = result['bindings];
     result_bindings['Grandparent] == $arch_wizard || raise(E_ASSERT, "Grandparent should be $arch_wizard");
     return true;
-  endverb
+  endmethod
 
-  verb test_ancestor_chain (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_ancestor_chain owner: ARCH_WIZARD
     "Test longer ancestor chain: 4-generation ancestor query.";
     "Build 5-generation family to test 4-step chain";
     test_obj = #64;
@@ -1102,9 +1102,9 @@ object RULE_ENGINE
     bindings = result['bindings];
     bindings['Result] == great_great_grandmother_obj || raise(E_ASSERT, "Should find great-great-grandmother through 4-step chain");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_negation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_negation owner: ARCH_WIZARD
     "Test parsing negation (NOT) operator.";
     "Expression: 'NOT Object predicate?'";
     expression = "NOT player has_magic?";
@@ -1119,9 +1119,9 @@ object RULE_ENGINE
     length(first_goal) > 0 || raise(E_ASSERT, "First goal should have content");
     first_goal[1] == 'not || raise(E_ASSERT, "First goal should start with 'not marker");
     return true;
-  endverb
+  endmethod
 
-  verb test_negation_succeeds (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_negation_succeeds owner: ARCH_WIZARD
     "Test negation as failure: NOT succeeds when inner goal fails.";
     test_obj = #64;
     "Create a goal that will fail (reputation >= 100)";
@@ -1134,9 +1134,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "NOT of failing goal should succeed");
     return true;
-  endverb
+  endmethod
 
-  verb test_negation_fails (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_negation_fails owner: ARCH_WIZARD
     "Test negation as failure: NOT fails when inner goal succeeds.";
     test_obj = #64;
     "Create a goal that will succeed (reputation >= 5)";
@@ -1149,9 +1149,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     !result['success] || raise(E_ASSERT, "NOT of succeeding goal should fail");
     return true;
-  endverb
+  endmethod
 
-  verb test_negation_with_conjunction (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_negation_with_conjunction owner: ARCH_WIZARD
     "Test negation in conjunction: goal1 AND NOT goal2.";
     test_obj = #64;
     "Create: reputation(test_obj, 5) AND NOT reputation(test_obj, 100)";
@@ -1165,9 +1165,9 @@ object RULE_ENGINE
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result['success] || raise(E_ASSERT, "goal1 AND NOT goal2 should succeed");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_and_evaluate_not (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_and_evaluate_not owner: ARCH_WIZARD
     "Test parsing and evaluating a NOT expression.";
     "Instead of using 'player' constant, directly build goals from parsed rule";
     test_obj = #64;
@@ -1182,9 +1182,9 @@ object RULE_ENGINE
     "First goal fails (8 < 100), so whole expression fails";
     !result['success] || raise(E_ASSERT, "Expression should fail because first goal fails");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_not_failure_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_not_failure_expression owner: ARCH_WIZARD
     "Test parsing and evaluating NOT expression from string.";
     "Expression: 'this reputation(5)? AND NOT this reputation(100)?'";
     test_obj = #64;
@@ -1199,9 +1199,9 @@ object RULE_ENGINE
     "First goal succeeds (8 >= 5), NOT goal succeeds (8 < 100), so conjunction succeeds";
     result['success] || raise(E_ASSERT, "Expression should succeed");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_complex_not_expression (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_parse_complex_not_expression owner: ARCH_WIZARD
     "Test complex NOT expression: 'this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?'";
     test_obj = #64;
     "This should parse to: (reputation(5) AND NOT reputation(100)) OR reputation(3)";
@@ -1215,9 +1215,9 @@ object RULE_ENGINE
     "First branch: reputation(5) AND NOT reputation(100) should succeed (8 >= 5, 8 < 100)";
     result['success] || raise(E_ASSERT, "Expression should succeed");
     return true;
-  endverb
+  endmethod
 
-  verb test_negation_bounded_one_unbound (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_negation_bounded_one_unbound owner: ARCH_WIZARD
     "Test that bounded negation (1 unbound var) is allowed.";
     test_obj = #64;
     "Create a rule: NOT parent(test_obj, Parent) where Parent is unbound";
@@ -1243,9 +1243,9 @@ object RULE_ENGINE
     "So NOT should fail";
     !result['success] || raise(E_ASSERT, "NOT parent should fail (object has parents)");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_simple (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_decompile_simple owner: ARCH_WIZARD
     "Test decompiling a simple rule back to DSL.";
     test_obj = #64;
     "Parse an expression";
@@ -1259,9 +1259,9 @@ object RULE_ENGINE
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     index(result, "5") > 0 || raise(E_ASSERT, "Should contain '5'");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_and (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_decompile_and owner: ARCH_WIZARD
     "Test decompiling AND expressions.";
     expr = "this reputation(5)? AND this reputation(3)?";
     rule = this:parse_expression(expr, 'test_and_decomp);
@@ -1270,9 +1270,9 @@ object RULE_ENGINE
     index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_or (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_decompile_or owner: ARCH_WIZARD
     "Test decompiling OR expressions.";
     expr = "this reputation(5)? OR this reputation(3)?";
     rule = this:parse_expression(expr, 'test_or_decomp);
@@ -1281,9 +1281,9 @@ object RULE_ENGINE
     index(result, "OR") > 0 || raise(E_ASSERT, "Should contain 'OR'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_not (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_decompile_not owner: ARCH_WIZARD
     "Test decompiling NOT expressions.";
     expr = "NOT this reputation(100)?";
     rule = this:parse_expression(expr, 'test_not_decomp);
@@ -1292,9 +1292,9 @@ object RULE_ENGINE
     index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
     index(result, "reputation") > 0 || raise(E_ASSERT, "Should contain 'reputation'");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_complex (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_decompile_complex owner: ARCH_WIZARD
     "Test decompiling complex expressions.";
     expr = "this reputation(5)? AND NOT this reputation(100)? OR this reputation(3)?";
     rule = this:parse_expression(expr, 'test_complex_decomp);
@@ -1304,9 +1304,9 @@ object RULE_ENGINE
     index(result, "AND") > 0 || raise(E_ASSERT, "Should contain 'AND'");
     index(result, "NOT") > 0 || raise(E_ASSERT, "Should contain 'NOT'");
     return true;
-  endverb
+  endmethod
 
-  verb test_container_access_public (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_container_access_public owner: ARCH_WIZARD
     "Test that containers with no rule allow public access.";
     chest = $container:create(true);
     sword = $thing:create(true);
@@ -1318,9 +1318,9 @@ object RULE_ENGINE
     check = chest:can_put_into(player_obj, sword);
     check['allowed] || raise(E_ASSERT, "Should allow put with no rule");
     return true;
-  endverb
+  endmethod
 
-  verb test_container_access_owner_only (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_container_access_owner_only owner: ARCH_WIZARD
     "Test owner-only container access.";
     chest = $container:create(true);
     sword = $thing:create(true);
@@ -1338,9 +1338,9 @@ object RULE_ENGINE
     !check['allowed] || raise(E_ASSERT, "Non-owner should be denied");
     typeof(check['reason]) == TYPE_LIST || raise(E_ASSERT, "Should have denial reason");
     return true;
-  endverb
+  endmethod
 
-  verb test_container_access_wizard_bypass (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_container_access_wizard_bypass owner: ARCH_WIZARD
     "Test that wizards can bypass container rules.";
     chest = $container:create(true);
     sword = $thing:create(true);
@@ -1355,9 +1355,9 @@ object RULE_ENGINE
     check = chest:can_take_from(wizard_player, sword);
     check['allowed] || raise(E_ASSERT, "Wizard should bypass with OR accessor is_wizard?");
     return true;
-  endverb
+  endmethod
 
-  verb test_container_asymmetric_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_container_asymmetric_rules owner: ARCH_WIZARD
     "Test asymmetric access (different take and put rules).";
     donation_box = $container:create(true);
     coin = $thing:create(true);
@@ -1380,9 +1380,9 @@ object RULE_ENGINE
     check = donation_box:can_take_from(owner, coin);
     check['allowed] || raise(E_ASSERT, "Owner should be able to take donations");
     return true;
-  endverb
+  endmethod
 
-  verb test_object_literals_in_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_object_literals_in_rules owner: ARCH_WIZARD
     "Test that object literals (both #num and UUID formats) work in rule expressions";
     "Create test container and item";
     chest = #-1;
@@ -1401,5 +1401,5 @@ object RULE_ENGINE
       valid(chest) && chest:destroy();
     endtry
     return true;
-  endverb
+  endmethod
 endobject

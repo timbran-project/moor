@@ -13,15 +13,15 @@ object ACTOR
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
   override import_export_id = "actor";
 
-  verb is_actor (this none this) owner: HACKER flags: "rxd"
+  method is_actor owner: HACKER
     "Actors can perform actions in the world.";
     return true;
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  method acceptable owner: HACKER
     "Default: actors accept items.";
     return true;
-  endverb
+  endmethod
 
   verb put (any in this) owner: HACKER flags: "rd"
     "Reject putting things in an actor";
@@ -133,35 +133,35 @@ object ACTOR
     endif
   endverb
 
-  verb mk_emote_event (this none this) owner: HACKER flags: "rxd"
+  method mk_emote_event owner: HACKER
     "Emotes always show the actor's name, never 'You'";
     return $event:mk_emote(this, this:name(), " ", args[1]):with_this(this.location);
-  endverb
+  endmethod
 
-  verb mk_say_event (this none this) owner: HACKER flags: "rxd"
+  method mk_say_event owner: HACKER
     event = $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("say", "says"), ", \"", args[1], "\""):with_this(this.location);
     event = event:with_metadata('content, args[1]);
     event = event:with_metadata('preferred_content_types, {'text_html, 'text_djot});
     event = event:as_djot():with_presentation_hint('speech_bubble);
     return event;
-  endverb
+  endmethod
 
-  verb mk_directed_say_event (this none this) owner: HACKER flags: "rxd"
+  method mk_directed_say_event owner: HACKER
     "Directed say: 'Name [to Target]: message'";
     {target, message} = args;
     return $event:mk_directed_say(this, this:name(), " [to ", $sub:i(), "]: ", message):with_iobj(target):with_this(this.location);
-  endverb
+  endmethod
 
-  verb mk_think_event (this none this) owner: HACKER flags: "rxd"
+  method mk_think_event owner: HACKER
     "Thoughts always show the actor's name, never 'You'";
     event = $event:mk_think(this, this:name(), " . o O ( ", args[1], " )"):with_this(this.location);
     event = event:with_metadata('content, args[1]);
     event = event:with_metadata('preferred_content_types, {'text_html, 'text_djot});
     event = event:as_djot():with_presentation_hint('thought_bubble);
     return event;
-  endverb
+  endmethod
 
-  verb mk_connected_event (this none this) owner: HACKER flags: "rxd"
+  method mk_connected_event owner: HACKER
     "Create a connection announcement event.";
     "Args: ?is_new_player = false";
     {?is_new_player = false} = args;
@@ -174,13 +174,13 @@ object ACTOR
     "Compile the template into $sub flyweights";
     content = $sub_utils:compile(template);
     return $event:mk_say(this, @content):with_presentation_hint('inset):with_group('connection, this);
-  endverb
+  endmethod
 
-  verb mk_disconnected_event (this none this) owner: HACKER flags: "rxd"
+  method mk_disconnected_event owner: HACKER
     return $event:mk_say(this, $sub:nc(), " ", $sub:self_alt("go", "goes"), " to sleep."):with_presentation_hint('inset):with_group('connection, this);
-  endverb
+  endmethod
 
-  verb mk_departure_event (this none this) owner: HACKER flags: "rxd"
+  method mk_departure_event owner: HACKER
     "Create a departure event. Optional departure_phrase overrides default template.";
     {from_room, ?direction = "", ?passage_desc = "", ?to_room = #-1, ?departure_phrase = ""} = args;
     typeof(direction) == TYPE_STR || (direction = "");
@@ -207,9 +207,9 @@ object ACTOR
     valid(from_room) && (event = event:with_this(from_room));
     valid(to_room) && (event = event:with_iobj(to_room));
     return event;
-  endverb
+  endmethod
 
-  verb mk_arrival_event (this none this) owner: HACKER flags: "rxd"
+  method mk_arrival_event owner: HACKER
     "Create an arrival event. Optional arrival_phrase overrides default template.";
     {to_room, ?direction = "", ?passage_desc = "", ?from_room = #-1, ?arrival_phrase = ""} = args;
     typeof(direction) == TYPE_STR || (direction = "");
@@ -241,14 +241,14 @@ object ACTOR
     valid(to_room) && (event = event:with_this(to_room));
     valid(from_room) && (event = event:with_iobj(from_room));
     return event;
-  endverb
+  endmethod
 
-  verb pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method pronouns owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     return this.pronouns;
-  endverb
+  endmethod
 
-  verb "pronoun_*" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "pronoun_*" owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     ptype = tosym(verb[9..length(verb)]);
     p = this:pronouns();
@@ -258,39 +258,39 @@ object ACTOR
     ptype == 'possessive && args[2] == 'noun && return p.pq;
     ptype == 'reflexive && return p.pr;
     raise(E_INVARG);
-  endverb
+  endmethod
 
-  verb fact_is_wizard (this none this) owner: HACKER flags: "rxd"
+  method fact_is_wizard owner: HACKER
     "Fact predicate: Is this actor a wizard?";
     {actor} = args;
     return actor.wizard;
-  endverb
+  endmethod
 
-  verb fact_is_programmer (this none this) owner: HACKER flags: "rxd"
+  method fact_is_programmer owner: HACKER
     "Fact predicate: Does this actor have programmer privileges?";
     {actor} = args;
     return actor.programmer;
-  endverb
+  endmethod
 
-  verb fact_is_builder (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fact_is_builder owner: ARCH_WIZARD
     "Fact predicate: Does this actor have builder privileges?";
     {?actor = this} = args;
     return `actor.is_builder ! E_PROPNF => false';
-  endverb
+  endmethod
 
-  verb fact_has_in_inventory (this none this) owner: HACKER flags: "rxd"
+  method fact_has_in_inventory owner: HACKER
     "Fact predicate: Does this actor have thing in their inventory?";
     {actor, thing} = args;
     return thing.location == actor;
-  endverb
+  endmethod
 
-  verb fact_owns (this none this) owner: HACKER flags: "rxd"
+  method fact_owns owner: HACKER
     "Fact predicate: Does this actor own thing?";
     {actor, thing} = args;
     return thing.owner == actor;
-  endverb
+  endmethod
 
-  verb action_go (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_go owner: ARCH_WIZARD
     "Action handler: make this actor go in a direction.";
     set_task_perms(this.owner);
     {who, context, direction} = args;
@@ -298,29 +298,29 @@ object ACTOR
     !valid(this.location) && return false;
     "Delegate to room's action_go";
     return this.location:action_go(this, context, direction);
-  endverb
+  endmethod
 
-  verb mk_stagetalk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk_stagetalk owner: ARCH_WIZARD
     "Stagetalk: directed speech 'Name [to Target]: message'";
     {target, message} = args;
     return $event:mk_stagetalk(this, this:name(), " [to ", $sub:i(), "]: ", message):with_iobj(target):with_this(this.location);
-  endverb
+  endmethod
 
-  verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method inspection owner: ARCH_WIZARD
     "Return structured data for client inspection popover.";
     {?who = player} = args;
     item_name = `this:name() ! E_VERBNF => this.name';
     desc = this:description();
     actions = this:inspection_actions(who);
     return ["title" -> item_name, "description" -> desc, "actions" -> actions];
-  endverb
+  endmethod
 
-  verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method pronouns_display owner: ARCH_WIZARD
     "Return the display string for the player's pronouns (e.g. 'they/them').";
     return $pronouns:display(this.pronouns);
-  endverb
+  endmethod
 
-  verb mk_shout_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk_shout_event owner: ARCH_WIZARD
     "Create a shout event with loudness for acoustic propagation.";
     {text} = args;
     event = $event:mk_shout(this, $sub:nc(), " ", $sub:self_alt("shout", "shouts"), ", \"", text, "\""):with_this(this.location);
@@ -328,9 +328,9 @@ object ACTOR
     event = event:with_metadata('loudness, 5);
     event = event:as_djot():with_presentation_hint('speech_bubble);
     return event;
-  endverb
+  endmethod
 
-  verb action_start_activity (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_start_activity owner: ARCH_WIZARD
     "Action handler: record an active task for an actor.";
     set_task_perms(this.owner);
     {who, kind, task_id, ?label = ""} = args;
@@ -345,9 +345,9 @@ object ACTOR
     entry = $player_activity:make_entry(kind, task_id, label);
     this.performing = {@this.performing, entry};
     return this.performing;
-  endverb
+  endmethod
 
-  verb action_clear_activity_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_clear_activity_task owner: ARCH_WIZARD
     "Action handler: remove activity entries for a task id.";
     set_task_perms(this.owner);
     {who, task_id} = args;
@@ -365,9 +365,9 @@ object ACTOR
     endfor
     this.performing = kept;
     return kept;
-  endverb
+  endmethod
 
-  verb action_stop_activities (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_stop_activities owner: ARCH_WIZARD
     "Action handler: cancel activities, optionally by kind.";
     set_task_perms(this.owner);
     {who, ?kind = $nothing} = args;
@@ -390,9 +390,9 @@ object ACTOR
     endfor
     this.performing = kept;
     return canceled;
-  endverb
+  endmethod
 
-  verb action_activity_descriptions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_activity_descriptions owner: ARCH_WIZARD
     "Action handler: describe current activities for display.";
     set_task_perms(this.owner);
     {who} = args;
@@ -408,9 +408,9 @@ object ACTOR
       endif
     endfor
     return descriptions;
-  endverb
+  endmethod
 
-  verb _look_self_details (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _look_self_details owner: ARCH_WIZARD
     "Shared actor self-description details (wearing + current activities).";
     set_task_perms(caller_perms());
     details = {};
@@ -440,9 +440,9 @@ object ACTOR
       details = {@details, "\n\n", $sub:sc_dobj(), " ", $sub:verb_be_dobj(), " currently ", activity_descriptions:english_list(), "."};
     endif
     return details;
-  endverb
+  endmethod
 
-  verb inspection_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method inspection_actions owner: ARCH_WIZARD
     "Return quick inspection actions for this actor. Override per object for custom behavior.";
     {?who = player} = args;
     actions = {};
@@ -534,5 +534,5 @@ object ACTOR
       endif
     endfor
     return actions;
-  endverb
+  endmethod
 endobject

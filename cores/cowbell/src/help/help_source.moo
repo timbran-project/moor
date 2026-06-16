@@ -10,7 +10,7 @@ object HELP_SOURCE
   override import_export_hierarchy = {"help"};
   override import_export_id = "help_source";
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Generic property-backed help topic provider.";
     "Reads ordered topic properties as either $help flyweights or tuple data.";
     {for_player, ?topic = ""} = args;
@@ -66,9 +66,9 @@ object HELP_SOURCE
       endif
     endfor
     return topic == "" ? my_topics | 0;
-  endverb
+  endmethod
 
-  verb test_help_source_symbol_topic_discovery (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_help_source_symbol_topic_discovery owner: ARCH_WIZARD
     "Property-backed help should use symbol keys while keeping fallback discovery under topic_*.";
     src = this:create(true);
     add_property(src, 'metadata, {"metadata", "Not help", "This should not become a topic."}, {src.owner, "r"});
@@ -91,5 +91,5 @@ object HELP_SOURCE
     $test_utils:assert_type(full, TYPE_FLYWEIGHT, "aliases should match full tuple topic");
     $test_utils:assert_eq(full.name, "full", "full tuple topic name");
     return true;
-  endverb
+  endmethod
 endobject

@@ -111,7 +111,7 @@ object PLAYER
     player:inform_current(look_d:into_event():with_audience('utility));
   endverb
 
-  verb _look_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _look_passage owner: ARCH_WIZARD
     "Look at a passage direction. Returns description string or false if not found.";
     caller == this || raise(E_PERM);
     set_task_perms(this);
@@ -166,7 +166,7 @@ object PLAYER
       endfor
     endfor
     return false;
-  endverb
+  endmethod
 
   verb "i*nventory" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Display player's inventory using list format";
@@ -280,11 +280,11 @@ object PLAYER
     endif
   endverb
 
-  verb "msg_no_dobj_match msg_no_iobj_match" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "msg_no_dobj_match msg_no_iobj_match" owner: ARCH_WIZARD
     "Utility verb to produce a not found event for presenting to the player...";
     set_task_perms(this);
     return $event:mk_not_found(player, "I don't see that here."):with_audience('utility);
-  endverb
+  endmethod
 
   verb "@pronouns" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Set or view your pronouns.";
@@ -318,23 +318,23 @@ object PLAYER
     this:inform_current(event);
   endverb
 
-  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method acceptable owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     return !is_player(args[1]);
-  endverb
+  endmethod
 
-  verb profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method profile_picture owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     return this.profile_picture;
-  endverb
+  endmethod
 
-  verb thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method thumbnail owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     "Return thumbnail (profile) image data for this player.";
     return this.profile_picture;
-  endverb
+  endmethod
 
-  verb set_profile_picture (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_profile_picture owner: ARCH_WIZARD
     "Update the profile picture of the given player.";
     actor = caller_perms();
     {target, perms} = this:check_permissions_as(actor, 'set_profile_picture);
@@ -344,16 +344,16 @@ object PLAYER
     typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
     target.profile_picture = {content_type, picbin};
-  endverb
+  endmethod
 
-  verb set_password (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_password owner: ARCH_WIZARD
     "Change this player's password. Permission: wizard, owner, or 'set_password capability.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_password);
     set_task_perms(perms);
     {new_password} = args;
     this.password = $password:mk(new_password);
-  endverb
+  endmethod
 
   verb "@password" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Change your password. Usage: @password <old-password> <new-password>";
@@ -379,43 +379,43 @@ object PLAYER
     this:inform_current($event:mk_info(this, "New password set."):with_audience('utility));
   endverb
 
-  verb set_player_flag (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_player_flag owner: ARCH_WIZARD
     "Mark this object as a player. Permission: wizard or 'set_player_flag capability.";
     {flag_value} = args;
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_player_flag);
     set_task_perms(perms);
     set_player_flag(this, flag_value);
-  endverb
+  endmethod
 
-  verb set_programmer (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_programmer owner: ARCH_WIZARD
     "Set this player's programmer flag. Permission: wizard, owner, or 'set_programmer capability.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_programmer);
     set_task_perms(perms);
     {flag_value} = args;
     this.programmer = flag_value;
-  endverb
+  endmethod
 
-  verb set_email_address (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_email_address owner: ARCH_WIZARD
     "Set this player's email address. Permission: wizard, owner, or 'set_email_address capability.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_email_address);
     set_task_perms(perms);
     {email} = args;
     this.email_address = email;
-  endverb
+  endmethod
 
-  verb set_oauth2_identities (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_oauth2_identities owner: ARCH_WIZARD
     "Set this player's OAuth2 identities. Permission: wizard, owner, or 'set_oauth2_identities capability.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_oauth2_identities);
     set_task_perms(perms);
     {identities} = args;
     this.oauth2_identities = identities;
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method look_self owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     base_desc = this.description;
     if (!(this in connected_players()))
@@ -433,9 +433,9 @@ object PLAYER
     endif
     "Don't show inventory contents when looking at a player - that's private";
     return <$look, .what = this, .title = this:name(), .description = description>;
-  endverb
+  endmethod
 
-  verb match_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method match_environment owner: ARCH_WIZARD
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
     "Return list of objects to match against for execution in commands.";
     location = this.location;
@@ -462,9 +462,9 @@ object PLAYER
       env = {@env, location};
     endif
     return env;
-  endverb
+  endmethod
 
-  verb command_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method command_environment owner: ARCH_WIZARD
     "Return objects whose verbs can trigger as primary / ambient commands.";
     "This is typically just the player and their location, as in the builtin-parser, but can be extended to add e.g. feature objects or ambient environmental things that require direct interaction.";
     caller != this && caller != #0 && !caller.wizard && return E_PERM;
@@ -472,9 +472,9 @@ object PLAYER
     location = this.location;
     valid(location) && (env = {@env, location});
     return env;
-  endverb
+  endmethod
 
-  verb _feature_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _feature_environment owner: ARCH_WIZARD
     "Return feature objects that extend this player's command/help surface.";
     caller != this && caller != #0 && caller_perms() != this && !caller_perms().wizard && return E_PERM;
     env = {};
@@ -497,17 +497,17 @@ object PLAYER
       seen[feat] = true;
     endfor
     return env;
-  endverb
+  endmethod
 
-  verb _get_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _get_grants owner: ARCH_WIZARD
     "Internal: Get grants map for a category. ARCH_WIZARD owned to read private property.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {category} = args;
     prop_name = "grants_" + tostr(category);
     return `this.(prop_name) ! E_PROPNF => false';
-  endverb
+  endmethod
 
-  verb find_capability_for (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_capability_for owner: ARCH_WIZARD
     "Find a capability token for target_obj in the specified category. Returns token or false.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(this);
@@ -522,9 +522,9 @@ object PLAYER
       return grants_map[target_obj];
     endif
     return false;
-  endverb
+  endmethod
 
-  verb find_mailbox (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_mailbox owner: ARCH_WIZARD
     "Find this player's mailbox. Returns the mailbox, or #-1 if none.";
     "Raises E_INVARG if player owns multiple mailboxes.";
     if (caller_perms() != this && !caller_perms().wizard)
@@ -540,9 +540,9 @@ object PLAYER
       raise(E_INVARG, "Player owns multiple mailboxes");
     endif
     return length(found) == 1 ? found[1] | #-1;
-  endverb
+  endmethod
 
-  verb confunc (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method confunc owner: ARCH_WIZARD
     "Called when player connects. Check for new DMs and unread mail.";
     "last_connected still holds the *previous* connection time here.";
     last_conn = this.last_connected;
@@ -570,17 +570,17 @@ object PLAYER
     endif
     "Now update last_connected for next login.";
     this.last_connected = time();
-  endverb
+  endmethod
 
-  verb is_wearing (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_wearing owner: ARCH_WIZARD
     "Check if player is wearing the specified item.";
     set_task_perms(caller_perms());
     {item} = args;
     wearing_list = this.wearing;
     return typeof(wearing_list) == TYPE_LIST && is_member(item, wearing_list);
-  endverb
+  endmethod
 
-  verb confirm (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method confirm owner: ARCH_WIZARD
     "Show a confirmation prompt and return true if confirmed, false if cancelled, or string with alternative instruction.";
     "Returns: true (confirmed), false (cancelled/no), or string (alternative feedback)";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
@@ -604,9 +604,9 @@ object PLAYER
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
-  endverb
+  endmethod
 
-  verb prompt (this none this) owner: HACKER flags: "rxd"
+  method prompt owner: HACKER
     "Show an open-ended prompt and return the user's text response.";
     "Returns: string (user's response) or false if cancelled/empty";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
@@ -624,9 +624,9 @@ object PLAYER
       return false;
     endif
     return text;
-  endverb
+  endmethod
 
-  verb upload (this none this) owner: HACKER flags: "rxd"
+  method upload owner: HACKER
     "Request a file upload from the player.";
     "Args: prompt, ?accept_content_types = {}, ?max_file_size = 0, ?tts_prompt = 0";
     "Returns: {content_type, binary_data} or false if cancelled";
@@ -647,18 +647,18 @@ object PLAYER
       return false;
     endif
     return response;
-  endverb
+  endmethod
 
-  verb upload_image (this none this) owner: HACKER flags: "rxd"
+  method upload_image owner: HACKER
     "Request an image upload from the player.";
     "Args: prompt, ?max_file_size = 0, ?tts_prompt = 0";
     "Returns: {content_type, binary_data} or false if cancelled";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {question, ?max_file_size = 0, ?tts_prompt = 0} = args;
     return this:upload(question, {"image/png", "image/jpeg", "image/gif", "image/webp"}, max_file_size, tts_prompt);
-  endverb
+  endmethod
 
-  verb read_multiline (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method read_multiline owner: ARCH_WIZARD
     "Request multiline content from the player.";
     "Host (both web and telnet) is expected to handle this via metadata.";
     {?prompt = 0, ?tts_prompt = 0} = args;
@@ -668,9 +668,9 @@ object PLAYER
     endif
     typeof(tts_prompt) == TYPE_STR && (metadata = {@metadata, {'tts_prompt, tts_prompt}});
     return this:read_with_prompt(metadata);
-  endverb
+  endmethod
 
-  verb read_with_prompt (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method read_with_prompt owner: ARCH_WIZARD
     "Helper: Call read() with metadata, displaying prompt via notify() for telnet clients.";
     "Args: metadata (list of {key, value} pairs for read())";
     "Returns: result from read()";
@@ -680,7 +680,7 @@ object PLAYER
     perms.wizard || caller == this || perms == this || raise(E_PERM);
     typeof(metadata) == TYPE_LIST || raise(E_TYPE, "Metadata must be list");
     return read(this, metadata);
-  endverb
+  endmethod
 
   verb put (any in this) owner: ARCH_WIZARD flags: "rd"
     "Reject putting things in a player";
@@ -688,14 +688,14 @@ object PLAYER
     player:inform_current(event);
   endverb
 
-  verb make_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method make_player owner: ARCH_WIZARD
     "Create a player and return a setup capability for initial configuration.";
     actor = caller_perms();
     {_, perms} = this:check_permissions_as(actor, 'make_player);
     return this:_make_player_setup_cap(perms);
-  endverb
+  endmethod
 
-  verb _make_player_setup_cap (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _make_player_setup_cap owner: ARCH_WIZARD
     "Create a player and return a setup capability that runs as perms.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {perms, ?key = 0} = args;
@@ -703,7 +703,7 @@ object PLAYER
     set_task_perms(perms);
     new_player = this:create();
     return $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'set_home, 'move}, 0, perms, key);
-  endverb
+  endmethod
 
   verb "exam*ine x" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Display detailed information about an object.";
@@ -1156,7 +1156,7 @@ object PLAYER
     endif
   endverb
 
-  verb _show_location_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _show_location_help owner: ARCH_WIZARD
     "Show help for current location context. Returns modified lines list.";
     context_block = `$help_utils:display_location_context(this) ! ANY => 0';
     lines = {};
@@ -1178,9 +1178,9 @@ object PLAYER
       lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
     endif
     return lines;
-  endverb
+  endmethod
 
-  verb _show_targeted_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _show_targeted_help owner: ARCH_WIZARD
     "Show help for a targeted object. Returns {lines_list, has_documentation_flag}.";
     {target_obj} = args;
     has_doc = false;
@@ -1228,9 +1228,9 @@ object PLAYER
       lines = {@lines, "(No commands available for this object)"};
     endif
     return {lines, has_doc};
-  endverb
+  endmethod
 
-  verb _display_targetable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_targetable_verbs owner: ARCH_WIZARD
     "Display targetable verbs grouped by object. Returns modified lines list.";
     {targetable_verbs, lines} = args;
     if (!(targetable_verbs && length(targetable_verbs) > 0))
@@ -1242,9 +1242,9 @@ object PLAYER
       lines = {@lines, $format.code:mk(obj_info["verbs"]:join(", "))};
     endfor
     return lines;
-  endverb
+  endmethod
 
-  verb _display_ambient_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_ambient_verbs owner: ARCH_WIZARD
     "Display ambient verbs, separated into player and room verbs. Returns modified lines list.";
     {ambient_verbs, lines} = args;
     if (!(ambient_verbs && length(ambient_verbs) > 0))
@@ -1274,9 +1274,9 @@ object PLAYER
       lines = {@lines, $format.code:mk(room_verbs:join(", "))};
     endif
     return lines;
-  endverb
+  endmethod
 
-  verb help_environment (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_environment owner: ARCH_WIZARD
     "Return list of objects to search for help topics.";
     "Order: global, player, features (including authoring/admin/builder/wizard), room, inventory, room contents";
     env = {};
@@ -1299,9 +1299,9 @@ object PLAYER
       endfor
     endif
     return env;
-  endverb
+  endmethod
 
-  verb find_help_topic (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_help_topic owner: ARCH_WIZARD
     "Search environment for help topics. Returns single $help flyweight, list of {source, topic} for ambiguous, or 0.";
     {topic} = args;
     env = this:help_environment();
@@ -1333,9 +1333,9 @@ object PLAYER
     length(matches) == 0 && return 0;
     length(matches) == 1 && return matches[1][2];
     return matches;
-  endverb
+  endmethod
 
-  verb _collect_help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _collect_help_topics owner: ARCH_WIZARD
     "Gather all help topics from the environment.";
     "Returns a deduplicated list of help topic flyweights by topic name.";
     env = this:help_environment();
@@ -1382,9 +1382,9 @@ object PLAYER
       endfor
     endfor
     return all_topics;
-  endverb
+  endmethod
 
-  verb available_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method available_help owner: ARCH_WIZARD
     "Return structured list of all help available in current context.";
     "For use by LLM agents and programmatic discovery.";
     topics = this:_collect_help_topics();
@@ -1397,9 +1397,9 @@ object PLAYER
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb present_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method present_editor owner: ARCH_WIZARD
     "Open a text editor panel for the player.";
     "Args: target_obj, verb_name, ?initial_content, ?opts";
     "opts keys: content_type ('text_plain or 'text_djot), title, text_mode ('list or 'string), session_id";
@@ -1414,9 +1414,9 @@ object PLAYER
     mode_str = text_mode == 'string ? "string" | "list";
     attrs = {{"object", $url_utils:to_curie_str(target_obj)}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
     present(this, session_id, ct_str, "text-editor", initial_content, attrs);
-  endverb
+  endmethod
 
-  verb start_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method start_edit_session owner: ARCH_WIZARD
     "Create an editing session for tracking editor callbacks.";
     "Args: target_obj, verb_name, ?extra_args";
     "Returns: session_id string";
@@ -1425,25 +1425,25 @@ object PLAYER
     session_id = uuid();
     this.editing_sessions[session_id] = ['target -> target_obj, 'verb -> verb_name, 'args -> extra_args];
     return session_id;
-  endverb
+  endmethod
 
-  verb get_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_edit_session owner: ARCH_WIZARD
     "Get an editing session by session_id. Returns session data or E_INVARG if not found.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {session_id} = args;
     return `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
-  endverb
+  endmethod
 
-  verb end_edit_session (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method end_edit_session owner: ARCH_WIZARD
     "End an editing session, removing it from the map. Returns session data.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     {session_id} = args;
     session = `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
     this.editing_sessions = mapdelete(this.editing_sessions, session_id);
     return session;
-  endverb
+  endmethod
 
-  verb confirm_with_all (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method confirm_with_all owner: ARCH_WIZARD
     "Show a confirmation prompt with Yes/Yes to All/No/Alternative options.";
     "Returns: true (yes), 'yes_all' (accept all), false (no), or string (alternative)";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
@@ -1470,9 +1470,9 @@ object PLAYER
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
-  endverb
+  endmethod
 
-  verb verb_suggestions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method verb_suggestions owner: ARCH_WIZARD
     "Return list of verb info for UI suggestion pills.";
     "Each entry: [verb -> name, dobj -> spec, prep -> spec, iobj -> spec, objects -> {objs}, hint -> prompt hint]";
     "Priority verbs appear first, then ambient verbs from the environment.";
@@ -1536,9 +1536,9 @@ object PLAYER
       result[1]['placeholder_text] = this:input_placeholder();
     endif
     return result;
-  endverb
+  endmethod
 
-  verb _make_verb_hint (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _make_verb_hint owner: ARCH_WIZARD
     "Generate a prompt hint for a verb.";
     "First checks for HINT: tag in verb comment, falls back to argspec-based hint.";
     "HINT format: 'HINT: <whom> -- Description' returns '<whom> -- Description'";
@@ -1575,7 +1575,7 @@ object PLAYER
       parts = {@parts, "..."};
     endif
     return parts:join(" ");
-  endverb
+  endmethod
 
   verb "dm pm tell page" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Send a direct message to another player.";
@@ -1613,7 +1613,7 @@ object PLAYER
     this:inform_current(dm_obj:sender_echo_event());
   endverb
 
-  verb receive_dm (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method receive_dm owner: ARCH_WIZARD
     "Receive a direct message from another player.";
     "Stores in direct_messages buffer and notifies if online.";
     caller_perms().wizard || caller_perms() == args[1].from || raise(E_PERM);
@@ -1630,7 +1630,7 @@ object PLAYER
     "Notify if online";
     this:tell(dm_obj:display_event(this));
     return true;
-  endverb
+  endmethod
 
   verb reply (any any any) owner: ARCH_WIZARD flags: "rd"
     "Reply to the last person who DM'd you.";
@@ -1715,7 +1715,7 @@ object PLAYER
     this:inform_current($event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('messages));
   endverb
 
-  verb all_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method all_messages owner: ARCH_WIZARD
     "Return unified list of all messages (DMs and letters), sorted by time.";
     caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
     msgs = {};
@@ -1750,7 +1750,7 @@ object PLAYER
     endfor
     "Extract just the messages";
     return { m[2] for m in (sorted) };
-  endverb
+  endmethod
 
   verb message (any none none) owner: ARCH_WIZARD flags: "rd"
     "Read a specific message by number.";
@@ -1776,7 +1776,7 @@ object PLAYER
     endif
   endverb
 
-  verb _format_examination (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_examination owner: ARCH_WIZARD
     "Format examination data for display.";
     "Args: {target}";
     "Returns: [title -> str, html -> str, object_ref -> obj]";
@@ -1820,9 +1820,9 @@ object PLAYER
     html_fw = content:compose(this, 'text_html, $event:mk_info(this, ""));
     html_str = html_fw:render('text_html);
     return ["title" -> exam.name, "html" -> html_str, "object_ref" -> exam.object_ref];
-  endverb
+  endmethod
 
-  verb do_examine (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_examine owner: ARCH_WIZARD
     "RPC entry point for examination - displays in tools panel.";
     "Args: {target_object}";
     set_task_perms(this);
@@ -1835,7 +1835,7 @@ object PLAYER
     panel_id = "exam-" + tostr(target);
     attrs = {{"title", result["title"]}, {"object", $url_utils:to_curie_str(target)}};
     this:_present(this, panel_id, "text/html", "tools", result["html"], attrs);
-  endverb
+  endmethod
 
   verb suggest_command_alternatives (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Queue command context and offer explicit assist link instead of auto-running LLM.";
@@ -1865,7 +1865,7 @@ object PLAYER
     return true;
   endverb
 
-  verb _collect_object_info (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _collect_object_info owner: ARCH_WIZARD
     "Collect object info for LLM command suggestions.";
     "Returns a map with name, aliases, and verbs with full syntax.";
     {item} = args;
@@ -1958,7 +1958,7 @@ object PLAYER
       endif
     endif
     return info;
-  endverb
+  endmethod
 
   verb suggest_help_topic (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Queue help query context and offer explicit assist link instead of auto-running LLM.";
@@ -1988,12 +1988,12 @@ object PLAYER
     return true;
   endverb
 
-  verb pronouns_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method pronouns_display owner: ARCH_WIZARD
     "Return the display string for the player's pronouns (e.g. 'they/them').";
     return $pronouns:display(this.pronouns);
-  endverb
+  endmethod
 
-  verb set_pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_pronouns owner: ARCH_WIZARD
     "Programmatically set pronouns from a string like 'they/them'.";
     actor = caller_perms();
     {target, perms} = this:check_permissions_as(actor, 'set_pronouns);
@@ -2005,16 +2005,16 @@ object PLAYER
       raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
     endif
     target.pronouns = pronoun_set;
-  endverb
+  endmethod
 
-  verb set_home (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_home owner: ARCH_WIZARD
     "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_home);
     set_task_perms(perms);
     {room} = args;
     this.home = room;
-  endverb
+  endmethod
 
   verb "@gag" (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Add a player or object to your gag list.";
@@ -2243,7 +2243,7 @@ object PLAYER
     return this:inform_current(event);
   endverb
 
-  verb _format_gag_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_gag_entry owner: ARCH_WIZARD
     "Format one gag-list entry for display, including malformed entries.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {entry} = args;
@@ -2255,9 +2255,9 @@ object PLAYER
     except e (ANY)
       return "(error reading " + tostr(entry) + ": " + toliteral(e) + ")";
     endtry
-  endverb
+  endmethod
 
-  verb _display_ambiguous_topic_matches (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_ambiguous_topic_matches owner: ARCH_WIZARD
     "Display a nicely formatted ambiguous-topic help panel.";
     {query, matches} = args;
     typeof(query) != TYPE_STR && (query = tostr(query));
@@ -2295,9 +2295,9 @@ object PLAYER
     event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
     this:inform_current(event);
     return;
-  endverb
+  endmethod
 
-  verb _display_help_sources (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_help_sources owner: ARCH_WIZARD
     "List help sources available in the player's current help environment.";
     env = this:help_environment();
     sources = {};
@@ -2328,9 +2328,9 @@ object PLAYER
     event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
     this:inform_current(event);
     return;
-  endverb
+  endmethod
 
-  verb _find_verb_matches (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _find_verb_matches owner: ARCH_WIZARD
     "Find objects that have a verb matching (or similar to) the attempted verb.";
     "Args: {attempted_verb, objects_to_check}";
     "Returns: {exact_matches, near_matches} where each is list of maps";
@@ -2415,7 +2415,7 @@ object PLAYER
       endfor
     endfor
     return {exact, near};
-  endverb
+  endmethod
 
   verb "walk go_to goto" (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Walk automatically to a destination room.";
@@ -2566,7 +2566,7 @@ object PLAYER
     this:action_start_activity(this, 'walk, activity_task_id, "walking to " + destination:name());
   endverb
 
-  verb _do_walk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_walk owner: ARCH_WIZARD
     "Internal: Execute the walking through a path.";
     "Called from forked task in :walk verb.";
     {path} = args;
@@ -2615,7 +2615,7 @@ object PLAYER
     destination = path[$][1];
     this:inform_current($event:mk_info(this, "You've arrived at " + destination:name() + "."));
     this:action_clear_activity_task(this, current_task);
-  endverb
+  endmethod
 
   verb "join @join" (any none none) owner: ARCH_WIZARD flags: "rxd"
     "Walk to another player's location.";
@@ -2730,7 +2730,7 @@ object PLAYER
     this:action_start_activity(this, 'walk, activity_task_id, "walking to " + target:name());
   endverb
 
-  verb _walk_path_options (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _walk_path_options owner: ARCH_WIZARD
     "Return {passage_only_path, transport_inclusive_path} for walking commands.";
     caller == this || raise(E_PERM);
     {area, current_room, destination} = args;
@@ -2741,19 +2741,19 @@ object PLAYER
       raise(E_INVARG, "Route lookup failed: " + toliteral(e));
     endtry
     return {path, path_with_transport};
-  endverb
+  endmethod
 
-  verb disfunc (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method disfunc owner: ARCH_WIZARD
     "Called when player disconnects (after last connection is removed).";
     "last_disconnected is set by #0:user_disconnected before this runs.";
     "Override in subclasses for custom disconnect behavior.";
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method initialize owner: ARCH_WIZARD
     "Set defaults for newly created players.";
     pass();
     this.import_export_hierarchy = {"players"};
-  endverb
+  endmethod
 
   verb home (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Walk automatically to your home room.";
@@ -2848,7 +2848,7 @@ object PLAYER
     endif
   endverb
 
-  verb input_placeholder (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method input_placeholder owner: ARCH_WIZARD
     "Return placeholder text for the input field.";
     "Can be overridden to provide context-sensitive hints.";
     "Checks room's input_placeholders verb first.";
@@ -2862,9 +2862,9 @@ object PLAYER
     "Default placeholders";
     placeholders = {"What would you like to explore?", "Ready for your next adventure?", "What's on your mind?", "How can we help you today?", "What would you like to try?", "Share your thoughts...", "What's your next move?", "Ready to discover something new?"};
     return placeholders[random(length(placeholders))];
-  endverb
+  endmethod
 
-  verb has_admin_elevation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method has_admin_elevation owner: ARCH_WIZARD
     "True when this player is running inside delegated admin elevation.";
     admin_features = this.admin_features;
     typeof(admin_features) == TYPE_LIST || raise(E_TYPE, "player.admin_features must be a list");
@@ -2877,7 +2877,7 @@ object PLAYER
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
   verb assist (any any any) owner: ARCH_WIZARD flags: "rd"
     "Run LLM assist for the most recent, specified token, or free-text command/help intent.";
@@ -2950,7 +2950,7 @@ object PLAYER
     return true;
   endverb
 
-  verb _assist_with_pc (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _assist_with_pc owner: ARCH_WIZARD
     "Run LLM command suggestions for a parsed command context.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
     {pc, ?current_conn = 0} = args;
@@ -3265,9 +3265,9 @@ object PLAYER
       this:rewrite_event(rewrite_id, $event:mk_info(this, html):with_presentation_hint('inset):with_audience('utility), current_conn);
     endfork
     return true;
-  endverb
+  endmethod
 
-  verb _prune_assist_contexts (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _prune_assist_contexts owner: ARCH_WIZARD
     "Prune expired pending assist contexts and keep last token valid.";
     ttl = `this.assist_ttl ! ANY => 120';
     if (typeof(ttl) != TYPE_INT || ttl <= 0)
@@ -3305,9 +3305,9 @@ object PLAYER
       this.assist_last_token = latest_token;
     endif
     return this.assist_pending;
-  endverb
+  endmethod
 
-  verb _assist_with_help_query (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _assist_with_help_query owner: ARCH_WIZARD
     "Run LLM help-topic suggestions after explicit assist opt-in.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
     {query, ?current_conn = 0} = args;
@@ -3422,7 +3422,7 @@ object PLAYER
       endtry
     endfork
     return true;
-  endverb
+  endmethod
 
   verb stop (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Stop active background activities.";
@@ -3467,7 +3467,7 @@ object PLAYER
     endif
   endverb
 
-  verb inspection_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method inspection_actions owner: ARCH_WIZARD
     "Return quick inspection actions for players (examine + direct message).";
     {?who = player} = args;
     actions = {};
@@ -3481,9 +3481,9 @@ object PLAYER
     endif
     actions = {@actions, ["label" -> "DM", "verb" -> "do_send_dm_to", "target" -> this_ref, "inputType" -> "text", "inputPrompt" -> "Message to " + this:name() + ":", "inputPlaceholder" -> "Type your direct message..."]};
     return actions;
-  endverb
+  endmethod
 
-  verb do_dm (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_dm owner: ARCH_WIZARD
     "Method-style DM helper for invoke-based clients.";
     "Args: target_player, ?message";
     caller == this || caller == #0 || raise(E_PERM);
@@ -3513,9 +3513,9 @@ object PLAYER
       return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
     endif
     this:inform_current(dm_obj:sender_echo_event());
-  endverb
+  endmethod
 
-  verb do_send_dm_to (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_send_dm_to owner: ARCH_WIZARD
     "Invoke-safe DM helper: sends a DM to this player, prompting for text when needed.";
     "Args: ?message";
     caller == player || caller == #0 || raise(E_PERM);
@@ -3545,9 +3545,9 @@ object PLAYER
       return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + "."):with_audience('utility));
     endif
     player:inform_current(dm_obj:sender_echo_event());
-  endverb
+  endmethod
 
-  verb test_help_environment_includes_global_player_and_features (this none this) owner: HACKER flags: "rxd"
+  method test_help_environment_includes_global_player_and_features owner: HACKER
     "Help lookup should cover global topics, the player surface, and feature-generated topics.";
     help_env = this:help_environment();
     command_env = this:command_environment();
@@ -3568,9 +3568,9 @@ object PLAYER
     $test_utils:assert_type(bonk_topic, TYPE_FLYWEIGHT, "feature-generated help topic 'bonk' should resolve");
     $test_utils:assert_eq(bonk_topic.name, "bonk", "feature-generated help topic name");
     return true;
-  endverb
+  endmethod
 
-  verb test_targeted_help_uses_requested_object (this none this) owner: HACKER flags: "rxd"
+  method test_targeted_help_uses_requested_object owner: HACKER
     "Targeted object help should inspect the requested object instead of dropping it.";
     scratch = $test_utils:anonymous($thing);
     add_property(scratch, 'object_help, "Targeted help body.", {scratch.owner, "r"});
@@ -3580,9 +3580,9 @@ object PLAYER
     $test_utils:assert_true(result[2], "targeted help should report object documentation");
     $test_utils:assert_true(length(result[1]) > 0, "targeted help should include display lines");
     return true;
-  endverb
+  endmethod
 
-  verb test_assist_object_info_includes_command_metadata (this none this) owner: HACKER flags: "rxd"
+  method test_assist_object_info_includes_command_metadata owner: HACKER
     "Assist object info should include object aliases and readable command syntax.";
     scratch = $test_utils:anonymous($thing);
     scratch.name = "Assist Probe";
@@ -3598,9 +3598,9 @@ object PLAYER
     $test_utils:assert_eq(info["aliases"], {"assist-probe"}, "assist info should include aliases");
     $test_utils:assert_true(found_get, "assist info should include inherited readable command syntax");
     return true;
-  endverb
+  endmethod
 
-  verb test_look_passage_reports_malformed_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_look_passage_reports_malformed_passage owner: ARCH_WIZARD
     "Passage lookup should report malformed passage records instead of treating them as misses.";
     original_location = this.location;
     area = $area:create(true);
@@ -3625,9 +3625,9 @@ object PLAYER
       $test_utils:destroy_if_valid(area);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_walk_path_options_reports_malformed_route (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_walk_path_options_reports_malformed_route owner: ARCH_WIZARD
     "Walking route lookup should report malformed passage records instead of treating them as no route.";
     area = $area:create(true);
     room_a = $room:create(true);
@@ -3649,12 +3649,12 @@ object PLAYER
       $test_utils:destroy_if_valid(area);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_format_gag_entry_reports_invalid_entries (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_format_gag_entry_reports_invalid_entries owner: ARCH_WIZARD
     "Gag-list display should show malformed entries instead of silently dropping them.";
     formatted = this:_format_gag_entry(#-1);
     $test_utils:assert_true(index(formatted, "invalid entry") > 0, "invalid gag-list entry should be visible");
     return true;
-  endverb
+  endmethod
 endobject

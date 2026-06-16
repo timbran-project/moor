@@ -9,7 +9,7 @@ object HELP_UTILS
   override import_export_hierarchy = {"help"};
   override import_export_id = "help_utils";
 
-  verb extract_verb_documentation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method extract_verb_documentation owner: ARCH_WIZARD
     "Extract documentation from a verb's code. Returns list of all comment lines (string literals ending with ;) from the start of the verb until the first non-comment line.";
     "Args: {verb_location, verb_name}";
     "Returns: documentation list (empty list if no comments found)";
@@ -36,9 +36,9 @@ object HELP_UTILS
       endif
     endfor
     return doc_lines;
-  endverb
+  endmethod
 
-  verb get_object_documentation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_object_documentation owner: ARCH_WIZARD
     "Get documentation for an object. Returns the object_documentation property if it exists and is not 0, otherwise empty string.";
     "Args: {object}";
     "Returns: documentation content (string or list)";
@@ -52,9 +52,9 @@ object HELP_UTILS
       return "";
     endif
     return doc;
-  endverb
+  endmethod
 
-  verb property_documentation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method property_documentation owner: ARCH_WIZARD
     "Get documentation for a property. Looks for {prop_name}_prop_doc property on the object.";
     "Args: {object, property_name}";
     "Returns: documentation list (empty list if not found)";
@@ -78,9 +78,9 @@ object HELP_UTILS
     else
       return {doc};
     endif
-  endverb
+  endmethod
 
-  verb format_documentation_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_documentation_display owner: ARCH_WIZARD
     "Format documentation for display as a block. Takes title string and documentation, returns $format.block.";
     "Args: {title_string, documentation_text}";
     "Returns: formatted block flyweight";
@@ -95,9 +95,9 @@ object HELP_UTILS
       doc_text = doc_text:join("\n");
     endif
     return $format.block:mk(title, doc_text);
-  endverb
+  endmethod
 
-  verb display_location_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method display_location_context owner: ARCH_WIZARD
     "Display location, area, inventory, and nearby objects. Returns $format flyweight.";
     "Args: {player}";
     "Returns: $format.block with location context as formatted content";
@@ -165,9 +165,9 @@ object HELP_UTILS
       content = {@content, "Around you there is " + nearby_str + "."};
     endif
     return $format.block:mk(@content);
-  endverb
+  endmethod
 
-  verb verb_help_from_hint (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method verb_help_from_hint owner: ARCH_WIZARD
     "Extract help topic from a verb's HINT tag.";
     "Args: (definer, verb_name, ?category) -> $help flyweight or 0";
     {definer, verb_name, ?category = 'command} = args;
@@ -197,5 +197,5 @@ object HELP_UTILS
       content = "";
     endif
     return $help:mk(verb_name, description, content, {}, category, {});
-  endverb
+  endmethod
 endobject

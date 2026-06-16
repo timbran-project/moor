@@ -17,7 +17,7 @@ object LETTER
   override import_export_id = "letter";
   override object_documentation = "A letter is a note with communication metadata: author, addressee, timestamps, and sealing. When sealed, only the addressee can read it.";
 
-  verb can_read (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method can_read owner: ARCH_WIZARD
     "Check if accessor can read this letter. Sealed letters are addressee-only.";
     {accessor} = args;
     "If not sealed, use parent's logic";
@@ -29,17 +29,17 @@ object LETTER
       return ['allowed -> true, 'reason -> {}];
     endif
     return ['allowed -> false, 'reason -> "This letter is sealed and addressed to someone else."];
-  endverb
+  endmethod
 
-  verb action_read (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_read owner: ARCH_WIZARD
     "Action handler: actor reads this letter. Always silent for privacy.";
     set_task_perms(this.owner);
     {who, context} = args;
     !this:can_read(who)['allowed] && return false;
     return this:do_read(who, true);
-  endverb
+  endmethod
 
-  verb do_read (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_read owner: ARCH_WIZARD
     "Display the letter with metadata and record when it was read.";
     caller != this && raise(E_PERM, "do_read must be called by this object");
     {who, ?silent = false} = args;
@@ -86,7 +86,7 @@ object LETTER
     endif
     this:fire_trigger('on_read, ['Actor -> who]);
     return true;
-  endverb
+  endmethod
 
   verb seal (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Seal this letter so only the addressee can read it.";
@@ -124,15 +124,15 @@ object LETTER
     player:inform_current(event);
   endverb
 
-  verb action_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_write owner: ARCH_WIZARD
     "Action handler: actor writes on this letter. Always silent for privacy.";
     set_task_perms(this.owner);
     {who, context, line} = args;
     !this:can_write(who)['allowed] && return false;
     return this:do_write(who, line, true);
-  endverb
+  endmethod
 
-  verb do_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_write owner: ARCH_WIZARD
     "Write to the letter and set author if not yet set.";
     {who, text, ?silent = false} = args;
     "Set author on first write";
@@ -141,7 +141,7 @@ object LETTER
     endif
     "Call parent to do the actual write";
     return pass(who, text, silent);
-  endverb
+  endmethod
 
   verb address (this any any) owner: ARCH_WIZARD flags: "rxd"
     "Address this letter to someone, sealing it for their eyes only.";
@@ -174,7 +174,7 @@ object LETTER
     player:inform_current(event);
   endverb
 
-  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method look_self owner: ARCH_WIZARD
     "Show the letter with its metadata.";
     set_task_perms(caller_perms());
     "Build description parts";
@@ -204,7 +204,7 @@ object LETTER
       description = description + "\n" + meta;
     endif
     return <$look, .what = this, .title = this:name(), .description = description>;
-  endverb
+  endmethod
 
   verb reply (none any this) owner: ARCH_WIZARD flags: "rxd"
     "Create a new letter addressed to this letter's author.";
@@ -239,7 +239,7 @@ object LETTER
     present(player, session_id, "text/djot", "text-editor", current_body, {{"object", $url_utils:to_curie_str(this)}, {"verb", "receive_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
   endverb
 
-  verb receive_edit (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method receive_edit owner: ARCH_WIZARD
     "Callback for text-editor when editing this letter.";
     {session_id, content} = args;
     if (content == 'close)
@@ -253,5 +253,5 @@ object LETTER
       this.author = player;
     endif
     player:inform_connection(conn, $event:mk_info(player, "Letter saved."));
-  endverb
+  endmethod
 endobject

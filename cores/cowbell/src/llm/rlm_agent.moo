@@ -709,7 +709,7 @@ object RLM_AGENT
         key_str = typeof(key) == TYPE_STR ? key | tostr(key);
         key_str = this:_coerce_string(key_str);
         v = val[key];
-        val_str = typeof(v) == TYPE_STR ? v | (typeof(v) == TYPE_INT || typeof(v) == TYPE_FLOAT ? tostr(v) | this:_coerce_string(v));
+        val_str = typeof(v) == TYPE_STR ? v | typeof(v) == TYPE_INT || typeof(v) == TYPE_FLOAT ? tostr(v) | this:_coerce_string(v);
         result = result + key_str + val_str;
       endfor
       return result;

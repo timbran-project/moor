@@ -39,9 +39,9 @@ object BUILDER_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "builder_features";
 
-  verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
+  method _challenge_command_perms owner: HACKER flags: "xd"
     caller == player || raise(E_PERM);
-  endverb
+  endmethod
 
   verb "@add-message" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>.<property> <template> -- Add an entry to a message bag.";
@@ -168,7 +168,7 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb _create_child_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _create_child_object owner: ARCH_WIZARD
     "Create the child object, apply naming, and move it into the builder's inventory.";
     caller == this || caller.wizard || raise(E_PERM);
     {builder_player, parent_obj, primary_name, alias_list} = args;
@@ -186,7 +186,7 @@ object BUILDER_FEATURES
       raise(e[1], length(e) >= 2 ? e[2] | "Could not create child object.");
     endtry
     return new_obj;
-  endverb
+  endmethod
 
   verb "@recycle @destroy" (any none none) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> -- Destroy an object permanently.";
@@ -363,7 +363,7 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb _require_unique_room_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _require_unique_room_name owner: ARCH_WIZARD
     "Raise if target_area already contains a room with room_name.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {target_area, room_name} = args;
@@ -381,9 +381,9 @@ object BUILDER_FEATURES
       endif
     endfor
     return true;
-  endverb
+  endmethod
 
-  verb _parse_build_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _parse_build_command owner: ARCH_WIZARD
     "Parse @build command arguments. Returns map with 'name, 'area, 'parent.";
     caller == this || raise(E_PERM);
     {command_str} = args;
@@ -439,7 +439,7 @@ object BUILDER_FEATURES
     room_name = parsed[1];
     !room_name && raise(E_INVARG, "Room name cannot be blank.");
     return ['name -> room_name, 'area -> target_area, 'parent -> parent_obj];
-  endverb
+  endmethod
 
   verb "@dig @tunnel" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <dir> to <room> -- Create a passage to an existing room. Supports --dry-run and --allow-parallel.";
@@ -707,7 +707,7 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb _parse_dig_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _parse_dig_command owner: ARCH_WIZARD
     "Parse @dig direction spec. Returns map with 'oneway, 'from_dir, 'to_dir, 'dry_run, 'allow_parallel.";
     caller == this || raise(E_PERM);
     {dir_spec} = args;
@@ -778,9 +778,9 @@ object BUILDER_FEATURES
     from_dirs = $passage:expand_direction_aliases(from_dirs);
     to_dirs = $passage:expand_direction_aliases(to_dirs);
     return ['oneway -> is_oneway, 'from_dir -> from_dirs, 'to_dir -> to_dirs, 'dry_run -> dry_run, 'allow_parallel -> allow_parallel];
-  endverb
+  endmethod
 
-  verb _room_name_for_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _room_name_for_error owner: ARCH_WIZARD
     "Return a room's display name for error messages, raising on invalid room refs.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {room} = args;
@@ -790,9 +790,9 @@ object BUILDER_FEATURES
     except e (ANY)
       raise(E_INVARG, "Could not read room name for " + tostr(room) + ": " + toliteral(e));
     endtry
-  endverb
+  endmethod
 
-  verb _matching_room_candidates (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _matching_room_candidates owner: ARCH_WIZARD
     "Return formatted room candidates in area matching a room search string.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {area, search_string} = args;
@@ -823,9 +823,9 @@ object BUILDER_FEATURES
       endif
     endfor
     return candidates;
-  endverb
+  endmethod
 
-  verb _infer_opposite_directions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _infer_opposite_directions owner: ARCH_WIZARD
     "Infer opposite directions for common compass/spatial directions.";
     caller == this || raise(E_PERM);
     {directions} = args;
@@ -838,7 +838,7 @@ object BUILDER_FEATURES
       result = {@result, opposite};
     endfor
     return result;
-  endverb
+  endmethod
 
   verb "@rename" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> to <name> -- Rename an object.";
@@ -876,13 +876,13 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb _do_rename_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_rename_object owner: ARCH_WIZARD
     "Internal helper to rename object with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, new_name, new_aliases} = args;
     target_obj:set_name_aliases(new_name, new_aliases);
-  endverb
+  endmethod
 
   verb "@describe" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> as <description> -- Set object description.";
@@ -959,7 +959,7 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb receive_description_edit (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method receive_description_edit owner: ARCH_WIZARD
     "Callback for text-editor when editing descriptions.";
     {session_id, content} = args;
     if (content == 'close)
@@ -972,17 +972,17 @@ object BUILDER_FEATURES
     target_obj:set_description(content);
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
     player:inform_connection(conn, $event:mk_info(player, "Description updated for " + obj_name + "."));
-  endverb
+  endmethod
 
-  verb _do_describe_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_describe_object owner: ARCH_WIZARD
     "Internal helper to set object description with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, new_description} = args;
     target_obj.description = new_description;
-  endverb
+  endmethod
 
-  verb _do_describe_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_describe_passage owner: ARCH_WIZARD
     "Internal helper to set passage description with elevated permissions. Returns false if passage not found.";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -1022,7 +1022,7 @@ object BUILDER_FEATURES
     message = "Set ambient description for '" + direction + "' passage: \"" + description + "\"";
     player:inform_current($event:mk_info(player, message));
     return true;
-  endverb
+  endmethod
 
   verb "@par*ent" (any none none) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> [--brief|--full] -- Show the parent of an object.";
@@ -1248,13 +1248,13 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb _do_set_integrated_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_set_integrated_description owner: ARCH_WIZARD
     "Internal helper to set object integrated description with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, new_description} = args;
     target_obj.integrated_description = new_description;
-  endverb
+  endmethod
 
   verb "@move" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> to <location> -- Move an object to a new location.";
@@ -1353,14 +1353,14 @@ object BUILDER_FEATURES
     player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
   endverb
 
-  verb present_property_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method present_property_editor owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     {target_obj, prop_name} = args;
     editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
     editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
     object_curie = $url_utils:to_curie_str(target_obj);
     present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
-  endverb
+  endmethod
 
   verb "@set-m*essage @setm" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Set a custom message template on an object property.";
@@ -2074,7 +2074,7 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for builder/programmer commands via configured help source.";
     {for_player, ?topic = ""} = args;
     source = this.help_source;
@@ -2087,7 +2087,7 @@ object BUILDER_FEATURES
     verb_help = $help_utils:verb_help_from_hint(this, topic, 'building);
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
-  endverb
+  endmethod
 
   verb "@passage @passage-info @pinfo" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Show detailed passage information for a direction.";
@@ -2554,7 +2554,7 @@ object BUILDER_FEATURES
     return result;
   endverb
 
-  verb test_require_unique_room_name_detects_duplicate (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_require_unique_room_name_detects_duplicate owner: ARCH_WIZARD
     "Unit test: duplicate room-name checks reject existing rooms in an area.";
     area = $area:create(true);
     room = $room:create(true);
@@ -2574,9 +2574,9 @@ object BUILDER_FEATURES
       $test_utils:destroy_if_valid(area);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_matching_room_candidates_reads_names_and_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_matching_room_candidates_reads_names_and_aliases owner: ARCH_WIZARD
     "Unit test: @dig ambiguous-room candidate formatting reads room names and aliases.";
     area = $area:create(true);
     room = $room:create(true);
@@ -2594,5 +2594,5 @@ object BUILDER_FEATURES
       $test_utils:destroy_if_valid(area);
     endtry
     return true;
-  endverb
+  endmethod
 endobject

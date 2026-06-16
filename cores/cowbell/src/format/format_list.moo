@@ -8,14 +8,14 @@ object FORMAT_LIST
   override import_export_hierarchy = {"format"};
   override import_export_id = "format_list";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create list flyweight with optional ordered attribute";
     {content, ?ordered = false} = args;
     typeof(content) != TYPE_LIST && raise(E_TYPE, "List content must be a list");
     return <this, .ordered = ordered, {@content}>;
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     "Compose list content into appropriate format";
     {render_for, content_type, event} = args;
     result = {};
@@ -38,9 +38,9 @@ object FORMAT_LIST
       formatted = {@formatted, prefix + item};
     endfor
     return formatted:join("\n");
-  endverb
+  endmethod
 
-  verb test_unordered_list (this none this) owner: HACKER flags: "rxd"
+  method test_unordered_list owner: HACKER
     "Test creating unordered HTML list";
     items = {"Coffee", "Tea", "Milk"};
     list_obj = this:mk(items);
@@ -50,9 +50,9 @@ object FORMAT_LIST
     expected = {"ul", {"li", "Coffee"}, {"li", "Tea"}, {"li", "Milk"}};
     parsed != expected && raise(E_ASSERT, "Expected: " + toliteral(expected) + " Got: " + toliteral(parsed));
     return true;
-  endverb
+  endmethod
 
-  verb test_ordered_list (this none this) owner: HACKER flags: "rxd"
+  method test_ordered_list owner: HACKER
     "Test creating ordered HTML list";
     items = {"First", "Second", "Third"};
     list_obj = this:mk(items, true);
@@ -62,9 +62,9 @@ object FORMAT_LIST
     expected = {"ol", {"li", "First"}, {"li", "Second"}, {"li", "Third"}};
     parsed != expected && return E_ASSERT;
     return true;
-  endverb
+  endmethod
 
-  verb test_plain_text_output (this none this) owner: HACKER flags: "rxd"
+  method test_plain_text_output owner: HACKER
     "Test plain text list output";
     items = {"Apple", "Banana", "Cherry"};
     unordered = this:mk(items);
@@ -74,5 +74,5 @@ object FORMAT_LIST
     plain_unordered != "* Apple\n* Banana\n* Cherry" && return E_ASSERT;
     plain_ordered != "1. Apple\n1. Banana\n1. Cherry" && return E_ASSERT;
     return true;
-  endverb
+  endmethod
 endobject

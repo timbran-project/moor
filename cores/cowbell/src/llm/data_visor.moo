@@ -266,7 +266,7 @@ object DATA_VISOR
   override prompt_label = "[INTERFACE]";
   override tool_name = "VISOR";
 
-  verb _setup_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _setup_agent owner: ARCH_WIZARD
     "Configure agent with visor-specific prompts and tools";
     {agent} = args;
     agent.name = "LLM Agent for " + this.name + " (owned by " + tostr(this.owner) + ")";
@@ -382,9 +382,9 @@ object DATA_VISOR
     "Register help_lookup tool";
     help_lookup_tool = $llm_agent_tool:mk("help_lookup", "Look up a help topic to get information about commands and features. Pass empty string to list all available topics.", ["type" -> "object", "properties" -> ["topic" -> ["type" -> "string", "description" -> "Help topic to look up (e.g., 'programming', 'inspect', '@examine'). Pass empty string to list all."]], "required" -> {"topic"}], this, "help_lookup");
     agent:add_tool("help_lookup", help_lookup_tool);
-  endverb
+  endmethod
 
-  verb _find_architects_compass (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _find_architects_compass owner: ARCH_WIZARD
     "Find architect's compass in wearer's inventory or worn items";
     caller == this || caller_perms().wizard || raise(E_PERM);
     set_task_perms(caller_perms());
@@ -403,9 +403,9 @@ object DATA_VISOR
       endif
     endfor
     return #-1;
-  endverb
+  endmethod
 
-  verb _register_compass_tools_if_available (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _register_compass_tools_if_available owner: ARCH_WIZARD
     "Register building tools from architect's compass if found";
     caller == this || caller.wizard || raise(E_PERM);
     set_task_perms(caller_perms());
@@ -434,9 +434,9 @@ object DATA_VISOR
     this.agent:add_tool("grant_capability", grant_capability_tool);
     audit_owned_tool = $llm_agent_tool:mk("audit_owned", "List all objects owned by the wearer.", ["type" -> "object", "properties" -> [], "required" -> {}], target, "audit_owned");
     this.agent:add_tool("audit_owned", audit_owned_tool);
-  endverb
+  endmethod
 
-  verb _tool_dump_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Get the complete source dump of an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -446,9 +446,9 @@ object DATA_VISOR
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     dump_lines = dump_object(o);
     return dump_lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_get_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Get the code of a specific verb on an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -460,9 +460,9 @@ object DATA_VISOR
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     code_lines = verb_code(o, verb_name, false, true);
     return code_lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_list_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List all verb names on an object and its ancestors";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -478,9 +478,9 @@ object DATA_VISOR
       result = {@result, {tostr(anc), anc:name(), verbs(anc)}};
     endfor
     return toliteral(result);
-  endverb
+  endmethod
 
-  verb _tool_read_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -492,9 +492,9 @@ object DATA_VISOR
     typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
     value = o.(prop_name);
     return toliteral(value);
-  endverb
+  endmethod
 
-  verb _tool_evaluate_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_evaluate_rule owner: ARCH_WIZARD
     "Tool: Evaluate a rule with variable bindings to test behavior";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -515,9 +515,9 @@ object DATA_VISOR
     result['success] && result['alternatives] && length(result['alternatives]) > 0 && (lines = {@lines, "Alternatives: " + tostr(length(result['alternatives])) + " more solutions found"});
     result['warnings] && length(result['warnings]) > 0 && (lines = {@lines, "Warnings: " + result['warnings]:join("; ")});
     return lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_find_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_find_object owner: ARCH_WIZARD
     "Tool: Find an object by name, reference, or ID and return detailed information";
     {args_map, actor} = args;
     wearer = this:_action_perms_check(actor);
@@ -530,9 +530,9 @@ object DATA_VISOR
     except e (ANY)
       return toliteral(["found" -> false, "error" -> e[2]]);
     endtry
-  endverb
+  endmethod
 
-  verb _tool_ancestors (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_ancestors owner: ARCH_WIZARD
     "Tool: Get the ancestor chain of an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -540,9 +540,9 @@ object DATA_VISOR
     o = $match:match_object(args_map["object"]);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     return toliteral({ {tostr(a), a:name()} for a in (ancestors(o)) });
-  endverb
+  endmethod
 
-  verb _tool_descendants (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_descendants owner: ARCH_WIZARD
     "Tool: Get all descendants of an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -550,18 +550,18 @@ object DATA_VISOR
     o = $match:match_object(args_map["object"]);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     return toliteral({ {tostr(d), d:name()} for d in (descendants(o)) });
-  endverb
+  endmethod
 
-  verb _tool_function_info (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_function_info owner: ARCH_WIZARD
     "Tool: Get information about a builtin function";
     {args_map, actor} = args;
     this:_action_perms_check();
     func_name = args_map["function_name"];
     typeof(func_name) == TYPE_STR || raise(E_TYPE("Expected function name string"));
     return toliteral(["info" -> function_info(func_name), "help" -> function_help(func_name)]);
-  endverb
+  endmethod
 
-  verb _tool_list_builtin_functions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_list_builtin_functions owner: ARCH_WIZARD
     "Tool: List all builtin functions with signatures";
     {args_map, actor} = args;
     this:_action_perms_check();
@@ -570,13 +570,13 @@ object DATA_VISOR
     result = {"=== MOO Builtin Functions ===", "Total: " + tostr(length(all_funcs)) + " functions", ""};
     for func_info in (all_funcs)
       {name, min_args, max_args, types} = func_info;
-      arg_sig = max_args == 0 ? "()" | (max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + { maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types) }:join(", ") + ")");
+      arg_sig = max_args == 0 ? "()" | max_args == -1 ? "(" + tostr(min_args) + "+ args)" | "(" + { maphaskey(type_names, tc) ? type_names[tc] | tostr(tc) for tc in (types) }:join(", ") + ")";
       result = {@result, name + arg_sig};
     endfor
     return result:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_get_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_verb_code_range owner: ARCH_WIZARD
     "Tool: Get specific lines from a verb's code";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -589,9 +589,9 @@ object DATA_VISOR
     end_line = min(length(code_lines), maphaskey(args_map, "end_line") ? args_map["end_line"] | length(code_lines));
     start_line > end_line && raise(E_INVARG("start_line must be <= end_line"));
     return { tostr(i) + ": " + code_lines[i] for i in [start_line..end_line] }:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_get_verb_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_verb_metadata owner: ARCH_WIZARD
     "Tool: Get metadata about a verb";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -603,9 +603,9 @@ object DATA_VISOR
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
     return {"Verb: " + tostr(verb_location) + ":" + verb_name, "Owner: " + tostr(metadata:verb_owner()), "Flags: " + metadata:flags(), "Args: " + metadata:args_spec(), "Defined on: " + tostr(verb_location)}:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_properties owner: ARCH_WIZARD
     "Tool: Get list of properties on an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -618,9 +618,9 @@ object DATA_VISOR
       result = {@result, "." + prop_name + " (owner: " + tostr(metadata:owner()) + ", flags: " + metadata:perms() + (metadata:is_clear() ? ", clear)" | ")")};
     endfor
     return result:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_present_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_present_verb_code owner: ARCH_WIZARD
     "Tool: Present formatted verb code to the user";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -652,9 +652,9 @@ object DATA_VISOR
     listing_event = $event:mk_eval_result(wearer, "", content);
     wearer:inform_current(listing_event);
     return "Code presented to user: " + verb_signature;
-  endverb
+  endmethod
 
-  verb _tool_present_verb_code_range (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_present_verb_code_range owner: ARCH_WIZARD
     "Tool: Present a range of verb code to the user";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -700,9 +700,9 @@ object DATA_VISOR
     listing_event = $event:mk_eval_result(wearer, "", content);
     wearer:inform_current(listing_event);
     return "Code range presented to user: " + verb_signature + " lines " + tostr(actual_start) + "-" + tostr(actual_end);
-  endverb
+  endmethod
 
-  verb _tool_add_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_add_verb owner: ARCH_WIZARD
     "Tool: Add a new verb to an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -745,9 +745,9 @@ object DATA_VISOR
     verb_args = {dobj, prep, iobj};
     add_verb(o, verb_info, verb_args);
     return "Verb " + tostr(o) + ":" + verb_names + " added successfully";
-  endverb
+  endmethod
 
-  verb _tool_delete_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_delete_verb owner: ARCH_WIZARD
     "Tool: Delete a verb from an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -779,9 +779,9 @@ object DATA_VISOR
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[DELETING]", 'red) + " Removing verb `" + tostr(verb_location) + ":" + verb_name + "`..."):as_djot():as_inset():with_group('llm, this):with_tts("Removing verb " + tostr(verb_location) + ":" + verb_name));
     delete_verb(verb_location, verb_name);
     return "Verb " + tostr(verb_location) + ":" + verb_name + " deleted successfully";
-  endverb
+  endmethod
 
-  verb _tool_set_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_verb_code owner: ARCH_WIZARD
     "Tool: Compile and set new code for a verb";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -832,9 +832,9 @@ object DATA_VISOR
       return "Compilation failed:\n" + error_text;
     endif
     return "Verb code updated successfully for " + tostr(verb_location) + ":" + verb_name;
-  endverb
+  endmethod
 
-  verb _tool_set_verb_args (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_verb_args owner: ARCH_WIZARD
     "Tool: Change verb argument specification";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -873,9 +873,9 @@ object DATA_VISOR
     "Update verb args";
     set_verb_args(verb_location, verb_name, {dobj, prep, iobj});
     return "Verb argspec updated successfully for " + tostr(verb_location) + ":" + verb_name + " to (" + dobj + " " + prep + " " + iobj + ")";
-  endverb
+  endmethod
 
-  verb _tool_add_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_add_property owner: ARCH_WIZARD
     "Tool: Add a new property to an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -927,9 +927,9 @@ object DATA_VISOR
     prop_info = {wearer, permissions};
     add_property(o, prop_name, value, prop_info);
     return "Property " + tostr(o) + "." + prop_name + " added successfully";
-  endverb
+  endmethod
 
-  verb _tool_delete_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_delete_property owner: ARCH_WIZARD
     "Tool: Delete a property from an object";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -961,9 +961,9 @@ object DATA_VISOR
     endif
     delete_property(o, prop_name);
     return "Property " + tostr(o) + "." + prop_name + " deleted successfully";
-  endverb
+  endmethod
 
-  verb _tool_set_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_property owner: ARCH_WIZARD
     "Tool: Set the value of a property";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -1011,9 +1011,9 @@ object DATA_VISOR
     endif
     o.(prop_name) = value;
     return "Property " + tostr(o) + "." + prop_name + " set successfully";
-  endverb
+  endmethod
 
-  verb _tool_set_verb_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_verb_perms owner: ARCH_WIZARD
     "Tool: Change verb permissions";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -1060,9 +1060,9 @@ object DATA_VISOR
     "Apply the change";
     metadata:set_perms(new_owner, perms_str);
     return "Verb permissions updated: " + tostr(verb_location) + ":" + verb_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
-  endverb
+  endmethod
 
-  verb _tool_set_property_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_property_perms owner: ARCH_WIZARD
     "Tool: Change property permissions";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -1106,9 +1106,9 @@ object DATA_VISOR
     "Apply the change";
     metadata:set_perms(new_owner, perms_str);
     return "Property permissions updated: " + tostr(o) + "." + prop_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
-  endverb
+  endmethod
 
-  verb _tool_eval (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_eval owner: ARCH_WIZARD
     "Tool: Execute MOO code and return result";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -1163,9 +1163,9 @@ object DATA_VISOR
       wearer:inform_current(error_event);
       return "Error:\n" + error_text;
     endif
-  endverb
+  endmethod
 
-  verb _tool_create_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_create_object owner: ARCH_WIZARD
     "Tool: Create a new object as child of parent";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -1222,9 +1222,9 @@ object DATA_VISOR
       result = result + " with aliases: " + toliteral(aliases);
     endif
     return result + ". Object is in your inventory.";
-  endverb
+  endmethod
 
-  verb _tool_recycle_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_recycle_object owner: ARCH_WIZARD
     "Tool: Destroy an object permanently";
     {args_map, actor} = args;
     wearer = this:_action_perms_check();
@@ -1263,9 +1263,9 @@ object DATA_VISOR
     endif
     target_obj:destroy();
     return "Recycled \"" + obj_name + "\" (" + obj_id + ")";
-  endverb
+  endmethod
 
-  verb _tool_grep (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_grep owner: ARCH_WIZARD
     "Tool: Search verb code for patterns";
     {args_map, actor} = args;
     wearer = this:_action_perms_check(actor);
@@ -1324,9 +1324,9 @@ object DATA_VISOR
       result_lines = {@result_lines, tostr(o) + ":" + verb_name + " line " + tostr(line_num) + ": " + matching_line};
     endfor
     return result_lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_create_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_create_task owner: ARCH_WIZARD
     "Tool: Create a new investigation task";
     {args_map, actor} = args;
     wearer = this:_action_perms_check(actor);
@@ -1336,9 +1336,9 @@ object DATA_VISOR
     this.current_investigation_task = task.task_id;
     task:mark_in_progress();
     return "Investigation task #" + tostr(task.task_id) + " created: " + description;
-  endverb
+  endmethod
 
-  verb _tool_record_finding (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_record_finding owner: ARCH_WIZARD
     "Tool: Record a finding in current task's knowledge base";
     {args_map, actor} = args;
     this:_action_perms_check();
@@ -1350,9 +1350,9 @@ object DATA_VISOR
     !valid(task_obj) && return "Investigation task #" + tostr(this.current_investigation_task) + " is no longer valid.";
     task_obj:add_finding(subject, key, value);
     return "Finding recorded for '" + subject + "' (" + key + ")";
-  endverb
+  endmethod
 
-  verb _tool_get_findings (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_findings owner: ARCH_WIZARD
     "Tool: Retrieve findings for a subject from current task";
     {args_map, actor} = args;
     this:_action_perms_check();
@@ -1372,9 +1372,9 @@ object DATA_VISOR
       endif
     endfor
     return result_lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_task_status owner: ARCH_WIZARD
     "Tool: Get current investigation task status";
     {args_map, actor} = args;
     this:_action_perms_check();
@@ -1388,9 +1388,9 @@ object DATA_VISOR
     status["status"] == 'blocked && (status_lines = {@status_lines, "Blocked: " + status["error"]});
     status["subtask_count"] > 0 && (status_lines = {@status_lines, "Subtasks: " + tostr(status["subtask_count"])});
     return {@status_lines, "Started: " + tostr(ctime(status["started_at"]))}:join("\n");
-  endverb
+  endmethod
 
-  verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
+  method _format_hud_message owner: HACKER
     "Format HUD message for a tool call";
     {tool_name, tool_args} = args;
     "Parse JSON string to map";
@@ -1401,7 +1401,7 @@ object DATA_VISOR
     reason = maphaskey(tool_args, "reason") ? tool_args["reason"] | "";
     message = "";
     if (tool_name == "find_object")
-      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | (maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "?");
+      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "?";
       message = $ansi:colorize("[SCAN]", 'cyan) + " Object database query: " + $ansi:colorize(ref, 'white);
     elseif (tool_name == "list_verbs")
       message = $ansi:colorize("[SCAN]", 'cyan) + " Method topology: " + $ansi:colorize(tool_args["object"], 'white);
@@ -1495,16 +1495,16 @@ object DATA_VISOR
       message = message + " " + $ansi:colorize("(", 'dim) + $ansi:colorize(reason, 'white) + $ansi:colorize(")", 'dim);
     endif
     return message;
-  endverb
+  endmethod
 
-  verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
+  method _get_tool_content_types owner: HACKER
     "Specify djot rendering for all tool messages to support markdown formatting";
     {tool_name, tool_args} = args;
     "All visor tool messages can contain markdown, so render as djot";
     return {'text_djot, 'text_plain};
-  endverb
+  endmethod
 
-  verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
+  method _format_tts_message owner: HACKER
     "TTS-friendly descriptions for visor tool operations";
     {tool_name, tool_args} = args;
     if (typeof(tool_args) == TYPE_STR)
@@ -1512,7 +1512,7 @@ object DATA_VISOR
     endif
     "Read-only operations";
     if (tool_name == "find_object")
-      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | (maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "unknown");
+      ref = maphaskey(tool_args, "reference") ? tool_args["reference"] | maphaskey(tool_args, "object_name") ? tool_args["object_name"] | "unknown";
       return "Scanning database for " + ref;
     elseif (tool_name == "list_verbs")
       return "Listing verbs on " + tool_args["object"];
@@ -1584,15 +1584,15 @@ object DATA_VISOR
       return "Info: " + msg;
     endif
     return "Processing " + tool_name;
-  endverb
+  endmethod
 
-  verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
+  method _check_user_eligible owner: HACKER
     "Visor requires .programmer to use";
     {wearer} = args;
     wearer.programmer || raise(E_PERM, "The person wearing the visor is not a programmer, and not able to use its functions");
-  endverb
+  endmethod
 
-  verb on_wear (this none this) owner: HACKER flags: "rxd"
+  method on_wear owner: HACKER
     "Initialize and activate the HUD when worn";
     !valid(this.agent) && this:configure();
     this.agent:reset_context();
@@ -1602,16 +1602,16 @@ object DATA_VISOR
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[BOOT]", 'bright_green) + " Neural link established. Augmented reality overlay: " + $ansi:colorize("ONLINE", 'green)):with_presentation_hint('inset):with_group('llm, this):with_tts("Neural link established. Augmented reality overlay online."));
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[READY]", 'green) + " Database inspection interface active. Commands: use/interact, reset"):with_presentation_hint('inset):with_group('llm, this):with_tts("Database inspection interface active. Commands: use, interact, or reset."));
     this:_show_token_usage(wearer);
-  endverb
+  endmethod
 
-  verb on_remove (this none this) owner: HACKER flags: "rxd"
+  method on_remove owner: HACKER
     "Deactivate the HUD when removed";
     wearer = this.location;
     !valid(wearer) && return;
     this:_show_token_usage(wearer);
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[SHUTDOWN]", 'red) + " Neural link severed. Augmented reality overlay: " + $ansi:colorize("OFFLINE", 'bright_red)):with_presentation_hint('inset):with_group('llm, this):with_tts("Neural link severed. Augmented reality overlay offline."));
     wearer:inform_current($event:mk_info(wearer, "The luminescent display flickers and dims, data streams dissolving into static. The augmented overlay fades from your peripheral vision like phosphor afterimages. As the neural link disconnects, you hear a faint electronic hiss - then silence. The world returns to its unaugmented state."));
-  endverb
+  endmethod
 
   verb reset (none none none) owner: HACKER flags: "rd"
     "Reset the visor context for a fresh session";
@@ -1653,7 +1653,7 @@ object DATA_VISOR
     player:inform_current($event:mk_info(player, status_lines:join("\n")):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_status));
   endverb
 
-  verb complete_investigation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method complete_investigation owner: ARCH_WIZARD
     "Mark current investigation as completed";
     {?result = "Investigation concluded."} = args;
     if (this.current_investigation_task == -1)
@@ -1666,9 +1666,9 @@ object DATA_VISOR
     task_obj:mark_complete(result);
     this.current_investigation_task = -1;
     return "Investigation #" + tostr(task_obj.task_id) + " completed.";
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for the Data Visor.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("visor", "Using the Data Visor", "The Data Visor is a wearable tool for inspecting and programming objects. Wear it with 'wear visor', then use 'use visor' or 'interact with visor' to start a conversation about what you want to inspect or code.", {"data visor", "programming tool"}, 'items, {"programming", "inspect"}), $help:mk("inspect", "Inspecting objects", "Use the visor to examine objects in detail. Ask it to 'inspect the door' or 'show me the properties of the chair'. It can reveal verbs, properties, and the internal structure of objects.", {"examine", "look at code"}, 'programming, {"visor", "programming"}), $help:mk("@examine", "Examine an object's structure", "Usage: @examine <object>\n\nShows detailed information about an object including its parent, owner, properties, and verbs.", {"@exam"}, 'commands, {"inspect", "visor"}), $help:mk("@program", "Edit a verb's code", "Usage: @program <object>:<verb>\n\nOpens the verb editor to modify an object's verb code. Requires programmer permissions.", {"@prog"}, 'commands, {"programming", "visor"})};
@@ -1677,9 +1677,9 @@ object DATA_VISOR
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb _tool_help_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_help_lookup owner: ARCH_WIZARD
     "Tool: Look up a help topic to get information about commands and features.";
     {args_map, actor} = args;
     wearer = this:_action_perms_check(actor);
@@ -1702,5 +1702,5 @@ object DATA_VISOR
     endif
     "Return structured help";
     return "Topic: " + found.name + "\n\n" + found.summary + "\n\n" + found.content + (found.see_also ? "\n\nSee also: " + found.see_also:join(", ") | "");
-  endverb
+  endmethod
 endobject

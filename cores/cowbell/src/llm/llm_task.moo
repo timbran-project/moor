@@ -21,7 +21,7 @@ object LLM_TASK
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_task";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create a task (typically called by agent). Returns task object.";
     {task_id, description, ?agent = #-1, ?knowledge_base = #-1, ?parent_task_id = 0} = args;
     typeof(task_id) == TYPE_INT || raise(E_TYPE);
@@ -34,49 +34,49 @@ object LLM_TASK
     this.created_at = time();
     this.status = 'pending;
     return this;
-  endverb
+  endmethod
 
-  verb get_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_status owner: ARCH_WIZARD
     "Return complete task status as a map for reporting.";
     caller == this || caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     status_map = ["task_id" -> this.task_id, "description" -> this.description, "status" -> this.status, "parent_task_id" -> this.parent_task_id, "created_at" -> this.created_at, "started_at" -> this.started_at, "completed_at" -> this.completed_at, "result" -> this.result, "error" -> this.error, "subtask_count" -> length(this.subtasks)];
     return status_map;
-  endverb
+  endmethod
 
-  verb mark_in_progress (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mark_in_progress owner: ARCH_WIZARD
     "Mark task as started.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     this.status = 'in_progress;
     this.started_at = time();
-  endverb
+  endmethod
 
-  verb mark_complete (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mark_complete owner: ARCH_WIZARD
     "Mark task as completed with result.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {result} = args;
     this.status = 'completed;
     this.result = result;
     this.completed_at = time();
-  endverb
+  endmethod
 
-  verb mark_failed (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mark_failed owner: ARCH_WIZARD
     "Mark task as failed with error message.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {error_msg} = args;
     this.status = 'failed;
     this.error = error_msg;
     this.completed_at = time();
-  endverb
+  endmethod
 
-  verb mark_blocked (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mark_blocked owner: ARCH_WIZARD
     "Mark task as blocked with reason.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {reason} = args;
     this.status = 'blocked;
     this.error = reason;
-  endverb
+  endmethod
 
-  verb add_finding (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_finding owner: ARCH_WIZARD
     "Add a finding to the knowledge base. Stores (task_id, subject, key, value) tuple.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {subject, key, value} = args;
@@ -85,9 +85,9 @@ object LLM_TASK
     valid(this.knowledge_base) || raise(E_INVARG, "Knowledge base not available for this task");
     this.knowledge_base:assert({this.task_id, subject, key, value});
     return true;
-  endverb
+  endmethod
 
-  verb get_findings (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_findings owner: ARCH_WIZARD
     "Query findings by subject from knowledge base. Returns tuples matching this task.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {subject} = args;
@@ -99,9 +99,9 @@ object LLM_TASK
       length(tuple) >= 2 && tuple[2] == subject && tuple[1] == this.task_id && (filtered = {@filtered, tuple});
     endfor
     return filtered;
-  endverb
+  endmethod
 
-  verb add_subtask (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_subtask owner: ARCH_WIZARD
     "Create and register a subtask. Returns the new task object.";
     caller == this.agent || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {description} = args;
@@ -110,9 +110,9 @@ object LLM_TASK
     subtask = this.agent:create_task(description, this.task_id);
     this.subtasks = {@this.subtasks, subtask};
     return subtask;
-  endverb
+  endmethod
 
-  verb test_task_lifecycle (this none this) owner: HACKER flags: "rxd"
+  method test_task_lifecycle owner: HACKER
     "Test basic task creation and status tracking.";
     kb = $relation:create(true);
     agent = $llm_agent:create(true);
@@ -135,9 +135,9 @@ object LLM_TASK
     task.completed_at == 0 && raise(E_ASSERT, "completed_at should be set");
     "Task will auto-garbage-collect as it's anonymous";
     return true;
-  endverb
+  endmethod
 
-  verb test_findings (this none this) owner: HACKER flags: "rxd"
+  method test_findings owner: HACKER
     "Test adding and retrieving findings with provenance.";
     kb = $relation:create(true);
     agent = $llm_agent:create(true);
@@ -157,5 +157,5 @@ object LLM_TASK
     db_tuple[2] != "database" && raise(E_ASSERT, "Subject mismatch");
     "Task will auto-garbage-collect as it's anonymous";
     return true;
-  endverb
+  endmethod
 endobject

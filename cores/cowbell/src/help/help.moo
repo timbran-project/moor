@@ -8,14 +8,14 @@ object HELP
   override import_export_hierarchy = {"help"};
   override import_export_id = "help";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create a help topic flyweight.";
     "Args: (name, summary, content, ?aliases, ?category, ?see_also)";
     {name, summary, content, ?aliases = {}, ?category = 'general, ?see_also = {}} = args;
     return <this, .name = name, .summary = summary, .content = content, .aliases = aliases, .category = category, .see_also = see_also>;
-  endverb
+  endmethod
 
-  verb matches (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method matches owner: ARCH_WIZARD
     "Check if this help topic matches a search query (supports prefix matching).";
     {query} = args;
     "Exact match on name";
@@ -28,9 +28,9 @@ object HELP
       index(alias, query) == 1 && return true;
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb render_prose (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method render_prose owner: ARCH_WIZARD
     "Render this help topic as a list of lines (splat into a block).";
     lines = {};
     lines = {@lines, this.summary};
@@ -44,10 +44,10 @@ object HELP
       lines = {@lines, "See also: " + this.see_also:join(", ")};
     endif
     return lines;
-  endverb
+  endmethod
 
-  verb render_structured (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method render_structured owner: ARCH_WIZARD
     "Return structured data for agents/LLMs.";
     return ['name -> this.name, 'aliases -> this.aliases, 'category -> this.category, 'summary -> this.summary, 'content -> this.content, 'see_also -> this.see_also];
-  endverb
+  endmethod
 endobject

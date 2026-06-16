@@ -141,31 +141,31 @@ object THING
     "```"
   };
 
-  verb pronouns (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method pronouns owner: ARCH_WIZARD
     "Return the pronoun set for this object (object or flyweight).";
     set_task_perms(caller_perms());
     return this.pronouns;
-  endverb
+  endmethod
 
-  verb is_plural (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_plural owner: ARCH_WIZARD
     "Returns whether this object should be treated as a plural noun.";
     "Things are singular by default but can be set to plural.";
     return this.is_plural_noun;
-  endverb
+  endmethod
 
-  verb is_countable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_countable owner: ARCH_WIZARD
     "Returns whether this object is countable in English grammar.";
     "Things are countable by default (can use 'a' or 'the').";
     return this.is_countable_noun;
-  endverb
+  endmethod
 
-  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_proper_noun owner: ARCH_WIZARD
     "Returns whether this object should be treated as a proper noun.";
     "Things are common nouns by default, not proper nouns.";
     return this.is_proper_noun_name;
-  endverb
+  endmethod
 
-  verb integrate_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method integrate_description owner: ARCH_WIZARD
     "Return integrated description if set, or false. Integrated descriptions become part of the room description.";
     set_task_perms(caller_perms());
     desc = this.integrated_description;
@@ -173,9 +173,9 @@ object THING
       return desc;
     endif
     return false;
-  endverb
+  endmethod
 
-  verb "pronoun_*" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "pronoun_*" owner: ARCH_WIZARD
     "Get pronoun from either preset object or custom flyweight.";
     set_task_perms(caller_perms());
     ptype = tosym(verb[9..length(verb)]);
@@ -186,9 +186,9 @@ object THING
     ptype == 'possessive && args[2] == 'noun && return p.pq;
     ptype == 'reflexive && return p.pr;
     raise(E_INVARG);
-  endverb
+  endmethod
 
-  verb can_get (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method can_get owner: ARCH_WIZARD
     "Check if actor can pick up this object. Returns true/false.";
     {?who = player} = args;
     "Not portable means never allowed";
@@ -199,9 +199,9 @@ object THING
     context = ['Actor -> who, 'This -> this];
     result = $rule_engine:evaluate(this.get_rule, context);
     return result['success];
-  endverb
+  endmethod
 
-  verb can_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method can_drop owner: ARCH_WIZARD
     "Check if actor can drop this object. Returns true/false.";
     {?who = player} = args;
     "No rule means always allowed";
@@ -210,9 +210,9 @@ object THING
     context = ['Actor -> who, 'This -> this];
     result = $rule_engine:evaluate(this.drop_rule, context);
     return result['success];
-  endverb
+  endmethod
 
-  verb do_get (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_get owner: ARCH_WIZARD
     "Move item to actor's inventory. Returns true. Optional silent flag.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_get must be called by this object");
@@ -224,9 +224,9 @@ object THING
       old_location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb do_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_drop owner: ARCH_WIZARD
     "Drop item from actor to their location. Returns true. Optional silent flag.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_drop must be called by this object");
@@ -238,7 +238,7 @@ object THING
       new_location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
   verb get (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Get/take an object - command handler";
@@ -294,12 +294,12 @@ object THING
     endtry
   endverb
 
-  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method acceptable owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     return false;
-  endverb
+  endmethod
 
-  verb "action_get action_take" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "action_get action_take" owner: ARCH_WIZARD
     "Action handler for reactions: make actor pick up this item.";
     set_task_perms(this.owner);
     {who, context} = args;
@@ -314,9 +314,9 @@ object THING
     !this:can_get(who) && return false;
     !who:acceptable(this) && return false;
     return this:do_get(who);
-  endverb
+  endmethod
 
-  verb action_drop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_drop owner: ARCH_WIZARD
     "Action handler for reactions: make actor drop this item.";
     set_task_perms(this.owner);
     {who, context} = args;
@@ -324,9 +324,9 @@ object THING
     !this:can_drop(who) && return false;
     !who.location:acceptable(this) && return false;
     return this:do_drop(who);
-  endverb
+  endmethod
 
-  verb action_put (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_put owner: ARCH_WIZARD
     "Action handler for reactions: put this item into a container.";
     set_task_perms(this.owner);
     {who, context, dest} = args;
@@ -340,14 +340,14 @@ object THING
     !dest:acceptable(this) && return false;
     this:moveto(dest);
     return true;
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics - $thing defers to global get/drop topics.";
     {for_player, ?topic = ""} = args;
     "Basic get/drop covered by global help - things can override for special behavior";
     return topic == "" ? {} | 0;
-  endverb
+  endmethod
 
   verb fact_unlocks (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Rule engine predicate: Key unlocks(Target)?";
@@ -361,16 +361,16 @@ object THING
     return;
   endverb
 
-  verb inspection (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method inspection owner: ARCH_WIZARD
     "Return structured data for client inspection popover.";
     {?who = player} = args;
     item_name = `this:name() ! E_VERBNF => this.name';
     desc = this:description();
     actions = this:inspection_actions(who);
     return ["title" -> item_name, "description" -> desc, "actions" -> actions];
-  endverb
+  endmethod
 
-  verb inspection_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method inspection_actions owner: ARCH_WIZARD
     "Return quick inspection actions for things (transfer + examine + obvious verbs).";
     {?who = player} = args;
     actions = {};
@@ -478,13 +478,13 @@ object THING
       endif
     endfor
     return actions;
-  endverb
+  endmethod
 
-  verb fact_is_portable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fact_is_portable owner: ARCH_WIZARD
     return this.portable;
-  endverb
+  endmethod
 
-  verb test_grammar_and_description_defaults (this none this) owner: HACKER flags: "rxd"
+  method test_grammar_and_description_defaults owner: HACKER
     "Cover default thing grammar helpers and integrated descriptions.";
     thing = this:create(true);
     thing.name = "test pebble";
@@ -501,9 +501,9 @@ object THING
     thing.integrated_description = "a test pebble rests here";
     $test_utils:assert_eq(thing:integrate_description(), "a test pebble rests here", "integrated description should return text");
     return true;
-  endverb
+  endmethod
 
-  verb test_portability_and_rule_defaults (this none this) owner: HACKER flags: "rxd"
+  method test_portability_and_rule_defaults owner: HACKER
     "Cover default get/drop permission helpers and portability facts.";
     thing = this:create(true);
     thing.name = "test token";
@@ -516,9 +516,9 @@ object THING
     $test_utils:assert_true(thing:can_drop(player), "portable flag should not block can_drop");
     $test_utils:assert_false(thing:acceptable(thing), "plain things should not accept contents");
     return true;
-  endverb
+  endmethod
 
-  verb test_unlock_fact_and_inspection (this none this) owner: HACKER flags: "rxd"
+  method test_unlock_fact_and_inspection owner: HACKER
     "Cover unlock facts and basic inspection metadata.";
     key = this:create(true);
     target = this:create(true);
@@ -533,5 +533,5 @@ object THING
     $test_utils:assert_eq(data["description"], "A key used by the unit tests.", "inspection should include description");
     $test_utils:assert_type(data["actions"], TYPE_LIST, "inspection should include actions list");
     return true;
-  endverb
+  endmethod
 endobject

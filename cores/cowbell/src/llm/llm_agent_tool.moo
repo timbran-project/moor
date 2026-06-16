@@ -9,7 +9,7 @@ object LLM_AGENT_TOOL
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_agent_tool";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create a tool definition flyweight";
     {name, description, parameters, target_obj, target_verb} = args;
     typeof(name) == TYPE_STR || raise(E_TYPE);
@@ -18,19 +18,19 @@ object LLM_AGENT_TOOL
     typeof(target_obj) == TYPE_OBJ || raise(E_TYPE);
     typeof(target_verb) == TYPE_STR || raise(E_TYPE);
     return <this, .name = name, .description = description, .parameters = parameters, .target_obj = target_obj, .target_verb = target_verb>;
-  endverb
+  endmethod
 
-  verb to_schema (this none this) owner: HACKER flags: "rxd"
+  method to_schema owner: HACKER
     "Convert tool definition to OpenAI tool schema format";
     return ["type" -> "function", "function" -> ["name" -> this.name, "description" -> this.description, "parameters" -> this.parameters]];
-  endverb
+  endmethod
 
-  verb to_mcp_schema (this none this) owner: HACKER flags: "rxd"
+  method to_mcp_schema owner: HACKER
     "Convert tool definition to MCP (Model Context Protocol) format for external agents";
     return ["name" -> this.name, "description" -> this.description, "input_schema" -> this.parameters, "target_obj" -> this.target_obj, "target_verb" -> this.target_verb];
-  endverb
+  endmethod
 
-  verb execute (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method execute owner: ARCH_WIZARD
     "Execute the tool with given arguments and optional actor";
     {args_json, ?actor = false} = args;
     "Parse arguments if they're JSON";
@@ -49,5 +49,5 @@ object LLM_AGENT_TOOL
       raise(E_VERBNF, "Tool handler not found: " + prefixed_verb + " or " + this.target_verb);
     endif
     return result;
-  endverb
+  endmethod
 endobject

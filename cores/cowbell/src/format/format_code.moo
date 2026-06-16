@@ -8,7 +8,7 @@ object FORMAT_CODE
   override import_export_hierarchy = {"format"};
   override import_export_id = "format_code";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create a code block flyweight. Args: (code_content) or (code_content, language)";
     "Code content can be a string or list of strings (one per line)";
     if (length(args) < 1 || length(args) > 2)
@@ -23,9 +23,9 @@ object FORMAT_CODE
     else
       return <this, {code_content}>;
     endif
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     {render_for, content_type, event} = args;
     contents = flycontents(this);
     code_content = contents[1];
@@ -49,9 +49,9 @@ object FORMAT_CODE
     else
       return code_content + "\n";
     endif
-  endverb
+  endmethod
 
-  verb test_code_block_no_language (this none this) owner: HACKER flags: "rxd"
+  method test_code_block_no_language owner: HACKER
     code_fw = this:mk("hello world");
     typeof(code_fw) == TYPE_FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
     contents = flycontents(code_fw);
@@ -59,27 +59,27 @@ object FORMAT_CODE
     result = code_fw:compose($player, 'text_djot, {});
     result == "\n```\nhello world\n```\n\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;
-  endverb
+  endmethod
 
-  verb test_code_block_with_language (this none this) owner: HACKER flags: "rxd"
+  method test_code_block_with_language owner: HACKER
     code_fw = this:mk("def foo():\n    pass", "python");
     typeof(code_fw) == TYPE_FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
     code_fw.language == "python" || raise(E_ASSERT("Language should be stored"));
     result = code_fw:compose($player, 'text_djot, {});
     result == "\n```python\ndef foo():\n    pass\n```\n\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;
-  endverb
+  endmethod
 
-  verb test_code_block_symbol_language (this none this) owner: HACKER flags: "rxd"
+  method test_code_block_symbol_language owner: HACKER
     code_fw = this:mk("fn main() {}", 'rust);
     typeof(code_fw) == TYPE_FLYWEIGHT || raise(E_ASSERT("mk should return flyweight"));
     code_fw.language == 'rust || raise(E_ASSERT("Language should be stored as symbol, got: " + toliteral(code_fw.language)));
     result = code_fw:compose($player, 'text_djot, {});
     result == "\n```rust\nfn main() {}\n```\n\n" || raise(E_ASSERT("Djot output wrong: " + toliteral(result)));
     return true;
-  endverb
+  endmethod
 
-  verb test_code_block_djot_spacing (this none this) owner: HACKER flags: "rxd"
+  method test_code_block_djot_spacing owner: HACKER
     "Test that code blocks have proper spacing for djot parsing";
     code_fw = this:mk("line1\nline2\nline3");
     result = code_fw:compose($player, 'text_djot, {});
@@ -89,9 +89,9 @@ object FORMAT_CODE
     "Should contain the fence markers";
     "```" in result || raise(E_ASSERT("Code block should contain fence markers"));
     return true;
-  endverb
+  endmethod
 
-  verb test_code_after_title_djot (this none this) owner: HACKER flags: "rxd"
+  method test_code_after_title_djot owner: HACKER
     "Test that title + code produces valid djot with proper separation";
     title = $format.title:mk("Test Title");
     code = this:mk("test content");
@@ -107,9 +107,9 @@ object FORMAT_CODE
     "Pattern should be: ## Title\n\n\n```";
     "## Test Title\n\n\n```" in combined || raise(E_ASSERT("Should have blank line between title and code fence, got: " + toliteral(combined)));
     return true;
-  endverb
+  endmethod
 
-  verb test_multiline_code_djot (this none this) owner: HACKER flags: "rxd"
+  method test_multiline_code_djot owner: HACKER
     "Test multiline content preserves line breaks in djot output";
     content = "line1\nline2\nline3";
     code_fw = this:mk(content);
@@ -121,9 +121,9 @@ object FORMAT_CODE
     "Lines should be separated by newlines within the fence";
     "line1\nline2\nline3" in result || raise(E_ASSERT("Lines not properly separated, got: " + toliteral(result)));
     return true;
-  endverb
+  endmethod
 
-  verb test_paste_event_flow (this none this) owner: HACKER flags: "rxd"
+  method test_paste_event_flow owner: HACKER
     "Test the complete @paste event flow to see what djot is generated";
     content = "line1\nline2\nline3";
     title = $format.title:mk("Test pastes");
@@ -143,5 +143,5 @@ object FORMAT_CODE
     "```" in djot_str || raise(E_ASSERT("Missing code fence, got: " + toliteral(djot_str)));
     "line1\nline2\nline3" in djot_str || raise(E_ASSERT("Missing content, got: " + toliteral(djot_str)));
     return true;
-  endverb
+  endmethod
 endobject

@@ -13,7 +13,7 @@ object ROOT
   property revoked_capability_jtis (owner: ARCH_WIZARD, flags: "rc") = [];
   property thumbnail (owner: HACKER, flags: "rc") = false;
 
-  verb create (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method create owner: ARCH_WIZARD
     "Create a child of this object.";
     "";
     "  parent:create()       -- UUID-based (default)";
@@ -43,35 +43,35 @@ object ROOT
     new_obj = create(target, caller_perms(), otype);
     new_obj.r = 1;
     return new_obj;
-  endverb
+  endmethod
 
-  verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method destroy owner: ARCH_WIZARD
     "Destroy this object. Permission: wizard, owner, or capability.";
     {target, _} = this:check_permissions_as(caller_perms(), 'recycle);
     recycle(target);
-  endverb
+  endmethod
 
-  verb accept (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method accept owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     return this:acceptable(@args);
-  endverb
+  endmethod
 
-  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method acceptable owner: ARCH_WIZARD
     "Returns true if the object can accept items. Called by :accept (runtime-initiated) but can also be called elsewhere in scenarios where we are just checking in-advance.";
     set_task_perms(caller_perms());
     return false;
-  endverb
+  endmethod
 
-  verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method moveto owner: ARCH_WIZARD
     "Move this object to destination. Permission: wizard, owner, or capability.";
     {destination} = args;
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'move);
     set_task_perms(perms);
     return `move(this, destination) ! ANY';
-  endverb
+  endmethod
 
-  verb set_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_owner owner: ARCH_WIZARD
     "Set this object's owner and retitle any `c` properties on the object.";
     actor = caller_perms();
     {target, perms} = this:check_permissions_as(actor, 'set_owner);
@@ -91,9 +91,9 @@ object ROOT
         endif
       endif
     endfor
-  endverb
+  endmethod
 
-  verb set_name_aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_name_aliases owner: ARCH_WIZARD
     "Set this object's name and aliases. Permission: wizard, owner, or 'set_name_aliases capability.";
     actor = caller_perms();
     {target, perms} = this:check_permissions_as(actor, 'set_name_aliases);
@@ -101,13 +101,13 @@ object ROOT
     {new_name, new_aliases} = args;
     target.name = new_name;
     target.aliases = new_aliases;
-  endverb
+  endmethod
 
-  verb contents (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method contents owner: ARCH_WIZARD
     "Returns a list of the objects that are apparently inside this one.  Don't confuse this with .contents, which is a property kept consistent with .location by the server.  This verb should be used in `VR' situations, for instance when looking in a room, and does not necessarily have anything to do with the value of .contents (although the default implementation does).  `Non-VR' commands (like @contents) should look directly at .contents.";
     set_task_perms(caller_perms());
     return this.contents;
-  endverb
+  endmethod
 
   verb all_contents (this none this) owner: ARCH_WIZARD flags: "rd"
     "Return a list of all objects contained (at some level) by this object.";
@@ -119,18 +119,18 @@ object ROOT
     return res;
   endverb
 
-  verb description (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method description owner: ARCH_WIZARD
     "Returns the external description of the object.";
     return this.description;
-  endverb
+  endmethod
 
-  verb thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method thumbnail owner: ARCH_WIZARD
     "Return thumbnail image data for this object.";
     set_task_perms(caller_perms());
     return this.thumbnail;
-  endverb
+  endmethod
 
-  verb set_thumbnail (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_thumbnail owner: ARCH_WIZARD
     "Set the thumbnail image for this object. Permission: owner or wizard.";
     actor = caller_perms();
     {target, perms} = this:check_permissions_as(actor, 'set_thumbnail);
@@ -140,9 +140,9 @@ object ROOT
     typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
     target.thumbnail = {content_type, picbin};
-  endverb
+  endmethod
 
-  verb set_description (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_description owner: ARCH_WIZARD
     "Set this object's description. Permission: wizard, owner, or 'set_description capability.";
     actor = caller_perms();
     {target, perms} = this:check_permissions_as(actor, 'set_description);
@@ -160,44 +160,44 @@ object ROOT
     else
       target.description = description;
     endif
-  endverb
+  endmethod
 
-  verb name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method name owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     "Returns the presentation name of the object.";
     return this.name;
-  endverb
+  endmethod
 
-  verb aliases (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method aliases owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     "Returns the aliases of the object.";
     return this.aliases;
-  endverb
+  endmethod
 
-  verb is_plural (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_plural owner: ARCH_WIZARD
     "Returns whether this object should be treated as a plural noun.";
     "Default for system objects: false (singular).";
     return false;
-  endverb
+  endmethod
 
-  verb is_countable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_countable owner: ARCH_WIZARD
     "Returns whether this object is countable in English grammar.";
     "Default for system objects: false (mass nouns, proper nouns, etc).";
     return false;
-  endverb
+  endmethod
 
-  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_proper_noun owner: ARCH_WIZARD
     "Returns whether this object should be treated as a proper noun.";
     "Default for system objects: true (all system objects are proper nouns).";
     return true;
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method look_self owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     return $look:mk(this, @this.contents);
-  endverb
+  endmethod
 
-  verb all_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method all_verbs owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     "Recurse up the inheritance hierarchy, getting a list of all verbs.";
     what = this;
@@ -207,9 +207,9 @@ object ROOT
       what = parent(what);
     endwhile
     return verbs;
-  endverb
+  endmethod
 
-  verb all_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method all_properties owner: ARCH_WIZARD
     "Recurse up the inheritance hierarchy, getting a list of all properties.";
     set_task_perms(caller_perms());
     what = this;
@@ -220,9 +220,9 @@ object ROOT
       what = parent(what);
     endwhile
     return result;
-  endverb
+  endmethod
 
-  verb all_command_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method all_command_verbs owner: ARCH_WIZARD
     "Get all command verbs (readable, not 'this none this') from this object and ancestors.";
     "Returns list of {verb_name, definer_object, dobj, prep, iobj} for each command verb.";
     set_task_perms(caller_perms());
@@ -248,9 +248,9 @@ object ROOT
       endfor
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb branches (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method branches owner: ARCH_WIZARD
     ":branches(object) => list of all descendants of this object which have children.";
     set_task_perms(caller_perms());
     if (kids = children(object = this))
@@ -262,9 +262,9 @@ object ROOT
     else
       return {};
     endif
-  endverb
+  endmethod
 
-  verb find_verb_definer (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_verb_definer owner: ARCH_WIZARD
     "Find verb on object or its ancestors, returning the object that actually defines the verb.";
     "Uses ancestors() builtin and verb_info() to handle aliases, wildcards, and inheritance.";
     "Usage: obj:find_verb_definer(verb_name)";
@@ -287,17 +287,17 @@ object ROOT
       endtry
     endfor
     return #-1;
-  endverb
+  endmethod
 
-  verb estimated_size_bytes (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method estimated_size_bytes owner: ARCH_WIZARD
     "Return a spitball estimate of the in-memory size / on-disk size of this object.";
     "No guarantee of accuracy and this computation is relatively expensive so use sparingly.";
     "Caller must own the object or have the arcane powers of a wizard.";
     caller == this.owner || caller.wizard || raise(E_PERM);
     return object_bytes(this);
-  endverb
+  endmethod
 
-  verb issue_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method issue_capability owner: ARCH_WIZARD
     "Issue an unforgeable capability flyweight for delegating specific permissions.";
     "";
     "Capabilities implement object-capability security (E-rights model) where possession";
@@ -344,9 +344,9 @@ object ROOT
     "Create server authority PASETO token (wizard-only builtin)";
     token = key ? paseto_make_local(claims, key) | paseto_make_local(claims);
     return <target, .token = token, .jti = jti>;
-  endverb
+  endmethod
 
-  verb merge_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method merge_capability owner: ARCH_WIZARD
     "Merge two capability flyweights for the same target into one with combined permissions.";
     caller_perms().wizard || raise(E_PERM);
     {cap1, cap2, ?key = 0} = args;
@@ -354,11 +354,11 @@ object ROOT
     typeof(cap1) == TYPE_FLYWEIGHT && typeof(cap2) == TYPE_FLYWEIGHT || raise(E_TYPE);
     maphaskey(flyslots(cap1), 'token) && maphaskey(flyslots(cap2), 'token) || raise(E_INVARG);
     "Both must be for the same target";
-    (cap1).delegate == (cap2).delegate || raise(E_INVARG, "Capabilities must be for same target");
-    target = (cap1).delegate;
+    cap1.delegate == cap2.delegate || raise(E_INVARG, "Capabilities must be for same target");
+    target = cap1.delegate;
     "Decode both tokens";
-    claims1 = key ? paseto_verify_local((cap1).token, key) | paseto_verify_local((cap1).token);
-    claims2 = key ? paseto_verify_local((cap2).token, key) | paseto_verify_local((cap2).token);
+    claims1 = key ? paseto_verify_local(cap1.token, key) | paseto_verify_local(cap1.token);
+    claims2 = key ? paseto_verify_local(cap2.token, key) | paseto_verify_local(cap2.token);
     $root:_capability_is_revoked(claims1) && raise(E_PERM);
     $root:_capability_is_revoked(claims2) && raise(E_PERM);
     maphaskey(claims1, "exp") && time() > claims1["exp"] && raise(E_PERM);
@@ -383,9 +383,9 @@ object ROOT
     "Caps come back as symbols directly - unique_caps is already a list of symbols";
     "Issue new merged capability";
     return this:issue_capability(target, unique_caps, exp, run_as, key);
-  endverb
+  endmethod
 
-  verb grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method grant_capability owner: ARCH_WIZARD
     "Grant capabilities for target_obj to grantee, storing in specified category.";
     {target_obj, cap_list, grantee, category, ?key = 0} = args;
     "Permission: wizard, owner of target_obj, or TODO: 'grant capability";
@@ -421,9 +421,9 @@ object ROOT
       notify(grantee, message);
     endif
     return new_cap;
-  endverb
+  endmethod
 
-  verb revoke_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method revoke_capability owner: ARCH_WIZARD
     "Revoke a stored capability grant for target_obj from grantee in category.";
     {target_obj, grantee, category} = args;
     caller_perms().wizard || caller_perms() == target_obj.owner || raise(E_PERM);
@@ -440,9 +440,9 @@ object ROOT
     this:_revoke_capability_token(old_cap);
     grantee.(prop_name) = mapdelete(grants_map, target_obj);
     return true;
-  endverb
+  endmethod
 
-  verb challenge_for (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method challenge_for owner: ARCH_WIZARD
     "Validate a capability and verify it grants the required permissions.";
     "";
     "Called on a capability flyweight to check if it grants specific capabilities.";
@@ -464,9 +464,9 @@ object ROOT
     "  {target, perms} = this:challenge_for('enter);";
     "  set_task_perms(perms);";
     return this:_capability_challenge(args, 0);
-  endverb
+  endmethod
 
-  verb challenge_for_with_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method challenge_for_with_key owner: ARCH_WIZARD
     "Validate a capability using a custom signing key (for testing).";
     "";
     "Like challenge_for() but accepts a custom PASETO signing key instead of";
@@ -483,9 +483,9 @@ object ROOT
     "  {target, perms} = cap:challenge_for_with_key({'read}, test_key);";
     {caps_list, key} = args;
     return this:_capability_challenge(caps_list, key);
-  endverb
+  endmethod
 
-  verb require_caller (this none this) owner: HACKER flags: "rxd"
+  method require_caller owner: HACKER
     "Verify that caller is the expected object (or a flyweight with that object as delegate).";
     "Raises E_PERM if check fails, otherwise returns normally.";
     "Usage: $root:require_caller(this);";
@@ -497,9 +497,9 @@ object ROOT
       return;
     endif
     raise(E_PERM);
-  endverb
+  endmethod
 
-  verb check_permissions_as (this none this) owner: HACKER flags: "rxd"
+  method check_permissions_as owner: HACKER
     "Check wizard, owner, or capability permission for an explicit actor. Returns {target, perms_object}.";
     {actor, @required_caps} = args;
     target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
@@ -513,9 +513,9 @@ object ROOT
       return this:challenge_for(@required_caps);
     endif
     raise(E_PERM);
-  endverb
+  endmethod
 
-  verb _capability_challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _capability_challenge owner: ARCH_WIZARD
     "Internal: Validate capability with optional custom signing key.";
     if (caller != $root && !(caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate)))
       raise(E_PERM);
@@ -560,9 +560,9 @@ object ROOT
       run_as = claims["run_as"];
     endif
     return {this.delegate, run_as};
-  endverb
+  endmethod
 
-  verb _capability_jti (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _capability_jti owner: ARCH_WIZARD
     "Return a capability token id from its flyweight slot or decoded claims.";
     {cap, ?key = 0} = args;
     if (typeof(cap) != TYPE_FLYWEIGHT)
@@ -581,9 +581,9 @@ object ROOT
       return 0;
     endtry
     return `claims["jti"] ! E_RANGE, E_TYPE => 0';
-  endverb
+  endmethod
 
-  verb _revoke_capability_token (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _revoke_capability_token owner: ARCH_WIZARD
     "Record a capability token id as revoked so copied bearer tokens fail challenge.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {cap, ?key = 0} = args;
@@ -598,9 +598,9 @@ object ROOT
     revoked[jti] = time();
     this.revoked_capability_jtis = revoked;
     return true;
-  endverb
+  endmethod
 
-  verb _capability_is_revoked (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _capability_is_revoked owner: ARCH_WIZARD
     "Return true if decoded capability claims identify a revoked token.";
     {claims} = args;
     if (typeof(claims) != TYPE_MAP)
@@ -615,28 +615,28 @@ object ROOT
       return false;
     endif
     return maphaskey(revoked, jti);
-  endverb
+  endmethod
 
-  verb is_actor (this none this) owner: HACKER flags: "rxd"
+  method is_actor owner: HACKER
     "Return whether this object is an actor (player or NPC). Override in descendants.";
     return false;
-  endverb
+  endmethod
 
-  verb display_name (this none this) owner: HACKER flags: "rxd"
+  method display_name owner: HACKER
     "Return the display name for this object. Defaults to :name() but can be overridden for richer descriptions.";
     return this:name();
-  endverb
+  endmethod
 
-  verb check_property_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method check_property_exists owner: ARCH_WIZARD
     "Check if a property exists on this object.";
     "Returns false if property doesn't exist or if the user does not have permissions to view it. Otherwise returns true.";
     "Usage: $root:check_property_exists(target_obj, prop_name)";
     {prop_name} = args;
     set_task_perms(caller_perms());
     return `property_info(this, prop_name) ! ANY => false' ? true | false;
-  endverb
+  endmethod
 
-  verb usable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method usable_verbs owner: ARCH_WIZARD
     "Get verbs that can use this object as a target (dobj or iobj).";
     "Returns list of {verb_name, definer_object, dobj, prep, iobj} for verbs that accept 'any' or 'this'.";
     "Useful for determine what commands a player can perform on/with an object.";
@@ -673,9 +673,9 @@ object ROOT
       endfor
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb examination (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method examination owner: ARCH_WIZARD
     "Return structured examination data about this object as a flyweight.";
     "Contains slots: object_ref, name, aliases, owner, parent, description, verbs (usable ones), location, contents.";
     "Subclasses should override this to customize or extend the examination data.";
@@ -694,9 +694,9 @@ object ROOT
     "Get contents";
     obj_contents = this:contents();
     return <$examination, .object_ref = this, .name = obj_name, .aliases = obj_aliases, .description = obj_description, .owner = obj_owner, .parent = obj_parent, .location = obj_location, .verbs = usable, .contents = obj_contents>;
-  endverb
+  endmethod
 
-  verb object_help (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method object_help owner: ARCH_WIZARD
     "Return formatted help for this object. Returns a $format flyweight or 0 if no help available.";
     "Checks for .object_help property and formats it if found.";
     set_task_perms(caller_perms());
@@ -710,39 +710,39 @@ object ROOT
     else
       return $format.block:mk(this:display_name(), {help_text});
     endif
-  endverb
+  endmethod
 
-  verb fact_owner_is (this none this) owner: HACKER flags: "rxd"
+  method fact_owner_is owner: HACKER
     "Rule predicate: Does player_obj own this object?";
     {thing, player_obj} = args;
     return thing.owner == player_obj;
-  endverb
+  endmethod
 
-  verb fact_location_is (this none this) owner: HACKER flags: "rxd"
+  method fact_location_is owner: HACKER
     "Rule predicate: Is this object at location loc?";
     {thing, loc} = args;
     return thing.location == loc;
-  endverb
+  endmethod
 
-  verb fact_contains (this none this) owner: HACKER flags: "rxd"
+  method fact_contains owner: HACKER
     "Rule predicate: Does this object contain thing?";
     {container, thing} = args;
     return thing.location == container;
-  endverb
+  endmethod
 
-  verb fact_is (this none this) owner: HACKER flags: "rxd"
+  method fact_is owner: HACKER
     "Rule predicate: Is obj1 the same object as obj2?";
     {obj1, obj2} = args;
     return obj1 == obj2;
-  endverb
+  endmethod
 
-  verb fact_isa (this none this) owner: HACKER flags: "rxd"
+  method fact_isa owner: HACKER
     "Rule predicate: Is target a descendant of proto?";
     {target, proto} = args;
     return typeof(target) == TYPE_OBJ && valid(target) && isa(target, proto);
-  endverb
+  endmethod
 
-  verb get_reactions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_reactions owner: ARCH_WIZARD
     "Gather all reactions from this object (properties ending with _reaction).";
     set_task_perms(caller_perms());
     result = {};
@@ -761,9 +761,9 @@ object ROOT
       endtry
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb fire_trigger (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fire_trigger owner: ARCH_WIZARD
     "Fire a trigger on this object, executing all matching reactions.";
     "Context is a map with bindings like ['Actor -> player, 'Key -> key_obj]";
     {trigger_name, ?context = []} = args;
@@ -776,9 +776,9 @@ object ROOT
         reaction:execute(context);
       endif
     endfor
-  endverb
+  endmethod
 
-  verb _check_thresholds (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _check_thresholds owner: ARCH_WIZARD
     "Check if any threshold reactions should fire after a property change.";
     "Called by $reaction:execute_effect after set/increment/decrement effects.";
     {prop, old_value, new_value, context} = args;
@@ -804,34 +804,34 @@ object ROOT
         reaction:execute(context);
       endif
     endfor
-  endverb
+  endmethod
 
-  verb enterfunc (this none this) owner: HACKER flags: "rxd"
+  method enterfunc owner: HACKER
     "Called when something enters this object. Fire 'on_enter trigger.";
     {who} = args;
     this:fire_trigger('on_enter, ['Who -> who]);
-  endverb
+  endmethod
 
-  verb exitfunc (this none this) owner: HACKER flags: "rxd"
+  method exitfunc owner: HACKER
     "Called when something exits this object. Fire 'on_exit trigger.";
     {who} = args;
     this:fire_trigger('on_exit, ['Who -> who]);
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method initialize owner: ARCH_WIZARD
     "Called after object creation. Clears inherited export properties.";
     "Subclasses should call pass() to ensure this runs.";
     this.import_export_id = 0;
     this.import_export_hierarchy = 0;
-  endverb
+  endmethod
 
-  verb test_all_verbs (this none this) owner: HACKER flags: "rxd"
+  method test_all_verbs owner: HACKER
     all_verbs = this:all_verbs();
     !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
     return true;
-  endverb
+  endmethod
 
-  verb test_can_create_unrooted_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_can_create_unrooted_object owner: ARCH_WIZARD
     "Creating with no parent and no owner should make the object own itself.";
     scratch = create($nothing, $nothing);
     try
@@ -840,9 +840,9 @@ object ROOT
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_programmer_can_create_child_of_root (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_programmer_can_create_child_of_root owner: ARCH_WIZARD
     "Creating a direct child of $root should make the current task perms its owner.";
     scratch = create($root);
     try
@@ -851,9 +851,9 @@ object ROOT
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_capabilities (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_capabilities owner: ARCH_WIZARD
     "Test capability issuance and challenge with custom test key";
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Test 1: Issue capability with custom key";
@@ -895,9 +895,9 @@ object ROOT
     target2 == this || raise(E_ASSERT, "run_as cap target should be this");
     run_as_obj == $arch_wizard || raise(E_ASSERT, "run_as_obj should be $arch_wizard");
     return true;
-  endverb
+  endmethod
 
-  verb test_merge_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_merge_capability owner: ARCH_WIZARD
     "Test merging two capabilities for the same target";
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Test 1: Merge two capabilities with different permissions";
@@ -913,14 +913,14 @@ object ROOT
     cap3 = this:issue_capability(this, {'read, 'write}, 0, 0, test_key);
     cap4 = this:issue_capability(this, {'write, 'execute}, 0, 0, test_key);
     merged2 = $root:merge_capability(cap3, cap4, test_key);
-    {target2, perms2} = (merged2):challenge_for_with_key({'read, 'write, 'execute}, test_key);
+    {target2, perms2} = merged2:challenge_for_with_key({'read, 'write, 'execute}, test_key);
     target2 == this || raise(E_ASSERT("Merged overlapping should contain all unique permissions"));
     "Test 4: Merge with expiration - should take later expiration";
     future = time() + 3600;
     cap5 = this:issue_capability(this, {'read}, 0, 0, test_key);
     cap6 = this:issue_capability(this, {'write}, future, 0, test_key);
     merged3 = $root:merge_capability(cap5, cap6, test_key);
-    claims = paseto_verify_local((merged3).token, test_key);
+    claims = paseto_verify_local(merged3.token, test_key);
     maphaskey(claims, "exp") || raise(E_ASSERT("Merged should have expiration from cap6"));
     claims["exp"] == future || raise(E_ASSERT("Merged expiration should be later time"));
     "Test 5: Cannot merge capabilities for different targets";
@@ -935,9 +935,9 @@ object ROOT
     endtry
     !merge_failed || raise(E_ASSERT("Should not be able to merge caps for different targets"));
     return true;
-  endverb
+  endmethod
 
-  verb test_grant_capability (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_grant_capability owner: ARCH_WIZARD
     "Test granting capabilities to players with auto-merge";
     test_key = "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
     "Create test objects";
@@ -950,7 +950,7 @@ object ROOT
       "Test 1: Grant initial capability";
       cap1 = $root:grant_capability(test_area, {'add_room}, test_player, 'area, test_key);
       typeof(cap1) == TYPE_FLYWEIGHT || raise(E_ASSERT("Should return capability flyweight"));
-      (cap1).delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
+      cap1.delegate == test_area || raise(E_ASSERT("Capability should be for test_area"));
       "Test 2: Verify capability was stored in grants_area";
       typeof(test_player.grants_area) == TYPE_MAP || raise(E_ASSERT("grants_area should be a map"));
       maphaskey(test_player.grants_area, test_area) || raise(E_ASSERT("Should have grant for test_area"));
@@ -979,9 +979,9 @@ object ROOT
       valid(test_area) && test_area:destroy();
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_presentation_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_presentation_defaults owner: ARCH_WIZARD
     "Test default root presentation and grammar helpers on a scratch child.";
     scratch = create($root);
     try
@@ -998,9 +998,9 @@ object ROOT
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_mutators_and_help_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_mutators_and_help_defaults owner: ARCH_WIZARD
     "Test root metadata mutators and default help behavior.";
     scratch = create($root);
     new_owner = #-1;
@@ -1037,9 +1037,9 @@ object ROOT
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_introspection_helpers (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_introspection_helpers owner: ARCH_WIZARD
     "Test root inheritance, property, verb, and branch introspection helpers.";
     scratch = create($root);
     child = create(scratch);
@@ -1063,9 +1063,9 @@ object ROOT
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_examination_defaults (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_examination_defaults owner: ARCH_WIZARD
     "Test default examination flyweight shape for root descendants.";
     scratch = create($root);
     try
@@ -1087,5 +1087,5 @@ object ROOT
       valid(scratch) && recycle(scratch);
     endtry
     return true;
-  endverb
+  endmethod
 endobject

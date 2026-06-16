@@ -11,29 +11,29 @@ object AGENTIC_EVENT_QUEUE
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_event_queue";
 
-  verb push (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method push owner: ARCH_WIZARD
     "Append an item to queue.";
     {item} = args;
     this.queue = {@this.queue, item};
     return length(this.queue);
-  endverb
+  endmethod
 
-  verb pop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method pop owner: ARCH_WIZARD
     "Pop first item from queue. Returns false when empty.";
     length(this.queue) == 0 && return 0;
     item = this.queue[1];
-    this.queue = length(this.queue) > 1 ? (this.queue)[2..$] | {};
+    this.queue = length(this.queue) > 1 ? this.queue[2..$] | {};
     return item;
-  endverb
+  endmethod
 
-  verb size (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method size owner: ARCH_WIZARD
     "Return queue length.";
     return length(this.queue);
-  endverb
+  endmethod
 
-  verb clear (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method clear owner: ARCH_WIZARD
     "Clear queue.";
     this.queue = {};
     return 1;
-  endverb
+  endmethod
 endobject

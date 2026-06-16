@@ -91,7 +91,7 @@ object LOGIN
     notify(player, message, false, false, this.welcome_message_content_type);
   endverb
 
-  verb _apply_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _apply_template owner: ARCH_WIZARD
     "Apply template substitutions (TITLE, VERSION, CORE_VERSION) to a message.";
     "Accepts string or list of strings.";
     set_task_perms(caller_perms());
@@ -108,7 +108,7 @@ object LOGIN
     message = message:replace_all("{VERSION}", server_version());
     message = message:replace_all("{CORE_VERSION}", $sysobj.core_version);
     return message;
-  endverb
+  endmethod
 
   verb "co*nnect @co*nnect" (any none any) owner: ARCH_WIZARD flags: "rxd"
     "$login:connect(player-name [, password])";
@@ -125,7 +125,7 @@ object LOGIN
     endtry
     try
       "Is our candidate name invalid?";
-      if (!valid(candidate = orig_candidate = this:_match_player(name)))
+      if (!valid(candidate = (orig_candidate = this:_match_player(name))))
         raise(E_INVARG, tostr("`", name, "' matches no player name."));
       endif
       "We have a valid candidate, so we can now attempt to challenge it.";
@@ -322,7 +322,7 @@ object LOGIN
     return this:_create_player(name, password, "", {});
   endverb
 
-  verb _match_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _match_player owner: ARCH_WIZARD
     ":_match_player(name)";
     "This is the matching routine used by @connect.";
     "returns either a valid player corresponding to name or $failed_match.";
@@ -345,9 +345,9 @@ object LOGIN
       endif
     endfor
     return $failed_match;
-  endverb
+  endmethod
 
-  verb parse_command (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method parse_command owner: ARCH_WIZARD
     ":parse_command(@args) => {verb, args}";
     "Given the args from #0:do_login_command,";
     "  returns the actual $login verb to call and the args to use.";
@@ -370,9 +370,9 @@ object LOGIN
       endfor
     endif
     return {this.bogus_command, @args};
-  endverb
+  endmethod
 
-  verb find_by_oauth2 (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_by_oauth2 owner: ARCH_WIZARD
     ":find_by_oauth2(provider, external_id)";
     "Search all players for matching oauth2_identities entry";
     caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
@@ -392,9 +392,9 @@ object LOGIN
       endif
     endfor
     return $failed_match;
-  endverb
+  endmethod
 
-  verb _create_player (this none this) owner: LOGIN flags: "rxd"
+  method _create_player owner: LOGIN
     ":_create_player(name, password, email, oauth2_identities)";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {player_name, password_value, email, oauth_entries} = args;
@@ -449,16 +449,16 @@ object LOGIN
     "Now hand ownership to the player (self-owned)";
     setup_cap:set_owner(new_player);
     return new_player;
-  endverb
+  endmethod
 
-  verb _server_log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _server_log owner: ARCH_WIZARD
     "Write an internal login service message to the server log.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {message} = args;
     server_log(message);
-  endverb
+  endmethod
 
-  verb _password_state (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _password_state owner: ARCH_WIZARD
     ":_password_state(candidate, attempt) => {status, stored_password}";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {candidate, attempt} = args;
@@ -472,9 +472,9 @@ object LOGIN
     attempt || return {'missing, stored};
     stored:challenge(attempt) || return {'mismatch, stored};
     return {'ok, stored};
-  endverb
+  endmethod
 
-  verb setup_new_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method setup_new_player owner: ARCH_WIZARD
     "Set up a new player's mailbox and welcome letter. Requires wizard perms.";
     "Args: {player_obj}";
     {new_player} = args;
@@ -507,9 +507,9 @@ object LOGIN
     else
       server_log("setup_new_player: letter_config not valid, skipping mailbox creation");
     endif
-  endverb
+  endmethod
 
-  verb greet_new_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method greet_new_player owner: ARCH_WIZARD
     "Display welcome message to a new player. Called after room confunc.";
     "Args: {player_obj}";
     {new_player} = args;
@@ -526,9 +526,9 @@ object LOGIN
       fields = this.post_creation_setup_fields;
       present(new_player, tostr("profile-setup-", new_player), "text/plain", "profile-setup", "", ["title" -> setup_title, "fields" -> fields]);
     endif
-  endverb
+  endmethod
 
-  verb add_interception (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_interception owner: ARCH_WIZARD
     "Add an interception for a player at login prompt.";
     "Args: {who, verbname, ...arguments}";
     "When the player types anything, parse_command routes to verbname instead.";
@@ -538,9 +538,9 @@ object LOGIN
     this.intercepted_players = {@this.intercepted_players, who};
     this.intercepted_actions = {@this.intercepted_actions, {verbname, @arguments}};
     return 1;
-  endverb
+  endmethod
 
-  verb delete_interception (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method delete_interception owner: ARCH_WIZARD
     "Remove an interception for a player.";
     "Args: {who}";
     caller == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
@@ -552,18 +552,18 @@ object LOGIN
     else
       return 0;
     endif
-  endverb
+  endmethod
 
-  verb interception (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method interception owner: ARCH_WIZARD
     "Check if a player has an active interception.";
     "Args: {who}";
     "Returns the interception action list or 0.";
     caller == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
     {who} = args;
     return (loc = who in this.intercepted_players) ? this.intercepted_actions[loc] | 0;
-  endverb
+  endmethod
 
-  verb intercepted_password (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method intercepted_password owner: ARCH_WIZARD
     "Handle password input after prompting telnet user.";
     "Called via interception when user enters password.";
     caller == #0 || raise(E_PERM);
@@ -577,7 +577,7 @@ object LOGIN
     endtry
     "Re-attempt connection with the password";
     return this:connect(tostr(candidate), password);
-  endverb
+  endmethod
 
   verb "?" (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Handle unrecognized commands at login prompt.";

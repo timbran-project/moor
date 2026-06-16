@@ -9,7 +9,7 @@ object RELATION
   override import_export_hierarchy = {"relations"};
   override import_export_id = "relation";
 
-  verb assert (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method assert owner: ARCH_WIZARD
     "Add a tuple to the relation. Returns the UUID of the tuple.";
     set_task_perms(caller_perms());
     {tuple} = args;
@@ -34,9 +34,9 @@ object RELATION
       this.(index_prop) = index_map;
     endfor
     return tuple_id;
-  endverb
+  endmethod
 
-  verb retract (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method retract owner: ARCH_WIZARD
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
     set_task_perms(caller_perms());
     {tuple} = args;
@@ -71,47 +71,47 @@ object RELATION
     endfor
     delete_property(this, "tuple_" + tuple_id);
     return true;
-  endverb
+  endmethod
 
-  verb member (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method member owner: ARCH_WIZARD
     "Check if a tuple exists in the relation.";
     set_task_perms(caller_perms());
     {tuple} = args;
     typeof(tuple) != TYPE_LIST && raise(E_TYPE);
     return this:_find_tuple_id(tuple) ? true | false;
-  endverb
+  endmethod
 
-  verb select (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method select owner: ARCH_WIZARD
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
     {position, value} = args;
     typeof(position) != TYPE_INT && raise(E_TYPE);
     position < 1 && raise(E_INVARG);
-    index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
+    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
+      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       tuple != 0 && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb select_containing (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method select_containing owner: ARCH_WIZARD
     "Find all tuples containing value in any position.";
     {value} = args;
-    index_map = `this.(("index_" + value_hash(value))) ! E_PROPNF => 0';
+    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return {};
     uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
     result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
+      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       tuple != 0 && (result = {@result, tuple});
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb tuples (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method tuples owner: ARCH_WIZARD
     "Return all tuples in the relation.";
     result = {};
     for prop in (properties(this))
@@ -123,9 +123,9 @@ object RELATION
       tuple != 0 && (result = {@result, tuple});
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb clear (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method clear owner: ARCH_WIZARD
     "Remove all tuples from the relation.";
     set_task_perms(caller_perms());
     for prop in (properties(this))
@@ -133,9 +133,9 @@ object RELATION
       length(prop_str) >= 6 && prop_str[1..6] in {"tuple_", "index_"} && delete_property(this, prop);
     endfor
     return true;
-  endverb
+  endmethod
 
-  verb _find_tuple_id (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _find_tuple_id owner: ARCH_WIZARD
     "Internal: Find the UUID for a given tuple, or return 0 if not found.";
     set_task_perms(caller_perms());
     {tuple} = args;
@@ -161,17 +161,17 @@ object RELATION
       return 0;
     endif
     "Use index for efficient lookup";
-    index_map = `this.(("index_" + value_hash(scalar_element))) ! E_PROPNF => 0';
+    index_map = `this.("index_" + value_hash(scalar_element)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return 0;
     uuid_list = maphaskey(index_map, scalar_element) ? index_map[scalar_element] | {};
     for tuple_id in (uuid_list)
-      stored_tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
+      stored_tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       stored_tuple == tuple && return tuple_id;
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb test_assert_and_member (this none this) owner: HACKER flags: "rxd"
+  method test_assert_and_member owner: HACKER
     "Test basic assertion and membership checking";
     rel = $relation:create(true);
     "Test binary relation";
@@ -185,9 +185,9 @@ object RELATION
     "Test different arities in same relation";
     rel:assert({#5, #6, #7, #8});
     !rel:member({#5, #6, #7, #8}) && raise(E_ASSERT, "Quaternary tuple not found");
-  endverb
+  endmethod
 
-  verb test_retract (this none this) owner: HACKER flags: "rxd"
+  method test_retract owner: HACKER
     "Test tuple removal";
     rel = $relation:create(true);
     rel:assert({#1, #2, "edge1"});
@@ -203,9 +203,9 @@ object RELATION
     !rel:member({#2, #3, "edge3"}) && raise(E_ASSERT, "Other tuple incorrectly removed");
     "Retracting non-existent tuple should return false";
     rel:retract({#99, #100, "none"}) && raise(E_ASSERT, "Retract of missing tuple should be false");
-  endverb
+  endmethod
 
-  verb test_select (this none this) owner: HACKER flags: "rxd"
+  method test_select owner: HACKER
     "Test position-based selection";
     rel = $relation:create(true);
     "Setup passage-like data";
@@ -228,9 +228,9 @@ object RELATION
     "Select non-existent value";
     results = rel:select(1, #99);
     length(results) != 0 && raise(E_ASSERT, "Expected empty results for non-existent value");
-  endverb
+  endmethod
 
-  verb test_tuples (this none this) owner: HACKER flags: "rxd"
+  method test_tuples owner: HACKER
     "Test retrieving all tuples";
     rel = $relation:create(true);
     "Empty relation";
@@ -244,9 +244,9 @@ object RELATION
     {#1, #2} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#3, #4} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#5, #6, #7} in all_tuples || raise(E_ASSERT, "Missing tuple");
-  endverb
+  endmethod
 
-  verb test_clear (this none this) owner: HACKER flags: "rxd"
+  method test_clear owner: HACKER
     "Test clearing all tuples";
     rel = $relation:create(true);
     "Add several tuples";
@@ -259,9 +259,9 @@ object RELATION
     "Verify empty";
     length(rel:tuples()) != 0 && raise(E_ASSERT, "Relation should be empty after clear");
     rel:member({#1, #2, "a"}) && raise(E_ASSERT, "Tuple still present after clear");
-  endverb
+  endmethod
 
-  verb test_duplicate_assert (this none this) owner: HACKER flags: "rxd"
+  method test_duplicate_assert owner: HACKER
     "Test that asserting the same tuple twice preserves multiplicity.";
     rel = $relation:create(true);
     rel:assert({#1, #2, "edge"});
@@ -273,9 +273,9 @@ object RELATION
     "Query should preserve tuple multiplicity.";
     results = rel:query({#1, {'var, 'to}, {'var, 'label}});
     length(results) != 2 && raise(E_ASSERT, "Duplicate tuples should produce duplicate query bindings");
-  endverb
+  endmethod
 
-  verb test_bidirectional_indexing (this none this) owner: HACKER flags: "rxd"
+  method test_bidirectional_indexing owner: HACKER
     "Test that a single tuple is indexed under all its values.";
     rel = $relation:create(true);
     "Assert a passage-like tuple";
@@ -313,9 +313,9 @@ object RELATION
     length(from_39) != 2 && raise(E_ASSERT, "Room #39 should have 2 passages");
     {#12, #39, "north"} in from_39 || raise(E_ASSERT, "Missing north passage (pos 2)");
     {#39, #40, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
-  endverb
+  endmethod
 
-  verb query (this none this) owner: HACKER flags: "rxd"
+  method query owner: HACKER
     "Match pattern with variables against tuples, return bindings. Variables use {'var, 'name} terms.";
     length(args) < 1 && raise(E_ARGS);
     length(args) > 3 && raise(E_ARGS);
@@ -327,9 +327,9 @@ object RELATION
     typeof(options) != TYPE_MAP && raise(E_TYPE);
     !maphaskey(options, 'dedupe) && (options['dedupe] = false);
     return term_query(pattern, this:tuples(), {}, bindings, options);
-  endverb
+  endmethod
 
-  verb reachable_from (this none this) owner: HACKER flags: "rxd"
+  method reachable_from owner: HACKER
     "Find all values reachable via transitive closure from start value. Assumes binary relation.";
     {start} = args;
     visited = [start -> true];
@@ -345,9 +345,9 @@ object RELATION
       endfor
     endwhile
     return mapkeys(visited);
-  endverb
+  endmethod
 
-  verb test_query_basic (this none this) owner: HACKER flags: "rxd"
+  method test_query_basic owner: HACKER
     "Test basic pattern matching with variables";
     rel = $relation:create(true);
     rel:assert({#12, #39, "north"});
@@ -365,9 +365,9 @@ object RELATION
     "Query all tuples";
     results = rel:query({{'var, 'a}, {'var, 'b}, {'var, 'c}});
     length(results) != 3 && raise(E_ASSERT, "Expected 3 results for all tuples");
-  endverb
+  endmethod
 
-  verb test_reachable (this none this) owner: HACKER flags: "rxd"
+  method test_reachable owner: HACKER
     "Test transitive closure - note: relation is bidirectional";
     rel = $relation:create(true);
     "Build a chain: 1 <-> 2 <-> 3 <-> 4";
@@ -390,9 +390,9 @@ object RELATION
     #2 in reachable || raise(E_ASSERT, "Should reach #2");
     #4 in reachable || raise(E_ASSERT, "Should reach #4");
     #5 in reachable || raise(E_ASSERT, "Should reach #5 via #2");
-  endverb
+  endmethod
 
-  verb count (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method count owner: ARCH_WIZARD
     "Return the number of tuples in the relation.";
     count = 0;
     for prop in (properties(this))
@@ -400,5 +400,5 @@ object RELATION
       length(prop_str) >= 6 && prop_str[1..6] == "tuple_" && (count = count + 1);
     endfor
     return count;
-  endverb
+  endmethod
 endobject

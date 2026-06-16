@@ -11,7 +11,7 @@ object MSG_BAG
   override import_export_hierarchy = {"events"};
   override import_export_id = "msg_bag";
 
-  verb add (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add owner: ARCH_WIZARD
     "Add a message template. Returns new flyweight or entry count for objects.";
     set_task_perms(caller_perms());
     {text} = args;
@@ -20,9 +20,9 @@ object MSG_BAG
     endif
     this.entries = {@this.entries, text};
     return length(this.entries);
-  endverb
+  endmethod
 
-  verb remove (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove owner: ARCH_WIZARD
     "Remove a message by 1-based index. Returns new flyweight or entry count for objects.";
     set_task_perms(caller_perms());
     {idx} = args;
@@ -35,23 +35,23 @@ object MSG_BAG
     endif
     this.entries = new_entries;
     return length(this.entries);
-  endverb
+  endmethod
 
-  verb list (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method list owner: ARCH_WIZARD
     "Return the entries.";
     set_task_perms(caller_perms());
     return typeof(this) == TYPE_FLYWEIGHT ? flycontents(this) | this.entries;
-  endverb
+  endmethod
 
-  verb pick (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method pick owner: ARCH_WIZARD
     "Pick a random entry (or return E_RANGE if empty).";
     set_task_perms(caller_perms());
     entries = typeof(this) == TYPE_FLYWEIGHT ? flycontents(this) | this.entries;
     !length(entries) && return E_RANGE;
     return entries[random(length(entries))];
-  endverb
+  endmethod
 
-  verb set_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_entry owner: ARCH_WIZARD
     "Replace entry at index. Returns new flyweight or the text for objects.";
     set_task_perms(caller_perms());
     {idx, text} = args;
@@ -64,13 +64,13 @@ object MSG_BAG
     endif
     this.entries[idx] = text;
     return text;
-  endverb
+  endmethod
 
-  verb entries (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method entries owner: ARCH_WIZARD
     "Return the entries.";
     set_task_perms(caller_perms());
     return typeof(this) == TYPE_FLYWEIGHT ? flycontents(this) | this.entries;
-  endverb
+  endmethod
 
   verb mk (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Create a flyweight message bag from a list of compiled templates.";

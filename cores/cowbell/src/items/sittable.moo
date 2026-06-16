@@ -202,7 +202,7 @@ object SITTABLE
     this:fire_trigger('on_stand, ['Actor -> player]);
   endverb
 
-  verb add_sitter (this none this) owner: HACKER flags: "rxd"
+  method add_sitter owner: HACKER
     "Programmatically add an actor to sit. Returns true if successful.";
     {who, ?silent = false} = args;
     if (who in this.sitting)
@@ -230,9 +230,9 @@ object SITTABLE
       this:dump_sitter(victim);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb remove_sitter (this none this) owner: HACKER flags: "rxd"
+  method remove_sitter owner: HACKER
     "Programmatically remove an actor from sitting. Returns true if successful.";
     {who, ?silent = false} = args;
     pos = who in this.sitting;
@@ -250,35 +250,35 @@ object SITTABLE
       this.location:announce(event);
     endif
     return true;
-  endverb
+  endmethod
 
-  verb has_room (this none this) owner: HACKER flags: "rxd"
+  method has_room owner: HACKER
     "Check if furniture has room for another sitter.";
     if (this.squeeze < 0)
       return length(this.sitting) < this.seats;
     endif
     return true;
-  endverb
+  endmethod
 
-  verb is_sitting (this none this) owner: HACKER flags: "rxd"
+  method is_sitting owner: HACKER
     "Check if a specific actor is sitting on this furniture.";
     {who} = args;
     return who in this.sitting;
-  endverb
+  endmethod
 
-  verb action_sit (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_sit owner: ARCH_WIZARD
     "Action handler for reactions: make actor sit on this furniture.";
     set_task_perms(this.owner);
     {who, context} = args;
     return this:add_sitter(who);
-  endverb
+  endmethod
 
-  verb action_stand (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_stand owner: ARCH_WIZARD
     "Action handler for reactions: make actor stand from this furniture.";
     set_task_perms(this.owner);
     {who, context} = args;
     return this:remove_sitter(who);
-  endverb
+  endmethod
 
   verb dump_sitter (none none none) owner: HACKER flags: "rxd"
     "Remove a sitter and announce they were squeezed off.";
@@ -355,7 +355,7 @@ object SITTABLE
     return true;
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for sittable furniture.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("sit", "Sit down", "Use 'sit on <furniture>' to sit down.", {}, 'commands, {"stand"}), $help:mk("stand", "Stand up", "Use 'stand from <furniture>' to get up.", {"get up"}, 'commands, {"sit"})};
@@ -364,16 +364,16 @@ object SITTABLE
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb on_location_exit (this none this) owner: HACKER flags: "rxd"
+  method on_location_exit owner: HACKER
     "Stand up departing player when they leave the room.";
     {who} = args;
     who in this.sitting && this:remove_sitter(who);
-  endverb
+  endmethod
 
-  verb remove_occupant (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove_occupant owner: ARCH_WIZARD
     "Standard interface for removing an occupant. Delegates to remove_sitter.";
     return this:remove_sitter(@args);
-  endverb
+  endmethod
 endobject

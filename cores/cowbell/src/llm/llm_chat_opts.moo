@@ -9,80 +9,80 @@ object LLM_CHAT_OPTS
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_chat_opts";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create an empty chat options flyweight";
     return <this>;
-  endverb
+  endmethod
 
-  verb with_temperature (this none this) owner: HACKER flags: "rxd"
+  method with_temperature owner: HACKER
     "Set sampling temperature (0-2, lower = more deterministic)";
     {temp} = args;
     typeof(temp) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "temperature must be a number");
     slots = flyslots(this);
     slots['temperature] = temp;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_max_tokens (this none this) owner: HACKER flags: "rxd"
+  method with_max_tokens owner: HACKER
     "Set maximum output tokens";
     {max} = args;
     typeof(max) == TYPE_INT || raise(E_TYPE, "max_tokens must be an integer");
     slots = flyslots(this);
     slots['max_tokens] = max;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_tool_choice (this none this) owner: HACKER flags: "rxd"
+  method with_tool_choice owner: HACKER
     "Set tool choice: 'auto, 'none, 'required, or ['type -> 'function, 'function -> ['name -> \"fn\"]]";
     {choice} = args;
     slots = flyslots(this);
     slots['tool_choice] = choice;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_top_p (this none this) owner: HACKER flags: "rxd"
+  method with_top_p owner: HACKER
     "Set nucleus sampling threshold (0-1)";
     {p} = args;
     typeof(p) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "top_p must be a number");
     slots = flyslots(this);
     slots['top_p] = p;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_frequency_penalty (this none this) owner: HACKER flags: "rxd"
+  method with_frequency_penalty owner: HACKER
     "Set frequency penalty (-2 to 2, penalizes repeated tokens)";
     {penalty} = args;
     typeof(penalty) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "frequency_penalty must be a number");
     slots = flyslots(this);
     slots['frequency_penalty] = penalty;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_presence_penalty (this none this) owner: HACKER flags: "rxd"
+  method with_presence_penalty owner: HACKER
     "Set presence penalty (-2 to 2, encourages new topics)";
     {penalty} = args;
     typeof(penalty) in {TYPE_INT, TYPE_FLOAT} || raise(E_TYPE, "presence_penalty must be a number");
     slots = flyslots(this);
     slots['presence_penalty] = penalty;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_stop (this none this) owner: HACKER flags: "rxd"
+  method with_stop owner: HACKER
     "Set stop sequences (string or list of strings)";
     {stop} = args;
     slots = flyslots(this);
     slots['stop] = stop;
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb with_json_mode (this none this) owner: HACKER flags: "rxd"
+  method with_json_mode owner: HACKER
     "Enable JSON output mode";
     slots = flyslots(this);
     slots['response_format] = ["type" -> "json_object"];
     return toflyweight(this.delegate, slots);
-  endverb
+  endmethod
 
-  verb to_body_params (this none this) owner: HACKER flags: "rxd"
+  method to_body_params owner: HACKER
     "Extract API parameters from flyweight slots, converting symbols to strings for JSON";
     result = [];
     slots = flyslots(this);
@@ -96,5 +96,5 @@ object LLM_CHAT_OPTS
       result[tostr(key)] = val;
     endfor
     return result;
-  endverb
+  endmethod
 endobject

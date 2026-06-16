@@ -9,7 +9,7 @@ object AGENTIC_TOOL
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_tool";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create an agentic tool definition flyweight.";
     {name, description, parameters, target_obj, target_verb} = args;
     typeof(name) == TYPE_STR || raise(E_TYPE, "name must be string");
@@ -18,19 +18,19 @@ object AGENTIC_TOOL
     typeof(target_obj) == TYPE_OBJ || raise(E_TYPE, "target_obj must be object");
     typeof(target_verb) == TYPE_STR || raise(E_TYPE, "target_verb must be string");
     return <this, .name = name, .description = description, .parameters = parameters, .target_obj = target_obj, .target_verb = target_verb>;
-  endverb
+  endmethod
 
-  verb to_schema (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method to_schema owner: ARCH_WIZARD
     "Convert tool definition to OpenAI function tool schema.";
     return ["type" -> "function", "function" -> ["name" -> this.name, "description" -> this.description, "parameters" -> this.parameters]];
-  endverb
+  endmethod
 
-  verb to_mcp_schema (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method to_mcp_schema owner: ARCH_WIZARD
     "Convert tool definition to MCP-style schema.";
     return ["name" -> this.name, "description" -> this.description, "input_schema" -> this.parameters, "target_obj" -> this.target_obj, "target_verb" -> this.target_verb];
-  endverb
+  endmethod
 
-  verb execute (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method execute owner: ARCH_WIZARD
     "Execute tool with args map (or JSON string) and optional actor.";
     {args_json, ?actor = #-1} = args;
     if (typeof(args_json) == TYPE_STR)
@@ -45,5 +45,5 @@ object AGENTIC_TOOL
       return this.target_obj:(this.target_verb)(tool_args, actor);
     endif
     raise(E_VERBNF, "Tool handler not found: " + prefixed_verb + " or " + this.target_verb);
-  endverb
+  endmethod
 endobject

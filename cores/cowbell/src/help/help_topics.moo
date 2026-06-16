@@ -299,7 +299,7 @@ object HELP_TOPICS
   override import_export_hierarchy = {"help"};
   override import_export_id = "help_topics";
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return global help topics for players.";
     "Topics are stored as topic_* properties: {name, summary, content, aliases, category, see_also}";
     {for_player, ?topic = ""} = args;
@@ -353,5 +353,5 @@ object HELP_TOPICS
       endif
     endfor
     return topic == "" ? my_topics | 0;
-  endverb
+  endmethod
 endobject

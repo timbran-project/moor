@@ -103,7 +103,7 @@ object MAIL_FEATURES
     endif
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for mail commands.";
     {for_player, ?topic = ""} = args;
     "Main overview topic";
@@ -116,5 +116,5 @@ object MAIL_FEATURES
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'mail) ! ANY => 0';
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
-  endverb
+  endmethod
 endobject

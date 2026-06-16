@@ -8,71 +8,71 @@ object VERB
   override import_export_hierarchy = {"types"};
   override import_export_id = "verb";
 
-  verb owner (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method owner owner: ARCH_WIZARD
     "Return the owner of the verb";
     return this.owner_obj;
-  endverb
+  endmethod
 
-  verb location (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method location owner: ARCH_WIZARD
     "Return the object where verb is defined";
     return this.location;
-  endverb
+  endmethod
 
-  verb name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method name owner: ARCH_WIZARD
     "Return the verb name";
     return this.name;
-  endverb
+  endmethod
 
-  verb verb_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method verb_owner owner: ARCH_WIZARD
     "Return the owner of the verb (the user/wizard who created it)";
     return this.verb_owner;
-  endverb
+  endmethod
 
-  verb flags (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method flags owner: ARCH_WIZARD
     "Return the verb flags (rwxd)";
     return this.flags;
-  endverb
+  endmethod
 
-  verb dobj (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method dobj owner: ARCH_WIZARD
     "Return the direct object specification";
     return this.dobj;
-  endverb
+  endmethod
 
-  verb prep (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method prep owner: ARCH_WIZARD
     "Return the preposition specification";
     return this.prep;
-  endverb
+  endmethod
 
-  verb iobj (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method iobj owner: ARCH_WIZARD
     "Return the indirect object specification";
     return this.iobj;
-  endverb
+  endmethod
 
-  verb index (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method index owner: ARCH_WIZARD
     "Return the verb's index position in the object's verb list";
     return this.index;
-  endverb
+  endmethod
 
-  verb args_spec (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method args_spec owner: ARCH_WIZARD
     "Return formatted args specification (dobj prep iobj)";
     return this:dobj() + " " + this:prep() + " " + this:iobj();
-  endverb
+  endmethod
 
-  verb code (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method code owner: ARCH_WIZARD
     "Get the verb's code as a list of lines";
     set_task_perms(caller_perms());
     return verb_code(this:location(), this:index(), false, true);
-  endverb
+  endmethod
 
-  verb set_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_perms owner: ARCH_WIZARD
     "Set verb permissions. Args: {new_owner, perms_string}";
     "Sets owner and permission flags (r, w, x, d)";
     set_task_perms(caller_perms());
     {new_owner, perms_string} = args;
     set_verb_info(this:location(), this:index(), {new_owner, perms_string, this:name()});
-  endverb
+  endmethod
 
-  verb test_verb_metadata (this none this) owner: HACKER flags: "rxd"
+  method test_verb_metadata owner: HACKER
     "Test that verb metadata flyweight returns expected values";
     "Get metadata for a known verb";
     metadata = $prog_utils:get_verb_metadata($root, 'description);
@@ -85,5 +85,5 @@ object VERB
     args_spec = metadata:args_spec();
     typeof(args_spec) == TYPE_STR || raise(E_ASSERT("args_spec is not a string"));
     return true;
-  endverb
+  endmethod
 endobject

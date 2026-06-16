@@ -20,7 +20,7 @@ object AGENTIC_CODING_ROOM
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_coding_room";
 
-  verb _tool_dump_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Dump object summary with properties and verbs.";
     {args_map, actor} = args;
     obj_ref = `args_map["object"] ! ANY => ""';
@@ -33,9 +33,9 @@ object AGENTIC_CODING_ROOM
     verbs_list = verbs(obj);
     lines = {"Object: " + tostr(obj) + " (" + name + ")", "Parent: " + tostr(parent_obj), "Properties (" + tostr(length(props)) + "): " + (length(props) > 0 ? props:join(", ") | "(none)"), "Verbs (" + tostr(length(verbs_list)) + "): " + (length(verbs_list) > 0 ? verbs_list:join(", ") | "(none)")};
     return lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_list_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
     {args_map, actor} = args;
     obj_ref = `args_map["object"] ! ANY => ""';
@@ -45,9 +45,9 @@ object AGENTIC_CODING_ROOM
     verbs_list = verbs(obj);
     !verbs_list && return "No verbs on " + tostr(obj) + ".";
     return "Verbs on " + tostr(obj) + ":\n- " + verbs_list:join("\n- ");
-  endverb
+  endmethod
 
-  verb _tool_get_verb_code (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Return full code for a verb.";
     {args_map, actor} = args;
     obj_ref = `args_map["object"] ! ANY => ""';
@@ -59,9 +59,9 @@ object AGENTIC_CODING_ROOM
     code_lines = `verb_code(obj, verb_name) ! E_VERBNF => 0';
     code_lines == 0 && raise(E_VERBNF, "Verb not found: " + verb_name);
     return code_lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_read_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object.";
     {args_map, actor} = args;
     obj_ref = `args_map["object"] ! ANY => ""';
@@ -73,9 +73,9 @@ object AGENTIC_CODING_ROOM
     value = `obj.(prop_name) ! E_PROPNF => E_PROPNF';
     value == E_PROPNF && raise(E_PROPNF, "Property not found: " + prop_name);
     return toliteral(value);
-  endverb
+  endmethod
 
-  verb test_agentic_inspection_tools (this none this) owner: HACKER flags: "rxd"
+  method test_agentic_inspection_tools owner: HACKER
     "Agentic inspection tools should return real metadata and surface missing properties.";
     verbs_out = this:_tool_list_verbs(["object" -> "$agentic.agent"], player);
     $test_utils:assert_type(verbs_out, TYPE_STR, "list_verbs should return formatted output");
@@ -87,9 +87,9 @@ object AGENTIC_CODING_ROOM
     $test_utils:assert_true(index(dump_out, "Verbs (") > 0, "dump_object should include verb count");
     $test_utils:assert_raises(E_PROPNF, this, "_tool_read_property", {["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player}, "read_property should surface missing property");
     return true;
-  endverb
+  endmethod
 
-  verb _get_agentic_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _get_agentic_tools owner: ARCH_WIZARD
     "Return tool definitions for agentic coding room.";
     base = this:_get_room_tools();
     extra = {["name" -> "dump_object", "description" -> "Get object summary including parent, properties, and verbs.", "target_obj" -> this, "target_verb" -> "_tool_dump_object", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room' or '#123'"]], "required" -> {"object"}]], ["name" -> "list_verbs", "description" -> "List verb names on an object.", "target_obj" -> this, "target_verb" -> "_tool_list_verbs", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room' or '#123'"]], "required" -> {"object"}]], ["name" -> "get_verb_code", "description" -> "Get full source code for a verb.", "target_obj" -> this, "target_verb" -> "_tool_get_verb_code", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "verb" -> ["type" -> "string"]], "required" -> {"object", "verb"}]], ["name" -> "read_property", "description" -> "Read a property value from an object.", "target_obj" -> this, "target_verb" -> "_tool_read_property", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "property" -> ["type" -> "string"]], "required" -> {"object", "property"}]]};
@@ -100,9 +100,9 @@ object AGENTIC_CODING_ROOM
       building = {};
     endtry
     return {@base, @extra, @building};
-  endverb
+  endmethod
 
-  verb _execute_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _execute_task owner: ARCH_WIZARD
     "Internal: execute one queued task using $agentic.agent backend.";
     caller == this || raise(E_PERM);
     {task} = args;
@@ -224,7 +224,7 @@ object AGENTIC_CODING_ROOM
       content = typeof(result) == TYPE_STR ? result | toliteral(result);
       this:_announce("### Task Completed for " + task_player.name + "\n\n" + content);
     else
-      brief = failure_reason ? failure_reason | (typeof(result) == TYPE_STR ? result | toliteral(result));
+      brief = failure_reason ? failure_reason | typeof(result) == TYPE_STR ? result | toliteral(result);
       if (length(brief) > 220)
         brief = brief[1..220] + "...";
       endif
@@ -242,7 +242,7 @@ object AGENTIC_CODING_ROOM
       agent:destroy();
     except (ANY)
     endtry
-  endverb
+  endmethod
 
   verb status (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show current agent status (agentic-safe).";
@@ -417,7 +417,7 @@ object AGENTIC_CODING_ROOM
     return ["passed" -> passed, "failed" -> failed, "lines" -> lines];
   endverb
 
-  verb _ensure_room_client (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _ensure_room_client owner: ARCH_WIZARD
     "Ensure this room has a dedicated client object (not global $llm_client).";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     if (valid(this.llm_client) && this.llm_client != $llm_client)
@@ -427,9 +427,9 @@ object AGENTIC_CODING_ROOM
     c.name = "LLM client for " + this:name();
     this.llm_client = c;
     return c;
-  endverb
+  endmethod
 
-  verb client_config_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method client_config_status owner: ARCH_WIZARD
     "Return a map describing the room's effective client config.";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     client = valid(this.llm_client) ? this.llm_client | $llm_client;
@@ -446,7 +446,7 @@ object AGENTIC_CODING_ROOM
       endif
     endif
     return ["client" -> client, "room_client" -> valid(this.llm_client) ? this.llm_client | #-1, "using_global_default" -> !(valid(this.llm_client) && this.llm_client != $llm_client), "endpoint" -> endpoint, "model" -> model, "api_key_set" -> key_set, "api_key_preview" -> key_preview];
-  endverb
+  endmethod
 
   verb "@model model" (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Model and provider config for this room.";
@@ -656,7 +656,7 @@ object AGENTIC_CODING_ROOM
     player:inform_current($event:mk_info(player, "Room model set to " + raw + "."));
   endverb
 
-  verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_tool_call owner: ARCH_WIZARD
     "Callback from $agentic.agent: tool execution started.";
     valid(this.agent) && caller == this.agent || return;
     {tool_name, ?tool_args = ""} = args;
@@ -677,9 +677,9 @@ object AGENTIC_CODING_ROOM
       msg = msg + " " + $ansi:wrap("(" + summary + ")", 'dim);
     endif
     this:_tell_requester(msg);
-  endverb
+  endmethod
 
-  verb on_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_tool_error owner: ARCH_WIZARD
     "Callback from $agentic.agent: tool execution failed.";
     valid(this.agent) && caller == this.agent || return;
     {tool_name, ?tool_args = "", ?error_msg = "ERROR"} = args;
@@ -701,9 +701,9 @@ object AGENTIC_CODING_ROOM
     endif
     msg = msg + " - " + $ansi:wrap(preview, 'red);
     this:_tell_requester(msg);
-  endverb
+  endmethod
 
-  verb on_tool_complete (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_tool_complete owner: ARCH_WIZARD
     "Callback from $agentic.agent: tool execution completed.";
     valid(this.agent) && caller == this.agent || return;
     {tool_name, ?tool_args = "", ?content_out = ""} = args;
@@ -727,9 +727,9 @@ object AGENTIC_CODING_ROOM
       msg = msg + " " + $ansi:wrap("(" + summary + ")", 'dim);
     endif
     this:_tell_requester(msg);
-  endverb
+  endmethod
 
-  verb on_compaction_start (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_compaction_start owner: ARCH_WIZARD
     "Callback from $agentic.agent when context compaction starts.";
     valid(this.agent) && caller == this.agent || return;
     mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
@@ -737,9 +737,9 @@ object AGENTIC_CODING_ROOM
       return;
     endif
     this:_tell_requester("compacting context...");
-  endverb
+  endmethod
 
-  verb on_compaction_end (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_compaction_end owner: ARCH_WIZARD
     "Callback from $agentic.agent when context compaction ends.";
     valid(this.agent) && caller == this.agent || return;
     mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
@@ -747,7 +747,7 @@ object AGENTIC_CODING_ROOM
       return;
     endif
     this:_tell_requester("context compaction complete.");
-  endverb
+  endmethod
 
   verb history (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show completed task history with failure reason previews.";
@@ -975,7 +975,7 @@ object AGENTIC_CODING_ROOM
     player:inform_current($event:mk_info(player, "Progress mode set to " + arg + "."));
   endverb
 
-  verb _tool_call_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_call_summary owner: ARCH_WIZARD
     "Build concise target summary for tool-call args.";
     {tool_args} = args;
     args_map = [];
@@ -1011,9 +1011,9 @@ object AGENTIC_CODING_ROOM
       fallback = fallback[1..96] + "...";
     endif
     return fallback;
-  endverb
+  endmethod
 
-  verb _tell_requester (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tell_requester owner: ARCH_WIZARD
     "Send an inset utility message to the active requester.";
     {message} = args;
     requester = this.task_requester;
@@ -1021,7 +1021,7 @@ object AGENTIC_CODING_ROOM
     content = typeof(message) == TYPE_STR ? message | toliteral(message);
     evt = $event:mk_info(requester, content):with_audience('utility):with_presentation_hint('inset):with_group('llm, this);
     requester:inform_current(evt);
-  endverb
+  endmethod
 
   verb "tools tool @tools agenttools listtools" (none none none) owner: ARCH_WIZARD flags: "xd"
     "List currently available agent tools for this room.";

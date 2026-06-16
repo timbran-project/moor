@@ -8,228 +8,228 @@ object ANSI
   override import_export_hierarchy = {"format"};
   override import_export_id = "ansi";
 
-  verb reset (this none this) owner: HACKER flags: "rxd"
+  method reset owner: HACKER
     "Reset all formatting and colors";
     return "\x1B[0m";
-  endverb
+  endmethod
 
-  verb bold (this none this) owner: HACKER flags: "rxd"
+  method bold owner: HACKER
     "Enable bold text";
     return "\x1B[1m";
-  endverb
+  endmethod
 
-  verb dim (this none this) owner: HACKER flags: "rxd"
+  method dim owner: HACKER
     "Enable dim/faint text";
     return "\x1B[2m";
-  endverb
+  endmethod
 
-  verb italic (this none this) owner: HACKER flags: "rxd"
+  method italic owner: HACKER
     "Enable italic text";
     return "\x1B[3m";
-  endverb
+  endmethod
 
-  verb underline (this none this) owner: HACKER flags: "rxd"
+  method underline owner: HACKER
     "Enable underline";
     return "\x1B[4m";
-  endverb
+  endmethod
 
-  verb blink (this none this) owner: HACKER flags: "rxd"
+  method blink owner: HACKER
     "Enable blinking text (slow)";
     return "\x1B[5m";
-  endverb
+  endmethod
 
-  verb reverse (this none this) owner: HACKER flags: "rxd"
+  method reverse owner: HACKER
     "Reverse video (swap foreground/background)";
     return "\x1B[7m";
-  endverb
+  endmethod
 
-  verb hidden (this none this) owner: HACKER flags: "rxd"
+  method hidden owner: HACKER
     "Hide text (concealed)";
     return "\x1B[8m";
-  endverb
+  endmethod
 
-  verb strikethrough (this none this) owner: HACKER flags: "rxd"
+  method strikethrough owner: HACKER
     "Enable strikethrough";
     return "\x1B[9m";
-  endverb
+  endmethod
 
-  verb black (this none this) owner: HACKER flags: "rxd"
+  method black owner: HACKER
     "Black foreground color";
     return "\x1B[30m";
-  endverb
+  endmethod
 
-  verb red (this none this) owner: HACKER flags: "rxd"
+  method red owner: HACKER
     "Red foreground color";
     return "\x1B[31m";
-  endverb
+  endmethod
 
-  verb green (this none this) owner: HACKER flags: "rxd"
+  method green owner: HACKER
     "Green foreground color";
     return "\x1B[32m";
-  endverb
+  endmethod
 
-  verb yellow (this none this) owner: HACKER flags: "rxd"
+  method yellow owner: HACKER
     "Yellow foreground color";
     return "\x1B[33m";
-  endverb
+  endmethod
 
-  verb blue (this none this) owner: HACKER flags: "rxd"
+  method blue owner: HACKER
     "Blue foreground color";
     return "\x1B[34m";
-  endverb
+  endmethod
 
-  verb magenta (this none this) owner: HACKER flags: "rxd"
+  method magenta owner: HACKER
     "Magenta foreground color";
     return "\x1B[35m";
-  endverb
+  endmethod
 
-  verb cyan (this none this) owner: HACKER flags: "rxd"
+  method cyan owner: HACKER
     "Cyan foreground color";
     return "\x1B[36m";
-  endverb
+  endmethod
 
-  verb white (this none this) owner: HACKER flags: "rxd"
+  method white owner: HACKER
     "White foreground color";
     return "\x1B[37m";
-  endverb
+  endmethod
 
-  verb bg_black (this none this) owner: HACKER flags: "rxd"
+  method bg_black owner: HACKER
     "Black background color";
     return "\x1B[40m";
-  endverb
+  endmethod
 
-  verb bg_red (this none this) owner: HACKER flags: "rxd"
+  method bg_red owner: HACKER
     "Red background color";
     return "\x1B[41m";
-  endverb
+  endmethod
 
-  verb bg_green (this none this) owner: HACKER flags: "rxd"
+  method bg_green owner: HACKER
     "Green background color";
     return "\x1B[42m";
-  endverb
+  endmethod
 
-  verb bg_yellow (this none this) owner: HACKER flags: "rxd"
+  method bg_yellow owner: HACKER
     "Yellow background color";
     return "\x1B[43m";
-  endverb
+  endmethod
 
-  verb bg_blue (this none this) owner: HACKER flags: "rxd"
+  method bg_blue owner: HACKER
     "Blue background color";
     return "\x1B[44m";
-  endverb
+  endmethod
 
-  verb bg_magenta (this none this) owner: HACKER flags: "rxd"
+  method bg_magenta owner: HACKER
     "Magenta background color";
     return "\x1B[45m";
-  endverb
+  endmethod
 
-  verb bg_cyan (this none this) owner: HACKER flags: "rxd"
+  method bg_cyan owner: HACKER
     "Cyan background color";
     return "\x1B[46m";
-  endverb
+  endmethod
 
-  verb bg_white (this none this) owner: HACKER flags: "rxd"
+  method bg_white owner: HACKER
     "White background color";
     return "\x1B[47m";
-  endverb
+  endmethod
 
-  verb bright_black (this none this) owner: HACKER flags: "rxd"
+  method bright_black owner: HACKER
     "Bright black (gray) foreground color";
     return "\x1B[90m";
-  endverb
+  endmethod
 
-  verb bright_red (this none this) owner: HACKER flags: "rxd"
+  method bright_red owner: HACKER
     "Bright red foreground color";
     return "\x1B[91m";
-  endverb
+  endmethod
 
-  verb bright_green (this none this) owner: HACKER flags: "rxd"
+  method bright_green owner: HACKER
     "Bright green foreground color";
     return "\x1B[92m";
-  endverb
+  endmethod
 
-  verb bright_yellow (this none this) owner: HACKER flags: "rxd"
+  method bright_yellow owner: HACKER
     "Bright yellow foreground color";
     return "\x1B[93m";
-  endverb
+  endmethod
 
-  verb bright_blue (this none this) owner: HACKER flags: "rxd"
+  method bright_blue owner: HACKER
     "Bright blue foreground color";
     return "\x1B[94m";
-  endverb
+  endmethod
 
-  verb bright_magenta (this none this) owner: HACKER flags: "rxd"
+  method bright_magenta owner: HACKER
     "Bright magenta foreground color";
     return "\x1B[95m";
-  endverb
+  endmethod
 
-  verb bright_cyan (this none this) owner: HACKER flags: "rxd"
+  method bright_cyan owner: HACKER
     "Bright cyan foreground color";
     return "\x1B[96m";
-  endverb
+  endmethod
 
-  verb bright_white (this none this) owner: HACKER flags: "rxd"
+  method bright_white owner: HACKER
     "Bright white foreground color";
     return "\x1B[97m";
-  endverb
+  endmethod
 
-  verb bg_bright_black (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_black owner: HACKER
     "Bright black (gray) background color";
     return "\x1B[100m";
-  endverb
+  endmethod
 
-  verb bg_bright_red (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_red owner: HACKER
     "Bright red background color";
     return "\x1B[101m";
-  endverb
+  endmethod
 
-  verb bg_bright_green (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_green owner: HACKER
     "Bright green background color";
     return "\x1B[102m";
-  endverb
+  endmethod
 
-  verb bg_bright_yellow (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_yellow owner: HACKER
     "Bright yellow background color";
     return "\x1B[103m";
-  endverb
+  endmethod
 
-  verb bg_bright_blue (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_blue owner: HACKER
     "Bright blue background color";
     return "\x1B[104m";
-  endverb
+  endmethod
 
-  verb bg_bright_magenta (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_magenta owner: HACKER
     "Bright magenta background color";
     return "\x1B[105m";
-  endverb
+  endmethod
 
-  verb bg_bright_cyan (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_cyan owner: HACKER
     "Bright cyan background color";
     return "\x1B[106m";
-  endverb
+  endmethod
 
-  verb bg_bright_white (this none this) owner: HACKER flags: "rxd"
+  method bg_bright_white owner: HACKER
     "Bright white background color";
     return "\x1B[107m";
-  endverb
+  endmethod
 
-  verb "color_256 colour_256" (this none this) owner: HACKER flags: "rxd"
+  method "color_256 colour_256" owner: HACKER
     "Foreground color using 256-color palette (0-255)";
     {color_code} = args;
     typeof(color_code) == TYPE_INT || raise(E_TYPE("Color code must be an integer"));
     color_code >= 0 && color_code <= 255 || raise(E_RANGE("Color code must be 0-255"));
     return "\x1B[38;5;" + tostr(color_code) + "m";
-  endverb
+  endmethod
 
-  verb "bg_color_256 bg_colour_256" (this none this) owner: HACKER flags: "rxd"
+  method "bg_color_256 bg_colour_256" owner: HACKER
     "Background color using 256-color palette (0-255)";
     {color_code} = args;
     typeof(color_code) == TYPE_INT || raise(E_TYPE("Color code must be an integer"));
     color_code >= 0 && color_code <= 255 || raise(E_RANGE("Color code must be 0-255"));
     return "\x1B[48;5;" + tostr(color_code) + "m";
-  endverb
+  endmethod
 
-  verb rgb (this none this) owner: HACKER flags: "rxd"
+  method rgb owner: HACKER
     "Foreground color using RGB values (0-255 each)";
     {r, g, b} = args;
     typeof(r) == TYPE_INT || raise(E_TYPE("R value must be an integer"));
@@ -239,9 +239,9 @@ object ANSI
     g >= 0 && g <= 255 || raise(E_RANGE("G must be 0-255"));
     b >= 0 && b <= 255 || raise(E_RANGE("B must be 0-255"));
     return "\x1B[38;2;" + tostr(r) + ";" + tostr(g) + ";" + tostr(b) + "m";
-  endverb
+  endmethod
 
-  verb bg_rgb (this none this) owner: HACKER flags: "rxd"
+  method bg_rgb owner: HACKER
     "Background color using RGB values (0-255 each)";
     {r, g, b} = args;
     typeof(r) == TYPE_INT || raise(E_TYPE("R value must be an integer"));
@@ -251,9 +251,9 @@ object ANSI
     g >= 0 && g <= 255 || raise(E_RANGE("G must be 0-255"));
     b >= 0 && b <= 255 || raise(E_RANGE("B must be 0-255"));
     return "\x1B[48;2;" + tostr(r) + ";" + tostr(g) + ";" + tostr(b) + "m";
-  endverb
+  endmethod
 
-  verb "colorize colourize" (this none this) owner: HACKER flags: "rxd"
+  method "colorize colourize" owner: HACKER
     "Wrap text in colour codes and reset. Usage: colorize(text, color_code) or colorize(text, 'red)";
     {text, color} = args;
     typeof(text) == TYPE_STR || raise(E_TYPE("Text must be a string"));
@@ -271,9 +271,9 @@ object ANSI
       raise(E_TYPE("Color must be a symbol or integer"));
     endif
     return prefix + text + this:reset();
-  endverb
+  endmethod
 
-  verb wrap (this none this) owner: HACKER flags: "rxd"
+  method wrap owner: HACKER
     "Wrap text with ANSI codes. Usage: wrap(text, codes...) where codes are strings or symbols";
     {text, @codes} = args;
     typeof(text) == TYPE_STR || raise(E_TYPE("Text must be a string"));
@@ -293,9 +293,9 @@ object ANSI
       endif
     endfor
     return prefix + text + this:reset();
-  endverb
+  endmethod
 
-  verb strip (this none this) owner: HACKER flags: "rxd"
+  method strip owner: HACKER
     "Remove all ANSI escape sequences from text";
     {text} = args;
     typeof(text) == TYPE_STR || raise(E_TYPE("Text must be a string"));
@@ -318,37 +318,37 @@ object ANSI
       result = result[1..start - 1] + result[end + 1..$];
     endwhile
     return result;
-  endverb
+  endmethod
 
-  verb test_basic_sequences (this none this) owner: HACKER flags: "rxd"
+  method test_basic_sequences owner: HACKER
     this:red() + "red text" + this:reset() == "\x1B[31mred text\x1B[0m" || raise(E_ASSERT, "red color sequence mismatch");
     this:blue() + "blue text" + this:reset() == "\x1B[34mblue text\x1B[0m" || raise(E_ASSERT, "blue color sequence mismatch");
     this:bold() + "bold" + this:reset() == "\x1B[1mbold\x1B[0m" || raise(E_ASSERT, "bold sequence mismatch");
     this:italic() + "italic" + this:reset() == "\x1B[3mitalic\x1B[0m" || raise(E_ASSERT, "italic sequence mismatch");
     return true;
-  endverb
+  endmethod
 
-  verb test_extended_color_sequences (this none this) owner: HACKER flags: "rxd"
+  method test_extended_color_sequences owner: HACKER
     this:color_256(196) == "\x1B[38;5;196m" || raise(E_ASSERT, "256-color foreground sequence mismatch");
     this:bg_color_256(27) == "\x1B[48;5;27m" || raise(E_ASSERT, "256-color background sequence mismatch");
     this:rgb(255, 0, 128) == "\x1B[38;2;255;0;128m" || raise(E_ASSERT, "RGB foreground sequence mismatch");
     this:bg_rgb(0, 128, 255) == "\x1B[48;2;0;128;255m" || raise(E_ASSERT, "RGB background sequence mismatch");
     return true;
-  endverb
+  endmethod
 
-  verb test_wrapping_and_stripping (this none this) owner: HACKER flags: "rxd"
+  method test_wrapping_and_stripping owner: HACKER
     this:colorize("hello", 'red) == "\x1B[31mhello\x1B[0m" || raise(E_ASSERT, "symbol colorize mismatch");
     this:colorize("world", 196) == "\x1B[38;5;196mworld\x1B[0m" || raise(E_ASSERT, "integer colorize mismatch");
     this:wrap("text", 'bold, 'red) == "\x1B[1m\x1B[31mtext\x1B[0m" || raise(E_ASSERT, "wrap sequence mismatch");
     this:strip("\x1B[31mred\x1B[0m text") == "red text" || raise(E_ASSERT, "simple strip mismatch");
     this:strip("\x1B[1m\x1B[31mbold red\x1B[0m") == "bold red" || raise(E_ASSERT, "complex strip mismatch");
     return true;
-  endverb
+  endmethod
 
-  verb test_british_aliases (this none this) owner: HACKER flags: "rxd"
+  method test_british_aliases owner: HACKER
     this:colour_256(196) == "\x1B[38;5;196m" || raise(E_ASSERT, "British 256-colour foreground sequence mismatch");
     this:bg_colour_256(27) == "\x1B[48;5;27m" || raise(E_ASSERT, "British 256-colour background sequence mismatch");
     this:colourize("hello", 'red) == "\x1B[31mhello\x1B[0m" || raise(E_ASSERT, "British colourize mismatch");
     return true;
-  endverb
+  endmethod
 endobject

@@ -8,7 +8,7 @@ object PASSWORD
   override import_export_hierarchy = {"auth"};
   override import_export_id = "password";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";
     if (typeof(this) == TYPE_FLYWEIGHT)
       raise(E_INVARG);
@@ -23,9 +23,9 @@ object PASSWORD
     salt_str = salt();
     encrypted_password = argon2(password, salt_str);
     return <this, {encrypted_password}>;
-  endverb
+  endmethod
 
-  verb challenge (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method challenge owner: ARCH_WIZARD
     if (typeof(this) != TYPE_FLYWEIGHT)
       raise(E_INVARG);
     endif
@@ -39,12 +39,12 @@ object PASSWORD
       raise(E_PERM);
     endif
     return argon2_verify(encrypted, password);
-  endverb
+  endmethod
 
-  verb test_round_trip (this none this) owner: HACKER flags: "rxd"
+  method test_round_trip owner: HACKER
     password = this:mk("foobarbaz");
     password:challenge("foobarbaz") != true && return E_ASSERT;
     password:challenge("notmypassword") != false && return E_ASSERT;
     return true;
-  endverb
+  endmethod
 endobject

@@ -8,20 +8,20 @@ object FORMAT_BLOCK
   override import_export_hierarchy = {"format"};
   override import_export_id = "format_block";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     return <this, {@args}>;
-  endverb
+  endmethod
 
-  verb append_to_content (this none this) owner: HACKER flags: "rxd"
+  method append_to_content owner: HACKER
     "Append this block to a content flyweight while preserving block structure";
     {target_flyweight} = args;
     "Just append our content to the target flyweight";
     typeof(target_flyweight) == TYPE_FLYWEIGHT || raise(E_TYPE, "Target must be a flyweight");
     target_flyweight = target_flyweight:append_element(this);
     return target_flyweight;
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     {render_for, content_type, event} = args;
     result = {};
     contents = flycontents(this);
@@ -55,5 +55,5 @@ object FORMAT_BLOCK
       output = output + line;
     endfor
     return output;
-  endverb
+  endmethod
 endobject

@@ -77,7 +77,7 @@ object LLM_ROOM_OBSERVER
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_room_observer";
 
-  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method configure owner: ARCH_WIZARD
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     set_task_perms(this.owner);
@@ -93,9 +93,9 @@ object LLM_ROOM_OBSERVER
     endif
     "Let child class configure it";
     this:_setup_agent(this.agent);
-  endverb
+  endmethod
 
-  verb _setup_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _setup_agent owner: ARCH_WIZARD
     "Configure agent with room observer prompts. Override in children to add tools.";
     {agent} = args;
     "Combine base observation mechanics with specific role";
@@ -107,9 +107,9 @@ object LLM_ROOM_OBSERVER
     this.response_opts = $llm_chat_opts:mk():with_temperature(0.6):with_tool_choice('none);
     "Set compaction callback so we can inject memories after compaction";
     agent.compaction_callback = this;
-  endverb
+  endmethod
 
-  verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reconfigure owner: ARCH_WIZARD
     "Reconfigure by stopping loop, clearing agent, and creating fresh one";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     "Stop the event loop before reconfiguring";
@@ -118,9 +118,9 @@ object LLM_ROOM_OBSERVER
     this.agent = #-1;
     "Create fresh agent with current configuration";
     this:configure();
-  endverb
+  endmethod
 
-  verb tell (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method tell owner: ARCH_WIZARD
     "Receive events from room. Enqueues to event loop via task_send.";
     if (!this.enabled)
       return;
@@ -189,7 +189,7 @@ object LLM_ROOM_OBSERVER
       this:_start_loop();
       `task_send(this.loop_task, msg) ! ANY';
     endtry
-  endverb
+  endmethod
 
   verb poke (this none none) owner: ARCH_WIZARD flags: "rd"
     "Trigger the observer to respond. Sends poke to event loop and waits for reply.";
@@ -240,7 +240,7 @@ object LLM_ROOM_OBSERVER
     endfork
   endverb
 
-  verb maybe_speak (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method maybe_speak owner: ARCH_WIZARD
     "Send a nudge to the event loop suggesting it may want to speak.";
     if (!this.enabled)
       return;
@@ -260,9 +260,9 @@ object LLM_ROOM_OBSERVER
       this:_start_loop();
       `task_send(this.loop_task, ["type" -> "nudge"]) ! ANY';
     endtry
-  endverb
+  endmethod
 
-  verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reset owner: ARCH_WIZARD
     "Fully reinitialize the agent - picks up any config changes";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     caller.location || return E_INVARG;
@@ -271,9 +271,9 @@ object LLM_ROOM_OBSERVER
     "Reconfigure creates a fresh agent with current settings";
     this:configure();
     return E_NONE;
-  endverb
+  endmethod
 
-  verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _show_token_usage owner: ARCH_WIZARD
     "Display token usage information to the user";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     set_task_perms(caller_perms());
@@ -299,7 +299,7 @@ object LLM_ROOM_OBSERVER
       usage_msg = $ansi:colorize("[TOKENS]", color) + " Last call: " + $ansi:colorize(tostr(last_tokens), 'white) + " | Total: " + tostr(used) + "/" + tostr(budget) + " (" + tostr(percent_used) + "% used)";
       user:inform_current($event:mk_info(user, usage_msg):with_presentation_hint('inset):with_group('llm, this));
     endif
-  endverb
+  endmethod
 
   verb "@reset" (this none none) owner: ARCH_WIZARD flags: "rd"
     if (!player.wizard && player != this.owner)
@@ -350,7 +350,7 @@ object LLM_ROOM_OBSERVER
     "Lazy start - loop will start on first tell event";
   endverb
 
-  verb _handle_agent_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _handle_agent_error owner: ARCH_WIZARD
     "Handle and log errors from agent operations. Override in children to customize.";
     {context, error} = args;
     error_msg = tostr(error[1]) + ": " + tostr(error[2]);
@@ -359,9 +359,9 @@ object LLM_ROOM_OBSERVER
     if (valid(this.location) && respond_to(this, 'on_agent_error))
       `this:on_agent_error(context, error) ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb _start_thinking (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _start_thinking owner: ARCH_WIZARD
     "Start showing periodic thinking emotes. Called from event loop (single-threaded).";
     if (!valid(this.location))
       return 0;
@@ -395,9 +395,9 @@ object LLM_ROOM_OBSERVER
     this.thinking_task = task_id;
     commit();
     return task_id;
-  endverb
+  endmethod
 
-  verb _stop_thinking (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _stop_thinking owner: ARCH_WIZARD
     "Stop the thinking indicator task.";
     {?task_id = 0} = args;
     task_id = task_id || this.thinking_task;
@@ -406,9 +406,9 @@ object LLM_ROOM_OBSERVER
       this.thinking_task = 0;
       commit();
     endif
-  endverb
+  endmethod
 
-  verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _ensure_knowledge_base owner: ARCH_WIZARD
     "Lazily create knowledge base relation if not already created.";
     "Uses anonymous object so it's garbage collected when observer is recycled.";
     perms = caller_perms();
@@ -418,9 +418,9 @@ object LLM_ROOM_OBSERVER
       this.knowledge_base = $relation:create(true);
     endif
     return this.knowledge_base;
-  endverb
+  endmethod
 
-  verb _tool_remember_fact (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_remember_fact owner: ARCH_WIZARD
     "Tool: Store a fact about a subject for later recall.";
     {args_map, actor} = args;
     "Safely extract arguments with defaults";
@@ -457,9 +457,9 @@ object LLM_ROOM_OBSERVER
     "Store as (subject, fact, timestamp) tuple";
     kb:assert({subject, fact, time()});
     return "Successfully remembered about " + subject + ": " + fact;
-  endverb
+  endmethod
 
-  verb _tool_recall_facts (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_recall_facts owner: ARCH_WIZARD
     "Tool: Retrieve stored facts about a subject.";
     {args_map, actor} = args;
     subject = args_map["subject"];
@@ -480,9 +480,9 @@ object LLM_ROOM_OBSERVER
       endif
     endfor
     return length(lines) > 1 ? lines:join("\n") | "No facts remembered about " + subject + ".";
-  endverb
+  endmethod
 
-  verb _register_memory_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _register_memory_tools owner: ARCH_WIZARD
     "Register memory tools with the agent. Called by children in _setup_agent.";
     perms = caller_perms();
     caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
@@ -496,9 +496,9 @@ object LLM_ROOM_OBSERVER
     "Tool: get current time";
     time_tool = $llm_agent_tool:mk("current_time", "Get the current date and time.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "current_time");
     agent:add_tool("current_time", time_tool);
-  endverb
+  endmethod
 
-  verb get_memory_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_memory_summary owner: ARCH_WIZARD
     "Get a summary of all remembered facts for injection into compacted context.";
     perms = caller_perms();
     caller == this || (valid(perms) && perms.wizard) || raise(E_PERM);
@@ -526,17 +526,17 @@ object LLM_ROOM_OBSERVER
       lines = {@lines, "- " + subj + ": " + facts:join("; ")};
     endfor
     return lines:join("\n");
-  endverb
+  endmethod
 
-  verb on_compaction_start (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_compaction_start owner: ARCH_WIZARD
     "Called when agent context is being compacted. Override in children.";
     "Default: announce if in a room";
     if (valid(this.location))
       this.location:announce(this:mk_emote_event("pauses to collect thoughts..."));
     endif
-  endverb
+  endmethod
 
-  verb on_compaction_end (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_compaction_end owner: ARCH_WIZARD
     "Called after agent context compaction completes. Inject remembered facts.";
     "Children should call pass() then show their own completion message.";
     if (!valid(this.agent))
@@ -548,15 +548,15 @@ object LLM_ROOM_OBSERVER
       intro = "PERSISTENT MEMORY: The following facts were stored using your remember_fact tool and have been preserved across context compaction. Refer to these when relevant:";
       this.agent:add_message("user", intro + "\n\n" + memory_summary);
     endif
-  endverb
+  endmethod
 
-  verb mk_emote_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk_emote_event owner: ARCH_WIZARD
     "Helper to create an emote event for this observer.";
     {message} = args;
     return $event:mk_emote(this, this:name(), " ", message);
-  endverb
+  endmethod
 
-  verb _format_time_ago (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_time_ago owner: ARCH_WIZARD
     "Format a timestamp as relative time (e.g., '5 minutes ago').";
     {timestamp} = args;
     now = time();
@@ -573,14 +573,14 @@ object LLM_ROOM_OBSERVER
       days = diff / 86400;
       return tostr(days) + (days == 1 ? " day ago" | " days ago");
     endif
-  endverb
+  endmethod
 
-  verb _tool_current_time (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_current_time owner: ARCH_WIZARD
     "Tool: Get the current time.";
     {args_map, actor} = args;
     now = time();
     return ["current_time" -> ctime(), "timestamp" -> now];
-  endverb
+  endmethod
 
   verb "@facts" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Display all remembered facts in a formatted table.";
@@ -710,7 +710,7 @@ object LLM_ROOM_OBSERVER
     player:inform_current($event:mk_info(player, "Compacted " + tostr(old_count) + " facts down to " + tostr(new_count) + " facts."):with_audience('utility));
   endverb
 
-  verb triage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method triage owner: ARCH_WIZARD
     "Quick triage: should we engage with recent activity?";
     "Returns true for engage, false for ignore.";
     if (!$llm_client:is_configured())
@@ -804,9 +804,9 @@ object LLM_ROOM_OBSERVER
       endif
     endif
     return false;
-  endverb
+  endmethod
 
-  verb buffer_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method buffer_event owner: ARCH_WIZARD
     "Add an event to the rolling buffer, maintaining max size.";
     {event} = args;
     buf = this.event_buffer;
@@ -817,7 +817,7 @@ object LLM_ROOM_OBSERVER
       buf = buf[length(buf) - max_size + 1..$];
     endif
     this.event_buffer = buf;
-  endverb
+  endmethod
 
   verb respond (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Legacy wrapper - sends a nudge to the event loop to trigger a response.";
@@ -831,7 +831,7 @@ object LLM_ROOM_OBSERVER
     endtry
   endverb
 
-  verb _process_and_announce (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _process_and_announce owner: ARCH_WIZARD
     "Process an LLM response: strip noise, detect skip conditions, announce to room.";
     "Returns true if something was announced, false if skipped.";
     {response} = args;
@@ -923,9 +923,9 @@ object LLM_ROOM_OBSERVER
       return true;
     endif
     return false;
-  endverb
+  endmethod
 
-  verb _event_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _event_loop owner: ARCH_WIZARD
     "Main event loop. Processes observations, pokes, and nudges via task_recv.";
     "Runs as a single long-lived task. Callers enqueue work via task_send.";
     "Normalize perms so worker/network calls do not depend on who started the loop.";
@@ -1071,9 +1071,9 @@ object LLM_ROOM_OBSERVER
     this.loop_task = 0;
     this.responding = false;
     commit();
-  endverb
+  endmethod
 
-  verb _start_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _start_loop owner: ARCH_WIZARD
     "Fork the event loop task and store its ID.";
     "Stop any existing loop first to prevent duplicates";
     lt = this.loop_task;
@@ -1089,9 +1089,9 @@ object LLM_ROOM_OBSERVER
     endfork
     this.loop_task = task_id;
     commit();
-  endverb
+  endmethod
 
-  verb _stop_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _stop_loop owner: ARCH_WIZARD
     "Kill the event loop task if running.";
     lt = this.loop_task;
     this.loop_task = 0;
@@ -1099,9 +1099,9 @@ object LLM_ROOM_OBSERVER
     if (lt > 0)
       `kill_task(lt) ! ANY';
     endif
-  endverb
+  endmethod
 
-  verb _ensure_loop (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _ensure_loop owner: ARCH_WIZARD
     "Start the event loop if not already running.";
     if (this.loop_task <= 0)
       this.last_loop_restart_at = ftime();
@@ -1118,9 +1118,9 @@ object LLM_ROOM_OBSERVER
     else
       this.last_loop_probe_error = "";
     endif
-  endverb
+  endmethod
 
-  verb _process_dsml_response (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _process_dsml_response owner: ARCH_WIZARD
     "Handle DSML-style tool call text that leaked through as plain response text.";
     "Returns true if handled/announced, false otherwise.";
     {response} = args;
@@ -1177,9 +1177,9 @@ object LLM_ROOM_OBSERVER
     say_event = $event:mk_say(this, this:name(), " says, \"", message, "\"");
     this.location:announce(say_event);
     return true;
-  endverb
+  endmethod
 
-  verb observer_debug_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method observer_debug_status owner: ARCH_WIZARD
     "Return observer loop/agent diagnostics as a map.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     status = [];
@@ -1210,7 +1210,7 @@ object LLM_ROOM_OBSERVER
     status["last_loop_probe_error"] = `this.last_loop_probe_error ! E_PROPNF => ""';
     status["last_loop_restart_at"] = `this.last_loop_restart_at ! E_PROPNF => 0';
     return status;
-  endverb
+  endmethod
 
   verb "@observer-status @obs-status" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Show diagnostics for this observer.";

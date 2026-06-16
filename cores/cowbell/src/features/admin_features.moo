@@ -17,11 +17,11 @@ object ADMIN_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "admin_features";
 
-  verb _challenge_command_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _challenge_command_perms owner: ARCH_WIZARD
     caller == player || caller == #-1 || caller_perms() == player || caller_perms().wizard || raise(E_PERM);
-  endverb
+  endmethod
 
-  verb _is_allowed_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _is_allowed_verb owner: ARCH_WIZARD
     {subject, target, verb_name} = args;
     typeof(subject) == TYPE_OBJ || return false;
     typeof(verb_name) == TYPE_STR || return false;
@@ -62,7 +62,7 @@ object ADMIN_FEATURES
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
   verb "@sudo-revoke" (any none none) owner: ARCH_WIZARD flags: "d"
     "HINT: <player> -- Revoke sudo delegation and allowlist for a player.";
@@ -122,7 +122,7 @@ object ADMIN_FEATURES
     endif
   endverb
 
-  verb _resolve_delegate (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _resolve_delegate owner: ARCH_WIZARD
     {subject} = args;
     typeof(subject) == TYPE_OBJ || return $nothing;
     if (subject.wizard)
@@ -137,7 +137,7 @@ object ADMIN_FEATURES
     typeof(delegate) == TYPE_OBJ || return $nothing;
     valid(delegate) || return $nothing;
     return delegate;
-  endverb
+  endmethod
 
   verb "@sudo-allow" (any any any) owner: ARCH_WIZARD flags: "d"
     "HINT: <player> to <verb|obj::verb,...> -- Set per-player sudo allowlist.";
@@ -404,7 +404,7 @@ object ADMIN_FEATURES
     return false;
   endverb
 
-  verb _clear_elevated (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _clear_elevated owner: ARCH_WIZARD
     "Clear any elevation mark for the current task.";
     caller_perms().wizard || raise(E_PERM);
     active = this.sudo_active;
@@ -415,9 +415,9 @@ object ADMIN_FEATURES
       return 1;
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb is_elevated (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_elevated owner: ARCH_WIZARD
     "True when current task is running a delegated admin command for subject.";
     {subject} = args;
     typeof(subject) == TYPE_OBJ || return false;
@@ -439,9 +439,9 @@ object ADMIN_FEATURES
       return false;
     endif
     return true;
-  endverb
+  endmethod
 
-  verb _mark_elevated (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _mark_elevated owner: ARCH_WIZARD
     "Mark current task as elevated for delegated admin command execution.";
     caller_perms().wizard || raise(E_PERM);
     {subject, delegate, verb_name, command} = args;
@@ -452,9 +452,9 @@ object ADMIN_FEATURES
     active[task_id()] = ["subject" -> subject, "delegate" -> delegate, "verb" -> verb_name, "command" -> command, "expires" -> time() + 120];
     this.sudo_active = active;
     return task_id();
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for administration commands via configured help source.";
     {for_player, ?topic = ""} = args;
     source = this.help_source;
@@ -467,7 +467,7 @@ object ADMIN_FEATURES
     verb_help = $help_utils:verb_help_from_hint(this, topic, 'administration);
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
-  endverb
+  endmethod
 
   verb "@dump-database" (none none none) owner: ARCH_WIZARD flags: "rd"
     "HINT: -- Manually trigger a database dump to disk.";
@@ -485,7 +485,7 @@ object ADMIN_FEATURES
     endtry
   endverb
 
-  verb _append_log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _append_log owner: ARCH_WIZARD
     "Append one sudo audit record and enforce capped retention.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {entry} = args;
@@ -508,7 +508,7 @@ object ADMIN_FEATURES
     endwhile
     this.sudo_log = log;
     return length(log);
-  endverb
+  endmethod
 
   verb "@sudo-show" (any none none) owner: ARCH_WIZARD flags: "d"
     "HINT: <player> -- Show sudo delegation, allowlist, and active tasks for a player.";
@@ -667,7 +667,7 @@ object ADMIN_FEATURES
     return true;
   endverb
 
-  verb _format_audit_entry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_audit_entry owner: ARCH_WIZARD
     "Format one sudo audit entry row, including malformed entries.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {entry} = args;
@@ -696,14 +696,14 @@ object ADMIN_FEATURES
     subject_name = valid(subject) ? `subject:name() ! ANY => tostr(subject)' | "";
     delegate_name = valid(delegate) ? `delegate:name() ! ANY => tostr(delegate)' | "";
     return {ts_str, status, kind, actor_name, subject_name, delegate_name, verb, cmd};
-  endverb
+  endmethod
 
-  verb test_format_audit_entry_reports_malformed_entries (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_format_audit_entry_reports_malformed_entries owner: ARCH_WIZARD
     "Audit display should show malformed entries instead of silently skipping them.";
     row = this:_format_audit_entry("not a map");
     $test_utils:assert_eq(row[2], "invalid", "malformed audit entry should have invalid status");
     $test_utils:assert_eq(row[3], "malformed", "malformed audit entry should identify malformed kind");
     $test_utils:assert_eq(row[8], "\"not a map\"", "malformed audit entry should preserve the literal value");
     return true;
-  endverb
+  endmethod
 endobject

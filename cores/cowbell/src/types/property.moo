@@ -8,54 +8,54 @@ object PROPERTY
   override import_export_hierarchy = {"types"};
   override import_export_id = "property";
 
-  verb owner (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method owner owner: ARCH_WIZARD
     "Return the owner of the property (user who created it)";
     return this.owner;
-  endverb
+  endmethod
 
-  verb location (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method location owner: ARCH_WIZARD
     "Return the object where property is defined";
     return this.location;
-  endverb
+  endmethod
 
-  verb name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method name owner: ARCH_WIZARD
     "Return the property name";
     return this.name;
-  endverb
+  endmethod
 
-  verb perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method perms owner: ARCH_WIZARD
     "Return the property permissions (rwcd)";
     return this.perms;
-  endverb
+  endmethod
 
-  verb is_clear (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_clear owner: ARCH_WIZARD
     "Return true if property is unset on this object";
     return this.is_clear;
-  endverb
+  endmethod
 
-  verb value_string (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method value_string owner: ARCH_WIZARD
     "Get a string representation of the property's value";
     set_task_perms(caller_perms());
     if (this:is_clear())
       return "(clear)";
     endif
     try
-      val = this:location().((this:name()));
+      val = this:location().(this:name());
       return toliteral(val);
     except (ANY)
       return "(error reading property)";
     endtry
-  endverb
+  endmethod
 
-  verb set_perms (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_perms owner: ARCH_WIZARD
     "Set property permissions. Args: {new_owner, perms_string}";
     "Sets owner and permission flags (r, w, c)";
     set_task_perms(caller_perms());
     {new_owner, perms_string} = args;
     set_property_info(this:location(), this:name(), {new_owner, perms_string});
-  endverb
+  endmethod
 
-  verb test_property_metadata (this none this) owner: HACKER flags: "rxd"
+  method test_property_metadata owner: HACKER
     "Test that property metadata flyweight returns expected values";
     "Get metadata for a known property";
     metadata = $prog_utils:get_property_metadata($root, 'import_export_id);
@@ -72,5 +72,5 @@ object PROPERTY
       endif
     endif
     return true;
-  endverb
+  endmethod
 endobject

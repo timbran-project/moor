@@ -29,14 +29,14 @@ object AGENTIC_AGENT
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_agent";
 
-  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method initialize owner: ARCH_WIZARD
     "Called on creation. Creates an anonymous LLM client.";
     pass();
     this.client = $llm_client:create(true);
     this.client.name = "Client for " + this.name;
-  endverb
+  endmethod
 
-  verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _challenge_permissions owner: ARCH_WIZARD
     "Allow self, owner, same-owner objects, and wizards.";
     {who} = args;
     who == #-1 || who == this || who == this.owner && return who;
@@ -50,25 +50,25 @@ object AGENTIC_AGENT
     except (E_PERM)
     endtry
     raise(E_PERM);
-  endverb
+  endmethod
 
-  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _log owner: ARCH_WIZARD
     "Internal server log helper.";
     caller == this || raise(E_PERM);
     {message} = args;
     server_log("[agentic] " + message);
-  endverb
+  endmethod
 
-  verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_tool_error owner: ARCH_WIZARD
     "Log tool execution errors.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {tool_name, tool_args, error_msg} = args;
     safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
     server_log("[agentic] tool error [" + toliteral(tool_name) + "]: " + toliteral(error_msg) + " args=" + toliteral(safe_args));
     return 1;
-  endverb
+  endmethod
 
-  verb add_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_tool owner: ARCH_WIZARD
     "Register a tool flyweight by name.";
     this:_challenge_permissions(caller);
     {tool_name, tool_flyweight} = args;
@@ -77,47 +77,47 @@ object AGENTIC_AGENT
     tools = this.tools;
     tools[tool_name] = tool_flyweight;
     this.tools = tools;
-  endverb
+  endmethod
 
-  verb remove_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove_tool owner: ARCH_WIZARD
     "Unregister a tool by name.";
     this:_challenge_permissions(caller);
     {tool_name} = args;
     typeof(tool_name) == TYPE_STR || raise(E_TYPE, "tool_name must be string");
     this.tools = mapdelete(this.tools, tool_name);
-  endverb
+  endmethod
 
-  verb add_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_message owner: ARCH_WIZARD
     "Append a role/content map to context.";
     this:_challenge_permissions(caller);
     {role, content} = args;
     this.context = {@this.context, ["role" -> role, "content" -> content]};
-  endverb
+  endmethod
 
-  verb reset_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reset_context owner: ARCH_WIZARD
     "Clear context and seed with system prompt if present.";
     this:_challenge_permissions(caller);
     this.context = this.system_prompt ? {["role" -> "system", "content" -> this.system_prompt]} | {};
     this.total_tokens_used = 0;
     this.consecutive_tool_failures = [];
     this.all_failed_iterations = 0;
-  endverb
+  endmethod
 
-  verb _get_tool_schemas (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _get_tool_schemas owner: ARCH_WIZARD
     "Internal: return registered tool schemas.";
     caller == this || caller == $agentic.loop || raise(E_PERM);
     return { this.tools[k]:to_schema() for k in (mapkeys(this.tools)) };
-  endverb
+  endmethod
 
-  verb _find_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _find_tool owner: ARCH_WIZARD
     "Internal: find tool by name.";
     caller == this || caller == $agentic.loop || raise(E_PERM);
     {tool_name} = args;
     maphaskey(this.tools, tool_name) && return this.tools[tool_name];
     return #-1;
-  endverb
+  endmethod
 
-  verb _call_llm_with_retry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _call_llm_with_retry owner: ARCH_WIZARD
     "Internal: call LLM API with retry logic.";
     caller == this || caller == $agentic.loop || raise(E_PERM);
     {tool_schemas, ?opts = false} = args;
@@ -134,9 +134,9 @@ object AGENTIC_AGENT
         suspend(retry_count + 1);
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb _track_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _track_token_usage owner: ARCH_WIZARD
     "Internal: track token usage and trigger compaction if needed.";
     caller == this || caller == $agentic.loop || raise(E_PERM);
     {response} = args;
@@ -148,9 +148,9 @@ object AGENTIC_AGENT
     this.total_tokens_used = this.total_tokens_used + tokens_this_call;
     this:_update_token_usage(this.token_owner, tokens_this_call);
     this:needs_compaction() && this:compact_context();
-  endverb
+  endmethod
 
-  verb _execute_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _execute_tool_call owner: ARCH_WIZARD
     "Internal: execute one tool call and return a tool response message map.";
     caller == this || caller == $agentic.loop || raise(E_PERM);
     {tool_call} = args;
@@ -194,9 +194,9 @@ object AGENTIC_AGENT
       this.consecutive_tool_failures = failures;
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
     endtry
-  endverb
+  endmethod
 
-  verb _check_token_budget (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _check_token_budget owner: ARCH_WIZARD
     "Internal: enforce player token budget when token_owner is a player.";
     caller == this || raise(E_PERM);
     {player_obj} = args;
@@ -205,17 +205,17 @@ object AGENTIC_AGENT
     used = player_obj.llm_tokens_used;
     used >= budget && return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
     return 1;
-  endverb
+  endmethod
 
-  verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method needs_compaction owner: ARCH_WIZARD
     "Check prompt token usage against compaction threshold.";
     this:_challenge_permissions(caller);
     typeof(this.last_token_usage) == TYPE_MAP || return 0;
     maphaskey(this.last_token_usage, "prompt_tokens") || return 0;
     return this.last_token_usage["prompt_tokens"] > this.token_limit * this.compaction_threshold;
-  endverb
+  endmethod
 
-  verb _update_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _update_token_usage owner: ARCH_WIZARD
     "Internal: update token usage counters on the player.";
     caller == this || raise(E_PERM);
     {player_obj, tokens_used} = args;
@@ -225,9 +225,9 @@ object AGENTIC_AGENT
     tokens_used <= 1000000 || raise(E_INVARG, "tokens_used suspiciously large");
     player_obj.llm_tokens_used = player_obj.llm_tokens_used + tokens_used;
     player_obj.llm_usage_log = {@player_obj.llm_usage_log, ["timestamp" -> time(), "tokens" -> tokens_used, "usage" -> this.last_token_usage]};
-  endverb
+  endmethod
 
-  verb compact_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method compact_context owner: ARCH_WIZARD
     "Compact context by summarizing older messages and keeping recent ones.";
     this:_challenge_permissions(caller);
     length(this.context) <= this.min_messages_to_keep + 1 && return;
@@ -248,8 +248,8 @@ object AGENTIC_AGENT
         endif
       endif
     endfor
-    old_messages = (this.context)[2..split_point - 1];
-    recent_messages = (this.context)[split_point..$];
+    old_messages = this.context[2..split_point - 1];
+    recent_messages = this.context[split_point..$];
     length(old_messages) == 0 && return;
     summary_prompt = "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages);
     summary_context = {system_msg, ["role" -> "user", "content" -> summary_prompt]};
@@ -264,9 +264,9 @@ object AGENTIC_AGENT
       this:_log("context compacted: summary failed, using sliding window");
     endif
     valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_end) && `this.compaction_callback:on_compaction_end() ! ANY';
-  endverb
+  endmethod
 
-  verb send_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method send_message owner: ARCH_WIZARD
     "Main entry: send user input through agentic loop until completion, cancellation, or explicit failure.";
     {user_input, ?opts = false} = args;
     this:_challenge_permissions(caller);
@@ -372,5 +372,5 @@ object AGENTIC_AGENT
       endif
       suspend(0);
     endwhile
-  endverb
+  endmethod
 endobject

@@ -7,7 +7,7 @@ object FORMAT_PARAGRAPH
   override import_export_hierarchy = {"format"};
   override import_export_id = "format_paragraph";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create a paragraph from mixed content (strings, links, etc).";
     "Args: list of parts OR variable args of parts.";
     "Example: $format.paragraph:mk({\"Text \", $format.link:cmd(\"go north\", \"north\"), \".\"})";
@@ -18,9 +18,9 @@ object FORMAT_PARAGRAPH
       parts = args;
     endif
     return <this, {@parts}>;
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method compose owner: ARCH_WIZARD
     "Compose paragraph content for the given content type.";
     "Returns <p> for HTML (block-level), concatenated string for text.";
     {render_for, content_type, event} = args;
@@ -47,5 +47,5 @@ object FORMAT_PARAGRAPH
       endif
     endfor
     return result;
-  endverb
+  endmethod
 endobject

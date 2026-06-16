@@ -12,11 +12,11 @@ object MAILBOX
   override import_export_id = "mailbox";
   override object_documentation = "A mailbox holds letters for its owner. Anyone can deposit letters, but only the owner can view or take them.";
 
-  verb acceptable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method acceptable owner: ARCH_WIZARD
     "Check if an object can be deposited. Only letters are accepted.";
     {what} = args;
     return isa(what, $letter);
-  endverb
+  endmethod
 
   verb deposit (any in this) owner: ARCH_WIZARD flags: "rxd"
     "Deposit a letter into this mailbox. Anyone can do this.";
@@ -38,7 +38,7 @@ object MAILBOX
     endif
   endverb
 
-  verb unread_count (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method unread_count owner: ARCH_WIZARD
     "Count letters that haven't been read yet.";
     count = 0;
     for letter in (this.contents)
@@ -47,9 +47,9 @@ object MAILBOX
       endif
     endfor
     return count;
-  endverb
+  endmethod
 
-  verb look_self (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method look_self owner: ARCH_WIZARD
     "Describe the mailbox with letter listing for owner.";
     set_task_perms(caller_perms());
     desc = this.description;
@@ -90,7 +90,7 @@ object MAILBOX
     parts = {desc, "", $format.title:mk(summary), $format.table:mk(headers, rows), "", "Use: read <#> from mailbox"};
     content = $format.block:mk(@parts);
     return <$look, .what = this, .title = this:name(), .description = content>;
-  endverb
+  endmethod
 
   verb read (any from this) owner: ARCH_WIZARD flags: "rxd"
     "Read a letter from the mailbox by number. Usage: read <#> from mailbox";

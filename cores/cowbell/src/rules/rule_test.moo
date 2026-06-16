@@ -13,7 +13,7 @@ object RULE_TEST
   override import_export_hierarchy = {"rules"};
   override import_export_id = "rule_test";
 
-  verb fact_reputation (this none this) owner: HACKER flags: "rxd"
+  method fact_reputation owner: HACKER
     "Fact: reputation(Guild, MinLevel) - does Guild have reputation >= MinLevel?";
     {guild, min_level} = args;
     typeof(min_level) == TYPE_INT || raise(E_TYPE, "min_level must be integer");
@@ -21,18 +21,18 @@ object RULE_TEST
       return false;
     endif
     return this.reputation >= min_level;
-  endverb
+  endmethod
 
-  verb test_fact_reputation (this none this) owner: HACKER flags: "rxd"
+  method test_fact_reputation owner: HACKER
     "Test the fact_reputation predicate.";
     result = this:fact_reputation(this, 5);
     result == true || raise(E_ASSERT, "Reputation 8 >= 5");
     result = this:fact_reputation(this, 10);
     result == false || raise(E_ASSERT, "Reputation 8 < 10");
     return true;
-  endverb
+  endmethod
 
-  verb fact_parent (this none this) owner: HACKER flags: "rxd"
+  method fact_parent owner: HACKER
     "Fact: parent(Child, Parent) - return list of all valid (Child, Parent) bindings";
     {child, parent} = args;
     "If child is not this object, no solutions";
@@ -60,9 +60,9 @@ object RULE_TEST
         return {};
       endif
     endif
-  endverb
+  endmethod
 
-  verb test_unification_parent (this none this) owner: HACKER flags: "rxd"
+  method test_unification_parent owner: HACKER
     "Test unification in parent relationship.";
     "Set up a simple family: this has a father";
     this.father = $root;
@@ -74,5 +74,5 @@ object RULE_TEST
     result = this:fact_parent(this, #0);
     length(result) == 0 || raise(E_ASSERT, "#0 should not be parent");
     return true;
-  endverb
+  endmethod
 endobject

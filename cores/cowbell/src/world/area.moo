@@ -11,19 +11,19 @@ object AREA
   override import_export_hierarchy = {"world"};
   override import_export_id = "area";
 
-  verb acceptable (this none this) owner: HACKER flags: "rxd"
+  method acceptable owner: HACKER
     "Areas accept rooms as spatial contents.";
     {what} = args;
     return typeof(what) == TYPE_OBJ && valid(what) && isa(what, $room);
-  endverb
+  endmethod
 
-  verb initialize (this none this) owner: HACKER flags: "rxd"
+  method initialize owner: HACKER
     "Called after creation to set up the passages relation.";
     pass();
     this:_ensure_passages_relation();
-  endverb
+  endmethod
 
-  verb _ensure_passages_relation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _ensure_passages_relation owner: ARCH_WIZARD
     "Ensure this.passages_rel references a valid relation owned by the area's owner.";
     if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
       return this.passages_rel;
@@ -33,9 +33,9 @@ object AREA
     rel.name = "Passages Relation for Area " + tostr(this);
     this.passages_rel = rel;
     return this.passages_rel;
-  endverb
+  endmethod
 
-  verb _canonical_tuple (this none this) owner: HACKER flags: "rxd"
+  method _canonical_tuple owner: HACKER
     "Build canonical tuple {min_room, max_room, passage} for storage.";
     {room_a, room_b, passage} = args;
     typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
@@ -45,9 +45,9 @@ object AREA
     else
       return {room_b, room_a, passage};
     endif
-  endverb
+  endmethod
 
-  verb passage_for (this none this) owner: HACKER flags: "rxd"
+  method passage_for owner: HACKER
     "Find the passage between two rooms.";
     {room_a, room_b} = args;
     typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
@@ -60,9 +60,9 @@ object AREA
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb set_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_passage owner: ARCH_WIZARD
     this:require_caller(this);
     set_task_perms(this.owner);
     "Set or update the passage between two rooms.";
@@ -74,9 +74,9 @@ object AREA
     tuple = this:_canonical_tuple(room_a, room_b, passage);
     this.passages_rel:assert(tuple);
     return passage;
-  endverb
+  endmethod
 
-  verb clear_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method clear_passage owner: ARCH_WIZARD
     this:require_caller(this);
     set_task_perms(this.owner);
     "Remove the passage between two rooms.";
@@ -92,9 +92,9 @@ object AREA
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb passages (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method passages owner: ARCH_WIZARD
     set_task_perms(caller_perms());
     "Return all passage objects.";
     if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
@@ -102,9 +102,9 @@ object AREA
     endif
     tuples = this.passages_rel:tuples();
     return { tuple[3] for tuple in (tuples) };
-  endverb
+  endmethod
 
-  verb passages_from (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method passages_from owner: ARCH_WIZARD
     "Return all passages connected to a room.";
     {room} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
@@ -129,9 +129,9 @@ object AREA
       endif
     endfor
     return passages;
-  endverb
+  endmethod
 
-  verb handle_passage_command (this none this) owner: HACKER flags: "rxd"
+  method handle_passage_command owner: HACKER
     {parsed} = args;
     room = player.location;
     valid(room) || return false;
@@ -149,9 +149,9 @@ object AREA
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb rooms_from (this none this) owner: HACKER flags: "rxd"
+  method rooms_from owner: HACKER
     "Find all rooms transitively reachable from the starting room.";
     "Optional second arg: only_open (default true) - skip closed passages.";
     {start_room, ?only_open = true} = args;
@@ -192,18 +192,18 @@ object AREA
       endfor
     endwhile
     return mapkeys(visited);
-  endverb
+  endmethod
 
-  verb connected (this none this) owner: HACKER flags: "rxd"
+  method connected owner: HACKER
     "Check if two rooms are transitively connected via passages.";
     "Optional third arg: only_open (default true) - skip closed passages.";
     {room_a, room_b, ?only_open = true} = args;
     typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
     reachable = this:rooms_from(room_a, only_open);
     return room_b in reachable;
-  endverb
+  endmethod
 
-  verb find_path (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_path owner: ARCH_WIZARD
     "Find a path from start_room to goal_room. Returns list of {room, connector} pairs, or false.";
     "Connector is either a passage flyweight or {'transport, label, transport_obj} for transports.";
     "Optional third arg: only_open (default true) - skip closed passages.";
@@ -280,9 +280,9 @@ object AREA
       endif
     endwhile
     return false;
-  endverb
+  endmethod
 
-  verb _move_room_here (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _move_room_here owner: ARCH_WIZARD
     "Move a room into this area, raising if containment fails.";
     if (caller != this && !caller_perms().wizard)
       typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == this || raise(E_PERM);
@@ -297,9 +297,9 @@ object AREA
     endif
     room.location == this || raise(E_INVARG, "Could not move room into area.");
     return room;
-  endverb
+  endmethod
 
-  verb make_room_in (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method make_room_in owner: ARCH_WIZARD
     "Create a new room in this area. Requires 'add_room capability on area.";
     actor = caller_perms();
     set_task_perms(actor);
@@ -314,9 +314,9 @@ object AREA
       valid(new_room) && new_room:destroy();
       raise(e[1], length(e) >= 2 ? e[2] | "Could not create room in area.");
     endtry
-  endverb
+  endmethod
 
-  verb add_room (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_room owner: ARCH_WIZARD
     "Add a room to this area. Requires 'add_room capability on area.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'add_room);
@@ -324,9 +324,9 @@ object AREA
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
     set_task_perms(perms);
     return this:_move_room_here(room, actor);
-  endverb
+  endmethod
 
-  verb create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method create_passage owner: ARCH_WIZARD
     "Create passage between two rooms. Requires 'create_passage on area, 'dig_from on room_a, 'dig_into on room_b.";
     "For bidirectional passages, also requires 'dig_from on room_b and 'dig_into on room_a.";
     "room_a and room_b should be capability flyweights or raw room objects that caller has permission for.";
@@ -367,18 +367,18 @@ object AREA
     endif
     "Now create the passage with elevated area permissions";
     return this:_do_create_passage(actual_room_a, actual_room_b, passage, perms);
-  endverb
+  endmethod
 
-  verb _do_create_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_create_passage owner: ARCH_WIZARD
     "Internal: Actually create the passage with elevated permissions.";
     this:require_caller(this);
     {room_a, room_b, passage, perms} = args;
     set_task_perms(perms);
     this:set_passage(room_a, room_b, passage);
     return passage;
-  endverb
+  endmethod
 
-  verb update_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method update_passage owner: ARCH_WIZARD
     "Update an existing passage between two rooms.";
     "Requires 'dig_from on source room; does not create new links.";
     set_task_perms(caller_perms());
@@ -396,9 +396,9 @@ object AREA
     room_target:check_can_dig_from();
     this:set_passage(actual_source, actual_dest, new_passage);
     return new_passage;
-  endverb
+  endmethod
 
-  verb remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove_passage owner: ARCH_WIZARD
     "Remove passage between two rooms. Requires 'remove_passage on area and 'dig_from on source room.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'remove_passage);
@@ -415,17 +415,17 @@ object AREA
     endtry
     "Remove the passage with elevated permissions";
     return this:_do_remove_passage(actual_room_a, actual_room_b, perms);
-  endverb
+  endmethod
 
-  verb _do_remove_passage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_remove_passage owner: ARCH_WIZARD
     "Internal: Actually remove the passage with elevated permissions.";
     this:require_caller(this);
     {room_a, room_b, perms} = args;
     set_task_perms(perms);
     return this:clear_passage(room_a, room_b);
-  endverb
+  endmethod
 
-  verb on_room_recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_room_recycle owner: ARCH_WIZARD
     "Clean up all passages to/from a room that is being recycled.";
     set_task_perms(this.owner);
     {room} = args;
@@ -437,9 +437,9 @@ object AREA
     for tuple in (tuples)
       this.passages_rel:retract(tuple);
     endfor
-  endverb
+  endmethod
 
-  verb find_passage_by_direction (this none this) owner: HACKER flags: "rxd"
+  method find_passage_by_direction owner: HACKER
     "Find a passage from a room matching a direction/label/alias. Returns passage or false.";
     {room, direction} = args;
     typeof(room) == TYPE_OBJ || raise(E_TYPE);
@@ -451,9 +451,9 @@ object AREA
       endif
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb get_exit_info (this none this) owner: HACKER flags: "rxd"
+  method get_exit_info owner: HACKER
     "Get exit labels and ambient passage descriptions for a room. Returns {exits, ambient_passages}.";
     "ambient_passages is a list of {description, prose_style, label} tuples where prose_style is 'sentence or 'fragment.";
     {room} = args;
@@ -483,9 +483,9 @@ object AREA
       endif
     endfor
     return {exits, ambient_passages};
-  endverb
+  endmethod
 
-  verb test_connectivity (this none this) owner: HACKER flags: "rxd"
+  method test_connectivity owner: HACKER
     "Test connectivity checking between rooms";
     area = $area:create(true);
     r1 = $room:create(true);
@@ -505,9 +505,9 @@ object AREA
     !area:connected(r3, r1) && raise(E_ASSERT, "r3 and r1 should be connected");
     "r4 is not connected";
     area:connected(r1, r4) && raise(E_ASSERT, "r4 should not be connected");
-  endverb
+  endmethod
 
-  verb test_rooms_from (this none this) owner: HACKER flags: "rxd"
+  method test_rooms_from owner: HACKER
     "Test finding all reachable rooms";
     area = $area:create(true);
     r1 = $room:create(true);
@@ -527,9 +527,9 @@ object AREA
     "From r3 should reach all via bidirectional edges";
     reachable = area:rooms_from(r3);
     length(reachable) != 4 && raise(E_ASSERT, "Should find 4 reachable rooms from r3");
-  endverb
+  endmethod
 
-  verb test_find_path (this none this) owner: HACKER flags: "rxd"
+  method test_find_path owner: HACKER
     "Test pathfinding between rooms";
     area = $area:create(true);
     r1 = $room:create(true);
@@ -561,9 +561,9 @@ object AREA
     path = area:find_path(r1, r1);
     path || raise(E_ASSERT, "Should find path from room to itself");
     length(path) != 1 && raise(E_ASSERT, "Same-room path should have 1 node");
-  endverb
+  endmethod
 
-  verb test_closed_passages (this none this) owner: HACKER flags: "rxd"
+  method test_closed_passages owner: HACKER
     "Test that closed passages are respected by pathfinding";
     area = $area:create(true);
     r1 = $room:create(true);
@@ -584,9 +584,9 @@ object AREA
     length(reachable) != 2 && raise(E_ASSERT, "Should only reach 2 rooms with closed passage");
     reachable = area:rooms_from(r1, false);
     length(reachable) != 3 && raise(E_ASSERT, "Should reach all 3 rooms when ignoring closed");
-  endverb
+  endmethod
 
-  verb test_accepts_rooms (this none this) owner: HACKER flags: "rxd"
+  method test_accepts_rooms owner: HACKER
     "Test that areas accept and add rooms as spatial contents, while rejecting non-rooms.";
     area = $area:create(true);
     room = $room:create(true);
@@ -621,9 +621,9 @@ object AREA
       $test_utils:destroy_if_valid(room);
       $test_utils:destroy_if_valid(area);
     endtry
-  endverb
+  endmethod
 
-  verb destroy (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method destroy owner: ARCH_WIZARD
     "Destroy this area, cleaning up the passages relation first.";
     "Clean up passages relation if it exists";
     if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
@@ -631,5 +631,5 @@ object AREA
     endif
     "Call parent destroy";
     pass();
-  endverb
+  endmethod
 endobject

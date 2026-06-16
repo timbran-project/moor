@@ -78,8 +78,8 @@ object KIBBLE_CUPBOARD
   };
   override unlock_rule = <RULE, .name = 'cupboard_unlock_rule, .body = {{'is, {'var, 'Key}, BRASS_KEY}}, .variables = {'Key}, .head = 'cupboard_unlock_rule>;
 
-  verb fact_is_portable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fact_is_portable owner: ARCH_WIZARD
     "Cupboards are not portable.";
     return false;
-  endverb
+  endmethod
 endobject

@@ -318,24 +318,24 @@ object SUB
     ""
   };
 
-  verb is_proper_noun (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_proper_noun owner: ARCH_WIZARD
     "Return false so article tests work correctly.";
     return false;
-  endverb
+  endmethod
 
-  verb render_as (this none this) owner: HACKER flags: "rxd"
+  method render_as owner: HACKER
     {render_for, content_type, event} = args;
     content = this:eval_sub(event, render_for);
     return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     {render_for, content_type, event} = args;
     content = this:eval_sub(event, render_for);
     return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
-  endverb
+  endmethod
 
-  verb phrase (this none this) owner: HACKER flags: "rxd"
+  method phrase owner: HACKER
     {text, ?options = []} = args;
     typeof(text) != TYPE_STR && return "";
     strip_period = typeof(options) == TYPE_LIST && 'strip_period in options;
@@ -343,15 +343,15 @@ object SUB
     strip_period && length(text) && text[$] == "." && (text = text[1..$ - 1]);
     initial_lowercase && length(text) && (text = text[1]:lowercase() + (length(text) >= 2 ? text[2..$] | ""));
     return text;
-  endverb
+  endmethod
 
-  verb "self_alt self_altc" (this none this) owner: HACKER flags: "rxd"
+  method "self_alt self_altc" owner: HACKER
     capitalize = verb[length(verb)] == "c";
     {for_self, for_alt} = args;
     return <this, .type = 'self_alt, .capitalize = capitalize, .for_self = for_self, .for_others = for_alt>;
-  endverb
+  endmethod
 
-  verb eval_sub (this none this) owner: HACKER flags: "rxd"
+  method eval_sub owner: HACKER
     {event, render_for} = args;
     this.type == 'actor && return this:name_sub(event.actor, render_for);
     this.type == 'location && return this:name_sub(event.actor.location, render_for);
@@ -375,13 +375,13 @@ object SUB
     this.type == 'iobj_reflexive && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "yourself" | event.iobj:pronoun_reflexive() | "<no-iobj>";
     this.type == 'verb_be && return event.actor == render_for ? "are" | event.actor:pronouns().verb_be;
     this.type == 'verb_have && return event.actor == render_for ? "have" | event.actor:pronouns().verb_have;
-    this.type == 'verb_look && return event.actor == render_for ? "look" | (event.actor:pronouns().is_plural ? "look" | "looks");
+    this.type == 'verb_look && return event.actor == render_for ? "look" | event.actor:pronouns().is_plural ? "look" | "looks";
     this.type == 'dobj_verb_be && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "are" | event.dobj:pronouns().verb_be | "<no-dobj>";
     this.type == 'dobj_verb_have && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "have" | event.dobj:pronouns().verb_have | "<no-dobj>";
-    this.type == 'dobj_verb_look && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "look" | (event.dobj:pronouns().is_plural ? "look" | "looks") | "<no-dobj>";
+    this.type == 'dobj_verb_look && return typeof(event.dobj) == TYPE_OBJ && valid(event.dobj) ? event.dobj == render_for ? "look" | event.dobj:pronouns().is_plural ? "look" | "looks" | "<no-dobj>";
     this.type == 'iobj_verb_be && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "are" | event.iobj:pronouns().verb_be | "<no-iobj>";
     this.type == 'iobj_verb_have && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "have" | event.iobj:pronouns().verb_have | "<no-iobj>";
-    this.type == 'iobj_verb_look && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "look" | (event.iobj:pronouns().is_plural ? "look" | "looks") | "<no-iobj>";
+    this.type == 'iobj_verb_look && return typeof(event.iobj) == TYPE_OBJ && valid(event.iobj) ? event.iobj == render_for ? "look" | event.iobj:pronouns().is_plural ? "look" | "looks" | "<no-iobj>";
     if (this.type == 'self_alt)
       value = event.actor == render_for ? this.for_self | this.for_others;
       typeof(value) == TYPE_FLYWEIGHT && `value.type ! E_PROPNF => false' && return value:eval_sub(event, render_for);
@@ -419,94 +419,94 @@ object SUB
       return length(article) ? article + " " + name | name;
     endif
     return "<invalid-sub>";
-  endverb
+  endmethod
 
-  verb name_sub (this none this) owner: HACKER flags: "rxd"
+  method name_sub owner: HACKER
     {who, render_for} = args;
     return who == render_for ? "you" | `who:name() ! E_VERBNF => who.name';
-  endverb
+  endmethod
 
-  verb "d*c" (this none this) owner: HACKER flags: "rxd"
+  method "d*c" owner: HACKER
     capitalize = index(verb, "c") != 0;
     return <this, .type = 'dobj, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "i*c" (this none this) owner: HACKER flags: "rxd"
+  method "i*c" owner: HACKER
     capitalize = index(verb, "c") != 0;
     return <this, .type = 'iobj, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "l*c" (this none this) owner: HACKER flags: "rxd"
+  method "l*c" owner: HACKER
     capitalize = index(verb, "c") != 0;
     return <this, .type = 'location, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "n*c" (this none this) owner: HACKER flags: "rxd"
+  method "n*c" owner: HACKER
     capitalize = index(verb, "c") != 0;
     return <this, .type = 'actor, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "o*c o*_dobj o*_iobj oc*_dobj oc*_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "o*c o*_dobj o*_iobj oc*_dobj oc*_iobj" owner: HACKER
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_object | (verb:ends_with("_iobj") ? 'iobj_object | 'object);
+    type = verb:ends_with("_dobj") ? 'dobj_object | verb:ends_with("_iobj") ? 'iobj_object | 'object;
     return <this, .type = type, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "p*c p*_dobj p*_iobj pc*_dobj pc*_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "p*c p*_dobj p*_iobj pc*_dobj pc*_iobj" owner: HACKER
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_pos_adj | (verb:ends_with("_iobj") ? 'iobj_pos_adj | 'pos_adj);
+    type = verb:ends_with("_dobj") ? 'dobj_pos_adj | verb:ends_with("_iobj") ? 'iobj_pos_adj | 'pos_adj;
     return <this, .type = type, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "q*c q*_dobj q*_iobj qc*_dobj qc*_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "q*c q*_dobj q*_iobj qc*_dobj qc*_iobj" owner: HACKER
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_pos_noun | (verb:ends_with("_iobj") ? 'iobj_pos_noun | 'pos_noun);
+    type = verb:ends_with("_dobj") ? 'dobj_pos_noun | verb:ends_with("_iobj") ? 'iobj_pos_noun | 'pos_noun;
     return <this, .type = type, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "r*c r*_dobj r*_iobj rc*_dobj rc*_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "r*c r*_dobj r*_iobj rc*_dobj rc*_iobj" owner: HACKER
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_reflexive | (verb:ends_with("_iobj") ? 'iobj_reflexive | 'reflexive);
+    type = verb:ends_with("_dobj") ? 'dobj_reflexive | verb:ends_with("_iobj") ? 'iobj_reflexive | 'reflexive;
     return <this, .type = type, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "s*c s*_dobj s*_iobj sc*_dobj sc*_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "s*c s*_dobj s*_iobj sc*_dobj sc*_iobj" owner: HACKER
     capitalize = index(verb, "c") != 0;
-    type = verb:ends_with("_dobj") ? 'dobj_subject | (verb:ends_with("_iobj") ? 'iobj_subject | 'subject);
+    type = verb:ends_with("_dobj") ? 'dobj_subject | verb:ends_with("_iobj") ? 'iobj_subject | 'subject;
     return <this, .type = type, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "t*c*" (this none this) owner: HACKER flags: "rxd"
+  method "t*c*" owner: HACKER
     capitalize = index(verb, "c") != 0;
     return <this, .type = 'this, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "verb_be verb_be_dobj verb_be_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "verb_be verb_be_dobj verb_be_iobj" owner: HACKER
     "Verb conjugation for 'be' (is/are).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_be | (verb:ends_with("_iobj") ? 'iobj_verb_be | 'verb_be);
+    type = verb:ends_with("_dobj") ? 'dobj_verb_be | verb:ends_with("_iobj") ? 'iobj_verb_be | 'verb_be;
     return <this, .type = type>;
-  endverb
+  endmethod
 
-  verb "verb_have verb_have_dobj verb_have_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "verb_have verb_have_dobj verb_have_iobj" owner: HACKER
     "Verb conjugation for 'have' (has/have).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_have | (verb:ends_with("_iobj") ? 'iobj_verb_have | 'verb_have);
+    type = verb:ends_with("_dobj") ? 'dobj_verb_have | verb:ends_with("_iobj") ? 'iobj_verb_have | 'verb_have;
     return <this, .type = type>;
-  endverb
+  endmethod
 
-  verb "verb_look verb_look_dobj verb_look_iobj" (this none this) owner: HACKER flags: "rxd"
+  method "verb_look verb_look_dobj verb_look_iobj" owner: HACKER
     "Verb conjugation for 'look' (look/looks).";
-    type = verb:ends_with("_dobj") ? 'dobj_verb_look | (verb:ends_with("_iobj") ? 'iobj_verb_look | 'verb_look);
+    type = verb:ends_with("_dobj") ? 'dobj_verb_look | verb:ends_with("_iobj") ? 'iobj_verb_look | 'verb_look;
     return <this, .type = type>;
-  endverb
+  endmethod
 
-  verb "binding*" (this none this) owner: HACKER flags: "rxd"
+  method "binding*" owner: HACKER
     "Generic context binding - fetches arbitrary values from context via get_binding().";
     capitalize = index(verb, "c") != 0;
     {binding_name} = args;
     return <this, .type = 'binding, .binding_name = binding_name, .capitalize = capitalize>;
-  endverb
+  endmethod
 
-  verb "a*c" (this none this) owner: HACKER flags: "rxd"
+  method "a*c" owner: HACKER
     "Get indefinite article (a/an) for a binding. Returns article flyweight.";
     capitalize_article = index(verb, "c") != 0;
     {binding_name} = args;
@@ -516,9 +516,9 @@ object SUB
       binding_name = tosym(name_str[1..length(name_str) - 1]);
     endif
     return <this, .type = 'article_a, .binding_name = binding_name, .capitalize = capitalize_article, .capitalize_binding = capitalize_binding>;
-  endverb
+  endmethod
 
-  verb "the*c" (this none this) owner: HACKER flags: "rxd"
+  method "the*c" owner: HACKER
     "Get definite article (the) for a binding. Returns article flyweight.";
     capitalize_article = index(verb, "c") != 0;
     {binding_name} = args;
@@ -528,9 +528,9 @@ object SUB
       binding_name = tosym(name_str[1..length(name_str) - 1]);
     endif
     return <this, .type = 'article_the, .binding_name = binding_name, .capitalize = capitalize_article, .capitalize_binding = capitalize_binding>;
-  endverb
+  endmethod
 
-  verb a_or_an (this none this) owner: HACKER flags: "rxd"
+  method a_or_an owner: HACKER
     "Return 'a' or 'an' depending on the word. Handles exceptions like 'unicycle'.";
     {word} = args;
     typeof(word) != TYPE_STR || !length(word) && return "a";
@@ -540,9 +540,9 @@ object SUB
       return "a";
     endif
     return index("aeiou", first) ? "an" | "a";
-  endverb
+  endmethod
 
-  verb test_a_or_an_vowels (this none this) owner: HACKER flags: "rxd"
+  method test_a_or_an_vowels owner: HACKER
     "Test a_or_an() returns 'an' for vowel starters.";
     $test_utils:assert_eq(this:a_or_an("apple"), "an", "apple article");
     $test_utils:assert_eq(this:a_or_an("egg"), "an", "egg article");
@@ -550,40 +550,40 @@ object SUB
     $test_utils:assert_eq(this:a_or_an("orange"), "an", "orange article");
     $test_utils:assert_eq(this:a_or_an("umbrella"), "an", "umbrella article");
     return true;
-  endverb
+  endmethod
 
-  verb test_a_or_an_consonants (this none this) owner: HACKER flags: "rxd"
+  method test_a_or_an_consonants owner: HACKER
     "Test a_or_an() returns 'a' for consonant starters.";
     $test_utils:assert_eq(this:a_or_an("banana"), "a", "banana article");
     $test_utils:assert_eq(this:a_or_an("cat"), "a", "cat article");
     $test_utils:assert_eq(this:a_or_an("dog"), "a", "dog article");
     return true;
-  endverb
+  endmethod
 
-  verb test_a_or_an_u_silent (this none this) owner: HACKER flags: "rxd"
+  method test_a_or_an_u_silent owner: HACKER
     "Test a_or_an() with 'u' words that have silent 'u' sound.";
     $test_utils:assert_eq(this:a_or_an("unicycle"), "a", "unicycle article");
     $test_utils:assert_eq(this:a_or_an("union"), "a", "union article");
     $test_utils:assert_eq(this:a_or_an("university"), "a", "university article");
     $test_utils:assert_eq(this:a_or_an("unit"), "a", "unit article");
     return true;
-  endverb
+  endmethod
 
-  verb test_a_or_an_u_pronounced (this none this) owner: HACKER flags: "rxd"
+  method test_a_or_an_u_pronounced owner: HACKER
     "Test a_or_an() with 'u' words that have pronounced 'u' sound.";
     $test_utils:assert_eq(this:a_or_an("ukulele"), "an", "ukulele article");
     return true;
-  endverb
+  endmethod
 
-  verb test_a_or_an_edge_cases (this none this) owner: HACKER flags: "rxd"
+  method test_a_or_an_edge_cases owner: HACKER
     "Test a_or_an() with edge cases.";
     $test_utils:assert_eq(this:a_or_an(""), "a", "empty article");
     $test_utils:assert_eq(this:a_or_an("x"), "a", "single consonant article");
     $test_utils:assert_eq(this:a_or_an("a"), "an", "single vowel article");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_a_creation (this none this) owner: HACKER flags: "rxd"
+  method test_article_a_creation owner: HACKER
     "Test a() article flyweight creation.";
     fw = this:a('test_binding);
     $test_utils:assert_type(fw, TYPE_FLYWEIGHT, "a() should return flyweight");
@@ -591,17 +591,17 @@ object SUB
     $test_utils:assert_eq(fw.binding_name, 'test_binding, "a() binding");
     $test_utils:assert_false(fw.capitalize, "a() should not capitalize");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_ac_creation (this none this) owner: HACKER flags: "rxd"
+  method test_article_ac_creation owner: HACKER
     "Test ac() capitalized article flyweight.";
     fwc = this:ac('test_binding);
     $test_utils:assert_eq(fwc.type, 'article_a, "ac() type");
     $test_utils:assert_true(fwc.capitalize, "ac() should capitalize");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_the_creation (this none this) owner: HACKER flags: "rxd"
+  method test_article_the_creation owner: HACKER
     "Test the() article flyweight creation.";
     fw = this:the('test_binding);
     $test_utils:assert_type(fw, TYPE_FLYWEIGHT, "the() should return flyweight");
@@ -610,27 +610,27 @@ object SUB
     $test_utils:assert_false(fw.capitalize, "the() should not capitalize");
     $test_utils:assert_false(`fw.capitalize_binding ! E_PROPNF => false', "the() should not set capitalize_binding");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_thec_creation (this none this) owner: HACKER flags: "rxd"
+  method test_article_thec_creation owner: HACKER
     "Test thec() capitalized article flyweight.";
     fwc = this:thec('test_binding);
     $test_utils:assert_eq(fwc.type, 'article_the, "thec() type");
     $test_utils:assert_true(fwc.capitalize, "thec() should capitalize");
     $test_utils:assert_false(`fwc.capitalize_binding ! E_PROPNF => false', "thec() should not set capitalize_binding");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_the_eval (this none this) owner: HACKER flags: "rxd"
+  method test_article_the_eval owner: HACKER
     "Test article_the() renders with binding name.";
     event = $event:mk_test(this):with_dobj(this);
     fw = this:the('d);
     result = fw:eval_sub(event, #0);
     $test_utils:assert_eq(result, "the " + this.name, "the() rendered text");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_a_eval (this none this) owner: HACKER flags: "rxd"
+  method test_article_a_eval owner: HACKER
     "Test article_a() renders with binding name.";
     event = $event:mk_test(this):with_dobj(this);
     fw = this:a('d);
@@ -638,9 +638,9 @@ object SUB
     expected_prefix = this:a_or_an(this.name);
     $test_utils:assert_eq(result, expected_prefix + " " + this.name, "a() rendered text");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_with_capitalized_binding (this none this) owner: HACKER flags: "rxd"
+  method test_article_with_capitalized_binding owner: HACKER
     "Test binding suffix c capitalizes the noun, not the article.";
     event = $event:mk_test(this):with_dobj(this);
     fw = this:the('dc);
@@ -648,26 +648,26 @@ object SUB
     expected = "the " + this.name:capitalize();
     $test_utils:assert_eq(result, expected, "capitalized binding rendered text");
     return true;
-  endverb
+  endmethod
 
-  verb test_binding_creation (this none this) owner: HACKER flags: "rxd"
+  method test_binding_creation owner: HACKER
     "Test binding() flyweight creation.";
     fw = this:binding('test_name);
     $test_utils:assert_type(fw, TYPE_FLYWEIGHT, "binding() should return flyweight");
     $test_utils:assert_eq(fw.type, 'binding, "binding() type");
     $test_utils:assert_eq(fw.binding_name, 'test_name, "binding() name");
     return true;
-  endverb
+  endmethod
 
-  verb test_bindingc_creation (this none this) owner: HACKER flags: "rxd"
+  method test_bindingc_creation owner: HACKER
     "Test bindingc() capitalized binding flyweight.";
     fwc = this:bindingc('test_name);
     $test_utils:assert_eq(fwc.type, 'binding, "bindingc() type");
     $test_utils:assert_true(fwc.capitalize, "bindingc() should capitalize");
     return true;
-  endverb
+  endmethod
 
-  verb test_self_alt_creation (this none this) owner: HACKER flags: "rxd"
+  method test_self_alt_creation owner: HACKER
     "Test self_alt() flyweight creation.";
     fw = this:self_alt("for_self", "for_others");
     $test_utils:assert_type(fw, TYPE_FLYWEIGHT, "self_alt() should return flyweight");
@@ -676,17 +676,17 @@ object SUB
     $test_utils:assert_eq(fw.for_others, "for_others", "self_alt() others text");
     $test_utils:assert_false(fw.capitalize, "self_alt() should not capitalize");
     return true;
-  endverb
+  endmethod
 
-  verb test_self_altc_creation (this none this) owner: HACKER flags: "rxd"
+  method test_self_altc_creation owner: HACKER
     "Test self_altc() capitalized self-alt flyweight.";
     fwc = this:self_altc("For_self", "For_others");
     $test_utils:assert_eq(fwc.type, 'self_alt, "self_altc() type");
     $test_utils:assert_true(fwc.capitalize, "self_altc() should capitalize");
     return true;
-  endverb
+  endmethod
 
-  verb test_name_subs_actor (this none this) owner: HACKER flags: "rxd"
+  method test_name_subs_actor owner: HACKER
     "Test n() and nc() actor name substitutions.";
     fw = this:n();
     $test_utils:assert_eq(fw.type, 'actor, "n() type");
@@ -695,9 +695,9 @@ object SUB
     $test_utils:assert_eq(fwc.type, 'actor, "nc() type");
     $test_utils:assert_true(fwc.capitalize, "nc() should capitalize");
     return true;
-  endverb
+  endmethod
 
-  verb test_name_subs_objects (this none this) owner: HACKER flags: "rxd"
+  method test_name_subs_objects owner: HACKER
     "Test d/i/l/t object name substitutions.";
     fwd = this:d();
     $test_utils:assert_eq(fwd.type, 'dobj, "d() type");
@@ -708,9 +708,9 @@ object SUB
     fwt = this:t();
     $test_utils:assert_eq(fwt.type, 'this, "t() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_pronouns_actor (this none this) owner: HACKER flags: "rxd"
+  method test_pronouns_actor owner: HACKER
     "Test actor pronoun substitutions.";
     fw_s = this:s();
     $test_utils:assert_eq(fw_s.type, 'subject, "s() type");
@@ -726,9 +726,9 @@ object SUB
     fw_r = this:r();
     $test_utils:assert_eq(fw_r.type, 'reflexive, "r() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_pronouns_dobj (this none this) owner: HACKER flags: "rxd"
+  method test_pronouns_dobj owner: HACKER
     "Test direct object pronoun substitutions.";
     fw_s = this:s_dobj();
     $test_utils:assert_eq(fw_s.type, 'dobj_subject, "s_dobj() type");
@@ -741,9 +741,9 @@ object SUB
     fw_r = this:r_dobj();
     $test_utils:assert_eq(fw_r.type, 'dobj_reflexive, "r_dobj() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_pronouns_iobj (this none this) owner: HACKER flags: "rxd"
+  method test_pronouns_iobj owner: HACKER
     "Test indirect object pronoun substitutions.";
     fw_s = this:s_iobj();
     $test_utils:assert_eq(fw_s.type, 'iobj_subject, "s_iobj() type");
@@ -756,9 +756,9 @@ object SUB
     fw_r = this:r_iobj();
     $test_utils:assert_eq(fw_r.type, 'iobj_reflexive, "r_iobj() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_verb_conjugation_be (this none this) owner: HACKER flags: "rxd"
+  method test_verb_conjugation_be owner: HACKER
     "Test verb_be() conjugation flyweights.";
     fw_be = this:verb_be();
     $test_utils:assert_eq(fw_be.type, 'verb_be, "verb_be() type");
@@ -767,9 +767,9 @@ object SUB
     fw_be_i = this:verb_be_iobj();
     $test_utils:assert_eq(fw_be_i.type, 'iobj_verb_be, "verb_be_iobj() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_verb_conjugation_have (this none this) owner: HACKER flags: "rxd"
+  method test_verb_conjugation_have owner: HACKER
     "Test verb_have() conjugation flyweights.";
     fw_have = this:verb_have();
     $test_utils:assert_eq(fw_have.type, 'verb_have, "verb_have() type");
@@ -778,9 +778,9 @@ object SUB
     fw_have_i = this:verb_have_iobj();
     $test_utils:assert_eq(fw_have_i.type, 'iobj_verb_have, "verb_have_iobj() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_verb_conjugation_look (this none this) owner: HACKER flags: "rxd"
+  method test_verb_conjugation_look owner: HACKER
     "Test verb_look() conjugation flyweights.";
     fw_look = this:verb_look();
     $test_utils:assert_eq(fw_look.type, 'verb_look, "verb_look() type");
@@ -789,9 +789,9 @@ object SUB
     fw_look_i = this:verb_look_iobj();
     $test_utils:assert_eq(fw_look_i.type, 'iobj_verb_look, "verb_look_iobj() type");
     return true;
-  endverb
+  endmethod
 
-  verb test_render_actor_perspective (this none this) owner: HACKER flags: "rxd"
+  method test_render_actor_perspective owner: HACKER
     "Test rendering adapts actor names and self-alternation to perspective.";
     event = $event:mk_social(player, this:nc(), " ", this:self_alt("wave", "waves"), " to ", this:the('d), "."):with_dobj(this);
     actor_view = event:transform_for(player);
@@ -799,9 +799,9 @@ object SUB
     $test_utils:assert_eq(actor_view, {"You wave to the " + this.name + "."}, "actor should see second-person rendering");
     $test_utils:assert_eq(observer_view, {player:name() + " waves to the " + this.name + "."}, "observer should see third-person rendering");
     return true;
-  endverb
+  endmethod
 
-  verb test_eval_missing_object_bindings (this none this) owner: HACKER flags: "rxd"
+  method test_eval_missing_object_bindings owner: HACKER
     "Test missing direct and indirect object substitutions render placeholders.";
     event = $event:mk_test(player);
     $test_utils:assert_eq(this:s_dobj():eval_sub(event, player), "<no-dobj>", "missing dobj subject");
@@ -809,18 +809,18 @@ object SUB
     $test_utils:assert_eq(this:verb_have_dobj():eval_sub(event, player), "<no-dobj>", "missing dobj verb");
     $test_utils:assert_eq(this:verb_look_iobj():eval_sub(event, player), "<no-iobj>", "missing iobj verb");
     return true;
-  endverb
+  endmethod
 
-  verb test_binding_eval_and_missing_binding (this none this) owner: HACKER flags: "rxd"
+  method test_binding_eval_and_missing_binding owner: HACKER
     "Test generic binding evaluation for self, object, scalar, and missing values.";
     event = $event:mk_test(player):with_dobj(this);
     $test_utils:assert_eq(this:binding('actor):eval_sub(event, player), "you", "actor binding should render as you to actor");
     $test_utils:assert_eq(this:binding('d):eval_sub(event, player), this:name(), "object binding should render object name");
     $test_utils:assert_eq(this:binding('missing):eval_sub(event, player), "<no-binding>", "missing binding should render placeholder");
     return true;
-  endverb
+  endmethod
 
-  verb test_article_eval_self_and_proper_noun (this none this) owner: HACKER flags: "rxd"
+  method test_article_eval_self_and_proper_noun owner: HACKER
     "Test articles suppress article text for self and proper nouns.";
     target = $test_utils:anonymous($thing);
     target.name = "test relic";
@@ -830,40 +830,40 @@ object SUB
     $test_utils:assert_eq(this:the('d):eval_sub(event, player), "test relic", "proper noun should suppress definite article");
     $test_utils:assert_eq(this:a('d):eval_sub(event, player), "test relic", "proper noun should suppress indefinite article");
     return true;
-  endverb
+  endmethod
 
-  verb test_phrase_strip_period (this none this) owner: HACKER flags: "rxd"
+  method test_phrase_strip_period owner: HACKER
     "Test phrase() with strip_period option.";
     result = this:phrase("Hello world.", {'strip_period});
     $test_utils:assert_eq(result, "Hello world", "strip_period phrase");
     return true;
-  endverb
+  endmethod
 
-  verb test_phrase_initial_lowercase (this none this) owner: HACKER flags: "rxd"
+  method test_phrase_initial_lowercase owner: HACKER
     "Test phrase() with initial_lowercase option.";
     result = this:phrase("Hello world", {'initial_lowercase});
     $test_utils:assert_eq(result, "hello world", "initial_lowercase phrase");
     return true;
-  endverb
+  endmethod
 
-  verb test_phrase_both_options (this none this) owner: HACKER flags: "rxd"
+  method test_phrase_both_options owner: HACKER
     "Test phrase() with both strip_period and initial_lowercase.";
     result = this:phrase("Hello world.", {'strip_period, 'initial_lowercase});
     $test_utils:assert_eq(result, "hello world", "combined phrase options");
     return true;
-  endverb
+  endmethod
 
-  verb test_phrase_no_options (this none this) owner: HACKER flags: "rxd"
+  method test_phrase_no_options owner: HACKER
     "Test phrase() with no options returns unchanged text.";
     result = this:phrase("Hello world.");
     $test_utils:assert_eq(result, "Hello world.", "phrase without options");
     return true;
-  endverb
+  endmethod
 
-  verb test_phrase_empty_string (this none this) owner: HACKER flags: "rxd"
+  method test_phrase_empty_string owner: HACKER
     "Test phrase() with empty string returns empty.";
     result = this:phrase("");
     $test_utils:assert_eq(result, "", "empty phrase");
     return true;
-  endverb
+  endmethod
 endobject

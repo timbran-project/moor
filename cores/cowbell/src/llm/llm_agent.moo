@@ -35,23 +35,23 @@ object LLM_AGENT
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_agent";
 
-  verb initialize (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method initialize owner: ARCH_WIZARD
     "Called automatically on creation. Creates anonymous client.";
     pass();
     this.client = $llm_client:create(true);
     this.client.name = "Client for " + this.name;
-  endverb
+  endmethod
 
-  verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_tool_error owner: ARCH_WIZARD
     "Log tool execution errors to server_log. Accessible by agent, owner, or wizard.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {tool_name, tool_args, error_msg} = args;
     safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
     server_log("LLM tool error [" + toliteral(tool_name) + "]: " + toliteral(error_msg) + " args=" + toliteral(safe_args));
     return true;
-  endverb
+  endmethod
 
-  verb add_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_tool owner: ARCH_WIZARD
     "Register a tool for this agent to use";
     this:_challenge_permissions(caller);
     {tool_name, tool_flyweight} = args;
@@ -60,38 +60,38 @@ object LLM_AGENT
     tools = this.tools;
     tools[tool_name] = tool_flyweight;
     this.tools = tools;
-  endverb
+  endmethod
 
-  verb remove_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove_tool owner: ARCH_WIZARD
     "Unregister a tool.";
     this:_challenge_permissions(caller);
     {tool_name} = args;
     typeof(tool_name) != TYPE_STR && raise(E_TYPE, "tool_name must be string");
     this.tools = mapdelete(this.tools, tool_name);
-  endverb
+  endmethod
 
-  verb add_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_message owner: ARCH_WIZARD
     "Add a message to context";
     this:_challenge_permissions(caller);
     {role, content} = args;
     this.context = {@this.context, ["role" -> role, "content" -> content]};
-  endverb
+  endmethod
 
-  verb _get_tool_schemas (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _get_tool_schemas owner: ARCH_WIZARD
     "Get OpenAI-format tool schemas from registered tools. Internal only.";
     caller == this || raise(E_PERM);
     return { this.tools[k]:to_schema() for k in (mapkeys(this.tools)) };
-  endverb
+  endmethod
 
-  verb _find_tool (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _find_tool owner: ARCH_WIZARD
     "Find a registered tool by name. Returns flyweight or #-1 if not found. Internal only.";
     caller == this || raise(E_PERM);
     {tool_name} = args;
     maphaskey(this.tools, tool_name) && return this.tools[tool_name];
     return #-1;
-  endverb
+  endmethod
 
-  verb _call_llm_with_retry (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _call_llm_with_retry owner: ARCH_WIZARD
     "Call LLM API with retry logic. Returns $llm_response flyweight.";
     "Optional second arg: opts flyweight to override this.chat_opts.";
     caller == this || raise(E_PERM);
@@ -122,9 +122,9 @@ object LLM_AGENT
         suspend(retry_count + 1);
       endtry
     endfor
-  endverb
+  endmethod
 
-  verb _track_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _track_token_usage owner: ARCH_WIZARD
     "Track token usage from response flyweight and trigger compaction if needed.";
     caller == this || raise(E_PERM);
     {response} = args;
@@ -136,9 +136,9 @@ object LLM_AGENT
     this.total_tokens_used = this.total_tokens_used + tokens_this_call;
     this:_update_token_usage(this.token_owner, tokens_this_call);
     this:needs_compaction() && this:compact_context();
-  endverb
+  endmethod
 
-  verb _execute_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _execute_tool_call owner: ARCH_WIZARD
     "Execute a single tool call. Returns result map for context.";
     caller == this || raise(E_PERM);
     {tool_call} = args;
@@ -186,9 +186,9 @@ object LLM_AGENT
       this.consecutive_tool_failures = failures;
       return ["tool_call_id" -> tool_call_id, "role" -> "tool", "name" -> tool_name, "content" -> error_msg];
     endtry
-  endverb
+  endmethod
 
-  verb send_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method send_message owner: ARCH_WIZARD
     "Main entry point: send a message and get response, executing tools as needed.";
     "Optional second arg: opts flyweight to override this.chat_opts for this call.";
     {user_input, ?opts = false} = args;
@@ -249,26 +249,26 @@ object LLM_AGENT
       suspend(0);
     endfor
     return E_QUOTA("Maximum iterations exceeded");
-  endverb
+  endmethod
 
-  verb reset_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reset_context owner: ARCH_WIZARD
     "Clear context and rebuild from system prompt";
     this:_challenge_permissions(caller);
     this.context = this.system_prompt ? {["role" -> "system", "content" -> this.system_prompt]} | {};
     this.total_tokens_used = 0;
     this.consecutive_tool_failures = [];
     this.all_failed_iterations = 0;
-  endverb
+  endmethod
 
-  verb needs_compaction (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method needs_compaction owner: ARCH_WIZARD
     "Check if context needs compaction based on token usage";
     this:_challenge_permissions(caller);
     typeof(this.last_token_usage) != TYPE_MAP && return false;
     !maphaskey(this.last_token_usage, "prompt_tokens") && return false;
     return this.last_token_usage["prompt_tokens"] > this.token_limit * this.compaction_threshold;
-  endverb
+  endmethod
 
-  verb compact_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method compact_context owner: ARCH_WIZARD
     "Compact context by summarizing old messages and keeping recent ones.";
     "Respects tool_call boundaries - won't split assistant+tool_responses.";
     this:_challenge_permissions(caller);
@@ -293,8 +293,8 @@ object LLM_AGENT
         endif
       endif
     endfor
-    old_messages = (this.context)[2..split_point - 1];
-    recent_messages = (this.context)[split_point..$];
+    old_messages = this.context[2..split_point - 1];
+    recent_messages = this.context[split_point..$];
     length(old_messages) == 0 && return;
     "Try to summarize, fall back to sliding window on failure";
     summary_prompt = "Summarize the following conversation history in 3-4 concise sentences, preserving the most important information:\n\n" + toliteral(old_messages);
@@ -310,9 +310,9 @@ object LLM_AGENT
       this:_log("LLM agent context compacted: summary failed, using sliding window");
     endif
     valid(this.compaction_callback) && respond_to(this.compaction_callback, 'on_compaction_end) && `this.compaction_callback:on_compaction_end() ! ANY';
-  endverb
+  endmethod
 
-  verb _challenge_permissions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _challenge_permissions owner: ARCH_WIZARD
     "Check if caller has permission to access this agent's public methods.";
     "Allows: agent itself, objects with same owner, owner directly, or wizards.";
     {who} = args;
@@ -333,16 +333,16 @@ object LLM_AGENT
     endtry
     "None of the allowed conditions matched";
     raise(E_PERM);
-  endverb
+  endmethod
 
-  verb _log (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _log owner: ARCH_WIZARD
     "Log message to server log. Internal method - only callable by agent itself.";
     caller == this || raise(E_PERM);
     {message} = args;
     server_log(message);
-  endverb
+  endmethod
 
-  verb _check_token_budget (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _check_token_budget owner: ARCH_WIZARD
     "Check if token owner is within budget. Returns true if okay, error string if exceeded. Internal only.";
     caller == this || raise(E_PERM);
     {player_obj} = args;
@@ -351,9 +351,9 @@ object LLM_AGENT
     used = player_obj.llm_tokens_used;
     used >= budget && return "Error: LLM token budget exceeded. You have used " + tostr(used) + " of " + tostr(budget) + " tokens. Contact a wizard to increase your budget.";
     return true;
-  endverb
+  endmethod
 
-  verb _update_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _update_token_usage owner: ARCH_WIZARD
     "Update player's token usage. Runs with wizard perms to write ARCH_WIZARD-owned properties. Internal only.";
     caller == this || raise(E_PERM);
     {player_obj, tokens_used} = args;
@@ -363,9 +363,9 @@ object LLM_AGENT
     tokens_used <= 1000000 || raise(E_INVARG, "tokens_used suspiciously large");
     player_obj.llm_tokens_used = player_obj.llm_tokens_used + tokens_used;
     player_obj.llm_usage_log = {@player_obj.llm_usage_log, ["timestamp" -> time(), "tokens" -> tokens_used, "usage" -> this.last_token_usage]};
-  endverb
+  endmethod
 
-  verb _ensure_knowledge_base (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _ensure_knowledge_base owner: ARCH_WIZARD
     "Lazily create knowledge base if not already created. Internal only.";
     "Uses anonymous object so it's garbage collected when agent is recycled.";
     caller == this || raise(E_PERM);
@@ -374,9 +374,9 @@ object LLM_AGENT
       this.knowledge_base = $relation:create(true);
     endif
     return this.knowledge_base;
-  endverb
+  endmethod
 
-  verb add_todo (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method add_todo owner: ARCH_WIZARD
     "Add a todo item. Returns the new todo's id.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {content} = args;
@@ -385,20 +385,23 @@ object LLM_AGENT
     this.next_todo_id = todo_id + 1;
     this.todos = {@this.todos, ["id" -> todo_id, "content" -> content, "status" -> 'pending]};
     return todo_id;
-  endverb
+  endmethod
 
-  verb update_todo (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method update_todo owner: ARCH_WIZARD
     "Update a todo's status. Status must be 'pending, 'in_progress, or 'completed.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {todo_id, new_status} = args;
     typeof(todo_id) != TYPE_INT && raise(E_TYPE, "todo_id must be integer");
     !(new_status in {'pending, 'in_progress, 'completed}) && raise(E_INVARG, "status must be 'pending, 'in_progress, or 'completed");
     !this.todos:find({t} => t["id"] == todo_id) && raise(E_INVARG, "todo not found: " + tostr(todo_id));
-    this.todos = this.todos:map(fn (t) t["id"] == todo_id && return ["id" -> t["id"], "content" -> t["content"], "status" -> new_status]; return t; endfn);
+    this.todos = this.todos:map(fn (t) begin
+      t["id"] == todo_id && return ["id" -> t["id"], "content" -> t["content"], "status" -> new_status];
+      return t;
+    end endfn);
     return true;
-  endverb
+  endmethod
 
-  verb remove_todo (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove_todo owner: ARCH_WIZARD
     "Remove a specific todo by id.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {todo_id} = args;
@@ -406,24 +409,24 @@ object LLM_AGENT
     !this.todos:find({t} => t["id"] == todo_id) && return false;
     this.todos = this.todos:filter({t} => t["id"] != todo_id);
     return true;
-  endverb
+  endmethod
 
-  verb get_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_todos owner: ARCH_WIZARD
     "Get all todos, optionally filtered by status.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {?status_filter = false} = args;
     !status_filter && return this.todos;
     return this.todos:filter({t} => t["status"] == status_filter);
-  endverb
+  endmethod
 
-  verb clear_completed_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method clear_completed_todos owner: ARCH_WIZARD
     "Remove all completed todos.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     this.todos = this.todos:filter({t} => t["status"] != 'completed);
     return true;
-  endverb
+  endmethod
 
-  verb set_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_todos owner: ARCH_WIZARD
     "Replace entire todo list. Each item must have content and status.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {todo_list} = args;
@@ -440,16 +443,19 @@ object LLM_AGENT
     endfor
     this.todos = new_todos;
     return true;
-  endverb
+  endmethod
 
-  verb format_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_todos owner: ARCH_WIZARD
     "Format todos as human-readable string for display.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     !this.todos && return "No todos.";
-    return this.todos:map(fn (t) status_str = t["status"] == 'completed ? "[x]" | (t["status"] == 'in_progress ? "[>]" | "[ ]"); return status_str + " " + t["content"]; endfn):join("\n");
-  endverb
+    return this.todos:map(fn (t) begin
+      status_str = t["status"] == 'completed ? "[x]" | t["status"] == 'in_progress ? "[>]" | "[ ]";
+      return status_str + " " + t["content"];
+    end endfn):join("\n");
+  endmethod
 
-  verb create_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method create_task owner: ARCH_WIZARD
     "Create a new task. If task_id not provided, auto-generates one. Returns task object.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {description, ?parent_task_id = 0} = args;
@@ -463,9 +469,9 @@ object LLM_AGENT
     task:mk(task_id, description, this, kb, parent_task_id);
     this.current_tasks[task_id] = task;
     return task;
-  endverb
+  endmethod
 
-  verb remove_task (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method remove_task owner: ARCH_WIZARD
     "Remove a task from tracking. Task object will be garbage collected if anonymous.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {task_id} = args;
@@ -473,9 +479,9 @@ object LLM_AGENT
     !maphaskey(this.current_tasks, task_id) && return false;
     this.current_tasks = mapdelete(this.current_tasks, task_id);
     return true;
-  endverb
+  endmethod
 
-  verb get_task_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method get_task_status owner: ARCH_WIZARD
     "Get status of all current tasks as a list of maps. For external reporting.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     task_statuses = {};
@@ -484,9 +490,9 @@ object LLM_AGENT
       valid(task_obj) && (task_statuses = {@task_statuses, task_obj:get_status()});
     endfor
     return task_statuses;
-  endverb
+  endmethod
 
-  verb cleanup_tasks (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method cleanup_tasks owner: ARCH_WIZARD
     "Destroy all task objects and knowledge base. Called on agent destruction.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     if (valid(this.knowledge_base))
@@ -494,9 +500,9 @@ object LLM_AGENT
       this.knowledge_base = #-1;
     endif
     this.current_tasks = [];
-  endverb
+  endmethod
 
-  verb test_todo_lifecycle (this none this) owner: HACKER flags: "rxd"
+  method test_todo_lifecycle owner: HACKER
     "Test basic todo operations.";
     agent = $llm_agent:create(true);
     "Add todos";
@@ -520,9 +526,9 @@ object LLM_AGENT
     todos = agent:get_todos();
     length(todos) != 0 && raise(E_ASSERT, "Should have 0 todos");
     return true;
-  endverb
+  endmethod
 
-  verb test_todo_filter (this none this) owner: HACKER flags: "rxd"
+  method test_todo_filter owner: HACKER
     "Test todo filtering by status.";
     agent = $llm_agent:create(true);
     agent:add_todo("Pending 1");
@@ -534,9 +540,9 @@ object LLM_AGENT
     in_prog = agent:get_todos('in_progress);
     length(in_prog) != 1 && raise(E_ASSERT, "Should have 1 in_progress");
     return true;
-  endverb
+  endmethod
 
-  verb test_set_todos (this none this) owner: HACKER flags: "rxd"
+  method test_set_todos owner: HACKER
     "Test replacing entire todo list.";
     agent = $llm_agent:create(true);
     agent:set_todos({["content" -> "Task A", "status" -> 'pending], ["content" -> "Task B", "status" -> 'in_progress], ["content" -> "Task C", "status" -> 'completed]});
@@ -544,9 +550,9 @@ object LLM_AGENT
     length(todos) != 3 && raise(E_ASSERT, "Should have 3 todos");
     todos[2]["status"] != 'in_progress && raise(E_ASSERT, "Second should be in_progress");
     return true;
-  endverb
+  endmethod
 
-  verb reset_tool_failures (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reset_tool_failures owner: ARCH_WIZARD
     "Reset consecutive failure counts, optionally for a specific tool.";
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {?tool_name = ""} = args;
@@ -556,9 +562,9 @@ object LLM_AGENT
       failures = this.consecutive_tool_failures;
       maphaskey(failures, tool_name) && (this.consecutive_tool_failures = mapdelete(failures, tool_name));
     endif
-  endverb
+  endmethod
 
-  verb _repair_context (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _repair_context owner: ARCH_WIZARD
     "Detect and repair context corruption (orphaned tool_calls without responses).";
     "Returns number of repairs made.";
     caller == this || raise(E_PERM);
@@ -611,9 +617,9 @@ object LLM_AGENT
       this.context = new_ctx;
     endif
     return repairs;
-  endverb
+  endmethod
 
-  verb send_message_no_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method send_message_no_tools owner: ARCH_WIZARD
     "Send a message and get response WITHOUT tool execution.";
     "Useful for simple prompts where tools aren't needed.";
     {user_input, ?opts = false} = args;
@@ -631,7 +637,7 @@ object LLM_AGENT
     content = response:content();
     this:add_message("assistant", content);
     return content;
-  endverb
+  endmethod
 
   verb test_internal_permissions (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Test that internal methods reject external callers.";

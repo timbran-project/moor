@@ -8,7 +8,7 @@ object RULE
   override import_export_hierarchy = {"rules"};
   override import_export_id = "rule";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create a new rule flyweight.";
     "Args: name, head_predicate, body_goals";
     "Example: $rule:mk('trusted, 'trusted, {{member, 'X, #guild}, {reputation, #guild, 5}})";
@@ -18,16 +18,16 @@ object RULE
     "Extract variables from body";
     variables = this:_extract_variables(body_goals);
     return <this, .name = rule_name, .head = tosym(head_predicate), .body = body_goals, .variables = variables>;
-  endverb
+  endmethod
 
-  verb _extract_variables (this none this) owner: HACKER flags: "rxd"
+  method _extract_variables owner: HACKER
     "Extract all normalized variable names from goals.";
     {goals} = args;
     variables = {};
     return this:_collect_variables(goals, variables);
-  endverb
+  endmethod
 
-  verb _collect_variables (this none this) owner: HACKER flags: "rxd"
+  method _collect_variables owner: HACKER
     "Append normalized variable names found in value to variables.";
     {value, variables} = args;
     if (typeof(value) == TYPE_LIST && length(value) == 2 && value[1] == 'var && typeof(value[2]) == TYPE_SYM)
@@ -40,17 +40,17 @@ object RULE
       endfor
     endif
     return variables;
-  endverb
+  endmethod
 
-  verb evaluate (this none this) owner: HACKER flags: "rxd"
+  method evaluate owner: HACKER
     "Evaluate this rule with initial bindings.";
     "Returns: {success: bool, bindings: map, alternatives: list}";
     {?initial_bindings = []} = args;
     "Delegate to rule engine";
     return $rule_engine:evaluate(this, initial_bindings);
-  endverb
+  endmethod
 
-  verb test_rule_creation (this none this) owner: HACKER flags: "rxd"
+  method test_rule_creation owner: HACKER
     "Test creating a simple rule.";
     guild_obj = this;
     goal = {'member, {'var, 'X}, guild_obj};
@@ -59,5 +59,5 @@ object RULE
     rule.head != 'test_rule && raise(E_ASSERT, "Head should be test_rule");
     length(rule.body) != 1 && raise(E_ASSERT, "Body should have 1 goal");
     return true;
-  endverb
+  endmethod
 endobject

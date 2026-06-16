@@ -211,7 +211,7 @@ object STR_PROTO
   override import_export_hierarchy = {"types"};
   override import_export_id = "str_proto";
 
-  verb "capitalize capitalise" (this none this) owner: HACKER flags: "rxd"
+  method "capitalize capitalise" owner: HACKER
     "Capitalizes its argument.";
     string = args[1];
     if (string)
@@ -221,9 +221,9 @@ object STR_PROTO
       endif
     endif
     return string;
-  endverb
+  endmethod
 
-  verb initial_lowercase (this none this) owner: HACKER flags: "rxd"
+  method initial_lowercase owner: HACKER
     "Lowercases the first character of its argument.";
     string = args[1];
     if (string)
@@ -233,9 +233,9 @@ object STR_PROTO
       endif
     endif
     return string;
-  endverb
+  endmethod
 
-  verb "centre center" (this none this) owner: HACKER flags: "rxd"
+  method "centre center" owner: HACKER
     "Return text centered in a field of length len, using optional left and right fill strings.";
     "If len is negative and text is too long, truncate text to abs(len).";
     {text, len, ?lfill = " ", ?rfill = lfill} = args;
@@ -246,16 +246,16 @@ object STR_PROTO
     else
       return len > 0 ? out | out[1..abslen];
     endif
-  endverb
+  endmethod
 
-  verb is_numeric (this none this) owner: HACKER flags: "rxd"
+  method is_numeric owner: HACKER
     "Usage:  is_numeric(string)";
     "Is string numeric (composed of one or more digits possibly preceded by a minus sign)?";
     "Return true or false.";
     return match(args[1], "^ *[-+]?[0-9]+ *$");
-  endverb
+  endmethod
 
-  verb literal_object (this none this) owner: HACKER flags: "rxd"
+  method literal_object owner: HACKER
     "Resolve a literal object string into an object reference.";
     "Supports #object ids, @player names, and $sysobj property paths; returns $failed_match when resolution fails.";
     string = args[1];
@@ -293,14 +293,14 @@ object STR_PROTO
     else
       return $failed_match;
     endif
-  endverb
+  endmethod
 
-  verb render_as (this none this) owner: HACKER flags: "rxd"
+  method render_as owner: HACKER
     "Render the given string part down into a proper string for the given content-type. For now this just returns it back, unmodified. Future versions could do escaping etc for HTML";
     return args[1];
-  endverb
+  endmethod
 
-  verb space (this none this) owner: HACKER flags: "rxd"
+  method space owner: HACKER
     "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";
     "len has an upper limit of 100,000.";
     {n, ?fill = " "} = args;
@@ -326,9 +326,9 @@ object STR_PROTO
     endwhile
     f = length(fill);
     return n > 0 ? fill[1..n] | fill[f + 1 + n..f];
-  endverb
+  endmethod
 
-  verb to_list (this none this) owner: HACKER flags: "rxd"
+  method to_list owner: HACKER
     "Usage:  $string:to_list(str <subject>[, str <separator>])";
     "";
     "Returns a list of those substrings of <subject> separated by <separator>.  <separator> defaults to space.";
@@ -349,15 +349,15 @@ object STR_PROTO
       subject = subject[i + breaklen..$];
     endwhile
     return {@parts, subject};
-  endverb
+  endmethod
 
-  verb toobj (this none this) owner: HACKER flags: "rxd"
+  method toobj owner: HACKER
     ":toobj(objectid as string) => objectid";
     s = args[1];
     return match(s, "^ *#[-+]?[0-9]+ *$") ? toobj(s) | E_TYPE;
-  endverb
+  endmethod
 
-  verb match_objid (this none this) owner: HACKER flags: "rxd"
+  method match_objid owner: HACKER
     "Find the first object identifier (#number or #uuid) within the given string.";
     "Returns a map with start/end offsets (1-based, inclusive), the matched text, and the identifier type.";
     "If no object identifier is present, returns false.";
@@ -419,9 +419,9 @@ object STR_PROTO
       return ['text -> s[idx..end_index], 'start -> idx, 'end -> end_index, 'type -> match_type];
     endfor
     return false;
-  endverb
+  endmethod
 
-  verb match_uuobjid_at (this none this) owner: HACKER flags: "rxd"
+  method match_uuobjid_at owner: HACKER
     "Check for a uuobjid starting at position start_index, returning {start,end} or false.";
     {s, start_index} = args;
     typeof(s) == TYPE_STR || raise(E_TYPE, "Source must be string");
@@ -452,9 +452,9 @@ object STR_PROTO
       return false;
     endif
     return {start_index, end_index};
-  endverb
+  endmethod
 
-  verb parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+  method parse_name_aliases owner: HACKER
     "Parse a name/alias specification. Supports both 'name:alias,alias' and 'name,alias,alias' formats.";
     {spec} = args;
     typeof(spec) == TYPE_STR || raise(E_TYPE, "Specification must be a string");
@@ -556,9 +556,9 @@ object STR_PROTO
       aliases = primary ? aliases[2..$] | {};
     endif
     return {primary, aliases};
-  endverb
+  endmethod
 
-  verb trim (this none this) owner: HACKER flags: "rxd"
+  method trim owner: HACKER
     ":trim (string [, chars]) -- remove leading and trailing whitespace";
     "";
     "`chars' should be a string of characters to trim; defaults to space, tab, newline, carriage return.";
@@ -579,25 +579,25 @@ object STR_PROTO
     endwhile
     start > finish && return "";
     return string[start..finish];
-  endverb
+  endmethod
 
-  verb triml (this none this) owner: HACKER flags: "rxd"
+  method triml owner: HACKER
     ":triml(string [, space]) -- remove leading spaces";
     "";
     "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all leading copies of that character removed.  For example, $string:triml(\"***foo***\", \"*\") => \"foo***\".";
     {string, ?space = " "} = args;
     return string[match(string, tostr("[^", space, "]%|$"))[1]..length(string)];
-  endverb
+  endmethod
 
-  verb trimr (this none this) owner: HACKER flags: "rxd"
+  method trimr owner: HACKER
     ":trimr(string [, space]) -- remove trailing spaces";
     "";
     "`space' should be a character (single-character string); it defaults to \" \".  Returns a copy of string with all trailing copies of that character removed.  For example, $string:trimr(\"***foo***\", \"*\") => \"***foo\".";
     {string, ?space = " "} = args;
     return string[1..rmatch(string, tostr("[^", space, "]%|^"))[2]];
-  endverb
+  endmethod
 
-  verb "uppercase lowercase" (this none this) owner: HACKER flags: "rxd"
+  method "uppercase lowercase" owner: HACKER
     "lowercase(string) -- returns a lowercase version of the string.";
     "uppercase(string) -- returns the uppercase version of the string.";
     string = args[1];
@@ -613,9 +613,9 @@ object STR_PROTO
       string = strsub(string, from[i], to[i], 1);
     endfor
     return string;
-  endverb
+  endmethod
 
-  verb word_start (this none this) owner: HACKER flags: "rxd"
+  method word_start owner: HACKER
     "This breaks up the argument string into words, returning a list of indices into argstr corresponding to the starting points of each of the arguments.";
     rest = args[1];
     wstart = match(rest, "[^ ]%|$")[1];
@@ -641,9 +641,9 @@ object STR_PROTO
       wbefore = wbefore + m[2];
     endwhile
     return rest || char != " " ? {@wslist, {wstart, wbefore + length(rest)}} | wslist;
-  endverb
+  endmethod
 
-  verb words (this none this) owner: HACKER flags: "rxd"
+  method words owner: HACKER
     "This breaks up the argument string into words, the resulting list being obtained exactly the way the command line parser obtains `args' from `argstr'.";
     rest = args[1];
     rest[1..match(rest, "^ *")[2]] = "";
@@ -670,9 +670,9 @@ object STR_PROTO
       rest[1..m[2]] = "";
     endwhile
     return rest || char != " " ? {@toklist, token + rest} | toklist;
-  endverb
+  endmethod
 
-  verb append_to_paragraph (this none this) owner: HACKER flags: "rxd"
+  method append_to_paragraph owner: HACKER
     "Given arguments which are list of strings, appends.";
     "e.g.  \"dog\":append_to_paragraph() => {\"dog\"}";
     "      \"dog\":append_to_paragraph(\"cats and\") => {\"cats and dogs\"}";
@@ -682,9 +682,9 @@ object STR_PROTO
     head = args[2..length(args) - 1];
     tail = args[length(args)] + args[1];
     return {@head, tail};
-  endverb
+  endmethod
 
-  verb parse_verbref (this none this) owner: HACKER flags: "rxd"
+  method parse_verbref owner: HACKER
     "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
     s = args[1];
     colon = index(s, ":");
@@ -700,9 +700,9 @@ object STR_PROTO
       object = tostr(object);
     endif
     return {object, verbname};
-  endverb
+  endmethod
 
-  verb split (this none this) owner: HACKER flags: "rxd"
+  method split owner: HACKER
     "split(string, delimiter) => list of substrings split by delimiter";
     "Example: \"a,b,c\":split(\",\") => {\"a\", \"b\", \"c\"}";
     {string, delimiter} = args;
@@ -720,34 +720,34 @@ object STR_PROTO
       return {@parts, remaining};
     endfn
     return split_string(string, delimiter);
-  endverb
+  endmethod
 
-  verb join_list (this none this) owner: HACKER flags: "rxd"
+  method join_list owner: HACKER
     "join_list(list, separator) => string with list elements joined by separator";
     "Example: {\"a\", \"b\", \"c\"}:join_list(\",\") => \"a,b,c\"";
     {lst, separator} = args;
     return lst:join(separator);
-  endverb
+  endmethod
 
-  verb starts_with (this none this) owner: HACKER flags: "rxd"
+  method starts_with owner: HACKER
     "starts_with(string, prefix) => true if string starts with prefix";
     "Example: \"hello world\":starts_with(\"hello\") => true";
-    return length(args[2]) <= length(args[1]) && (args[1])[1..length(args[2])] == args[2];
-  endverb
+    return length(args[2]) <= length(args[1]) && args[1][1..length(args[2])] == args[2];
+  endmethod
 
-  verb ends_with (this none this) owner: HACKER flags: "rxd"
+  method ends_with owner: HACKER
     "ends_with(string, suffix) => true if string ends with suffix";
     "Example: \"hello world\":ends_with(\"world\") => true";
-    return length(args[2]) <= length(args[1]) && (args[1])[length(args[1]) - length(args[2]) + 1..$] == args[2];
-  endverb
+    return length(args[2]) <= length(args[1]) && args[1][length(args[1]) - length(args[2]) + 1..$] == args[2];
+  endmethod
 
-  verb contains (this none this) owner: HACKER flags: "rxd"
+  method contains owner: HACKER
     "contains(string, substring) => true if string contains substring";
     "Example: \"hello world\":contains(\"lo wo\") => true";
     return index(args[1], args[2]) != 0;
-  endverb
+  endmethod
 
-  verb replace_all (this none this) owner: HACKER flags: "rxd"
+  method replace_all owner: HACKER
     "replace_all(string, old, new) => string with all occurrences of old replaced with new";
     "Example: \"hello world\":replace_all(\"l\", \"x\") => \"hexxo worxd\"";
     s = args[1];
@@ -755,9 +755,9 @@ object STR_PROTO
     new_part = args[3];
     parts = this:split(s, old_part);
     return parts:join(new_part);
-  endverb
+  endmethod
 
-  verb reverse (this none this) owner: HACKER flags: "rxd"
+  method reverse owner: HACKER
     "reverse(string) => string with characters in reverse order";
     "Example: \"hello\":reverse() => \"olleh\"";
     {instr} = args;
@@ -766,9 +766,9 @@ object STR_PROTO
       out = instr[i] + out;
     endfor
     return out;
-  endverb
+  endmethod
 
-  verb repeat (this none this) owner: HACKER flags: "rxd"
+  method repeat owner: HACKER
     "repeat(string, count) => string repeated count times";
     "Example: \"ab\":repeat(3) => \"ababab\"";
     {string, count} = args;
@@ -780,9 +780,9 @@ object STR_PROTO
       result = result + string;
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb char_count (this none this) owner: HACKER flags: "rxd"
+  method char_count owner: HACKER
     "char_count(string, character) => count of character occurrences in string";
     "Example: \"hello\":char_count(\"l\") => 2";
     {string, char} = args;
@@ -793,16 +793,16 @@ object STR_PROTO
       endif
     endfor
     return count;
-  endverb
+  endmethod
 
-  verb substring (this none this) owner: HACKER flags: "rxd"
+  method substring owner: HACKER
     "substring(string, start, length) => substring starting at start for length characters";
     "Example: \"hello world\":substring(7, 5) => \"world\"";
     {string, start, len} = args;
     return string[start..start + len - 1];
-  endverb
+  endmethod
 
-  verb pad_left (this none this) owner: HACKER flags: "rxd"
+  method pad_left owner: HACKER
     "pad_left(string, width, fill) => string padded on left to width with fill character";
     "Example: \"hello\":pad_left(10, \"*\") => \"*****hello\"";
     {string, width, ?fill = " "} = args;
@@ -811,9 +811,9 @@ object STR_PROTO
       return string;
     endif
     return this:space(padding_needed, fill) + string;
-  endverb
+  endmethod
 
-  verb pad_right (this none this) owner: HACKER flags: "rxd"
+  method pad_right owner: HACKER
     "pad_right(string, width, fill) => string padded on right to width with fill character";
     "Example: \"hello\":pad_right(10, \"*\") => \"hello*****\"";
     {string, width, ?fill = " "} = args;
@@ -822,16 +822,16 @@ object STR_PROTO
       return string;
     endif
     return string + this:space(padding_needed, fill);
-  endverb
+  endmethod
 
-  verb words_list (this none this) owner: HACKER flags: "rxd"
+  method words_list owner: HACKER
     "words_list(string) => list of words split by whitespace using modern approach";
     "Example: \"hello world test\":words_list() => {\"hello\", \"world\", \"test\"}";
     string = args[1];
     return this:split(this:trim(string), " "):filter({w} => w != "");
-  endverb
+  endmethod
 
-  verb map_chars (this none this) owner: HACKER flags: "rxd"
+  method map_chars owner: HACKER
     "map_chars(string, function) => string with function applied to each character";
     "Example: \"hello\":map_chars({c} => uppercase(c)) => \"HELLO\"";
     {string, func} = args;
@@ -840,9 +840,9 @@ object STR_PROTO
       result = result + func(string[i]);
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb filter_chars (this none this) owner: HACKER flags: "rxd"
+  method filter_chars owner: HACKER
     "filter_chars(string, predicate) => string with only characters matching predicate";
     "Example: \"abc123def\":filter_chars({c} => c in \"abcdefghijklmnopqrstuvwxyz\") => \"abcdef\"";
     {string, pred} = args;
@@ -853,9 +853,9 @@ object STR_PROTO
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb title_case (this none this) owner: HACKER flags: "rxd"
+  method title_case owner: HACKER
     "title_case(string) => string with first letter of each word capitalized";
     "Example: \"hello world\":title_case() => \"Hello World\"";
     string = args[1];
@@ -865,9 +865,9 @@ object STR_PROTO
       result = {@result, this:capitalize(word)};
     endfor
     return result:join(" ");
-  endverb
+  endmethod
 
-  verb from_seconds (this none this) owner: HACKER flags: "rxd"
+  method from_seconds owner: HACKER
     ":from_seconds(number of seconds) => returns a string containing the rough increment of days, or hours if less than a day, or minutes if less than an hour, or lastly in seconds.";
     ":from_seconds(86400) => \"a day\"";
     ":from_seconds(7200)  => \"two hours\"";
@@ -898,9 +898,9 @@ object STR_PROTO
       time = tostr(count, " ", unit, "s");
     endif
     return time;
-  endverb
+  endmethod
 
-  verb parse_time_of_day (this none this) owner: HACKER flags: "rxd"
+  method parse_time_of_day owner: HACKER
     "Parse HH:MM:SS time string and return next occurrence as Unix timestamp.";
     "Example: \"14:30:00\":parse_time_of_day() returns timestamp for next 2:30 PM.";
     {time_str} = args;
@@ -928,31 +928,31 @@ object STR_PROTO
     else
       return now + (target_seconds - current_seconds);
     endif
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     "Return the given string unchanged for compatibility with composable content APIs.";
     return args[1];
-  endverb
+  endmethod
 
-  verb indefinite_article (this none this) owner: HACKER flags: "rxd"
+  method indefinite_article owner: HACKER
     "Return the appropriate indefinite article ('a' or 'an') for this string based on first letter.";
     s = args[1];
     typeof(s) == TYPE_STR || raise(E_TYPE("Expected string"));
     !s && return "a";
     first_char = s[1..1]:lowercase();
     return first_char in {"a", "e", "i", "o", "u"} ? "an" | "a";
-  endverb
+  endmethod
 
-  verb with_indefinite_article (this none this) owner: HACKER flags: "rxd"
+  method with_indefinite_article owner: HACKER
     "Return this string prefixed with the appropriate indefinite article.";
     s = args[1];
     typeof(s) == TYPE_STR || raise(E_TYPE("Expected string"));
     !s && return "a ";
     return s:indefinite_article() + " " + s;
-  endverb
+  endmethod
 
-  verb parse_curie (this none this) owner: HACKER flags: "rxd"
+  method parse_curie owner: HACKER
     "Parse a CURIE string into an object reference.";
     "Supports: oid:N, uuid:XXXXXX-XXXXXXXXXX, sysobj:name.path, match(\"string\")";
     "Returns the object or false if parsing fails.";
@@ -1007,9 +1007,9 @@ object STR_PROTO
       endtry
     endif
     return false;
-  endverb
+  endmethod
 
-  verb test_case_whitespace_and_padding (this none this) owner: HACKER flags: "rxd"
+  method test_case_whitespace_and_padding owner: HACKER
     "Cover case, trimming, spacing, and padding helpers.";
     $test_utils:assert_eq("cowbell":capitalize(), "Cowbell", "capitalize lowercase word");
     $test_utils:assert_eq("Cowbell":initial_lowercase(), "cowbell", "initial_lowercase uppercase word");
@@ -1026,9 +1026,9 @@ object STR_PROTO
     $test_utils:assert_eq("hi":pad_right(5, "."), "hi...", "pad_right custom fill");
     $test_utils:assert_eq("hello world":title_case(), "Hello World", "title_case basic words");
     return true;
-  endverb
+  endmethod
 
-  verb test_list_word_and_paragraph_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_list_word_and_paragraph_helpers owner: HACKER
     "Cover list conversion, word parsing, and paragraph append helpers.";
     $test_utils:assert_eq("a::b::":to_list("::"), {"a", "b", ""}, "to_list preserves trailing empty part");
     $test_utils:assert_eq(this:join_list({"a", "b", "c"}, "|"), "a|b|c", "join_list joins with separator");
@@ -1040,9 +1040,9 @@ object STR_PROTO
     $test_utils:assert_eq("dog":append_to_paragraph("cats and "), {"cats and dog"}, "append_to_paragraph appends to last line");
     $test_utils:assert_eq("dog":append_to_paragraph("cats and, also...", "a ", ""), {"cats and, also...", "a ", "dog"}, "append_to_paragraph preserves intermediate lines");
     return true;
-  endverb
+  endmethod
 
-  verb test_object_reference_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_object_reference_helpers owner: HACKER
     "Cover object-reference parsing helpers.";
     $test_utils:assert_eq("#1":toobj(), #1, "toobj numbered object");
     $test_utils:assert_eq("not an object":toobj(), E_TYPE, "toobj rejects non-object strings");
@@ -1053,9 +1053,9 @@ object STR_PROTO
     $test_utils:assert_eq("raw":render_as('text), "raw", "render_as returns strings unchanged");
     $test_utils:assert_eq("raw":compose(), "raw", "compose returns strings unchanged");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_verbref (this none this) owner: HACKER flags: "rxd"
+  method test_parse_verbref owner: HACKER
     "Cover MOO verb-reference parsing.";
     $test_utils:assert_eq("#1":parse_verbref(), false, "missing colon should fail");
     $test_utils:assert_eq(":":parse_verbref(), false, "empty object and verb should fail");
@@ -1063,9 +1063,9 @@ object STR_PROTO
     $test_utils:assert_eq("#1:look_self":parse_verbref(), {"#1", "look_self"}, "numbered verbref should preserve object string");
     $test_utils:assert_eq("honk:look_self":parse_verbref(), {"honk", "look_self"}, "named verbref should preserve object string");
     return true;
-  endverb
+  endmethod
 
-  verb test_split_search_and_transform_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_split_search_and_transform_helpers owner: HACKER
     "Cover split/search/replace and string transforms.";
     $test_utils:assert_eq("a,b,c":split(","), {"a", "b", "c"}, "split basic delimiter");
     $test_utils:assert_eq("a,,c":split(","), {"a", "", "c"}, "split preserves empty parts");
@@ -1087,9 +1087,9 @@ object STR_PROTO
     $test_utils:assert_eq("hello":map_chars({c0} => this:uppercase(c0)), "HELLO", "map_chars uppercase function");
     $test_utils:assert_eq("abc123def":filter_chars({c1} => c1 in "abcdefghijklmnopqrstuvwxyz"), "abcdef", "filter_chars letters");
     return true;
-  endverb
+  endmethod
 
-  verb test_match_objid_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_match_objid_helpers owner: HACKER
     "Cover numeric and UUID object-id matching helpers.";
     result = this:match_objid("#42");
     $test_utils:assert_true(result, "match_objid should find bare numbered object ids");
@@ -1117,9 +1117,9 @@ object STR_PROTO
     $test_utils:assert_eq(this:match_uuobjid_at(uuid_str, 1), {1, 18}, "match_uuobjid_at bare UUID");
     $test_utils:assert_false(this:match_uuobjid_at("x" + uuid_str, 2), "match_uuobjid_at should reject alphanumeric left boundary");
     return true;
-  endverb
+  endmethod
 
-  verb test_parse_name_aliases (this none this) owner: HACKER flags: "rxd"
+  method test_parse_name_aliases owner: HACKER
     "Cover colon and comma name/alias specifications.";
     $test_utils:assert_eq(this:parse_name_aliases("lamp:light, lamp,shiny"), {"lamp", {"light", "shiny"}}, "colon aliases trim and dedupe");
     $test_utils:assert_eq(this:parse_name_aliases(":alpha,beta"), {"alpha", {"beta"}}, "missing colon primary promotes first alias");
@@ -1129,9 +1129,9 @@ object STR_PROTO
     $test_utils:assert_eq(this:parse_name_aliases("\"Quoted Thing\",alias1,alias2"), {"Quoted Thing", {"alias1", "alias2"}}, "quoted comma primary");
     $test_utils:assert_eq(this:parse_name_aliases("  "), {"", {}}, "blank spec");
     return true;
-  endverb
+  endmethod
 
-  verb test_time_article_and_curie_helpers (this none this) owner: HACKER flags: "rxd"
+  method test_time_article_and_curie_helpers owner: HACKER
     "Cover numeric, time, article, and CURIE helpers.";
     $test_utils:assert_true("  -42 ":is_numeric(), "is_numeric accepts signed integers with whitespace");
     $test_utils:assert_false("4.2":is_numeric(), "is_numeric rejects decimals");
@@ -1159,5 +1159,5 @@ object STR_PROTO
     $test_utils:assert_eq("match(\"anything\")":parse_curie(#-1), false, "parse_curie rejects invalid match context");
     $test_utils:assert_eq("invalid":parse_curie(), false, "parse_curie rejects unknown prefix");
     return true;
-  endverb
+  endmethod
 endobject

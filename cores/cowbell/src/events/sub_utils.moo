@@ -206,7 +206,7 @@ object SUB_UTILS
     ""
   };
 
-  verb compile (this none this) owner: HACKER flags: "rxd"
+  method compile owner: HACKER
     "Parse template string into list of strings and $sub flyweights.";
     {template} = args;
     typeof(template) != TYPE_STR && raise(E_TYPE, "template must be string");
@@ -248,9 +248,9 @@ object SUB_UTILS
       pos = token_end + 1;
     endwhile
     return content;
-  endverb
+  endmethod
 
-  verb _parse_token (this none this) owner: HACKER flags: "rxd"
+  method _parse_token owner: HACKER
     "Parse a single {token} and return corresponding $sub flyweight.";
     {token_content} = args;
     token_content = token_content:trim();
@@ -276,20 +276,20 @@ object SUB_UTILS
     endif
     "Fallback: treat as binding";
     return $sub:binding(tosym(token_content));
-  endverb
+  endmethod
 
-  verb decompile (this none this) owner: HACKER flags: "rxd"
+  method decompile owner: HACKER
     "Reconstruct template string from compiled content list.";
     {content} = args;
     typeof(content) != TYPE_LIST && raise(E_TYPE, "content must be list");
     result = "";
     for item in (content)
-      result = result + (typeof(item) == TYPE_STR ? item | (typeof(item) == TYPE_FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item)));
+      result = result + (typeof(item) == TYPE_STR ? item | typeof(item) == TYPE_FLYWEIGHT ? this:_reconstruct_token(item) | tostr(item));
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb _reconstruct_token (this none this) owner: HACKER flags: "rxd"
+  method _reconstruct_token owner: HACKER
     "Reconstruct {token} syntax from a flyweight.";
     {fw} = args;
     typeof(fw) != TYPE_FLYWEIGHT && raise(E_TYPE, "must be flyweight");
@@ -329,9 +329,9 @@ object SUB_UTILS
       maphaskey(this.pronoun_map, base) && return "{" + this.pronoun_map[base] + suffix + "}";
     endif
     return "{?" + token_str + "?}";
-  endverb
+  endmethod
 
-  verb test_compile_simple_binding (this none this) owner: HACKER flags: "rxd"
+  method test_compile_simple_binding owner: HACKER
     "Test compile with simple binding.";
     result = this:compile("You see {actor}.");
     $test_utils:assert_eq(length(result), 3, "simple binding should compile to three parts");
@@ -340,9 +340,9 @@ object SUB_UTILS
     $test_utils:assert_eq(result[2].type, 'binding, "simple binding token type");
     $test_utils:assert_eq(result[3], ".", "simple binding suffix");
     return true;
-  endverb
+  endmethod
 
-  verb test_compile_article (this none this) owner: HACKER flags: "rxd"
+  method test_compile_article owner: HACKER
     "Test compile with article.";
     result = this:compile("{the direction}");
     $test_utils:assert_eq(length(result), 1, "article should compile to one token");
@@ -350,9 +350,9 @@ object SUB_UTILS
     $test_utils:assert_eq(result[1].type, 'article_the, "article token type");
     $test_utils:assert_eq(result[1].binding_name, 'direction, "article binding name");
     return true;
-  endverb
+  endmethod
 
-  verb test_compile_self_alt (this none this) owner: HACKER flags: "rxd"
+  method test_compile_self_alt owner: HACKER
     "Test compile with self-alternation.";
     result = this:compile("{tired|exhausted}");
     $test_utils:assert_eq(length(result), 1, "self-alt should compile to one token");
@@ -361,9 +361,9 @@ object SUB_UTILS
     $test_utils:assert_eq(result[1].for_self, "tired", "self-alt self text");
     $test_utils:assert_eq(result[1].for_others, "exhausted", "self-alt other text");
     return true;
-  endverb
+  endmethod
 
-  verb test_compile_mixed (this none this) owner: HACKER flags: "rxd"
+  method test_compile_mixed owner: HACKER
     "Test compile with mixed content.";
     result = this:compile("{nc} heads {the direction}.");
     $test_utils:assert_eq(length(result), 4, "mixed template should compile to four parts");
@@ -372,25 +372,25 @@ object SUB_UTILS
     $test_utils:assert_type(result[3], TYPE_FLYWEIGHT, "article token should be a flyweight");
     $test_utils:assert_eq(result[4], ".", "mixed template suffix");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_simple (this none this) owner: HACKER flags: "rxd"
+  method test_decompile_simple owner: HACKER
     "Test decompile reconstructs template.";
     original = "You see {actor}.";
     compiled = this:compile(original);
     decompiled = this:decompile(compiled);
     $test_utils:assert_eq(decompiled, original, "decompile should reconstruct simple binding template");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_nc_d (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_decompile_nc_d owner: ARCH_WIZARD
     "Test decompile with nc and d substitutions.";
     original = "{nc} dropped {d}.";
     compiled = this:compile(original);
     decompiled = this:decompile(compiled);
     $test_utils:assert_eq(decompiled, original, "decompile should reconstruct name and dobj substitutions");
     return true;
-  endverb
+  endmethod
 
   verb test_compile_nested (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Test compilation of nested braces.";
@@ -424,21 +424,21 @@ object SUB_UTILS
     return true;
   endverb
 
-  verb test_compile_and_decompile_errors (this none this) owner: HACKER flags: "rxd"
+  method test_compile_and_decompile_errors owner: HACKER
     "Test compiler and decompiler input validation.";
     $test_utils:assert_raises(E_TYPE, this, "compile", {123}, "compile should reject non-string templates");
     $test_utils:assert_raises(E_INVARG, this, "compile", {"Broken {template"}, "compile should reject unclosed braces");
     $test_utils:assert_raises(E_TYPE, this, "decompile", {"not a list"}, "decompile should reject non-list content");
     $test_utils:assert_raises(E_INVARG, this, "_parse_token", {"a|b|c"}, "self alternation should have exactly two parts");
     return true;
-  endverb
+  endmethod
 
-  verb test_decompile_object_specific_tokens (this none this) owner: HACKER flags: "rxd"
+  method test_decompile_object_specific_tokens owner: HACKER
     "Test decompile reconstructs object-specific pronoun and verb tokens.";
     $test_utils:assert_eq(this:decompile({$sub:sc_dobj()}), "{sc_dobj}", "dobj subject pronoun should decompile");
     $test_utils:assert_eq(this:decompile({$sub:pc_iobj()}), "{pc_iobj}", "iobj possessive pronoun should decompile");
     $test_utils:assert_eq(this:decompile({$sub:verb_have_iobj()}), "{have_iobj}", "iobj verb token should decompile");
     $test_utils:assert_eq(this:decompile({$sub:thec('d)}), "{The d}", "capitalized article should decompile");
     return true;
-  endverb
+  endmethod
 endobject

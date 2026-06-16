@@ -12,24 +12,24 @@ object AGENTIC_RUNNER
   override import_export_hierarchy = {"agentic"};
   override import_export_id = "agentic_runner";
 
-  verb attach_agent (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method attach_agent owner: ARCH_WIZARD
     "Attach a specific agent instance to this runner.";
     {agent_obj} = args;
     typeof(agent_obj) == TYPE_OBJ && valid(agent_obj) || raise(E_INVARG, "agent_obj must be valid object");
     this.agent = agent_obj;
     return this.agent;
-  endverb
+  endmethod
 
-  verb run_once (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method run_once owner: ARCH_WIZARD
     "Run one prompt through attached agent.";
     this.enabled || return "Runner disabled.";
     valid(this.agent) || raise(E_INVARG, "No agent attached");
     {prompt, ?opts = false} = args;
     return this.agent:send_message(prompt, opts);
-  endverb
+  endmethod
 
-  verb status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method status owner: ARCH_WIZARD
     "Return runner status map.";
     return ["enabled" -> this.enabled, "agent" -> this.agent, "agent_valid" -> valid(this.agent)];
-  endverb
+  endmethod
 endobject

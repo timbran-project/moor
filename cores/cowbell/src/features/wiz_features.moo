@@ -710,11 +710,11 @@ object WIZ_FEATURES
     player:inform_current($event:mk_info(player, "Reconfigured " + tostr(wearable_count) + " wearable(s) and " + tostr(observer_count) + " observer(s)."));
   endverb
 
-  verb _challenge_command_perms (this none this) owner: HACKER flags: "xd"
+  method _challenge_command_perms owner: HACKER flags: "xd"
     player.wizard || player:has_admin_elevation() || raise(E_PERM);
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for wizard commands via configured help source.";
     {for_player, ?topic = ""} = args;
     sources = {};
@@ -759,7 +759,7 @@ object WIZ_FEATURES
     verb_help = `$help_utils:verb_help_from_hint(this, topic, 'administration) ! ANY => 0';
     typeof(verb_help) != TYPE_INT && return verb_help;
     return 0;
-  endverb
+  endmethod
 
   verb "@sueval" (any none none) owner: ARCH_WIZARD flags: "d"
     "HINT: <expression> -- Evaluate a MOO expression with wizard permissions.";

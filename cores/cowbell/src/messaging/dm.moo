@@ -9,45 +9,45 @@ object DM
   override import_export_hierarchy = {"messaging"};
   override import_export_id = "dm";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create a DM flyweight.";
     "Args: sender, recipient, text";
     {sender, recipient, msg_text} = args;
     loc = valid(sender) ? sender.location | #-1;
     return toflyweight(this, ['from -> sender, 'to -> recipient, 'sent -> time(), 'text -> msg_text, 'location -> loc]);
-  endverb
+  endmethod
 
-  verb from (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method from owner: ARCH_WIZARD
     "Return the sender of this DM.";
     return this.from;
-  endverb
+  endmethod
 
-  verb to (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method to owner: ARCH_WIZARD
     "Return the recipient of this DM.";
     return this.to;
-  endverb
+  endmethod
 
-  verb sent (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method sent owner: ARCH_WIZARD
     "Return the timestamp when this DM was sent.";
     return this.sent;
-  endverb
+  endmethod
 
-  verb text (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method text owner: ARCH_WIZARD
     "Return the text content of this DM.";
     return this.text;
-  endverb
+  endmethod
 
-  verb location (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method location owner: ARCH_WIZARD
     "Return the location where the sender was when they sent this DM.";
     return this.location;
-  endverb
+  endmethod
 
-  verb subject (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method subject owner: ARCH_WIZARD
     "Return subject (empty for DMs, for protocol compatibility with letters).";
     return "";
-  endverb
+  endmethod
 
-  verb display (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method display owner: ARCH_WIZARD
     "Render this DM for display to the recipient.";
     {?for_player = this.to} = args;
     sender = this.from;
@@ -60,9 +60,9 @@ object DM
     colored_loc = valid(loc) ? " (in " + $ansi:colorize(loc.name, 'dim) + ")" | "";
     colored_time = $ansi:colorize("[" + age_str + "]", 'yellow);
     return colored_sender + colored_loc + " " + colored_time + ": " + this.text;
-  endverb
+  endmethod
 
-  verb display_short (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method display_short owner: ARCH_WIZARD
     "Short display for listings.";
     sender = this.from;
     sender_name = valid(sender) ? sender.name | "???";
@@ -73,9 +73,9 @@ object DM
       text = text[1..37] + "...";
     endif
     return sender_name + " (" + age_str + "): " + text;
-  endverb
+  endmethod
 
-  verb display_tts (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method display_tts owner: ARCH_WIZARD
     "Return plain text version for screen readers (no ANSI codes).";
     {?for_player = this.to} = args;
     sender = this.from;
@@ -85,9 +85,9 @@ object DM
     age = time() - this.sent;
     age_str = age < 60 ? "just now" | age:format_time_seconds() + " ago";
     return "Direct message from " + sender_name + loc_str + ", " + age_str + ": " + this.text;
-  endverb
+  endmethod
 
-  verb display_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method display_event owner: ARCH_WIZARD
     "Return a fully-formed event for displaying this DM to the recipient.";
     "Includes colorized display, TTS, metadata, and grouping.";
     {recipient} = args;
@@ -103,9 +103,9 @@ object DM
     event = event:with_metadata('dm_content, this.text);
     event = event:with_metadata('dm_timestamp, this.sent);
     return event;
-  endverb
+  endmethod
 
-  verb sender_echo_event (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method sender_echo_event owner: ARCH_WIZARD
     "Return event confirming DM was sent, shown to the sender.";
     "Format: You (in Location) \u2192 Target: message";
     sender = this.from;
@@ -133,5 +133,5 @@ object DM
     event = event:with_metadata('dm_content, this.text);
     event = event:with_metadata('dm_timestamp, this.sent);
     return event;
-  endverb
+  endmethod
 endobject

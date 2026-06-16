@@ -12,13 +12,13 @@ object LLM_CLIENT
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_client";
 
-  verb chat (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method chat owner: ARCH_WIZARD
     "Make a chat completion request to LLM API";
     "Args: input (string or messages list), opts (optional $llm_chat_opts flyweight),";
     "      model_override, stream, tools";
     {input, ?opts = false, ?model_override = false, ?stream = false, ?tools = false} = args;
     this.api_key || raise(E_PERM, "LLM API key not configured");
-    messages = typeof(input) == TYPE_STR ? {["role" -> "user", "content" -> input]} | (typeof(input) == TYPE_LIST ? input | raise(E_TYPE));
+    messages = typeof(input) == TYPE_STR ? {["role" -> "user", "content" -> input]} | typeof(input) == TYPE_LIST ? input | raise(E_TYPE);
     model = model_override || this.model;
     body = ["model" -> model, "messages" -> messages, "stream" -> stream];
     tools && (body["tools"] = tools);
@@ -41,9 +41,9 @@ object LLM_CLIENT
     typeof(body) == TYPE_STR || return body;
     body != "" || raise(E_INVARG, "LLM API returned empty response");
     return parse_json(body);
-  endverb
+  endmethod
 
-  verb set_api_key (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_api_key owner: ARCH_WIZARD
     "Set the LLM API key. Permission: wizard, owner, or 'set_api_key capability.";
     actor = caller_perms();
     {this, perms} = this:check_permissions_as(actor, 'set_api_key);
@@ -51,9 +51,9 @@ object LLM_CLIENT
     {new_key} = args;
     typeof(new_key) == TYPE_STR || raise(E_TYPE);
     this.api_key = new_key;
-  endverb
+  endmethod
 
-  verb simple_query (this none this) owner: HACKER flags: "rxd"
+  method simple_query owner: HACKER
     "Convenience method for simple string queries, returns just the message content";
     {query} = args;
     response = this:chat(query);
@@ -79,14 +79,14 @@ object LLM_CLIENT
       endif
     endif
     return response;
-  endverb
+  endmethod
 
-  verb is_configured (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_configured owner: ARCH_WIZARD
     "Check if the LLM client has an API key configured";
     return this.api_key && typeof(this.api_key) == TYPE_STR && length(this.api_key) > 0;
-  endverb
+  endmethod
 
-  verb list_models (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method list_models owner: ARCH_WIZARD
     "List available models from the provider's /models endpoint.";
     "Returns normalized output by default. Pass \"raw\" as first arg for provider-native payload.";
     mode = "normalized";
@@ -134,7 +134,7 @@ object LLM_CLIENT
       if (typeof(limit) == TYPE_INT && limit > 0 && typeof(parsed) == TYPE_MAP && maphaskey(parsed, "data") && typeof(parsed["data"]) == TYPE_LIST)
         count = length(parsed["data"]);
         if (count > limit)
-          parsed["data"] = (parsed["data"])[1..limit];
+          parsed["data"] = parsed["data"][1..limit];
         endif
       endif
       return parsed;
@@ -174,5 +174,5 @@ object LLM_CLIENT
       rows = rows[1..limit];
     endif
     return ["endpoint" -> models_endpoint, "count" -> total, "shown" -> length(rows), "models" -> rows];
-  endverb
+  endmethod
 endobject

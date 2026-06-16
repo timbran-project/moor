@@ -48,14 +48,14 @@ object PROG_FEATURES
     player:inform_current(result_event);
   endverb
 
-  verb _do_check_verb_exists (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_check_verb_exists owner: ARCH_WIZARD
     "Internal helper to check verb exists with elevated permissions";
     caller == this || raise(E_PERM);
     {verb_location, verb_name} = args;
     "This will raise E_VERBNF if verb doesn't exist";
     $prog_utils:get_verb_metadata(verb_location, verb_name);
     return true;
-  endverb
+  endmethod
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb> or <object>.<property> -- Edit a verb or property.";
@@ -166,25 +166,25 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, "Opened object browser for " + tostr(target_obj)));
   endverb
 
-  verb present_verb_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method present_verb_editor owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     {verb_location, verb_name} = args;
     editor_id = "edit-" + tostr(verb_location) + "-" + verb_name;
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
     object_curie = $url_utils:to_curie_str(verb_location);
     present(player, editor_id, "text/plain", "verb-editor", "", {{"object", object_curie}, {"verb", verb_name}, {"title", editor_title}});
-  endverb
+  endmethod
 
-  verb present_object_browser (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method present_object_browser owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     {target_obj} = args;
     browser_id = "browse-" + tostr(target_obj);
     browser_title = "Browse " + tostr(target_obj);
     object_curie = $url_utils:to_curie_str(target_obj);
     present(player, browser_id, "text/plain", "object-browser", "", {{"object", object_curie}, {"title", browser_title}});
-  endverb
+  endmethod
 
-  verb present_text_editor (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method present_text_editor owner: ARCH_WIZARD
     "Present the text editor for editing freeform content.";
     "Args: {target_obj, verb_name, ?curried_args, ?initial_content, ?opts}";
     "opts is a map with optional keys: content_type, title, description, text_mode";
@@ -220,9 +220,9 @@ object PROG_FEATURES
       attrs = {@attrs, {"description", description}};
     endif
     present(player, editor_id, ct_str, "text-editor", content_str, attrs);
-  endverb
+  endmethod
 
-  verb _do_get_verb_listing (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_get_verb_listing owner: ARCH_WIZARD
     "Internal helper to get verb listing with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -230,7 +230,7 @@ object PROG_FEATURES
     metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
     code_lines = verb_code(verb_location, verb_name, show_all_parens, true);
     return {metadata:verb_owner(), metadata:flags(), metadata:dobj(), metadata:prep(), metadata:iobj(), code_lines};
-  endverb
+  endmethod
 
   verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb> -- List verb code.";
@@ -315,13 +315,13 @@ object PROG_FEATURES
     endtry
   endverb
 
-  verb _do_add_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_add_verb owner: ARCH_WIZARD
     "Internal helper to add verb with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, verb_info, verb_args} = args;
     add_verb(target_obj, verb_info, verb_args);
-  endverb
+  endmethod
 
   verb "@verb" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb-names> -- Add a new verb to an object.";
@@ -455,13 +455,13 @@ object PROG_FEATURES
     endtry
   endverb
 
-  verb _do_delete_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_delete_verb owner: ARCH_WIZARD
     "Internal helper to delete verb with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, verb_name} = args;
     delete_verb(target_obj, verb_name);
-  endverb
+  endmethod
 
   verb "@rmverb" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb> [--dry-run] -- Remove a verb from an object.";
@@ -523,21 +523,21 @@ object PROG_FEATURES
     endtry
   endverb
 
-  verb _do_set_verb_args (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_set_verb_args owner: ARCH_WIZARD
     "Internal helper to set verb args with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, verb_name, new_args} = args;
     set_verb_args(target_obj, verb_name, new_args);
-  endverb
+  endmethod
 
-  verb _do_get_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_get_verbs owner: ARCH_WIZARD
     "Internal helper to get verb list with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj} = args;
     return verbs(target_obj);
-  endverb
+  endmethod
 
   verb "@verbs" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> -- List all verbs on an object.";
@@ -566,12 +566,12 @@ object PROG_FEATURES
     player:inform_current(listing_event);
   endverb
 
-  verb _do_get_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_get_properties owner: ARCH_WIZARD
     "Internal helper to get properties list with elevated permissions";
     set_task_perms(caller_perms());
     {target_obj} = args;
     return properties(target_obj);
-  endverb
+  endmethod
 
   verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> -- List all properties on an object.";
@@ -774,21 +774,21 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, "Verb args updated: " + tostr(target_obj) + ":" + verb_name + " " + new_dobj + " " + new_prep + " " + new_iobj));
   endverb
 
-  verb _do_get_property_metadata (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_get_property_metadata owner: ARCH_WIZARD
     "Internal helper to get property metadata with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, prop_name} = args;
     return $prog_utils:get_property_metadata(target_obj, prop_name);
-  endverb
+  endmethod
 
-  verb _do_get_property_value (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_get_property_value owner: ARCH_WIZARD
     "Internal helper to get property value with elevated permissions";
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, prop_name} = args;
     return target_obj.(prop_name);
-  endverb
+  endmethod
 
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>[selectors] -- Display object information.";
@@ -878,7 +878,7 @@ object PROG_FEATURES
     endfor
   endverb
 
-  verb _display_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_property owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, prop_name} = args;
@@ -895,9 +895,9 @@ object PROG_FEATURES
     row = {"." + prop_name, owner_str, metadata:perms(), prop_value};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
-  endverb
+  endmethod
 
-  verb _display_inherited_property (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_inherited_property owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, prop_name} = args;
@@ -915,9 +915,9 @@ object PROG_FEATURES
       raise(E_PROPNF, "Property not found: " + prop_name);
     endif
     this:_display_property(definer, prop_name);
-  endverb
+  endmethod
 
-  verb _display_all_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_all_properties owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, include_inherited} = args;
@@ -982,9 +982,9 @@ object PROG_FEATURES
     endif
     table = $format.table:mk(headers, rows);
     player:inform_current($event:mk_info(player, table));
-  endverb
+  endmethod
 
-  verb _display_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_verb owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, verb_name} = args;
@@ -1002,9 +1002,9 @@ object PROG_FEATURES
     row = {verb_spec, owner_str, verb_flags, args_spec};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
-  endverb
+  endmethod
 
-  verb _display_inherited_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_inherited_verb owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, verb_name} = args;
@@ -1013,9 +1013,9 @@ object PROG_FEATURES
       raise(E_VERBNF, "Verb not found: " + verb_name);
     endif
     this:_display_verb(verb_location, verb_name);
-  endverb
+  endmethod
 
-  verb _display_all_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_all_verbs owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj, include_inherited} = args;
@@ -1064,9 +1064,9 @@ object PROG_FEATURES
     endif
     table = $format.table:mk(headers, rows);
     player:inform_current($event:mk_info(player, table));
-  endverb
+  endmethod
 
-  verb _display_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_object owner: ARCH_WIZARD
     caller == this || raise(E_PERM);
     set_task_perms(player);
     {target_obj} = args;
@@ -1090,11 +1090,11 @@ object PROG_FEATURES
     this:_display_all_properties(target_obj, true);
     "Show verbs (including inherited)";
     this:_display_all_verbs(target_obj, true);
-  endverb
+  endmethod
 
-  verb _challenge_command_perms (this none this) owner: HACKER flags: "rxd"
+  method _challenge_command_perms owner: HACKER
     player.programmer || raise(E_PERM);
-  endverb
+  endmethod
 
   verb "@chmod" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <target> [<perms>] -- Show or change permissions.";
@@ -1278,7 +1278,7 @@ object PROG_FEATURES
     endif
   endverb
 
-  verb _do_grep_object (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_grep_object owner: ARCH_WIZARD
     "Search one object's verbs for @grep and report inaccessible verb skips.";
     "Returns a map with matches and skipped_verb_count.";
     caller == this || raise(E_PERM);
@@ -1338,9 +1338,9 @@ object PROG_FEATURES
       endfor
     endfor
     return ['matches -> matches, 'skipped_verb_count -> skipped_verb_count];
-  endverb
+  endmethod
 
-  verb _do_get_available_objects (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_get_available_objects owner: ARCH_WIZARD
     "Internal helper to get list of objects available for searching";
     caller == this || raise(E_PERM);
     "Get all objects with wizard permissions";
@@ -1358,7 +1358,7 @@ object PROG_FEATURES
       endif
     endfor
     return available;
-  endverb
+  endmethod
 
   verb "@grep" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: [options] <pattern> [<object>] -- Search verb code for a pattern.";
@@ -1569,7 +1569,7 @@ object PROG_FEATURES
           if (fn_info[1] == target_spec)
             min_args = fn_info[2];
             max_args = fn_info[3];
-            sig_info = "Arguments: " + tostr(min_args) + (max_args == -1 ? "+" | (max_args == min_args ? "" | "-" + tostr(max_args)));
+            sig_info = "Arguments: " + tostr(min_args) + (max_args == -1 ? "+" | max_args == min_args ? "" | "-" + tostr(max_args));
             doc_text = sig_info + "\n\n" + doc_text;
             break;
           endif
@@ -1734,7 +1734,7 @@ object PROG_FEATURES
     endtry
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for programmer commands.";
     {for_player, ?topic = ""} = args;
     source = this.help_source;
@@ -1750,9 +1750,9 @@ object PROG_FEATURES
       return 0;
     endif
     return {};
-  endverb
+  endmethod
 
-  verb _format_eval_result (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_eval_result owner: ARCH_WIZARD
     "Format an eval result. Returns {type, content} where type is 'simple or 'deflist.";
     "For simple values, content is a string. For objects, content is a deflist flyweight.";
     {result} = args;
@@ -1773,9 +1773,9 @@ object PROG_FEATURES
     endif
     "For non-objects, just use toliteral";
     return {'simple, toliteral(result)};
-  endverb
+  endmethod
 
-  verb _display_summary (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_summary owner: ARCH_WIZARD
     "Display object summary with counts and usage hints.";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -1828,9 +1828,9 @@ object PROG_FEATURES
     event = $event:mk_info(player, content);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
     player:inform_current(event);
-  endverb
+  endmethod
 
-  verb _display_header (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _display_header owner: ARCH_WIZARD
     "Display object header info only (no counts/hints).";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -1854,7 +1854,7 @@ object PROG_FEATURES
     event = $event:mk_info(player, deflist);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});
     player:inform_current(event);
-  endverb
+  endmethod
 
   verb suggest_doc_topic (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Suggest @doc targets when lookup fails, using LLM.";
@@ -2002,7 +2002,7 @@ object PROG_FEATURES
     return true;
   endverb
 
-  verb _do_resolve_verb_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _do_resolve_verb_name owner: ARCH_WIZARD
     "Resolve space-separated verb names to a single verb name.";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -2034,7 +2034,7 @@ object PROG_FEATURES
       raise(E_VERBNF, "Verb not found: " + verb_spec);
     endif
     return found_name;
-  endverb
+  endmethod
 
   verb "@ps @tasks" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Show active and queued tasks.";
@@ -2173,7 +2173,7 @@ object PROG_FEATURES
     endtry
   endverb
 
-  verb _find_verb_by_argspec (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _find_verb_by_argspec owner: ARCH_WIZARD
     "Find a verb matching name and argspec, return its 1-based index or 0.";
     caller == this || raise(E_PERM);
     {target_obj, verb_name, req_dobj, req_prep, req_iobj} = args;
@@ -2203,7 +2203,7 @@ object PROG_FEATURES
       endtry
     endfor
     return 0;
-  endverb
+  endmethod
 
   verb "@program @program#" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb> [<dobj> <prep> <iobj>] -- Program a verb via line input.";
@@ -2639,7 +2639,7 @@ object PROG_FEATURES
     endtry
   endverb
 
-  verb _resolve_object_ref (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _resolve_object_ref owner: ARCH_WIZARD
     "Internal helper: resolve object references with better ambiguity diagnostics.";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -2685,9 +2685,9 @@ object PROG_FEATURES
       raise(E_INVARG, msg);
     endif
     return result;
-  endverb
+  endmethod
 
-  verb _matching_candidates (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _matching_candidates owner: ARCH_WIZARD
     "Internal helper: list likely candidate objects for a plain-name token in context.";
     caller == this || raise(E_PERM);
     set_task_perms(player);
@@ -2729,9 +2729,9 @@ object PROG_FEATURES
       endif
     endfor
     return candidates;
-  endverb
+  endmethod
 
-  verb test_grep_object_literal_owner_filter (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_grep_object_literal_owner_filter owner: ARCH_WIZARD
     "Unit test: @grep helper finds literal matches and applies owner filtering.";
     fixture = #-1;
     try
@@ -2755,9 +2755,9 @@ object PROG_FEATURES
       endif
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_grep_object_regex (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_grep_object_regex owner: ARCH_WIZARD
     "Unit test: @grep helper finds regex matches through the same result path.";
     fixture = #-1;
     try
@@ -2777,9 +2777,9 @@ object PROG_FEATURES
       endif
     endtry
     return true;
-  endverb
+  endmethod
 
-  verb test_find_verb_by_argspec_returns_matching_index (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_find_verb_by_argspec_returns_matching_index owner: ARCH_WIZARD
     "Unit test: argspec disambiguation finds the matching verb index.";
     fixture = #-1;
     try
@@ -2796,5 +2796,5 @@ object PROG_FEATURES
       endif
     endtry
     return true;
-  endverb
+  endmethod
 endobject

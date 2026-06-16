@@ -6,12 +6,12 @@ object LOOK
   override description = "The $look flyweight delegate holds the attributes involved in looking at an object, and can be transformed into output events. It always has mandatory 'title and 'description slots, and then optional contents which are a series of integration descriptions.";
   override import_export_id = "look";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     {what, @contents} = args;
     return <this, .what = what, .title = what:name(), .description = what:description(), .exits = {}, .ambient_passages = {}, .actions = {}, {@contents}>;
-  endverb
+  endmethod
 
-  verb actor_idle_status (this none this) owner: HACKER flags: "rxd"
+  method actor_idle_status owner: HACKER
     "Get a descriptive idle status for an actor (player or NPC)";
     {who} = args;
     "NPCs don't have connection state - no status";
@@ -26,9 +26,9 @@ object LOOK
     idle < 600 && return "idle";
     idle < 1800 && return "out on his feet";
     return "sleeping";
-  endverb
+  endmethod
 
-  verb into_event (this none this) owner: HACKER flags: "rxd"
+  method into_event owner: HACKER
     "Three lines -- title, description, contents.";
     "Description is the item description but is also appended to with integrations. Objects with an :integrate_description verb are put there.";
     "The remainder go into the contents block, separated by type: actors vs things.";
@@ -175,18 +175,18 @@ object LOOK
       endif
     endif
     return event;
-  endverb
+  endmethod
 
-  verb validate (this none this) owner: HACKER flags: "rxd"
+  method validate owner: HACKER
     typeof(this) != TYPE_FLYWEIGHT && return false;
     try
       return this.what && this.title && this.description;
     except (E_PROPNF)
       return false;
     endtry
-  endverb
+  endmethod
 
-  verb format_exits (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_exits owner: ARCH_WIZARD
     "Create a paragraph for exit links.";
     "Args: list of exit direction strings.";
     {exits} = args;
@@ -210,9 +210,9 @@ object LOOK
       parts = {@parts, "."};
     endif
     return $format.paragraph:mk(parts);
-  endverb
+  endmethod
 
-  verb format_things (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_things owner: ARCH_WIZARD
     "Create a paragraph for 'You see X, Y and Z here.' with inspect links.";
     "Args: list of objects.";
     {objects} = args;
@@ -231,9 +231,9 @@ object LOOK
     endfor
     parts = {@parts, " here."};
     return $format.paragraph:mk(parts);
-  endverb
+  endmethod
 
-  verb format_actors (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_actors owner: ARCH_WIZARD
     "Create a paragraph for 'X, Y and Z are here.' with inspect links.";
     "Args: list of {actor, status} pairs where status can be empty string.";
     {actor_data} = args;
@@ -254,9 +254,9 @@ object LOOK
     verb_form = length(actor_data) == 1 ? " is" | " are";
     parts = {@parts, verb_form, " here."};
     return $format.paragraph:mk(parts);
-  endverb
+  endmethod
 
-  verb format_sleeping (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_sleeping owner: ARCH_WIZARD
     "Create a paragraph for 'X, Y and Z are deeply asleep.' with inspect links.";
     "Args: list of {actor, status} pairs (status ignored for sleeping).";
     {actor_data} = args;
@@ -276,9 +276,9 @@ object LOOK
     verb_form = length(actor_data) == 1 ? " is" | " are";
     parts = {@parts, verb_form, " deeply asleep."};
     return $format.paragraph:mk(parts);
-  endverb
+  endmethod
 
-  verb format_actions (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_actions owner: ARCH_WIZARD
     "Create a paragraph for action links from interactive objects.";
     "Args: list of {command, label} tuples.";
     {actions} = args;
@@ -294,9 +294,9 @@ object LOOK
       parts = {@parts, $format.link:cmd(cmd, label)};
     endfor
     return $format.paragraph:mk(parts);
-  endverb
+  endmethod
 
-  verb into_presentation (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method into_presentation owner: ARCH_WIZARD
     "Return panel-ready look payload with title separated from content.";
     "Args: ?content_type (default 'text_html).";
     {?content_type = 'text_html} = args;
@@ -319,5 +319,5 @@ object LOOK
       endif
     endif
     return ["title" -> title, "content" -> content, "content_type" -> tostr(content_type)];
-  endverb
+  endmethod
 endobject

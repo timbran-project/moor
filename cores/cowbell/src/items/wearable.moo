@@ -109,7 +109,7 @@ object WEARABLE
     "```"
   };
 
-  verb do_wear (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_wear owner: ARCH_WIZARD
     "Core implementation: add to who's wearing list and announce.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_wear must be called by this object");
@@ -121,9 +121,9 @@ object WEARABLE
     endif
     `this:on_wear() ! E_VERBNF';
     return true;
-  endverb
+  endmethod
 
-  verb do_remove (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method do_remove owner: ARCH_WIZARD
     "Core implementation: remove from who's wearing list and announce.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_remove must be called by this object");
@@ -135,7 +135,7 @@ object WEARABLE
     endif
     `this:on_remove() ! E_VERBNF';
     return true;
-  endverb
+  endmethod
 
   verb wear (this none none) owner: HACKER flags: "rd"
     "Command: put on this wearable item";
@@ -169,7 +169,7 @@ object WEARABLE
     this:do_remove(player);
   endverb
 
-  verb action_wear (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_wear owner: ARCH_WIZARD
     "Action handler for reactions: make actor wear this item.";
     set_task_perms(this.owner);
     {who, context} = args;
@@ -177,28 +177,28 @@ object WEARABLE
     is_member(this, who.wearing) && return false;
     valid(this:conflicting_item_for(who)) && return false;
     return this:do_wear(who);
-  endverb
+  endmethod
 
-  verb action_remove (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method action_remove owner: ARCH_WIZARD
     "Action handler for reactions: make actor remove this item.";
     set_task_perms(this.owner);
     {who, context} = args;
     this.location != who && return false;
     !is_member(this, who.wearing) && return false;
     return this:do_remove(who);
-  endverb
+  endmethod
 
-  verb on_wear (this none this) owner: HACKER flags: "rxd"
+  method on_wear owner: HACKER
     "Called when item is worn - override in children";
     return;
-  endverb
+  endmethod
 
-  verb on_remove (this none this) owner: HACKER flags: "rxd"
+  method on_remove owner: HACKER
     "Called when item is removed - override in children";
     return;
-  endverb
+  endmethod
 
-  verb display_name (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method display_name owner: ARCH_WIZARD
     "Return display name with article for wearing context. Override for custom descriptions.";
     set_task_perms(caller_perms());
     name = this:name();
@@ -208,9 +208,9 @@ object WEARABLE
       return name;
     endif
     return name:with_indefinite_article();
-  endverb
+  endmethod
 
-  verb wearer (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method wearer owner: ARCH_WIZARD
     "Return who is wearing this item, or #-1 if not worn";
     set_task_perms(caller_perms());
     if (valid(this.location) && respond_to(this.location, 'is_wearing))
@@ -219,9 +219,9 @@ object WEARABLE
       endif
     endif
     return #-1;
-  endverb
+  endmethod
 
-  verb "conflicting_item conflicting_item_for" (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method "conflicting_item conflicting_item_for" owner: ARCH_WIZARD
     "Find any item already worn at this item's body area. Returns the conflicting item or #-1 if none.";
     set_task_perms(caller_perms());
     {?who = player} = args;
@@ -239,7 +239,7 @@ object WEARABLE
       endif
     endfor
     return #-1;
-  endverb
+  endmethod
 
   verb "@set-area" (this at any) owner: ARCH_WIZARD flags: "rd"
     "Set the body area for this wearable. Usage: @set-area <item> to <area>";
@@ -258,7 +258,7 @@ object WEARABLE
     player:inform_current(event);
   endverb
 
-  verb moveto (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method moveto owner: ARCH_WIZARD
     "Prevent movement of worn items - they must be removed first";
     set_task_perms(caller_perms());
     {destination} = args;
@@ -268,9 +268,9 @@ object WEARABLE
     endif
     "Delegate to parent for permission checks and actual move";
     return pass(@args);
-  endverb
+  endmethod
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for wearable items.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("wear", "Put on an item", "Use 'wear <item>' to put on clothing, armor, or equipment.", {"don", "equip"}, 'commands, {"remove", "inventory"}), $help:mk("remove", "Take off an item", "Use 'remove <item>' to take off something you're wearing.", {"doff", "unequip"}, 'commands, {"wear", "inventory"})};
@@ -279,13 +279,13 @@ object WEARABLE
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 
-  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method recycle owner: ARCH_WIZARD
     "Called by runtime before destruction. Remove from wearer's wearing list.";
     wearer = this:wearer();
     if (valid(wearer))
       wearer.wearing = setremove(wearer.wearing, this);
     endif
-  endverb
+  endmethod
 endobject

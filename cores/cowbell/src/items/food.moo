@@ -171,7 +171,7 @@ object FOOD
     this:do_consume(player, amount, true);
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for food items.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("eat", "Eat food", "Use 'eat <food>' to eat food you're holding or that's nearby. By default it consumes 2 portions (clamped to what's left).", {"consume"}, 'commands, {"bite", "nibble"}), $help:mk("bite", "Take a bite", "Use 'bite <food>' to take a bite of food. By default it consumes 2 portions (clamped to what's left).", {}, 'commands, {"eat", "nibble"}), $help:mk("nibble", "Nibble at food", "Use 'nibble <food>' to nibble delicately at food. By default it consumes 1 portion.", {}, 'commands, {"eat", "bite"})};
@@ -180,5 +180,5 @@ object FOOD
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 endobject

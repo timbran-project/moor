@@ -9,15 +9,15 @@ object FORMAT_DEFLIST
   override import_export_hierarchy = {"format"};
   override import_export_id = "FORMAT_DEFLIST";
 
-  verb mk (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method mk owner: ARCH_WIZARD
     "Create deflist flyweight from a list of {term, definition} pairs.";
     "Preserves order (unlike maps which sort alphabetically).";
     {items} = args;
     typeof(items) != TYPE_LIST && raise(E_TYPE, "Items must be a list of {term, definition} pairs");
     return toflyweight(this, ['items -> items]);
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method compose owner: ARCH_WIZARD
     "Compose definition list into appropriate format.";
     "Items is a list of {term, definition} pairs.";
     {render_for, content_type, event} = args;
@@ -73,5 +73,5 @@ object FORMAT_DEFLIST
       result = {@result, label + " " + defn_str};
     endfor
     return result:join("\n");
-  endverb
+  endmethod
 endobject

@@ -9,7 +9,7 @@ object OBJ_UTILS
   override import_export_hierarchy = {"utils"};
   override import_export_id = "obj_utils";
 
-  verb format_verb_signature (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_verb_signature owner: ARCH_WIZARD
     "Format a verb signature into user-friendly text. Returns a formatted string.";
     "Args: {verb_name, dobj, prep, iobj, ?object_name}";
     "If object_name is provided, uses it for 'this' placeholders. Otherwise uses <something>.";
@@ -32,9 +32,9 @@ object OBJ_UTILS
       endif
     endif
     return verb_sig;
-  endverb
+  endmethod
 
-  verb format_verb_signatures (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method format_verb_signatures owner: ARCH_WIZARD
     "Format multiple verb signatures from examination data. Returns a list of formatted strings.";
     "Args: {verb_list, ?object_name}";
     "verb_list should be from examination().verbs, where each item is {name, definer, dobj, prep, iobj}";
@@ -48,9 +48,9 @@ object OBJ_UTILS
       verb_sigs = {@verb_sigs, sig};
     endfor
     return verb_sigs;
-  endverb
+  endmethod
 
-  verb is_targetable_verb (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method is_targetable_verb owner: ARCH_WIZARD
     "Check if a verb targets specific objects (has dobj or iobj as 'this').";
     "A targetable verb requires you to specify an object. Ambient verbs do not.";
     "Args: {dobj, prep, iobj}";
@@ -58,9 +58,9 @@ object OBJ_UTILS
     {dobj, prep, iobj} = args;
     "Targetable if either dobj or iobj is 'this'";
     return dobj == "this" || iobj == "this";
-  endverb
+  endmethod
 
-  verb collect_targetable_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method collect_targetable_verbs owner: ARCH_WIZARD
     "Best-effort scanner for targetable verbs used by help and command suggestions.";
     "Returns list of maps: {object_ref, object_name, verbs}";
     "Args: {objects_list}";
@@ -104,9 +104,9 @@ object OBJ_UTILS
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb collect_ambient_verbs (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method collect_ambient_verbs owner: ARCH_WIZARD
     "Best-effort scanner for ambient verbs used by help and command suggestions.";
     "Ambient verbs don't target specific objects. Returns list of maps: {verb, from_object, from_name}";
     "Args: {objects_list}";
@@ -150,9 +150,9 @@ object OBJ_UTILS
       endfor
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb validate_and_compile_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method validate_and_compile_template owner: ARCH_WIZARD
     "Compile a template string into a $sub flyweight list. Returns {success, result}.";
     "If success is true, result is the compiled list.";
     "If success is false, result is the error message.";
@@ -165,9 +165,9 @@ object OBJ_UTILS
       error_msg = length(e) > 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       return {false, error_msg};
     endtry
-  endverb
+  endmethod
 
-  verb check_message_property_writable (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method check_message_property_writable owner: ARCH_WIZARD
     "Check if a player can write to a message property on an object.";
     "Returns {writable, error_msg} where writable is true/false.";
     {target_obj, prop_name, who} = args;
@@ -189,17 +189,17 @@ object OBJ_UTILS
     except e (ANY)
       return {false, "Error checking property: " + toliteral(e)};
     endtry
-  endverb
+  endmethod
 
-  verb set_compiled_message (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_compiled_message owner: ARCH_WIZARD
     "Set a compiled message property with elevated permissions.";
     "Args: {target_obj, prop_name, compiled_list, who}";
     {target_obj, prop_name, compiled_list, who} = args;
     set_task_perms(who);
     target_obj.(prop_name) = compiled_list;
-  endverb
+  endmethod
 
-  verb message_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method message_properties owner: ARCH_WIZARD
     "Return list of readable message properties (ending with _msg/_msgs/_msg_bag) on an object.";
     "Args: {target_obj}";
     "Returns: list of {property_name, current_value}";
@@ -217,9 +217,9 @@ object OBJ_UTILS
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb rule_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method rule_properties owner: ARCH_WIZARD
     "Return list of readable rule properties (ending with _rule) on an object.";
     "Args: {target_obj}";
     "Returns: list of {property_name, current_value}";
@@ -237,9 +237,9 @@ object OBJ_UTILS
       endif
     endfor
     return result;
-  endverb
+  endmethod
 
-  verb reaction_properties (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reaction_properties owner: ARCH_WIZARD
     "Return list of reaction properties (ending with _reaction) on an object.";
     "Args: {target_obj}";
     "Returns: list of {property_name, reaction_flyweight}";
@@ -259,5 +259,5 @@ object OBJ_UTILS
       endif
     endfor
     return result;
-  endverb
+  endmethod
 endobject

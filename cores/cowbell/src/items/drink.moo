@@ -230,7 +230,7 @@ object DRINK
     this:fire_trigger('on_refill, ['Actor -> player]);
   endverb
 
-  verb help_topics (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method help_topics owner: ARCH_WIZARD
     "Return help topics for drink items.";
     {for_player, ?topic = ""} = args;
     my_topics = {$help:mk("drink", "Drink a beverage", "Use 'drink <beverage>' to drink from a vessel you're holding or that's nearby. By default it consumes 2 portions (clamped to what's left).", {}, 'commands, {"sip", "gulp"}), $help:mk("sip", "Sip a drink", "Use 'sip <beverage>' to take a small, delicate sip from a drink. By default it consumes 1 portion.", {}, 'commands, {"drink", "gulp"}), $help:mk("gulp", "Gulp down a drink", "Use 'gulp <beverage>' to gulp down a larger portion of a drink quickly. By default it consumes 3 portions (clamped to what's left).", {"quaff"}, 'commands, {"drink", "sip"}), $help:mk("refill", "Refill a vessel", "Use 'refill <vessel>' to refill a drink vessel you're holding back to full capacity.", {}, 'commands, {"drink"})};
@@ -239,5 +239,5 @@ object DRINK
       t:matches(topic) && return t;
     endfor
     return 0;
-  endverb
+  endmethod
 endobject

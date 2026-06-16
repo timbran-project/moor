@@ -24,7 +24,7 @@ object LLM_WEARABLE
   override import_export_hierarchy = {"llm"};
   override import_export_id = "llm_wearable";
 
-  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method configure owner: ARCH_WIZARD
     "Create agent and apply configuration. Children override _setup_agent to customize.";
     caller == this || caller == this.owner || caller.wizard || raise(E_PERM);
     "Reset auto_confirm mode on reconfigure";
@@ -41,15 +41,15 @@ object LLM_WEARABLE
     endif
     "Let child class configure it";
     this:_setup_agent(this.agent);
-  endverb
+  endmethod
 
-  verb _setup_agent (this none this) owner: HACKER flags: "rxd"
+  method _setup_agent owner: HACKER
     "Override in child objects to configure agent with specific system prompt and tools";
     {agent} = args;
     raise(E_VERBNF, "Child objects must override :_setup_agent to configure their agent");
-  endverb
+  endmethod
 
-  verb _action_perms_check (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _action_perms_check owner: ARCH_WIZARD
     "Check tool is accessible and return wearer. Caller must set_task_perms(wearer).";
     {?actor = #-1} = args;
     wearer = this:wearer();
@@ -75,21 +75,21 @@ object LLM_WEARABLE
     "Check user eligibility - override _check_user_eligible in children for custom requirements";
     this:_check_user_eligible(wearer);
     return wearer;
-  endverb
+  endmethod
 
-  verb _check_user_eligible (this none this) owner: HACKER flags: "rxd"
+  method _check_user_eligible owner: HACKER
     "Override in children to customize user eligibility requirements. Default: no restrictions";
     {wearer} = args;
     return true;
-  endverb
+  endmethod
 
-  verb do_wear (this none this) owner: HACKER flags: "rxd"
+  method do_wear owner: HACKER
     "Override parent to enforce owner-only usage";
     this:_check_for_owner("wear");
     pass(@args);
-  endverb
+  endmethod
 
-  verb _check_for_owner (this none this) owner: HACKER flags: "rxd"
+  method _check_for_owner owner: HACKER
     "Override parent to enforce owner-only usage";
     action = {args};
     if (player != this.owner && !player.wizard)
@@ -102,9 +102,9 @@ object LLM_WEARABLE
       endif
       return;
     endif
-  endverb
+  endmethod
 
-  verb _show_token_usage (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _show_token_usage owner: ARCH_WIZARD
     "Display token usage information to the user";
     {wearer} = args;
     !valid(this.agent) && return;
@@ -170,18 +170,18 @@ object LLM_WEARABLE
       endif
     endif
     wearer:inform_current($event:mk_info(wearer, context_msg):with_presentation_hint('inset):with_group('llm, this):with_tts(context_tts));
-  endverb
+  endmethod
 
-  verb _tool_explain (this none this) owner: HACKER flags: "rxd"
+  method _tool_explain owner: HACKER
     "Tool: Communicate reasoning, progress updates, or error details to user";
     {args_map, actor} = args;
     message = args_map["message"];
     typeof(message) == TYPE_STR || raise(E_TYPE("Expected message string"));
     "Message is displayed by on_tool_call callback, no need to display here";
     return "Message delivered to user.";
-  endverb
+  endmethod
 
-  verb _tool_ask_user (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_ask_user owner: ARCH_WIZARD
     "Tool: Ask the wearer a question, supporting choices or free-text responses";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -249,9 +249,9 @@ object LLM_WEARABLE
     else
       return "User accepted.";
     endif
-  endverb
+  endmethod
 
-  verb log_tool_error (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_tool_error owner: ARCH_WIZARD
     "Log tool execution errors to server_log. Called by agent when a tool raises.";
     {tool_name, tool_args, error_msg} = args;
     caller == this.agent || caller_perms().wizard || raise(E_PERM);
@@ -259,9 +259,9 @@ object LLM_WEARABLE
     safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
     server_log("LLM tool error [" + tostr(tool_name) + "]: " + tostr(error_msg) + " args=" + safe_args);
     return true;
-  endverb
+  endmethod
 
-  verb on_tool_call (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_tool_call owner: ARCH_WIZARD
     "Callback when agent uses a tool - per-tool rewritable placeholder.";
     caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args} = args;
@@ -294,9 +294,9 @@ object LLM_WEARABLE
     queue = {@queue, rewrite_id};
     steps[tool_name] = queue;
     this.progress_steps = steps;
-  endverb
+  endmethod
 
-  verb on_tool_complete (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_tool_complete owner: ARCH_WIZARD
     "Callback after tool execution - rewrite per-tool placeholder once.";
     caller == this || caller == this.agent || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     {tool_name, tool_args, result} = args;
@@ -348,7 +348,7 @@ object LLM_WEARABLE
     if (maphaskey(steps, tool_name) && length(steps[tool_name]) > 0)
       rewrite_id = steps[tool_name][1];
       if (length(steps[tool_name]) > 1)
-        steps[tool_name] = (steps[tool_name])[2..length(steps[tool_name])];
+        steps[tool_name] = steps[tool_name][2..length(steps[tool_name])];
       else
         steps = mapdelete(steps, tool_name);
       endif
@@ -391,9 +391,9 @@ object LLM_WEARABLE
       tts_msg = tool_name + " completed: " + result_text;
     endif
     wearer:inform_current($event:mk_info(wearer, message):with_presentation_hint('inset):with_group('llm, this):with_tts(tts_msg));
-  endverb
+  endmethod
 
-  verb _format_hud_message (this none this) owner: HACKER flags: "rxd"
+  method _format_hud_message owner: HACKER
     "Override in child objects for tool-specific HUD message formatting";
     {tool_name, tool_args} = args;
     "Default formatting for common tools";
@@ -415,9 +415,9 @@ object LLM_WEARABLE
     endif
     "Fallback for unknown tools";
     return $ansi:colorize("[PROCESS]", 'cyan) + " " + tool_name;
-  endverb
+  endmethod
 
-  verb _format_tts_message (this none this) owner: HACKER flags: "rxd"
+  method _format_tts_message owner: HACKER
     "Override in child objects for tool-specific TTS message formatting";
     {tool_name, tool_args} = args;
     "Default TTS-friendly formatting for common tools";
@@ -438,14 +438,14 @@ object LLM_WEARABLE
     endif
     "Fallback for unknown tools";
     return "Processing tool: " + tool_name;
-  endverb
+  endmethod
 
-  verb _get_tool_content_types (this none this) owner: HACKER flags: "rxd"
+  method _get_tool_content_types owner: HACKER
     "Override in children to specify content types for specific tools (e.g., markdown for explain)";
     {tool_name, tool_args} = args;
     "By default, no special content types - render as plain text";
     return {};
-  endverb
+  endmethod
 
   verb stop (this none none) owner: ARCH_WIZARD flags: "rd"
     "Stop the current agent operation without clearing context";
@@ -477,7 +477,7 @@ object LLM_WEARABLE
     player:inform_current($event:mk_info(player, "Agent context reset. Conversation history cleared."));
   endverb
 
-  verb debug_status (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method debug_status owner: ARCH_WIZARD
     "Debug the status calculation to see what's happening";
     if (!valid(this.agent))
       return "No agent configured";
@@ -500,26 +500,26 @@ object LLM_WEARABLE
       status = "OK";
     endif
     return ["prompt_tokens" -> prompt_tokens, "token_limit" -> token_limit, "compaction_threshold" -> compaction_threshold, "threshold_tokens" -> threshold_tokens, "context_percent" -> context_percent, "threshold_percent" -> threshold_percent, "test_gte_100" -> threshold_percent >= 100, "test_gte_80" -> threshold_percent >= 80, "status" -> status];
-  endverb
+  endmethod
 
-  verb recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method recycle owner: ARCH_WIZARD
     "Clean up agent when object is destroyed";
     caller == this || caller_perms() == this.owner || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
     if (valid(this.agent))
       this.agent = #-1;
     endif
-  endverb
+  endmethod
 
-  verb reconfigure (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reconfigure owner: ARCH_WIZARD
     "Reconfigure by clearing old agent ref and creating fresh one";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     "Clear ref - anonymous agent will be GC'd";
     this.agent = #-1;
     "Create fresh agent with current configuration";
     this:configure();
-  endverb
+  endmethod
 
-  verb _register_common_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _register_common_tools owner: ARCH_WIZARD
     "Register tools common to all LLM wearables. Called by child configure verbs.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {agent} = args;
@@ -534,9 +534,9 @@ object LLM_WEARABLE
     agent:add_tool("todo_write", todo_write_tool);
     get_todos_tool = $llm_agent_tool:mk("get_todos", "Get the current todo list to see what tasks are pending, in progress, or completed.", ["type" -> "object", "properties" -> [], "required" -> {}], this, "_tool_get_todos");
     agent:add_tool("get_todos", get_todos_tool);
-  endverb
+  endmethod
 
-  verb _tool_todo_write (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_todo_write owner: ARCH_WIZARD
     "Tool: Replace the entire todo list to track multi-step tasks";
     {args_map, actor} = args;
     actor || this:_action_perms_check();
@@ -546,26 +546,26 @@ object LLM_WEARABLE
     for item in (todos_input)
       content = item["content"];
       status_str = item["status"];
-      status = status_str == "pending" ? 'pending | (status_str == "in_progress" ? 'in_progress | (status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str)));
+      status = status_str == "pending" ? 'pending | status_str == "in_progress" ? 'in_progress | status_str == "completed" ? 'completed | raise(E_INVARG, "Invalid status: " + status_str);
       todo_items = {@todo_items, ["content" -> content, "status" -> status]};
     endfor
     this.agent:set_todos(todo_items);
     summary = {tostr(length(todo_items)) + " todos set:"};
     for todo in (this.agent:get_todos())
-      prefix = todo["status"] == 'completed ? "[x]" | (todo["status"] == 'in_progress ? "[>]" | "[ ]");
+      prefix = todo["status"] == 'completed ? "[x]" | todo["status"] == 'in_progress ? "[>]" | "[ ]";
       summary = {@summary, "  " + prefix + " " + todo["content"]};
     endfor
     return summary:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_get_todos (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_todos owner: ARCH_WIZARD
     "Tool: Get the current todo list";
     {args_map, actor} = args;
     actor || this:_action_perms_check();
     return this.agent:format_todos();
-  endverb
+  endmethod
 
-  verb _register_authoring_tools (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _register_authoring_tools owner: ARCH_WIZARD
     "Register doc/message/rule authoring tools. Called by child configure verbs.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {agent} = args;
@@ -590,9 +590,9 @@ object LLM_WEARABLE
     agent:add_tool("set_rule", set_rule_tool);
     show_rule_tool = $llm_agent_tool:mk("show_rule", "Display the current expression for a specific rule property. Equivalent to @show-rule.", ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference"], "property" -> ["type" -> "string", "description" -> "Rule property name (must end with _rule)"]], "required" -> {"object", "property"}], this, "_tool_show_rule");
     agent:add_tool("show_rule", show_rule_tool);
-  endverb
+  endmethod
 
-  verb _tool_doc_lookup (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_doc_lookup owner: ARCH_WIZARD
     "Tool: Fetch developer documentation for object/verb/property (like @doc)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -644,9 +644,9 @@ object LLM_WEARABLE
     endif
     doc_body = typeof(doc_text) == TYPE_LIST ? doc_text:join("\n") | doc_text;
     return title + "\n\n" + (doc_body ? doc_body | "(No documentation available)");
-  endverb
+  endmethod
 
-  verb _tool_list_messages (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_list_messages owner: ARCH_WIZARD
     "Tool: List *_msg properties and message bags on an object (like @messages)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -659,13 +659,13 @@ object LLM_WEARABLE
     lines = {"Message properties for " + tostr(target_obj) + ":"};
     for prop_info in (msg_props)
       {prop_name, prop_value} = prop_info;
-      value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | (typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value));
+      value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value);
       lines = {@lines, " - " + prop_name + ": " + value_summary};
     endfor
     return lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_get_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_get_message_template owner: ARCH_WIZARD
     "Tool: Read a single message template (like @getm)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -688,9 +688,9 @@ object LLM_WEARABLE
     endif
     display_value = typeof(value) == TYPE_LIST ? `$sub_utils:decompile(value) ! ANY => toliteral(value)' | toliteral(value);
     return tostr(target_obj) + "." + prop_name + " = " + display_value + " (@getm command available)";
-  endverb
+  endmethod
 
-  verb _tool_set_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_message_template owner: ARCH_WIZARD
     "Tool: Set a message template (like @setm). Creates property if missing.";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -723,9 +723,9 @@ object LLM_WEARABLE
     endif
     $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
     return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
-  endverb
+  endmethod
 
-  verb _tool_add_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_add_message_template owner: ARCH_WIZARD
     "Tool: Append a template to a message bag (like @add-message)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -740,9 +740,9 @@ object LLM_WEARABLE
     !valid(bag) && (bag = $msg_bag:create(true)) && (target_obj.(prop_name) = bag);
     bag:add($sub_utils:compile(template));
     return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
-  endverb
+  endmethod
 
-  verb _tool_delete_message_template (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_delete_message_template owner: ARCH_WIZARD
     "Tool: Delete a template by index from a message bag (like @del-message)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -757,9 +757,9 @@ object LLM_WEARABLE
     valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
     bag:remove(idx);
     return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
-  endverb
+  endmethod
 
-  verb _tool_list_rules (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_list_rules owner: ARCH_WIZARD
     "Tool: List *_rule properties on an object (like @rules)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -775,9 +775,9 @@ object LLM_WEARABLE
       lines = {@lines, " - " + prop_name + ": " + (prop_value == 0 ? "(not set)" | $rule_engine:decompile_rule(prop_value))};
     endfor
     return lines:join("\n");
-  endverb
+  endmethod
 
-  verb _tool_set_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_set_rule owner: ARCH_WIZARD
     "Tool: Set a rule on an object property (like @set-rule)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -805,9 +805,9 @@ object LLM_WEARABLE
     validation['valid] || raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
     target_obj.(prop_name) = rule;
     return "Set " + tostr(target_obj) + "." + prop_name + " = " + expression;
-  endverb
+  endmethod
 
-  verb _tool_show_rule (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _tool_show_rule owner: ARCH_WIZARD
     "Tool: Display a rule property expression (like @show-rule)";
     {args_map, actor} = args;
     wearer = actor || this:_action_perms_check();
@@ -820,7 +820,7 @@ object LLM_WEARABLE
     prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
     rule = target_obj.(prop_name);
     return tostr(target_obj) + "." + prop_name + " = " + (rule == 0 ? "(not set)" | $rule_engine:decompile_rule(rule));
-  endverb
+  endmethod
 
   verb "use inter*act qu*ery" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Use/interact with the wearable - prompts for input";
@@ -903,14 +903,14 @@ object LLM_WEARABLE
     player:inform_current(event);
   endverb
 
-  verb _start_progress_tracking (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _start_progress_tracking owner: ARCH_WIZARD
     "Begin tracking progress.";
     {wearer} = args;
     caller == this || caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
     return false;
-  endverb
+  endmethod
 
-  verb _format_progress_display (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _format_progress_display owner: ARCH_WIZARD
     "Format the current progress steps for display.";
     "Returns a formatted block showing recent steps with status indicators.";
     "Permission check";
@@ -997,9 +997,9 @@ object LLM_WEARABLE
       visible_lines = {@visible_lines, $format.paragraph:mk(line)};
     endfor
     return $format.block:mk(@visible_lines);
-  endverb
+  endmethod
 
-  verb _update_progress (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _update_progress owner: ARCH_WIZARD
     "Update progress tracking with a new step or status change.";
     "Args: tool_name, status ('started, 'complete, 'error), ?summary";
     "For 'complete status, summary is optional - keeps original if not provided.";
@@ -1030,9 +1030,9 @@ object LLM_WEARABLE
       this.progress_steps = new_steps;
     endif
     return true;
-  endverb
+  endmethod
 
-  verb _end_progress_tracking (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method _end_progress_tracking owner: ARCH_WIZARD
     "End progress tracking with a final summary rewrite.";
     "Args: ?final_status ('complete or 'error, default 'complete)";
     {?final_status = 'complete} = args;
@@ -1066,5 +1066,5 @@ object LLM_WEARABLE
     this.progress_rewrite_id = "";
     this.progress_connection = 0;
     this.progress_steps = {};
-  endverb
+  endmethod
 endobject

@@ -9,13 +9,13 @@ object HTML
   override import_export_hierarchy = {"format"};
   override import_export_id = "html";
 
-  verb render (this none this) owner: HACKER flags: "rxd"
+  method render owner: HACKER
     {content_type} = args;
     tags = this:to_xml_tag();
     return to_xml(tags);
-  endverb
+  endmethod
 
-  verb to_xml_tag (this none this) owner: HACKER flags: "rxd"
+  method to_xml_tag owner: HACKER
     "We have to descend our tree and turn nodes into to_xml renderable elements, and then run to_xml after we're done";
     "Our form is { tag, attributes, children }, where children can be either terminal nodes, or flyweights themselves";
     contents = flycontents(this);
@@ -54,5 +54,5 @@ object HTML
       results = {@results, result};
     endfor
     return {tag, attributes, @results};
-  endverb
+  endmethod
 endobject

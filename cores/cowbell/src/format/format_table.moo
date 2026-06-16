@@ -8,15 +8,15 @@ object FORMAT_TABLE
   override import_export_hierarchy = {"format"};
   override import_export_id = "format_table";
 
-  verb mk (this none this) owner: HACKER flags: "rxd"
+  method mk owner: HACKER
     "Create table flyweight with headers and rows";
     {headers, rows} = args;
     typeof(headers) != TYPE_LIST && raise(E_TYPE, "Headers must be a list");
     typeof(rows) != TYPE_LIST && raise(E_TYPE, "Rows must be a list");
     return toflyweight(this, ['headers -> headers, 'rows -> rows]);
-  endverb
+  endmethod
 
-  verb compose (this none this) owner: HACKER flags: "rxd"
+  method compose owner: HACKER
     "Compose table content into appropriate format";
     {render_for, content_type, event} = args;
     headers = this.headers;
@@ -136,9 +136,9 @@ object FORMAT_TABLE
       result = {@result, line};
     endfor
     return result:join("\n");
-  endverb
+  endmethod
 
-  verb test_simple_table (this none this) owner: HACKER flags: "rxd"
+  method test_simple_table owner: HACKER
     "Test creating simple HTML table";
     headers = {"Name", "Age"};
     rows = {{"Alice", "25"}, {"Bob", "30"}};
@@ -151,9 +151,9 @@ object FORMAT_TABLE
     "Should have thead and tbody";
     length(parsed) < 3 && raise(E_INVARG, "parsed structure: " + toliteral(parsed));
     return true;
-  endverb
+  endmethod
 
-  verb test_plain_text_table (this none this) owner: HACKER flags: "rxd"
+  method test_plain_text_table owner: HACKER
     "Test plain text table output";
     headers = {"Item", "Price"};
     rows = {{"Apple", "$1.00"}, {"Banana", "$0.50"}};
@@ -162,5 +162,5 @@ object FORMAT_TABLE
     "Should contain headers and separator";
     !index(text_result, "Item") || !index(text_result, "Price") || !index(text_result, "---") && raise(E_INVARG, "text result: " + toliteral(text_result));
     return true;
-  endverb
+  endmethod
 endobject
