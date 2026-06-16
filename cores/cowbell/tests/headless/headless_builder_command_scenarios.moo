@@ -151,6 +151,44 @@ object HEADLESS_BUILDER_COMMAND_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_builder_message_commands_dispatch_as_player (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: message builder commands run from non-wizard command frames and mutate through scoped helpers.";
+    player == $player || raise(E_INVARG, "This scenario must run with --test-task-player set to PLAYER.");
+    fixture = #-1;
+    old_is_builder = $player.is_builder;
+    stubbed_inform = false;
+    added_inform_log = false;
+    try
+      fixture = create($thing);
+      fixture.owner = $player;
+      fixture.name = "headless message command fixture";
+      add_property(fixture, "headless_msg", "", {$player, "rc"});
+      $player.is_builder = true;
+      add_property($player, "headless_last_inform", false, {$arch_wizard, "r"});
+      added_inform_log = true;
+      add_verb($player, {$arch_wizard, "rxd", "inform_current"}, {"this", "none", "this"});
+      compile_errors = set_verb_code($player, "inform_current", {"this.headless_last_inform = args;", "return true;"}, 2, 1);
+      $test_utils:assert_false(compile_errors, "temporary inform_current stub should compile");
+      stubbed_inform = true;
+      fixture_ref = tostr(fixture);
+      add_result = this:_dispatch_builder_any("@add-message", fixture_ref + ".headless_msgs You {see|sees} the command test.", {fixture_ref + ".headless_msgs", "You"});
+      bag = fixture.headless_msgs;
+      $test_utils:assert_true($msg_bag:is_msg_bag(bag), "@add-message should create a message bag");
+      $test_utils:assert_eq(length(bag:entries()), 1, "@add-message should append one entry");
+      messages_result = this:_dispatch_builder_dobj("@messages", fixture_ref);
+      $test_utils:assert_true(messages_result >= 2, "@messages should list at least the scalar and bag message properties");
+      set_result = this:_dispatch_builder_any("@setm", fixture_ref + ".headless_msg The command test changes.", {fixture_ref + ".headless_msg", "The"});
+      $test_utils:assert_true(set_result, "@setm should report success: " + toliteral($player.headless_last_inform));
+      $test_utils:assert_true(index($sub_utils:decompile(fixture.headless_msg), "command test changes") > 0, "@setm should store compiled template");
+    finally
+      stubbed_inform && `delete_verb($player, "inform_current") ! E_VERBNF => 0';
+      added_inform_log && `delete_property($player, "headless_last_inform") ! E_PROPNF => 0';
+      $player.is_builder = old_is_builder;
+      valid(fixture) && fixture:destroy();
+    endtry
+    return true;
+  endverb
+
   verb _dispatch_builder_any (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Dispatch a builder command declared as any/any/any.";
     {verb_name, arg_string, command_args, ?prep_string = "", ?iobj_string = ""} = args;

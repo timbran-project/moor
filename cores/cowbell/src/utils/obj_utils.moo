@@ -170,19 +170,21 @@ object OBJ_UTILS
   method check_message_property_writable owner: ARCH_WIZARD
     "Check if a player can write to a message property on an object.";
     "Returns {writable, error_msg} where writable is true/false.";
+    caller == $builder_features || raise(E_PERM);
     {target_obj, prop_name, who} = args;
     typeof(target_obj) != TYPE_OBJ && raise(E_TYPE, "target_obj must be object");
     typeof(prop_name) != TYPE_STR && raise(E_TYPE, "prop_name must be string");
     typeof(who) != TYPE_OBJ && raise(E_TYPE, "who must be object");
     set_task_perms(who);
     "Check property exists";
-    if (!(prop_name in target_obj:all_properties()))
+    prop_key = this:property_key(target_obj, prop_name);
+    if (prop_key == E_PROPNF)
       return {false, "Property '" + prop_name + "' does not exist on " + tostr(target_obj) + "."};
     endif
     "Try to write with player's permissions to check if allowed";
     try
-      old_value = target_obj.(prop_name);
-      target_obj.(prop_name) = old_value;
+      old_value = target_obj.(prop_key);
+      target_obj.(prop_key) = old_value;
       return {true, ""};
     except e (E_PERM)
       return {false, "You do not have permission to modify property '" + prop_name + "' on " + tostr(target_obj) + "."};
@@ -194,9 +196,68 @@ object OBJ_UTILS
   method set_compiled_message owner: ARCH_WIZARD
     "Set a compiled message property with elevated permissions.";
     "Args: {target_obj, prop_name, compiled_list, who}";
+    (caller == $builder_features || isa(caller, $llm_wearable)) || raise(E_PERM);
     {target_obj, prop_name, compiled_list, who, ?grants = {}} = args;
-    set_task_perms(who, grants);
-    target_obj.(prop_name) = compiled_list;
+    prop_key = this:property_key(target_obj, tostr(prop_name));
+    prop_key == E_PROPNF && raise(E_PROPNF, "Property not found: " + tostr(prop_name));
+    existing = target_obj.(prop_key);
+    if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
+      set_task_perms(who, {@grants, {"property_write", existing, "entries"}});
+      existing.entries = {compiled_list};
+    elseif (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
+      set_task_perms(who, {@grants, {"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = $msg_bag:mk(compiled_list);
+    else
+      set_task_perms(who, {@grants, {"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = compiled_list;
+    endif
+  endmethod
+
+  method add_message_entry owner: ARCH_WIZARD
+    "Append a compiled entry to a message bag property, creating the bag if needed.";
+    (caller == $builder_features || isa(caller, $llm_wearable)) || raise(E_PERM);
+    {target_obj, prop_name, compiled_entry, who} = args;
+    prop_name = tostr(prop_name);
+    prop_key = this:property_key(target_obj, prop_name);
+    if (prop_key == E_PROPNF)
+      set_task_perms(who, {{"property_define", target_obj}});
+      add_property(target_obj, prop_name, $msg_bag:mk(compiled_entry), {who, "rc"});
+      return;
+    endif
+    existing = target_obj.(prop_key);
+    if ($msg_bag:is_msg_bag(existing))
+      if (typeof(existing) == TYPE_OBJ)
+        set_task_perms(who, {{"property_write", existing, "entries"}});
+        existing:add(compiled_entry, true);
+      else
+        set_task_perms(who, {{"property_write", target_obj, prop_key}});
+        target_obj.(prop_key) = existing:add(compiled_entry, true);
+      endif
+    else
+      set_task_perms(who, {{"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = $msg_bag:mk(compiled_entry);
+    endif
+  endmethod
+
+  method remove_message_entry owner: ARCH_WIZARD
+    "Remove an entry from a message bag property.";
+    (caller == $builder_features || isa(caller, $llm_wearable)) || raise(E_PERM);
+    {target_obj, prop_name, index, who} = args;
+    prop_name = tostr(prop_name);
+    prop_key = this:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    existing = target_obj.(prop_key);
+    if ($msg_bag:is_msg_bag(existing))
+      if (typeof(existing) == TYPE_OBJ)
+        set_task_perms(who, {{"property_write", existing, "entries"}});
+        existing:remove(index, true);
+      else
+        set_task_perms(who, {{"property_write", target_obj, prop_key}});
+        target_obj.(prop_key) = existing:remove(index, true);
+      endif
+    else
+      raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    endif
   endmethod
 
   method property_key owner: ARCH_WIZARD

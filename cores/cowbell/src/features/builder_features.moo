@@ -39,15 +39,17 @@ object BUILDER_FEATURES
   override import_export_hierarchy = {"features"};
   override import_export_id = "builder_features";
 
-  method _challenge_command_perms owner: HACKER flags: "xd"
-    caller == player || raise(E_PERM);
+  method _require_builder_command owner: ARCH_WIZARD
+    caller == this || raise(E_PERM);
+    {who} = args;
+    who.is_builder || raise(E_PERM, "Builder features required.");
   endmethod
 
-  verb "@add-message" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@add-message" (any any any) owner: HACKER flags: "rd"
     "HINT: <object>.<property> <template> -- Add an entry to a message bag.";
     "Add a compiled message template entry to a message bag property. Usage: @add-message <object>.<prop> <template>";
-    this:_challenge_command_perms();
-    set_task_perms(player);
+    caller != player && raise(E_PERM);
+    this:_require_builder_command(player);
     if (length(args) < 2)
       player:inform_current($event:mk_error(player, "Usage: @add-message <object>.<prop> <template>"):with_audience('utility));
       return;
@@ -77,25 +79,15 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, "Template compilation failed: " + compiled):with_audience('utility));
       return;
     endif
-    existing = `target.(prop_name) ! E_PROPNF => 0';
-    if (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
-      "Flyweight bag - add returns new flyweight, must reassign";
-      target.(prop_name) = existing:add(compiled);
-    elseif (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
-      "Legacy object bag - mutates in place";
-      existing:add(compiled);
-    else
-      "No bag yet - create flyweight";
-      target.(prop_name) = $msg_bag:mk(compiled);
-    endif
+    $obj_utils:add_message_entry(target, prop_name, compiled, player);
     player:inform_current($event:mk_info(player, "Added message to " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
-  verb "@del-message" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@del-message" (any any any) owner: HACKER flags: "rd"
     "HINT: <object>.<property> <index> -- Remove one message bag entry.";
     "Remove a message entry by index from a message bag property. Usage: @del-message <object>.<prop> <index>";
-    this:_challenge_command_perms();
-    set_task_perms(player);
+    caller != player && raise(E_PERM);
+    this:_require_builder_command(player);
     if (length(args) < 2)
       player:inform_current($event:mk_error(player, "Usage: @del-message <object>.<prop> <index>"):with_audience('utility));
       return;
@@ -117,16 +109,7 @@ object BUILDER_FEATURES
     target = $match:match_object(target_name, player);
     valid(target) || raise(E_INVARG, "Object not found");
     prop_name:ends_with("_msg_bag") || prop_name:ends_with("_msgs") || raise(E_INVARG, "Property must end with _msg_bag or _msgs");
-    existing = `target.(prop_name) ! E_PROPNF => 0';
-    if (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
-      "Flyweight bag - remove returns new flyweight";
-      target.(prop_name) = existing:remove(idx);
-    elseif (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
-      "Legacy object bag - mutates in place";
-      existing:remove(idx);
-    else
-      raise(E_INVARG, "Message bag not found on " + tostr(target) + "." + prop_name);
-    endif
+    $obj_utils:remove_message_entry(target, prop_name, idx, player);
     player:inform_current($event:mk_info(player, "Removed message #" + tostr(idx) + " from " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
@@ -1362,11 +1345,11 @@ object BUILDER_FEATURES
     present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endmethod
 
-  verb "@set-m*essage @setm" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@set-m*essage @setm" (any any any) owner: HACKER flags: "rd"
     "Set a custom message template on an object property.";
     "Usage: @set-message OBJECT.PROPERTY template string...";
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    caller != player && raise(E_PERM);
+    this:_require_builder_command(player);
     if (!argstr || length(args) < 2)
       raise(E_INVARG, "Usage: @set-message OBJECT.PROPERTY template string...");
     endif
@@ -1423,12 +1406,7 @@ object BUILDER_FEATURES
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       success_message = "Set message template on " + obj_name + " (" + tostr(target_obj) + ")." + prop_name + ".";
       "Set the compiled message";
-      existing = `target_obj.(prop_name) ! E_PROPNF => E_PROPNF';
-      if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
-        existing.entries = {compiled_list};
-      else
-        $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
-      endif
+      $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
       player:inform_current($event:mk_info(player, success_message));
       return true;
     except e (ANY)
@@ -1438,12 +1416,11 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@get-m*essage @getm" (any none any) owner: ARCH_WIZARD flags: "rd"
+  verb "@get-m*essage @getm" (any none any) owner: HACKER flags: "rd"
     "Show a message template for a single property.";
     "Usage: @get-message OBJECT.PROPERTY";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     !argstr && raise(E_INVARG, "Usage: @get-message OBJECT.PROPERTY");
     try
       target_spec = args[1];
@@ -1464,8 +1441,14 @@ object BUILDER_FEATURES
       target_obj = $match:match_object(object_str, player);
       typeof(target_obj) != TYPE_OBJ && raise(E_INVARG, "That reference is not an object.");
       !valid(target_obj) && raise(E_INVARG, "That object does not exist.");
-      prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
-      value = target_obj.(prop_name);
+      value = E_PROPNF;
+      for prop_info in ($obj_utils:message_properties(target_obj, player, true))
+        if (tostr(prop_info[1]) == prop_name)
+          value = prop_info[2];
+          break;
+        endif
+      endfor
+      value == E_PROPNF && raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ".");
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       if ($msg_bag:is_msg_bag(value))
         entries = value:entries();
@@ -1499,11 +1482,10 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@set-r*ule" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@set-r*ule" (any any any) owner: HACKER flags: "rd"
     "Set a rule property on an object. Usage: @set-rule <object>.<rule-property> <expression>";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @set-rule OBJECT.RULE_PROPERTY EXPRESSION");
     endif
@@ -1561,11 +1543,10 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@clear-rule" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@clear-rule" (any none none) owner: HACKER flags: "rd"
     "Clear a rule property. Usage: @clear-rule <object>.<rule-property>";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @clear-rule OBJECT.RULE_PROPERTY");
     endif
@@ -1604,11 +1585,10 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@show-rule" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@show-rule" (any none none) owner: HACKER flags: "rd"
     "Show a rule property. Usage: @show-rule <object>.<rule-property>";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @show-rule OBJECT.RULE_PROPERTY");
     endif
@@ -1632,7 +1612,14 @@ object BUILDER_FEATURES
       "Property must end with _rule";
       prop_name:ends_with("_rule") || raise(E_INVARG, "Rule properties must end with '_rule'");
       "Get the rule";
-      rule = target.(prop_name);
+      rule = E_PROPNF;
+      for prop_info in ($obj_utils:rule_properties(target, player, true))
+        if (tostr(prop_info[1]) == prop_name)
+          rule = prop_info[2];
+          break;
+        endif
+      endfor
+      rule == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
       if (rule == 0)
         message = tostr(target) + "." + prop_name + " = (no rule set)";
       else
@@ -1648,16 +1635,15 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@mes*sages @msg" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@mes*sages @msg" (any none none) owner: HACKER flags: "rd"
     "HINT: <object> -- Show all customizable message properties.";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     !dobjstr && raise(E_INVARG, "Usage: @messages OBJECT");
     try
       target_obj = $match:match_object(dobjstr, player);
       "Get message properties";
-      msg_props = $obj_utils:message_properties(target_obj);
+      msg_props = $obj_utils:message_properties(target_obj, player, true);
       if (!msg_props || length(msg_props) == 0)
         obj_name = `target_obj.name ! ANY => tostr(target_obj)';
         message = obj_name + " (" + tostr(target_obj) + ") has no message properties.";
@@ -1695,11 +1681,10 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@rules" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@rules" (any none none) owner: HACKER flags: "rd"
     "HINT: <object> -- Show all rule properties on an object.";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!dobjstr)
       raise(E_INVARG, "Usage: @rules OBJECT");
     endif
@@ -1711,7 +1696,7 @@ object BUILDER_FEATURES
       return 0;
     endtry
     "Get rule properties";
-    rule_props = $obj_utils:rule_properties(target_obj);
+    rule_props = $obj_utils:rule_properties(target_obj, player, true);
     if (!rule_props || length(rule_props) == 0)
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       message = obj_name + " (" + tostr(target_obj) + ") has no rule properties.";
@@ -1740,11 +1725,10 @@ object BUILDER_FEATURES
     return length(rule_props);
   endverb
 
-  verb "@reactions" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@reactions" (any none none) owner: HACKER flags: "rd"
     "HINT: <object> -- Show all reactions on an object.";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!dobjstr)
       raise(E_INVARG, "Usage: @reactions OBJECT");
     endif
@@ -1755,7 +1739,7 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, message));
       return 0;
     endtry
-    reaction_props = $obj_utils:reaction_properties(target_obj);
+    reaction_props = $obj_utils:reaction_properties(target_obj, player, true);
     if (!reaction_props || length(reaction_props) == 0)
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       message = obj_name + " (" + tostr(target_obj) + ") has no reactions.";
@@ -1803,11 +1787,10 @@ object BUILDER_FEATURES
     return length(reaction_props);
   endverb
 
-  verb "@add-reaction @set-reaction" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@add-reaction @set-reaction" (any any any) owner: HACKER flags: "rd"
     "Add a reaction to an object. Usage: @add-reaction <object>.<name>_reaction <trigger> <when> <effects>";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr || length(args) < 4)
       raise(E_INVARG, "Usage: @add-reaction OBJECT.NAME_reaction TRIGGER WHEN EFFECTS");
     endif
@@ -1857,8 +1840,9 @@ object BUILDER_FEATURES
       typeof(effects) != TYPE_LIST && raise(E_INVARG, "Effects must evaluate to a list.");
       reaction = $reaction:mk(trigger, when_clause, effects);
       "Add or update property";
-      if (prop_name in target_obj:all_properties())
-        target_obj.(prop_name) = reaction;
+      prop_key = $obj_utils:property_key(target_obj, prop_name);
+      if (prop_key != E_PROPNF)
+        target_obj.(prop_key) = reaction;
       else
         add_property(target_obj, prop_name, reaction, {player, "r"});
       endif
@@ -1873,11 +1857,10 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@enable-reaction" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@enable-reaction" (any none none) owner: HACKER flags: "rd"
     "Enable a reaction. Usage: @enable-reaction <object>.<property_reaction>";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @enable-reaction OBJECT.PROPERTY_reaction");
     endif
@@ -1905,12 +1888,13 @@ object BUILDER_FEATURES
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
       "Check property exists and is a reaction";
-      prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
-      reaction = target_obj.(prop_name);
+      prop_key = $obj_utils:property_key(target_obj, prop_name);
+      prop_key == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
+      reaction = target_obj.(prop_key);
       typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
       "Enable the reaction";
       reaction.enabled = true;
-      target_obj.(prop_name) = reaction;
+      target_obj.(prop_key) = reaction;
       player:inform_current($event:mk_info(player, "Enabled " + tostr(target_obj) + "." + prop_name));
       return 1;
     except e (ANY)
@@ -1920,11 +1904,10 @@ object BUILDER_FEATURES
     endtry
   endverb
 
-  verb "@disable-reaction" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@disable-reaction" (any none none) owner: HACKER flags: "rd"
     "Disable a reaction. Usage: @disable-reaction <object>.<property_reaction>";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @disable-reaction OBJECT.PROPERTY_reaction");
     endif
@@ -1952,12 +1935,13 @@ object BUILDER_FEATURES
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
       "Check property exists and is a reaction";
-      prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
-      reaction = target_obj.(prop_name);
+      prop_key = $obj_utils:property_key(target_obj, prop_name);
+      prop_key == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
+      reaction = target_obj.(prop_key);
       typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
       "Disable the reaction";
       reaction.enabled = false;
-      target_obj.(prop_name) = reaction;
+      target_obj.(prop_key) = reaction;
       player:inform_current($event:mk_info(player, "Disabled " + tostr(target_obj) + "." + prop_name));
       return 1;
     except e (ANY)
@@ -2403,11 +2387,10 @@ object BUILDER_FEATURES
     return result;
   endverb
 
-  verb "@show-reaction @showr" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "@show-reaction @showr" (any none none) owner: HACKER flags: "rd"
     "HINT: <object>.<property_reaction> -- Show one reaction in detail.";
     caller != player && raise(E_PERM);
-    player.is_builder || raise(E_PERM, "Builder features required.");
-    set_task_perms(player);
+    this:_require_builder_command(player);
     if (!argstr)
       raise(E_INVARG, "Usage: @show-reaction OBJECT.PROPERTY_reaction");
     endif
@@ -2428,8 +2411,14 @@ object BUILDER_FEATURES
       target_obj = $match:match_object(target_name, player);
       valid(target_obj) || raise(E_INVARG, "Object not found");
       prop_name:ends_with("_reaction") || raise(E_INVARG, "Reaction properties must end with '_reaction'");
-      prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
-      reaction = target_obj.(prop_name);
+      reaction = E_PROPNF;
+      for prop_info in ($obj_utils:reaction_properties(target_obj, player, true))
+        if (tostr(prop_info[1]) == prop_name)
+          reaction = prop_info[2];
+          break;
+        endif
+      endfor
+      reaction == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
       typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
       trigger_str = "??";
       if (typeof(reaction.trigger) == TYPE_SYM)

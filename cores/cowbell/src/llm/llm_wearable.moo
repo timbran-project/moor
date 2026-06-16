@@ -878,16 +878,6 @@ object LLM_WEARABLE
       add_property(target_obj, prop_name, compiled, {wearer, "rc"});
       return "Created and set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ").";
     endif
-    existing = target_obj.(prop_key);
-    if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
-      set_task_perms(wearer, {{"property_write", existing, "entries"}});
-      existing.entries = {compiled};
-      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
-    elseif (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
-      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = $msg_bag:mk(compiled);
-      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
-    endif
     $obj_utils:set_compiled_message(target_obj, prop_key, compiled, wearer, {{"property_write", target_obj, prop_key}});
     return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
   endmethod
@@ -908,25 +898,10 @@ object LLM_WEARABLE
       if (!wearer.wizard && target_obj.owner != wearer)
         raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
       endif
-      bag = $msg_bag:create(true);
-      bag.entries = {compiled};
-      set_task_perms(wearer, {{"property_define", target_obj}});
-      add_property(target_obj, prop_name, bag, {wearer, "rc"});
+      $obj_utils:add_message_entry(target_obj, prop_name, compiled, wearer);
       return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
     endif
-    bag = target_obj.(prop_key);
-    if (typeof(bag) == TYPE_OBJ && isa(bag, $msg_bag))
-      set_task_perms(wearer, {{"property_write", bag, "entries"}});
-      bag:add(compiled, true);
-    elseif (typeof(bag) == TYPE_FLYWEIGHT && bag.delegate == $msg_bag)
-      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = bag:add(compiled, true);
-    else
-      new_bag = $msg_bag:create(true);
-      new_bag.entries = {compiled};
-      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = new_bag;
-    endif
+    $obj_utils:add_message_entry(target_obj, prop_key, compiled, wearer);
     return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
   endmethod
 
@@ -942,16 +917,7 @@ object LLM_WEARABLE
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
-    bag = target_obj.(prop_key);
-    if (typeof(bag) == TYPE_OBJ && isa(bag, $msg_bag))
-      set_task_perms(wearer, {{"property_write", bag, "entries"}});
-      bag:remove(idx, true);
-    elseif (typeof(bag) == TYPE_FLYWEIGHT && bag.delegate == $msg_bag)
-      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = bag:remove(idx, true);
-    else
-      raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
-    endif
+    $obj_utils:remove_message_entry(target_obj, prop_key, idx, wearer);
     return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
   endmethod
 
