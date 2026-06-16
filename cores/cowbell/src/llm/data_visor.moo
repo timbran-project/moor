@@ -1280,7 +1280,6 @@ object DATA_VISOR
     "Tool: Search verb code for patterns";
     {args_map, actor} = args;
     wearer = this:_action_perms_check(actor);
-    set_task_perms(wearer);
     pattern = args_map["pattern"];
     object_spec = maphaskey(args_map, "object") ? args_map["object"] | false;
     typeof(pattern) == TYPE_STR || raise(E_TYPE("Pattern must be string"));
@@ -1298,7 +1297,7 @@ object DATA_VISOR
       endtry
     elseif (wearer.wizard)
       "Wizards can search globally";
-      search_objects = objects();
+      search_objects = this:_tool_grep_all_objects(wearer);
       scope_label = "all objects";
     else
       "Non-wizards: limit to local, accessible scope";
@@ -1309,7 +1308,7 @@ object DATA_VISOR
       endif
       scope_label = "local scope";
     endif
-    "Perform grep search using prog_utils";
+    "Perform grep search under per-object scoped grants";
     all_matches = {};
     obj_count = 0;
     for o in (search_objects)
@@ -1318,7 +1317,7 @@ object DATA_VISOR
         suspend_if_needed();
       endif
       try
-        matches = $prog_utils:grep_object(pattern, o, false);
+        matches = this:_tool_grep_object(wearer, pattern, o);
         all_matches = {@all_matches, @matches};
       except (ANY)
         "Skip objects that cannot be read with current permissions";
@@ -1335,6 +1334,71 @@ object DATA_VISOR
       result_lines = {@result_lines, tostr(o) + ":" + verb_name + " line " + tostr(line_num) + ": " + matching_line};
     endfor
     return result_lines:join("\n");
+  endmethod
+
+  method _tool_grep_all_objects owner: ARCH_WIZARD
+    "Enumerate global grep scope with only object-list authority.";
+    caller == this || raise(E_PERM);
+    {wearer} = args;
+    set_task_perms(wearer, {{"object_list"}});
+    return objects();
+  endmethod
+
+  method _tool_grep_object owner: ARCH_WIZARD
+    "Search one object under scoped object/verb read grants.";
+    caller == this || raise(E_PERM);
+    {wearer, pattern, o} = args;
+    verb_names = verbs(o);
+    grants = {{"object_read", o}};
+    for verb_name in (verb_names)
+      grants = {@grants, {"verb_read", o, verb_name}};
+    endfor
+    set_task_perms(wearer, grants);
+    matches = {};
+    for verb_index in [1..length(verb_names)]
+      if (verb_index % 5 == 0)
+        suspend_if_needed();
+      endif
+      code_lines = `verb_code(o, verb_index) ! E_VERBNF => false';
+      if (!code_lines)
+        continue;
+      endif
+      suspend_if_needed();
+      if (!index(tostr(@code_lines), pattern, false))
+        continue;
+      endif
+      line_count = 0;
+      for line in (code_lines)
+        line_count = line_count + 1;
+        if (line_count % 10 == 0)
+          suspend_if_needed();
+        endif
+        if (match_pos = index(line, pattern, false))
+          max_len = 50;
+          line_len = length(line);
+          if (line_len <= max_len)
+            matching_line = line;
+          else
+            pattern_len = length(pattern);
+            start_pos = max(1, match_pos - (max_len - pattern_len) / 2);
+            end_pos = min(line_len, start_pos + max_len - 1);
+            if (end_pos == line_len && end_pos - start_pos < max_len - 1)
+              start_pos = max(1, end_pos - max_len + 1);
+            endif
+            matching_line = line[start_pos..end_pos];
+            if (start_pos > 1)
+              matching_line = "..." + matching_line;
+            endif
+            if (end_pos < line_len)
+              matching_line = matching_line + "...";
+            endif
+          endif
+          matches = {@matches, {o, verb_names[verb_index], line_count, matching_line}};
+          break;
+        endif
+      endfor
+    endfor
+    return matches;
   endmethod
 
   method _tool_create_task owner: ARCH_WIZARD
@@ -1713,6 +1777,8 @@ object DATA_VISOR
       $test_utils:assert_true(index(properties_result, "visor_private_probe") > 0, "get_properties should enumerate a non-readable object through object_read and property_read grants");
       dump_result = visor:_tool_dump_object(["object" -> "$data_visor"], actor);
       $test_utils:assert_true(index(dump_result, "_tool_dump_object") > 0, "dump_object should use a scoped builtin_call grant");
+      grep_result = visor:_tool_grep(["pattern" -> "secret", "object" -> tostr(target)], actor);
+      $test_utils:assert_true(index(grep_result, "visor_private_verb") > 0, "grep should search private verb code through scoped read grants");
       find_result = visor:_tool_find_object(["reference" -> tostr(target)], actor);
       $test_utils:assert_true(index(find_result, "visor_private_probe") > 0, "find_object should inspect through an object_read grant");
       present_result = visor:_tool_present_verb_code(["object" -> tostr(target), "verb" -> "visor_private_verb"], actor);
