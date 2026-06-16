@@ -53,9 +53,10 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 **Structured Data Matching and Pathfinding:**
 
 - [`astar`](algorithms.md#astar) - Run A* pathfinding over a tile grid
-- [`term_unify`](algorithms.md#term_unify) - Unify structural MOO values
+- [`term_unify`](algorithms.md#term_unify) - Unify one pattern and value
 - [`term_substitute`](algorithms.md#term_substitute) - Substitute term variables using a bindings
   map
+- [`term_query`](algorithms.md#term_query) - Query supplied facts and positive rules
 
 ### Functions Borrowed from ToastStunt
 

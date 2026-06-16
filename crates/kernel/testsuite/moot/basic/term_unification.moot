@@ -27,3 +27,18 @@ E_INVARG
 
 ; return term_unify({'var, "X"}, 1);
 E_INVARG
+
+; return term_query({'edge, #1, {'var, 'To}}, {{'edge, #1, #2}, {'edge, #1, #3}, {'edge, #2, #4}});
+{['To -> #2], ['To -> #3]}
+
+; return term_query({'reachable, #1, {'var, 'Where}}, {{'edge, #1, #2}, {'edge, #2, #3}, {'edge, #3, #4}}, {{{'reachable, {'var, 'A}, {'var, 'B}}, {{'edge, {'var, 'A}, {'var, 'B}}}}, {{'reachable, {'var, 'A}, {'var, 'B}}, {{'edge, {'var, 'A}, {'var, 'C}}, {'reachable, {'var, 'C}, {'var, 'B}}}}});
+{['Where -> #2], ['Where -> #3], ['Where -> #4]}
+
+; return term_query({'edge, #1, {'var, 'To}}, {{'edge, #1, #2}, {'edge, #1, #2}}, {}, [], ['max_solutions -> 1]);
+{['To -> #2]}
+
+; return term_query({'reachable, #1, {'var, 'Where}}, {{'edge, #1, #2}}, {{{'reachable, {'var, 'A}, {'var, 'B}}, {{'not, {'edge, {'var, 'A}, {'var, 'B}}}}}});
+E_INVARG
+
+; return term_query({'reachable, #1, {'var, 'Where}}, {{'edge, #1, #2}}, {{{'reachable, {'var, 'A}, {'var, 'B}}, {{'edge, {'var, 'A}, {'var, 'C}}}}});
+E_INVARG

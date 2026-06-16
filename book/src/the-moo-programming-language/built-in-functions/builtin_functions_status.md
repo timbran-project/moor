@@ -157,6 +157,7 @@ open an issue on the
 | [`astar`](algorithms.md#astar)                     | &check;  | mooR extension. Tile-grid pathfinding   |
 | [`term_unify`](algorithms.md#term_unify)           | &check;  | mooR extension. Structural unification  |
 | [`term_substitute`](algorithms.md#term_substitute) | &check;  | mooR extension. Structural substitution |
+| [`term_query`](algorithms.md#term_query)           | &check;  | mooR extension. Bounded structural query |
 
 ### Server
 
@@ -317,8 +318,9 @@ Functions not part of the original LambdaMOO, but added in moor
 | Name                                               | Description                               | Notes |
 | -------------------------------------------------- | ----------------------------------------- | ----- |
 | [`astar`](algorithms.md#astar)                     | Run A* pathfinding over a tile grid       |       |
-| [`term_unify`](algorithms.md#term_unify)           | Unify structural MOO values               |       |
+| [`term_unify`](algorithms.md#term_unify)           | Unify one pattern and value               |       |
 | [`term_substitute`](algorithms.md#term_substitute) | Substitute term variables using a binding |       |
+| [`term_query`](algorithms.md#term_query)           | Query supplied facts and positive rules   |       |
 
 ### Admin
 

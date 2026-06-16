@@ -23,24 +23,40 @@ That works for a handful of records. But when the list grows long, or the record
 complicated, the per-record check slows down and the code to pick apart each record gets harder to
 read.
 
-The `term_*` builtins make that per-record check faster and simpler. You still loop over the list in
-MOO, but instead of pulling each record apart by hand, you write a pattern that describes what you
-are looking for and let the server do the structural comparison at kernel speed.
+The `term_unify()`, `term_query()`, and `term_substitute()` builtins make that kind of
+structured-data work faster and simpler. Instead of pulling each record apart by hand, you write a
+pattern that describes what you are looking for. Use `term_unify()` to match one value, or pass a
+list of records to `term_query()`, which searches them for you:
+
+```moo
+term_query({'exit, #10, {'var, 'Dir}, {'var, 'To}}, exit_records)
+=> {['Dir -> 'north, 'To -> #20], ...}
+```
+
+For larger cases, `term_query()` can also follow simple positive rules over the facts you provide,
+so recursive queries like "find every room reachable from here" become a single call.
 
 You can think of them as pattern matching for structured data, similar to how
 [`match()`](regex.md#match) searches for a regex pattern in a string — but they work on lists and
 maps instead of on text, and the "captures" are named placeholders rather than numbered groups.
 
-A **pattern** is a MOO value with "holes" in it. Each hole is a placeholder, written as a two-item
-list:
+A **pattern** is a MOO value with "holes" in it. Each hole is a placeholder,
+written as a two-item list:
 
 ```moo
 {'var, 'Name}
 ```
 
-This means "any value goes here — call it `Name`". A **term** is just the MOO value you want to
-check against the pattern. When the structure matches, every hole gets filled in and you receive a
-map of the filled-in values.
+The symbol `'var` marks this list as a placeholder — it tells the server "this
+is not a normal list, treat it as a variable". The second item, `'Name`, is the
+variable's name. Using a symbol like `'var` as a tag means placeholders are
+always two-element lists whose first element is `'var`, so they stand out from
+ordinary data and can never be confused with a real record that just happens
+to contain a symbol called `'var`.
+
+A **term** is just the MOO value you want to check against the pattern. When
+the structure matches, every hole gets filled in and you receive a map of the
+filled-in values.
 
 For example, this pattern:
 
@@ -54,7 +70,7 @@ matches this value:
 {'edge, #10, #11}
 ```
 
-and produces this binding map:
+and `term_unify()` returns this binding map:
 
 ```moo
 ['From -> #10, 'To -> #11]
@@ -67,13 +83,14 @@ objects, and numbers. It matches structure, not meaning.
 
 Common uses for these functions include:
 
+- Finding everywhere reachable through a graph of exits or connections.
 - Searching a list of records for ones that match a particular shape.
 - Checking whether a rule or policy matches the current situation.
 - Matching event or command descriptions.
 - Filling in an action structure from values that were matched.
 
 For example, a builder tool might store exits as `{'exit, from, direction, to}` records, then ask
-for all exits whose `from` value is the current room. A policy helper might match a validated
+for all exits whose `from` value is the current room. Or a policy helper might match a validated
 request and then fill in an action structure from the values that were matched.
 
 Only lists and map values are searched recursively. Map keys are treated as fixed keys, not
@@ -87,15 +104,12 @@ These builtins do not inspect world state, object ownership, task permissions, o
 MAP | BOOL term_unify(ANY pattern, ANY value [, MAP bindings [, MAP options]])
 ```
 
-Compares a pattern with a value and fills in placeholders when the surrounding structure matches.
-Placeholders in the pattern are represented as:
+Compares a pattern with exactly one value. On success, returns the extended
+bindings map. On mismatch, returns false.
 
-```moo
-{'var, 'Name}
-```
-
-On success, `term_unify()` returns a bindings map keyed by placeholder symbol. On ordinary mismatch,
-it returns false.
+Use `term_unify()` when you have a single value to check — for example, a
+record you pulled out of a list with `listassoc()`, or a verb argument you
+want to match against a command template.
 
 ```moo
 term_unify({'edge, {'var, 'From}, {'var, 'To}}, {'edge, #10, #11})
@@ -118,10 +132,136 @@ term_unify({'edge, {'var, 'From}, {'var, 'To}},
 => ['From -> #10, 'To -> #11]
 ```
 
+Lists are compared item by item and must have equal length. Maps must have the
+same keys; values under those keys are compared recursively. Non-placeholder
+values compare with normal MOO equality.
+
+## `term_query`
+
+```moo
+LIST term_query(ANY query, LIST facts [, LIST rules [, MAP bindings [, MAP options]]])
+```
+
+Searches caller-supplied facts and optional rules for every way to satisfy one query. This is useful
+when MOO code would otherwise run nested loops or recursive walks over list-backed records, such as:
+
+- finding every room reachable through an exit graph,
+- expanding a small policy rule set,
+- matching event records against rules with shared variables,
+- deriving implied records from a supplied list of explicit records.
+
+The server still does not know what your terms mean. It only matches list and map structure, fills
+variables, and follows the rules you supplied in the function arguments.
+
+For search over explicit facts, pass one or more facts and omit `rules`:
+
+```moo
+term_query({'edge, {'var, 'From}, {'var, 'To}},
+           {{'edge, #10, #11}})
+=> {['From -> #10, 'To -> #11]}
+```
+
+Ordinary mismatch returns an empty list:
+
+```moo
+term_query({'edge, {'var, 'From}, {'var, 'From}},
+           {{'edge, #10, #11}})
+=> {}
+```
+
+Repeated variables must match the same value. Initial bindings are respected:
+
+```moo
+term_query({'edge, {'var, 'From}, {'var, 'To}},
+           {{'edge, #10, #11}},
+           {},
+           ['From -> #10])
+=> {['From -> #10, 'To -> #11]}
+```
+
 Lists are compared item by item and must have equal length. Maps must have the same keys; values
 under those keys are compared recursively. Non-placeholder values compare with normal MOO equality.
 
-Malformed variable markers, such as `{'var}`, `{'var, 'A, 'B}`, or `{'var, "A"}`, raise `E_INVARG`.
+`facts` is a list of terms. Facts may be ground:
+
+```moo
+{'edge, #1, #2}
+```
+
+or partially ground:
+
+```moo
+{'edge, {'var, 'From}, #2}
+```
+
+Variables inside facts behave like wildcards for that fact. They are fresh for each attempted
+match — each time the query engine tries a fact against a goal, that fact's variables get new
+internal names — so they are never returned as output variables and cannot interfere with other
+matches.
+
+`rules` is a list of `{head, body}` pairs. The head is one term. The body is a list of positive
+terms. Each time a rule is tried, its variables are also given fresh internal names, so the same
+rule can apply to different values in different search branches without conflict.
+
+```moo
+{
+  {'reachable, {'var, 'A}, {'var, 'B}},
+  {
+    {'edge, {'var, 'A}, {'var, 'B}}
+  }
+}
+```
+
+This rule says that `A` reaches `B` when there is an `edge` from `A` to `B`.
+
+Recursive rules are allowed, subject to the search limits:
+
+```moo
+rules = {
+  {
+    {'reachable, {'var, 'A}, {'var, 'B}},
+    {
+      {'edge, {'var, 'A}, {'var, 'B}}
+    }
+  },
+  {
+    {'reachable, {'var, 'A}, {'var, 'B}},
+    {
+      {'edge, {'var, 'A}, {'var, 'C}},
+      {'reachable, {'var, 'C}, {'var, 'B}}
+    }
+  }
+};
+
+term_query({'reachable, #1, {'var, 'Where}},
+           {
+             {'edge, #1, #2},
+             {'edge, #2, #3},
+             {'edge, #3, #4}
+           },
+           rules)
+=> {['Where -> #2], ['Where -> #3], ['Where -> #4]}
+```
+
+Results are a list of binding maps keyed by the variable symbols from the query and any initial
+bindings. The order is deterministic: facts and rules are tried in the order supplied.
+
+Rules are restricted in v1:
+
+- Positive Horn-style clauses only.
+- No negation.
+- No aggregation.
+- No cuts.
+- No arithmetic or comparison predicates.
+- No implicit fact providers.
+- No MOO callbacks.
+- No world access or permission checks.
+
+Every variable in a rule head must also appear in that rule's positive body. Use `facts` for base
+cases rather than bodyless rules.
+
+Malformed variable markers, such as `{'var}`, `{'var, 'A, 'B}`, or `{'var, "A"}`, and malformed
+rules raise `E_INVARG`.
 
 MOO symbols compare case-insensitively, so `'From` and `'from` are the same variable identifier.
 Initial capitals are only a naming convention.
@@ -135,9 +275,9 @@ ANY term_substitute(ANY template, MAP bindings [, MAP options])
 Returns a copy of a structured value with every `{'var, name}` placeholder replaced by the
 corresponding binding.
 
-If `term_unify()` is "match a pattern against a value and pull values out", then `term_substitute()`
-is the reverse: "push values into a template". You might match a request with `term_unify()`, then
-build a response with `term_substitute()`.
+If `term_unify()` and `term_query()` are "match patterns and pull values out", then
+`term_substitute()` is the companion operation: "push values into a template". You might match a
+request with `term_unify()` or `term_query()`, then build a response with `term_substitute()`.
 
 ```moo
 term_substitute({"property_write", {'var, 'Target}, "description"},
@@ -157,7 +297,7 @@ term_substitute({"property_write", {'var, 'Missing}},
 
 ## Options
 
-Both functions accept these options:
+`term_unify()` and `term_substitute()` accept:
 
 ```moo
 [
@@ -173,8 +313,23 @@ Both functions accept these options:
 ['unbound -> 'leave]
 ```
 
-`max_depth` limits recursive traversal. `max_bindings` limits the number of variables that may be
-present in the binding set.
+`term_query()` accepts:
+
+```moo
+[
+  'max_depth -> 32,
+  'max_bindings -> 256,
+  'max_solutions -> 256,
+  'max_steps -> 10000,
+  'dedupe -> true
+]
+```
+
+`max_depth` limits recursive traversal and, for `term_query()`, recursive rule expansion.
+`max_bindings` limits the number of variables that may be present in the binding set.
+`max_solutions` stops the query search after that many answers. `max_steps` limits the total
+amount of search work. `dedupe` removes duplicate result maps and suppresses repeated active
+recursive states.
 
 ## Pathfinding with `astar`
 
@@ -182,7 +337,7 @@ The `astar()` function is separate from the `term_*` functions above. It can be 
 shortest walkable path between two points on a flat list that represents a two-dimensional tile grid
 — like a game map. You might use it to route an NPC around walls in a dungeon, or find a walkable
 route across an overworld. Writing a pathfinder in MOO is possible but slow for large maps;
-`astar()` does the search at kernel speed.
+`astar()` does the search in native code.
 
 ```moo
 LIST astar(INT width, INT height,

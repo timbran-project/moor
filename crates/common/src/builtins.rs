@@ -1039,6 +1039,19 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Any, Typed(TYPE_MAP), Typed(TYPE_MAP)],
             true,
         ),
+        mk_builtin(
+            "term_query",
+            Q(2),
+            Q(5),
+            vec![
+                Any,
+                Typed(TYPE_LIST),
+                Typed(TYPE_LIST),
+                Typed(TYPE_MAP),
+                Typed(TYPE_MAP),
+            ],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "algorithms");
