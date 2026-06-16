@@ -4,6 +4,14 @@
 isn't fully complete as some features are still in development, and some are not so easily categorized
 as extensions and more "architectural differences" which will be described elsewhere.
 
+### Capability grants on task permissions
+
+mooR extends `set_task_perms()` with a wizard-only two-argument form that can attach operation-specific capability
+grants to the current task permissions. This lets trusted MOO code delegate narrow rights, such as reading one
+property or calling one otherwise-private verb, without running the rest of the operation as a wizard.
+
+See [Task Permissions and Capability Grants](task-permissions-and-capability-grants.md) for details.
+
 ### Lexical variable scoping
 
 Adds block-level lexical scoping to the LambdaMOO language.

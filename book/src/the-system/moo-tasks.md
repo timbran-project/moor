@@ -2,6 +2,12 @@
 
 A _task_ is an execution of a MOO program. **Every running task operates within its own database transaction** (see [Transactions](../the-database/transactions.md) for details about how database changes work). This means that while a task is actively running, all its database changes are held in a private transaction that other tasks cannot see until the task completes or suspends.
 
+Each task also has effective permissions while it runs. A task normally starts with permissions derived from the owner
+of the verb being executed. Wizard-owned code can change the current task permissions with `set_task_perms()`, and mooR
+can attach operation-specific capability grants to those permissions. See
+[Task Permissions and Capability Grants](../the-moo-programming-language/task-permissions-and-capability-grants.md)
+for details.
+
 There are several kinds of tasks in mooR:
 
 - Every time a player types a command, a task is created to execute that command; we call these _command tasks_.

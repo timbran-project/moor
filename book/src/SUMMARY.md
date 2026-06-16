@@ -24,6 +24,7 @@
     - [List Comprehensions](./the-moo-programming-language/list-comprehensions.md)
     - [Performance Tuning MOO Code](./the-moo-programming-language/performance-tuning-moo-code.md)
     - [MOO Tasks](the-system/moo-tasks.md)
+    - [Task Permissions and Capability Grants](./the-moo-programming-language/task-permissions-and-capability-grants.md)
     - [mooR's extensions](the-moo-programming-language/extensions.md)
     - [Built-in Functions](./the-moo-programming-language/built-in-functions.md)
         - [Manipulating MOO Values](./the-moo-programming-language/built-in-functions/manipulating-moo-values.md)

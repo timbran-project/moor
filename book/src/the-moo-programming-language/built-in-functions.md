@@ -50,6 +50,10 @@ usually the owner of the verb in question (it is not always the owner, though; w
 change the permissions _on the fly_). In the function descriptions below, we refer to the player whose permissions are
 being used as the _programmer_.
 
+mooR's `set_task_perms()` also has a wizard-only extension for attaching narrow capability grants to the current task
+permissions. See [Task Permissions and Capability Grants](task-permissions-and-capability-grants.md) for the grant
+model and supported grant names.
+
 Many built-in functions are described below as raising `E_PERM` unless the programmer meets certain specified criteria.
 It is possible to restrict use of any function, however, so that only wizards can use it; see the chapter on server
 assumptions about the database for details.

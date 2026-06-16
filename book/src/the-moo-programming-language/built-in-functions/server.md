@@ -317,20 +317,29 @@ server_log("Verb called by: " + tostr(caller_perms()));
 
 **Description:** Changes the effective permissions of the current task for subsequent operations. The task's initial
 permissions are determined by the owner of the verb, but this function allows temporary elevation or downgrade of
+permissions. mooR also supports a wizard-only two-argument form that attaches narrow capability grants to the new task
 permissions.
 
-**Syntax:** `none set_task_perms(obj perms)`
+**Syntax:**
+
+```moo
+none set_task_perms(obj perms)
+none set_task_perms(obj perms, list grants)
+```
 
 **Arguments:**
 
 - `perms`: The object whose permissions should be used for subsequent operations in this task
+- `grants`: Optional list of capability grant specifications. This argument is a mooR extension and is wizard-only.
 
 **Returns:** None
 
 **Permission Requirements:**
 
-- If the caller is a wizard, they can set task permissions to any object
-- If the caller is not a wizard, they can only set task permissions to themselves (`perms` must equal `caller_perms()`)
+- If the current task is running with wizard permissions, it can set task permissions to any object
+- If the current task is not running with wizard permissions, it can only set task permissions to the same permissions
+  object it already has
+- The two-argument form is always wizard-only
 
 **Examples:**
 
@@ -357,15 +366,24 @@ endverb
 verb dangerous_utility () owner: #2 flags: "rd"
     set_task_perms($hacker);  // Downgrade to object with minimal permissions
     // Execute user-provided code or external operations safely...
-    // Note: cannot call set_task_perms() again from here
+    // Note: this task cannot regain wizard permissions from here
+endverb
+
+// Delegate only the ability to read one property while running as the player
+verb read_secret_for_player (this none this) owner: #2 flags: "rxd"
+    set_task_perms(player, {{"property_read", this, "secret"}});
+    return this.secret;
 endverb
 ```
 
 **Errors:**
 
-- `E_PERM`: Raised if a non-wizard tries to set permissions to an object other than themselves
-- `E_TYPE`: Raised if the argument is not an object
+- `E_PERM`: Raised if a non-wizard task tries to set permissions to a different object, or if any non-wizard calls the
+  two-argument form
+- `E_TYPE`: Raised if `perms` is not an object, if `grants` is not a list, or if a grant entry has the wrong type
+- `E_INVARG`: Raised if a grant entry has the wrong shape or names an unsupported grant type
 - `E_ARGS`: Raised if the wrong number of arguments is provided
+- Verb lookup errors, such as `E_VERBNF`, may be raised if a verb capability grant cannot be resolved
 
 **Notes:**
 
@@ -376,6 +394,8 @@ endverb
 - `caller_perms()` always returns the identity of the original caller, regardless of `set_task_perms()` calls
 - Commonly used in wizard-owned verbs to safely downgrade permissions or temporarily elevate them for privileged
   operations
+- Capability grants are additive and operation-specific. They are documented in
+  [Task Permissions and Capability Grants](../task-permissions-and-capability-grants.md).
 
 ### `callers`
 

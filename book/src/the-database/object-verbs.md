@@ -21,6 +21,11 @@ The owner of a verb also determines the permissions with which that verb runs; t
 whatever operations the owner of that verb is allowed to do and no others. Thus, for example, a verb owned by a wizard
 must be written very carefully, since wizards are allowed to do just about anything.
 
+mooR can also attach explicit capability grants to a task using the wizard-only extended form of `set_task_perms()`.
+Those grants are additive, narrow exceptions to the usual owner and permission-bit checks; they do not change the
+normal rule that a called verb starts with permissions derived from that verb's owner. See
+[Task Permissions and Capability Grants](../the-moo-programming-language/task-permissions-and-capability-grants.md).
+
 > Warning: This is serious business. The MOO has a variety of checks in place for permissions (at the object, verb and
 > property levels) that are all but ignored when a verb is executing with a wizard's permissions. You may want to create
 > a
