@@ -969,7 +969,6 @@ object AGENT_BUILDING_TOOLS
   method get_verb_code owner: ARCH_WIZARD
     "Tool: Get the code of a verb. If verb is omitted, lists verbs on the object.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -986,6 +985,7 @@ object AGENT_BUILDING_TOOLS
     endwhile
     "Get verb info and code";
     try
+      set_task_perms(actor, {{"verb_read", target_obj, verb_name}});
       info = verb_info(target_obj, verb_name);
     except (E_VERBNF)
       raise(E_VERBNF, "Verb '" + verb_name + "' not found on " + tostr(target_obj));
@@ -1009,7 +1009,6 @@ object AGENT_BUILDING_TOOLS
   method add_verb owner: ARCH_WIZARD
     "Tool: Add a new verb to an object.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1022,6 +1021,7 @@ object AGENT_BUILDING_TOOLS
     "Default to rxd for methods, rd for commands";
     default_flags = dobj == "none" && prep == "none" && iobj == "none" ? "rxd" | "rd";
     perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | default_flags;
+    set_task_perms(actor, {{"verb_add", target_obj}});
     add_verb(target_obj, {actor, perms, verb_name}, {dobj, prep, iobj});
     return "Added verb '" + verb_name + "' to " + tostr(target_obj) + " [" + perms + "] " + dobj + " " + prep + " " + iobj;
   endmethod
@@ -1029,7 +1029,6 @@ object AGENT_BUILDING_TOOLS
   method program_verb owner: ARCH_WIZARD
     "Tool: Set the code for a verb.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1039,6 +1038,7 @@ object AGENT_BUILDING_TOOLS
     code = args_map["code"];
     typeof(code) != TYPE_STR && raise(E_INVARG, "code must be a string");
     code_lines = code:split("\n");
+    set_task_perms(actor, {{"verb_program", target_obj, verb_name}});
     errors = set_verb_code(target_obj, verb_name, code_lines);
     "set_verb_code returns list of errors, or possibly 0/{} on success";
     if (typeof(errors) == TYPE_LIST && length(errors) > 0)
@@ -1050,7 +1050,6 @@ object AGENT_BUILDING_TOOLS
   method list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1058,6 +1057,11 @@ object AGENT_BUILDING_TOOLS
     if (length(verb_list) == 0)
       return "No verbs on " + tostr(target_obj);
     endif
+    grants = {{"object_read", target_obj}};
+    for v in (verb_list)
+      grants = {@grants, {"verb_read", target_obj, v}};
+    endfor
+    set_task_perms(actor, grants);
     result = "Verbs on " + tostr(target_obj) + ":\n";
     for v in (verb_list)
       info = verb_info(target_obj, v);
@@ -1070,13 +1074,13 @@ object AGENT_BUILDING_TOOLS
   method delete_verb owner: ARCH_WIZARD
     "Tool: Delete a verb from an object.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
     verb_name = args_map["verb"];
     typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
+    set_task_perms(actor, {{"object_write", target_obj}});
     delete_verb(target_obj, verb_name);
     return "Deleted verb '" + verb_name + "' from " + tostr(target_obj);
   endmethod
@@ -1084,7 +1088,6 @@ object AGENT_BUILDING_TOOLS
   method list_properties owner: ARCH_WIZARD
     "Tool: List properties on an object.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1092,6 +1095,11 @@ object AGENT_BUILDING_TOOLS
     if (length(prop_list) == 0)
       return "No properties defined on " + tostr(target_obj);
     endif
+    grants = {{"object_read", target_obj}};
+    for p in (prop_list)
+      grants = {@grants, {"property_read", target_obj, p}};
+    endfor
+    set_task_perms(actor, grants);
     result = "Properties on " + tostr(target_obj) + ":\n";
     for p in (prop_list)
       try
@@ -1111,12 +1119,12 @@ object AGENT_BUILDING_TOOLS
   method get_property owner: ARCH_WIZARD
     "Tool: Get the value of a property.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name = args_map["property"];
     typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
+    set_task_perms(actor, {{"property_read", target_obj, prop_name}});
     val = target_obj.(prop_name);
     return tostr(target_obj) + "." + prop_name + " = " + toliteral(val);
   endmethod
@@ -1124,13 +1132,13 @@ object AGENT_BUILDING_TOOLS
   method set_property owner: ARCH_WIZARD
     "Tool: Set the value of a property.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name = args_map["property"];
     typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
     value = args_map["value"];
+    set_task_perms(actor, {{"property_write", target_obj, prop_name}});
     target_obj.(prop_name) = value;
     return "Set " + tostr(target_obj) + "." + prop_name + " = " + toliteral(value);
   endmethod
@@ -1138,7 +1146,6 @@ object AGENT_BUILDING_TOOLS
   method add_property owner: ARCH_WIZARD
     "Tool: Add a new property to an object.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1146,6 +1153,7 @@ object AGENT_BUILDING_TOOLS
     prop_name = args_map["property"];
     typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
     value = maphaskey(args_map, "value") ? args_map["value"] | 0;
+    set_task_perms(actor, {{"property_define", target_obj}});
     add_property(target_obj, prop_name, value, {actor, "rc"});
     return "Added property '" + prop_name + "' to " + tostr(target_obj) + " = " + toliteral(value);
   endmethod
@@ -1153,13 +1161,14 @@ object AGENT_BUILDING_TOOLS
   verb set_verb_info (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set verb metadata (permissions, names).";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
     verb_name = args_map["verb"];
+    requested_owner = maphaskey(args_map, "owner") ? this:_resolve_object(args_map["owner"], actor) | #-1;
+    set_task_perms(actor, {{"verb_read", target_obj, verb_name}, {"verb_write", target_obj, verb_name}});
     info = verb_info(target_obj, verb_name);
-    new_owner = maphaskey(args_map, "owner") ? this:_resolve_object(args_map["owner"], actor) | info[1];
+    new_owner = valid(requested_owner) ? requested_owner | info[1];
     new_perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | info[2];
     new_names = maphaskey(args_map, "names") ? args_map["names"] | info[3];
     set_verb_info(target_obj, verb_name, {new_owner, new_perms, new_names});
@@ -1169,7 +1178,6 @@ object AGENT_BUILDING_TOOLS
   verb set_verb_args (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set verb argument specification.";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
@@ -1177,6 +1185,7 @@ object AGENT_BUILDING_TOOLS
     dobj = args_map["dobj"];
     prep = args_map["prep"];
     iobj = args_map["iobj"];
+    set_task_perms(actor, {{"verb_write", target_obj, verb_name}});
     set_verb_args(target_obj, verb_name, {dobj, prep, iobj});
     return "Updated " + tostr(target_obj) + ":" + verb_name + " args to [" + dobj + " " + prep + " " + iobj + "]";
   endverb
@@ -1216,6 +1225,28 @@ object AGENT_BUILDING_TOOLS
       $test_utils:assert_true(index(messages, "probe_msg: \"Probe message.\"") > 0, "list_messages should read real message property values");
     finally
       $test_utils:destroy_if_valid(created);
+    endtry
+    return true;
+  endmethod
+
+  method test_code_property_tool_scoped_grants owner: HACKER
+    "Code and property inspection tools should use narrow grants for private targets.";
+    target = $thing:create(0);
+    try
+      target.name = "Agent Building Private Probe";
+      target.r = 0;
+      add_property(target, "agent_building_private_probe", "secret", {$hacker, ""});
+      add_verb(target, {$hacker, "xd", "agent_building_private_verb"}, {"this", "none", "this"});
+      set_verb_code(target, "agent_building_private_verb", {"return \"secret\";"});
+      prop_result = this:get_property(["object" -> tostr(target), "property" -> "agent_building_private_probe"], $test_player);
+      $test_utils:assert_eq(prop_result, tostr(target) + ".agent_building_private_probe = \"secret\"", "get_property should read a non-readable property through a property_read grant");
+      code_result = this:get_verb_code(["object" -> tostr(target), "verb" -> "agent_building_private_verb"], $test_player);
+      $test_utils:assert_true(index(code_result, "return \"secret\";") > 0, "get_verb_code should read non-readable verb code through a verb_read grant");
+      verbs_result = this:list_verbs(["object" -> tostr(target)], $test_player);
+      verbs_text = typeof(verbs_result) == TYPE_STR ? verbs_result | toliteral(verbs_result);
+      $test_utils:assert_true(index(verbs_text, "agent_building_private_verb") > 0, "list_verbs should enumerate a non-readable object through object/verb read grants");
+    finally
+      $test_utils:destroy_if_valid(target);
     endtry
     return true;
   endmethod
