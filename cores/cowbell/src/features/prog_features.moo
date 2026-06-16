@@ -233,6 +233,14 @@ object PROG_FEATURES
     return {metadata:verb_owner(), metadata:flags(), metadata:dobj(), metadata:prep(), metadata:iobj(), code_lines};
   endmethod
 
+  method _do_get_verb_info owner: ARCH_WIZARD
+    "Internal helper to get verb_info with elevated permissions";
+    caller == this || raise(E_PERM);
+    {target_obj, verb_name} = args;
+    set_task_perms(player, {{"verb_read", target_obj, verb_name}});
+    return verb_info(target_obj, verb_name);
+  endmethod
+
   verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb> -- List verb code.";
     this:_challenge_command_perms();
@@ -829,6 +837,14 @@ object PROG_FEATURES
     {target_obj, verb_name} = args;
     set_task_perms(player, {{"object_read", target_obj}});
     return target_obj:find_verb_definer(verb_name);
+  endmethod
+
+  method _do_get_object_match_info owner: ARCH_WIZARD
+    "Internal helper to get object matching fields with elevated permissions";
+    caller == this || raise(E_PERM);
+    {target_obj} = args;
+    set_task_perms(player, {{"object_read", target_obj}});
+    return ['name -> target_obj.name, 'aliases -> `target_obj.aliases ! ANY => {}', 'contents -> target_obj.contents, 'location -> target_obj.location];
   endmethod
 
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -2042,10 +2058,9 @@ object PROG_FEATURES
     return true;
   endverb
 
-  method _do_resolve_verb_name owner: ARCH_WIZARD
+  method _do_resolve_verb_name owner: HACKER
     "Resolve space-separated verb names to a single verb name.";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, verb_spec} = args;
     verb_spec = verb_spec:trim();
     if (!verb_spec)
@@ -2059,7 +2074,7 @@ object PROG_FEATURES
     found_info = 0;
     found_name = "";
     for name in (names)
-      info = `verb_info(target_obj, name) ! E_VERBNF => 0';
+      info = `this:_do_get_verb_info(target_obj, name) ! E_VERBNF => 0';
       if (!info)
         continue;
       endif
@@ -2487,7 +2502,7 @@ object PROG_FEATURES
     endtry
     try
       resolved = this:_do_resolve_verb_name(target_obj, verb_name);
-      definer = target_obj:find_verb_definer(resolved);
+      definer = this:_do_find_verb_definer(target_obj, resolved);
       if (definer == #-1)
         player:inform_current($event:mk_error(player, "Verb '" + resolved + "' not found on " + tostr(target_obj) + " or ancestors."));
         return;
@@ -2573,7 +2588,7 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "Destination already has verb: " + tostr(dst_obj) + ":" + dst_name));
       return;
     endif
-    src_definer = src_obj:find_verb_definer(src_name);
+    src_definer = this:_do_find_verb_definer(src_obj, src_name);
     if (src_definer == #-1)
       player:inform_current($event:mk_error(player, "Source verb not found: " + src_name));
       return;
@@ -2626,7 +2641,7 @@ object PROG_FEATURES
     endtry
     try
       src_name = this:_do_resolve_verb_name(src_obj, src_name);
-      src_definer = src_obj:find_verb_definer(src_name);
+      src_definer = this:_do_find_verb_definer(src_obj, src_name);
       if (src_definer == #-1)
         player:inform_current($event:mk_error(player, "Source verb not found: " + src_name));
         return;
@@ -2679,10 +2694,9 @@ object PROG_FEATURES
     endtry
   endverb
 
-  method _resolve_object_ref owner: ARCH_WIZARD
+  method _resolve_object_ref owner: HACKER
     "Internal helper: resolve object references with better ambiguity diagnostics.";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {ref_string, ?context = player, ?label = "object"} = args;
     typeof(ref_string) == TYPE_STR || raise(E_TYPE, "Object reference must be a string.");
     ref = ref_string:trim();
@@ -2693,53 +2707,75 @@ object PROG_FEATURES
     if (!valid(context))
       context = player;
     endif
+    context_info = this:_do_get_object_match_info(context);
     scope = {};
-    scope = {@scope, @context.contents};
-    if (valid(context.location))
-      scope = {@scope, @context.location.contents};
+    scope = {@scope, @context_info['contents]};
+    if (valid(context_info['location]))
+      location_info = this:_do_get_object_match_info(context_info['location]);
+      scope = {@scope, @location_info['contents]};
     endif
     if (!scope)
       return $match:match_object(ref, context);
     endif
-    result = $match:resolve_in_scope(ref, scope, ['fuzzy_threshold -> 0.5]);
-    if (result == $failed_match)
+    candidates = this:_matching_candidates(ref, context);
+    if (!candidates)
       raise(E_INVARG, "No " + label + " found matching '" + ref + "'.");
     endif
-    if (result == $ambiguous_match)
-      candidates = this:_matching_candidates(ref, context);
-      if (!candidates)
-        raise(E_INVARG, "Ambiguous " + label + " reference '" + ref + "'.");
+    exact = {};
+    needle = ref:lowercase();
+    for o in (candidates)
+      candidate_info = this:_do_get_object_match_info(o);
+      names = {candidate_info['name]};
+      aliases = candidate_info['aliases];
+      if (typeof(aliases) == TYPE_LIST)
+        names = {@names, @aliases};
       endif
+      for n in (names)
+        if (typeof(n) == TYPE_STR && n:lowercase() == needle)
+          exact = {@exact, o};
+          break;
+        endif
+      endfor
+    endfor
+    if (length(exact) == 1)
+      return exact[1];
+    endif
+    if (length(candidates) == 1 && !exact)
+      return candidates[1];
+    endif
+    if (length(exact) > 1 || length(candidates) > 1)
       formatted = {};
       max_show = 8;
       count = 0;
-      for o in (candidates)
+      for o in (exact || candidates)
         count = count + 1;
         if (count > max_show)
           break;
         endif
-        formatted = {@formatted, tostr(o.name, " (", o, ")")};
+        candidate_info = this:_do_get_object_match_info(o);
+        formatted = {@formatted, tostr(candidate_info['name], " (", o, ")")};
       endfor
       suffix = length(candidates) > max_show ? " ..." | "";
       msg = "Ambiguous " + label + " '" + ref + "'. Candidates: " + formatted:join(", ") + suffix;
       raise(E_INVARG, msg);
     endif
-    return result;
+    raise(E_INVARG, "No " + label + " found matching '" + ref + "'.");
   endmethod
 
-  method _matching_candidates owner: ARCH_WIZARD
+  method _matching_candidates owner: HACKER
     "Internal helper: list likely candidate objects for a plain-name token in context.";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {token, ?context = player} = args;
     typeof(token) == TYPE_STR || return {};
     valid(context) || return {};
     needle = token:trim():lowercase();
     !needle && return {};
+    context_info = this:_do_get_object_match_info(context);
     scope = {};
-    scope = {@scope, @context.contents};
-    if (valid(context.location))
-      scope = {@scope, @context.location.contents};
+    scope = {@scope, @context_info['contents]};
+    if (valid(context_info['location]))
+      location_info = this:_do_get_object_match_info(context_info['location]);
+      scope = {@scope, @location_info['contents]};
     endif
     candidates = {};
     seen = [];
@@ -2749,8 +2785,9 @@ object PROG_FEATURES
       else
         continue;
       endif
-      names = {o.name};
-      aliases = o.aliases;
+      candidate_info = this:_do_get_object_match_info(o);
+      names = {candidate_info['name]};
+      aliases = candidate_info['aliases];
       if (typeof(aliases) == TYPE_LIST)
         names = {@names, @aliases};
       endif
@@ -2854,6 +2891,11 @@ object PROG_FEATURES
       $test_utils:assert_true("private_helper_probe" in verb_list, "_do_get_verbs should use an object_read grant");
       listing = this:_do_get_verb_listing(fixture, "private_helper_probe", false);
       $test_utils:assert_eq(listing[6], {"return 42;"}, "_do_get_verb_listing should use a verb_read grant");
+      add_verb(fixture, {$hacker, "", "private resolve alias"}, {"this", "none", "this"});
+      errors = set_verb_code(fixture, "private", {"return 99;"}, 2, 1);
+      $test_utils:assert_false(errors, "private resolve alias should compile");
+      resolved_name = this:_do_resolve_verb_name(fixture, "private resolve");
+      $test_utils:assert_eq(resolved_name, "private", "_do_resolve_verb_name should use verb_read grants for hidden aliases");
       this:_do_check_verb_exists(fixture, "private_helper_probe");
       this:_do_set_verb_args(fixture, "private_helper_probe", {"none", "none", "none"});
       metadata = $prog_utils:get_verb_metadata(fixture, "private_helper_probe");
@@ -2865,6 +2907,7 @@ object PROG_FEATURES
     finally
       if (valid(fixture))
         `delete_verb(fixture, "grant_added_probe") ! E_VERBNF => 0';
+        `delete_verb(fixture, "private") ! E_VERBNF => 0';
         `delete_verb(fixture, "private_helper_probe") ! E_VERBNF => 0';
         recycle(fixture);
       endif
@@ -2968,6 +3011,32 @@ object PROG_FEATURES
         `delete_property(parent_fixture, "private_display_parent_prop") ! E_PROPNF => 0';
         recycle(parent_fixture);
       endif
+    endtry
+    return true;
+  endmethod
+
+  method test_object_resolver_helpers_scoped_grants owner: ARCH_WIZARD
+    "Unit test: object resolver helpers use scoped grants for private context matching.";
+    context = #-1;
+    target = #-1;
+    try
+      context = create($root);
+      context.owner = $hacker;
+      context.r = 0;
+      context.w = 0;
+      target = create($root);
+      target.owner = $hacker;
+      target.r = 0;
+      target.w = 0;
+      target:set_name_aliases("private resolver target", {"hidden-resolver"});
+      target:moveto(context);
+      resolved = this:_resolve_object_ref("hidden-resolver", context, "object");
+      $test_utils:assert_eq(resolved, target, "_resolve_object_ref should match private contents through object_read grants");
+      candidates = this:_matching_candidates("resolver", context);
+      $test_utils:assert_true(target in candidates, "_matching_candidates should inspect private candidate names through object_read grants");
+    finally
+      valid(target) && recycle(target);
+      valid(context) && recycle(context);
     endtry
     return true;
   endmethod
