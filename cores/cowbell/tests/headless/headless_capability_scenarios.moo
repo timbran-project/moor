@@ -47,6 +47,34 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_tampered_token_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: capability validation rejects tampered token slots.";
+    key = this:_test_key();
+    target = #-1;
+    try
+      target = create($thing);
+      cap = target:issue_capability(target, {'read}, 0, 0, key);
+      {validated_target, _} = cap:challenge_for_with_key({'read}, key);
+      $test_utils:assert_eq(validated_target, target, "untampered capability should validate before tamper test");
+      slots = flyslots(cap);
+      original_token = slots['token];
+      last_char = original_token[$..$];
+      replacement_char = last_char == "A" ? "B" | "A";
+      slots['token] = original_token[1..$ - 1] + replacement_char;
+      tampered_cap = toflyweight(cap.delegate, slots, flycontents(cap));
+      denied = false;
+      try
+        tampered_cap:challenge_for_with_key({'read}, key);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "tampered capability token should be denied");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_grant_merge_and_revoke (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: stored grants merge capabilities, can be found, and can be revoked.";
     key = this:_test_key();
