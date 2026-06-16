@@ -241,6 +241,14 @@ object PROG_FEATURES
     return verb_info(target_obj, verb_name);
   endmethod
 
+  method _do_get_verb_args owner: ARCH_WIZARD
+    "Internal helper to get verb_args with elevated permissions";
+    caller == this || raise(E_PERM);
+    {target_obj, verb_name} = args;
+    set_task_perms(player, {{"verb_read", target_obj, verb_name}});
+    return verb_args(target_obj, verb_name);
+  endmethod
+
   verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>:<verb> -- List verb code.";
     this:_challenge_command_perms();
@@ -1334,27 +1342,26 @@ object PROG_FEATURES
     endif
   endverb
 
-  method _do_grep_object owner: ARCH_WIZARD
+  method _do_grep_object owner: HACKER
     "Search one object's verbs for @grep and report inaccessible verb skips.";
     "Returns a map with matches and skipped_verb_count.";
     caller == this || raise(E_PERM);
     {pattern, search_obj, casematters, use_regex, owner_filter} = args;
     matches = {};
     skipped_verb_count = 0;
-    metadata_list = $prog_utils:get_verbs_metadata(search_obj);
+    verb_list = this:_do_get_verbs(search_obj);
     pattern_cmp = casematters ? pattern | pattern:lowercase();
-    for md in (metadata_list)
-      vname = md:name();
-      vowner = md:verb_owner();
-      if (owner_filter != 0 && vowner != owner_filter)
-        continue;
-      endif
+    for vname in (verb_list)
       try
-        lines = verb_code(search_obj, vname, 1, 1);
+        listing = this:_do_get_verb_listing(search_obj, vname, 1);
       except (E_PERM)
         skipped_verb_count = skipped_verb_count + 1;
         continue;
       endtry
+      {vowner, verb_flags, dobj, prep, iobj, lines} = listing;
+      if (owner_filter != 0 && vowner != owner_filter)
+        continue;
+      endif
       for line_num in [1..length(lines)]
         line = lines[line_num];
         hay = casematters ? line | line:lowercase();
@@ -1389,7 +1396,7 @@ object PROG_FEATURES
             endif
           endif
         endif
-        owner_name = valid(vowner) ? vowner.name | "Recycled";
+        owner_name = valid(vowner) ? `this:_do_get_object_display_info(vowner)['name] ! ANY => tostr(vowner)' | "Recycled";
         matches = {@matches, {search_obj, vname, owner_name, tostr(vowner), line_num, matching_line}};
       endfor
     endfor
@@ -1808,7 +1815,7 @@ object PROG_FEATURES
     return {};
   endmethod
 
-  method _format_eval_result owner: ARCH_WIZARD
+  method _format_eval_result owner: HACKER
     "Format an eval result. Returns {type, content} where type is 'simple or 'deflist.";
     "For simple values, content is a string. For objects, content is a deflist flyweight.";
     {result} = args;
@@ -1816,11 +1823,12 @@ object PROG_FEATURES
       "Format object as definition list";
       obj_str = tostr(result);
       if (valid(result))
-        name = `result.name ! ANY => "(no name)"';
-        owner = `result.owner ! ANY => #-1';
-        owner_str = valid(owner) ? owner.name + " (" + tostr(owner) + ")" | "???";
-        loc = `result.location ! ANY => #-1';
-        loc_str = valid(loc) ? loc.name + " (" + tostr(loc) + ")" | "nowhere";
+        obj_info = this:_do_get_object_display_info(result);
+        name = obj_info['name];
+        owner = obj_info['owner];
+        owner_str = valid(owner) ? `this:_do_get_object_display_info(owner)['name] ! ANY => tostr(owner)' + " (" + tostr(owner) + ")" | "???";
+        loc = obj_info['location];
+        loc_str = valid(loc) ? `this:_do_get_object_display_info(loc)['name] ! ANY => tostr(loc)' + " (" + tostr(loc) + ")" | "nowhere";
         items = {{"Object", obj_str}, {"Name", name}, {"Owner", owner_str}, {"Location", loc_str}};
         return {'deflist, $format.deflist:mk(items)};
       else
@@ -2228,14 +2236,14 @@ object PROG_FEATURES
     endtry
   endverb
 
-  method _find_verb_by_argspec owner: ARCH_WIZARD
+  method _find_verb_by_argspec owner: HACKER
     "Find a verb matching name and argspec, return its 1-based index or 0.";
     caller == this || raise(E_PERM);
     {target_obj, verb_name, req_dobj, req_prep, req_iobj} = args;
-    verb_list = verbs(target_obj);
+    verb_list = this:_do_get_verbs(target_obj);
     for i in [1..length(verb_list)]
       try
-        info = verb_info(target_obj, i);
+        info = this:_do_get_verb_info(target_obj, verb_list[i]);
         names = info[3]:split(" ");
         matched = false;
         for n in (names)
@@ -2247,7 +2255,7 @@ object PROG_FEATURES
         if (!matched)
           continue;
         endif
-        {dobj, prep, iobj} = verb_args(target_obj, i);
+        {dobj, prep, iobj} = this:_do_get_verb_args(target_obj, verb_list[i]);
         if (dobj == req_dobj && prep == req_prep && iobj == req_iobj)
           return i;
         endif
@@ -2813,17 +2821,20 @@ object PROG_FEATURES
     fixture = #-1;
     try
       fixture = create($root);
-      add_verb(fixture, {$hacker, "rxd", "grep_hacker_match"}, {"this", "none", "this"});
+      fixture.owner = $hacker;
+      fixture.r = 0;
+      fixture.w = 0;
+      add_verb(fixture, {$hacker, "xd", "grep_hacker_match"}, {"this", "none", "this"});
       errors = set_verb_code(fixture, "grep_hacker_match", {"return \"phase_two_grep_token from hacker\";"}, 2, 1);
       $test_utils:assert_false(errors, "hacker-owned grep fixture verb should compile");
-      add_verb(fixture, {$arch_wizard, "rxd", "grep_wizard_match"}, {"this", "none", "this"});
+      add_verb(fixture, {$arch_wizard, "xd", "grep_wizard_match"}, {"this", "none", "this"});
       errors = set_verb_code(fixture, "grep_wizard_match", {"return \"phase_two_grep_token from wizard\";"}, 2, 1);
       $test_utils:assert_false(errors, "wizard-owned grep fixture verb should compile");
       result = this:_do_grep_object("phase_two_grep_token", fixture, false, false, $hacker);
       matches = result['matches];
       $test_utils:assert_eq(length(matches), 1, "owner filter should keep only hacker-owned match");
       $test_utils:assert_eq(matches[1][2], "grep_hacker_match", "literal grep should return the hacker-owned verb");
-      $test_utils:assert_eq(result['skipped_verb_count], 0, "readable fixture verbs should not be skipped");
+      $test_utils:assert_eq(result['skipped_verb_count], 0, "private fixture verbs should be read through scoped grants");
     finally
       if (valid(fixture))
         `delete_verb(fixture, "grep_hacker_match") ! E_VERBNF => 0';
@@ -2839,14 +2850,17 @@ object PROG_FEATURES
     fixture = #-1;
     try
       fixture = create($root);
-      add_verb(fixture, {$hacker, "rxd", "grep_regex_match"}, {"this", "none", "this"});
+      fixture.owner = $hacker;
+      fixture.r = 0;
+      fixture.w = 0;
+      add_verb(fixture, {$hacker, "xd", "grep_regex_match"}, {"this", "none", "this"});
       errors = set_verb_code(fixture, "grep_regex_match", {"return \"phase_two_grep_token regex\";"}, 2, 1);
       $test_utils:assert_false(errors, "regex grep fixture verb should compile");
       result = this:_do_grep_object("phase_[a-z]+_grep_token", fixture, false, true, 0);
       matches = result['matches];
       $test_utils:assert_eq(length(matches), 1, "regex grep should find the matching verb");
       $test_utils:assert_eq(matches[1][2], "grep_regex_match", "regex grep should identify the matching verb");
-      $test_utils:assert_eq(result['skipped_verb_count], 0, "readable regex fixture verb should not be skipped");
+      $test_utils:assert_eq(result['skipped_verb_count], 0, "private regex fixture verb should be read through scoped grants");
     finally
       if (valid(fixture))
         `delete_verb(fixture, "grep_regex_match") ! E_VERBNF => 0';
@@ -2861,9 +2875,12 @@ object PROG_FEATURES
     fixture = #-1;
     try
       fixture = create($root);
-      add_verb(fixture, {$hacker, "rxd", "argspec_probe"}, {"this", "none", "this"});
+      fixture.owner = $hacker;
+      fixture.r = 0;
+      fixture.w = 0;
+      add_verb(fixture, {$hacker, "xd", "argspec_probe"}, {"this", "none", "this"});
       index = this:_find_verb_by_argspec(fixture, "argspec_probe", "this", "none", "this");
-      $test_utils:assert_true(index > 0, "argspec helper should find the matching verb index");
+      $test_utils:assert_true(index > 0, "argspec helper should find the matching private verb index through scoped grants");
       missing = this:_find_verb_by_argspec(fixture, "argspec_probe", "none", "none", "none");
       $test_utils:assert_eq(missing, 0, "argspec helper should return 0 for non-matching args");
     finally
@@ -2891,6 +2908,8 @@ object PROG_FEATURES
       $test_utils:assert_true("private_helper_probe" in verb_list, "_do_get_verbs should use an object_read grant");
       listing = this:_do_get_verb_listing(fixture, "private_helper_probe", false);
       $test_utils:assert_eq(listing[6], {"return 42;"}, "_do_get_verb_listing should use a verb_read grant");
+      argspec = this:_do_get_verb_args(fixture, "private_helper_probe");
+      $test_utils:assert_eq(argspec, {"this", "none", "this"}, "_do_get_verb_args should use a verb_read grant");
       add_verb(fixture, {$hacker, "", "private resolve alias"}, {"this", "none", "this"});
       errors = set_verb_code(fixture, "private", {"return 99;"}, 2, 1);
       $test_utils:assert_false(errors, "private resolve alias should compile");
