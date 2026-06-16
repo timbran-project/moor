@@ -711,9 +711,8 @@ object DATA_VISOR
   method _tool_add_verb owner: ARCH_WIZARD
     "Tool: Add a new verb to an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    {verb_names, rationale, o} = {args_map["verb_names"], args_map["rationale"], $match:match_object(args_map["object"])};
+    wearer = this:_action_perms_check(actor);
+    {verb_names, rationale, o} = {args_map["verb_names"], args_map["rationale"], $match:match_object(args_map["object"], wearer)};
     dobj = maphaskey(args_map, "dobj") ? args_map["dobj"] | "this";
     prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
     iobj = maphaskey(args_map, "iobj") ? args_map["iobj"] | "none";
@@ -749,6 +748,7 @@ object DATA_VISOR
     "Add verb with wearer as owner";
     verb_info = {wearer, permissions, verb_names};
     verb_args = {dobj, prep, iobj};
+    set_task_perms(wearer, {{"verb_add", o}});
     add_verb(o, verb_info, verb_args);
     return "Verb " + tostr(o) + ":" + verb_names + " added successfully";
   endmethod
@@ -756,9 +756,8 @@ object DATA_VISOR
   method _tool_delete_verb owner: ARCH_WIZARD
     "Tool: Delete a verb from an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    {verb_name, rationale, o} = {args_map["verb"], args_map["rationale"], $match:match_object(args_map["object"])};
+    wearer = this:_action_perms_check(actor);
+    {verb_name, rationale, o} = {args_map["verb"], args_map["rationale"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
@@ -783,6 +782,7 @@ object DATA_VISOR
       endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[DELETING]", 'red) + " Removing verb `" + tostr(verb_location) + ":" + verb_name + "`..."):as_djot():as_inset():with_group('llm, this):with_tts("Removing verb " + tostr(verb_location) + ":" + verb_name));
+    set_task_perms(wearer, {{"object_write", verb_location}});
     delete_verb(verb_location, verb_name);
     return "Verb " + tostr(verb_location) + ":" + verb_name + " deleted successfully";
   endmethod
@@ -790,9 +790,8 @@ object DATA_VISOR
   method _tool_set_verb_code owner: ARCH_WIZARD
     "Tool: Compile and set new code for a verb";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
-    {verb_name, rationale, code_str, o} = {args_map["verb"], args_map["rationale"], args_map["code"], $match:match_object(args_map["object"])};
+    wearer = this:_action_perms_check(actor);
+    {verb_name, rationale, code_str, o} = {args_map["verb"], args_map["rationale"], args_map["code"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
@@ -828,6 +827,7 @@ object DATA_VISOR
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[COMPILE]", 'yellow) + " Updating code: `" + tostr(verb_location) + ":" + verb_name + "`..."):as_djot():as_inset():with_group('llm, this):with_tts("Compiling code for " + tostr(verb_location) + ":" + verb_name));
     "Compile with structured error output (verbosity=3 for map format)";
+    set_task_perms(wearer, {{"verb_program", verb_location, verb_name}});
     errors = set_verb_code(verb_location, verb_name, code_lines, 3, 0);
     if (errors)
       "Format the error map for display";
@@ -843,14 +843,13 @@ object DATA_VISOR
   method _tool_set_verb_args owner: ARCH_WIZARD
     "Tool: Change verb argument specification";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     dobj = args_map["dobj"];
     prep = args_map["prep"];
     iobj = args_map["iobj"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     typeof(dobj) == TYPE_STR || raise(E_TYPE("Expected dobj string"));
@@ -867,16 +866,21 @@ object DATA_VISOR
     "Request confirmation";
     tts_msg = "Change argument specification for " + tostr(verb_location) + ":" + verb_name + "? New argspec: " + dobj + " " + prep + " " + iobj + ". Proceed?";
     confirmation_msg = $ansi:colorize("[MODIFY]", 'yellow) + " Change argument specification for " + tostr(verb_location) + ":" + verb_name + "?\n\nNew argspec: (" + dobj + " " + prep + " " + iobj + ")\n\nProceed?";
-    result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
-    if (result == false)
-      "User cancelled - stop the agent flow";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == TYPE_STR)
-      return "STOP. Do not proceed with this action. User requested a different approach: " + result;
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
+    else
+      result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
+      if (result == false)
+        "User cancelled - stop the agent flow";
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (typeof(result) == TYPE_STR)
+        return "STOP. Do not proceed with this action. User requested a different approach: " + result;
+      endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating argspec: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating argument spec for " + tostr(verb_location) + ":" + verb_name));
     "Update verb args";
+    set_task_perms(wearer, {{"verb_write", verb_location, verb_name}});
     set_verb_args(verb_location, verb_name, {dobj, prep, iobj});
     return "Verb argspec updated successfully for " + tostr(verb_location) + ":" + verb_name + " to (" + dobj + " " + prep + " " + iobj + ")";
   endmethod
@@ -884,29 +888,17 @@ object DATA_VISOR
   method _tool_add_property owner: ARCH_WIZARD
     "Tool: Add a new property to an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
     value_str = args_map["value"];
     rationale = args_map["rationale"];
     permissions = maphaskey(args_map, "permissions") ? args_map["permissions"] | "rc";
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
     typeof(value_str) == TYPE_STR || raise(E_TYPE("Expected value string"));
     typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
-    "Parse value from literal using eval with return statement";
-    eval_code = "return " + value_str + ";";
-    eval_result = eval(eval_code);
-    if (!eval_result[1])
-      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
-      error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
-      error_event = error_event:as_inset():with_group('llm, this);
-      wearer:inform_current(error_event);
-      return "Error parsing value: " + error_text;
-    endif
-    value = eval_result[2];
     "Show rationale first";
     rationale_title = $format.title:mk("Proposed property creation: `" + tostr(o) + "." + prop_name + "`");
     rationale_content = $format.block:mk(rationale_title, rationale);
@@ -929,6 +921,15 @@ object DATA_VISOR
         return "STOP. Do not proceed with this action. User requested a different approach: " + result;
       endif
     endif
+    "Parse value from literal using eval with return statement";
+    set_task_perms(wearer, {{"property_define", o}});
+    eval_code = "return " + value_str + ";";
+    eval_result = eval(eval_code);
+    if (!eval_result[1])
+      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      return "Error parsing value: " + error_text;
+    endif
+    value = eval_result[2];
     "Add property with wearer as owner";
     prop_info = {wearer, permissions};
     add_property(o, prop_name, value, prop_info);
@@ -938,12 +939,11 @@ object DATA_VISOR
   method _tool_delete_property owner: ARCH_WIZARD
     "Tool: Delete a property from an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
     rationale = args_map["rationale"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
     typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
@@ -965,6 +965,7 @@ object DATA_VISOR
         return "STOP. Do not proceed with this action. User requested a different approach: " + result;
       endif
     endif
+    set_task_perms(wearer, {{"property_delete", o, prop_name}});
     delete_property(o, prop_name);
     return "Property " + tostr(o) + "." + prop_name + " deleted successfully";
   endmethod
@@ -972,27 +973,14 @@ object DATA_VISOR
   method _tool_set_property owner: ARCH_WIZARD
     "Tool: Set the value of a property";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
     value_str = args_map["value"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
     typeof(value_str) == TYPE_STR || raise(E_TYPE("Expected value string"));
-    "Parse value from literal using eval with return statement";
-    eval_code = "return " + value_str + ";";
-    eval_result = eval(eval_code);
-    if (!eval_result[1])
-      "Compilation error - show error to user";
-      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
-      error_event = $event:mk_eval_error(wearer, $format.code:mk("Failed to parse value: " + value_str + "\n\nError: " + error_text));
-      error_event = error_event:with_presentation_hint('inset):with_group('llm, this);
-      wearer:inform_current(error_event);
-      return "Error parsing value: " + error_text;
-    endif
-    value = eval_result[2];
     "Get current value";
     old_value = `o.(prop_name) ! ANY => "<undefined>"';
     "Show change details";
@@ -1015,6 +1003,15 @@ object DATA_VISOR
         return "STOP. Do not proceed with this action. User requested a different approach: " + result;
       endif
     endif
+    "Parse value from literal using eval with return statement";
+    set_task_perms(wearer, {{"property_read", o, prop_name}, {"property_write", o, prop_name}});
+    eval_code = "return " + value_str + ";";
+    eval_result = eval(eval_code);
+    if (!eval_result[1])
+      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+      return "Error parsing value: " + error_text;
+    endif
+    value = eval_result[2];
     o.(prop_name) = value;
     return "Property " + tostr(o) + "." + prop_name + " set successfully";
   endmethod
@@ -1022,13 +1019,12 @@ object DATA_VISOR
   method _tool_set_verb_perms owner: ARCH_WIZARD
     "Tool: Change verb permissions";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
     perms_str = args_map["permissions"];
     owner_str = args_map["owner"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(verb_name) == TYPE_STR || raise(E_TYPE("Expected verb name string"));
     typeof(perms_str) == TYPE_STR || raise(E_TYPE("Expected permissions string"));
@@ -1036,14 +1032,15 @@ object DATA_VISOR
     verb_location = o:find_verb_definer(verb_name);
     verb_location == #-1 && raise(E_VERBNF("Verb not found: " + verb_name));
     "Get current metadata";
-    metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
-    current_owner = metadata:verb_owner();
-    current_perms = metadata:flags();
+    verb_info_data = verb_info(verb_location, verb_name);
+    current_owner = verb_info_data[1];
+    current_perms = verb_info_data[2];
+    verb_names = verb_info_data[3];
     "Determine new owner";
     new_owner = current_owner;
     if (owner_str)
       typeof(owner_str) == TYPE_STR || raise(E_TYPE("Expected owner string"));
-      new_owner = $match:match_object(owner_str);
+      new_owner = $match:match_object(owner_str, wearer);
       typeof(new_owner) == TYPE_OBJ || raise(E_TYPE("Owner must be valid object"));
     endif
     "Validate permissions";
@@ -1054,42 +1051,46 @@ object DATA_VISOR
     "Request confirmation";
     tts_msg = "Change verb permissions for " + tostr(verb_location) + ":" + verb_name + "? Owner: " + tostr(current_owner) + (new_owner != current_owner ? " to " + tostr(new_owner) | "") + ". Flags: " + current_perms + " to " + (perms_str == "" ? "cleared" | perms_str) + ". Proceed?";
     confirmation_msg = $ansi:colorize("[PERMS]", 'cyan) + " Change verb permissions for " + tostr(verb_location) + ":" + verb_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
-    result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
-    if (result == false)
-      "User cancelled";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == TYPE_STR)
-      return "STOP. Do not proceed with this action. User requested a different approach: " + result;
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
+    else
+      result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
+      if (result == false)
+        "User cancelled";
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (typeof(result) == TYPE_STR)
+        return "STOP. Do not proceed with this action. User requested a different approach: " + result;
+      endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating verb permissions: " + tostr(verb_location) + ":" + verb_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating verb permissions for " + tostr(verb_location) + ":" + verb_name));
     "Apply the change";
-    metadata:set_perms(new_owner, perms_str);
+    set_task_perms(wearer, {{"verb_write", verb_location, verb_name}});
+    set_verb_info(verb_location, verb_name, {new_owner, perms_str, verb_names});
     return "Verb permissions updated: " + tostr(verb_location) + ":" + verb_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
   endmethod
 
   method _tool_set_property_perms owner: ARCH_WIZARD
     "Tool: Change property permissions";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
     perms_str = args_map["permissions"];
     owner_str = args_map["owner"];
-    o = $match:match_object(obj_str);
+    o = $match:match_object(obj_str, wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
     typeof(prop_name) == TYPE_STR || raise(E_TYPE("Expected property name string"));
     typeof(perms_str) == TYPE_STR || raise(E_TYPE("Expected permissions string"));
     "Get current metadata";
-    metadata = $prog_utils:get_property_metadata(o, prop_name);
-    current_owner = metadata:owner();
-    current_perms = metadata:perms();
+    prop_info_data = property_info(o, prop_name);
+    current_owner = prop_info_data[1];
+    current_perms = prop_info_data[2];
     "Determine new owner";
     new_owner = current_owner;
     if (owner_str)
       typeof(owner_str) == TYPE_STR || raise(E_TYPE("Expected owner string"));
-      new_owner = $match:match_object(owner_str);
+      new_owner = $match:match_object(owner_str, wearer);
       typeof(new_owner) == TYPE_OBJ || raise(E_TYPE("Owner must be valid object"));
     endif
     "Validate permissions";
@@ -1100,17 +1101,22 @@ object DATA_VISOR
     "Request confirmation";
     tts_msg = "Change property permissions for " + tostr(o) + "." + prop_name + "? Owner: " + tostr(current_owner) + (new_owner != current_owner ? " to " + tostr(new_owner) | "") + ". Flags: " + current_perms + " to " + (perms_str == "" ? "cleared" | perms_str) + ". Proceed?";
     confirmation_msg = $ansi:colorize("[PERMS]", 'cyan) + " Change property permissions for " + tostr(o) + "." + prop_name + "?\n\nOwner: " + tostr(current_owner) + (new_owner != current_owner ? " -> " + tostr(new_owner) | "") + "\nFlags: " + current_perms + " -> " + (perms_str == "" ? "(cleared)" | perms_str) + "\n\nProceed?";
-    result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
-    if (result == false)
-      "User cancelled";
-      this.agent.cancel_requested = true;
-      return "Operation cancelled by user.";
-    elseif (typeof(result) == TYPE_STR)
-      return "STOP. Do not proceed with this action. User requested a different approach: " + result;
+    if (this.auto_confirm)
+      wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[AUTO]", 'cyan) + " Auto-accepting change."):with_presentation_hint('inset):with_group('llm, this):with_tts("Auto-accepting change."));
+    else
+      result = wearer:confirm(confirmation_msg, "Or suggest an alternative:", "Describe your alternative approach...", tts_msg);
+      if (result == false)
+        "User cancelled";
+        this.agent.cancel_requested = true;
+        return "Operation cancelled by user.";
+      elseif (typeof(result) == TYPE_STR)
+        return "STOP. Do not proceed with this action. User requested a different approach: " + result;
+      endif
     endif
     wearer:inform_current($event:mk_info(wearer, $ansi:colorize("[MODIFY]", 'yellow) + " Updating property permissions: " + tostr(o) + "." + prop_name + "..."):with_presentation_hint('inset):with_group('llm, this):with_tts("Updating property permissions for " + tostr(o) + "." + prop_name));
     "Apply the change";
-    metadata:set_perms(new_owner, perms_str);
+    set_task_perms(wearer, {{"property_write", o, prop_name}});
+    set_property_info(o, prop_name, {new_owner, perms_str});
     return "Property permissions updated: " + tostr(o) + "." + prop_name + " now " + (perms_str == "" ? "cleared" | perms_str) + " owned by " + tostr(new_owner);
   endmethod
 
@@ -1233,20 +1239,15 @@ object DATA_VISOR
   method _tool_recycle_object owner: ARCH_WIZARD
     "Tool: Destroy an object permanently";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     rationale = args_map["rationale"];
     typeof(obj_str) == TYPE_STR || raise(E_TYPE("Expected object string"));
     typeof(rationale) == TYPE_STR || raise(E_TYPE("Expected rationale string"));
     "Match object";
-    target_obj = $match:match_object(obj_str);
+    target_obj = $match:match_object(obj_str, wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_TYPE("Target must be an object"));
     !valid(target_obj) && raise(E_INVARG, "Object no longer exists");
-    "Check permission - must be owner or wizard";
-    if (!wearer.wizard && target_obj.owner != wearer)
-      raise(E_PERM, "You do not have permission to recycle " + toliteral(target_obj));
-    endif
     obj_name = target_obj.name;
     obj_id = toliteral(target_obj);
     "Show rationale first";
@@ -1267,6 +1268,7 @@ object DATA_VISOR
         return "STOP. Do not proceed with this action. User requested a different approach: " + result;
       endif
     endif
+    set_task_perms(wearer);
     target_obj:destroy();
     return "Recycled \"" + obj_name + "\" (" + obj_id + ")";
   endmethod
@@ -1700,6 +1702,69 @@ object DATA_VISOR
     finally
       $test_utils:destroy_if_valid(target);
       $test_utils:destroy_if_valid(visor);
+    endtry
+    return true;
+  endmethod
+
+  method test_mutation_tool_scoped_grants owner: ARCH_WIZARD
+    "Mutation tools should use narrow grants for the selected private targets.";
+    actor = $actor:create(0);
+    visor = $data_visor:create(true);
+    target = $thing:create(0);
+    recycle_target = $thing:create(0);
+    try
+      actor.name = "Data Visor Mutation Actor";
+      actor.programmer = true;
+      add_verb(actor, {$hacker, "xd", "is_wearing"}, {"this", "none", "this"});
+      set_verb_code(actor, "is_wearing", {"{item} = args;", "return item in this.wearing;"});
+      add_verb(actor, {$hacker, "xd", "inform_current"}, {"this", "none", "this"});
+      set_verb_code(actor, "inform_current", {"return 0;"});
+      add_verb(actor, {$hacker, "xd", "confirm"}, {"this", "none", "this"});
+      set_verb_code(actor, "confirm", {"return true;"});
+      add_verb(actor, {$hacker, "xd", "confirm_with_all"}, {"this", "none", "this"});
+      set_verb_code(actor, "confirm_with_all", {"return true;"});
+      visor:moveto(actor);
+      actor.wearing = {visor};
+      visor.auto_confirm = true;
+      target.name = "Data Visor Mutation Probe";
+      target.r = 0;
+      recycle_target.name = "Data Visor Recycle Probe";
+      recycle_target.owner = actor;
+      recycle_target.r = 0;
+      add_prop_result = visor:_tool_add_property(["object" -> tostr(target), "property" -> "visor_mut_prop", "value" -> "\"initial\"", "rationale" -> "test add", "permissions" -> ""], actor);
+      $test_utils:assert_true(index(add_prop_result, "added successfully") > 0, "add_property should use a property_define grant");
+      set_prop_result = visor:_tool_set_property(["object" -> tostr(target), "property" -> "visor_mut_prop", "value" -> "\"updated\""], actor);
+      $test_utils:assert_true(index(set_prop_result, "set successfully") > 0, "set_property should use a property_write grant");
+      set_task_perms($arch_wizard);
+      $test_utils:assert_eq(target.visor_mut_prop, "updated", "set_property should update the private target");
+      prop_perms_result = visor:_tool_set_property_perms(["object" -> tostr(target), "property" -> "visor_mut_prop", "permissions" -> "rc", "owner" -> tostr(actor)], actor);
+      $test_utils:assert_true(index(prop_perms_result, "Property permissions updated") > 0, "set_property_perms should use a property_write grant");
+      delete_prop_result = visor:_tool_delete_property(["object" -> tostr(target), "property" -> "visor_mut_prop", "rationale" -> "test delete"], actor);
+      $test_utils:assert_true(index(delete_prop_result, "deleted successfully") > 0, "delete_property should use a property_delete grant");
+      set_task_perms($arch_wizard);
+      $test_utils:assert_false("visor_mut_prop" in properties(target), "delete_property should remove the private property");
+      add_verb_result = visor:_tool_add_verb(["object" -> tostr(target), "verb_names" -> "visor_mut_verb", "rationale" -> "test add", "permissions" -> "xd"], actor);
+      $test_utils:assert_true(index(add_verb_result, "added successfully") > 0, "add_verb should use a verb_add grant");
+      code_result = visor:_tool_set_verb_code(["object" -> tostr(target), "verb" -> "visor_mut_verb", "rationale" -> "test code", "code" -> "return \"updated\";"], actor);
+      $test_utils:assert_true(index(code_result, "updated successfully") > 0, "set_verb_code should use a verb_program grant");
+      args_result = visor:_tool_set_verb_args(["object" -> tostr(target), "verb" -> "visor_mut_verb", "dobj" -> "this", "prep" -> "none", "iobj" -> "this"], actor);
+      $test_utils:assert_true(index(args_result, "updated successfully") > 0, "set_verb_args should use a verb_write grant");
+      verb_perms_result = visor:_tool_set_verb_perms(["object" -> tostr(target), "verb" -> "visor_mut_verb", "permissions" -> "rxd", "owner" -> tostr(actor)], actor);
+      $test_utils:assert_true(index(verb_perms_result, "Verb permissions updated") > 0, "set_verb_perms should use a verb_write grant");
+      delete_verb_result = visor:_tool_delete_verb(["object" -> tostr(target), "verb" -> "visor_mut_verb", "rationale" -> "test delete"], actor);
+      $test_utils:assert_true(index(delete_verb_result, "deleted successfully") > 0, "delete_verb should use an object_write grant");
+      set_task_perms($arch_wizard);
+      $test_utils:assert_false("visor_mut_verb" in verbs(target), "delete_verb should remove the private verb");
+      recycle_result = visor:_tool_recycle_object(["object" -> tostr(recycle_target), "rationale" -> "test recycle"], actor);
+      $test_utils:assert_true(index(recycle_result, "Recycled") > 0, "recycle_object should recycle under wearer permissions");
+      set_task_perms($arch_wizard);
+      $test_utils:assert_false(valid(recycle_target), "recycle_object should destroy the target");
+    finally
+      set_task_perms($arch_wizard);
+      valid(recycle_target) && !is_anonymous(recycle_target) && recycle(recycle_target);
+      valid(target) && !is_anonymous(target) && recycle(target);
+      valid(visor) && !is_anonymous(visor) && recycle(visor);
+      valid(actor) && !is_anonymous(actor) && recycle(actor);
     endtry
     return true;
   endmethod
