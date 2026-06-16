@@ -1,4 +1,4 @@
-# Algorithmic Builtins
+# Structured Data Matching and Pathfinding
 
 These mooR extensions provide kernel-side algorithms for structured MOO values.
 They are intended for cases where MOO code would otherwise spend a large amount

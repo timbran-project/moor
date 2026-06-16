@@ -37,7 +37,7 @@
         - [Cryptography and Security Functions](./the-moo-programming-language/built-in-functions/crypto.md)
         - [Functions for Values Generally](./the-moo-programming-language/built-in-functions/values.md)
         - [Functions for Lists & Sets](./the-moo-programming-language/built-in-functions/list_sets.md)
-        - [Algorithmic Builtins](./the-moo-programming-language/built-in-functions/algorithms.md)
+        - [Structured Data Matching and Pathfinding](./the-moo-programming-language/built-in-functions/algorithms.md)
         - [Functions for Properties](./the-moo-programming-language/built-in-functions/properties.md)
         - [Functions for Verbs](./the-moo-programming-language/built-in-functions/verbs.md)
         - [Functions for Maps](./the-moo-programming-language/built-in-functions/maps.md)

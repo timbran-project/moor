@@ -149,7 +149,7 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 | [`encode_binary`](strings.md#encode_binary) |          |                                                                                    |
 | [`object_bytes`](values.md#object_bytes)    | &check;  |                                                                                    |
 
-### Algorithms
+### Structured Data Matching and Pathfinding
 
 | Name                                                  | Complete | Notes                                   |
 |-------------------------------------------------------|----------|-----------------------------------------|
@@ -311,7 +311,7 @@ Functions not part of the original LambdaMOO, but added in moor
 | `error_code`    | Strip off any message or value from an error and return only the code portion  |       |
 | `error_message` | Return the message portion of the error, or the default message if none exists |       |
 
-### Algorithms
+### Structured Data Matching and Pathfinding
 
 | Name                                               | Description                               | Notes |
 |----------------------------------------------------|-------------------------------------------|-------|
