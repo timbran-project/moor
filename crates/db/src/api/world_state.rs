@@ -139,7 +139,7 @@ impl DbWorldState {
                 if flags.contains(ObjFlag::User) {
                     auth.require(AuthRule::property_wizard())?;
                 }
-                auth.require(AuthRule::object_owner_or_wizard(&objowner))?;
+                auth.require(AuthRule::object_rename(obj, &objowner))?;
 
                 self.get_tx_mut().set_object_name(obj, name.to_string())?;
                 return Ok(());

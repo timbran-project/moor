@@ -67,6 +67,8 @@ pub(super) enum AuthRule<'a> {
     ObjectWizard,
     /// Principal must own an object-domain resource or have the wizard bit.
     ObjectOwnerOrWizard { owner: &'a Obj },
+    /// Principal may rename the given object.
+    ObjectRename { obj: &'a Obj, owner: &'a Obj },
     /// Principal may move the given object.
     ObjectMove { obj: &'a Obj, owner: &'a Obj },
     /// Principal may recycle the given object.
@@ -147,6 +149,12 @@ impl AuthRule<'_> {
     #[inline]
     pub(super) fn object_owner_or_wizard(owner: &Obj) -> AuthRule<'_> {
         AuthRule::ObjectOwnerOrWizard { owner }
+    }
+
+    /// Principal must control the object or hold a rename grant for it.
+    #[inline]
+    pub(super) fn object_rename<'a>(obj: &'a Obj, owner: &'a Obj) -> AuthRule<'a> {
+        AuthRule::ObjectRename { obj, owner }
     }
 
     /// Principal must control the object or hold a move grant for it.
@@ -319,6 +327,7 @@ impl AuthRule<'_> {
             | Self::VerbProgram { .. } => WorldStateError::VerbPermissionDenied,
             Self::ObjectWizard
             | Self::ObjectOwnerOrWizard { .. }
+            | Self::ObjectRename { .. }
             | Self::ObjectMove { .. }
             | Self::ObjectRecycle { .. }
             | Self::ObjectChparent { .. }
@@ -426,6 +435,9 @@ impl AuthContext {
         match rule {
             AuthRule::ObjectWizard => self.is_wizard(),
             AuthRule::ObjectOwnerOrWizard { owner } => self.controls_owner(owner),
+            AuthRule::ObjectRename { obj, owner } => {
+                self.controls_owner(owner) || self.has_grant(CapabilityGrant::ObjectRename(*obj))
+            }
             AuthRule::ObjectMove { obj, owner } => {
                 self.controls_owner(owner) || self.has_grant(CapabilityGrant::ObjectMove(*obj))
             }
@@ -915,6 +927,10 @@ mod tests {
         assert!(
             !context(2, BitEnum::new()).allows(AuthRule::object_move(&obj, &owner)),
             "move should not be granted by default"
+        );
+        assert!(
+            context_with_grants(2, BitEnum::new(), vec![CapabilityGrant::ObjectRename(obj)])
+                .allows(AuthRule::object_rename(&obj, &owner))
         );
         assert!(
             context_with_grants(2, BitEnum::new(), vec![CapabilityGrant::ObjectMove(obj)])

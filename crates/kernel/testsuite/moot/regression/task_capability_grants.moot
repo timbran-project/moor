@@ -3,6 +3,14 @@
 
 ; add_property($system, "cap_object_read_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
 ; add_property($system, "cap_object_write_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_object_rename_no_grant_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_object_rename_grant_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_object_rename_property_write_name_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_object_rename_object_write_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_object_rename_player_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; set_player_flag($cap_object_rename_player_obj, 1);
+; add_property($system, "cap_set_name_aliases_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($cap_set_name_aliases_obj, "aliases", {}, {$wizard_player, "r"});
 ; add_property($system, "cap_property_read_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
 ; add_property($cap_property_read_obj, "secret", 37, {$wizard_player, ""});
 ; add_property($system, "cap_property_write_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
@@ -48,6 +56,19 @@
 
 ; add_verb($cap_helper, {$wizard_player, "rxd", "object_write_with_grant"}, {"this", "none", "this"});
 ; set_verb_code($cap_helper, "object_write_with_grant", {"set_task_perms($player, {{\"object_write\", $cap_object_write_obj}});", "add_property($cap_object_write_obj, \"via_object_write\", 7, {$player, \"r\"});", "return $cap_object_write_obj.via_object_write;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_rename_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_rename_no_grant", {"set_task_perms($player);", "$cap_object_rename_no_grant_obj.name = \"renamed without grant\";", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_rename_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_rename_with_grant", {"set_task_perms($player, {{\"object_rename\", $cap_object_rename_grant_obj}});", "$cap_object_rename_grant_obj.name = \"renamed with grant\";", "return $cap_object_rename_grant_obj.name == \"renamed with grant\";"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_rename_property_write_name_does_not_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_rename_property_write_name_does_not_grant", {"set_task_perms($player, {{\"property_write\", $cap_object_rename_property_write_name_obj, \"name\"}});", "$cap_object_rename_property_write_name_obj.name = \"renamed by property grant\";", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_rename_object_write_does_not_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_rename_object_write_does_not_grant", {"set_task_perms($player, {{\"object_write\", $cap_object_rename_object_write_obj}});", "$cap_object_rename_object_write_obj.name = \"renamed by object write\";", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_rename_player_with_grant_denied"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_rename_player_with_grant_denied", {"set_task_perms($player, {{\"object_rename\", $cap_object_rename_player_obj}});", "$cap_object_rename_player_obj.name = \"renamed player by grant\";", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "set_name_aliases_with_grants"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "set_name_aliases_with_grants", {"set_task_perms($player, {{\"object_rename\", $cap_set_name_aliases_obj}, {\"property_write\", $cap_set_name_aliases_obj, \"aliases\"}});", "$cap_set_name_aliases_obj.name = \"renamed with aliases\";", "$cap_set_name_aliases_obj.aliases = {\"renamed-alias\"};", "return ($cap_set_name_aliases_obj.name == \"renamed with aliases\") && ($cap_set_name_aliases_obj.aliases == {\"renamed-alias\"});"});
 
 ; add_verb($cap_helper, {$wizard_player, "rxd", "property_read_no_grant"}, {"this", "none", "this"});
 ; set_verb_code($cap_helper, "property_read_no_grant", {"set_task_perms($player);", "return $cap_property_read_obj.secret;"});
@@ -123,6 +144,18 @@ E_PERM
 1
 ; return $cap_helper:object_write_with_grant();
 7
+; return $cap_helper:object_rename_no_grant();
+E_PERM
+; return $cap_helper:object_rename_with_grant();
+1
+; return $cap_helper:object_rename_property_write_name_does_not_grant();
+E_PERM
+; return $cap_helper:object_rename_object_write_does_not_grant();
+E_PERM
+; return $cap_helper:object_rename_player_with_grant_denied();
+E_PERM
+; return $cap_helper:set_name_aliases_with_grants();
+1
 ; return $cap_helper:property_read_no_grant();
 E_PERM
 ; return $cap_helper:property_read_with_grant();

@@ -156,6 +156,7 @@ fn parse_capability_grant(
     match grant_name.as_str() {
         "object_read" => parse_object_grant(&spec, CapabilityGrant::ObjectRead),
         "object_write" => parse_object_grant(&spec, CapabilityGrant::ObjectWrite),
+        "object_rename" => parse_object_grant(&spec, CapabilityGrant::ObjectRename),
         "object_move" => parse_object_grant(&spec, CapabilityGrant::ObjectMove),
         "object_recycle" => parse_object_grant(&spec, CapabilityGrant::ObjectRecycle),
         "object_chparent" => parse_object_grant(&spec, CapabilityGrant::ObjectChparent),
@@ -1405,6 +1406,7 @@ mod tests {
             &v_list(&[
                 v_list(&[v_str("object_read"), v_obj(obj)]),
                 v_list(&[v_str("object_write"), v_obj(obj)]),
+                v_list(&[v_str("object_rename"), v_obj(obj)]),
                 v_list(&[v_str("object_move"), v_obj(obj)]),
                 v_list(&[v_str("object_recycle"), v_obj(obj)]),
                 v_list(&[v_str("object_chparent"), v_obj(obj)]),
@@ -1427,6 +1429,7 @@ mod tests {
             vec![
                 CapabilityGrant::ObjectRead(obj),
                 CapabilityGrant::ObjectWrite(obj),
+                CapabilityGrant::ObjectRename(obj),
                 CapabilityGrant::ObjectMove(obj),
                 CapabilityGrant::ObjectRecycle(obj),
                 CapabilityGrant::ObjectChparent(obj),

@@ -26,6 +26,7 @@ use uuid::Uuid;
 pub enum CapabilityGrant {
     ObjectRead(Obj),
     ObjectWrite(Obj),
+    ObjectRename(Obj),
     ObjectMove(Obj),
     ObjectRecycle(Obj),
     ObjectChparent(Obj),
