@@ -569,9 +569,18 @@ object PROG_FEATURES
 
   method _do_get_properties owner: ARCH_WIZARD
     "Internal helper to get properties list with elevated permissions";
-    set_task_perms(caller_perms());
+    caller == this || raise(E_PERM);
     {target_obj} = args;
+    set_task_perms(player, {{"object_read", target_obj}});
     return properties(target_obj);
+  endmethod
+
+  method _do_add_property owner: ARCH_WIZARD
+    "Internal helper to add a property with elevated permissions.";
+    caller == this || raise(E_PERM);
+    {target_obj, prop_name, value, prop_info} = args;
+    set_task_perms(player, {{"property_define", target_obj}});
+    add_property(target_obj, prop_name, value, prop_info);
   endmethod
 
   verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -641,7 +650,7 @@ object PROG_FEATURES
     endif
     "Add the property";
     try
-      add_property(target_obj, prop_name, value, {owner, perms});
+      this:_do_add_property(target_obj, prop_name, value, {owner, perms});
       "Format flags description";
       flag_parts = {};
       index(perms, "r") && (flag_parts = {@flag_parts, "r=read"});
@@ -657,6 +666,14 @@ object PROG_FEATURES
       raise(e[1], e[2]);
     endtry
   endverb
+
+  method _do_delete_property owner: ARCH_WIZARD
+    "Internal helper to delete a property with elevated permissions.";
+    caller == this || raise(E_PERM);
+    {target_obj, prop_name} = args;
+    set_task_perms(player, {{"property_delete", target_obj, prop_name}});
+    delete_property(target_obj, prop_name);
+  endmethod
 
   verb "@rmprop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>.<property> [--dry-run] -- Remove a property from an object.";
@@ -693,7 +710,14 @@ object PROG_FEATURES
       player:inform_current($event:mk_error(player, "Could not find object: " + tostr(e[2])));
       return;
     endtry
-    if (!(prop_name in properties(target_obj)))
+    prop_found = 0;
+    for p in (this:_do_get_properties(target_obj))
+      if (tostr(p) == prop_name)
+        prop_found = 1;
+        break;
+      endif
+    endfor
+    if (!prop_found)
       player:inform_current($event:mk_error(player, "Property " + prop_name + " not found on " + tostr(target_obj) + "."));
       return;
     endif
@@ -702,7 +726,7 @@ object PROG_FEATURES
       return;
     endif
     try
-      delete_property(target_obj, prop_name);
+      this:_do_delete_property(target_obj, prop_name);
       player:inform_current($event:mk_info(player, "Property " + tostr(target_obj) + "." + prop_name + " deleted."));
     except e (ANY)
       player:inform_current($event:mk_error(player, "Error deleting property: " + tostr(e[2])));
@@ -778,16 +802,16 @@ object PROG_FEATURES
   method _do_get_property_metadata owner: ARCH_WIZARD
     "Internal helper to get property metadata with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, prop_name} = args;
+    set_task_perms(player, {{"property_read", target_obj, prop_name}});
     return $prog_utils:get_property_metadata(target_obj, prop_name);
   endmethod
 
   method _do_get_property_value owner: ARCH_WIZARD
     "Internal helper to get property value with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, prop_name} = args;
+    set_task_perms(player, {{"property_read", target_obj, prop_name}});
     return target_obj.(prop_name);
   endmethod
 
@@ -2827,6 +2851,48 @@ object PROG_FEATURES
       if (valid(fixture))
         `delete_verb(fixture, "grant_added_probe") ! E_VERBNF => 0';
         `delete_verb(fixture, "private_helper_probe") ! E_VERBNF => 0';
+        recycle(fixture);
+      endif
+    endtry
+    return true;
+  endmethod
+
+  method test_property_command_helpers_scoped_grants owner: ARCH_WIZARD
+    "Unit test: property command helpers use scoped grants for private object/property operations.";
+    fixture = #-1;
+    try
+      fixture = create($root);
+      fixture.owner = $hacker;
+      fixture.r = 0;
+      fixture.w = 0;
+      add_property(fixture, "private_helper_prop", "secret", {$hacker, ""});
+      $test_utils:assert_true(fixture.owner != player, "fixture should not be owned by the player");
+      prop_list = this:_do_get_properties(fixture);
+      prop_names = {};
+      for p in (prop_list)
+        prop_names = {@prop_names, tostr(p)};
+      endfor
+      $test_utils:assert_true("private_helper_prop" in prop_names, "_do_get_properties should use an object_read grant");
+      metadata = this:_do_get_property_metadata(fixture, "private_helper_prop");
+      $test_utils:assert_eq(metadata.owner, $hacker, "_do_get_property_metadata should use a property_read grant");
+      value = this:_do_get_property_value(fixture, "private_helper_prop");
+      $test_utils:assert_eq(value, "secret", "_do_get_property_value should use a property_read grant");
+      this:_do_add_property(fixture, "grant_added_prop", 17, {player, ""});
+      prop_names = {};
+      for p in (properties(fixture))
+        prop_names = {@prop_names, tostr(p)};
+      endfor
+      $test_utils:assert_true("grant_added_prop" in prop_names, "_do_add_property should use a property_define grant");
+      this:_do_delete_property(fixture, "grant_added_prop");
+      prop_names = {};
+      for p in (properties(fixture))
+        prop_names = {@prop_names, tostr(p)};
+      endfor
+      $test_utils:assert_false("grant_added_prop" in prop_names, "_do_delete_property should use a property_delete grant");
+    finally
+      if (valid(fixture))
+        `delete_property(fixture, "grant_added_prop") ! E_PROPNF => 0';
+        `delete_property(fixture, "private_helper_prop") ! E_PROPNF => 0';
         recycle(fixture);
       endif
     endtry
