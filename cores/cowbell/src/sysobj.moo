@@ -39,7 +39,6 @@ object SYSOBJ
   property dm (owner: HACKER, flags: "r") = DM;
   property drink (owner: ARCH_WIZARD, flags: "r") = DRINK;
   property dump_interval (owner: ARCH_WIZARD, flags: "r") = 3600;
-  property dvar (owner: HACKER, flags: "r") = DVAR;
   property event (owner: HACKER, flags: "r") = EVENT;
   property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
   property examination (owner: HACKER, flags: "r") = EXAMINATION;

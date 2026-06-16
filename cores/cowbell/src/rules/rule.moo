@@ -21,26 +21,24 @@ object RULE
   endverb
 
   verb _extract_variables (this none this) owner: HACKER flags: "rxd"
-    "Extract all variables (symbols starting with uppercase) from goals.";
+    "Extract all normalized variable names from goals.";
     {goals} = args;
     variables = {};
-    for goal in (goals)
-      if (typeof(goal) == TYPE_LIST)
-        for arg in (goal[2..$])
-          if (typeof(arg) == TYPE_SYM)
-            arg_str = tostr(arg);
-            "Variables are symbols that don't map to objects";
-            if (arg_str[1] == "'" && length(arg_str) > 1)
-              "It's a symbol literal, extract the name";
-              var_name = tosym(arg_str[2..$]);
-              if (!(var_name in variables))
-                variables = {@variables, var_name};
-              endif
-            endif
-          endif
-        endfor
-      endif
-    endfor
+    return this:_collect_variables(goals, variables);
+  endverb
+
+  verb _collect_variables (this none this) owner: HACKER flags: "rxd"
+    "Append normalized variable names found in value to variables.";
+    {value, variables} = args;
+    if (typeof(value) == TYPE_LIST && length(value) == 2 && value[1] == 'var && typeof(value[2]) == TYPE_SYM)
+      !(value[2] in variables) && (variables = {@variables, value[2]});
+      return variables;
+    endif
+    if (typeof(value) == TYPE_LIST)
+      for item in (value)
+        variables = this:_collect_variables(item, variables);
+      endfor
+    endif
     return variables;
   endverb
 
@@ -55,7 +53,7 @@ object RULE
   verb test_rule_creation (this none this) owner: HACKER flags: "rxd"
     "Test creating a simple rule.";
     guild_obj = this;
-    goal = {'member, 'X, guild_obj};
+    goal = {'member, {'var, 'X}, guild_obj};
     rule = this:mk('test_rule, 'test_rule, {goal});
     typeof(rule) == TYPE_FLYWEIGHT || raise(E_ASSERT, "Should return flyweight");
     rule.head != 'test_rule && raise(E_ASSERT, "Head should be test_rule");

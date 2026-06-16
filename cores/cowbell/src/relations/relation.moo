@@ -92,7 +92,7 @@ object RELATION
     result = {};
     for tuple_id in (uuid_list)
       tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
-      tuple && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
+      tuple != 0 && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
     endfor
     return result;
   endverb
@@ -106,7 +106,7 @@ object RELATION
     result = {};
     for tuple_id in (uuid_list)
       tuple = `this.(("tuple_" + tuple_id)) ! E_PROPNF => 0';
-      tuple && (result = {@result, tuple});
+      tuple != 0 && (result = {@result, tuple});
     endfor
     return result;
   endverb
@@ -120,7 +120,7 @@ object RELATION
         continue;
       endif
       tuple = `this.(prop) ! E_PROPNF => 0';
-      tuple && (result = {@result, tuple});
+      tuple != 0 && (result = {@result, tuple});
     endfor
     return result;
   endverb
@@ -262,7 +262,7 @@ object RELATION
   endverb
 
   verb test_duplicate_assert (this none this) owner: HACKER flags: "rxd"
-    "Test that asserting the same tuple twice doesn't create duplicates";
+    "Test that asserting the same tuple twice preserves multiplicity.";
     rel = $relation:create(true);
     rel:assert({#1, #2, "edge"});
     rel:assert({#1, #2, "edge"});
@@ -270,6 +270,9 @@ object RELATION
     length(results) != 2 && raise(E_ASSERT, "Duplicate assert should create new tuple (UUIDs differ)");
     "Both should be present as member check is equality based";
     !rel:member({#1, #2, "edge"}) && raise(E_ASSERT, "Tuple should be present");
+    "Query should preserve tuple multiplicity.";
+    results = rel:query({#1, {'var, 'to}, {'var, 'label}});
+    length(results) != 2 && raise(E_ASSERT, "Duplicate tuples should produce duplicate query bindings");
   endverb
 
   verb test_bidirectional_indexing (this none this) owner: HACKER flags: "rxd"
@@ -313,42 +316,17 @@ object RELATION
   endverb
 
   verb query (this none this) owner: HACKER flags: "rxd"
-    "Match pattern with variables against tuples, return bindings. Variables are created with $dvar:mk_name().";
-    {pattern} = args;
+    "Match pattern with variables against tuples, return bindings. Variables use {'var, 'name} terms.";
+    length(args) < 1 && raise(E_ARGS);
+    length(args) > 3 && raise(E_ARGS);
+    pattern = args[1];
+    bindings = length(args) >= 2 ? args[2] | [];
+    options = length(args) >= 3 ? args[3] | [];
     typeof(pattern) != TYPE_LIST && raise(E_TYPE);
-    "Find first concrete (non-variable) value to narrow search";
-    concrete_value = false;
-    for elem in (pattern)
-      if (typeof(elem) != TYPE_FLYWEIGHT || !valid(elem.delegate) || elem.delegate != $dvar)
-        concrete_value = elem;
-        break;
-      endif
-    endfor
-    candidates = concrete_value ? this:select_containing(concrete_value) | this:tuples();
-    results = {};
-    for tuple in (candidates)
-      bindings = this:_unify(pattern, tuple);
-      bindings && (results = {@results, bindings});
-    endfor
-    return results;
-  endverb
-
-  verb _unify (this none this) owner: HACKER flags: "rxd"
-    "Internal: Unify pattern with tuple, returning bindings map or false.";
-    {pattern, tuple} = args;
-    length(pattern) != length(tuple) && return false;
-    bindings = [];
-    for i in [1..length(pattern)]
-      p = pattern[i];
-      if (typeof(p) == TYPE_FLYWEIGHT && valid(p.delegate) && p.delegate == $dvar)
-        var_name = p:name();
-        maphaskey(bindings, var_name) && bindings[var_name] != tuple[i] && return false;
-        bindings[var_name] = tuple[i];
-      else
-        p != tuple[i] && return false;
-      endif
-    endfor
-    return bindings;
+    typeof(bindings) != TYPE_MAP && raise(E_TYPE);
+    typeof(options) != TYPE_MAP && raise(E_TYPE);
+    !maphaskey(options, 'dedupe) && (options['dedupe] = false);
+    return term_query(pattern, this:tuples(), {}, bindings, options);
   endverb
 
   verb reachable_from (this none this) owner: HACKER flags: "rxd"
@@ -376,16 +354,16 @@ object RELATION
     rel:assert({#12, #40, "east"});
     rel:assert({#39, #40, "south"});
     "Query for all passages from #12";
-    results = rel:query({#12, $dvar:mk_dest(), $dvar:mk_label()});
+    results = rel:query({#12, {'var, 'dest}, {'var, 'label}});
     length(results) != 2 && raise(E_ASSERT, "Expected 2 results from #12");
     ['dest -> #39, 'label -> "north"] in results || raise(E_ASSERT, "Missing north binding");
     ['dest -> #40, 'label -> "east"] in results || raise(E_ASSERT, "Missing east binding");
     "Query for passages to #39";
-    results = rel:query({$dvar:mk_src(), #39, $dvar:mk_label()});
+    results = rel:query({{'var, 'src}, #39, {'var, 'label}});
     length(results) != 1 && raise(E_ASSERT, "Expected 1 result to #39");
     ['src -> #12, 'label -> "north"] in results || raise(E_ASSERT, "Missing binding");
     "Query all tuples";
-    results = rel:query({$dvar:mk_a(), $dvar:mk_b(), $dvar:mk_c()});
+    results = rel:query({{'var, 'a}, {'var, 'b}, {'var, 'c}});
     length(results) != 3 && raise(E_ASSERT, "Expected 3 results for all tuples");
   endverb
 

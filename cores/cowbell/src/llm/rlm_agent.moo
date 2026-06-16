@@ -518,7 +518,7 @@ object RLM_AGENT
     endfor
     if (this.status != 'complete)
       this.status = 'failed;
-      findings = valid(this.findings) ? this.findings:query({}) | {};
+      findings = valid(this.findings) ? this.findings:tuples() | {};
       if (length(findings) > 0)
         this.result = "Max iterations reached. Partial findings:\n";
         for f in (findings)

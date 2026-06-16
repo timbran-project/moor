@@ -13,7 +13,7 @@ object HEADLESS_RULE_SCENARIOS
     fixture = #64:create(true);
     fixture.father = $root;
     fixture.mother = $thing;
-    rule = $rule:mk('fixture_parents, 'fixture_parents, {{'parent, fixture, 'Parent}});
+    rule = $rule:mk('fixture_parents, 'fixture_parents, {{'parent, fixture, {'var, 'Parent}}});
     result = $rule_engine:evaluate(rule);
     $test_utils:assert_true(result['success], "parent rule should have solutions");
     parents = {result['bindings]['Parent]};

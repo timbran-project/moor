@@ -204,18 +204,28 @@ object RULE_ENGINE
   verb _substitute_args (this none this) owner: HACKER flags: "rxd"
     "Replace variables in args with their bindings.";
     {args, bindings} = args;
-    result = {};
-    for arg in (args)
-      substituted = this:_substitute_value(arg, bindings);
-      result = {@result, substituted};
-    endfor
-    return result;
+    substituted = term_substitute(args, bindings, ['unbound -> 'leave]);
+    return this:_predicate_call_value(substituted, bindings);
   endverb
 
   verb _substitute_value (this none this) owner: HACKER flags: "rxd"
     "Substitute a single value, resolving variables.";
     {value, bindings} = args;
+    return this:_predicate_call_value(term_substitute(value, bindings, ['unbound -> 'leave]), bindings);
+  endverb
+
+  verb _predicate_call_value (this none this) owner: HACKER flags: "rxd"
+    "Convert unbound variables and bound legacy symbols for fact predicate calls.";
+    {value, bindings} = args;
+    this:_is_var(value) && return this:_var_name(value);
     typeof(value) == TYPE_SYM && maphaskey(bindings, value) && return bindings[value];
+    if (typeof(value) == TYPE_LIST)
+      result = {};
+      for item in (value)
+        result = {@result, this:_predicate_call_value(item, bindings)};
+      endfor
+      return result;
+    endif
     return value;
   endverb
 
@@ -226,13 +236,25 @@ object RULE_ENGINE
     "Find first unbound variable and bind it to result";
     for i in [1..length(goal_args)]
       arg = goal_args[i];
-      if (typeof(arg) == TYPE_SYM && !maphaskey(bindings, arg))
-        bindings[arg] = result;
-        return bindings;
+      if (this:_is_var(arg) && !maphaskey(bindings, this:_var_name(arg)))
+        return term_unify(arg, result, bindings);
       endif
     endfor
     "No unbound variables - ground goal. Only explicit false means failure.";
     return result == false ? false | bindings;
+  endverb
+
+  verb _is_var (this none this) owner: HACKER flags: "rxd"
+    "Return true when value is a normalized logic variable marker.";
+    {value} = args;
+    return typeof(value) == TYPE_LIST && length(value) == 2 && value[1] == 'var && typeof(value[2]) == TYPE_SYM;
+  endverb
+
+  verb _var_name (this none this) owner: HACKER flags: "rxd"
+    "Return the symbol identifier from a normalized logic variable marker.";
+    {value} = args;
+    this:_is_var(value) || raise(E_TYPE, "value is not a variable marker");
+    return value[2];
   endverb
 
   verb parse_expression (this none this) owner: HACKER flags: "rxd"
@@ -299,8 +321,8 @@ object RULE_ENGINE
         "Find unbound variables in this negated goal";
         unbound_vars = [];
         for arg in (inner_goal[2..$])
-          if (typeof(arg) == TYPE_SYM && !maphaskey(bound_vars, arg))
-            unbound_vars[arg] = true;
+          if (this:_is_var(arg) && !maphaskey(bound_vars, this:_var_name(arg)))
+            unbound_vars[this:_var_name(arg)] = true;
           endif
         endfor
         "Check if we have 2+ unbound variables (not allowed)";
@@ -310,8 +332,8 @@ object RULE_ENGINE
       else
         "Positive goal - track which variables get bound";
         for arg in (goal[2..$])
-          if (typeof(arg) == TYPE_SYM && arg in all_vars)
-            bound_vars[arg] = true;
+          if (this:_is_var(arg) && this:_var_name(arg) in all_vars)
+            bound_vars[this:_var_name(arg)] = true;
           endif
         endfor
       endif
@@ -602,7 +624,7 @@ object RULE_ENGINE
   endverb
 
   verb _resolve_name (this none this) owner: HACKER flags: "rxd"
-    "Resolve a name to variable (symbol), object, or constant.";
+    "Resolve a name to variable marker, object, or constant.";
     {name, match_perspective} = args;
     "Quoted string - match to object";
     if (length(name) >= 2 && name[1] == "\"" && name[$] == "\"")
@@ -621,7 +643,7 @@ object RULE_ENGINE
     num_val != 0 || name == "0" && return num_val;
     "Uppercase = variable";
     first_char = name[1];
-    first_char >= "A" && first_char <= "Z" && return tosym(name);
+    index("ABCDEFGHIJKLMNOPQRSTUVWXYZ", first_char, 1) && return {'var, tosym(name)};
     "Known constants";
     constants = ["player" -> 'player, "this" -> 'this, "sender" -> 'sender, "location" -> 'location, "sysobj" -> 'sysobj];
     lower_name = name:lowercase();
@@ -633,14 +655,23 @@ object RULE_ENGINE
     "Extract all variables from a goal list.";
     {goals} = args;
     variables = {};
-    for goal in (goals)
-      if (typeof(goal) == TYPE_LIST && length(goal) >= 2)
-        for i in [2..length(goal)]
-          arg = goal[i];
-          typeof(arg) == TYPE_SYM && !(arg in variables) && (variables = {@variables, arg});
-        endfor
-      endif
-    endfor
+    variables = this:_collect_variables(goals, variables);
+    return variables;
+  endverb
+
+  verb _collect_variables (this none this) owner: HACKER flags: "rxd"
+    "Append normalized variable names found in value to variables.";
+    {value, variables} = args;
+    if (this:_is_var(value))
+      name = this:_var_name(value);
+      !(name in variables) && (variables = {@variables, name});
+      return variables;
+    endif
+    if (typeof(value) == TYPE_LIST)
+      for item in (value)
+        variables = this:_collect_variables(item, variables);
+      endfor
+    endif
     return variables;
   endverb
 
@@ -660,10 +691,11 @@ object RULE_ENGINE
           if (typeof(inner_goal) == TYPE_LIST && length(inner_goal) >= 2)
             for i in [2..length(inner_goal)]
               arg = inner_goal[i];
-              if (typeof(arg) == TYPE_SYM && !maphaskey(current_bindings, arg))
+              if (this:_is_var(arg) && !maphaskey(current_bindings, this:_var_name(arg)))
                 "Collect unbound variables (deduplicate)";
-                if (!(arg in unbound_vars))
-                  unbound_vars = {@unbound_vars, arg};
+                name = this:_var_name(arg);
+                if (!(name in unbound_vars))
+                  unbound_vars = {@unbound_vars, name};
                 endif
               endif
             endfor
@@ -706,16 +738,17 @@ object RULE_ENGINE
     predicate = goal[1];
     goal_args = goal[2..$];
     length(goal_args) == 0 && raise(E_INVARG, "goal must have at least object argument");
-    obj_str = tostr(goal_args[1]);
+    obj_str = this:_decompile_value(goal_args[1]);
     remaining_args = goal_args[2..$];
     predicate_str = tostr(predicate);
-    length(remaining_args) > 0 && (predicate_str = predicate_str + "(" + { tostr(a) for a in (remaining_args) }:join(", ") + ")");
+    length(remaining_args) > 0 && (predicate_str = predicate_str + "(" + { this:_decompile_value(a) for a in (remaining_args) }:join(", ") + ")");
     return obj_str + " " + predicate_str + "?";
   endverb
 
   verb _decompile_value (this none this) owner: HACKER flags: "rxd"
     "Convert a value back to DSL representation.";
     {value} = args;
+    this:_is_var(value) && return tostr(this:_var_name(value));
     return tostr(value);
   endverb
 
@@ -769,8 +802,8 @@ object RULE_ENGINE
     test_obj = #64;
     "Set up parent relationship";
     test_obj.father = $root;
-    "Create goal with variable 'X in second position";
-    goal = {'parent, test_obj, 'X};
+    "Create goal with variable X in second position";
+    goal = {'parent, test_obj, {'var, 'X}};
     empty_bindings = [];
     result = this:_solve_goal(goal, empty_bindings);
     typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
@@ -789,7 +822,7 @@ object RULE_ENGINE
     test_obj.father = $root;
     test_obj.mother = $arch_wizard;
     "Query: what X satisfies parent(test_obj, X)?";
-    goal = {'parent, test_obj, 'X};
+    goal = {'parent, test_obj, {'var, 'X}};
     empty_bindings = [];
     result = this:_prove_goals({goal}, empty_bindings);
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
@@ -812,7 +845,7 @@ object RULE_ENGINE
     mother_obj.father = $arch_wizard;
     "Query: what X satisfies parent(test_obj, Y) AND parent(Y, X)?";
     "This should find test_obj's grandparents";
-    goals = {{'parent, test_obj, 'Y}, {'parent, 'Y, 'X}};
+    goals = {{'parent, test_obj, {'var, 'Y}}, {'parent, {'var, 'Y}, {'var, 'X}}};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
@@ -853,13 +886,13 @@ object RULE_ENGINE
     cousin_obj.father = sibling_obj;
     "Query: cousin_obj and test_obj share a grandparent";
     "Find: does cousin_obj's grandparent equal test_obj's grandparent?";
-    goals_test_obj = {{'parent, test_obj, 'P1}, {'parent, 'P1, 'TestGrandparent}};
+    goals_test_obj = {{'parent, test_obj, {'var, 'P1}}, {'parent, {'var, 'P1}, {'var, 'TestGrandparent}}};
     result_test = this:_prove_goals(goals_test_obj, []);
     typeof(result_test) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result_test['success] || raise(E_ASSERT, "Should find test_obj's grandparent");
     test_grandparent = result_test['bindings]['TestGrandparent];
     "Now check cousin_obj's grandparent";
-    goals_cousin = {{'parent, cousin_obj, 'P2}, {'parent, 'P2, 'CousinGrandparent}};
+    goals_cousin = {{'parent, cousin_obj, {'var, 'P2}}, {'parent, {'var, 'P2}, {'var, 'CousinGrandparent}}};
     result_cousin = this:_prove_goals(goals_cousin, []);
     typeof(result_cousin) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
     result_cousin['success] || raise(E_ASSERT, "Should find cousin's grandparent");
@@ -899,11 +932,11 @@ object RULE_ENGINE
     "Check first goal";
     goal1 = rule.body[1];
     goal1[1] == 'has_key || raise(E_ASSERT, "First predicate should be has_key");
-    goal1[2] == 'Player || raise(E_ASSERT, "First goal arg should be Player variable");
+    goal1[2] == {'var, 'Player} || raise(E_ASSERT, "First goal arg should be Player variable");
     "Check second goal";
     goal2 = rule.body[2];
     goal2[1] == 'is_trusted || raise(E_ASSERT, "Second predicate should be is_trusted");
-    goal2[2] == 'Player || raise(E_ASSERT, "Second goal arg should be Player variable");
+    goal2[2] == {'var, 'Player} || raise(E_ASSERT, "Second goal arg should be Player variable");
     return true;
   endverb
 
@@ -915,7 +948,7 @@ object RULE_ENGINE
     length(rule.body) == 2 || raise(E_ASSERT, "Should have 2 goals");
     goal1 = rule.body[1];
     goal1[1] == 'has_key || raise(E_ASSERT, "First predicate should be has_key");
-    goal1[2] == 'Player || raise(E_ASSERT, "First arg should be Player variable");
+    goal1[2] == {'var, 'Player} || raise(E_ASSERT, "First arg should be Player variable");
     goal2 = rule.body[2];
     goal2[1] == 'is_open || raise(E_ASSERT, "Second predicate should be is_open");
     goal2[2] == 'location || raise(E_ASSERT, "Second arg should be location constant");
@@ -1061,7 +1094,7 @@ object RULE_ENGINE
     great_grandmother_obj.mother = great_great_grandmother_obj;
     "Query: 4-goal chain to find great-great-grandmother";
     "This tests: test_obj -> gen2 -> gen3 -> gen4 -> gen5";
-    goals = {{'parent, test_obj, 'P1}, {'parent, 'P1, 'P2}, {'parent, 'P2, 'P3}, {'parent, 'P3, 'Result}};
+    goals = {{'parent, test_obj, {'var, 'P1}}, {'parent, {'var, 'P1}, {'var, 'P2}}, {'parent, {'var, 'P2}, {'var, 'P3}}, {'parent, {'var, 'P3}, {'var, 'Result}}};
     empty_bindings = [];
     result = this:_prove_goals(goals, empty_bindings);
     typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
@@ -1191,7 +1224,7 @@ object RULE_ENGINE
     "This is bounded negation - one unbound variable is OK";
     "Set up test_obj to have a father";
     test_obj.father = $root;
-    not_goal = {'not, {'parent, test_obj, 'Parent}};
+    not_goal = {'not, {'parent, test_obj, {'var, 'Parent}}};
     rule = <$rule, .name = 'test_bounded_not, .head = 'test_bounded_not, .body = {not_goal}, .variables = {'Parent}>;
     "Evaluate with no bindings - should NOT have errors";
     result = this:evaluate(rule, []);

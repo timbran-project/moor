@@ -47,9 +47,9 @@ object HENRI
     " nose up at the offering with disdain."
   };
   property feed_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_feed_rule, .body = {
-      {'is_grouchy, 'This},
-      {'isa, 'Food, CAT_KIBBLE},
-      {'location_is, 'Food, 'Accessor}
+      {'is_grouchy, {'var, 'This}},
+      {'isa, {'var, 'Food}, CAT_KIBBLE},
+      {'location_is, {'var, 'Food}, {'var, 'Accessor}}
     }, .variables = {'This, 'Food, 'Accessor}, .head = 'henri_feed_rule>;
   property kibble_taken_msg_bag (owner: HACKER, flags: "r") = <MSG_BAG, {{
       <SUB, .capitalize = true, .type = 'dobj>,
@@ -90,8 +90,8 @@ object HENRI
       " gives you a look that manages to convey both disdain and resignation about their current living conditions."
     }}>;
   property mood (owner: HACKER, flags: "rc") = "sleepy";
-  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .body = {{'is_grouchy, 'This}}, .variables = {'This}, .head = 'grouchy_rule>, .effects = {{'announce, 'pet_grouchy_msg}}, .fired_at = 0>;
-  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .body = {{'is_playful, 'This}}, .variables = {'This}, .head = 'playful_rule>, .effects = {{'announce, 'pet_playful_msg}}, .fired_at = 0>;
+  property on_pet_grouchy_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_pet, .when = <RULE, .name = 'grouchy_rule, .body = {{'is_grouchy, {'var, 'This}}}, .variables = {'This}, .head = 'grouchy_rule>, .effects = {{'announce, 'pet_grouchy_msg}}, .fired_at = 0>;
+  property on_pet_playful_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_pet, .when = <RULE, .name = 'playful_rule, .body = {{'is_playful, {'var, 'This}}}, .variables = {'This}, .head = 'playful_rule>, .effects = {{'announce, 'pet_playful_msg}}, .fired_at = 0>;
   property pet_denied_msg_bag (owner: HACKER, flags: "rc") = <MSG_BAG, {"{nc} hisses and swats at {p_dobj} hand before {dobj} can touch him.", "{nc} lets out a low growl and bares {p} teeth at {dobj}.", "{nc} backs away with a suspicious glare, clearly warning {dobj} to keep {p} distance.", "{nc} flexes {p} claws menacingly as {dobj} approaches, a silent but clear threat."}>;
   property pet_grouchy_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'dobj>,
@@ -187,7 +187,7 @@ object HENRI
       <SUB, .capitalize = true, .type = 'actor>,
       " murmurs something that sounds like \"The vibrations are almost as good as the old heating vent... almost.\""
     }}>;
-  property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .body = {{'not, {'is_grouchy, 'This}}}, .variables = {'This}, .head = 'henri_pet_rule>;
+  property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .body = {{'not, {'is_grouchy, {'var, 'This}}}}, .variables = {'This}, .head = 'henri_pet_rule>;
   property pets_received (owner: HACKER, flags: "rc") = 33;
   property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
   property sleepy_threshold_msg (owner: HACKER, flags: "r") = {

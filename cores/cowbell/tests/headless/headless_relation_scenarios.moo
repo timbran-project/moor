@@ -18,7 +18,9 @@ object HEADLESS_RELATION_SCENARIOS
     rel:assert({room_a, room_b, "north"});
     rel:assert({room_b, room_c, "east"});
     rel:assert({room_a, room_c, "shortcut"});
-    from_a = rel:query({room_a, $dvar:mk_dest(), $dvar:mk_label()});
+    $test_utils:assert_eq(rel:count(), 3, "relation should have three asserted tuples before query");
+    $test_utils:assert_eq(length(rel:tuples()), 3, "relation should enumerate three asserted tuples before query");
+    from_a = rel:query({room_a, {'var, 'dest}, {'var, 'label}});
     $test_utils:assert_eq(length(from_a), 2, "query should find two outgoing room_a tuples");
     $test_utils:assert_true(['dest -> room_b, 'label -> "north"] in from_a, "query should bind room_b north");
     $test_utils:assert_true(['dest -> room_c, 'label -> "shortcut"] in from_a, "query should bind room_c shortcut");
@@ -43,11 +45,12 @@ object HEADLESS_RELATION_SCENARIOS
     target_b = $thing:create(true);
     rel:assert({actor, target_a, "holds"});
     rel:assert({actor, target_b, "wears"});
+    $test_utils:assert_eq(length(rel:tuples()), 2, "relation should enumerate two asserted tuples before retract");
     $test_utils:assert_true(rel:member({actor, target_a, "holds"}), "first tuple should be present");
     $test_utils:assert_true(rel:member({actor, target_b, "wears"}), "second tuple should be present");
     $test_utils:assert_true(rel:retract({actor, target_a, "holds"}), "retract should remove existing tuple");
     $test_utils:assert_false(rel:member({actor, target_a, "holds"}), "retracted tuple should be absent");
-    remaining = rel:query({actor, $dvar:mk_target(), $dvar:mk_label()});
+    remaining = rel:query({actor, {'var, 'target}, {'var, 'label}});
     $test_utils:assert_eq(length(remaining), 1, "query should return only the unretracted tuple");
     $test_utils:assert_true(['target -> target_b, 'label -> "wears"] in remaining, "query should retain indexed second tuple");
     $test_utils:assert_false(rel:retract({actor, target_a, "holds"}), "retracting a missing tuple should return false");

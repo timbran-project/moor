@@ -114,7 +114,6 @@ define DM = #78;
 
 // relations
 define RELATION = #23;
-define DVAR = #24;
 
 // rules
 define RULE_ENGINE = #62;

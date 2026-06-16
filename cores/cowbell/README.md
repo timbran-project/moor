@@ -4,6 +4,10 @@
   <img src="padishah.png" alt="I need... more cowbell" width="400">
 </p>
 
+> [!IMPORTANT]
+> Cowbell currently requires mooR `main`. It uses post-1.0 runtime/compiler features and will not
+> build or run correctly against the stable 1.0 release branch.
+
 [mooR](https://timbran.org/moor.html) is a from-scratch rewrite of the LambdaMOO server in Rust,
 designed for building persistent, programmable social environments. It's a multi-user virtual
 environment where users can build and program the world around them while they're in it.
@@ -84,7 +88,7 @@ top of the event and behaviour systems without requiring framework changes.
 - Capability-based security for fine-grained permissions (`root.moo`, `grant_utils.moo`, `@grant`)
 - Object matching system (`match.moo`)
 - Permission roles: arch_wizard, wizard, builder, programmer, hacker
-- Relational/graph system for object relationships (`relation.moo`, `dvar.moo`)
+- Relational/graph system for object relationships (`relation.moo`)
 - Rule engine for datalog-style queries and logic (`rule_engine.moo`, `rule.moo`)
 - Reaction system for declarative event-driven behaviors (`reaction.moo`)
 - Task scheduler for deferred and periodic execution (`scheduler.moo`)

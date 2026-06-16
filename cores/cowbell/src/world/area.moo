@@ -114,10 +114,10 @@ object AREA
     tuples = this.passages_rel:select_containing(room);
     if (length(tuples) == 0)
       tuples = {};
-      for binding in (this.passages_rel:query({room, $dvar:mk_dest(), $dvar:mk_passage()}))
+      for binding in (this.passages_rel:query({room, {'var, 'dest}, {'var, 'passage}}))
         tuples = {@tuples, {room, binding['dest], binding['passage]}};
       endfor
-      for binding in (this.passages_rel:query({$dvar:mk_src(), room, $dvar:mk_passage()}))
+      for binding in (this.passages_rel:query({{'var, 'src}, room, {'var, 'passage}}))
         tuples = {@tuples, {binding['src], room, binding['passage]}};
       endfor
     endif
@@ -165,7 +165,7 @@ object AREA
       current = frontier[1];
       frontier = listdelete(frontier, 1);
       "Find passages from current room using datalog query";
-      results = this.passages_rel:query({current, $dvar:mk_dest(), $dvar:mk_passage()});
+      results = this.passages_rel:query({current, {'var, 'dest}, {'var, 'passage}});
       for binding in (results)
         dest = binding['dest];
         passage = binding['passage];
@@ -178,7 +178,7 @@ object AREA
         endif
       endfor
       "Check reverse direction too (dest to current)";
-      results = this.passages_rel:query({$dvar:mk_src(), current, $dvar:mk_passage()});
+      results = this.passages_rel:query({{'var, 'src}, current, {'var, 'passage}});
       for binding in (results)
         src = binding['src];
         passage = binding['passage];
@@ -227,7 +227,7 @@ object AREA
       queue = listdelete(queue, 1);
       "Try passage forward edges: current -> next";
       if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
-        results = this.passages_rel:query({current, $dvar:mk_next(), $dvar:mk_passage()});
+        results = this.passages_rel:query({current, {'var, 'next}, {'var, 'passage}});
         for binding in (results)
           next = binding['next];
           passage = binding['passage];
@@ -243,7 +243,7 @@ object AREA
           endif
         endfor
         "Try passage reverse edges: next -> current";
-        results = this.passages_rel:query({$dvar:mk_next(), current, $dvar:mk_passage()});
+        results = this.passages_rel:query({{'var, 'next}, current, {'var, 'passage}});
         for binding in (results)
           next = binding['next];
           passage = binding['passage];
