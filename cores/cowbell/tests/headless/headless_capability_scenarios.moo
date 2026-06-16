@@ -570,17 +570,17 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
-  verb test_headless_capability_set_owner_run_as_allows_non_owner_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Compatibility scenario: set_owner capability still works for a non-owner actor when the capability carries run_as authority.";
+  verb test_headless_capability_set_owner_allows_non_owner_object_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: set_owner capability lets a non-owner update an object's owner through scoped grants.";
     target = #-1;
     try
       target = create($thing);
       original_owner = target.owner;
       $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
       $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
-      cap = $root:issue_capability(target, {'set_owner}, 0, $arch_wizard);
+      cap = $root:issue_capability(target, {'set_owner});
       this:_set_owner_with_cap_as_player(cap, $player);
-      $test_utils:assert_eq(target.owner, $player, "run_as set_owner capability should update owner");
+      $test_utils:assert_eq(target.owner, $player, "set_owner capability should update owner");
       $test_utils:assert_true(original_owner != target.owner, "set_owner test fixture should actually change ownership");
       $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
     finally
@@ -629,17 +629,17 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
-  verb test_headless_capability_set_thumbnail_run_as_allows_non_owner_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Compatibility scenario: set_thumbnail capability still works for a non-owner actor when the capability carries run_as authority.";
+  verb test_headless_capability_set_thumbnail_allows_non_owner_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: set_thumbnail capability lets a non-owner update an object's thumbnail through scoped grants.";
     target = #-1;
     try
       target = create($thing);
       $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
       $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
-      cap = $root:issue_capability(target, {'set_thumbnail}, 0, $arch_wizard);
+      cap = $root:issue_capability(target, {'set_thumbnail});
       thumbnail = {"image/png", b"iVBORw0KGgo="};
       this:_set_thumbnail_with_cap_as_player(cap, @thumbnail);
-      $test_utils:assert_eq(target.thumbnail, thumbnail, "run_as set_thumbnail capability should update thumbnail");
+      $test_utils:assert_eq(target.thumbnail, thumbnail, "set_thumbnail capability should update thumbnail");
       $test_utils:assert_true(target.owner != $player, "capability use should not transfer ownership");
       $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
     finally
@@ -812,7 +812,7 @@ object HEADLESS_CAPABILITY_SCENARIOS
     "Runtime scenario: set_api_key capability lets a non-owner update the LLM client key.";
     original_key = $llm_client.api_key;
     try
-      cap = $root:issue_capability($llm_client, {'set_api_key}, 0, $arch_wizard);
+      cap = $root:issue_capability($llm_client, {'set_api_key});
       this:_set_api_key_with_cap_as_player(cap, "cap-test-api-key");
       $test_utils:assert_eq($llm_client.api_key, "cap-test-api-key", "set_api_key capability should update the key");
     finally

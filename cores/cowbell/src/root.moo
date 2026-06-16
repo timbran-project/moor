@@ -75,22 +75,27 @@ object ROOT
   method set_owner owner: ARCH_WIZARD
     "Set this object's owner and retitle any `c` properties on the object.";
     actor = caller_perms();
-    {target, perms} = this:check_permissions_as(actor, 'set_owner);
-    set_task_perms(perms);
     {new_owner, ?suspendok = 0} = args;
     valid(new_owner) || raise(E_INVARG);
-    target.owner = new_owner;
+    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_owner);
+    chowned_props = {};
     for pname in (properties(target))
-      if (suspendok && (ticks_left() < 5000 || seconds_left() < 2))
-        suspend(0);
-      endif
       info = property_info(target, pname);
       if (typeof(info) == TYPE_LIST && length(info) >= 2)
         perms_string = info[2];
         if (typeof(perms_string) == TYPE_STR && index(perms_string, "c"))
-          set_property_info(target, pname, {new_owner, perms_string});
+          chowned_props = {@chowned_props, {pname, perms_string}};
+          grants = {@grants, {"property_write", target, pname}};
         endif
       endif
+    endfor
+    set_task_perms(perms, grants);
+    target.owner = new_owner;
+    for prop in (chowned_props)
+      if (suspendok && (ticks_left() < 5000 || seconds_left() < 2))
+        suspend(0);
+      endif
+      set_property_info(target, prop[1], {new_owner, prop[2]});
     endfor
   endmethod
 
@@ -134,12 +139,12 @@ object ROOT
   method set_thumbnail owner: ARCH_WIZARD
     "Set the thumbnail image for this object. Permission: owner or wizard.";
     actor = caller_perms();
-    {target, perms} = this:check_permissions_as(actor, 'set_thumbnail);
-    set_task_perms(perms);
+    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_thumbnail);
     {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 20) && raise(E_INVARG, "Thumbnail too large (5MB max)");
     typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
+    set_task_perms(perms, grants);
     target.thumbnail = {content_type, picbin};
   endmethod
 
@@ -549,6 +554,12 @@ object ROOT
         grants = {@grants, {"property_write", this, "description"}};
       elseif (cap == 'set_name_aliases)
         grants = {@grants, {"object_rename", this}, {"property_write", this, "aliases"}};
+      elseif (cap == 'set_owner)
+        grants = {@grants, {"property_write", this, "owner"}};
+      elseif (cap == 'set_thumbnail)
+        grants = {@grants, {"property_write", this, "thumbnail"}};
+      elseif (cap == 'set_api_key)
+        grants = {@grants, {"property_write", this, "api_key"}};
       else
         raise(E_PERM, "No runtime grant mapping for capability " + tostr(cap));
       endif
