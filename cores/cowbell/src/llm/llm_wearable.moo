@@ -603,6 +603,72 @@ object LLM_WEARABLE
     return true;
   endmethod
 
+  method test_tool_set_message_template_scoped_grants owner: ARCH_WIZARD
+    "set_message_template should write a private target message property through a narrow grant.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_set_msg", "old", {$hacker, ""});
+      set_result = tool:_tool_set_message_template(["object" -> tostr(target), "property" -> "wearable_set_msg", "template" -> "new message"], $test_player);
+      $test_utils:assert_true(index(set_result, "Set wearable_set_msg") > 0, "set_message_template should update a non-writable message property through a property_write grant");
+      $test_utils:assert_true(index($sub_utils:decompile(target.wearable_set_msg), "new message") > 0, "set_message_template should store the compiled template");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
+  method test_tool_add_message_template_scoped_grants owner: ARCH_WIZARD
+    "add_message_template should append to a private message bag through a narrow grant.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    bag = $msg_bag:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_private_msgs", bag, {$hacker, ""});
+      add_result = tool:_tool_add_message_template(["object" -> tostr(target), "property" -> "wearable_private_msgs", "template" -> "added message"], $test_player);
+      $test_utils:assert_true(index(add_result, "Added entry") > 0, "add_message_template should append through a message bag entries grant");
+      $test_utils:assert_eq(length(bag.entries), 1, "add_message_template should append one bag entry");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
+  method test_tool_delete_message_template_scoped_grants owner: ARCH_WIZARD
+    "delete_message_template should remove from a private message bag through a narrow grant.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    bag = $msg_bag:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      bag.entries = {$sub_utils:compile("first"), $sub_utils:compile("second")};
+      add_property(target, "wearable_private_msgs", bag, {$hacker, ""});
+      del_result = tool:_tool_delete_message_template(["object" -> tostr(target), "property" -> "wearable_private_msgs", "index" -> 1], $test_player);
+      $test_utils:assert_true(index(del_result, "Removed entry #1") > 0, "delete_message_template should remove through a message bag entries grant");
+      $test_utils:assert_eq(length(bag.entries), 1, "delete_message_template should remove one bag entry");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
   method recycle owner: ARCH_WIZARD
     "Clean up agent when object is destroyed";
     caller == this || caller_perms() == this.owner || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
@@ -804,69 +870,127 @@ object LLM_WEARABLE
   method _tool_set_message_template owner: ARCH_WIZARD
     "Tool: Set a message template (like @setm). Creates property if missing.";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
     {prop_name, template} = {args_map["property"], args_map["template"]};
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
     template || raise(E_INVARG, "Template string required");
-    set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     {success, compiled} = $obj_utils:validate_and_compile_template(template);
     success || raise(E_INVARG, "Template compilation failed: " + compiled);
     obj_name = `target_obj.name ! ANY => tostr(target_obj)';
-    prop_exists = prop_name in target_obj:all_properties();
+    prop_key = prop_name;
+    prop_exists = false;
+    for existing_prop in (target_obj:all_properties())
+      if (tostr(existing_prop) == prop_name)
+        prop_key = existing_prop;
+        prop_exists = true;
+      endif
+    endfor
     if (!prop_exists)
       "Property doesn't exist - try to create it";
       if (!wearer.wizard && target_obj.owner != wearer)
         raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
       endif
+      set_task_perms(wearer, {{"property_define", target_obj}});
       add_property(target_obj, prop_name, compiled, {wearer, "rc"});
       return "Created and set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ").";
     endif
-    "Property exists - check if writable";
-    {writable, error_msg} = $obj_utils:check_message_property_writable(target_obj, prop_name, wearer);
-    writable || raise(E_PERM, error_msg);
-    existing = target_obj.(prop_name);
+    existing = target_obj.(prop_key);
     if (typeof(existing) == TYPE_OBJ && isa(existing, $msg_bag))
+      set_task_perms(wearer, {{"property_write", existing, "entries"}});
       existing.entries = {compiled};
       return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
+    elseif (typeof(existing) == TYPE_FLYWEIGHT && existing.delegate == $msg_bag)
+      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = $msg_bag:mk(compiled);
+      return "Replaced bag " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + ") with a single entry (@setm).";
     endif
-    $obj_utils:set_compiled_message(target_obj, prop_name, compiled, wearer);
+    set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
+    target_obj.(prop_key) = compiled;
     return "Set " + prop_name + " on \"" + obj_name + "\" (" + tostr(target_obj) + "). (@setm command available)";
   endmethod
 
   method _tool_add_message_template owner: ARCH_WIZARD
     "Tool: Append a template to a message bag (like @add-message)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
     {prop_name, template} = {args_map["property"], args_map["template"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
     template || raise(E_INVARG, "Template string required");
-    set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
-    !valid(bag) && (bag = $msg_bag:create(true)) && (target_obj.(prop_name) = bag);
-    bag:add($sub_utils:compile(template));
+    compiled = $sub_utils:compile(template);
+    prop_key = prop_name;
+    prop_exists = false;
+    for existing_prop in (target_obj:all_properties())
+      if (tostr(existing_prop) == prop_name)
+        prop_key = existing_prop;
+        prop_exists = true;
+      endif
+    endfor
+    if (!prop_exists)
+      if (!wearer.wizard && target_obj.owner != wearer)
+        raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
+      endif
+      bag = $msg_bag:create(true);
+      bag.entries = {compiled};
+      set_task_perms(wearer, {{"property_define", target_obj}});
+      add_property(target_obj, prop_name, bag, {wearer, "rc"});
+      return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
+    endif
+    bag = target_obj.(prop_key);
+    if (typeof(bag) == TYPE_OBJ && isa(bag, $msg_bag))
+      entries = bag.entries;
+      set_task_perms(wearer, {{"property_write", bag, "entries"}});
+      bag.entries = {@entries, compiled};
+    elseif (typeof(bag) == TYPE_FLYWEIGHT && bag.delegate == $msg_bag)
+      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = toflyweight($msg_bag, flyslots(bag), {@flycontents(bag), compiled});
+    else
+      new_bag = $msg_bag:create(true);
+      new_bag.entries = {compiled};
+      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = new_bag;
+    endif
     return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
   endmethod
 
   method _tool_delete_message_template owner: ARCH_WIZARD
     "Tool: Delete a template by index from a message bag (like @del-message)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
     {prop_name, idx} = {args_map["property"], args_map["index"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
     typeof(idx) == TYPE_INT || raise(E_TYPE, "Index must be integer");
-    set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    bag = `target_obj.(prop_name) ! E_PROPNF => #-1';
-    valid(bag) && isa(bag, $msg_bag) || raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
-    bag:remove(idx);
+    prop_key = prop_name;
+    prop_exists = false;
+    for existing_prop in (target_obj:all_properties())
+      if (tostr(existing_prop) == prop_name)
+        prop_key = existing_prop;
+        prop_exists = true;
+      endif
+    endfor
+    !prop_exists && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    bag = target_obj.(prop_key);
+    if (typeof(bag) == TYPE_OBJ && isa(bag, $msg_bag))
+      entries = bag.entries;
+      idx < 1 || idx > length(entries) && raise(E_RANGE);
+      set_task_perms(wearer, {{"property_write", bag, "entries"}});
+      bag.entries = listdelete(entries, idx);
+    elseif (typeof(bag) == TYPE_FLYWEIGHT && bag.delegate == $msg_bag)
+      entries = flycontents(bag);
+      idx < 1 || idx > length(entries) && raise(E_RANGE);
+      set_task_perms(wearer, {{"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = toflyweight($msg_bag, flyslots(bag), listdelete(entries, idx));
+    else
+      raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    endif
     return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
   endmethod
 
