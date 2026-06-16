@@ -7,7 +7,6 @@
     "indentWidth": 4
   },
   "excludes": [
-    "book/**",
     "cores/**"
   ],
   "markdown": {

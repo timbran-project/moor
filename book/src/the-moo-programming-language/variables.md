@@ -2,7 +2,9 @@
 
 ## What are variables?
 
-Variables are like labeled containers that hold values in your MOO programs. Think of them as boxes with names written on them - you can put different things in the box, take things out, and refer to the box by its name.
+Variables are like labeled containers that hold values in your MOO programs. Think of them as boxes
+with names written on them - you can put different things in the box, take things out, and refer to
+the box by its name.
 
 ```moo
 // Create a variable called 'player_name' and put a string in it
@@ -43,7 +45,8 @@ player_name = "Alice";
 score = player_name + 100;    // ERROR! Can't add a string and number
 ```
 
-This will give you an `E_TYPE` error when your program runs, because MOO can't add a string (`"Alice"`) to a number (`100`).
+This will give you an `E_TYPE` error when your program runs, because MOO can't add a string
+(`"Alice"`) to a number (`100`).
 
 ### Best practices for dynamic typing:
 
@@ -65,11 +68,13 @@ This will give you an `E_TYPE` error when your program runs, because MOO can't a
 
 ## Variable scope in mooR
 
-**Variable scope** refers to where in your program a variable can be used. mooR gives you several options for controlling scope, which makes it more powerful than the original LambdaMOO.
+**Variable scope** refers to where in your program a variable can be used. mooR gives you several
+options for controlling scope, which makes it more powerful than the original LambdaMOO.
 
 ### Global scope (verb-wide)
 
-By default, when you create a variable in MOO, it has "global" scope within that verb. This means the variable can be used anywhere in the verb, from the moment it's created until the verb ends.
+By default, when you create a variable in MOO, it has "global" scope within that verb. This means
+the variable can be used anywhere in the verb, from the moment it's created until the verb ends.
 
 ```moo
 // This verb demonstrates global scope
@@ -83,7 +88,9 @@ player:tell(high_score_message);  // This works fine
 
 ### Block scope with `let` and `const`
 
-mooR adds the keywords `let` and `const` to create variables with "block scope." These variables only exist within the block (like inside an `if` statement, `while` loop, or explicit `begin/end` block) where they're created.
+mooR adds the keywords `let` and `const` to create variables with "block scope." These variables
+only exist within the block (like inside an `if` statement, `while` loop, or explicit `begin/end`
+block) where they're created.
 
 #### Using `let` for block-scoped variables:
 
@@ -112,7 +119,8 @@ endif
 
 ### Explicit blocks with `begin/end`
 
-mooR also lets you create explicit blocks using `begin` and `end` keywords. This is useful when you want to limit variable scope without needing an `if` or `while` statement:
+mooR also lets you create explicit blocks using `begin` and `end` keywords. This is useful when you
+want to limit variable scope without needing an `if` or `while` statement:
 
 ```moo
 // Global variable
@@ -130,7 +138,8 @@ player:tell("Your total score is: " + tostr(total_score));
 
 ### The `global` keyword
 
-Sometimes when you're inside a block, you want to explicitly create or modify a global variable. You can use the `global` keyword to be clear about this:
+Sometimes when you're inside a block, you want to explicitly create or modify a global variable. You
+can use the `global` keyword to be clear about this:
 
 ```moo
 player_count = 0;  // Global variable
@@ -149,6 +158,7 @@ endif
 Understanding scope helps you write better, cleaner code:
 
 ### 1. **Prevents naming conflicts:**
+
 ```moo
 total = 0;  // Global total
 
@@ -163,6 +173,7 @@ endfor
 ```
 
 ### 2. **Makes code easier to understand:**
+
 ```moo
 // Bad: unclear scope
 if (condition)
@@ -179,6 +190,7 @@ endif
 ```
 
 ### 3. **Prevents accidental variable reuse:**
+
 ```moo
 // Without block scope, this could be confusing:
 for i in [1..5]
@@ -202,6 +214,7 @@ endfor
 ## Common variable patterns
 
 ### 1. **Temporary calculations:**
+
 ```moo
 begin
     let base_damage = weapon.damage;
@@ -213,6 +226,7 @@ end
 ```
 
 ### 2. **Configuration constants:**
+
 ```moo
 const MAX_INVENTORY_SIZE = 20;
 const STARTING_GOLD = 100;
@@ -224,6 +238,7 @@ endif
 ```
 
 ### 3. **Loop variables:**
+
 ```moo
 // Process each item in inventory
 for let item in (player.inventory)
@@ -258,4 +273,5 @@ endfor
    endif
    ```
 
-Variables are fundamental to MOO programming - master them, and you'll be able to write much more powerful and organized code!
+Variables are fundamental to MOO programming - master them, and you'll be able to write much more
+powerful and organized code!

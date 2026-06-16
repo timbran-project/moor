@@ -1,10 +1,12 @@
 # Alternative Installation Methods
 
-While Docker Compose is the recommended approach for most users, mooR provides several other installation methods for different use cases and environments.
+While Docker Compose is the recommended approach for most users, mooR provides several other
+installation methods for different use cases and environments.
 
 ## Debian Packages
 
-For Debian-based systems (including Ubuntu), mooR provides native `.deb` packages that integrate cleanly with your system's package management and systemd service management.
+For Debian-based systems (including Ubuntu), mooR provides native `.deb` packages that integrate
+cleanly with your system's package management and systemd service management.
 
 ### About Debian Packages
 
@@ -16,7 +18,8 @@ mooR packages include:
 - **moor-curl-worker**: HTTP request worker with systemd service
 - **moor-web-client**: Static web client files (architecture-independent)
 
-All packages integrate with systemd, create necessary users and directories, and include the LambdaMOO-based lambda-moor core database by default.
+All packages integrate with systemd, create necessary users and directories, and include the
+LambdaMOO-based lambda-moor core database by default.
 
 ### Installation Options
 
@@ -62,9 +65,11 @@ sudo dpkg -i ../../target/debian/moor-*.deb
 
 For detailed installation, configuration, service management, testing, and troubleshooting:
 
-**→ See [`deploy/debian-packages/README.md`](https://codeberg.org/timbran/moor/src/branch/v1.0-release/deploy/debian-packages/README.md)**
+**→ See
+[`deploy/debian-packages/README.md`](https://codeberg.org/timbran/moor/src/branch/v1.0-release/deploy/debian-packages/README.md)**
 
 This includes:
+
 - Complete installation and post-installation configuration
 - Service management with systemd
 - nginx setup for the web client
@@ -75,6 +80,7 @@ This includes:
 ### When to Use Debian Packages
 
 Debian packages are ideal when:
+
 - You're running a Debian-based Linux distribution
 - You want system-level integration (systemd services, standard file locations)
 - You prefer traditional package management over containers
@@ -83,7 +89,8 @@ Debian packages are ideal when:
 
 ## Building from Source
 
-For developers, custom deployments, or platforms without pre-built packages, you can compile mooR from source code.
+For developers, custom deployments, or platforms without pre-built packages, you can compile mooR
+from source code.
 
 ### Prerequisites
 
@@ -112,8 +119,7 @@ source ~/.cargo/env
 
    This will take some time as Rust compiles all dependencies and mooR components.
 
-3. **Find your binaries**:
-   After building, you'll find the executables in `target/release/`:
+3. **Find your binaries**: After building, you'll find the executables in `target/release/`:
    - `moor-daemon`
    - `moor-telnet-host`
    - `moor-web-host`
@@ -123,18 +129,23 @@ source ~/.cargo/env
 
 When building from source, you'll need to manually set up:
 
-- **PASETO authentication keys**: The daemon auto-generates these keys with the `--generate-keypair` flag (creates `moor-signing-key.pem` and `moor-verifying-key.pem`)
+- **PASETO authentication keys**: The daemon auto-generates these keys with the `--generate-keypair`
+  flag (creates `moor-signing-key.pem` and `moor-verifying-key.pem`)
 - **Configuration files**: Create appropriate configuration for each component
 - **Core database**: Install and configure your chosen MOO core
-- **Service coordination**: Ensure all components can communicate properly (see [Server Architecture](server-architecture.md#communication-transport))
+- **Service coordination**: Ensure all components can communicate properly (see
+  [Server Architecture](server-architecture.md#communication-transport))
   - Default: IPC (Unix domain sockets) - simplest, no encryption needed
-  - Clustered: TCP with CURVE encryption requires enrollment tokens (see `--rotate-enrollment-token` flag)
+  - Clustered: TCP with CURVE encryption requires enrollment tokens (see `--rotate-enrollment-token`
+    flag)
 
-The `docker-compose.yml` and `process-compose.yaml` files provide excellent examples of how to configure each component.
+The `docker-compose.yml` and `process-compose.yaml` files provide excellent examples of how to
+configure each component.
 
 ### When to Build from Source
 
 Source builds are best for:
+
 - Development and testing
 - Platforms without Debian package support
 - Custom configurations requiring code modifications
@@ -143,21 +154,26 @@ Source builds are best for:
 
 ## Configuration Reference
 
-Regardless of your installation method, you'll need to configure mooR's components. The arguments and options for the server executables are documented in the [Server Configuration](server-configuration.md) chapter.
+Regardless of your installation method, you'll need to configure mooR's components. The arguments
+and options for the server executables are documented in the
+[Server Configuration](server-configuration.md) chapter.
 
 ## Choosing Your Method
 
-| Method | Best For | Pros | Cons |
-|--------|----------|------|------|
-| **Docker Compose** | Most users, quick setup | Easy, complete environment, works everywhere | Requires Docker knowledge |
-| **Debian Packages** | Production Linux servers | System integration, familiar package management | Limited to Debian-based systems |
-| **Source Build** | Developers, custom needs | Full control, latest code, all platforms | Complex setup, manual configuration |
+| Method              | Best For                 | Pros                                            | Cons                                |
+| ------------------- | ------------------------ | ----------------------------------------------- | ----------------------------------- |
+| **Docker Compose**  | Most users, quick setup  | Easy, complete environment, works everywhere    | Requires Docker knowledge           |
+| **Debian Packages** | Production Linux servers | System integration, familiar package management | Limited to Debian-based systems     |
+| **Source Build**    | Developers, custom needs | Full control, latest code, all platforms        | Complex setup, manual configuration |
 
 ## Getting Help
 
 For installation issues:
+
 - Check the mooR Codeberg repository for the latest installation instructions
 - Review the `docker-compose.yml` file for configuration examples
 - Consult the community forums or Discord for platform-specific guidance
 
-Remember that regardless of your installation method, you'll also need to choose and install a MOO core database - see [Understanding MOO Cores](understanding-moo-cores.md) for guidance on that crucial next step.
+Remember that regardless of your installation method, you'll also need to choose and install a MOO
+core database - see [Understanding MOO Cores](understanding-moo-cores.md) for guidance on that
+crucial next step.

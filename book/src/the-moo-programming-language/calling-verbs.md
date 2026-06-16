@@ -2,13 +2,19 @@
 
 ## What are verbs?
 
-In MOO, a _verb_ is a piece of code that belongs to an object and can be called to perform actions or calculations. If you're familiar with other programming languages, verbs are similar to what other languages call "methods" - they're functions or behaviours that are attached to objects.
+In MOO, a _verb_ is a piece of code that belongs to an object and can be called to perform actions
+or calculations. If you're familiar with other programming languages, verbs are similar to what
+other languages call "methods" - they're functions or behaviours that are attached to objects.
 
 ## The concept of message passing
 
-When you call a verb on an object, you're essentially sending that object a message saying "please do this action" or "please tell me this information." The object then looks for a verb with that name and executes it. This is sometimes called "message passing" or "method dispatch" in programming terminology.
+When you call a verb on an object, you're essentially sending that object a message saying "please
+do this action" or "please tell me this information." The object then looks for a verb with that
+name and executes it. This is sometimes called "message passing" or "method dispatch" in programming
+terminology.
 
 Think of it like talking to someone:
+
 - You (the caller) say "Hey Bob, please `tell` me your `name`"
 - Bob (the object) hears the message `tell` with argument `name`
 - Bob responds by running his `tell` verb with that argument
@@ -22,7 +28,9 @@ object:verb_name(arguments...)
 ```
 
 Here's how it breaks down:
-- `object` - The object you want to send the message to (can be an object number like `#123`, a variable, or a system reference like `$player`)
+
+- `object` - The object you want to send the message to (can be an object number like `#123`, a
+  variable, or a system reference like `$player`)
 - `:` - The colon tells MOO this is a verb call (not a built-in function)
 - `verb_name` - The name of the verb you want to call
 - `(arguments...)` - Any arguments you want to pass to the verb, separated by commas
@@ -45,11 +53,13 @@ player:give_object(sword, 1);
 
 ## Verbs can have multiple names
 
-One unique feature of MOO verbs is that they can have multiple names, and even use wildcards. This makes them very flexible and convenient to use.
+One unique feature of MOO verbs is that they can have multiple names, and even use wildcards. This
+makes them very flexible and convenient to use.
 
 ### Multiple names:
 
-A single verb might be defined with several names like `"get take grab"`. This means you can call it using any of those names:
+A single verb might be defined with several names like `"get take grab"`. This means you can call it
+using any of those names:
 
 ```moo
 // All of these call the same verb:
@@ -60,7 +70,8 @@ sword:grab();
 
 ### Wildcard names:
 
-Verbs can also use wildcards (`*`) in their names. For example, a verb named `"*` might respond to any verb call:
+Verbs can also use wildcards (`*`) in their names. For example, a verb named `"*` might respond to
+any verb call:
 
 ```moo
 // If an object has a verb named "*", these might all work:
@@ -77,11 +88,13 @@ thing:getall();
 thing:getsilver();
 ```
 
-This flexibility allows objects to respond intelligently to a wide variety of commands, making MOO feel more natural and conversational.
+This flexibility allows objects to respond intelligently to a wide variety of commands, making MOO
+feel more natural and conversational.
 
 ## Dynamic verb calls
 
-Sometimes you don't know the verb name until your program is running. In these cases, you can use a string expression in parentheses:
+Sometimes you don't know the verb name until your program is running. In these cases, you can use a
+string expression in parentheses:
 
 ```moo
 verb_name = "tell";
@@ -98,6 +111,7 @@ target:(action + "_quietly")(player);  // Calls "get_quietly"
 ## Arguments and return values
 
 Like functions in other languages, verbs can:
+
 - Take arguments (input values)
 - Return values (output results)
 - Have side effects (change the state of objects or the world)
@@ -130,7 +144,8 @@ endif
 
 ### Verbs can fail:
 
-If an object doesn't have the verb you're trying to call, MOO will raise an `E_VERBNF` (verb not found) error:
+If an object doesn't have the verb you're trying to call, MOO will raise an `E_VERBNF` (verb not
+found) error:
 
 ```moo
 // This might raise E_VERBNF if the object doesn't have a "fly" verb
@@ -178,8 +193,8 @@ endwhile
 return info ? {object} | 0;
 ```
 
-This returns `{location}` when the verb is found, where `location` is the object that defines the verb, or `0` when no
-matching verb exists in the inheritance chain.
+This returns `{location}` when the verb is found, where `location` is the object that defines the
+verb, or `0` when no matching verb exists in the inheritance chain.
 
 ### Self-references:
 
@@ -199,4 +214,5 @@ current_location = this:location();
 4. **Consider using `this`** instead of the object's number when calling verbs on the same object
 5. **Document your verbs** so other programmers know what arguments they expect
 
-Verb calls are one of the most important concepts in MOO programming - they're how objects communicate with each other and how the virtual world comes alive through interaction!
+Verb calls are one of the most important concepts in MOO programming - they're how objects
+communicate with each other and how the virtual world comes alive through interaction!

@@ -9,9 +9,10 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 
 **Import/Export of Objects:**
 
-- [`load_object`](../../the-system/object-packaging.md#load_object) - Load an object from objdef format with optional
-  conflict detection and resolution options.
-- `dump_object` - Takes an object and returns a list of strings representing the object definition in objdef format.
+- [`load_object`](../../the-system/object-packaging.md#load_object) - Load an object from objdef
+  format with optional conflict detection and resolution options.
+- `dump_object` - Takes an object and returns a list of strings representing the object definition
+  in objdef format.
 - `reload_object` - Replace an existing object with a new objdef definition (wizard-only).
 - `parse_objdef_constants` - Parse constants from objdef text into a map.
 
@@ -28,7 +29,8 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 **Cryptography:**
 
 - `age_generate_keypair` - Generates a new X25519 keypair for use with age encryption
-- `age_encrypt` - Encrypts a message using age encryption for one or more recipients, outputs as base64
+- `age_encrypt` - Encrypts a message using age encryption for one or more recipients, outputs as
+  base64
 - `age_decrypt` - Decrypts a base64-encoded age-encrypted message using one or more private keys
 - `age_passphrase_encrypt` - Encrypts a message using age encryption with a passphrase
 - `age_passphrase_decrypt` - Decrypts an age-encrypted message using a passphrase
@@ -38,8 +40,8 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 - `vm_counters` - Performance counters for profiling VM internals
 - `bf_counters` - Performance counters for profiling builtin function performance
 - `db_counters` - Performance counters for profiling DB performance
-- [`function_help`](server.md#function_help) - Returns runtime documentation for builtin functions extracted from
-  compiled code
+- [`function_help`](server.md#function_help) - Returns runtime documentation for builtin functions
+  extracted from compiled code
 
 **Task Management:**
 
@@ -52,11 +54,13 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 
 - [`astar`](algorithms.md#astar) - Run A* pathfinding over a tile grid
 - [`term_unify`](algorithms.md#term_unify) - Unify structural MOO values
-- [`term_substitute`](algorithms.md#term_substitute) - Substitute term variables using a bindings map
+- [`term_substitute`](algorithms.md#term_substitute) - Substitute term variables using a bindings
+  map
 
 ### Functions Borrowed from ToastStunt
 
-The following functions were originally extensions in ToastStunt that have been incorporated into mooR:
+The following functions were originally extensions in ToastStunt that have been incorporated into
+mooR:
 
 - `argon2` - Hashing function for secure password storage
 - `argon2_verify` - Verifies a password against an Argon2 hash

@@ -1,8 +1,12 @@
 # List Comprehensions
 
-Sometimes you need to create a new list by doing something to every item in an existing list. Maybe you want to double all the numbers, or add "Hello" to the front of every name. In most programming situations, you'd write a loop to go through each item one by one.
+Sometimes you need to create a new list by doing something to every item in an existing list. Maybe
+you want to double all the numbers, or add "Hello" to the front of every name. In most programming
+situations, you'd write a loop to go through each item one by one.
 
-List comprehensions give you a more direct way to say "make me a new list where each item is transformed in this specific way." Think of it as a recipe for building lists: you specify what goes in, what transformation to apply, and you get a new list out.
+List comprehensions give you a more direct way to say "make me a new list where each item is
+transformed in this specific way." Think of it as a recipe for building lists: you specify what goes
+in, what transformation to apply, and you get a new list out.
 
 ## Basic Syntax
 
@@ -19,8 +23,9 @@ You can also include an `if` clause to keep only some of the input items:
 ```
 
 Let's break this down:
+
 - `source_list` is where your original data comes from
-- `each_item` is what you call each piece of data as you work with it  
+- `each_item` is what you call each piece of data as you work with it
 - `what_to_do_with_each_item` is the transformation you want to apply
 - `condition`, if present, decides whether the current item is included
 - The curly braces `{}` tell MOO you're creating a new list
@@ -35,7 +40,8 @@ let doubled = { x * 2 for x in (numbers) };
 // Result: {2, 4, 6, 8, 10}
 ```
 
-Here's what happened: MOO took each number from the `numbers` list, called it `x`, doubled it with `x * 2`, and put the result in a new list.
+Here's what happened: MOO took each number from the `numbers` list, called it `x`, doubled it with
+`x * 2`, and put the result in a new list.
 
 You can do any kind of transformation. Here's how to add a greeting to each name:
 
@@ -47,7 +53,8 @@ let greetings = { "Hello, " + name for name in (names) };
 
 ### Working with More Complex Data
 
-You can also work with lists that contain other lists (we call these "nested" lists). For example, if you have student information stored as pairs of name and score:
+You can also work with lists that contain other lists (we call these "nested" lists). For example,
+if you have student information stored as pairs of name and score:
 
 ```moo
 let students = {
@@ -74,11 +81,14 @@ let grades = {
 // Result: {"B", "A", "C"}
 ```
 
-This uses MOO's conditional operator (`?` and `|`) to check the score and assign the appropriate letter grade.
+This uses MOO's conditional operator (`?` and `|`) to check the score and assign the appropriate
+letter grade.
 
 ## Working with Number Ranges
 
-Sometimes you want to create a list based on a sequence of numbers rather than an existing list. MOO lets you create number ranges using the `[start..end]` syntax, and you can use these with comprehensions too.
+Sometimes you want to create a list based on a sequence of numbers rather than an existing list. MOO
+lets you create number ranges using the `[start..end]` syntax, and you can use these with
+comprehensions too.
 
 For example, to create a list of the first five square numbers:
 
@@ -114,7 +124,8 @@ endfor
 let squares = { x * x for x in [1..5] };
 ```
 
-Both produce the same result, but the comprehension version says exactly what you want: "make a list where each item is a number squared."
+Both produce the same result, but the comprehension version says exactly what you want: "make a list
+where each item is a number squared."
 
 ## Real-World Examples
 
@@ -164,8 +175,9 @@ let fahrenheit = { (c * 9/5) + 32 for c in (celsius) };
 
 ## Filtering Items
 
-The `if` clause is useful when you want to skip input items rather than produce a placeholder value for them. It runs
-after each item has been assigned to the loop variable and before the produced expression is evaluated.
+The `if` clause is useful when you want to skip input items rather than produce a placeholder value
+for them. It runs after each item has been assigned to the loop variable and before the produced
+expression is evaluated.
 
 For example, this keeps only objects that are both valid and instances of a chosen prototype:
 
@@ -183,8 +195,8 @@ This is different from writing a conditional expression in the produced value:
 let maybe_players = { valid(obj) ? obj | $nothing for obj in (player_ids) };
 ```
 
-That form always produces one output item for each input item. Invalid objects become `$nothing`. With an `if` filter,
-invalid objects are omitted from the result entirely.
+That form always produces one output item for each input item. Invalid objects become `$nothing`.
+With an `if` filter, invalid objects are omitted from the result entirely.
 
 ## Why Comprehensions Can Be Faster
 
@@ -214,6 +226,7 @@ MOO can figure out how big the final list will be and create it all at once. Muc
 ## When Should You Use Comprehensions?
 
 **Comprehensions are great when:**
+
 - You want to do the same thing to every item in a list
 - You want to transform only the items that match a simple condition
 - The transformation is straightforward (not too many complicated steps)
@@ -221,6 +234,7 @@ MOO can figure out how big the final list will be and create it all at once. Muc
 - You're working with lots of data and want better performance
 
 **Stick with regular loops when:**
+
 - You need to stop early based on some condition (like `break`)
 - You're doing things other than just building a list (like sending messages to players)
 - The logic is complex and would be hard to read in one line
@@ -228,7 +242,8 @@ MOO can figure out how big the final list will be and create it all at once. Muc
 
 ## Using Comprehensions with Other mooR Features
 
-List comprehensions work well with other parts of the mooR language. Here are some useful combinations:
+List comprehensions work well with other parts of the mooR language. Here are some useful
+combinations:
 
 ### Creating Maps from Lists
 
@@ -243,7 +258,9 @@ This takes coordinate pairs and turns them into maps with "x" and "y" keys.
 
 ### Using Functions with Comprehensions
 
-Comprehensions work particularly well with [Functions and Lambdas](./lambda-functions.md). You can create small functions that describe transformations, then use them in comprehensions for clean, reusable code:
+Comprehensions work particularly well with [Functions and Lambdas](./lambda-functions.md). You can
+create small functions that describe transformations, then use them in comprehensions for clean,
+reusable code:
 
 ```moo
 // First, create some small functions that do specific transformations
@@ -264,6 +281,7 @@ let greetings = { greet(name) for name in (names) };
 This approach lets you define a transformation once and use it in multiple places.
 
 **For more complex tasks, you can use named functions:**
+
 ```moo
 // A function that formats player information nicely
 fn format_player_info(player)
@@ -278,7 +296,8 @@ This keeps your comprehension simple and readable while allowing complex logic i
 
 ### Calling Methods on Values
 
-mooR lets you call methods directly on values (like strings or numbers). This works great with comprehensions:
+mooR lets you call methods directly on values (like strings or numbers). This works great with
+comprehensions:
 
 ```moo
 let strings = {"hello", "world", "moo"};
@@ -290,6 +309,9 @@ This takes each string and calls its `reverse()` method to flip it backwards.
 
 ## Summary
 
-List comprehensions give you a clear, direct way to create new lists by transforming existing data. They're often faster than loops and make your code more readable by clearly expressing your intent. As you get comfortable with them, you'll find they make many common programming tasks much simpler.
+List comprehensions give you a clear, direct way to create new lists by transforming existing data.
+They're often faster than loops and make your code more readable by clearly expressing your intent.
+As you get comfortable with them, you'll find they make many common programming tasks much simpler.
 
-Whether you're processing game data, transforming user input, or crunching numbers, comprehensions help you write code that says exactly what you want to accomplish.
+Whether you're processing game data, transforming user input, or crunching numbers, comprehensions
+help you write code that says exactly what you want to accomplish.

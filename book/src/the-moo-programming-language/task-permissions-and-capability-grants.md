@@ -24,8 +24,8 @@ in the current activation and remains in effect until the task ends or `set_task
 again.
 
 Normal MOO verb calls still create a new activation whose permissions are determined by the verb
-being called. In particular, changing task permissions in one activation does not automatically
-make those permissions available inside a later called verb.
+being called. In particular, changing task permissions in one activation does not automatically make
+those permissions available inside a later called verb.
 
 ## Capability Grants
 
@@ -63,32 +63,32 @@ runs with the player's identity plus only the specific delegated rights it needs
 
 Object grants:
 
-| Grant | Shape | Meaning |
-|-------|-------|---------|
-| `object_read` | `{"object_read", obj}` | Satisfies object read permission checks for `obj`. |
-| `object_write` | `{"object_write", obj}` | Satisfies object write permission checks for `obj`. |
-| `object_move` | `{"object_move", obj}` | Allows moving `obj`. |
-| `object_recycle` | `{"object_recycle", obj}` | Allows recycling `obj`. |
-| `object_chparent` | `{"object_chparent", obj}` | Allows changing `obj`'s parent. |
+| Grant             | Shape                      | Meaning                                             |
+| ----------------- | -------------------------- | --------------------------------------------------- |
+| `object_read`     | `{"object_read", obj}`     | Satisfies object read permission checks for `obj`.  |
+| `object_write`    | `{"object_write", obj}`    | Satisfies object write permission checks for `obj`. |
+| `object_move`     | `{"object_move", obj}`     | Allows moving `obj`.                                |
+| `object_recycle`  | `{"object_recycle", obj}`  | Allows recycling `obj`.                             |
+| `object_chparent` | `{"object_chparent", obj}` | Allows changing `obj`'s parent.                     |
 
 Property grants:
 
-| Grant | Shape | Meaning |
-|-------|-------|---------|
-| `property_read` | `{"property_read", obj, "prop"}` | Satisfies read checks for `obj.prop`. |
-| `property_write` | `{"property_write", obj, "prop"}` | Satisfies write checks for `obj.prop`. |
-| `property_define` | `{"property_define", obj}` | Allows defining new properties on `obj`. |
-| `property_delete` | `{"property_delete", obj, "prop"}` | Allows deleting `obj.prop`. |
+| Grant             | Shape                              | Meaning                                  |
+| ----------------- | ---------------------------------- | ---------------------------------------- |
+| `property_read`   | `{"property_read", obj, "prop"}`   | Satisfies read checks for `obj.prop`.    |
+| `property_write`  | `{"property_write", obj, "prop"}`  | Satisfies write checks for `obj.prop`.   |
+| `property_define` | `{"property_define", obj}`         | Allows defining new properties on `obj`. |
+| `property_delete` | `{"property_delete", obj, "prop"}` | Allows deleting `obj.prop`.              |
 
 Verb grants:
 
-| Grant | Shape | Meaning |
-|-------|-------|---------|
-| `verb_read` | `{"verb_read", obj, "verb"}` | Satisfies read checks for the resolved verb. |
-| `verb_write` | `{"verb_write", obj, "verb"}` | Satisfies write checks for the resolved verb. |
-| `verb_add` | `{"verb_add", obj}` | Allows adding verbs to `obj`. |
-| `verb_program` | `{"verb_program", obj, "verb"}` | Satisfies code-writing authority for the resolved verb. |
-| `verb_call` | `{"verb_call", obj, "verb"}` | Allows calling the resolved verb, even if it is not public execute. |
+| Grant          | Shape                           | Meaning                                                             |
+| -------------- | ------------------------------- | ------------------------------------------------------------------- |
+| `verb_read`    | `{"verb_read", obj, "verb"}`    | Satisfies read checks for the resolved verb.                        |
+| `verb_write`   | `{"verb_write", obj, "verb"}`   | Satisfies write checks for the resolved verb.                       |
+| `verb_add`     | `{"verb_add", obj}`             | Allows adding verbs to `obj`.                                       |
+| `verb_program` | `{"verb_program", obj, "verb"}` | Satisfies code-writing authority for the resolved verb.             |
+| `verb_call`    | `{"verb_call", obj, "verb"}`    | Allows calling the resolved verb, even if it is not public execute. |
 
 Verb grants are resolved when `set_task_perms()` is called. The string in the grant is used as a
 selector at that time, and the grant is then bound to the concrete verb definition that was found.
@@ -106,8 +106,8 @@ other permission that a builtin might require.
 
 For example, updating verb code requires both:
 
-- permission to write the verb, such as verb ownership, wizard permissions, the verb's `w` bit, or
-  a `verb_write` grant; and
+- permission to write the verb, such as verb ownership, wizard permissions, the verb's `w` bit, or a
+  `verb_write` grant; and
 - authority to program the verb, such as programmer permissions, wizard permissions, or a
   `verb_program` grant.
 

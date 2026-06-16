@@ -2,8 +2,7 @@
 
 ### `typeof`
 
-**Description**:   Returns the type code of a value.
-**Arguments**:
+**Description**: Returns the type code of a value. **Arguments**:
 
 - `value`: The value to get the type of
 
@@ -11,55 +10,55 @@
 
 ### `length`
 
-**Description**:   Returns the length of a sequence (string, list, map).
-**Arguments**:
+**Description**: Returns the length of a sequence (string, list, map). **Arguments**:
 
 - `sequence`: The sequence to measure
 
-**Returns:** An integer representing the length of the sequence  
+**Returns:** An integer representing the length of the sequence\
 **Note:** Will raise an error if the value is not a sequence type.
 
 ## Type Conversion Functions
 
 ### `tostr`
 
-**Description**: Converts value(s) to a string representation.  
+**Description**: Converts value(s) to a string representation.\
 **Arguments**:
 
 - `value1, value2, ...`: One or more values to convert to string
 
-**Returns:** A string representation of the concatenated values  
+**Returns:** A string representation of the concatenated values\
 **Note:** If multiple arguments are provided, they are concatenated together.
 
 ### `tosym`
 
-**Description**: Converts a scalar value to a symbol.  
+**Description**: Converts a scalar value to a symbol.\
 **Arguments**:
 
 - `value`: The value to convert (must be a string, boolean, error, or symbol)
 
-**Returns:** A symbol representing the value  
+**Returns:** A symbol representing the value\
 **Note:** Will raise E_TYPE if the value cannot be converted to a symbol.
 
 ### `toliteral`
 
-**Description**: Converts a value to its literal string representation.  
+**Description**: Converts a value to its literal string representation.\
 **Arguments**:
 
 - `value`: The value to convert
 
-**Returns:** A string containing the literal representation of the value  
+**Returns:** A string containing the literal representation of the value\
 **Note:** This produces a string that could be evaluated to recreate the original value.
 
 ### `toint`
 
-**Description**: Converts a value to an integer.  
+**Description**: Converts a value to an integer.\
 **Arguments**:
 
 - `value`: The value to convert (must be a number, object, string, or error)
 
-**Returns:** The integer representation of the value  
-**Note:** String conversion parses the string as a number; invalid strings convert to 0. Boolean values convert to 1 for `true` and 0 for `false`.
+**Returns:** The integer representation of the value\
+**Note:** String conversion parses the string as a number; invalid strings convert to 0. Boolean
+values convert to 1 for `true` and 0 for `false`.
 
 ### `tonum`
 
@@ -67,32 +66,33 @@ Alias for `toint`. **Description:**
 
 ### `toobj`
 
-**Description**: Converts a value to an object reference.  
+**Description**: Converts a value to an object reference.\
 **Arguments**:
 
 - `value`: The value to convert (must be a number, string, or object)
 
-**Returns:** An object reference  
+**Returns:** An object reference\
 **Note:** For strings, accepts formats like "123" or "#123". Invalid strings convert to object #0.
 
 ### `tofloat`
 
-**Description**: Converts a value to a floating-point number.  
+**Description**: Converts a value to a floating-point number.\
 **Arguments**:
 
 - `value`: The value to convert (must be a number, string, or error)
 
-**Returns:** The floating-point representation of the value  
+**Returns:** The floating-point representation of the value\
 **Note:** String conversion parses the string as a number; invalid strings convert to 0.0.
 
 ### `tobool`
 
-**Description**: Converts a value to a boolean based on mooR's truthiness rules (empty strings/lists/maps/binaries and the number 0 evaluate to `false`, everything else to `true`).  
+**Description**: Converts a value to a boolean based on mooR's truthiness rules (empty
+strings/lists/maps/binaries and the number 0 evaluate to `false`, everything else to `true`).\
 **Arguments**:
 
 - `value`: The value to evaluate
 
-**Returns:** `true` if the value is truthy, otherwise `false`  
+**Returns:** `true` if the value is truthy, otherwise `false`\
 **Note:** This matches the boolean tests used by `if`, `while`, and other control-flow constructs.
 
 ### `uuid`
@@ -101,16 +101,18 @@ Alias for `toint`. **Description:**
 str uuid([int high, int low])
 ```
 
-With no arguments, generates a new time-ordered UUID (v7) and returns it as a string. With two integer arguments,
-reconstructs a UUID from its high and low 64-bit components (big-endian) and returns it as a string.
+With no arguments, generates a new time-ordered UUID (v7) and returns it as a string. With two
+integer arguments, reconstructs a UUID from its high and low 64-bit components (big-endian) and
+returns it as a string.
 
-Raises `E_ARGS` if the argument count is not 0 or 2, and `E_TYPE` if either argument is not an integer.
+Raises `E_ARGS` if the argument count is not 0 or 2, and `E_TYPE` if either argument is not an
+integer.
 
 ## Comparison Functions
 
 ### `equal`
 
-**Description**: Performs a case-sensitive equality comparison between two values.  
+**Description**: Performs a case-sensitive equality comparison between two values.\
 **Arguments**:
 
 - `value1`: First value to compare
@@ -128,18 +130,19 @@ str generate_json(value [, str mode])
 
 Returns the JSON representation of the MOO value.
 
-MOO supports a richer set of values than JSON allows. The optional mode specifies how this function handles the
-conversion of MOO values into their JSON representation.
+MOO supports a richer set of values than JSON allows. The optional mode specifies how this function
+handles the conversion of MOO values into their JSON representation.
 
-The common subset mode, specified by the literal mode string "common-subset", is the default conversion mode. In this
-mode, only the common subset of types (strings and numbers) are translated with fidelity between MOO types and JSON
-types. All other types are treated as alternative representations of the string type. This mode is useful for
-integration with non-MOO applications.
+The common subset mode, specified by the literal mode string "common-subset", is the default
+conversion mode. In this mode, only the common subset of types (strings and numbers) are translated
+with fidelity between MOO types and JSON types. All other types are treated as alternative
+representations of the string type. This mode is useful for integration with non-MOO applications.
 
-The embedded types mode, specified by the literal mode string "embedded-types", adds type information. Specifically,
-values other than strings and numbers, which carry implicit type information, are converted into strings with type
-information appended. The converted string consists of the string representation of the value (as if tostr() were
-applied) followed by the pipe (|) character and the type. This mode is useful for serializing/deserializing objects and
+The embedded types mode, specified by the literal mode string "embedded-types", adds type
+information. Specifically, values other than strings and numbers, which carry implicit type
+information, are converted into strings with type information appended. The converted string
+consists of the string representation of the value (as if tostr() were applied) followed by the pipe
+(|) character and the type. This mode is useful for serializing/deserializing objects and
 collections of MOO values.
 
 ```
@@ -179,8 +182,8 @@ Returns the MOO value representation of the JSON string.
 
 If the specified string is not valid JSON, E_INVARG is raised.
 
-The optional mode specifies how this function handles conversion of MOO values into their JSON representation. The
-options are the same as for generate_json().
+The optional mode specifies how this function handles conversion of MOO values into their JSON
+representation. The options are the same as for generate_json().
 
 ```
 parse_json("{}")                                            =>  []
@@ -198,8 +201,8 @@ parse_json("{\"foo\":\"E_PERM\"}", "common-subset")         =>  ["foo" -> "E_PER
 parse_json("{\"foo\":\"E_PERM|err\"}", "embedded-types")    =>  ["foo" -> E_PERM]
 ```
 
-In embedded types mode, key values can be converted to MOO types by appending type information. The full set of
-supported types are obj, str, err, float and int.
+In embedded types mode, key values can be converted to MOO types by appending type information. The
+full set of supported types are obj, str, err, float and int.
 
 ```
 parse_json("{\"1\":2}")                                     =>   ["1" -> 2]
@@ -214,7 +217,7 @@ parse_json("{\"#1|obj\":2}", "embedded-types")              =>   [#1 -> 2]
 
 ### `value_bytes`
 
-**Description**: Returns the size of a value in bytes.  
+**Description**: Returns the size of a value in bytes.\
 **Arguments**:
 
 - `value`: The value to measure
@@ -223,22 +226,22 @@ parse_json("{\"#1|obj\":2}", "embedded-types")              =>   [#1 -> 2]
 
 ### `object_bytes`
 
-**Description**: Returns the size of an object in bytes.  
+**Description**: Returns the size of an object in bytes.\
 **Arguments**:
 
 - `object`: The object to measure
 
-**Returns:** The size of the object in bytes  
-**Note:** This includes all properties, verbs, and other object data.
-Note: Most of these functions follow a consistent pattern of validating arguments and providing appropriate error
-handling. Type conversion functions generally attempt to convert intelligently between types and provide sensible
+**Returns:** The size of the object in bytes\
+**Note:** This includes all properties, verbs, and other object data. Note: Most of these functions
+follow a consistent pattern of validating arguments and providing appropriate error handling. Type
+conversion functions generally attempt to convert intelligently between types and provide sensible
 defaults or errors when conversion isn't possible.
 
 ## Error Handling Functions
 
 ### `error_message`
 
-**Description**: Returns the error message associated with an error value.  
+**Description**: Returns the error message associated with an error value.\
 **Arguments**:
 
 - `error`: The error value to get the message from
@@ -247,7 +250,7 @@ defaults or errors when conversion isn't possible.
 
 ### `error_code`
 
-**Description**: Strips off the message from an error value and returns just the error without it.  
+**Description**: Strips off the message from an error value and returns just the error without it.\
 **Arguments**:
 
 - `error`: The error value to get the code from

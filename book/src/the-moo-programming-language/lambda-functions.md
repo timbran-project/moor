@@ -1,15 +1,18 @@
 # Functions and Lambdas
 
-mooR lets you create small functions inside your verbs, similar to how you might define functions in other programming
-languages. These functions help you organize your code better and avoid repeating yourself.
+mooR lets you create small functions inside your verbs, similar to how you might define functions in
+other programming languages. These functions help you organize your code better and avoid repeating
+yourself.
 
 There are two main types:
 
 - **Named functions** - functions with names that help organize your code
-- **Anonymous functions** (also called "lambdas") - unnamed functions that are useful for short, simple operations
+- **Anonymous functions** (also called "lambdas") - unnamed functions that are useful for short,
+  simple operations
 
-> **Fun Fact**: Despite its name suggesting otherwise, the original LambdaMOO never actually had lambda functions! mooR
-> brings this useful programming tool to MOO as part of our mission of dragging the future into the past.
+> **Fun Fact**: Despite its name suggesting otherwise, the original LambdaMOO never actually had
+> lambda functions! mooR brings this useful programming tool to MOO as part of our mission of
+> dragging the future into the past.
 
 ## Syntax Forms
 
@@ -51,7 +54,8 @@ endfn
 
 ### Named Functions for Code Structure
 
-Named functions work much like `def` in Python or `function` in JavaScript - they help organize code within verbs:
+Named functions work much like `def` in Python or `function` in JavaScript - they help organize code
+within verbs:
 
 ```moo
 // In a combat verb:
@@ -144,9 +148,9 @@ You can combine all parameter types:
 
 ## Remembering Variables (Closures)
 
-One of the most useful features of functions in mooR is that they can "remember" variables from where they were created.
-This is called "capturing" variables, and when a function does this, programmers call it a "closure" - but don't worry
-about the fancy name, it's simpler than it sounds!
+One of the most useful features of functions in mooR is that they can "remember" variables from
+where they were created. This is called "capturing" variables, and when a function does this,
+programmers call it a "closure" - but don't worry about the fancy name, it's simpler than it sounds!
 
 ### Basic Example
 
@@ -184,8 +188,9 @@ multiply_by_three(4); // Returns 12
 
 ## Functions Are Like Other Values
 
-In mooR, functions work just like other values (numbers, strings, lists) - you can store them in variables, put them in
-properties, and pass them to other functions. This might seem strange at first, but it's actually very useful!
+In mooR, functions work just like other values (numbers, strings, lists) - you can store them in
+variables, put them in properties, and pass them to other functions. This might seem strange at
+first, but it's actually very useful!
 
 ### Storing Functions in Variables
 
@@ -201,7 +206,8 @@ result = max_func(10, 7);  // Returns 10
 
 ### Storing Functions in Properties
 
-Functions can be stored in object properties, but they have significant limitations and a grammar constraint:
+Functions can be stored in object properties, but they have significant limitations and a grammar
+constraint:
 
 ```moo
 this.validator = {input} => length(input) >= 3;
@@ -219,9 +225,9 @@ if (validator(user_input))
 endif
 ```
 
-**Grammar Limitation:** You cannot directly call a function stored in a property using the syntax `this.property()`. The
-mooR grammar does not permit function calls on property access expressions. You must first capture the function in a
-variable, then call it. These all fail:
+**Grammar Limitation:** You cannot directly call a function stored in a property using the syntax
+`this.property()`. The mooR grammar does not permit function calls on property access expressions.
+You must first capture the function in a variable, then call it. These all fail:
 
 ```moo
 this.test();           // ERROR: expected an operator or assignment
@@ -235,13 +241,14 @@ let func = this.test;
 func();                // OK
 ```
 
-**Semantic caveat:** When you call a function stored in a property, it doesn't get the `this`, `player`, `caller`, etc.
-values you'd expect from the object the property is on - instead it inherits those values from the calling verb. This can
-lead to confusing behavior.
+**Semantic caveat:** When you call a function stored in a property, it doesn't get the `this`,
+`player`, `caller`, etc. values you'd expect from the object the property is on - instead it
+inherits those values from the calling verb. This can lead to confusing behavior.
 
-**Recommendation:** Storing functions in properties is rarely what you actually want to do. In most cases, you should use
-regular verbs instead. Function properties might occasionally be useful for things like configuration callbacks or data
-transformation functions, but consider carefully whether a verb wouldn't be clearer.
+**Recommendation:** Storing functions in properties is rarely what you actually want to do. In most
+cases, you should use regular verbs instead. Function properties might occasionally be useful for
+things like configuration callbacks or data transformation functions, but consider carefully whether
+a verb wouldn't be clearer.
 
 ### Passing Functions as Arguments
 
@@ -278,8 +285,8 @@ endfn)();
 
 ## Functions That Use Other Functions
 
-One really useful thing you can do is write functions that take other functions as input. This might sound complicated,
-but it's actually quite handy for common tasks like transforming lists of data:
+One really useful thing you can do is write functions that take other functions as input. This might
+sound complicated, but it's actually quite handy for common tasks like transforming lists of data:
 
 ### Map Function
 
@@ -456,8 +463,9 @@ user_validator(["name" -> "Alice", "email" -> "alice@example.com"]);
 
 - Lambda creation is fast, but not free - avoid creating them in tight loops
 - Variable capture is done by value, so large data structures are copied
-- Recursive lambdas can still hit stack limits like regular MOO recursion (fancy functional languages like Scheme or
-  Lisp sometimes offer what's called tail-call elimination, but mooR doesn't)
+- Recursive lambdas can still hit stack limits like regular MOO recursion (fancy functional
+  languages like Scheme or Lisp sometimes offer what's called tail-call elimination, but mooR
+  doesn't)
 
 ### Debugging Tips
 
@@ -465,7 +473,8 @@ Stack traces show lambda calls clearly:
 
 - Anonymous lambdas appear as `verb.<fn>`
 - Named lambdas appear as `verb.function_name`
-- Line numbers point to where the function was declared, not where it was invoked (to find the invocation site, look one level up in the traceback)
+- Line numbers point to where the function was declared, not where it was invoked (to find the
+  invocation site, look one level up in the traceback)
 
 ## Technical Details
 
@@ -488,5 +497,6 @@ Stack traces show lambda calls clearly:
 - They survive server restarts when stored in properties
 - They work seamlessly with existing MOO functions and operators
 
-Lambda functions represent a significant enhancement to MOO's programming capabilities, enabling more expressive and
-functional programming patterns while maintaining full compatibility with existing MOO code.
+Lambda functions represent a significant enhancement to MOO's programming capabilities, enabling
+more expressive and functional programming patterns while maintaining full compatibility with
+existing MOO code.

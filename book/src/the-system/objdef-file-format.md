@@ -1,10 +1,11 @@
 # Object Definition File Format Reference
 
-This chapter provides a complete technical reference for the object definition file format used by mooR. Object
-definition files (objdef files) use a structured text format that describes MOO objects in a human-readable way.
+This chapter provides a complete technical reference for the object definition file format used by
+mooR. Object definition files (objdef files) use a structured text format that describes MOO objects
+in a human-readable way.
 
-For background information on what object definition files are, how to use them, and their role in MOO development
-workflows, see [Object Packaging and Management](object-packaging.md).
+For background information on what object definition files are, how to use them, and their role in
+MOO development workflows, see [Object Packaging and Management](object-packaging.md).
 
 ## File Structure
 
@@ -212,7 +213,8 @@ property parent_ref (owner: WIZARD, flags: "rc") = ROOM;
 
 ### Special Property: import_export_id
 
-The `import_export_id` property is a special property that controls how objects are named during export:
+The `import_export_id` property is a special property that controls how objects are named during
+export:
 
 ```moo
 property import_export_id (owner: WIZARD, flags: "rc") = "my_object_name";
@@ -221,6 +223,7 @@ property import_export_id (owner: WIZARD, flags: "rc") = "my_object_name";
 **Purpose**: This property establishes stable identity for objects across import/export cycles.
 
 **Behavior**:
+
 - If present, the object exports as `<value>.moo` (e.g., `my_object_name.moo`)
 - If absent, the object exports as `<object_number>.moo` (e.g., `123.moo`)
 - The value appears in `constants.moo` as a symbolic constant
@@ -230,6 +233,7 @@ property import_export_id (owner: WIZARD, flags: "rc") = "my_object_name";
 **Recommended Flags**: `"rc"` (readable, chown) - should be immutable after creation
 
 **Example**:
+
 ```moo
 object #789
   name: "Generic Thing"
@@ -241,7 +245,8 @@ object #789
 endobject
 ```
 
-See [Object Identity and Export Names](object-packaging.md#object-identity-and-export-names) for more details on how this property is used.
+See [Object Identity and Export Names](object-packaging.md#object-identity-and-export-names) for
+more details on how this property is used.
 
 ## Verb Definitions
 
@@ -439,7 +444,8 @@ Flyweights are lightweight object-like structures:
 
 ### File-Level Comments
 
-Object definition files support both C-style and C++-style comments for documenting the file structure:
+Object definition files support both C-style and C++-style comments for documenting the file
+structure:
 
 ```moo
 // Single line comment
@@ -455,12 +461,14 @@ object WIZARD  // Comment at end of line
 endobject
 ```
 
-**Important**: File-level comments are supported during import but are **lost during export**. They are not stored in
-the MOO database and will not appear when you export objects back to objdef format.
+**Important**: File-level comments are supported during import but are **lost during export**. They
+are not stored in the MOO database and will not appear when you export objects back to objdef
+format.
 
 ### Comments Within Verb Code
 
-For comments that should be preserved, use MOO-style comments within verb code using string literals:
+For comments that should be preserved, use MOO-style comments within verb code using string
+literals:
 
 ```moo
 verb "complex_calculation" (this none none) owner: WIZARD flags: "rxd"
@@ -478,7 +486,8 @@ verb "complex_calculation" (this none none) owner: WIZARD flags: "rxd"
 endverb
 ```
 
-These string literal comments are preserved because they are part of the compiled MOO code stored in the database.
+These string literal comments are preserved because they are part of the compiled MOO code stored in
+the database.
 
 ## File Naming Conventions
 
@@ -575,8 +584,8 @@ The complete formal grammar is defined in `/crates/compiler/src/moo.pest`. Key p
 
 ## Anonymous Objects
 
-If your mooR server has anonymous objects enabled, they receive special treatment in the objdef format since they cannot
-be referenced by typed identifiers and don't get symbolic constants.
+If your mooR server has anonymous objects enabled, they receive special treatment in the objdef
+format since they cannot be referenced by typed identifiers and don't get symbolic constants.
 
 ### Anonymous Object Identifiers
 
@@ -598,8 +607,8 @@ The format `#anon_XXXXXX-YYYYYYYYYY` represents the internal anonymous object ID
 
 ### Anonymous Object File Organization
 
-Unlike regular objects that get individual files, **all anonymous objects are exported to a single file** called
-`_anonymous_objects.moo`:
+Unlike regular objects that get individual files, **all anonymous objects are exported to a single
+file** called `_anonymous_objects.moo`:
 
 ```
 objdef_directory/
@@ -640,7 +649,8 @@ Anonymous objects that are not reachable will be garbage collected and won't app
 When loading objdef files containing anonymous objects:
 
 1. **New anonymous object IDs are generated** - the original IDs from export cannot be preserved
-2. **References are automatically updated** - all references to anonymous objects are rewritten to use the new IDs
+2. **References are automatically updated** - all references to anonymous objects are rewritten to
+   use the new IDs
 3. **Relationships are maintained** - parent/child, property references, etc. are preserved
 
 ### Anonymous Object Limitations
@@ -672,9 +682,9 @@ object #anon_123ABC-9876543210
 endobject
 ```
 
-For more information about anonymous objects and how they work, see
-the [Anonymous Objects section](../the-database/objects-in-the-moo-database.md#anonymous-objects) in the objects
-documentation.
+For more information about anonymous objects and how they work, see the
+[Anonymous Objects section](../the-database/objects-in-the-moo-database.md#anonymous-objects) in the
+objects documentation.
 
 ## Validation Rules
 
@@ -705,7 +715,9 @@ Error messages include file names and line numbers to help locate issues.
 
 ## Migrating Legacy Code
 
-If you have objdef files that use legacy LambdaMOO/ToastStunt type constants (`INT`, `OBJ`, `STR`, etc. instead of `TYPE_INT`, `TYPE_OBJ`, `TYPE_STR`), you can migrate them using the `make migrate` target:
+If you have objdef files that use legacy LambdaMOO/ToastStunt type constants (`INT`, `OBJ`, `STR`,
+etc. instead of `TYPE_INT`, `TYPE_OBJ`, `TYPE_STR`), you can migrate them using the `make migrate`
+target:
 
 ```bash
 # In your core directory
@@ -719,6 +731,8 @@ moorc --legacy-type-constants true --src-objdef-dir src --out-objdef-dir gen.obj
 cp gen.objdir/*.moo src/
 ```
 
-This parses the files with legacy type constant support and outputs them in the new `TYPE_*` format. After migration, use `make rebuild` for normal development.
+This parses the files with legacy type constant support and outputs them in the new `TYPE_*` format.
+After migration, use `make rebuild` for normal development.
 
-See [Type constant literals](../the-moo-programming-language/extensions.md#type-constant-literals) for more details on this change.
+See [Type constant literals](../the-moo-programming-language/extensions.md#type-constant-literals)
+for more details on this change.

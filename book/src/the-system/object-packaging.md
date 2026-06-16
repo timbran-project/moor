@@ -2,38 +2,42 @@
 
 ## The Challenge of "Living Database" Systems
 
-MOO belongs to a family of programming systems that are fundamentally different from typical programming languages.
-Unlike traditional programs where you write code in text files and then compile or run them, **everything in MOO lives
-directly in the database**. Your objects, their properties, their code (verbs), and even the core system itself are all
-stored as live, interactive data that can be modified while the system is running.
+MOO belongs to a family of programming systems that are fundamentally different from typical
+programming languages. Unlike traditional programs where you write code in text files and then
+compile or run them, **everything in MOO lives directly in the database**. Your objects, their
+properties, their code (verbs), and even the core system itself are all stored as live, interactive
+data that can be modified while the system is running.
 
-This "living database" approach draws inspiration from languages like Smalltalk (which calls this "the image") and Self,
-and is incredibly powerful for building interactive worlds because:
+This "living database" approach draws inspiration from languages like Smalltalk (which calls this
+"the image") and Self, and is incredibly powerful for building interactive worlds because:
 
 - **Everything is persistent** - objects you create stick around forever until explicitly destroyed
-- **Everything is modifiable** - you can change code, objects, and behaviors while people are using the system
-- **Everything is interconnected** - objects can reference each other directly, creating complex webs of relationships
+- **Everything is modifiable** - you can change code, objects, and behaviors while people are using
+  the system
+- **Everything is interconnected** - objects can reference each other directly, creating complex
+  webs of relationships
 
-But this power comes with a significant challenge: **how do you move, share, version, or backup your work?**
+But this power comes with a significant challenge: **how do you move, share, version, or backup your
+work?**
 
 ## Traditional MOO Sharing: The @dump Approach
 
-Historically, MOO developers shared code using the `@dump` verb (provided in LambdaCore type systems), which would
-generate a series of authoring commands that could be pasted into another MOO to recreate objects. This approach worked
-by essentially "puppeting" the receiving user through the same commands they would have typed to create the object
-manually. However, this had significant limitations - it only worked if both MOOs had the same authoring commands
-available,
-and it wasn't well-suited to modern development workflows involving version control, collaboration, or large-scale
+Historically, MOO developers shared code using the `@dump` verb (provided in LambdaCore type
+systems), which would generate a series of authoring commands that could be pasted into another MOO
+to recreate objects. This approach worked by essentially "puppeting" the receiving user through the
+same commands they would have typed to create the object manually. However, this had significant
+limitations - it only worked if both MOOs had the same authoring commands available, and it wasn't
+well-suited to modern development workflows involving version control, collaboration, or large-scale
 code management.
 
-> **For Traditional MOO Users**: If you're familiar with the `@dump` command, think of object definition files as a
-> modern, file-based evolution of that concept, designed for today's development workflows with version control, text
-> editors, and collaboration tools.
+> **For Traditional MOO Users**: If you're familiar with the `@dump` command, think of object
+> definition files as a modern, file-based evolution of that concept, designed for today's
+> development workflows with version control, text editors, and collaboration tools.
 
 ## mooR's Solution: Object Definition Files
 
-mooR introduces "object definition files" (objdef files) to solve these traditional challenges. This system brings MOO
-development into the modern world of software development by providing:
+mooR introduces "object definition files" (objdef files) to solve these traditional challenges. This
+system brings MOO development into the modern world of software development by providing:
 
 - **Human-readable files** that can be opened in any text editor
 - **Version control compatibility** with Git, allowing you to track changes over time
@@ -41,22 +45,25 @@ development into the modern world of software development by providing:
 - **Bulk operations** for entire libraries, worlds, or cores
 - **Cross-MOO compatibility** for sharing code between different servers
 
-This chapter covers how to work with object definition directories as an alternative to traditional textdump files, and
-the `dump_object` and `load_object` functions that let you work with individual object definitions programmatically.
+This chapter covers how to work with object definition directories as an alternative to traditional
+textdump files, and the `dump_object` and `load_object` functions that let you work with individual
+object definitions programmatically.
 
-For complete technical details about the objdef file format syntax and grammar, see
-the [Object Definition File Format Reference](objdef-file-format.md).
+For complete technical details about the objdef file format syntax and grammar, see the
+[Object Definition File Format Reference](objdef-file-format.md).
 
 ## Object Definition Files: A Modern Alternative to Textdumps
 
-Traditionally, MOO databases have been stored and transferred using "textdump" files - large, monolithic text files
-containing the entire database in a format that only MOO servers can easily read. While mooR can import textdumps
-for compatibility with LambdaMOO/ToastStunt databases, it uses a more modern approach for exports: **object definition directories**.
+Traditionally, MOO databases have been stored and transferred using "textdump" files - large,
+monolithic text files containing the entire database in a format that only MOO servers can easily
+read. While mooR can import textdumps for compatibility with LambdaMOO/ToastStunt databases, it uses
+a more modern approach for exports: **object definition directories**.
 
 ### What are Object Definition Files?
 
-Object definition files (objdef files) are individual text files that describe MOO objects in a human-readable format.
-Instead of one massive textdump file, an object definition directory contains:
+Object definition files (objdef files) are individual text files that describe MOO objects in a
+human-readable format. Instead of one massive textdump file, an object definition directory
+contains:
 
 - **Individual files** for each object (e.g., `123.moo`, `456.moo`)
 - **Human-readable format** that can be opened in any text editor
@@ -66,41 +73,44 @@ Instead of one massive textdump file, an object definition directory contains:
 
 ### Advantages Over Textdumps
 
-**Revision Control**: Each object is its own file, making Git diffs meaningful and allowing you to track changes to
-individual objects over time.
+**Revision Control**: Each object is its own file, making Git diffs meaningful and allowing you to
+track changes to individual objects over time.
 
-**Collaboration**: Multiple developers can work on different objects simultaneously without merge conflicts.
+**Collaboration**: Multiple developers can work on different objects simultaneously without merge
+conflicts.
 
-**Readability**: Object definitions are formatted for human consumption, making it easy to understand what an object
-does just by reading its file.
+**Readability**: Object definitions are formatted for human consumption, making it easy to
+understand what an object does just by reading its file.
 
 **Modularity**: You can easily extract, share, or backup individual objects or sets of objects.
 
-**Cross-Platform**: Object definition files work identically across different MOO servers and versions.
+**Cross-Platform**: Object definition files work identically across different MOO servers and
+versions.
 
 ### Uses for Object Definition Directories
 
-**Core Development**: The [cowbell core](https://github.com/rdaum/cowbell/) is built entirely from object definition
-files, making it easy for contributors to add features and track changes.
+**Core Development**: The [cowbell core](https://github.com/rdaum/cowbell/) is built entirely from
+object definition files, making it easy for contributors to add features and track changes.
 
-**Database Backups**: Create readable, version-independent backups of your entire database that will remain usable even
-as mooR evolves.
+**Database Backups**: Create readable, version-independent backups of your entire database that will
+remain usable even as mooR evolves.
 
-**Code Sharing**: Distribute libraries, utilities, or individual objects as readable files that others can examine,
-modify, and integrate into their own databases.
+**Code Sharing**: Distribute libraries, utilities, or individual objects as readable files that
+others can examine, modify, and integrate into their own databases.
 
-**Development Workflow**: Build and test your MOO objects in a development environment, then deploy them to production
-by loading the object definition files.
+**Development Workflow**: Build and test your MOO objects in a development environment, then deploy
+them to production by loading the object definition files.
 
-**Core Migration**: Convert existing [LambdaCore](understanding-moo-cores.md) or similar databases into object
-definition format for easier maintenance and customization.
+**Core Migration**: Convert existing [LambdaCore](understanding-moo-cores.md) or similar databases
+into object definition format for easier maintenance and customization.
 
 ## Working with Object Definition Directories
 
 ### Command-Line Import and Export
 
-mooR provides command-line tools for importing databases and exporting checkpoints as object definition directories. This is
-typically how you work with cores, perform database migrations, or create comprehensive backups.
+mooR provides command-line tools for importing databases and exporting checkpoints as object
+definition directories. This is typically how you work with cores, perform database migrations, or
+create comprehensive backups.
 
 #### Importing Databases
 
@@ -116,15 +126,16 @@ moor-daemon --import /path/to/objdef/directory --import-format objdef
 
 #### Checkpoint Exports (Always Objdef Format)
 
-mooR exports checkpoints in objdef format only. Textdump export is not supported - use objdef for all exports and backups:
+mooR exports checkpoints in objdef format only. Textdump export is not supported - use objdef for
+all exports and backups:
 
 ```bash
 # Configure checkpoint export directory
 moor-daemon --export /path/to/export/directory
 ```
 
-This creates a directory structure where each object becomes its own `.moo` file, numbered by object ID (e.g., `1.moo`,
-`2.moo`, `123.moo`).
+This creates a directory structure where each object becomes its own `.moo` file, numbered by object
+ID (e.g., `1.moo`, `2.moo`, `123.moo`).
 
 #### Converting Textdump to Objdef
 
@@ -137,9 +148,12 @@ moorc --src-textdump old_database.db --out-objdef-dir new_objdef_dir
 
 This processes the import and export immediately without running a live server.
 
-> **Note**: When importing textdumps, legacy type constants (`INT`, `OBJ`, `STR`, etc.) are automatically converted to the new `TYPE_*` format. No special flags are needed for textdump imports.
+> **Note**: When importing textdumps, legacy type constants (`INT`, `OBJ`, `STR`, etc.) are
+> automatically converted to the new `TYPE_*` format. No special flags are needed for textdump
+> imports.
 
-Alternatively, if you're already running a daemon, you can import the textdump and let checkpoints produce the objdef export:
+Alternatively, if you're already running a daemon, you can import the textdump and let checkpoints
+produce the objdef export:
 
 ```bash
 # Import textdump; exports occur at checkpoint intervals
@@ -150,8 +164,9 @@ moor-daemon --import old_database.db --import-format textdump \
 
 #### Automatic Timestamped Exports
 
-When you configure an export path, mooR automatically creates timestamped exports during database checkpoints. Each
-export gets a unique filename based on Unix timestamp to prevent overwriting previous backups:
+When you configure an export path, mooR automatically creates timestamped exports during database
+checkpoints. Each export gets a unique filename based on Unix timestamp to prevent overwriting
+previous backups:
 
 ```bash
 # Configure automatic exports with checkpoint interval
@@ -196,9 +211,9 @@ objdef_directory/
 
 #### The Special `constants.moo` File
 
-The `constants.moo` file is like a set of preprocessor defines that give human-readable names to important objects.
-Instead of remembering that the generic thing prototype is object #789, you can refer to it as `thing`. This file
-contains mappings like:
+The `constants.moo` file is like a set of preprocessor defines that give human-readable names to
+important objects. Instead of remembering that the generic thing prototype is object #789, you can
+refer to it as `thing`. This file contains mappings like:
 
 ```moo
 // Example contents of constants.moo
@@ -210,12 +225,14 @@ define ROOT_ROOM = #2;
 define SYSOBJ = #0;
 ```
 
-When you import an objdef directory, these constants become available during compilation, so verb code can use readable
-names instead of magic numbers.
+When you import an objdef directory, these constants become available during compilation, so verb
+code can use readable names instead of magic numbers.
 
 #### Object Identity and Export Names
 
-mooR uses a special property called `import_export_id` to determine how objects are named in exports and referenced in `constants.moo`. This property establishes a stable identity for objects across import/export cycles.
+mooR uses a special property called `import_export_id` to determine how objects are named in exports
+and referenced in `constants.moo`. This property establishes a stable identity for objects across
+import/export cycles.
 
 **How It Works:**
 
@@ -236,10 +253,12 @@ thing.moo
 define THING = #789;
 ```
 
-If objects **don't** have `import_export_id` properties, mooR falls back to the #0 heuristic for backward compatibility:
+If objects **don't** have `import_export_id` properties, mooR falls back to the #0 heuristic for
+backward compatibility:
 
 1. **Examines system object (#0)**: Looks for properties that directly reference other objects
-2. **Generates constants**: Creates symbolic names from those property names (e.g., `thing`, `room`, `player`)
+2. **Generates constants**: Creates symbolic names from those property names (e.g., `thing`, `room`,
+   `player`)
 3. **Uses those names**: Exports objects using the discovered names
 
 For example, if #0 has these properties:
@@ -251,13 +270,15 @@ For example, if #0 has these properties:
 ```
 
 Objects export as:
+
 - Object #789 → `thing.moo` (derived from #0.thing)
 - Object #456 → `room.moo` (derived from #0.room)
 - Object #123 → `player.moo` (derived from #0.player)
 
 **During Import:**
 
-When importing an objdef created with the #0 heuristic (no `import_export_id` properties), mooR automatically creates these properties in the database:
+When importing an objdef created with the #0 heuristic (no `import_export_id` properties), mooR
+automatically creates these properties in the database:
 
 ```moo
 #789.import_export_id = "thing"
@@ -265,25 +286,30 @@ When importing an objdef created with the #0 heuristic (no `import_export_id` pr
 #123.import_export_id = "player"
 ```
 
-This ensures that **subsequent exports** will use the `import_export_id` properties directly, maintaining stable filenames across export cycles without needing to analyze #0 properties again.
+This ensures that **subsequent exports** will use the `import_export_id` properties directly,
+maintaining stable filenames across export cycles without needing to analyze #0 properties again.
 
 #### Benefits of This System
 
-**Human Readability**: Files are named `player.moo` instead of `123.moo`, making the directory structure
-self-documenting.
+**Human Readability**: Files are named `player.moo` instead of `123.moo`, making the directory
+structure self-documenting.
 
-**Object Number Independence**: Code can refer to `PLAYER` instead of hardcoding #123, making it portable between
-databases.
+**Object Number Independence**: Code can refer to `PLAYER` instead of hardcoding #123, making it
+portable between databases.
 
-**Stable Identity**: Objects maintain their identity across import/export cycles, making version control meaningful.
+**Stable Identity**: Objects maintain their identity across import/export cycles, making version
+control meaningful.
 
-**Automatic Maintenance**: The first import automatically creates `import_export_id` properties, and subsequent exports just read them.
+**Automatic Maintenance**: The first import automatically creates `import_export_id` properties, and
+subsequent exports just read them.
 
-**Backward Compatibility**: Imports from legacy textdumps or objdefs without `import_export_id` properties work seamlessly using the #0 heuristic.
+**Backward Compatibility**: Imports from legacy textdumps or objdefs without `import_export_id`
+properties work seamlessly using the #0 heuristic.
 
 #### The Special `sysobj.moo` File
 
-Object #0 (the system object) is always exported as `sysobj.moo`, never as `0.moo`. This file typically contains properties that define the core object references for your MOO:
+Object #0 (the system object) is always exported as `sysobj.moo`, never as `0.moo`. This file
+typically contains properties that define the core object references for your MOO:
 
 ```moo
 // Example properties in sysobj.moo
@@ -292,30 +318,32 @@ property room (owner: WIZARD, flags: "rc") = ROOM;
 property player (owner: WIZARD, flags: "rc") = PLAYER;
 ```
 
-**Note**: While these #0 properties provide a convenient way to access core objects, they are not required for the import/export system. The `import_export_id` property on each object controls export naming, not references from #0.
+**Note**: While these #0 properties provide a convenient way to access core objects, they are not
+required for the import/export system. The `import_export_id` property on each object controls
+export naming, not references from #0.
 
 #### Creating New Objects with Stable Names
 
-When creating objects that you want to have stable names across import/export cycles, you need to give them an `import_export_id` property:
+When creating objects that you want to have stable names across import/export cycles, you need to
+give them an `import_export_id` property:
 
-**Step 1: Choose an Object Number**
-Pick an unused object ID that won't conflict with existing objects. Check your current database to see what numbers are in use:
+**Step 1: Choose an Object Number** Pick an unused object ID that won't conflict with existing
+objects. Check your current database to see what numbers are in use:
 
 ```bash
 # Look at existing objdef directory to see what numbers are taken
 ls objdef_directory/*.moo | grep -E '[0-9]+\.moo$'
 ```
 
-**Step 2: Add the Constant Definition**
-Add your new object to `constants.moo`:
+**Step 2: Add the Constant Definition** Add your new object to `constants.moo`:
 
 ```moo
 // In constants.moo
 define MY_NEW_OBJECT = #12345;
 ```
 
-**Step 3: Create the Object File**
-Create your object file with the desired name and include the `import_export_id` property:
+**Step 3: Create the Object File** Create your object file with the desired name and include the
+`import_export_id` property:
 
 ```moo
 // File: my_new_object.moo
@@ -332,8 +360,9 @@ object MY_NEW_OBJECT
 endobject
 ```
 
-**Step 4: Maintain the Pattern**
-The `import_export_id` property ensures stable filenames across import/export cycles. Without this property, the object will be exported as `12345.moo` (using its object number).
+**Step 4: Maintain the Pattern** The `import_export_id` property ensures stable filenames across
+import/export cycles. Without this property, the object will be exported as `12345.moo` (using its
+object number).
 
 #### Example: Adding a New Utility Object
 
@@ -362,8 +391,9 @@ Let's say you want to add a new string manipulation utility object:
    endobject
    ```
 
-4. **Import and Export Test**: After importing this objdef directory and then exporting it again, the object will
-   continue to be exported as `string_formatter.moo` because it has an `import_export_id` property.
+4. **Import and Export Test**: After importing this objdef directory and then exporting it again,
+   the object will continue to be exported as `string_formatter.moo` because it has an
+   `import_export_id` property.
 
 #### Common Mistakes to Avoid
 
@@ -381,29 +411,31 @@ Each `.moo` file is human-readable and contains the complete definition of that 
 
 ### Use Cases for Directory Operations
 
-**Core Development**: Export a working core as objdef, modify objects in your text editor, and re-import to test
-changes.
+**Core Development**: Export a working core as objdef, modify objects in your text editor, and
+re-import to test changes.
 
-**Database Migration**: Move databases between different mooR versions or even different MOO server implementations by
-exporting as objdef.
+**Database Migration**: Move databases between different mooR versions or even different MOO server
+implementations by exporting as objdef.
 
-**Backup and Restore**: Create human-readable backups that remain valid even as the server software evolves.
+**Backup and Restore**: Create human-readable backups that remain valid even as the server software
+evolves.
 
 **Collaboration**: Share entire databases or core systems through version control systems like Git.
 
 ## Working with Individual Objects
 
-While command-line import/export handles entire databases, mooR also provides built-in functions for working with
-individual objects from within the MOO itself. This enables more surgical operations like cherry-picking specific
-objects, sharing individual utilities, or performing targeted updates.
+While command-line import/export handles entire databases, mooR also provides built-in functions for
+working with individual objects from within the MOO itself. This enables more surgical operations
+like cherry-picking specific objects, sharing individual utilities, or performing targeted updates.
 
-Within object definition files and directories, each object is described as a structured text representation that
-includes all its properties, verbs, and metadata. When you work with individual objects using `dump_object` and
-`load_object`, you're working with pieces of this broader object definition format.
+Within object definition files and directories, each object is described as a structured text
+representation that includes all its properties, verbs, and metadata. When you work with individual
+objects using `dump_object` and `load_object`, you're working with pieces of this broader object
+definition format.
 
-When you dump an object, you get a list of strings that completely describe that object in the same format used in
-object definition files. When you load that definition back, mooR can recreate the object exactly as it was, or merge it
-with existing objects according to your preferences.
+When you dump an object, you get a list of strings that completely describe that object in the same
+format used in object definition files. When you load that definition back, mooR can recreate the
+object exactly as it was, or merge it with existing objects according to your preferences.
 
 ## Basic Usage
 
@@ -448,8 +480,8 @@ new_obj = load_object(definition, [
 
 ### Reloading Objects
 
-The `reload_object` function replaces an existing object with a new definition from objdef format. Properties and verbs
-not present in the new definition are removed.
+The `reload_object` function replaces an existing object with a new definition from objdef format.
+Properties and verbs not present in the new definition are removed.
 
 ```
 obj reload_object(list object_lines [, map constants] [, obj target])
@@ -457,7 +489,8 @@ obj reload_object(list object_lines [, map constants] [, obj target])
 
 - `object_lines`: A list of strings containing the objdef text for the object.
 - `constants`: (Optional) Map or alist of constant substitutions available during compilation.
-- `target`: (Optional) Object to replace. When omitted, uses the object ID from the objdef definition.
+- `target`: (Optional) Object to replace. When omitted, uses the object ID from the objdef
+  definition.
 
 `reload_object` is wizard-only and returns the loaded object ID.
 
@@ -467,24 +500,25 @@ obj reload_object(list object_lines [, map constants] [, obj target])
 map parse_objdef_constants(str|list lines)
 ```
 
-Parses constants from objdef content and returns a map of constant name to value. This is useful when you want to
-extract `constants.moo` definitions or validate constants before calling `load_object`.
+Parses constants from objdef content and returns a map of constant name to value. This is useful
+when you want to extract `constants.moo` definitions or validate constants before calling
+`load_object`.
 
 Raises `E_INVARG` with a formatted error if parsing or compilation fails.
 
 ## Advanced Loading Options
 
-The `load_object` function accepts an optional second argument - a map of options that control how the loading process
-works. This map can contain any combination of the following options:
+The `load_object` function accepts an optional second argument - a map of options that control how
+the loading process works. This map can contain any combination of the following options:
 
 ## Complete Options Reference
 
-> **Note about Examples**: The examples in this documentation
-> use [symbols](../the-moo-programming-language/extensions.md#symbol-type) (like `'dry_run`), boolean values (`true`/
-> `false`), and [maps](../the-moo-programming-language/extensions.md#map-type) (like `['key -> "value"]`) which are mooR
-> extensions. If your mooR instance is not configured with these extension features enabled, you can use strings (
-`"dry_run"`),
-> integers (`1`/`0`), and alists (`{{"key", "value"}, ...}`) instead throughout - they work identically.
+> **Note about Examples**: The examples in this documentation use
+> [symbols](../the-moo-programming-language/extensions.md#symbol-type) (like `'dry_run`), boolean
+> values (`true`/ `false`), and [maps](../the-moo-programming-language/extensions.md#map-type) (like
+> `['key -> "value"]`) which are mooR extensions. If your mooR instance is not configured with these
+> extension features enabled, you can use strings ( `"dry_run"`), integers (`1`/`0`), and alists
+> (`{{"key", "value"}, ...}`) instead throughout - they work identically.
 
 The `load_object` function accepts up to three arguments:
 
@@ -498,33 +532,35 @@ load_object(definition, options, object_kind) // Specify where to load
 
 The optional third parameter specifies where to create/load the object:
 
-| Value         | Description                                            |
-|---------------|--------------------------------------------------------|
-| (omitted)     | Use the object ID from the dump file                   |
-| `0`           | Create new object with next available ID (NextObjid)   |
-| `1`           | Create anonymous object                                |
-| `2`           | Create UUID-based object (requires `use_uuobjids`)     |
-| Object ID     | Load into the specified existing object                |
+| Value     | Description                                          |
+| --------- | ---------------------------------------------------- |
+| (omitted) | Use the object ID from the dump file                 |
+| `0`       | Create new object with next available ID (NextObjid) |
+| `1`       | Create anonymous object                              |
+| `2`       | Create UUID-based object (requires `use_uuobjids`)   |
+| Object ID | Load into the specified existing object              |
 
 **Options Map:**
 
 The second parameter is a map with the following options:
 
-| Option             | Type    | Default    | Description                                                      |
-|--------------------|---------|------------|------------------------------------------------------------------|
-| `constants`        | Map     | `[]`       | Compilation constants available during verb compilation          |
-| `conflict_mode`    | Symbol  | `'clobber` | How to handle conflicts: `'clobber`, `'skip`, `'detect`          |
-| `dry_run`          | Boolean | `false`    | Test mode - don't make actual changes                            |
-| `return_conflicts` | Boolean | `false`    | Return detailed conflict information                             |
-| `overrides`        | List    | `{}`       | Force specific entities to use `clobber` mode                    |
+| Option             | Type    | Default    | Description                                             |
+| ------------------ | ------- | ---------- | ------------------------------------------------------- |
+| `constants`        | Map     | `[]`       | Compilation constants available during verb compilation |
+| `conflict_mode`    | Symbol  | `'clobber` | How to handle conflicts: `'clobber`, `'skip`, `'detect` |
+| `dry_run`          | Boolean | `false`    | Test mode - don't make actual changes                   |
+| `return_conflicts` | Boolean | `false`    | Return detailed conflict information                    |
+| `overrides`        | List    | `{}`       | Force specific entities to use `clobber` mode           |
 
 ### Option Details
 
 ### Object Kind (Third Parameter)
 
-The third parameter to `load_object` controls where the object is created or loaded. This parameter is optional and has different behaviors depending on the value:
+The third parameter to `load_object` controls where the object is created or loaded. This parameter
+is optional and has different behaviors depending on the value:
 
 **Using Object ID from Dump (default):**
+
 ```moo
 // When omitted, use the object ID specified in the dump
 new_obj = load_object(definition);
@@ -532,6 +568,7 @@ new_obj = load_object(definition, [`conflict_mode -> `skip]);
 ```
 
 **Create New Numbered Object (`0`):**
+
 ```moo
 // Allocate next available object ID, ignoring dump's ID
 new_obj = load_object(definition, [], 0);
@@ -541,28 +578,34 @@ copy = load_object(dump_object($widget), [`constants -> my_constants], 0);
 ```
 
 **When to use `0` (NextObjid):**
+
 - Duplicating an object within the same database
 - Importing objects that might have conflicting IDs
 - Creating instances from a template definition
 - Sharing object packages between different MOO servers
 
 **Create Anonymous Object (`1`):**
+
 ```moo
 // Create anonymous object (requires anonymous_objects feature)
 anon_obj = load_object(definition, [], 1);
 ```
 
-Anonymous objects don't have traditional object IDs and are used for temporary or transient data that shouldn't persist in the main object hierarchy.
+Anonymous objects don't have traditional object IDs and are used for temporary or transient data
+that shouldn't persist in the main object hierarchy.
 
 **Create UUID-Based Object (`2`):**
+
 ```moo
 // Create UUID-based object (requires use_uuobjids configuration)
 uuid_obj = load_object(definition, [], 2);
 ```
 
-UUID-based objects use universally unique identifiers, useful for distributed systems or when object IDs need to be globally unique.
+UUID-based objects use universally unique identifiers, useful for distributed systems or when object
+IDs need to be globally unique.
 
 **Load into Existing Object:**
+
 ```moo
 // Update an existing object with new definition
 load_object(definition, [], #123);
@@ -572,6 +615,7 @@ load_object(new_widget_def, [`conflict_mode -> `skip], $my_widget);
 ```
 
 **When to load into existing object:**
+
 - Updating an existing object with a new version
 - Applying a template to an existing object
 - Restoring an object from a backup
@@ -579,9 +623,7 @@ load_object(new_widget_def, [`conflict_mode -> `skip], $my_widget);
 
 ### Compilation Constants
 
-**Option:** `constants`
-**Type:** Map
-**Default:** Empty map
+**Option:** `constants` **Type:** Map **Default:** Empty map
 
 Provide constants that will be available when resolving object references in property values:
 
@@ -596,36 +638,38 @@ load_object(definition, [
 ]);
 ```
 
-These constants are used to resolve symbolic object references in property values, similar to the `constants.moo` file
-in object definition directories. They allow object definitions to use readable names instead of hardcoded object
-numbers.
+These constants are used to resolve symbolic object references in property values, similar to the
+`constants.moo` file in object definition directories. They allow object definitions to use readable
+names instead of hardcoded object numbers.
 
 ### Conflict Handling
 
 **What is a Conflict?**
 
-A conflict occurs when you try to load an object definition that contains data that differs from what already exists in
-the database. For example:
+A conflict occurs when you try to load an object definition that contains data that differs from
+what already exists in the database. For example:
 
-- **Property conflicts**: The object definition sets `description = "A red ball"` but the existing object has
-  `description = "A blue sphere"`
-- **Verb conflicts**: The definition includes a `look` verb with different code than the existing `look` verb
-- **Flag conflicts**: The definition specifies different object flags (like wizard/programmer status) than currently set
+- **Property conflicts**: The object definition sets `description = "A red ball"` but the existing
+  object has `description = "A blue sphere"`
+- **Verb conflicts**: The definition includes a `look` verb with different code than the existing
+  `look` verb
+- **Flag conflicts**: The definition specifies different object flags (like wizard/programmer
+  status) than currently set
 - **Ownership conflicts**: The definition assigns different owners to properties or verbs
 
 **Why Conflicts Matter**
 
 Conflicts are important because they represent potential data loss or unintended changes:
 
-- **User customizations**: Players may have customized descriptions or properties that you don't want to overwrite
-- **Site-specific modifications**: Your MOO may have local changes to core objects that should be preserved
+- **User customizations**: Players may have customized descriptions or properties that you don't
+  want to overwrite
+- **Site-specific modifications**: Your MOO may have local changes to core objects that should be
+  preserved
 - **Version differences**: Loading an older object definition might downgrade newer functionality
 - **Security implications**: Changing ownership or permissions could create security vulnerabilities
 
-**Option:** `conflict_mode`
-**Type:** Symbol
-**Default:** `clobber`
-**Values:** `clobber`, `skip`, `detect`
+**Option:** `conflict_mode` **Type:** Symbol **Default:** `clobber` **Values:** `clobber`, `skip`,
+`detect`
 
 Controls what happens when the definition conflicts with existing object data:
 
@@ -642,16 +686,16 @@ load_object(definition, [`conflict_mode -> `detect]);
 
 **When to Use Each Mode:**
 
-- **`clobber`**: When you want to completely replace objects with canonical versions (fresh installs, reverting changes)
-- **`skip`**: When adding new functionality while preserving existing customizations (package updates, safe installs)
-- **`detect`**: When you need to understand what would change before deciding how to proceed (conflict analysis, impact
-  assessment)
+- **`clobber`**: When you want to completely replace objects with canonical versions (fresh
+  installs, reverting changes)
+- **`skip`**: When adding new functionality while preserving existing customizations (package
+  updates, safe installs)
+- **`detect`**: When you need to understand what would change before deciding how to proceed
+  (conflict analysis, impact assessment)
 
 ### Dry Run Mode
 
-**Option:** `dry_run`
-**Type:** Boolean
-**Default:** `false`
+**Option:** `dry_run` **Type:** Boolean **Default:** `false`
 
 Test what would happen without actually making changes:
 
@@ -666,9 +710,7 @@ result = load_object(definition, [
 
 ### Selective Overrides
 
-**Option:** `overrides`
-**Type:** List of `{object, entity}` pairs
-**Default:** Empty list
+**Option:** `overrides` **Type:** List of `{object, entity}` pairs **Default:** Empty list
 
 Force specific parts to be overwritten even in `skip` mode:
 
@@ -696,9 +738,7 @@ Available entity types (see Entity Reference below for complete details):
 
 ### Detailed Results
 
-**Option:** `return_conflicts`
-**Type:** Boolean
-**Default:** `false`
+**Option:** `return_conflicts` **Type:** Boolean **Default:** `false`
 
 Get detailed information about the loading process:
 
@@ -711,8 +751,8 @@ result = load_object(definition, [`return_conflicts -> true]);
 
 ## Entity Reference
 
-When working with the `overrides` option, you specify entities using symbol-based identifiers. Each entity
-type targets a specific part of an object's data:
+When working with the `overrides` option, you specify entities using symbol-based identifiers. Each
+entity type targets a specific part of an object's data:
 
 ### Object-Level Entities
 
@@ -738,7 +778,8 @@ type targets a specific part of an object's data:
 
 **Property Definition** - `'property_def`
 
-- **Description**: Complete property definition (creates new property with permissions and initial value)
+- **Description**: Complete property definition (creates new property with permissions and initial
+  value)
 - **Format**: `{'property_def, property_name}` (list with type symbol and property name)
 - **Example**: `{#123, {'property_def, 'description}}`
 - **Use case**: Adding or completely replacing a property definition
@@ -765,8 +806,8 @@ type targets a specific part of an object's data:
 - **Format**: `{'verb_def, {verb_names}}` (list with type symbol and list of verb names)
 - **Example**: `{#123, {'verb_def, {'look, 'l, 'examine}}}`
 - **Use case**: Adding new verb or changing verb metadata
-- **⚠️ Important**: Verb identity is determined by the **complete set of names**. If you add or remove aliases, it
-  becomes a different verb.
+- **⚠️ Important**: Verb identity is determined by the **complete set of names**. If you add or
+  remove aliases, it becomes a different verb.
 
 **Verb Program** - `'verb_program`
 
@@ -824,8 +865,8 @@ load_object(package_update, [
 
 **Verb Identity is Based on Complete Name Sets**
 
-When working with verbs, it's crucial to understand that **verb identity is determined by the complete set of names**,
-not individual name matches. This has significant implications:
+When working with verbs, it's crucial to understand that **verb identity is determined by the
+complete set of names**, not individual name matches. This has significant implications:
 
 ### Scenario: Adding Aliases
 
@@ -895,7 +936,8 @@ result = load_object(definition, [`conflict_mode -> `detect, `return_conflicts -
 // Check result[2] for verb conflicts before proceeding
 ```
 
-This behavior ensures **data safety** at the cost of requiring more explicit management of verb aliases.
+This behavior ensures **data safety** at the cost of requiring more explicit management of verb
+aliases.
 
 ## Practical Scenarios
 
@@ -981,8 +1023,8 @@ endfor
 
 ## Flag String Formats
 
-When working with object and property flags in conflict reports or entity specifications, mooR uses readable string
-formats:
+When working with object and property flags in conflict reports or entity specifications, mooR uses
+readable string formats:
 
 ### Object Flags
 

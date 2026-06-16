@@ -1,8 +1,11 @@
 # Error Handling in mooR
 
-When you're programming in MOO, things can go wrong. You might try to divide by zero, access a property that doesn't exist, or call a verb with the wrong number of arguments. These situations create **errors**.
+When you're programming in MOO, things can go wrong. You might try to divide by zero, access a
+property that doesn't exist, or call a verb with the wrong number of arguments. These situations
+create **errors**.
 
-MOO handles errors in a unique way that might be different from other programming languages you know. Understanding how errors work will help you write more robust programs.
+MOO handles errors in a unique way that might be different from other programming languages you
+know. Understanding how errors work will help you write more robust programs.
 
 ## What Causes Errors?
 
@@ -12,7 +15,8 @@ Here are some common situations that create errors:
 - **Type mismatches**: Adding a number to a string (`5 + "hello"` → `E_TYPE`)
 - **Missing things**: Accessing a property that doesn't exist (`obj.nonexistent` → `E_PROPNF`)
 - **Wrong arguments**: Calling a function with too many or too few arguments (`tostr()` → `E_ARGS`)
-- **Permission problems**: Trying to do something you're not allowed to (`obj.owner = #123` → `E_PERM`)
+- **Permission problems**: Trying to do something you're not allowed to (`obj.owner = #123` →
+  `E_PERM`)
 - **Invalid operations**: Trying to move an object into itself (`#123:moveto(#123)` → `E_RECMOVE`)
 
 ## How MOO Handles Errors: Two Ways
@@ -43,12 +47,14 @@ player:tell("This line might never run");
 
 ## The `d` Bit: What Controls This Behavior
 
-Whether an error becomes a value or stops your program depends on something called the `d` bit on your verb. Think of it as a switch:
+Whether an error becomes a value or stops your program depends on something called the `d` bit on
+your verb. Think of it as a switch:
 
 - **`d` bit OFF**: Errors become values you can check
 - **`d` bit ON**: Errors can stop your program (but you can catch them)
 
-> **Tip**: Almost all verbs should have the `d` bit turned on. The old way (turning it off) is error-prone and mainly exists for historical reasons.
+> **Tip**: Almost all verbs should have the `d` bit turned on. The old way (turning it off) is
+> error-prone and mainly exists for historical reasons.
 
 ## Handling Errors Gracefully
 
@@ -70,7 +76,8 @@ except err (ANY)
 endtry
 ```
 
-This way, your program keeps running even when errors happen, and you can decide what to do about each type of error.
+This way, your program keeps running even when errors happen, and you can decide what to do about
+each type of error.
 
 ### Quick Fixes: Error-Catching Expressions
 
@@ -114,15 +121,21 @@ mooR adds some nice improvements to MOO's error system:
 ## When Things Go Really Wrong
 
 If an error isn't caught anywhere, MOO will:
+
 1. Stop running your program
 2. Print a traceback showing where the error happened
 3. Display an error message to the player
 
-This helps you debug problems, but it's not very user-friendly, which is why proper error handling is important.
+This helps you debug problems, but it's not very user-friendly, which is why proper error handling
+is important.
 
 ## Learn More
 
-- [Error Types](../the-database/moo-value-types.md#error-type) - Complete list of built-in error codes
-- [Try/Except Details](moo-language-statements.md#handling-errors-in-statements) - Full syntax and examples  
-- [Error Functions](built-in-functions/values.md#error-handling-functions) - Built-in functions for working with errors
-- [Custom Errors](extensions.md#custom-errors-and-errors-with-attached-messages) - mooR's error enhancements
+- [Error Types](../the-database/moo-value-types.md#error-type) - Complete list of built-in error
+  codes
+- [Try/Except Details](moo-language-statements.md#handling-errors-in-statements) - Full syntax and
+  examples
+- [Error Functions](built-in-functions/values.md#error-handling-functions) - Built-in functions for
+  working with errors
+- [Custom Errors](extensions.md#custom-errors-and-errors-with-attached-messages) - mooR's error
+  enhancements

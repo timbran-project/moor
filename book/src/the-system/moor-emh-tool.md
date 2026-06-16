@@ -1,10 +1,14 @@
 # Emergency Medical Hologram Tool (moor-emh)
 
-The `moor-emh` tool is an emergency database administration utility for mooR. It provides direct database access when normal logins are unavailable, making it essential for database recovery, emergency repairs, and system administration tasks.
+The `moor-emh` tool is an emergency database administration utility for mooR. It provides direct
+database access when normal logins are unavailable, making it essential for database recovery,
+emergency repairs, and system administration tasks.
 
 ## Overview
 
-Think of `moor-emh` as the Emergency Medical Hologram for your MOO database - it activates when you need immediate access to repair critical issues. The tool provides a REPL (Read-Eval-Print Loop) interface with full wizard privileges, allowing you to:
+Think of `moor-emh` as the Emergency Medical Hologram for your MOO database - it activates when you
+need immediate access to repair critical issues. The tool provides a REPL (Read-Eval-Print Loop)
+interface with full wizard privileges, allowing you to:
 
 - Inspect and modify object properties
 - View and edit verb code
@@ -26,7 +30,8 @@ Use `moor-emh` when:
 - You need to reload objects from version-controlled source files
 - You want to export objects for backup or sharing with other MOOs
 
-**Important:** `moor-emh` acquires an exclusive lock on the database, preventing other mooR processes from accessing it. Always shut down your mooR server before using this tool.
+**Important:** `moor-emh` acquires an exclusive lock on the database, preventing other mooR
+processes from accessing it. Always shut down your mooR server before using this tool.
 
 ## Running moor-emh
 
@@ -37,9 +42,11 @@ moor-emh [OPTIONS] [DATA-DIR]
 ```
 
 **Arguments:**
+
 - `DATA-DIR` - Directory containing the database files (default: `./moor-data`)
 
 **Options:**
+
 - `--db <DB>` - Main database filename (default: `world.db`)
 - `--wizard <WIZARD>` - Object ID to use as wizard (defaults to first valid wizard)
 - `--debug` - Enable debug logging
@@ -47,21 +54,25 @@ moor-emh [OPTIONS] [DATA-DIR]
 ### Examples
 
 Start with default settings (looks for `./moor-data/world.db`):
+
 ```bash
 moor-emh
 ```
 
 Specify a custom data directory:
+
 ```bash
 moor-emh /path/to/my/moo/data
 ```
 
 Use a specific wizard object:
+
 ```bash
 moor-emh --wizard 3
 ```
 
 Use a different database file:
+
 ```bash
 moor-emh --db backup.db /var/moor-data
 ```
@@ -91,27 +102,30 @@ Throughout moor-emh, you can reference objects in two ways:
 - **Direct reference:** `#123` - References object with ID 123
 - **Property reference:** `$player` - Looks up the value of `#0.player` property
 
-Property references (`$name`) are resolved by reading the property `name` from system object `#0`. This matches MOO syntax and allows you to use symbolic names instead of hardcoded object IDs. For example, if `#0.wiz` contains `#2`, then you can use `$wiz` anywhere you would use `#2`.
+Property references (`$name`) are resolved by reading the property `name` from system object `#0`.
+This matches MOO syntax and allows you to use symbolic names instead of hardcoded object IDs. For
+example, if `#0.wiz` contains `#2`, then you can use `$wiz` anywhere you would use `#2`.
 
 ## Available Commands
 
 ### Basic Commands
 
-| Command | Description |
-|---------|-------------|
-| `help`, `?` | Display help message with all available commands |
-| `quit`, `exit` | Save changes and exit the tool |
+| Command        | Description                                      |
+| -------------- | ------------------------------------------------ |
+| `help`, `?`    | Display help message with all available commands |
+| `quit`, `exit` | Save changes and exit the tool                   |
 
 ### Evaluating MOO Code
 
 Execute MOO expressions and code blocks directly:
 
-| Command | Description |
-|---------|-------------|
-| `;EXPR` | Evaluate a MOO expression and print the result |
+| Command  | Description                                              |
+| -------- | -------------------------------------------------------- |
+| `;EXPR`  | Evaluate a MOO expression and print the result           |
 | `;;CODE` | Execute a multi-line MOO code block and print the result |
 
 **Examples:**
+
 ```moo
 (#2): ;2 + 2
 => 4
@@ -125,13 +139,14 @@ Execute MOO expressions and code blocks directly:
 
 ### Reading and Writing Properties
 
-| Command | Description |
-|---------|-------------|
-| `get #OBJ.PROP` | Read a property value |
-| `set #OBJ.PROP = VALUE` | Write a property value |
-| `props #OBJ` | List all properties on an object |
+| Command                 | Description                      |
+| ----------------------- | -------------------------------- |
+| `get #OBJ.PROP`         | Read a property value            |
+| `set #OBJ.PROP = VALUE` | Write a property value           |
+| `props #OBJ`            | List all properties on an object |
 
 **Examples:**
+
 ```moo
 (#2): get #1.name
 #1.name = "Root Object"
@@ -155,6 +170,7 @@ $player.name = "Wizard"
 ```
 
 **Tab Completion:** When typing property names, you can press Tab to see available properties:
+
 ```moo
 (#2): get #1.<TAB>
 name  description  programmer  wizard  ...
@@ -162,13 +178,14 @@ name  description  programmer  wizard  ...
 
 ### Working with Verbs
 
-| Command | Description |
-|---------|-------------|
-| `verbs #OBJ` | List all verbs on an object |
-| `list #OBJ:VERB` | Display the code of a verb |
+| Command          | Description                        |
+| ---------------- | ---------------------------------- |
+| `verbs #OBJ`     | List all verbs on an object        |
+| `list #OBJ:VERB` | Display the code of a verb         |
 | `prog #OBJ:VERB` | Program a verb (multi-line editor) |
 
 **Tab Completion:** When typing verb names, you can press Tab to see available verbs:
+
 ```moo
 (#2): list #1:<TAB>
 initialize  recycle  set_name  title  ...
@@ -179,17 +196,18 @@ initialize  recycle  set_name  title  ...
 
 ### Object Import/Export
 
-| Command | Description |
-|---------|-------------|
-| `dump #OBJ [--file PATH]` | Dump object definition to file or console |
-| `load [--file PATH] [options]` | Load object from objdef format |
-| `reload [#OBJ] [--file PATH]` | Replace object contents completely |
+| Command                        | Description                               |
+| ------------------------------ | ----------------------------------------- |
+| `dump #OBJ [--file PATH]`      | Dump object definition to file or console |
+| `load [--file PATH] [options]` | Load object from objdef format            |
+| `reload [#OBJ] [--file PATH]`  | Replace object contents completely        |
 
 #### Dumping Objects
 
 The `dump` command exports an object's complete definition in objdef format:
 
 **Examples:**
+
 ```moo
 (#2): dump #1
 # Object Definition: #1
@@ -215,6 +233,7 @@ endobj
 The `load` command imports objects from objdef format with flexible conflict handling:
 
 **Basic Usage:**
+
 ```moo
 (#2): load --file package.moo
 ✓ Object #123 loaded successfully
@@ -228,6 +247,7 @@ The `load` command imports objects from objdef format with flexible conflict han
 ```
 
 **Load Options:**
+
 - `--file PATH` - Load from file instead of stdin
 - `--constants PATH` - MOO file with constant definitions for compilation
 - `--dry-run` - Validate without making changes
@@ -236,6 +256,7 @@ The `load` command imports objects from objdef format with flexible conflict han
 - `--return-conflicts` - Return detailed conflict information
 
 **Advanced Examples:**
+
 ```moo
 (#2): load --file obj.moo --dry-run
 ⚠ Load would have conflicts (dry-run or detect mode)
@@ -262,6 +283,7 @@ Conflicts: 3
 ```
 
 **Interactive Loading (from stdin):**
+
 ```moo
 (#2): load
 **Loading object definition**
@@ -278,9 +300,11 @@ Paste object definition (type . on a line by itself to finish):
 
 #### Reloading Objects
 
-The `reload` command completely replaces an object's contents, removing all properties and verbs not in the new definition:
+The `reload` command completely replaces an object's contents, removing all properties and verbs not
+in the new definition:
 
 **Examples:**
+
 ```moo
 (#2): reload --file updated-core.moo
 ✓ Object #1 reloaded successfully
@@ -313,22 +337,27 @@ The `reload` command completely replaces an object's contents, removing all prop
 
 ### Switching User Context
 
-| Command | Description |
-|---------|-------------|
-| `su #OBJ` | Switch to a different player object |
+| Command        | Description                                |
+| -------------- | ------------------------------------------ |
+| `su #OBJ`      | Switch to a different player object        |
 | `su $property` | Switch to player referenced by #0.property |
 
-The `su` command allows you to change the wizard/player object you're operating as. This is useful when you need to test permissions, debug player-specific issues, or perform operations as a different user.
+The `su` command allows you to change the wizard/player object you're operating as. This is useful
+when you need to test permissions, debug player-specific issues, or perform operations as a
+different user.
 
 **Requirements:**
+
 - The target object must exist in the database
 - The target object must have the User flag set (must be a player object)
 
 **Object Reference Formats:**
+
 - `#123` - Direct object ID reference
 - `$player` - Property reference (looks up `#0.player`)
 
 **Examples:**
+
 ```moo
 (#2): su #3
 ✓ Switched to player #3
@@ -342,11 +371,13 @@ The `su` command allows you to change the wizard/player object you're operating 
 (#2):
 ```
 
-**Note:** The prompt updates to show the current wizard object you're operating as. Property references (`$name`) work by looking up the property on system object `#0`.
+**Note:** The prompt updates to show the current wizard object you're operating as. Property
+references (`$name`) work by looking up the property on system object `#0`.
 
 ### Object ID Completion
 
 When typing object IDs, press Tab to see available objects:
+
 ```moo
 (#2): props #<TAB>
 #0  #1  #2  #3  #4  #5  ...
@@ -360,19 +391,23 @@ When typing object IDs, press Tab to see available objects:
 `moor-emh` provides comprehensive tab completion to make navigation easier:
 
 - **Commands:** Type the beginning of a command and press Tab
-- **Object IDs:** Type `#` followed by Tab to see all objects (works with `props`, `verbs`, `list`, `prog`, `dump`, `reload`, and `su`)
+- **Object IDs:** Type `#` followed by Tab to see all objects (works with `props`, `verbs`, `list`,
+  `prog`, `dump`, `reload`, and `su`)
 - **Properties:** Type `get #OBJ.` or `set #OBJ.` and press Tab
 - **Verbs:** Type `list #OBJ:` or `prog #OBJ:` and press Tab
-- **File Paths:** Type `--file ` or `--constants ` and press Tab to complete file paths
-- **Flags:** Type `--` and press Tab to see available flags for `dump`, `load`, and `reload` commands
+- **File Paths:** Type `--file` or `--constants` and press Tab to complete file paths
+- **Flags:** Type `--` and press Tab to see available flags for `dump`, `load`, and `reload`
+  commands
 
-The completion system queries the database in real-time, so you always see the current state of your MOO.
+The completion system queries the database in real-time, so you always see the current state of your
+MOO.
 
 ## Safety and Best Practices
 
 ### Data Safety
 
-- **Exclusive Lock:** moor-emh locks the database to prevent corruption. Shut down your mooR server first.
+- **Exclusive Lock:** moor-emh locks the database to prevent corruption. Shut down your mooR server
+  first.
 - **Auto-save:** Changes are automatically saved to the database. There is no "undo" feature.
 - **Backups:** Always make a backup before performing emergency repairs:
   ```bash
@@ -382,17 +417,20 @@ The completion system queries the database in real-time, so you always see the c
 ### Common Tasks
 
 **Reset a corrupted wizard password:**
+
 ```moo
 (#2): set #2.password = ""
 ```
 
 **Find all wizard objects:**
+
 ```moo
 (#2): ;;objs = children(#0); results = {}; for o in (objs) if (o.wizard) results = {@results, o}; endif endfor return results;
 => {#2, #3}
 ```
 
 **Check database integrity:**
+
 ```moo
 (#2): ;length(children(#0))
 => 156
@@ -402,12 +440,14 @@ The completion system queries the database in real-time, so you always see the c
 ```
 
 **List all objects with a specific property:**
+
 ```moo
 (#2): ;;objs = children(#0); results = {}; for o in (objs) if ("owner" in (properties(o))) results = {@results, o}; endif endfor return results;
 => {#1, #2, #5, #10}
 ```
 
 **Export an object for version control:**
+
 ```moo
 (#2): dump #1 --file system-object.moo
 ✓ Object #1 dumped to system-object.moo
@@ -416,6 +456,7 @@ The completion system queries the database in real-time, so you always see the c
 ```
 
 **Update an object from a file:**
+
 ```moo
 (#2): reload #1 --file system-object.moo
 ✓ Object #1 reloaded successfully
@@ -424,6 +465,7 @@ The completion system queries the database in real-time, so you always see the c
 ```
 
 **Import a package with conflict detection:**
+
 ```moo
 (#2): load --file new-package.moo --dry-run --return-conflicts
 ⚠ Load would have conflicts (dry-run or detect mode)
@@ -435,6 +477,7 @@ Conflicts: 2
 ```
 
 **Create a new object from a template:**
+
 ```moo
 (#2): load --file feature-template.moo --as new
 ✓ Object #201 loaded successfully
@@ -443,6 +486,7 @@ Conflicts: 2
 ```
 
 **Load with shared constants:**
+
 ```moo
 (#2): reload #45 --file package.moo --constants shared-defs.moo
 ✓ Object #45 reloaded successfully
@@ -462,18 +506,22 @@ The tool uses `termimad` for beautiful terminal output with:
 ## Troubleshooting
 
 **"Failed to acquire lock on data directory"**
+
 - Another mooR process is running. Shut down the server first.
 - Or another moor-emh instance is already running.
 
 **"No wizard objects found in database"**
+
 - The database may be corrupted or empty.
 - Use `--wizard` to specify a specific object ID to run as.
 
 **"Database file not found"**
+
 - Check that the path to your data directory is correct.
 - Use `--db` to specify the correct database filename.
 
 **Tab completion not working:**
+
 - Ensure you have sufficient permissions to read the database.
 - Check that the database is not corrupted.
 
@@ -489,6 +537,7 @@ The tool uses `termimad` for beautiful terminal output with:
 ### Architecture
 
 The tool consists of:
+
 - **REPL Loop:** Built on `rustyline` with command history and editing
 - **Scheduler:** Executes MOO code through the kernel's task scheduler
 - **Tab Completion:** Real-time database queries for context-aware completion
@@ -508,7 +557,8 @@ The tool consists of:
 
 ## See Also
 
-- [Object Packaging (dump/load/reload)](./object-packaging.md) - Detailed documentation on the objdef format
+- [Object Packaging (dump/load/reload)](./object-packaging.md) - Detailed documentation on the
+  objdef format
 - [Server Configuration](./server-configuration.md)
 - [Server Assumptions About the Database](./server-assumptions-about-the-database.md)
 - [Controlling the Execution of Tasks](./controlling-the-execution-of-tasks.md)

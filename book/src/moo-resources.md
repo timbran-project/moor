@@ -1,8 +1,7 @@
 # MOO Resources
 
-This is a collection of resources related to LambdaMOO & ToastStunt,
-and not specific to `mooR` and its modifications. Some may be useful,
-and others of more historic interest.
+This is a collection of resources related to LambdaMOO & ToastStunt, and not specific to `mooR` and
+its modifications. Some may be useful, and others of more historic interest.
 
 - [lisdude MOO Resources](http://www.lisdude.com/moo/)
 - [LambdaMOO Programming Resources GitHub](https://github.com/SevenEcks/lambda-moo-programming)

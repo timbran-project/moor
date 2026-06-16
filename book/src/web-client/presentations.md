@@ -1,7 +1,8 @@
 # Presentations
 
-The web client supports server-driven UI panels and windows via the `present()` builtin. Presentations are how MOO code
-asks the client to display structured UI elements beyond plain text output, delivered through `moor-web-host`.
+The web client supports server-driven UI panels and windows via the `present()` builtin.
+Presentations are how MOO code asks the client to display structured UI elements beyond plain text
+output, delivered through `moor-web-host`.
 
 ## The `present()` Builtin
 
@@ -13,7 +14,7 @@ present(player, id)  // Dismiss presentation
 ```
 
 | Parameter      | Description                                                         |
-|----------------|---------------------------------------------------------------------|
+| -------------- | ------------------------------------------------------------------- |
 | `player`       | The player object to show the presentation to                       |
 | `id`           | Unique identifier for this presentation (used to update or dismiss) |
 | `content_type` | MIME type for content (usually `"text/plain"` or `"text/html"`)     |
@@ -30,7 +31,7 @@ The client maps semantic targets to dock positions based on screen size:
 ### Dock Targets
 
 | Target          | Desktop Position | Mobile Position | Use Case                     |
-|-----------------|------------------|-----------------|------------------------------|
+| --------------- | ---------------- | --------------- | ---------------------------- |
 | `navigation`    | Left dock        | Top             | Maps, compass, location info |
 | `communication` | Left dock        | Top             | Chat panels, who lists       |
 | `inventory`     | Right dock       | Bottom          | Player inventory             |
@@ -41,14 +42,14 @@ The client maps semantic targets to dock positions based on screen size:
 ### Floating Targets
 
 | Target           | Behavior                   | Use Case               |
-|------------------|----------------------------|------------------------|
+| ---------------- | -------------------------- | ---------------------- |
 | `window`         | Floating window, draggable | General-purpose popups |
 | `object-browser` | Floating or docked         | Object inspection      |
 
 ### Editor Targets
 
 | Target                  | Opens                   |
-|-------------------------|-------------------------|
+| ----------------------- | ----------------------- |
 | `verb-editor`           | Verb code editor        |
 | `property-editor`       | Property text editor    |
 | `property-value-editor` | Structured value editor |
@@ -57,7 +58,7 @@ The client maps semantic targets to dock positions based on screen size:
 ### Dialog Targets
 
 | Target          | Purpose                      |
-|-----------------|------------------------------|
+| --------------- | ---------------------------- |
 | `profile-setup` | Player profile configuration |
 
 ## Common Attributes
@@ -65,7 +66,7 @@ The client maps semantic targets to dock positions based on screen size:
 Attributes are passed as a list of `{key, value}` pairs:
 
 | Attribute  | Used By          | Description                       |
-|------------|------------------|-----------------------------------|
+| ---------- | ---------------- | --------------------------------- |
 | `title`    | All              | Window/panel title                |
 | `name`     | All              | Alternative to title              |
 | `object`   | Editors, browser | Object reference (e.g., `"#123"`) |
@@ -158,8 +159,8 @@ The client automatically adjusts presentation placement based on screen size:
 - **Desktop (>768px)**: Dock panels appear in sidebars; floating windows can be dragged
 - **Mobile (≤768px)**: Dock panels stack vertically; editors open in full-screen modal mode
 
-Programmers should design presentations to work well at both sizes. Use semantic targets (`inventory`, `status`, etc.)
-rather than assuming specific screen positions.
+Programmers should design presentations to work well at both sizes. Use semantic targets
+(`inventory`, `status`, etc.) rather than assuming specific screen positions.
 
 ## Related Docs
 

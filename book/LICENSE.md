@@ -29,5 +29,5 @@ reproduced in [src/legal.md](./src/legal.md).
 
 No broader or different license is claimed here for the book as a whole.
 
-If you want to reuse book material beyond the scope of that notice, contact Ryan Daum, operating
-as Timbran Consulting.
+If you want to reuse book material beyond the scope of that notice, contact Ryan Daum, operating as
+Timbran Consulting.

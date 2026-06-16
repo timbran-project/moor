@@ -8,12 +8,14 @@ Returns true if there is an element of list that is completely indistinguishable
 int is_member(ANY value, LIST list [, INT case-sensitive])
 ```
 
-This is much the same operation as "`value in list`" except that, unlike `in`, the `is_member()` function does not
-treat upper- and lower-case characters in strings as equal. This treatment of strings can be controlled with the
-`case-sensitive` argument; setting `case-sensitive` to false will effectively disable this behavior.
+This is much the same operation as "`value in list`" except that, unlike `in`, the `is_member()`
+function does not treat upper- and lower-case characters in strings as equal. This treatment of
+strings can be controlled with the `case-sensitive` argument; setting `case-sensitive` to false will
+effectively disable this behavior.
 
-Raises E_ARGS if two values are given or if more than three arguments are given. Raises E_TYPE if the second argument is
-not a list. Otherwise returns the index of `value` in `list`, or 0 if it's not in there.
+Raises E_ARGS if two values are given or if more than three arguments are given. Raises E_TYPE if
+the second argument is not a list. Otherwise returns the index of `value` in `list`, or 0 if it's
+not in there.
 
 ```
 is_member(3, {3, 10, 11})                  => 1
@@ -80,8 +82,9 @@ list listinsert(list list, value [, int index])
 
 `listinsert()` adds value before the existing element with the given index, if provided.
 
-If index is not provided, then `listinsert()` adds it at the beginning; this usage is discouraged, however, since the
-same intent can be more clearly expressed using the list-construction expression, as shown in the examples below.
+If index is not provided, then `listinsert()` adds it at the beginning; this usage is discouraged,
+however, since the same intent can be more clearly expressed using the list-construction expression,
+as shown in the examples below.
 
 ```
 x = {1, 2, 3};
@@ -147,8 +150,9 @@ x = {"foo", "bar", "baz"};
 listset(x, "mumble", 2)   =>   {"foo", "mumble", "baz"}
 ```
 
-This function exists primarily for historical reasons; it was used heavily before the server supported indexed
-assignments like `x[i] = v`. New code should always use indexed assignment instead of `listset()` wherever possible.
+This function exists primarily for historical reasons; it was used heavily before the server
+supported indexed assignments like `x[i] = v`. New code should always use indexed assignment instead
+of `listset()` wherever possible.
 
 ## Set Operations
 
@@ -160,8 +164,8 @@ Returns a copy of list with the given value added.
 list setadd(list list, value)
 ```
 
-`setadd()` only adds value if it is not already an element of list; list is thus treated as a mathematical set. value is
-added at the end of the resulting list, if at all.
+`setadd()` only adds value if it is not already an element of list; list is thus treated as a
+mathematical set. value is added at the end of the resulting list, if at all.
 
 ```
 setadd({1, 2, 3}, 3)         =>   {1, 2, 3}
@@ -176,8 +180,8 @@ Returns a copy of list with the given value removed.
 list setremove(list list, value)
 ```
 
-`setremove()` returns a list identical to list if value is not an element. If value appears more than once in list, only
-the first occurrence is removed in the returned copy.
+`setremove()` returns a list identical to list if value is not an element. If value appears more
+than once in list, only the first occurrence is removed in the returned copy.
 
 ```
 setremove({1, 2, 3}, 3)      =>   {1, 2}
@@ -202,8 +206,9 @@ reverse("asdf") => "fdsa"
 
 ### `slice`
 
-Return the index-th elements of alist. By default, index will be 1. If index is a list of integers, the returned list
-will have those elements from alist. This is the built-in equivalent of LambdaCore's $list_utils:slice verb.
+Return the index-th elements of alist. By default, index will be 1. If index is a list of integers,
+the returned list will have those elements from alist. This is the built-in equivalent of
+LambdaCore's $list_utils:slice verb.
 
 ```
 list slice(LIST alist [, INT | LIST | STR index, ANY default map value])
@@ -211,9 +216,9 @@ list slice(LIST alist [, INT | LIST | STR index, ANY default map value])
 
 If alist is a list of maps, index can be a string indicating a key to return from each map in alist.
 
-If default map value is specified, any maps not containing the key index will have default map value returned in their
-place. This is useful in situations where you need to maintain consistency with a list index and can't have gaps in your
-return list.
+If default map value is specified, any maps not containing the key index will have default map value
+returned in their place. This is useful in situations where you need to maintain consistency with a
+list index and can't have gaps in your return list.
 
 Examples:
 
@@ -232,11 +237,12 @@ Sorts list either by keys or using the list itself.
 list sort(LIST list [, LIST keys, INT natural sort order?, INT reverse])
 ```
 
-When sorting list by itself, you can use an empty list ({}) for keys to specify additional optional arguments.
+When sorting list by itself, you can use an empty list ({}) for keys to specify additional optional
+arguments.
 
-If natural sort order is true, strings containing multi-digit numbers will consider those numbers to be a single
-character. So, for instance, this means that 'x2' would come before 'x11' when sorted naturally because 2 is less than
-11. This argument defaults to 0.
+If natural sort order is true, strings containing multi-digit numbers will consider those numbers to
+be a single character. So, for instance, this means that 'x2' would come before 'x11' when sorted
+naturally because 2 is less than 11. This argument defaults to 0.
 
 If reverse is true, the sort order is reversed. This argument defaults to 0.
 
@@ -272,7 +278,8 @@ Returns the number of elements in list.
 int length(list list)
 ```
 
-It is also permissible to pass a string to `length()`; see the description in the string functions section.
+It is also permissible to pass a string to `length()`; see the description in the string functions
+section.
 
 ```
 length({1, 2, 3})   =>   3
@@ -287,8 +294,8 @@ Performs sophisticated string matching with ordinal support and object auto-dete
 str | obj complex_match(STR token, LIST targets [, LIST keys] [, NUM fuzzy_threshold])
 ```
 
-The `complex_match()` function provides advanced pattern matching with support for ordinal selectors (e.g., "first", "
-second", "1st", "2nd", "twenty-first") and four-tier matching precedence:
+The `complex_match()` function provides advanced pattern matching with support for ordinal selectors
+(e.g., "first", " second", "1st", "2nd", "twenty-first") and four-tier matching precedence:
 
 1. **Exact matches** - Complete string equality (case-insensitive)
 2. **Prefix matches** - Strings that start with the search token
@@ -299,12 +306,13 @@ second", "1st", "2nd", "twenty-first") and four-tier matching precedence:
 
 - `token` (STR): The search string to match against
 - `targets` (LIST): List of strings or objects to search through
-- `keys` (LIST, optional): List of key lists for object matching. Must have the same length as `targets`. Pass `false` to disable key-based matching.
+- `keys` (LIST, optional): List of key lists for object matching. Must have the same length as
+  `targets`. Pass `false` to disable key-based matching.
 - `fuzzy_threshold` (NUM, optional): Controls fuzzy matching sensitivity:
-    - `0.0`: Disable fuzzy matching (exact/prefix/substring only) - **this is the default**
-    - `0.5`: Reasonable fuzzy matching (1-2 character differences allowed depending on word length)
-    - `1.0`: Very permissive fuzzy matching (allows more character differences)
-    - Boolean values supported for backward compatibility: `false` = `0.0`, `true` = `0.5`
+  - `0.0`: Disable fuzzy matching (exact/prefix/substring only) - **this is the default**
+  - `0.5`: Reasonable fuzzy matching (1-2 character differences allowed depending on word length)
+  - `1.0`: Very permissive fuzzy matching (allows more character differences)
+  - Boolean values supported for backward compatibility: `false` = `0.0`, `true` = `0.5`
 
 #### String matching (2-argument form)
 
@@ -359,7 +367,9 @@ The function supports various ordinal formats:
 - **Dot notation without space**: "1.foo", "2.bar", "10.lamp", etc.
 - **Compound ordinals**: "twenty-first", "thirty-second", etc.
 
-Ordinals count across all match tiers combined. For example, with `{"foo", "foobar", "foobaz"}` and token "foo":
+Ordinals count across all match tiers combined. For example, with `{"foo", "foobar", "foobaz"}` and
+token "foo":
+
 - Position 1: "foo" (exact match)
 - Position 2: "foobar" (prefix match)
 - Position 3: "foobaz" (prefix match)
@@ -418,14 +428,18 @@ Returns all matches from the best (highest priority) non-empty tier as a list.
 list complex_matches(STR token, LIST targets [, LIST keys] [, NUM fuzzy_threshold])
 ```
 
-Unlike `complex_match()` which returns a single match (or uses ordinals to select one), `complex_matches()` returns all matching targets from the highest-priority non-empty tier.
+Unlike `complex_match()` which returns a single match (or uses ordinals to select one),
+`complex_matches()` returns all matching targets from the highest-priority non-empty tier.
 
 #### Arguments
 
-- `token` (STR): The search string to match against. Supports ordinals (e.g., `"1.foo"`, `"2nd foo"`) to select the Nth match.
+- `token` (STR): The search string to match against. Supports ordinals (e.g., `"1.foo"`,
+  `"2nd foo"`) to select the Nth match.
 - `targets` (LIST): List of values to return when matched
-- `keys` (LIST, optional): List of key lists for matching. Must have the same length as `targets`. Each element can be a string or a list of strings.
-- `fuzzy_threshold` (NUM, optional): Controls fuzzy matching sensitivity (default: 0.0, no fuzzy matching)
+- `keys` (LIST, optional): List of key lists for matching. Must have the same length as `targets`.
+  Each element can be a string or a list of strings.
+- `fuzzy_threshold` (NUM, optional): Controls fuzzy matching sensitivity (default: 0.0, no fuzzy
+  matching)
 
 #### Return values
 
@@ -436,14 +450,17 @@ Unlike `complex_match()` which returns a single match (or uses ordinals to selec
 
 #### All-tiers prefix
 
-By default, `complex_matches()` returns only matches from the best (highest priority) non-empty tier. To return matches from **all** tiers combined, prefix the token with `"all "` or `"*."`:
+By default, `complex_matches()` returns only matches from the best (highest priority) non-empty
+tier. To return matches from **all** tiers combined, prefix the token with `"all "` or `"*."`:
 
 - `"all foo"` - returns all exact, prefix, substring, and fuzzy matches for "foo"
 - `"*.foo"` - same behavior as "all foo"
 
-Results are returned in tier priority order: exact matches first, then prefix, then substring, then fuzzy.
+Results are returned in tier priority order: exact matches first, then prefix, then substring, then
+fuzzy.
 
-If the token is exactly `"all"` or `"*."` with no subject following, it is treated as a literal search term (not a prefix).
+If the token is exactly `"all"` or `"*."` with no subject following, it is treated as a literal
+search term (not a prefix).
 
 #### Examples
 

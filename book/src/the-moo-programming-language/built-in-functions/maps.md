@@ -23,7 +23,8 @@ list mapvalues(MAP `map` [, ... STR `key`])
 
 returns the values of the elements of a map.
 
-If you only want the values of specific keys in the map, you can specify them as optional arguments. See examples below.
+If you only want the values of specific keys in the map, you can specify them as optional arguments.
+See examples below.
 
 Examples:
 
@@ -39,7 +40,8 @@ mapvalues(x, "foo", "baz") => {1, 3}
 map mapdelete(map map, key)
 ```
 
-Returns a copy of map with the value corresponding to key removed. If key is not a valid key, then E_RANGE is raised.
+Returns a copy of map with the value corresponding to key removed. If key is not a valid key, then
+E_RANGE is raised.
 
 ```
 x = ["foo" -> 1, "bar" -> 2, "baz" -> 3];
@@ -52,5 +54,5 @@ mapdelete(x, "bar")   ⇒   ["baz" -> 3, "foo" -> 1]
 int maphaskey(MAP map, STR key)
 ```
 
-Returns 1 if key exists in map. When not dealing with hundreds of keys, this function is faster (and easier to read)
-than something like: !(x in mapkeys(map))
+Returns 1 if key exists in map. When not dealing with hundreds of keys, this function is faster (and
+easier to read) than something like: !(x in mapkeys(map))

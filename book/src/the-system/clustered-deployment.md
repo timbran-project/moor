@@ -1,22 +1,23 @@
 # Clustered Deployment
 
-One of mooR's unique architectural capabilities is that hosts (telnet-host, web-host) and workers (curl-worker) can run
-on separate machines from the daemon. This distributed architecture enables flexible deployment patterns that aren't
-possible with traditional monolithic MOO servers.
+One of mooR's unique architectural capabilities is that hosts (telnet-host, web-host) and workers
+(curl-worker) can run on separate machines from the daemon. This distributed architecture enables
+flexible deployment patterns that aren't possible with traditional monolithic MOO servers.
 
 ## Why Deploy in a Clustered Configuration?
 
 **Load Distribution**
 
-While the daemon handles the majority of computational work (MOO code execution, database operations), separating hosts
-and workers can help distribute network I/O and connection handling across multiple machines. This is particularly
-valuable for high-traffic deployments with many simultaneous connections.
+While the daemon handles the majority of computational work (MOO code execution, database
+operations), separating hosts and workers can help distribute network I/O and connection handling
+across multiple machines. This is particularly valuable for high-traffic deployments with many
+simultaneous connections.
 
 **Security Segmentation**
 
-Running workers like `moor-curl-worker` on separate machines reduces your security blast radius. If a worker handling
-processing HTTP requests is compromised, it doesn't have direct access to your MOO database. Similarly, you can isolate
-public-facing telnet and web hosts from your core daemon.
+Running workers like `moor-curl-worker` on separate machines reduces your security blast radius. If
+a worker handling processing HTTP requests is compromised, it doesn't have direct access to your MOO
+database. Similarly, you can isolate public-facing telnet and web hosts from your core daemon.
 
 **Functional Isolation**
 
@@ -65,8 +66,8 @@ Clustered deployment enables defense-in-depth strategies:
 
 ## How Clustered Communication Works
 
-In a clustered deployment, components communicate over TCP using encrypted ZeroMQ sockets instead of local Unix domain
-sockets (IPC).
+In a clustered deployment, components communicate over TCP using encrypted ZeroMQ sockets instead of
+local Unix domain sockets (IPC).
 
 ### TCP Mode with CURVE Encryption
 
@@ -156,12 +157,13 @@ On first connection:
 
 ### Automatic Key Generation
 
-Both daemon and hosts/workers automatically generate CURVE keypairs on first run. Keys are stored as Z85-encoded text in
-the config directory.
+Both daemon and hosts/workers automatically generate CURVE keypairs on first run. Keys are stored as
+Z85-encoded text in the config directory.
 
 ### Per-Connection Encryption
 
-Each ZeroMQ socket (RPC REQ/REP, PUB/SUB) uses CURVE encryption with ephemeral session keys. This provides:
+Each ZeroMQ socket (RPC REQ/REP, PUB/SUB) uses CURVE encryption with ephemeral session keys. This
+provides:
 
 - **Forward Secrecy**: Compromise of long-term keys doesn't compromise past sessions
 - **Authentication**: Only enrolled hosts/workers with registered public keys can connect
@@ -169,7 +171,8 @@ Each ZeroMQ socket (RPC REQ/REP, PUB/SUB) uses CURVE encryption with ephemeral s
 
 ### ZAP Authentication
 
-After enrollment, the daemon validates all incoming ZMQ connections using the ZeroMQ Authentication Protocol (ZAP):
+After enrollment, the daemon validates all incoming ZMQ connections using the ZeroMQ Authentication
+Protocol (ZAP):
 
 1. Connection attempts include the client's CURVE public key
 2. Daemon checks if the public key is in the allowed-hosts directory
@@ -180,7 +183,9 @@ After enrollment, the daemon validates all incoming ZMQ connections using the Ze
 
 ### docker-compose.cluster.yml
 
-The mooR repository includes `docker-compose.cluster.yml` as a reference implementation. **This configuration runs on a single host** (all containers on one machine) but demonstrates the TCP/CURVE setup you'd use for an actual multi-machine clustered deployment:
+The mooR repository includes `docker-compose.cluster.yml` as a reference implementation. **This
+configuration runs on a single host** (all containers on one machine) but demonstrates the TCP/CURVE
+setup you'd use for an actual multi-machine clustered deployment:
 
 ```bash
 # Test clustered configuration locally on a single machine
@@ -194,11 +199,14 @@ This example configuration shows:
 - Enrollment token distribution between components
 - CURVE encryption and authentication setup
 
-**Purpose**: Use this as a reference for understanding and testing the clustered configuration locally before deploying across actual separate machines. For production multi-machine deployments, adapt the endpoint addresses to point to different hosts and configure appropriate network routing.
+**Purpose**: Use this as a reference for understanding and testing the clustered configuration
+locally before deploying across actual separate machines. For production multi-machine deployments,
+adapt the endpoint addresses to point to different hosts and configure appropriate network routing.
 
 ### Kubernetes Deployment (deploy/kubernetes/)
 
-For a more complete example of multi-machine clustered deployment, see the Kubernetes manifests in `deploy/kubernetes/`. This configuration demonstrates:
+For a more complete example of multi-machine clustered deployment, see the Kubernetes manifests in
+`deploy/kubernetes/`. This configuration demonstrates:
 
 - Health checks with daemon ping/pong verification
 - Horizontal scaling of hosts and workers
@@ -207,13 +215,16 @@ For a more complete example of multi-machine clustered deployment, see the Kuber
 - Service discovery and networking
 - Enrollment token management via Secrets
 
-While designed for local testing with kind/minikube, these manifests serve as a solid reference for production Kubernetes deployments. See the `deploy/kubernetes/README.md` for detailed deployment instructions.
+While designed for local testing with kind/minikube, these manifests serve as a solid reference for
+production Kubernetes deployments. See the `deploy/kubernetes/README.md` for detailed deployment
+instructions.
 
 ## Managing Enrollment Tokens
 
 ### Rotating Tokens
 
-Once the daemon is running, wizard administrators can rotate the enrollment token from inside the MOO:
+Once the daemon is running, wizard administrators can rotate the enrollment token from inside the
+MOO:
 
 ```moo
 token = rotate_enrollment_token();
@@ -282,7 +293,9 @@ All components implement health endpoints that verify daemon connectivity:
 - **Telnet-host**: TCP socket on port 9888
 - **Curl-worker**: TCP socket on port 9999
 
-Each host and worker tracks daemon ping/pong messages and reports healthy only if a ping was received within the last 30 seconds. This ensures the component is enrolled, CURVE-authenticated, and actively communicating with the daemon.
+Each host and worker tracks daemon ping/pong messages and reports healthy only if a ping was
+received within the last 30 seconds. This ensures the component is enrolled, CURVE-authenticated,
+and actively communicating with the daemon.
 
 **Testing health endpoints:**
 
@@ -297,7 +310,8 @@ nc -zv telnet-host.internal 9888
 nc -zv curl-worker.internal 9999
 ```
 
-In Kubernetes, these endpoints are used for liveness and readiness probes to ensure only healthy pods receive traffic.
+In Kubernetes, these endpoints are used for liveness and readiness probes to ensure only healthy
+pods receive traffic.
 
 ### Metrics to Monitor
 
@@ -305,7 +319,8 @@ In Kubernetes, these endpoints are used for liveness and readiness probes to ens
 - **Network Latency**: Latency between daemon and hosts/workers
 - **Message Throughput**: RPC and event message rates
 - **Error Rates**: Failed enrollments, disconnections, authentication failures
-- **Health Check Status**: Monitor health endpoint responses for early warning of connectivity issues
+- **Health Check Status**: Monitor health endpoint responses for early warning of connectivity
+  issues
 
 ### Logging
 
@@ -421,5 +436,6 @@ The daemon can handle many host/worker connections, but consider:
 - Network latency would be a concern
 - Simpler configuration is preferred
 
-For most users, the default IPC configuration (Docker Compose, Debian packages) is the recommended starting point.
-Graduate to clustered deployment when you have specific scaling, security, or distribution requirements.
+For most users, the default IPC configuration (Docker Compose, Debian packages) is the recommended
+starting point. Graduate to clustered deployment when you have specific scaling, security, or
+distribution requirements.

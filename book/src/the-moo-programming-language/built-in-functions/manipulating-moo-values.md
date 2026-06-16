@@ -1,9 +1,10 @@
 # Manipulating MOO Values
 
-There are several functions for performing primitive operations on MOO values, and they can be cleanly split into two
-kinds: those that do various very general operations that apply to all types of values, and those that are specific to
-one particular type. There are so many operations concerned with objects that we do not list them in this section but
-rather give them their own section following this one.
+There are several functions for performing primitive operations on MOO values, and they can be
+cleanly split into two kinds: those that do various very general operations that apply to all types
+of values, and those that are specific to one particular type. There are so many operations
+concerned with objects that we do not list them in this section but rather give them their own
+section following this one.
 
 ## General Operations Applicable to All Values
 
@@ -15,8 +16,9 @@ int typeof(value)
 
 Takes any MOO value and returns an integer representing the type of value.
 
-The result can be compared against the type constant literals: `TYPE_INT`, `TYPE_FLOAT`, `TYPE_STR`, `TYPE_LIST`, `TYPE_OBJ`,
-`TYPE_ERR`, `TYPE_BOOL`, `TYPE_MAP`, `TYPE_FLYWEIGHT`, `TYPE_SYM`. Thus, one usually writes code like this:
+The result can be compared against the type constant literals: `TYPE_INT`, `TYPE_FLOAT`, `TYPE_STR`,
+`TYPE_LIST`, `TYPE_OBJ`, `TYPE_ERR`, `TYPE_BOOL`, `TYPE_MAP`, `TYPE_FLYWEIGHT`, `TYPE_SYM`. Thus,
+one usually writes code like this:
 
 ```
 if (typeof(x) == TYPE_LIST) ...
@@ -49,9 +51,9 @@ tostr(E_PERM)              =>   "Permission denied"
 tostr("3 + 4 = ", 3 + 4)   =>   "3 + 4 = 7"
 ```
 
-Warning `tostr()` does not do a good job of converting lists and maps into strings; all lists, including the empty list,
-are converted into the string `"{list}"` and all maps are converted into the string `"[map]"`. The function
-`toliteral()`, below, is better for this purpose.
+Warning `tostr()` does not do a good job of converting lists and maps into strings; all lists,
+including the empty list, are converted into the string `"{list}"` and all maps are converted into
+the string `"[map]"`. The function `toliteral()`, below, is better for this purpose.
 
 ### `toliteral`
 
@@ -79,11 +81,12 @@ int toint(value)
 
 Converts the given MOO value into an integer and returns that integer.
 
-Floating-point numbers are rounded toward zero, truncating their fractional parts. Object numbers are converted into the
-equivalent integers. Strings are trimmed and parsed as the decimal encoding of a real number which is then converted to
-an integer. Errors are converted into integers obeying the same ordering (with respect to `<=` as the errors themselves.
-`toint()` raises `E_TYPE` if value is a list. If value is a string but the string does not contain a
-syntactically-correct number, then `toint()` returns 0.
+Floating-point numbers are rounded toward zero, truncating their fractional parts. Object numbers
+are converted into the equivalent integers. Strings are trimmed and parsed as the decimal encoding
+of a real number which is then converted to an integer. Errors are converted into integers obeying
+the same ordering (with respect to `<=` as the errors themselves. `toint()` raises `E_TYPE` if value
+is a list. If value is a string but the string does not contain a syntactically-correct number, then
+`toint()` returns 0.
 
 ```
 toint(34.7)        =>   34
@@ -103,7 +106,8 @@ obj toobj(value)
 
 Converts the given MOO value into an object number and returns that object number.
 
-The conversions are very similar to those for `toint()` except that for strings, the number _may_ be preceded by `#`.
+The conversions are very similar to those for `toint()` except that for strings, the number _may_ be
+preceded by `#`.
 
 ```
 toobj("34")       =>   #34
@@ -120,11 +124,12 @@ float tofloat(value)
 
 Converts the given MOO value into a floating-point number and returns that number.
 
-Integers and object numbers are converted into the corresponding integral floating-point numbers. Strings are trimmed
-and parsed as the decimal encoding of a real number which is then represented as closely as possible as a floating-point
-number. Errors are first converted to integers as in `toint()` and then converted as integers are. `tofloat()` raises
-`E_TYPE` if value is a list. If value is a string but the string does not contain a syntactically-correct number, then
-`tofloat()` returns 0.
+Integers and object numbers are converted into the corresponding integral floating-point numbers.
+Strings are trimmed and parsed as the decimal encoding of a real number which is then represented as
+closely as possible as a floating-point number. Errors are first converted to integers as in
+`toint()` and then converted as integers are. `tofloat()` raises `E_TYPE` if value is a list. If
+value is a string but the string does not contain a syntactically-correct number, then `tofloat()`
+returns 0.
 
 ```
 tofloat(34)          =>   34.0
@@ -142,8 +147,9 @@ int equal(value, value2)
 
 Returns true if value1 is completely indistinguishable from value2.
 
-This is much the same operation as `value1 == value2` except that, unlike `==`, the `equal()` function does not treat
-upper- and lower-case characters in strings as equal and thus, is case-sensitive.
+This is much the same operation as `value1 == value2` except that, unlike `==`, the `equal()`
+function does not treat upper- and lower-case characters in strings as equal and thus, is
+case-sensitive.
 
 ```
 "Foo" == "foo"         =>   1

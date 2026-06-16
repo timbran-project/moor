@@ -1,27 +1,29 @@
 # Webhooks
 
-Webhooks allow the MOO server to handle incoming HTTP requests and serve dynamic content directly from MOO code. This
-enables the MOO to function as a web application server, serving HTML pages, JSON APIs, or any other HTTP content.
+Webhooks allow the MOO server to handle incoming HTTP requests and serve dynamic content directly
+from MOO code. This enables the MOO to function as a web application server, serving HTML pages,
+JSON APIs, or any other HTTP content.
 
 ## Enabling Webhooks
 
-Webhooks are enabled by default when starting the `web-host`. You can be explicit (or disable them) with the CLI flag:
+Webhooks are enabled by default when starting the `web-host`. You can be explicit (or disable them)
+with the CLI flag:
 
-Here's an example, although this is something only an administrator would have to be concerned with and you should ask
-your admin about:
+Here's an example, although this is something only an administrator would have to be concerned with
+and you should ask your admin about:
 
 ```bash
 ./target/release/moor-web-host --enable-webhooks=true
 ./target/release/moor-web-host --enable-webhooks=false
 ```
 
-When enabled, all HTTP requests to paths starting with `/webhooks/` will be routed to the MOO's `#0:invoke_http_handler`
-verb.
+When enabled, all HTTP requests to paths starting with `/webhooks/` will be routed to the MOO's
+`#0:invoke_http_handler` verb.
 
 ## Request Processing
 
-When an HTTP request is received at a webhook path (e.g., `http://localhost:8080/webhooks/test/friendly`), the following
-happens:
+When an HTTP request is received at a webhook path (e.g.,
+`http://localhost:8080/webhooks/test/friendly`), the following happens:
 
 1. The request is parsed and converted to MOO data structures
 2. A system handler task is created to call `#0:invoke_http_handler`
@@ -62,11 +64,11 @@ The handler would receive:
 
 ## Authentication and Permissions
 
-Webhook handlers always run with system object (#0) permissions. The web host does not authenticate webhook requests
-for you.
+Webhook handlers always run with system object (#0) permissions. The web host does not authenticate
+webhook requests for you.
 
-If you need authentication, validate it inside your handler (for example, by checking a shared secret header or
-verifying a token) and enforce your own access rules.
+If you need authentication, validate it inside your handler (for example, by checking a shared
+secret header or verifying a token) and enforce your own access rules.
 
 ## Response Formats
 
@@ -147,7 +149,8 @@ Webhooks enable many powerful use cases:
  8:  endif
 ```
 
-For more sophisticated HTML generation using MOO's document processing capabilities, see [Document Processing](xml-documents.md).
+For more sophisticated HTML generation using MOO's document processing capabilities, see
+[Document Processing](xml-documents.md).
 
 ### Action Triggers
 
@@ -193,13 +196,15 @@ If the handler raises an error or returns an unsupported value type:
 
 - Webhook handlers have a 30-second timeout
 - Long-running handlers will cause HTTP timeouts
-- For expensive operations that don't require immediate HTTP response, use `fork()` to run them in the background
+- For expensive operations that don't require immediate HTTP response, use `fork()` to run them in
+  the background
 - Consider using workers for external API calls that might block or take significant time
 
 ### Using fork() for Background Processing
 
-If you need to perform expensive operations (like database cleanup, file processing, or sending notifications) but don't
-need to wait for them to complete before returning an HTTP response, use `fork()`:
+If you need to perform expensive operations (like database cleanup, file processing, or sending
+notifications) but don't need to wait for them to complete before returning an HTTP response, use
+`fork()`:
 
 ```moo
 #0:invoke_http_handler   this none this
@@ -215,7 +220,8 @@ need to wait for them to complete before returning an HTTP response, use `fork()
 10:  return {405, "Method not allowed", "text/plain"};
 ```
 
-This pattern allows the HTTP request to complete quickly while the expensive work happens asynchronously.
+This pattern allows the HTTP request to complete quickly while the expensive work happens
+asynchronously.
 
 ## Security Best Practices
 

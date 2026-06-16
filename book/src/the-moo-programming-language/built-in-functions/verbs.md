@@ -2,11 +2,12 @@
 
 ### `verb_info`
 
-**Description:** Retrieves basic information about a verb on an object.  
+**Description:** Retrieves basic information about a verb on an object.\
 **Arguments:**
 
 - : The object that has the verb `object`
-- : Either the verb name or a positive integer representing the verb's position in the verb list (1-based) `verb-desc`
+- : Either the verb name or a positive integer representing the verb's position in the verb list
+  (1-based) `verb-desc`
 
 **Returns:** A list containing three elements:
 
@@ -22,30 +23,32 @@
 
 ### `set_verb_info`
 
-**Description:** Changes the permission information for a verb.  
+**Description:** Changes the permission information for a verb.\
 **Arguments:**
 
 - : The object with the verb to modify `object`
-- : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
+- : Either the verb name or a positive integer representing the verb's position (1-based)
+  `verb-desc`
 - : A list containing permission information: `[owner, permissions, names]`
-    - : The new owner of the verb (object reference) `owner`
-    - : A string containing the permission flags (combination of 'r', 'w', 'x', 'd') `permissions`
-    - : A string containing space-separated verb names/aliases `names`
+  - : The new owner of the verb (object reference) `owner`
+  - : A string containing the permission flags (combination of 'r', 'w', 'x', 'd') `permissions`
+  - : A string containing space-separated verb names/aliases `names`
 
 `info`
 
-**Returns:** `none`  
+**Returns:** `none`\
 **Note:** Requires appropriate permissions to modify the verb.
 
 ## Verb Arguments Functions
 
 ### `verb_args`
 
-**Description:** Retrieves information about a verb's argument specification.  
+**Description:** Retrieves information about a verb's argument specification.\
 **Arguments:**
 
 - : The object that has the verb `object`
-- : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
+- : Either the verb name or a positive integer representing the verb's position (1-based)
+  `verb-desc`
 
 **Returns:** A list containing three elements:
 
@@ -57,15 +60,16 @@
 
 ### `set_verb_args`
 
-**Description:** Changes the argument specification for a verb.  
+**Description:** Changes the argument specification for a verb.\
 **Arguments:**
 
 - : The object with the verb to modify `object`
-- : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
+- : Either the verb name or a positive integer representing the verb's position (1-based)
+  `verb-desc`
 - : A list containing argument specifications: `[dobj, prep, iobj]`
-    - : String specifying direct object behavior `dobj`
-    - : String specifying the preposition `prep`
-    - : String specifying indirect object behavior `iobj`
+  - : String specifying direct object behavior `dobj`
+  - : String specifying the preposition `prep`
+  - : String specifying indirect object behavior `iobj`
 
 `args`
 
@@ -77,12 +81,14 @@
 
 ### `verb_code`
 
-**Description:** Retrieves the source code of a verb.  
+**Description:** Retrieves the source code of a verb.\
 **Arguments:**
 
 - : The object that has the verb `object`
-- : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
-- : Optional boolean indicating whether to fully parenthesize the code (default: false) `fully-paren`
+- : Either the verb name or a positive integer representing the verb's position (1-based)
+  `verb-desc`
+- : Optional boolean indicating whether to fully parenthesize the code (default: false)
+  `fully-paren`
 - `indent`: Optional integer specifying indentation amount (default: 0)
 
 **Returns:** A list of strings, each representing a line of the verb's source code
@@ -91,37 +97,37 @@
 
 - `E_ARGS` if the wrong number of arguments is provided
 - `E_TYPE` if `object` is not an object, or if `verb-desc` is neither a string nor an integer
-- `E_INVARG` if `object` is not valid, if `verb-desc` is an integer less than 1, or if the verb program cannot be
-  decoded as MOO source
+- `E_INVARG` if `object` is not valid, if `verb-desc` is an integer less than 1, or if the verb
+  program cannot be decoded as MOO source
 - `E_VERBNF` if `object` does not define the requested verb
 - `E_PERM` if the caller does not have read permission on the verb
 
 ### `set_verb_code`
 
-**Description:** Changes the source code of a verb.
-**Arguments:**
+**Description:** Changes the source code of a verb. **Arguments:**
 
 - `object`: The object with the verb to modify
 - `verb-desc`: Either the verb name or a positive integer representing the verb's position (1-based)
 - `code`: A list of strings, each representing a line of the verb's source code
 - `verbosity`: (Optional) Controls error output detail level (default: 2)
-    - `0` - Summary: Brief error message only
-    - `1` - Context: Message with error location (graphical display when output_mode > 0)
-    - `2` - Detailed: Message, location, and diagnostic hints (default)
-    - `3` - Structured: Returns error data as a map for programmatic handling
+  - `0` - Summary: Brief error message only
+  - `1` - Context: Message with error location (graphical display when output_mode > 0)
+  - `2` - Detailed: Message, location, and diagnostic hints (default)
+  - `3` - Structured: Returns error data as a map for programmatic handling
 - `output_mode`: (Optional) Controls error formatting style (default: 0)
-    - `0` - Plain text without special characters
-    - `1` - Graphics characters for visual clarity
-    - `2` - Graphics with ANSI color codes
+  - `0` - Plain text without special characters
+  - `1` - Graphics characters for visual clarity
+  - `2` - Graphics with ANSI color codes
 
 **Returns:**
 
 - On success: empty list `{}`
 - On compilation failure with `verbosity` 0-2: list of formatted error strings
-- On compilation failure with `verbosity` 3: map containing structured error data (use `format_compile_error()` to
-  format)
+- On compilation failure with `verbosity` 3: map containing structured error data (use
+  `format_compile_error()` to format)
 
-**Note:** Requires read and write permission on the verb. Changing the verb program also requires programmer or wizard.
+**Note:** Requires read and write permission on the verb. Changing the verb program also requires
+programmer or wizard.
 
 **Examples:**
 
@@ -143,7 +149,7 @@ formatted = format_compile_error(err, 0);  // Summary only
 
 ### `add_verb`
 
-**Description:** Adds a new verb to an object.  
+**Description:** Adds a new verb to an object.\
 **Arguments:**
 
 - : The object to add the verb to `object`
@@ -157,16 +163,17 @@ formatted = format_compile_error(err, 0);  // Summary only
 - `E_ARGS` if the wrong number of arguments is provided
 - `E_TYPE` if `object` is not an object, or if `info` or `args` is not a list
 - `E_INVARG` if `object` is not valid, or if `info` or `args` is malformed
-- `E_PERM` if the caller does not have write permission on `object` (including owner or wizard authority), or if the
-  requested verb owner is not the caller and the caller is not a wizard
+- `E_PERM` if the caller does not have write permission on `object` (including owner or wizard
+  authority), or if the requested verb owner is not the caller and the caller is not a wizard
 
 ### `delete_verb`
 
-**Description:** Removes a verb from an object.  
+**Description:** Removes a verb from an object.\
 **Arguments:**
 
 - : The object to remove the verb from `object`
-- : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
+- : Either the verb name or a positive integer representing the verb's position (1-based)
+  `verb-desc`
 
 **Returns:** `none`
 
@@ -176,29 +183,30 @@ formatted = format_compile_error(err, 0);  // Summary only
 - `E_TYPE` if `object` is not an object, or if `verb-desc` is neither a string nor an integer
 - `E_INVARG` if `object` is not valid, or if `verb-desc` is an integer less than 1
 - `E_VERBNF` if `object` does not directly define the requested verb
-- `E_PERM` if the caller does not have write permission on `object` (including owner or wizard authority)
+- `E_PERM` if the caller does not have write permission on `object` (including owner or wizard
+  authority)
 
 ## Error Formatting Functions
 
 ### `format_compile_error`
 
-**Description:** Formats a structured compilation error map into human-readable text.
-**Arguments:**
+**Description:** Formats a structured compilation error map into human-readable text. **Arguments:**
 
-- `error`: Map containing compilation error data (from `set_verb_code()` or `eval()` with `verbosity` 3)
+- `error`: Map containing compilation error data (from `set_verb_code()` or `eval()` with
+  `verbosity` 3)
 - `verbosity`: (Optional) Controls output detail level (default: 2)
-    - `0` - Summary: Brief error message only
-    - `1` - Context: Message with error location (graphical display when output_mode > 0)
-    - `2` - Detailed: Message, location, and diagnostic hints
+  - `0` - Summary: Brief error message only
+  - `1` - Context: Message with error location (graphical display when output_mode > 0)
+  - `2` - Detailed: Message, location, and diagnostic hints
 - `output_mode`: (Optional) Controls formatting style (default: 0)
-    - `0` - Plain text without special characters
-    - `1` - Graphics characters for visual clarity
-    - `2` - Graphics with ANSI color codes
+  - `0` - Plain text without special characters
+  - `1` - Graphics characters for visual clarity
+  - `2` - Graphics with ANSI color codes
 
 **Returns:** List of formatted error strings
 
-**Note:** Use this function to format structured error maps returned by `set_verb_code()` or `eval()` when called with
-`verbosity` 3.
+**Note:** Use this function to format structured error maps returned by `set_verb_code()` or
+`eval()` when called with `verbosity` 3.
 
 **Example:**
 
@@ -221,18 +229,19 @@ colored = format_compile_error(err, 2, 2);
 
 ### `disassemble`
 
-**Description:** Provides a detailed breakdown of the compiled bytecode for a verb.  
+**Description:** Provides a detailed breakdown of the compiled bytecode for a verb.\
 **Arguments:**
 
 - : The object that has the verb `object`
-- : Either the verb name or a positive integer representing the verb's position (1-based) `verb-desc`
+- : Either the verb name or a positive integer representing the verb's position (1-based)
+  `verb-desc`
 
-**Returns:** A list of strings showing the internal compiled representation of the verb  
+**Returns:** A list of strings showing the internal compiled representation of the verb\
 **Note:** Output format is not standardized and may change between versions.
 
 ### `respond_to`
 
-**Description:** Checks if an object has a verb with a specific name.  
+**Description:** Checks if an object has a verb with a specific name.\
 **Arguments:**
 
 - : The object to check `object`
@@ -241,8 +250,8 @@ colored = format_compile_error(err, 2, 2);
 **Returns:**
 
 - If the object doesn't have a verb with that name: (false) `0`
-- If the caller controls the object or the object is readable and the verb exists: a list containing the location of the
-  verb and its names
+- If the caller controls the object or the object is readable and the verb exists: a list containing
+  the location of the verb and its names
 - If the caller doesn't control the object but the verb exists: (true) `1`
 
 ## Verb Permissions Explained
@@ -254,11 +263,13 @@ Verbs in this system use a permission model based on the following flags:
 - (execute): Controls who can execute the verb **x**
 - (debug): Controls whether the verb runs in debug mode **d**
 
-These permissions are represented as a string (e.g., "rwxd" for all permissions, "rx" for read and execute only).
+These permissions are represented as a string (e.g., "rwxd" for all permissions, "rx" for read and
+execute only).
 
 ### `prepositions`
 
-**Description:** Returns a list of all valid prepositions that can be used in verb argument specifications.
+**Description:** Returns a list of all valid prepositions that can be used in verb argument
+specifications.
 
 **Arguments:** None
 
@@ -282,20 +293,20 @@ prepositions()
 }
 ```
 
-**Note:** This is useful for introspection and for code that needs to validate or work with prepositions
-programmatically.
+**Note:** This is useful for introspection and for code that needs to validate or work with
+prepositions programmatically.
 
 ## Verb Arguments Specification
 
 The verb arguments specification consists of three components:
 
 1. **Direct Object (dobj)** - Can be one of:
-    - "this" - Object must match the verb's location
-    - "none" - No object expected
-    - "any" - Any object is acceptable
+   - "this" - Object must match the verb's location
+   - "none" - No object expected
+   - "any" - Any object is acceptable
 
-2. **Preposition (prep)** - Specifies the preposition, like "with", "at", "in", etc. Use `prepositions()` to get a list
-   of valid values.
+2. **Preposition (prep)** - Specifies the preposition, like "with", "at", "in", etc. Use
+   `prepositions()` to get a list of valid values.
 3. **Indirect Object (iobj)** - Same options as Direct Object
 
 These specifications control how the parsing system matches player commands to verbs.

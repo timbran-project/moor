@@ -1,142 +1,148 @@
 # MOO Programming Language Syntax Description
 
-What follows is a more terse summary of the MOO programming language syntax as implemented in mooR. This is meant as a
-reference for those familiar with the language, rather than a tutorial.
+What follows is a more terse summary of the MOO programming language syntax as implemented in mooR.
+This is meant as a reference for those familiar with the language, rather than a tutorial.
 
 ## Introduction
 
-MOO is an object-oriented programming language designed for use in MOO environments. It is a dynamic, interpreted
-language that allows for rapid development and prototyping.
+MOO is an object-oriented programming language designed for use in MOO environments. It is a
+dynamic, interpreted language that allows for rapid development and prototyping.
 
-Its syntax has some similarities in style to Wirth-style languages (like Pascal) because it has a keyword-based block
-syntax and 1-based indexing, but it also has a more C-like syntax for expressions and operators, and some functional
-programming inspirations (immutable collections, list comprehensions, etc.) though it does not (yet) have first-class
-functions or lambdas.
+Its syntax has some similarities in style to Wirth-style languages (like Pascal) because it has a
+keyword-based block syntax and 1-based indexing, but it also has a more C-like syntax for
+expressions and operators, and some functional programming inspirations (immutable collections, list
+comprehensions, etc.) though it does not (yet) have first-class functions or lambdas.
 
-Objects in MOO differ from objects in most other object-oriented programming languages you are likely familiar with.
+Objects in MOO differ from objects in most other object-oriented programming languages you are
+likely familiar with.
 
-In MOO, objects are persistent database entities. They are not garbage collected, and are referred to using literals
-like `#123` or `$room`. Changes made to objects are permanent and can be accessed by other users or processes.
+In MOO, objects are persistent database entities. They are not garbage collected, and are referred
+to using literals like `#123` or `$room`. Changes made to objects are permanent and can be accessed
+by other users or processes.
 
-MOO also has a different inheritance model than most object-oriented languages. Objects can inherit properties and verbs
-from other objects,
-but there are no "classes." This model of inheritance is called "prototype inheritance" and is similar to the model
-in the Self language. Each object has at most one parent, and properties and verbs are looked up in the parent if
-they are not found in the object itself. New objects can be created with any other existing object as a parent,
-providing
-the user has the necessary permissions.
+MOO also has a different inheritance model than most object-oriented languages. Objects can inherit
+properties and verbs from other objects, but there are no "classes." This model of inheritance is
+called "prototype inheritance" and is similar to the model in the Self language. Each object has at
+most one parent, and properties and verbs are looked up in the parent if they are not found in the
+object itself. New objects can be created with any other existing object as a parent, providing the
+user has the necessary permissions.
 
 ## Basic Structure
 
-A MOO program is called a "verb" and consists of a series of statements that are executed in order. There are no
-subroutines or functions in the traditional sense, but verbs can call other verbs on objects.
+A MOO program is called a "verb" and consists of a series of statements that are executed in order.
+There are no subroutines or functions in the traditional sense, but verbs can call other verbs on
+objects.
 
-The following is a rather terse summary of the MOO syntax. For a more user-friendly overview, please see the
-LambdaMOO Programmers Manual or various tutorials.
+The following is a rather terse summary of the MOO syntax. For a more user-friendly overview, please
+see the LambdaMOO Programmers Manual or various tutorials.
 
 ## Statements
 
 MOO supports several types of statements:
 
 1. **Control Flow Statements**:
-    - `if`/`elseif`/`else`/`endif` - Conditional execution
-    - `while`/`endwhile` - Loop as long as condition is true
-    - `for`/`endfor` - Iteration over ranges or collections
-    - `fork`/`endfork` - Parallel execution threads
-    - `try`/`except`/`finally`/`endtry` - Exception handling
-    - `break` and `continue` - Loop control
-    - `return` - Return from the current verb
+   - `if`/`elseif`/`else`/`endif` - Conditional execution
+   - `while`/`endwhile` - Loop as long as condition is true
+   - `for`/`endfor` - Iteration over ranges or collections
+   - `fork`/`endfork` - Parallel execution threads
+   - `try`/`except`/`finally`/`endtry` - Exception handling
+   - `break` and `continue` - Loop control
+   - `return` - Return from the current verb
 
 2. **Variable Declaration and Assignment**:
-    - `let` - Declares local variables
-    - `const` - Declares constants
-    - `global` - Declares global variables
+   - `let` - Declares local variables
+   - `const` - Declares constants
+   - `global` - Declares global variables
 
 3. **Block Structure**:
-    - `begin`/`end` - Groups statements into a block
+   - `begin`/`end` - Groups statements into a block
 
 4. **Expression Statements**:
-    - Any expression followed by a semicolon
+   - Any expression followed by a semicolon
 
 ## Variables and Types
 
 MOO supports several basic data types:
 
 1. **Primitive Types**:
-    - Integer (`INT`) - Whole numbers
-    - Float (`FLOAT`) - Decimal numbers
-    - String (`STR`) - Text in double quotes
-    - Binary (`BINARY`) - Binary data in base64 format with `b"` prefix, e.g. `b"SGVsbG8gV29ybGQ="` 
-    - Boolean (`BOOL`) - `true` or `false`
-    - Object (`OBJ`) - References to objects in the DB, written as `#123` or `$room`. Note that `$` is a special prefix
-      for "system" objects, which are objects referenced off the system object `#0`. `$room` is short-hand for
-      `#0.room`.
-    - Error (`ERR`) - Error values, literal values starting with `E_`. By default, only predefined error codes like
-      `E_PERM`, `E_TYPE`, etc. are available. With the `custom_errors` feature enabled, any identifier starting with
-      `E_` becomes a valid error code. Errors can optionally include a message and value in parentheses: 
-      `E_PERM("Permission denied")`, `E_RANGE("list too small", the_list)`, or just `E_PERM`.
-    - Symbol (`SYM`) - Symbolic identifiers prefixed with a single quote, as in Scheme or Lisp, e.g. `'symbol`
+   - Integer (`INT`) - Whole numbers
+   - Float (`FLOAT`) - Decimal numbers
+   - String (`STR`) - Text in double quotes
+   - Binary (`BINARY`) - Binary data in base64 format with `b"` prefix, e.g. `b"SGVsbG8gV29ybGQ="`
+   - Boolean (`BOOL`) - `true` or `false`
+   - Object (`OBJ`) - References to objects in the DB, written as `#123` or `$room`. Note that `$`
+     is a special prefix for "system" objects, which are objects referenced off the system object
+     `#0`. `$room` is short-hand for `#0.room`.
+   - Error (`ERR`) - Error values, literal values starting with `E_`. By default, only predefined
+     error codes like `E_PERM`, `E_TYPE`, etc. are available. With the `custom_errors` feature
+     enabled, any identifier starting with `E_` becomes a valid error code. Errors can optionally
+     include a message and value in parentheses: `E_PERM("Permission denied")`,
+     `E_RANGE("list too small", the_list)`, or just `E_PERM`.
+   - Symbol (`SYM`) - Symbolic identifiers prefixed with a single quote, as in Scheme or Lisp, e.g.
+     `'symbol`
 
 2. **Complex Types**:
 
-    - List (`LIST`) - Ordered collections in curly braces `{1, 2, 3}`. Lists can contain any type of value, including
-      other
-      lists.
-      _Note that unlike most programming languages (and like Pascal, Lua, Julia, etc.) lists are 1-indexed, not
-      zero-indexed._
+   - List (`LIST`) - Ordered collections in curly braces `{1, 2, 3}`. Lists can contain any type of
+     value, including other lists. _Note that unlike most programming languages (and like Pascal,
+     Lua, Julia, etc.) lists are 1-indexed, not zero-indexed._
 
-    - Map (`MAP`) - Key-value collections in square brackets `[key -> value]`
-    - Flyweight (`FLYWEIGHT`) - Lightweight objects with structure `<parent, [slots], {contents}>`
+   - Map (`MAP`) - Key-value collections in square brackets `[key -> value]`
+   - Flyweight (`FLYWEIGHT`) - Lightweight objects with structure `<parent, [slots], {contents}>`
 
 _Note that MOO's lists and maps have "opposite" syntax to most programming languages. Lists are
-`{1, 2, 3}` and maps are `[key -> value]`._ This is a product of the age of the language, which predates the
-introduction of Python and other similar languages that used square brackets for lists and curly braces for maps.
+`{1, 2, 3}` and maps are `[key -> value]`._ This is a product of the age of the language, which
+predates the introduction of Python and other similar languages that used square brackets for lists
+and curly braces for maps.
 
 3. **Type Constant Literals**:
-    - `TYPE_INT`, `TYPE_NUM`, `TYPE_FLOAT`, `TYPE_STR`, `TYPE_ERR`, `TYPE_OBJ`, `TYPE_LIST`, `TYPE_MAP`, `TYPE_BOOL`, `TYPE_FLYWEIGHT`, `TYPE_SYM`
+   - `TYPE_INT`, `TYPE_NUM`, `TYPE_FLOAT`, `TYPE_STR`, `TYPE_ERR`, `TYPE_OBJ`, `TYPE_LIST`,
+     `TYPE_MAP`, `TYPE_BOOL`, `TYPE_FLYWEIGHT`, `TYPE_SYM`
 
-    These are used with `typeof()` to check value types, e.g. `typeof(x) == TYPE_STR`
+   These are used with `typeof()` to check value types, e.g. `typeof(x) == TYPE_STR`
 
 ## Expressions
 
 Expressions can include:
 
 1. **Arithmetic Operations**:
-    - Addition (`+`), Subtraction (`-`), Multiplication (`*`), Division (`/`), Modulus (`%`), Power (`^`)
+   - Addition (`+`), Subtraction (`-`), Multiplication (`*`), Division (`/`), Modulus (`%`), Power
+     (`^`)
 
 2. **Comparison Operations**:
-    - Equal (`==`), Not Equal (`!=`), Less Than (`<`), Greater Than (`>`), Less Than or Equal (`<=`), Greater Than or
-      Equal (`>=`)
+   - Equal (`==`), Not Equal (`!=`), Less Than (`<`), Greater Than (`>`), Less Than or Equal (`<=`),
+     Greater Than or Equal (`>=`)
 
 3. **Logical Operations**:
-    - Logical AND (`&&`), Logical OR (`||`), Logical NOT (`!`)
+   - Logical AND (`&&`), Logical OR (`||`), Logical NOT (`!`)
 
 4. **Special Operations**:
-    - Range (`..`) - Used in range selection and range iteration
-    - In-range (`in`) - Tests if a value is in a sequence (list or map)
+   - Range (`..`) - Used in range selection and range iteration
+   - In-range (`in`) - Tests if a value is in a sequence (list or map)
 
 5. **Conditional Expression**:
-    - `expr ? true_expr | false_expr` - Ternary conditional expression the same as C's `?:` operator.
+   - `expr ? true_expr | false_expr` - Ternary conditional expression the same as C's `?:` operator.
 
 6. **Variable Assignment**:
-    - `var = expr` - Assigns value to variable
+   - `var = expr` - Assigns value to variable
 
 7. **Object Member Access**:
-    - Property access: `obj.property` or `obj.(expr)`
-    - Verb call: `obj:verb(args)` or `obj:(expr)(args)`
-    - System property or verb: `$property` (looks on `#0` for the property)
+   - Property access: `obj.property` or `obj.(expr)`
+   - Verb call: `obj:verb(args)` or `obj:(expr)(args)`
+   - System property or verb: `$property` (looks on `#0` for the property)
 
 8. **Collection Operations**:
-    - Indexing: `collection[index]`
-    - Range indexing: `collection[start..end]`
-    - List or map assignment: `list[index] = value` - Assigns value to a specific index or key in a list or map
-    - Scatter assignment: `{var1, var2} = list` - Unpacks a list into variables. Has support for optional and rest
-      variables: `{var1, ?optional = default, @rest} = list`
+   - Indexing: `collection[index]`
+   - Range indexing: `collection[start..end]`
+   - List or map assignment: `list[index] = value` - Assigns value to a specific index or key in a
+     list or map
+   - Scatter assignment: `{var1, var2} = list` - Unpacks a list into variables. Has support for
+     optional and rest variables: `{var1, ?optional = default, @rest} = list`
 
 9. **Special Forms**:
-    - Try expression: `` `expr!codes => handler` `` - Evaluates `expr` and handles errors
-    - Range comprehension: `{expr for var in range}` - Creates a list from a generator expression
-    - Range end marker: `$` - Represents the end of a list in range operations
+   - Try expression: `` `expr!codes => handler` `` - Evaluates `expr` and handles errors
+   - Range comprehension: `{expr for var in range}` - Creates a list from a generator expression
+   - Range end marker: `$` - Represents the end of a list in range operations
 
 ## Control Structures
 
@@ -170,7 +176,8 @@ endwhile
 
 ### For Loops
 
-The `for` loop has several syntaxes depending on the type of iteration, and will work over both lists and maps.
+The `for` loop has several syntaxes depending on the type of iteration, and will work over both
+lists and maps.
 
 Iteration over a collection:
 
@@ -198,8 +205,8 @@ for value, key in (collection)
 endfor
 ```
 
-(Note the "backwards" order of the arguments, which is done to preserve backwards compatibility with the original
-iteration syntax.)
+(Note the "backwards" order of the arguments, which is done to preserve backwards compatibility with
+the original iteration syntax.)
 
 Iteration over a range:
 
@@ -289,14 +296,16 @@ pass(arg1, arg2)
 
 Variables can be declared either implicitly or explicitly.
 
-Implicit variables are declared without a `let` keyword, and become present in the scope at their first use:
+Implicit variables are declared without a `let` keyword, and become present in the scope at their
+first use:
 
 ```
 myvar = 5;
 myvar = 10;  // Reassigns the variable
 ```
 
-Explicit variables are declared with the `let` keyword, and become present in the scope at the point of declaration:
+Explicit variables are declared with the `let` keyword, and become present in the scope at the point
+of declaration:
 
 ```
 let var = expr;
@@ -305,7 +314,8 @@ let var;  // Default initialized
 
 2. **Constants**:
 
-Constants are declared with the `const` keyword and cannot be reassigned after their initial assignment:
+Constants are declared with the `const` keyword and cannot be reassigned after their initial
+assignment:
 
 ```
 const var = expr;
@@ -313,8 +323,8 @@ const var = expr;
 
 3. **Global Variables**:
 
-Global variables are declared with the `global` keyword and can be accessed from any scope, but should be used
-sparingly:
+Global variables are declared with the `global` keyword and can be accessed from any scope, but
+should be used sparingly:
 
 ```
 global var = expr;
@@ -369,5 +379,6 @@ and
 
 ### Conclusion
 
-This overview captures the syntax of the MOO programming language as defined in the grammar. It's a rich language with
-features for object-oriented programming, functional programming concepts, error handling, and parallel execution.
+This overview captures the syntax of the MOO programming language as defined in the grammar. It's a
+rich language with features for object-oriented programming, functional programming concepts, error
+handling, and parallel execution.

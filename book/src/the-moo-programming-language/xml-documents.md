@@ -1,10 +1,12 @@
 # Document Processing
 
-mooR provides built-in functions for working with structured documents: parsing HTML from the web, processing XML data, and generating markup for web interfaces.
+mooR provides built-in functions for working with structured documents: parsing HTML from the web,
+processing XML data, and generating markup for web interfaces.
 
 ## HTML Parsing with html_query()
 
-The `html_query()` function extracts data from HTML using a simple tag-and-attribute query syntax. This is useful for web scraping, processing API responses, and extracting metadata.
+The `html_query()` function extracts data from HTML using a simple tag-and-attribute query syntax.
+This is useful for web scraping, processing API responses, and extracting metadata.
 
 ```moo
 html_query(html_string, tag [, attr_filter])
@@ -19,6 +21,7 @@ html_query(html_string, tag [, attr_filter])
 ### Return Value
 
 Returns a list of maps, one per matching element. Each map contains:
+
 - All attributes from the element as key-value pairs
 - A `"text"` key with the element's inner text content (if any)
 
@@ -40,12 +43,12 @@ titles[1]["text"]
 
 The third argument filters elements by their attributes. Values support glob-style patterns:
 
-| Pattern | Meaning | CSS Equivalent |
-|---------|---------|----------------|
-| `"exact"` | Exact match | `[attr="exact"]` |
-| `"prefix*"` | Starts with | `[attr^="prefix"]` |
-| `"*suffix"` | Ends with | `[attr$="suffix"]` |
-| `"*contains*"` | Contains | `[attr*="contains"]` |
+| Pattern        | Meaning     | CSS Equivalent       |
+| -------------- | ----------- | -------------------- |
+| `"exact"`      | Exact match | `[attr="exact"]`     |
+| `"prefix*"`    | Starts with | `[attr^="prefix"]`   |
+| `"*suffix"`    | Ends with   | `[attr$="suffix"]`   |
+| `"*contains*"` | Contains    | `[attr*="contains"]` |
 
 ```moo
 // Find all meta tags with property starting with "og:"
@@ -95,7 +98,8 @@ endverb
 
 ## XML Parsing with xml_parse()
 
-The `xml_parse()` function converts XML strings into MOO data structures. Unlike `html_query()`, it requires well-formed XML input.
+The `xml_parse()` function converts XML strings into MOO data structures. Unlike `html_query()`, it
+requires well-formed XML input.
 
 ```moo
 xml_parse(xml_string [, result_type [, tag_map]])
@@ -195,6 +199,7 @@ let data = parse_json("{\"name\": \"Alice\", \"score\": 42}");
 ```
 
 JSON types map to MOO as:
+
 - Objects become maps
 - Arrays become lists
 - Strings, numbers, booleans map directly
@@ -211,9 +216,9 @@ let json = generate_json(["name" -> "Alice", "scores" -> {10, 20, 30}]);
 
 ## Choosing the Right Tool
 
-| Task | Function |
-|------|----------|
-| Extract data from web pages | `html_query()` |
-| Parse well-formed XML/XHTML | `xml_parse()` |
-| Generate HTML/XML output | `to_xml()` |
-| Work with JSON APIs | `parse_json()` / `generate_json()` |
+| Task                        | Function                           |
+| --------------------------- | ---------------------------------- |
+| Extract data from web pages | `html_query()`                     |
+| Parse well-formed XML/XHTML | `xml_parse()`                      |
+| Generate HTML/XML output    | `to_xml()`                         |
+| Work with JSON APIs         | `parse_json()` / `generate_json()` |

@@ -1,22 +1,23 @@
 ## Status of builtin function implementation
 
-The following is a table of the status of the implementation of various builtin-functions as defined in the LambdaMOO
-1.8
-specification, as well as some extensions that were added in ToastStunt and then ported over to mooR. (And some novel
-extensions added in mooR itself.)
+The following is a table of the status of the implementation of various builtin-functions as defined
+in the LambdaMOO 1.8 specification, as well as some extensions that were added in ToastStunt and
+then ported over to mooR. (And some novel extensions added in mooR itself.)
 
-The table is broken down by category, and each function is marked with a checkmark if it is implemented.
+The table is broken down by category, and each function is marked with a checkmark if it is
+implemented.
 
-If there are any notes about the implementation, they will be included in the notes column. If you notice anything
-missing, or if you have any questions about the implementation, please feel free to open an issue on the [mooR Codeberg
-repository issue tracker](https://codeberg.org/timbran/moor/issues).
+If there are any notes about the implementation, they will be included in the notes column. If you
+notice anything missing, or if you have any questions about the implementation, please feel free to
+open an issue on the
+[mooR Codeberg repository issue tracker](https://codeberg.org/timbran/moor/issues).
 
 ## LambdaMOO 1.8 builtin function list and status
 
 ### Lists
 
 | Name                                          | Complete | Notes                                          |
-|-----------------------------------------------|----------|------------------------------------------------|
+| --------------------------------------------- | -------- | ---------------------------------------------- |
 | [`length`](values.md#length)                  | &check;  |                                                |
 | [`setadd`](list_sets.md#setadd)               | &check;  |                                                |
 | [`setremove`](list_sets.md#setremove)         | &check;  |                                                |
@@ -34,7 +35,7 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 ### Strings
 
 | Name                                            | Complete | Notes                                                                                                |
-|-------------------------------------------------|----------|------------------------------------------------------------------------------------------------------|
+| ----------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
 | [`tostr`](strings.md#tostr)                     | &check;  |                                                                                                      |
 | [`toliteral`](strings.md#toliteral)             | &check;  |                                                                                                      |
 | [`crypt`](crypto.md#crypt)                      | &check;  | Pretty damned insecure, only here to support existing core password functions.                       |
@@ -48,14 +49,14 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 
 ### Booleans
 
-| Name                          | Complete | Notes                                 |
-|-------------------------------|----------|---------------------------------------|
-| [`tobool`](values.md#tobool)  | &check;  | Mirrors `if`/`while` truthiness rules |
+| Name                         | Complete | Notes                                 |
+| ---------------------------- | -------- | ------------------------------------- |
+| [`tobool`](values.md#tobool) | &check;  | Mirrors `if`/`while` truthiness rules |
 
 ### Numbers
 
 | Name                          | Complete | Notes |
-|-------------------------------|----------|-------|
+| ----------------------------- | -------- | ----- |
 | [`toint`](num.md#toint)       | &check;  |       |
 | [`tonum`](num.md#tonum)       | &check;  |       |
 | [`tofloat`](num.md#tofloat)   | &check;  |       |
@@ -85,32 +86,32 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 
 ### Objects
 
-| Name                                            | Complete | Notes                              |
-|-------------------------------------------------|----------|------------------------------------|
-| [`toobj`](objects.md#toobj)                     | &check;  |                                    |
-| [`typeof`](values.md#typeof)                    | &check;  |                                    |
-| [`create`](objects.md#create)                   | &check;  | Quota support not implemented yet. |
-| [`recycle`](objects.md#recycle)                 | &check;  |                                    |
-| [`valid`](objects.md#valid)                     | &check;  |                                    |
-| [`parent`](objects.md#parent)                   | &check;  |                                    |
-| [`children`](objects.md#children)               | &check;  |                                    |
-| [`chparent`](objects.md#chparent)               | &check;  |                                    |
-| [`max_object`](objects.md#max_object)           | &check;  |                                    |
-| [`players`](objects.md#players)                 | &check;  | Potentially slow in a large DB.    |
-| [`objects`](objects.md#objects)                 | &check;  | mooR extension. Wizard only.       |
-| [`is_player`](objects.md#is_player)             | &check;  |                                    |
-| [`set_player_flag`](objects.md#set_player_flag) | &check;  |                                    |
-| [`is_anonymous`](objects.md#is_anonymous)       | &check;  |                                    |
-| [`is_uuobjid`](objects.md#is_uuobjid)           | &check;  |                                    |
-| [`move`](objects.md#move)                       | &check;  |                                    |
-| [`parse_command`](objects.md#parse_command)     | &check;  | mooR extension. Wizard only.       |
-| [`find_command_verb`](objects.md#find_command_verb) | &check;  | mooR extension. Enables custom command dispatching. |
-| [`dispatch_command_verb`](objects.md#dispatch_command_verb) | &check;  | mooR extension. Wizard only. |
+| Name                                                        | Complete | Notes                                               |
+| ----------------------------------------------------------- | -------- | --------------------------------------------------- |
+| [`toobj`](objects.md#toobj)                                 | &check;  |                                                     |
+| [`typeof`](values.md#typeof)                                | &check;  |                                                     |
+| [`create`](objects.md#create)                               | &check;  | Quota support not implemented yet.                  |
+| [`recycle`](objects.md#recycle)                             | &check;  |                                                     |
+| [`valid`](objects.md#valid)                                 | &check;  |                                                     |
+| [`parent`](objects.md#parent)                               | &check;  |                                                     |
+| [`children`](objects.md#children)                           | &check;  |                                                     |
+| [`chparent`](objects.md#chparent)                           | &check;  |                                                     |
+| [`max_object`](objects.md#max_object)                       | &check;  |                                                     |
+| [`players`](objects.md#players)                             | &check;  | Potentially slow in a large DB.                     |
+| [`objects`](objects.md#objects)                             | &check;  | mooR extension. Wizard only.                        |
+| [`is_player`](objects.md#is_player)                         | &check;  |                                                     |
+| [`set_player_flag`](objects.md#set_player_flag)             | &check;  |                                                     |
+| [`is_anonymous`](objects.md#is_anonymous)                   | &check;  |                                                     |
+| [`is_uuobjid`](objects.md#is_uuobjid)                       | &check;  |                                                     |
+| [`move`](objects.md#move)                                   | &check;  |                                                     |
+| [`parse_command`](objects.md#parse_command)                 | &check;  | mooR extension. Wizard only.                        |
+| [`find_command_verb`](objects.md#find_command_verb)         | &check;  | mooR extension. Enables custom command dispatching. |
+| [`dispatch_command_verb`](objects.md#dispatch_command_verb) | &check;  | mooR extension. Wizard only.                        |
 
 ### Properties
 
 | Name                                                   | Complete | Notes |
-|--------------------------------------------------------|----------|-------|
+| ------------------------------------------------------ | -------- | ----- |
 | [`properties`](properties.md#properties)               | &check;  |       |
 | [`property_info`](properties.md#property_info)         | &check;  |       |
 | [`set_property_info`](properties.md#set_property_info) | &check;  |       |
@@ -122,7 +123,7 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 ### Verbs
 
 | Name                                                    | Complete | Notes                                                    |
-|---------------------------------------------------------|----------|----------------------------------------------------------|
+| ------------------------------------------------------- | -------- | -------------------------------------------------------- |
 | [`verbs`](verbs.md#verbs)                               | &check;  |                                                          |
 | [`verb_info`](verbs.md#verb_info)                       | &check;  |                                                          |
 | [`set_verb_info`](verbs.md#set_verb_info)               | &check;  |                                                          |
@@ -140,7 +141,7 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 ### Values / encoding
 
 | Name                                        | Complete | Notes                                                                              |
-|---------------------------------------------|----------|------------------------------------------------------------------------------------|
+| ------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
 | [`value_bytes`](values.md#value_bytes)      | &check;  |                                                                                    |
 | [`value_hash`](values.md#value_hash)        |          |                                                                                    |
 | [`string_hash`](values.md#string_hash)      | &check;  |                                                                                    |
@@ -151,16 +152,16 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 
 ### Structured Data Matching and Pathfinding
 
-| Name                                                  | Complete | Notes                                   |
-|-------------------------------------------------------|----------|-----------------------------------------|
-| [`astar`](algorithms.md#astar)                        | &check;  | mooR extension. Tile-grid pathfinding   |
-| [`term_unify`](algorithms.md#term_unify)              | &check;  | mooR extension. Structural unification  |
-| [`term_substitute`](algorithms.md#term_substitute)    | &check;  | mooR extension. Structural substitution |
+| Name                                               | Complete | Notes                                   |
+| -------------------------------------------------- | -------- | --------------------------------------- |
+| [`astar`](algorithms.md#astar)                     | &check;  | mooR extension. Tile-grid pathfinding   |
+| [`term_unify`](algorithms.md#term_unify)           | &check;  | mooR extension. Structural unification  |
+| [`term_substitute`](algorithms.md#term_substitute) | &check;  | mooR extension. Structural substitution |
 
 ### Server
 
 | Name                                                         | Complete | Notes                                                                    |
-|--------------------------------------------------------------|----------|--------------------------------------------------------------------------|
+| ------------------------------------------------------------ | -------- | ------------------------------------------------------------------------ |
 | [`server_version`](server.md#server_version)                 | &check;  | Crate version + short commit hash, for now                               |
 | [`renumber`](objects.md#renumber)                            | &check;  | Supports numbered/UUID conversion in both directions                     |
 | [`reset_max_object`](server.md#reset_max_object)             |          |                                                                          |
@@ -172,7 +173,7 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 | [`connected_seconds`](server.md#connected_seconds)           | &check;  |                                                                          |
 | [`idle_seconds`](server.md#idle_seconds)                     | &check;  |                                                                          |
 | [`connection_name`](server.md#connection_name)               | &check;  | To make this 100% compat with core, reverse DNS & listen port is needed. |
-| [`connections`](server.md#connections)                       | &check;  | Returns connections for current player, or other players.                |  mooR extension. |
+| [`connections`](server.md#connections)                       | &check;  | Returns connections for current player, or other players.                |
 | [`notify`](server.md#notify)                                 | &check;  | With `rich_notify` feature on, supports sending additional content types |
 | [`event_log`](server.md#event_log)                           | &check;  | mooR extension. Log to event history without broadcasting to connections |
 | [`boot_player`](server.md#boot_player)                       | &check;  |                                                                          |
@@ -186,7 +187,7 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 ### Tasks
 
 | Name                                     | Complete | Notes                                                                                 |
-|------------------------------------------|----------|---------------------------------------------------------------------------------------|
+| ---------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
 | [`task_id`](server.md#task_id)           | &check;  |                                                                                       |
 | [`queued_tasks`](server.md#queued_tasks) | &check;  |                                                                                       |
 | [`valid_task`](server.md#valid_task)     | &check;  |                                                                                       |
@@ -198,28 +199,28 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 
 ### Execution
 
-| Name                                         | Complete | Notes          |
-|----------------------------------------------|----------|----------------|
-| [`call_function`](server.md#call_function)   | &check;  |                |
-| [`raise`](server.md#raise)                   | &check;  |                |
-| [`suspend`](server.md#suspend)               | &check;  |                |
-| [`seconds_left`](server.md#seconds_left)     | &check;  |                |
-| [`ticks_left`](server.md#ticks_left)         | &check;  |                |
-| [`pass`](server.md#pass)                     | &check;  | Is an opcode   |
-| [`set_task_perms`](server.md#set_task_perms) | &check;  |                |
-| [`caller_perms`](server.md#caller_perms)     | &check;  |                |
-| [`callers`](server.md#callers)               | &check;  |                |
+| Name                                         | Complete | Notes                                                                                                            |
+| -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| [`call_function`](server.md#call_function)   | &check;  |                                                                                                                  |
+| [`raise`](server.md#raise)                   | &check;  |                                                                                                                  |
+| [`suspend`](server.md#suspend)               | &check;  |                                                                                                                  |
+| [`seconds_left`](server.md#seconds_left)     | &check;  |                                                                                                                  |
+| [`ticks_left`](server.md#ticks_left)         | &check;  |                                                                                                                  |
+| [`pass`](server.md#pass)                     | &check;  | Is an opcode                                                                                                     |
+| [`set_task_perms`](server.md#set_task_perms) | &check;  |                                                                                                                  |
+| [`caller_perms`](server.md#caller_perms)     | &check;  |                                                                                                                  |
+| [`callers`](server.md#callers)               | &check;  |                                                                                                                  |
 | [`task_stack`](server.md#task_stack)         |          | Not supported: running tasks are parallel, so stacks are moving targets without pausing or heavy instrumentation |
-| [`function_help`](server.md#function_help)   | &check;  | mooR extension |
+| [`function_help`](server.md#function_help)   | &check;  | mooR extension                                                                                                   |
 
 ### Network connections
 
-mooR handles outbound networking differently than classic LambdaMOO - see
-the [networking section](../networking.md#outbound-network-connections-via-curl_worker) for details on using workers for
-outbound connections.
+mooR handles outbound networking differently than classic LambdaMOO - see the
+[networking section](../networking.md#outbound-network-connections-via-curl_worker) for details on
+using workers for outbound connections.
 
 | Name                                                           | Complete | Notes                                                                                                                                         |
-|----------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| -------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`set_connection_option`](server.md#set_connection_option)     | &check;  | Supports binary, hold-input, disable-oob, client-echo, flush-command options. See [networking](../networking.md) for details.                 |
 | [`connection_option`](server.md#connection_option)             | &check;  | Works only for connections, not player objects, since moor has multiple connections per player. `connections(player)` returns all connections |
 | [`connection_options`](server.md#connection_options)           | &check;  | Works only for connections, not player objects, since moor has multiple connections per player. `connections(player)` returns all connections |
@@ -235,22 +236,22 @@ outbound connections.
 
 Functions not in the original LambdaMOO, but were in Toast, and ported over
 
-| Name                                                     | Complete | Notes                                                               |
-|----------------------------------------------------------|----------|---------------------------------------------------------------------|
-| [`argon2`](crypto.md#argon2)                             | &check;  | Same signature as function in ToastSunt                             |
-| [`argon2_verify`](crypto.md#argon2_verify)               | &check;  | Same signature as function in ToastSunt                             |
-| [`ftime`](server.md#ftime)                               | &check;  | Slight differents in return value, see notes in BfFtime             |
-| [`encode_base64`](strings.md#encode_base64)              | &check;  |                                                                     |
-| [`decode_base64`](strings.md#decode_base64)              | &check;  |                                                                     |
-| [`slice`](values.md#slice)                               | &check;  |                                                                     |
-| [`generate_json`](strings.md#generate_json)              | &check;  |                                                                     |
-| [`parse_json`](strings.md#parse_json)                    | &check;  |                                                                     |
-| [`ancestors`](objects.md#ancestors)                      | &check;  |                                                                     |
-| [`descendants`](objects.md#descendants)                  | &check;  |                                                                     |
-| [`isa`](objects.md#isa)                                  | &check;  |                                                                     |
-| [`responds_to`](objects.md#responds_to)                  | &check;  |                                                                     |
-| [`pcre_match`](strings.md#pcre_match)                    | &check;  |                                                                     |
-| [`pcre_replace`](strings.md#pcre_replace)                | &check;  |                                                                     |
+| Name                                        | Complete | Notes                                                   |
+| ------------------------------------------- | -------- | ------------------------------------------------------- |
+| [`argon2`](crypto.md#argon2)                | &check;  | Same signature as function in ToastSunt                 |
+| [`argon2_verify`](crypto.md#argon2_verify)  | &check;  | Same signature as function in ToastSunt                 |
+| [`ftime`](server.md#ftime)                  | &check;  | Slight differents in return value, see notes in BfFtime |
+| [`encode_base64`](strings.md#encode_base64) | &check;  |                                                         |
+| [`decode_base64`](strings.md#decode_base64) | &check;  |                                                         |
+| [`slice`](values.md#slice)                  | &check;  |                                                         |
+| [`generate_json`](strings.md#generate_json) | &check;  |                                                         |
+| [`parse_json`](strings.md#parse_json)       | &check;  |                                                         |
+| [`ancestors`](objects.md#ancestors)         | &check;  |                                                         |
+| [`descendants`](objects.md#descendants)     | &check;  |                                                         |
+| [`isa`](objects.md#isa)                     | &check;  |                                                         |
+| [`responds_to`](objects.md#responds_to)     | &check;  |                                                         |
+| [`pcre_match`](strings.md#pcre_match)       | &check;  |                                                         |
+| [`pcre_replace`](strings.md#pcre_replace)   | &check;  |                                                         |
 
 ## Extensions
 
@@ -259,62 +260,62 @@ Functions not part of the original LambdaMOO, but added in moor
 ### XML / HTML content management
 
 | Name        | Description                                                      | Notes                                                 |
-|-------------|------------------------------------------------------------------|-------------------------------------------------------|
+| ----------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
 | `xml_parse` | Parse a string containing XML into a tree of flyweight objects   | Available only if the flyweights feature is turned on |
 | `to_xml`    | Convert a tree of flyweight objects into a string containing XML | Available only if the flyweights feature is turned on |
 
 ### Import/Export of Objects
 
-| Name                                                              | Description                                                                                        | Notes
-|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-------------------|
+| Name                                                              | Description                                                                                        | Notes             |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
 | [`load_object`](../../the-system/object-packaging.md#load_object) | Load an object from objdef format with optional conflict detection and resolution options.         | Wiz only          |
 | [`dump_object`](../../the-system/object-packaging.md#dump_object) | Takes an object and returns a list of strings representing the object definition in objdef format. | Wiz or owner only |
 
 ### Flyweights & Symbols (new types)
 
-| Name            | Description                                                              | Notes                                                 |
-|-----------------|--------------------------------------------------------------------------|-------------------------------------------------------|
-| `toflyweight`   | Build a flyweight from a delegate, slots map, and optional contents list | Available only if the flyweights feature is turned on |
-| `flyslots`      | Returns the slots on a given flyweight as a map                          | Available only if the flyweights feature is turned on |
-| `flycontents`   | Returns the contents list from a flyweight                               | Available only if the flyweights feature is turned on |
-| `flycontentsset`| Returns a copy of the flyweight with replaced contents                   | Available only if the flyweights feature is turned on |
-| `flyslotset`    | Returns a copy of the flyweight with a slot added or updated             | Available only if the flyweights feature is turned on |
-| `flyslotremove` | Returns a copy of the flyweight with the given slot removed, if present  | Available only if the flyweights feature is turned on |
-| `tosym`         | Turns the given value into a Symbol                                      | Available only if the symbols feature is turned on    |
+| Name             | Description                                                              | Notes                                                 |
+| ---------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `toflyweight`    | Build a flyweight from a delegate, slots map, and optional contents list | Available only if the flyweights feature is turned on |
+| `flyslots`       | Returns the slots on a given flyweight as a map                          | Available only if the flyweights feature is turned on |
+| `flycontents`    | Returns the contents list from a flyweight                               | Available only if the flyweights feature is turned on |
+| `flycontentsset` | Returns a copy of the flyweight with replaced contents                   | Available only if the flyweights feature is turned on |
+| `flyslotset`     | Returns a copy of the flyweight with a slot added or updated             | Available only if the flyweights feature is turned on |
+| `flyslotremove`  | Returns a copy of the flyweight with the given slot removed, if present  | Available only if the flyweights feature is turned on |
+| `tosym`          | Turns the given value into a Symbol                                      | Available only if the symbols feature is turned on    |
 
 ### Encoding
 
-| Name                                       | Description                                    | Notes            |
-|--------------------------------------------|------------------------------------------------|------------------|
-| [`encode_base64`](crypto.md#encode_base64) | Encodes string or binary data to Base64        | From ToastStunt  |
-| [`decode_base64`](crypto.md#decode_base64) | Decodes Base64-encoded string to binary data   | From ToastStunt  |
-| [`encode_base32`](crypto.md#encode_base32) | Encodes string or binary data to Base32        |                  |
-| [`decode_base32`](crypto.md#decode_base32) | Decodes Base32-encoded string to binary data   |                  |
+| Name                                       | Description                                  | Notes           |
+| ------------------------------------------ | -------------------------------------------- | --------------- |
+| [`encode_base64`](crypto.md#encode_base64) | Encodes string or binary data to Base64      | From ToastStunt |
+| [`decode_base64`](crypto.md#decode_base64) | Decodes Base64-encoded string to binary data | From ToastStunt |
+| [`encode_base32`](crypto.md#encode_base32) | Encodes string or binary data to Base32      |                 |
+| [`decode_base32`](crypto.md#decode_base32) | Decodes Base32-encoded string to binary data |                 |
 
 ### Cryptography
 
-| Name                                                                            | Description                                                                    | Notes |
-|---------------------------------------------------------------------------------|--------------------------------------------------------------------------------|-------|
-| [`age_generate_keypair`](crypto.md#age_generate_keypair)                       | Generates a new X25519 keypair for use with age encryption                    |       |
-| [`age_encrypt`](crypto.md#age_encrypt)                                         | Encrypts a message using age encryption for one or more recipients             |       |
-| [`age_decrypt`](crypto.md#age_decrypt)                                         | Decrypts an age-encrypted message using one or more private keys               |       |
-| [`age_passphrase_encrypt`](crypto.md#age_passphrase_encrypt)                   | Encrypts a message using age encryption with a passphrase                      |       |
-| [`age_passphrase_decrypt`](crypto.md#age_passphrase_decrypt)                   | Decrypts an age-encrypted message using a passphrase                           |       |
-| [`hotp`](crypto.md#hotp)                                                       | Generates HMAC-based One-Time Password (RFC 4226)                              |       |
-| [`totp`](crypto.md#totp)                                                       | Generates Time-based One-Time Password (RFC 6238)                              |       |
-| [`random_bytes`](crypto.md#random_bytes)                                       | Generates cryptographically secure random bytes                                |       |
+| Name                                                         | Description                                                        | Notes |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ | ----- |
+| [`age_generate_keypair`](crypto.md#age_generate_keypair)     | Generates a new X25519 keypair for use with age encryption         |       |
+| [`age_encrypt`](crypto.md#age_encrypt)                       | Encrypts a message using age encryption for one or more recipients |       |
+| [`age_decrypt`](crypto.md#age_decrypt)                       | Decrypts an age-encrypted message using one or more private keys   |       |
+| [`age_passphrase_encrypt`](crypto.md#age_passphrase_encrypt) | Encrypts a message using age encryption with a passphrase          |       |
+| [`age_passphrase_decrypt`](crypto.md#age_passphrase_decrypt) | Decrypts an age-encrypted message using a passphrase               |       |
+| [`hotp`](crypto.md#hotp)                                     | Generates HMAC-based One-Time Password (RFC 4226)                  |       |
+| [`totp`](crypto.md#totp)                                     | Generates Time-based One-Time Password (RFC 6238)                  |       |
+| [`random_bytes`](crypto.md#random_bytes)                     | Generates cryptographically secure random bytes                    |       |
 
 ### Expanded error handling
 
 | Name            | Description                                                                    | Notes |
-|-----------------|--------------------------------------------------------------------------------|-------|
+| --------------- | ------------------------------------------------------------------------------ | ----- |
 | `error_code`    | Strip off any message or value from an error and return only the code portion  |       |
 | `error_message` | Return the message portion of the error, or the default message if none exists |       |
 
 ### Structured Data Matching and Pathfinding
 
 | Name                                               | Description                               | Notes |
-|----------------------------------------------------|-------------------------------------------|-------|
+| -------------------------------------------------- | ----------------------------------------- | ----- |
 | [`astar`](algorithms.md#astar)                     | Run A* pathfinding over a tile grid       |       |
 | [`term_unify`](algorithms.md#term_unify)           | Unify structural MOO values               |       |
 | [`term_substitute`](algorithms.md#term_substitute) | Substitute term variables using a binding |       |
@@ -322,7 +323,7 @@ Functions not part of the original LambdaMOO, but added in moor
 ### Admin
 
 | Name             | Description                                                     | Notes       |
-|------------------|-----------------------------------------------------------------|-------------|
+| ---------------- | --------------------------------------------------------------- | ----------- |
 | `bf_counters`    | Performance counters for profiling builtin function performance |             |
 | `db_counters`    | Performance counters for profiling DB performance               |             |
 | `sched_counters` | Performance counters for profiling scheduling performance       |             |
@@ -330,12 +331,12 @@ Functions not part of the original LambdaMOO, but added in moor
 
 ### Tasks
 
-| Name                                                 | Description                                                                                                                                                                       | Notes                           |
-|------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
-| [`active_tasks`](server.md#active_tasks)             | Return information about running non-suspended/non-queued tasks which are actively running                                                                                        |                                 |
-| [`wait_task`](server.md#wait_task)                   | Causes the current task to wait for a given task id to not be in the background queue                                                                                             |                                 |
-| [`commit`](server.md#commit)                         | Causes the current task to immediately commit its data, suspend, and then come out of suspension                                                                                  | Semantically same as suspend(0) |
-| [`rollback`](server.md#rollback)                     | Causes the current task to immediately rollback all mutations to the DB and abort the current task. Only argument is boolean whether to send pending content to the player or not | Wizard only                     |
-| [`suspend_if_needed`](server.md#suspend_if_needed)   | Conditionally commits and suspends if remaining ticks are below a threshold, preventing task timeout                                                                              | mooR extension                  |
-| [`task_send`](server.md#task_send)                   | Sends a message (any value) to another task's message queue, delivered on commit                                                                                                  | mooR extension                  |
-| [`task_recv`](server.md#task_recv)                   | Commits current transaction and returns all queued messages as a list; optionally waits for messages                                                                              | mooR extension                  |
+| Name                                               | Description                                                                                                                                                                       | Notes                           |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| [`active_tasks`](server.md#active_tasks)           | Return information about running non-suspended/non-queued tasks which are actively running                                                                                        |                                 |
+| [`wait_task`](server.md#wait_task)                 | Causes the current task to wait for a given task id to not be in the background queue                                                                                             |                                 |
+| [`commit`](server.md#commit)                       | Causes the current task to immediately commit its data, suspend, and then come out of suspension                                                                                  | Semantically same as suspend(0) |
+| [`rollback`](server.md#rollback)                   | Causes the current task to immediately rollback all mutations to the DB and abort the current task. Only argument is boolean whether to send pending content to the player or not | Wizard only                     |
+| [`suspend_if_needed`](server.md#suspend_if_needed) | Conditionally commits and suspends if remaining ticks are below a threshold, preventing task timeout                                                                              | mooR extension                  |
+| [`task_send`](server.md#task_send)                 | Sends a message (any value) to another task's message queue, delivered on commit                                                                                                  | mooR extension                  |
+| [`task_recv`](server.md#task_recv)                 | Commits current transaction and returns all queued messages as a list; optionally waits for messages                                                                              | mooR extension                  |

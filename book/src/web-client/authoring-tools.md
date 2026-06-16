@@ -1,24 +1,25 @@
 # Authoring and Programming Tools
 
-The web client includes built-in tools for building and editing in-MOO content that mimic the capabilities of a modern
-IDE.
+The web client includes built-in tools for building and editing in-MOO content that mimic the
+capabilities of a modern IDE.
 
-These tools use `moor-web-host` endpoints to read and write objects, verbs, and properties. Availability can be
-restricted based on permissions and server configuration.
+These tools use `moor-web-host` endpoints to read and write objects, verbs, and properties.
+Availability can be restricted based on permissions and server configuration.
 
 ## Access and Permissions
 
-The web client uses the programmer flag from the login/session payload to decide whether to show authoring features in
-the UI. If the current player does not have the programmer flag, the object browser and eval panel controls are hidden
-and server-driven object browser presentations are dismissed.
+The web client uses the programmer flag from the login/session payload to decide whether to show
+authoring features in the UI. If the current player does not have the programmer flag, the object
+browser and eval panel controls are hidden and server-driven object browser presentations are
+dismissed.
 
-All requests still pass through `moor-web-host`, and the daemon enforces permissions on the underlying operations, so
-clients cannot bypass server-side access checks.
+All requests still pass through `moor-web-host`, and the daemon enforces permissions on the
+underlying operations, so clients cannot bypass server-side access checks.
 
 ## Object Browser
 
-The object browser lets programmers inspect objects, browse properties and verbs, and navigate object hierarchies. It is
-shown when the logged-in player has the programmer flag.
+The object browser lets programmers inspect objects, browse properties and verbs, and navigate
+object hierarchies. It is shown when the logged-in player has the programmer flag.
 
 ### Opening the Object Browser
 
@@ -29,8 +30,8 @@ shown when the logged-in player has the programmer flag.
 ### Features
 
 - **Object List**: Browse accessible objects
-- **Object Details**: View name, parent, owner, location, flags (player, programmer, wizard, readable, writable,
-  fertile)
+- **Object Details**: View name, parent, owner, location, flags (player, programmer, wizard,
+  readable, writable, fertile)
 - **Property List**: Browse all properties with owner, permissions, and values
 - **Verb List**: Browse all verbs with owner, permissions, and argument specifications
 - **Navigation**: Click on object references to navigate (parent, owner, location)
@@ -41,7 +42,7 @@ shown when the logged-in player has the programmer flag.
 The browser shows object flags as compact letter codes:
 
 | Flag       | Letter | Meaning                   |
-|------------|--------|---------------------------|
+| ---------- | ------ | ------------------------- |
 | Player     | `u`    | Object is a player        |
 | Programmer | `p`    | Has programmer privileges |
 | Wizard     | `w`    | Has wizard privileges     |
@@ -51,13 +52,14 @@ The browser shows object flags as compact letter codes:
 
 ## Verb Editor
 
-The verb editor is powered by Monaco (the same editor engine as VS Code) and provides a full-featured MOO code editing
-experience.
+The verb editor is powered by Monaco (the same editor engine as VS Code) and provides a
+full-featured MOO code editing experience.
 
 ### Features
 
 - **Syntax Highlighting**: MOO-specific highlighting for keywords, builtins, strings, comments
-- **Autocompletion**: Suggestions for builtin functions, keywords, and—when the target can be statically determined (e.g., `this` or `#123`)—property and verb names
+- **Autocompletion**: Suggestions for builtin functions, keywords, and—when the target can be
+  statically determined (e.g., `this` or `#123`)—property and verb names
 - **Error Display**: Compile errors shown inline with line/column markers
 - **Save and Compile**: Click the Save button to compile and save
 - **Word Wrap**: Toggle word wrapping for long lines
@@ -70,7 +72,7 @@ experience.
 The verb editor also supports editing verb metadata:
 
 | Field           | Description                                                            |
-|-----------------|------------------------------------------------------------------------|
+| --------------- | ---------------------------------------------------------------------- |
 | **Names**       | Space-separated verb names (e.g., `look l examine`)                    |
 | **Owner**       | Object reference for the verb owner                                    |
 | **Permissions** | `r` (readable), `w` (writable), `x` (executable), `d` (debug)          |
@@ -80,17 +82,18 @@ The verb editor also supports editing verb metadata:
 
 ### Navigation
 
-When multiple verbs are open for editing, use the navigation arrows in the title bar to switch between them.
+When multiple verbs are open for editing, use the navigation arrows in the title bar to switch
+between them.
 
 ## Property Editor
 
-The property editor provides a Monaco-based editor for editing property values as text. It supports multiple content
-types for different editing experiences.
+The property editor provides a Monaco-based editor for editing property values as text. It supports
+multiple content types for different editing experiences.
 
 ### Content Types
 
 | Type            | Editor Mode                       |
-|-----------------|-----------------------------------|
+| --------------- | --------------------------------- |
 | `text/plain`    | Plain text editing                |
 | `text/html`     | HTML with syntax highlighting     |
 | `text/markdown` | Markdown with syntax highlighting |
@@ -103,8 +106,8 @@ types for different editing experiences.
 
 ## Property Value Editor
 
-For structured property values (lists, maps, objects), the property value editor provides a form-based interface instead
-of raw text editing.
+For structured property values (lists, maps, objects), the property value editor provides a
+form-based interface instead of raw text editing.
 
 ### Supported Value Types
 
@@ -116,8 +119,8 @@ of raw text editing.
 
 ## Text Editor
 
-For long-form text content like descriptions, help text, or notes, the text editor provides a dedicated editing surface
-with support for plain text and Djot markup.
+For long-form text content like descriptions, help text, or notes, the text editor provides a
+dedicated editing surface with support for plain text and Djot markup.
 
 The text editor can be opened:
 
@@ -126,8 +129,9 @@ The text editor can be opened:
 
 ## Eval Panel
 
-The eval panel lets programmers evaluate MOO expressions or statements in-place and see the result immediately. It runs
-through the server eval endpoint (the same underlying capability as the `eval()` builtin).
+The eval panel lets programmers evaluate MOO expressions or statements in-place and see the result
+immediately. It runs through the server eval endpoint (the same underlying capability as the
+`eval()` builtin).
 
 ### Usage
 

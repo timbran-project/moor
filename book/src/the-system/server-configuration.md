@@ -1,43 +1,46 @@
 # Server Configuration
 
-This section describes the options available for configuring and running the `moor-daemon` server binary.
+This section describes the options available for configuring and running the `moor-daemon` server
+binary.
 
-For a deeper discussion of mooR's threading model, database concurrency model, performance
-counters, and tuning guidance, see [Performance and Concurrency](performance-and-concurrency.md).
+For a deeper discussion of mooR's threading model, database concurrency model, performance counters,
+and tuning guidance, see [Performance and Concurrency](performance-and-concurrency.md).
 
 ## Daemon, Hosts, Workers, and RPC
 
-The `moor-daemon` server binary provides the main server functionality, including hosting the database, handling verb
-executions, and scheduling tasks. However it does _not_ handle network connections directly. Instead, special helper
-processes called _hosts_ manage incoming network connections and forward them to the daemon. Likewise, outbound network
-connections (or future facilities like file access) are handled by _workers_ that communicate with the daemon to perform
+The `moor-daemon` server binary provides the main server functionality, including hosting the
+database, handling verb executions, and scheduling tasks. However it does _not_ handle network
+connections directly. Instead, special helper processes called _hosts_ manage incoming network
+connections and forward them to the daemon. Likewise, outbound network connections (or future
+facilities like file access) are handled by _workers_ that communicate with the daemon to perform
 those activities.
 
-To run the server, you therefore need to run not just the `moor-daemon` binary, but also one or more "hosts" (and,
-optionally "workers") that will connect to the daemon.
+To run the server, you therefore need to run not just the `moor-daemon` binary, but also one or more
+"hosts" (and, optionally "workers") that will connect to the daemon.
 
-These processes communicate over ZeroMQ sockets, with the daemon listening for RPC requests and events, and the hosts
-and workers connecting to those sockets to send requests and receive responses.
+These processes communicate over ZeroMQ sockets, with the daemon listening for RPC requests and
+events, and the hosts and workers connecting to those sockets to send requests and receive
+responses.
 
-Hosts and workers can be run on the same machine as the daemon (the default) or distributed across multiple machines for
-clustered deployments. They are stateless and can be restarted independently of the daemon, allowing for flexible
-deployment and scaling.
+Hosts and workers can be run on the same machine as the daemon (the default) or distributed across
+multiple machines for clustered deployments. They are stateless and can be restarted independently
+of the daemon, allowing for flexible deployment and scaling.
 
 ## Transport Modes
 
-For single-machine deployments (the default), components communicate via **IPC (Unix domain sockets)** which use
-filesystem permissions for security and require no additional configuration.
+For single-machine deployments (the default), components communicate via **IPC (Unix domain
+sockets)** which use filesystem permissions for security and require no additional configuration.
 
-For clustered/multi-machine deployments, components communicate via **TCP with CURVE encryption**. See
-the [Clustered Deployment](clustered-deployment.md) guide for complete details on distributed deployments, security
-considerations, and setup instructions.
+For clustered/multi-machine deployments, components communicate via **TCP with CURVE encryption**.
+See the [Clustered Deployment](clustered-deployment.md) guide for complete details on distributed
+deployments, security considerations, and setup instructions.
 
 ## Authentication Keys
 
 ### PASETO Keys (Ed25519) - Client/Player Authentication
 
-PASETO tokens authenticate **clients/players** (connecting users) using Ed25519 digital signatures. These are used *
-*only by the daemon** to sign and verify player session tokens.
+PASETO tokens authenticate **clients/players** (connecting users) using Ed25519 digital signatures.
+These are used * _only by the daemon_* to sign and verify player session tokens.
 
 The daemon automatically generates these keys on first run when using the `--generate-keypair` flag:
 
@@ -46,8 +49,8 @@ The daemon automatically generates these keys on first run when using the `--gen
 moor-daemon --generate-keypair <other-args>
 ```
 
-This creates `moor-signing-key.pem` (private key) and `moor-verifying-key.pem` (public key) in the moor config
-directory (`${XDG_CONFIG_HOME:-$HOME/.config}/moor`).
+This creates `moor-signing-key.pem` (private key) and `moor-verifying-key.pem` (public key) in the
+moor config directory (`${XDG_CONFIG_HOME:-$HOME/.config}/moor`).
 
 Alternatively, you can pre-generate them using `openssl`:
 
@@ -56,75 +59,88 @@ openssl genpkey -algorithm ed25519 -out moor-signing-key.pem
 openssl pkey -in moor-signing-key.pem -pubout -out moor-verifying-key.pem
 ```
 
-**Note**: Hosts and workers do **not** need these PEM files - they are only used by the daemon for client
-authentication.
+**Note**: Hosts and workers do **not** need these PEM files - they are only used by the daemon for
+client authentication.
 
 ## How to set server options
 
-In general, all options can be set either by command line arguments or by configuration file. The same option cannot be
-set by both methods at the same time, and if it is set by both, the command line argument takes precedence over the
-configuration.
+In general, all options can be set either by command line arguments or by configuration file. The
+same option cannot be set by both methods at the same time, and if it is set by both, the command
+line argument takes precedence over the configuration.
 
 ## Configuration File Format
 
-The configuration file uses YAML format. You can specify the path to your configuration file using the `--config-file`
-command-line argument. Configuration file values can be overridden by command-line arguments.
+The configuration file uses YAML format. You can specify the path to your configuration file using
+the `--config-file` command-line argument. Configuration file values can be overridden by
+command-line arguments.
 
 ## General Server Options
 
 These options control the basic server behavior:
 
-- `--config-file <PATH>`: Path to configuration (YAML) file to use. If not specified, defaults are used.
+- `--config-file <PATH>`: Path to configuration (YAML) file to use. If not specified, defaults are
+  used.
 - `--connections-file <PATH>` (default: `connections.db`): Path to connections database
 - `--tasks-db <PATH>` (default: `tasks.db`): Path to persistent tasks database
-- `--public-key <PATH>` (default: `${XDG_CONFIG_HOME:-$HOME/.config}/moor/moor-verifying-key.pem`): PEM encoded PASETO public key for token verification
-- `--private-key <PATH>` (default: `${XDG_CONFIG_HOME:-$HOME/.config}/moor/moor-signing-key.pem`): PEM encoded PASETO private key for token signing
+- `--public-key <PATH>` (default: `${XDG_CONFIG_HOME:-$HOME/.config}/moor/moor-verifying-key.pem`):
+  PEM encoded PASETO public key for token verification
+- `--private-key <PATH>` (default: `${XDG_CONFIG_HOME:-$HOME/.config}/moor/moor-signing-key.pem`):
+  PEM encoded PASETO private key for token signing
 - `--num-io-threads <NUM>` (default: `8`): Number of ZeroMQ IO threads
 - `--debug` (default: `false`): Enable debug logging
 
 ### Transport Endpoint Configuration
 
-These options configure how the daemon communicates with hosts and workers. The defaults use IPC (Unix domain sockets) for single-machine deployments. Change these to TCP addresses (e.g., `tcp://0.0.0.0:7899`) only for clustered deployments - see [Clustered Deployment](clustered-deployment.md) for details.
+These options configure how the daemon communicates with hosts and workers. The defaults use IPC
+(Unix domain sockets) for single-machine deployments. Change these to TCP addresses (e.g.,
+`tcp://0.0.0.0:7899`) only for clustered deployments - see
+[Clustered Deployment](clustered-deployment.md) for details.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--rpc-listen` | `ipc:///tmp/moor_rpc.sock` | RPC server address |
-| `--events-listen` | `ipc:///tmp/moor_events.sock` | Events publisher address |
-| `--workers-request-listen` | `ipc:///tmp/moor_workers_request.sock` | Workers request pub-sub address |
-| `--workers-response-listen` | `ipc:///tmp/moor_workers_response.sock` | Workers response RPC address |
+| Option                      | Default                                 | Description                     |
+| --------------------------- | --------------------------------------- | ------------------------------- |
+| `--rpc-listen`              | `ipc:///tmp/moor_rpc.sock`              | RPC server address              |
+| `--events-listen`           | `ipc:///tmp/moor_events.sock`           | Events publisher address        |
+| `--workers-request-listen`  | `ipc:///tmp/moor_workers_request.sock`  | Workers request pub-sub address |
+| `--workers-response-listen` | `ipc:///tmp/moor_workers_response.sock` | Workers response RPC address    |
 
 ### Enrollment Configuration (Clustered Deployments Only)
 
-These options are only needed for clustered deployments with TCP transport. See [Clustered Deployment](clustered-deployment.md) for complete setup instructions.
+These options are only needed for clustered deployments with TCP transport. See
+[Clustered Deployment](clustered-deployment.md) for complete setup instructions.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--enrollment-listen` | `tcp://0.0.0.0:7900` | Enrollment endpoint for host/worker registration |
-| `--enrollment-token-file` | `${XDG_CONFIG_HOME:-$HOME/.config}/moor/enrollment-token` | Path to enrollment token file |
+| Option                    | Default                                                   | Description                                      |
+| ------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
+| `--enrollment-listen`     | `tcp://0.0.0.0:7900`                                      | Enrollment endpoint for host/worker registration |
+| `--enrollment-token-file` | `${XDG_CONFIG_HOME:-$HOME/.config}/moor/enrollment-token` | Path to enrollment token file                    |
 
 ## Database Configuration
 
 - `<PATH>` (positional argument): Path to the database directory
 - `--db <NAME>` (default: `world.db`): Name of the main database within the directory
-- `--connections-file <PATH>` (default: `connections.db`): Path to connections database (relative to data directory if not absolute)
-- `--tasks-db <PATH>` (default: `tasks.db`): Path to persistent tasks database (relative to data directory if not absolute)
-- `--events-db <PATH>` (default: `events.db`): Path to persistent events database (relative to data directory if not absolute)
+- `--connections-file <PATH>` (default: `connections.db`): Path to connections database (relative to
+  data directory if not absolute)
+- `--tasks-db <PATH>` (default: `tasks.db`): Path to persistent tasks database (relative to data
+  directory if not absolute)
+- `--events-db <PATH>` (default: `events.db`): Path to persistent events database (relative to data
+  directory if not absolute)
 
-The first positional argument specifies the database directory (typically `moor-data` or similar). The daemon stores several databases within this directory by default:
+The first positional argument specifies the database directory (typically `moor-data` or similar).
+The daemon stores several databases within this directory by default:
 
 - `world.db/` (or name specified by `--db`) - The main MOO database
 - `connections.db` - Connection state database
 - `tasks.db` - Persistent tasks database
 - `events.db` - Event logging database (if event logging is enabled)
 
-All database paths can be customized and are relative to the data directory unless specified as absolute paths.
+All database paths can be customized and are relative to the data directory unless specified as
+absolute paths.
 
 ## Language Features Configuration
 
 These options enable or disable various MOO language features:
 
 | Feature             | Command Line                | Default | Description                                                                      |
-|---------------------|-----------------------------|---------|----------------------------------------------------------------------------------|
+| ------------------- | --------------------------- | ------- | -------------------------------------------------------------------------------- |
 | Rich notify         | `--rich-notify`             | `true`  | Allow notify() to send arbitrary MOO values to players                           |
 | Lexical scopes      | `--lexical-scopes`          | `true`  | Enable block-level lexical scoping with begin/end syntax and let/global keywords |
 | Type dispatch       | `--type-dispatch`           | `true`  | Enable primitive-type verb dispatching (e.g., "test":reverse())                  |
@@ -151,11 +167,11 @@ These options control database import and checkpoint export functionality:
 
 ## Runtime Timing Configuration
 
-These options control latency duration sampling for internal performance counters. Invocation
-counts remain exact; these settings only affect duration collection.
+These options control latency duration sampling for internal performance counters. Invocation counts
+remain exact; these settings only affect duration collection.
 
-These counters are used to observe hot runtime paths such as scheduler wakeups, lock waits,
-database commit stages, builtin execution, and other VM execution activity. In the normal server
+These counters are used to observe hot runtime paths such as scheduler wakeups, lock waits, database
+commit stages, builtin execution, and other VM execution activity. In the normal server
 configuration, the system does not record a full timestamp pair for every hot-path event. Instead,
 it samples durations and scales the totals back up. This keeps the counters cheap enough to leave
 enabled in regular use.
@@ -166,10 +182,10 @@ In practice, these settings are mostly useful in three situations:
 - You are chasing a performance regression and want denser timing data from hot paths.
 - You want to reduce timing overhead further and are willing to trade away duration fidelity.
 
-| Setting | Command Line | Default | Description |
-|--------|---------|---------|-------------|
-| Perf timing enabled | `--perf-timing-enabled <BOOL>` | `true` | Enable or disable latency duration collection globally |
-| Hot-path sample shift | `--perf-timing-hot-path-shift <NUM>` | `6` | Sampling shift for hot paths. `0` means exact, `6` means 1/64 |
+| Setting               | Command Line                         | Default | Description                                                   |
+| --------------------- | ------------------------------------ | ------- | ------------------------------------------------------------- |
+| Perf timing enabled   | `--perf-timing-enabled <BOOL>`       | `true`  | Enable or disable latency duration collection globally        |
+| Hot-path sample shift | `--perf-timing-hot-path-shift <NUM>` | `6`     | Sampling shift for hot paths. `0` means exact, `6` means 1/64 |
 
 In YAML, set these under `runtime:`:
 
@@ -202,8 +218,8 @@ Guidance:
   while still producing useful long-run aggregates.
 - Use `0` for the sample shift during focused benchmarking or profiling runs where exact timing is
   more important than hot-path overhead.
-- Set `perf_timing_enabled: false` if you only care about invocation counts and do not want
-  duration timing at all.
+- Set `perf_timing_enabled: false` if you only care about invocation counts and do not want duration
+  timing at all.
 
 ## Task Pool Affinity Configuration
 
@@ -217,8 +233,8 @@ The daemon has two broad thread classes:
 This is an important architectural difference from LambdaMOO-style servers. In LambdaMOO, task
 execution is effectively serialized through one main execution path. In moor, runnable tasks are
 dispatched onto a worker pool so independent task execution can proceed concurrently across multiple
-cores. The scheduler remains responsible for orchestration, wakeups, and queue management, while
-the task pool provides the actual parallel execution capacity.
+cores. The scheduler remains responsible for orchestration, wakeups, and queue management, while the
+task pool provides the actual parallel execution capacity.
 
 That means thread placement matters more here than in a single-threaded MOO. A poor affinity choice
 can leave the scheduler contending with task execution on the same high-performance cores, while an
@@ -233,9 +249,9 @@ If the runtime can identify a distinct performance-core tier, the default `auto`
 that tier for task workers. If it cannot identify a meaningful split, the task pool is left
 unpinned.
 
-| Setting | Command Line | Default | Description |
-|--------|---------|---------|-------------|
-| Task pool pinning | `--task-pool-pinning <MODE>` | `auto` | Controls whether task worker threads are pinned to detected performance cores |
+| Setting                     | Command Line                 | Default        | Description                                                                                       |
+| --------------------------- | ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------- |
+| Task pool pinning           | `--task-pool-pinning <MODE>` | `auto`         | Controls whether task worker threads are pinned to detected performance cores                     |
 | Reserved service perf cores | `--service-perf-cores <NUM>` | topology-based | Reserves detected performance cores for non-task service threads before assigning worker affinity |
 
 `task_pool_pinning` accepts:
@@ -244,8 +260,9 @@ unpinned.
 - `performance`: Pin task workers to detected performance cores when available.
 - `none`: Do not pin task worker threads.
 
-`service_perf_cores` must be a non-negative integer. It reserves that many detected performance cores for service
-threads. The value is clamped so that, when possible, at least one performance core remains available for task workers.
+`service_perf_cores` must be a non-negative integer. It reserves that many detected performance
+cores for service threads. The value is clamped so that, when possible, at least one performance
+core remains available for task workers.
 
 When `service_perf_cores` is not set, the reservation defaults are:
 
@@ -325,9 +342,11 @@ runtime:
 
 ## LambdaMOO Compatibility Mode
 
-If you need to maintain compatibility with LambdaMOO 1.8, you'll need to either update your core with the changes
-provided in the [Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md) or
-disable several features. Here's a configuration that maintains LambdaMOO compatibility by disabling mooR features:
+If you need to maintain compatibility with LambdaMOO 1.8, you'll need to either update your core
+with the changes provided in the
+[Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md) or
+disable several features. Here's a configuration that maintains LambdaMOO compatibility by disabling
+mooR features:
 
 ```yaml
 # LambdaMOO 1.8 compatible features
@@ -353,9 +372,9 @@ features_config:
 
 ## Anonymous Objects Configuration
 
-The `anonymous_objects` feature flag enables a new type of object that is automatically garbage collected when no longer
-referenced.
-This feature is disabled by default due to performance considerations.
+The `anonymous_objects` feature flag enables a new type of object that is automatically garbage
+collected when no longer referenced. This feature is disabled by default due to performance
+considerations.
 
 ### Enabling Anonymous Objects
 
@@ -390,12 +409,12 @@ Anonymous objects use a mark-and-sweep garbage collector with the following char
 
 - **CPU Overhead**: The GC thread runs continuously, consuming CPU cycles even when not collecting
 - **Memory Usage**: Same storage costs as regular objects until collection occurs
-- **Concurrency**: Mark phase runs concurrently with normal server operations to minimize blocking but can put load
-  on the system as it scans the entire database.
+- **Concurrency**: Mark phase runs concurrently with normal server operations to minimize blocking
+  but can put load on the system as it scans the entire database.
 - **Collection Pauses**: Sweep phase can cause brief server pauses during collection cycles
 
-The garbage collector is optimized but will impact overall server performance. Monitor your server's CPU usage and
-response times when enabling this feature.
+The garbage collector is optimized but will impact overall server performance. Monitor your server's
+CPU usage and response times when enabling this feature.
 
 ### Migration Considerations
 

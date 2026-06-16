@@ -1,8 +1,8 @@
 # Server Architecture
 
-Understanding mooR's architecture is key to successfully running and maintaining a mooR server. Unlike traditional MOO
-servers that consisted of a single executable, mooR is designed as a modular system with multiple components working
-together.
+Understanding mooR's architecture is key to successfully running and maintaining a mooR server.
+Unlike traditional MOO servers that consisted of a single executable, mooR is designed as a modular
+system with multiple components working together.
 
 ## Component Overview
 
@@ -10,26 +10,24 @@ A complete mooR installation consists of several specialized components:
 
 ### Core Components
 
-**moor-daemon**
-: The heart of the system. This component manages the MOO database, executes verbs, handles object manipulation, and
-coordinates all MOO operations. Think of it as the "brain" that understands MOO code and maintains the virtual world's
-state.
+**moor-daemon** : The heart of the system. This component manages the MOO database, executes verbs,
+handles object manipulation, and coordinates all MOO operations. Think of it as the "brain" that
+understands MOO code and maintains the virtual world's state.
 
-**moor-telnet-host**
-: Provides traditional telnet access for players. This component handles the classic MOO experience that players
-familiar with LambdaMOO expect - text-based connections over port 8888 (by default).
+**moor-telnet-host** : Provides traditional telnet access for players. This component handles the
+classic MOO experience that players familiar with LambdaMOO expect - text-based connections over
+port 8888 (by default).
 
-**moor-web-host**
-: Provides RESTful API endpoints and WebSocket connections for web clients. This component handles authentication,
-property access, verb execution, and real-time communication via WebSockets.
+**moor-web-host** : Provides RESTful API endpoints and WebSocket connections for web clients. This
+component handles authentication, property access, verb execution, and real-time communication via
+WebSockets.
 
-**moor-frontend**
-: The web client application. This is served by nginx in production or Vite in development, providing the browser-based
-interface that communicates with moor-web-host.
+**moor-frontend** : The web client application. This is served by nginx in production or Vite in
+development, providing the browser-based interface that communicates with moor-web-host.
 
-**curl-worker**
-: Handles outbound HTTP requests from MOO code. When your MOO needs to fetch data from external APIs, send webhooks, or
-interact with web services, this component manages those network operations safely.
+**curl-worker** : Handles outbound HTTP requests from MOO code. When your MOO needs to fetch data
+from external APIs, send webhooks, or interact with web services, this component manages those
+network operations safely.
 
 ## How Components Communicate
 
@@ -45,12 +43,14 @@ All components communicate through authenticated RPC (Remote Procedure Call) con
 mooR supports two communication modes between its components:
 
 **IPC (Unix Domain Sockets)** - Default for single-machine deployments
+
 - Simplest configuration
 - No encryption needed (kernel-level security)
 - Used by default in Docker Compose and Debian packages
 - Best for development and single-server production
 
 **TCP with CURVE Encryption** - For clustered/multi-machine deployments
+
 - Required when services run on separate machines
 - Uses CURVE encryption with enrollment-based authentication
 - Enrollment tokens authenticate hosts connecting to the daemon
@@ -58,14 +58,17 @@ mooR supports two communication modes between its components:
 
 ## Advantages of This Design
 
-**Flexibility**: You can run different components on different machines or scale them independently based on your needs.
+**Flexibility**: You can run different components on different machines or scale them independently
+based on your needs.
 
-**Security**: Network operations are isolated in separate workers, reducing security risks to the core MOO environment.
+**Security**: Network operations are isolated in separate workers, reducing security risks to the
+core MOO environment.
 
-**Modernization**: The modular design allows adding new connection types (like web interfaces) without changing the core
-MOO logic.
+**Modernization**: The modular design allows adding new connection types (like web interfaces)
+without changing the core MOO logic.
 
-**Reliability**: If a host crashes, only that connection type is affected - the core MOO world continues running.
+**Reliability**: If a host crashes, only that connection type is affected - the core MOO world
+continues running.
 
 ## Build and Performance Considerations
 
@@ -87,12 +90,13 @@ mooR supports configurable build profiles to balance compilation time with runti
 - Smaller binary sizes and maximum runtime performance
 - Longer build times due to optimization passes
 
-The frontend (web-based) component always uses optimized builds via Vite, regardless of the backend build profile.
+The frontend (web-based) component always uses optimized builds via Vite, regardless of the backend
+build profile.
 
 ### Deployment Approaches
 
-This modular architecture means there are more pieces to coordinate compared to traditional MOO servers. However, mooR
-provides several approaches to make this manageable:
+This modular architecture means there are more pieces to coordinate compared to traditional MOO
+servers. However, mooR provides several approaches to make this manageable:
 
 - **Docker Compose**: Orchestrates all components automatically (recommended for most users)
 - **Debian Packages**: Handles system integration for Debian-based systems

@@ -8,8 +8,8 @@ int abs(int x)
 
 Returns the absolute value of x.
 
-If x is negative, then the result is `-x`; otherwise, the result is x. The number x can be either integer or
-floating-point; the result is of the same kind.
+If x is negative, then the result is `-x`; otherwise, the result is x. The number x can be either
+integer or floating-point; the result is of the same kind.
 
 ### `min`
 
@@ -19,8 +19,8 @@ int min(int x, ...)
 
 Return the smallest of it's arguments.
 
-All of the arguments must be numbers of the same kind (i.e., either integer or floating-point); otherwise `E_TYPE` is
-raised.
+All of the arguments must be numbers of the same kind (i.e., either integer or floating-point);
+otherwise `E_TYPE` is raised.
 
 ### `max`
 
@@ -30,8 +30,8 @@ int max(int x, ...)
 
 Return the largest of it's arguments.
 
-All of the arguments must be numbers of the same kind (i.e., either integer or floating-point); otherwise `E_TYPE` is
-raised.
+All of the arguments must be numbers of the same kind (i.e., either integer or floating-point);
+otherwise `E_TYPE` is raised.
 
 ### `random`
 
@@ -41,8 +41,8 @@ int random([int mod, [int range]])
 
 random -- Return a random integer
 
-mod must be a positive integer; otherwise, `E_INVARG` is raised. If mod is not provided, it defaults to the largest MOO
-integer, which will depend on if you are running 32 or 64-bit.
+mod must be a positive integer; otherwise, `E_INVARG` is raised. If mod is not provided, it defaults
+to the largest MOO integer, which will depend on if you are running 32 or 64-bit.
 
 if range is provided then an integer in the range of mod to range (inclusive) is returned.
 
@@ -60,12 +60,12 @@ str floatstr(float x, int precision [, scientific])
 
 Converts x into a string with more control than provided by either `tostr()` or `toliteral()`.
 
-Precision is the number of digits to appear to the right of the decimal point, capped at 4 more than the maximum
-available precision, a total of 19 on most machines; this makes it possible to avoid rounding errors if the resulting
-string is subsequently read back as a floating-point value. If scientific is false or not provided, the result is a
-string in the form `"MMMMMMM.DDDDDD"`, preceded by a minus sign if and only if x is negative. If scientific is provided
-and true, the result is a string in the form `"M.DDDDDDe+EEE"`, again preceded by a minus sign if and only if x is
-negative.
+Precision is the number of digits to appear to the right of the decimal point, capped at 4 more than
+the maximum available precision, a total of 19 on most machines; this makes it possible to avoid
+rounding errors if the resulting string is subsequently read back as a floating-point value. If
+scientific is false or not provided, the result is a string in the form `"MMMMMMM.DDDDDD"`, preceded
+by a minus sign if and only if x is negative. If scientific is provided and true, the result is a
+string in the form `"M.DDDDDDe+EEE"`, again preceded by a minus sign if and only if x is negative.
 
 ## Trigonometric Functions
 
@@ -288,7 +288,8 @@ float hypot(num x, num y)
 
 Returns sqrt(x² + y²), computed in a way that avoids overflow and underflow.
 
-Useful for calculating the length of the hypotenuse of a right triangle or the distance between two points.
+Useful for calculating the length of the hypotenuse of a right triangle or the distance between two
+points.
 
 ```
 hypot(3, 4) => 5.0
@@ -354,7 +355,8 @@ For negative x, this is equivalent to `ceil()`; otherwise it is equivalent to `f
 float round(num x)
 ```
 
-Returns x rounded to the nearest integer, as a floating-point number. Halfway cases round away from zero.
+Returns x rounded to the nearest integer, as a floating-point number. Halfway cases round away from
+zero.
 
 ```
 round(2.3)   => 2.0

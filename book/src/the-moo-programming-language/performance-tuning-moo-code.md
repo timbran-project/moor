@@ -45,8 +45,8 @@ In practice, that usually means:
 
 ## Measure With `ftime()`
 
-If you do not have access to server-side counters, `ftime()` is the simplest way to time a suspicious
-piece of MOO code.
+If you do not have access to server-side counters, `ftime()` is the simplest way to time a
+suspicious piece of MOO code.
 
 The basic pattern is:
 
@@ -70,9 +70,9 @@ When using `ftime()`:
 - compare single-user behavior with concurrent use if you suspect contention
 - remove or disable noisy timing output after debugging
 
-`ftime()` measures elapsed wall-clock time. That is usually what you want when tuning a verb, but
-it does not tell you by itself why the code is slow. It helps you find the expensive section; then
-you still need to inspect the shape of the code and the write pattern.
+`ftime()` measures elapsed wall-clock time. That is usually what you want when tuning a verb, but it
+does not tell you by itself why the code is slow. It helps you find the expensive section; then you
+still need to inspect the shape of the code and the write pattern.
 
 If you do have wizard or operator access, internal counters can help separate runtime pressure from
 world-code cost:
@@ -166,9 +166,8 @@ execution path: yielding frequently could help avoid long stalls for other playe
 
 That intuition does not carry over cleanly to mooR.
 
-In mooR, it is often reasonable to set `$server_options.fg_ticks` and
-`$server_options.bg_ticks` substantially higher than old LambdaMOO-style defaults or habits would
-suggest.
+In mooR, it is often reasonable to set `$server_options.fg_ticks` and `$server_options.bg_ticks`
+substantially higher than old LambdaMOO-style defaults or habits would suggest.
 
 Why:
 
@@ -209,9 +208,9 @@ This is the most important thing to internalize when tuning mooR code.
 Many performance problems are not caused by any one verb being individually expensive. They come
 from many tasks all trying to mutate the same logical resource at about the same time.
 
-Because mooR uses optimistic concurrency, those tasks do not wait behind one big lock. Instead,
-they run, and conflicting work is rejected and retried. If the conflict pattern is bad, the system
-can spend a lot of CPU redoing work that never commits.
+Because mooR uses optimistic concurrency, those tasks do not wait behind one big lock. Instead, they
+run, and conflicting work is rejected and retried. If the conflict pattern is bad, the system can
+spend a lot of CPU redoing work that never commits.
 
 From the point of view of an ordinary player or programmer, these retries are usually invisible as
 events. The user does not normally see "your task conflicted and was retried." What they see is that
@@ -299,8 +298,7 @@ owner conceptually?"
 
 ### Use Task Mailboxes For Coordination When They Fit
 
-mooR adds per-task mailboxes through
-[`task_send()`](built-in-functions/server.md#task_send) and
+mooR adds per-task mailboxes through [`task_send()`](built-in-functions/server.md#task_send) and
 [`task_recv()`](built-in-functions/server.md#task_recv).
 
 These are often a better coordination tool than:
@@ -327,9 +325,9 @@ Examples:
 This pattern can reduce contention because senders do not need to keep writing the same shared
 properties just to get the owner task's attention.
 
-One useful pattern is a game update loop that owns the current subscriber set and receives
-register, unregister, or interrupt events through its mailbox. Other tasks send requests to that
-long-lived loop task, and the loop applies the changes when it next receives its mailbox.
+One useful pattern is a game update loop that owns the current subscriber set and receives register,
+unregister, or interrupt events through its mailbox. Other tasks send requests to that long-lived
+loop task, and the loop applies the changes when it next receives its mailbox.
 
 There is one important caveat: `task_recv()` is also a transaction boundary, just like `commit()` or
 `read()`. So this is not free communication. It is best when that boundary is already a natural part

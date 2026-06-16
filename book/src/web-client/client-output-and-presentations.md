@@ -1,30 +1,33 @@
 # Client Output and Presentations
 
-This page describes how the web client interprets `notify()` and `present()` output, including content types and
-metadata that affect rendering. These events flow through `moor-web-host` over FlatBuffers and are rendered with the web
-client's richer UI.
+This page describes how the web client interprets `notify()` and `present()` output, including
+content types and metadata that affect rendering. These events flow through `moor-web-host` over
+FlatBuffers and are rendered with the web client's richer UI.
 
 ## Rich Content Formats
 
-The web client supports rich output formats and applies strict safety rules to prevent spoofing or unsafe rendering.
+The web client supports rich output formats and applies strict safety rules to prevent spoofing or
+unsafe rendering.
 
 ### Djot
 
-Djot is a modern, structured markup format designed for predictable rendering with fewer edge cases than Markdown. We
-use it because it supports rich formatting while keeping tighter restrictions that reduce spoofing risks.
+Djot is a modern, structured markup format designed for predictable rendering with fewer edge cases
+than Markdown. We use it because it supports rich formatting while keeping tighter restrictions that
+reduce spoofing risks.
 
 Learn more: <https://github.com/jgm/djot>
 
 ### HTML
 
-HTML output is supported, but it is heavily sanitized (via DOMPurify) before rendering and presented with a very
-restricted subset of elements. This allows basic formatting while preventing untrusted content from injecting scripts or
-spoofing the UI.
+HTML output is supported, but it is heavily sanitized (via DOMPurify) before rendering and presented
+with a very restricted subset of elements. This allows basic formatting while preventing untrusted
+content from injecting scripts or spoofing the UI.
 
 ## Login and Welcome Screen Customization
 
-When a browser connects, the web client invokes the welcome flow through `moor-web-host` and renders the narrative
-output from the login command. You can customize this welcome message using rich content types:
+When a browser connects, the web client invokes the welcome flow through `moor-web-host` and renders
+the narrative output from the login command. You can customize this welcome message using rich
+content types:
 
 - `text/html`: sanitized HTML for branded layouts
 - `text/djot`: djot markup for structured content
@@ -45,11 +48,11 @@ The iframe is sandboxed and intended for trusted, static content.
 
 ## notify() Content Types
 
-The [`notify()`](../the-moo-programming-language/built-in-functions/server.md#notify) builtin can specify a
-`content_type` in rich mode. The web client understands:
+The [`notify()`](../the-moo-programming-language/built-in-functions/server.md#notify) builtin can
+specify a `content_type` in rich mode. The web client understands:
 
 | Content Type     | Description                       |
-|------------------|-----------------------------------|
+| ---------------- | --------------------------------- |
 | `text/plain`     | Plain text (default)              |
 | `text/html`      | HTML-formatted output (sanitized) |
 | `text/djot`      | Djot-formatted output             |
@@ -69,11 +72,11 @@ notify(player, "= Status\n*All systems nominal*", false, false, "text/djot");
 
 ### Inline Links
 
-When sending `text/html` or `text/djot`, the web client turns anchors into interactive elements. It recognizes `moo://`
-links for client-side actions:
+When sending `text/html` or `text/djot`, the web client turns anchors into interactive elements. It
+recognizes `moo://` links for client-side actions:
 
 | Link Pattern          | Action                                                |
-|-----------------------|-------------------------------------------------------|
+| --------------------- | ----------------------------------------------------- |
 | `moo://cmd/<command>` | Run the URL-decoded command as if typed by the player |
 | `moo://inspect/<ref>` | Show object info popover (calls `<ref>:inspection`)   |
 
@@ -87,32 +90,33 @@ notify(player, "[examine sword](moo://cmd/examine%20sword)", false, false, "text
 The web client reads metadata attached to narrative events. Common keys include:
 
 | Key                 | Type   | Description                                      |
-|---------------------|--------|--------------------------------------------------|
+| ------------------- | ------ | ------------------------------------------------ |
 | `presentation_hint` | string | Styling hint (inset, processing, expired)        |
 | `group_id`          | string | Group related lines together                     |
 | `tts_text`          | string | Alternate text for screen readers                |
 | `thumbnail`         | list   | `[content_type, binary_data]` for preview images |
 | `link_preview`      | map    | Rich link preview data                           |
 
-If your core uses metadata, you can shape how the web client presents or groups output without changing the visible
-message body.
+If your core uses metadata, you can shape how the web client presents or groups output without
+changing the visible message body.
 
 **notify() targeting:**
 
-- `notify(player, ...)` — sends to **all** of that player's connections AND writes to the event log (persistent history)
-- `notify(connection, ...)` — sends only to that specific connection (negative object number), does NOT write to event
-  log or other connections
+- `notify(player, ...)` — sends to **all** of that player's connections AND writes to the event log
+  (persistent history)
+- `notify(connection, ...)` — sends only to that specific connection (negative object number), does
+  NOT write to event log or other connections
 
-The [`event_log()`](../the-moo-programming-language/built-in-functions/server.md#event_log) builtin explicitly writes to
-the event log without displaying anything—useful when you've only notified a specific connection but still want the
-message recorded in history.
+The [`event_log()`](../the-moo-programming-language/built-in-functions/server.md#event_log) builtin
+explicitly writes to the event log without displaying anything—useful when you've only notified a
+specific connection but still want the message recorded in history.
 
 ### Presentation Hints
 
 `presentation_hint` guides visual treatment for a line or group:
 
 | Hint         | Visual Treatment                                 |
-|--------------|--------------------------------------------------|
+| ------------ | ------------------------------------------------ |
 | `inset`      | Render in an inset card (look output, summaries) |
 | `processing` | Show spinner/animation (in-progress operations)  |
 | `expired`    | Faded appearance (stale content)                 |
@@ -124,8 +128,8 @@ notify(player, "Calibrating sensors...", false, false, "text/plain", metadata);
 
 ### Grouping with group_id
 
-When consecutive messages share the same `presentation_hint` and `group_id` (and the same actor, if provided), the web
-client visually groups them together. This enables:
+When consecutive messages share the same `presentation_hint` and `group_id` (and the same actor, if
+provided), the web client visually groups them together. This enables:
 
 - Multi-line look descriptions shown as a single card
 - Collapse/expand behavior for grouped output
@@ -140,14 +144,14 @@ notify(player, "A brass telescope points skyward.", false, false, "text/plain", 
 
 ### Message Staleness
 
-The client automatically marks certain messages as "stale" when superseded. For example, when a player runs `look`
-again, the previous `look` output is visually dimmed and its links become non-interactive. This helps players understand
-which information is current.
+The client automatically marks certain messages as "stale" when superseded. For example, when a
+player runs `look` again, the previous `look` output is visually dimmed and its links become
+non-interactive. This helps players understand which information is current.
 
 ## Rewritable Messages
 
-For dynamic content that updates in place (e.g., progress indicators, streaming AI responses), the client supports
-rewritable messages.
+For dynamic content that updates in place (e.g., progress indicators, streaming AI responses), the
+client supports rewritable messages.
 
 ```moo
 // Initial message with rewritable ID
@@ -167,7 +171,7 @@ notify(player, "Processing complete!", false, false, "text/plain", metadata);
 Rewritable metadata keys:
 
 | Key                   | Type   | Description                                               |
-|-----------------------|--------|-----------------------------------------------------------|
+| --------------------- | ------ | --------------------------------------------------------- |
 | `rewritable_id`       | string | Unique identifier for the message slot                    |
 | `rewritable_owner`    | object | Object that owns this slot (security check)               |
 | `rewritable_ttl`      | number | Time-to-live in seconds before expiry                     |
@@ -176,13 +180,14 @@ Rewritable metadata keys:
 
 ## Rich Input Prompts
 
-The web client supports structured input prompts that go beyond simple text input. Use `read()` with metadata to trigger
-these. See [read() builtin reference](../the-moo-programming-language/built-in-functions/server.md#read).
+The web client supports structured input prompts that go beyond simple text input. Use `read()` with
+metadata to trigger these. See
+[read() builtin reference](../the-moo-programming-language/built-in-functions/server.md#read).
 
 ### Input Types
 
 | Type                     | UI Control                 | Use Case                  |
-|--------------------------|----------------------------|---------------------------|
+| ------------------------ | -------------------------- | ------------------------- |
 | `text`                   | Single-line text field     | Names, short answers      |
 | `text_area`              | Multi-line textarea        | Descriptions, long text   |
 | `number`                 | Number input               | Quantities, coordinates   |
@@ -197,7 +202,7 @@ these. See [read() builtin reference](../the-moo-programming-language/built-in-f
 ### Input Metadata Fields
 
 | Field                     | Used By                 | Description                          |
-|---------------------------|-------------------------|--------------------------------------|
+| ------------------------- | ----------------------- | ------------------------------------ |
 | `input_type`              | All                     | Type of input control                |
 | `prompt`                  | All                     | Prompt text (supports Djot)          |
 | `tts_prompt`              | All                     | Accessible prompt for screen readers |
@@ -213,7 +218,7 @@ these. See [read() builtin reference](../the-moo-programming-language/built-in-f
 
 ### Examples
 
-```moo
+````moo
 // Simple text input
 read(player, ["input_type" -> "text", "prompt" -> "What is your name?"]);
 
@@ -247,12 +252,13 @@ read(player, [
     "accept_content_types" -> {"image/png", "image/jpeg", "image/gif"},
     "max_file_size" -> 1048576  // 1MB
 ]);
-```
+````
 
 ## present() Targets and Attributes
 
-The [`present()`](../the-moo-programming-language/built-in-functions/server.md#present) builtin is used to open or
-update panels and windows. See [Presentations](./presentations.md) for comprehensive documentation.
+The [`present()`](../the-moo-programming-language/built-in-functions/server.md#present) builtin is
+used to open or update panels and windows. See [Presentations](./presentations.md) for comprehensive
+documentation.
 
 Quick reference:
 

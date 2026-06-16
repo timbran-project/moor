@@ -1,6 +1,7 @@
 # Deployment
 
-The web client is optional, but when enabled it typically sits behind a proxy that serves static assets and forwards API/WebSocket traffic to `moor-web-host`.
+The web client is optional, but when enabled it typically sits behind a proxy that serves static
+assets and forwards API/WebSocket traffic to `moor-web-host`.
 
 ## Typical Topology
 
@@ -58,12 +59,12 @@ See `deploy/kubernetes/` for Ingress and Deployment manifests.
 
 The proxy must forward these paths to `moor-web-host`:
 
-| Path | Purpose |
-|------|---------|
-| `/api/` | REST API endpoints |
+| Path     | Purpose                  |
+| -------- | ------------------------ |
+| `/api/`  | REST API endpoints       |
 | `/auth/` | Authentication endpoints |
-| `/fb/` | FlatBuffer RPC endpoints |
-| `/ws/` | WebSocket connections |
+| `/fb/`   | FlatBuffer RPC endpoints |
+| `/ws/`   | WebSocket connections    |
 
 All other paths serve static web client assets.
 
@@ -164,8 +165,8 @@ Vite's proxy configuration is in `vite.config.ts`.
 
 The web client reads these at build time:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable            | Default | Description                                 |
+| ------------------- | ------- | ------------------------------------------- |
 | `VITE_API_BASE_URL` | (empty) | Base URL for API calls (usually not needed) |
 
 ## Static Asset Hosting
@@ -175,16 +176,17 @@ The web client build produces static files in `dist/`:
 - `index.html` - Main entry point
 - `assets/` - JavaScript, CSS, images
 
-These can be served from any static hosting (nginx, S3, CDN, etc.). The only requirement is SPA-style routing: all non-asset requests should return `index.html`.
+These can be served from any static hosting (nginx, S3, CDN, etc.). The only requirement is
+SPA-style routing: all non-asset requests should return `index.html`.
 
 ## Health Checks
 
 For load balancers and orchestrators:
 
-| Endpoint | Service | Expected Response |
-|----------|---------|-------------------|
-| `/health` | moor-web-host | 200 OK |
-| `/` | Static assets | 200 OK with index.html |
+| Endpoint  | Service       | Expected Response      |
+| --------- | ------------- | ---------------------- |
+| `/health` | moor-web-host | 200 OK                 |
+| `/`       | Static assets | 200 OK with index.html |
 
 ## Related Docs
 

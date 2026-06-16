@@ -1,14 +1,14 @@
 # Accessibility
 
-The web client is designed to work well with standard browser accessibility tools, including screen readers, keyboard
-navigation, and reduced motion preferences.
+The web client is designed to work well with standard browser accessibility tools, including screen
+readers, keyboard navigation, and reduced motion preferences.
 
 ## Keyboard Navigation
 
 The web client supports full keyboard navigation:
 
 | Key       | Action                                      |
-|-----------|---------------------------------------------|
+| --------- | ------------------------------------------- |
 | Tab       | Move focus to next interactive element      |
 | Shift+Tab | Move focus to previous element              |
 | Enter     | Activate focused button or link             |
@@ -28,11 +28,11 @@ The web client uses ARIA attributes and live regions to communicate with screen 
 
 ### TTS Text Alternatives
 
-When rich visual output would be difficult for screen readers to parse, MOO code can provide alternative text via
-metadata:
+When rich visual output would be difficult for screen readers to parse, MOO code can provide
+alternative text via metadata:
 
 | Metadata Key | Purpose                                        |
-|--------------|------------------------------------------------|
+| ------------ | ---------------------------------------------- |
 | `tts_text`   | Alternative narration for complex output       |
 | `tts_prompt` | Alternative prompt text for rich input prompts |
 
@@ -53,8 +53,8 @@ notify(player, html, false, false, "text/html", metadata);
 
 #### Using cowbell's event system
 
-The `cowbell` core provides higher-level helpers that work with `notify()` and the web client to make it easier to
-provide accessible output:
+The `cowbell` core provides higher-level helpers that work with `notify()` and the web client to
+make it easier to provide accessible output:
 
 ```moo
 // Using $format helpers with metadata
@@ -78,17 +78,17 @@ Rich input prompts are fully accessible:
 
 ### Example Accessible Prompt
 
-Rich input prompts are triggered via the `read()` builtin with metadata. The `tts_prompt` metadata key provides an
-accessible alternative to visually complex prompts:
+Rich input prompts are triggered via the `read()` builtin with metadata. The `tts_prompt` metadata
+key provides an accessible alternative to visually complex prompts:
 
-```moo
+````moo
 // Visual prompt shows formatted SQL, screen readers hear a clear question
 read(player, [
     "input_type" -> "yes_no_alternative",
     "prompt" -> "Apply this change?\n```sql\nALTER TABLE users ADD COLUMN verified BOOLEAN;\n```",
     "tts_prompt" -> "Apply database change to add verified column to users table?"
 ]);
-```
+````
 
 ## Visual Accessibility
 

@@ -1,30 +1,37 @@
 # OAuth2 Authentication
 
-The web client can work with `moor-web-host` to authenticate players using OAuth2 providers such as Discord, GitHub, or Google. Which providers are available depends on the web-host configuration for your deployment. OAuth2 flows run through the web-host API and complete back in the web client.
+The web client can work with `moor-web-host` to authenticate players using OAuth2 providers such as
+Discord, GitHub, or Google. Which providers are available depends on the web-host configuration for
+your deployment. OAuth2 flows run through the web-host API and complete back in the web client.
 
 ## How It Works
 
-1. **Login Screen**: The login screen shows OAuth2 provider buttons (Discord, GitHub, Google) when enabled on the web host.
+1. **Login Screen**: The login screen shows OAuth2 provider buttons (Discord, GitHub, Google) when
+   enabled on the web host.
 
-2. **Authorization**: Clicking a provider button redirects the browser to that provider's authorization page.
+2. **Authorization**: Clicking a provider button redirects the browser to that provider's
+   authorization page.
 
-3. **Callback**: After authorization, the provider redirects back to the web client with an authorization code.
+3. **Callback**: After authorization, the provider redirects back to the web client with an
+   authorization code.
 
-4. **Token Exchange**: The web client sends the code to `moor-web-host`, which exchanges it for user info.
+4. **Token Exchange**: The web client sends the code to `moor-web-host`, which exchanges it for user
+   info.
 
 5. **Account Choice**: The player can either:
    - Create a new character linked to their OAuth2 identity
    - Link to an existing character (requires existing credentials)
 
-6. **Session**: The resulting session uses PASETO authentication tokens, identical to username/password login.
+6. **Session**: The resulting session uses PASETO authentication tokens, identical to
+   username/password login.
 
 ## Supported Providers
 
-| Provider | Icon | Configuration Required |
-|----------|------|------------------------|
-| Discord | Discord logo | OAuth2 app in Discord Developer Portal |
-| GitHub | GitHub logo | OAuth app in GitHub Settings |
-| Google | Google logo | OAuth2 credentials in Google Cloud Console |
+| Provider | Icon         | Configuration Required                     |
+| -------- | ------------ | ------------------------------------------ |
+| Discord  | Discord logo | OAuth2 app in Discord Developer Portal     |
+| GitHub   | GitHub logo  | OAuth app in GitHub Settings               |
+| Google   | Google logo  | OAuth2 credentials in Google Cloud Console |
 
 Providers only appear on the login screen if configured in `moor-web-host`.
 
@@ -39,8 +46,8 @@ When creating a new account via OAuth2, the wizard guides the player through:
 
 ### Encryption Password
 
-If event logging is enabled, players must create an encryption password. This password is separate from the OAuth2
-identity and is used to encrypt the player's event log history.
+If event logging is enabled, players must create an encryption password. This password is separate
+from the OAuth2 identity and is used to encrypt the player's event log history.
 
 ## Linking to Existing Account
 
@@ -55,7 +62,8 @@ Players with an existing username/password account can link their OAuth2 identit
 
 ### Web-Host Configuration
 
-OAuth2 providers are configured in `moor-web-host` configuration, not the web client. Each provider requires:
+OAuth2 providers are configured in `moor-web-host` configuration, not the web client. Each provider
+requires:
 
 - Client ID from the OAuth2 provider
 - Client Secret (kept server-side only)
@@ -77,11 +85,11 @@ oauth2:
 
 Each provider has its own developer console for creating OAuth2 applications:
 
-| Provider | Developer Console | Redirect URI Path |
-|----------|-------------------|-------------------|
-| Discord | discord.com/developers | `/auth/oauth2/discord/callback` |
-| GitHub | github.com/settings/developers | `/auth/oauth2/github/callback` |
-| Google | console.cloud.google.com | `/auth/oauth2/google/callback` |
+| Provider | Developer Console              | Redirect URI Path               |
+| -------- | ------------------------------ | ------------------------------- |
+| Discord  | discord.com/developers         | `/auth/oauth2/discord/callback` |
+| GitHub   | github.com/settings/developers | `/auth/oauth2/github/callback`  |
+| Google   | console.cloud.google.com       | `/auth/oauth2/google/callback`  |
 
 ### Security Considerations
 

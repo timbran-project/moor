@@ -17,8 +17,8 @@ does too much work or creates avoidable transaction conflicts. For language-leve
 [Performance Tuning MOO Code](../the-moo-programming-language/performance-tuning-moo-code.md).
 
 This page assumes an operator or wizard audience. It discusses server-level counters, logs, thread
-placement, and runtime configuration. Ordinary programmers without wizard access will usually want to
-start with the language-side guidance above.
+placement, and runtime configuration. Ordinary programmers without wizard access will usually want
+to start with the language-side guidance above.
 
 ## Why Is My MOO Slow?
 
@@ -32,7 +32,8 @@ Look first at:
 
 - [scheduler counters](#scheduler-counters) such as submit, wakeup, and handoff latency
 - [builtin counters](#builtin-counters) if commands spend time in a few heavy builtins
-- [database counters](#database-counters) if the command performs a lot of object/property/verb mutation
+- [database counters](#database-counters) if the command performs a lot of object/property/verb
+  mutation
 
 Likely causes:
 
@@ -79,7 +80,8 @@ Slow storage has a distinct signature in mooR.
 Look for both:
 
 - warnings in the daemon log about slow flushes or batch-writer backpressure
-- the [database counters](#database-counters), especially batch-writer backpressure counters, continuing to climb
+- the [database counters](#database-counters), especially batch-writer backpressure counters,
+  continuing to climb
 
 In the current implementation, the writer path emits warnings when:
 
@@ -154,8 +156,8 @@ The task pool:
 - runs verb dispatch and builtin-heavy VM work
 - returns results, suspension requests, and retry requests back to the scheduler
 
-This separation is why some latency counters are "scheduler" counters even though the task itself
-is expensive. The scheduler may be fast, but the worker pool can still be saturated. Likewise, task
+This separation is why some latency counters are "scheduler" counters even though the task itself is
+expensive. The scheduler may be fast, but the worker pool can still be saturated. Likewise, task
 workers may be idle while the scheduler is delayed by coordination work.
 
 ## Database Concurrency Model
@@ -194,9 +196,9 @@ At commit time, the database:
 - publishes the next root for readers
 - hands the write batch off for durability work
 
-That means the logical commit path and the durable writeback path are related but not identical.
-The system can publish a new root and then rely on background infrastructure to push the queued
-writes through the storage engine.
+That means the logical commit path and the durable writeback path are related but not identical. The
+system can publish a new root and then rely on background infrastructure to push the queued writes
+through the storage engine.
 
 ### Background Writers
 
