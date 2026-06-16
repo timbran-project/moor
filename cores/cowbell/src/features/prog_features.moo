@@ -1406,21 +1406,28 @@ object PROG_FEATURES
   method _do_get_available_objects owner: ARCH_WIZARD
     "Internal helper to get list of objects available for searching";
     caller == this || raise(E_PERM);
-    "Get all objects with wizard permissions";
-    all_objects = objects();
-    "Filter to objects readable by caller";
     perms = caller_perms();
+    set_task_perms(player, {{"object_list"}});
+    all_objects = objects();
     if (perms.wizard)
       return all_objects;
     endif
     available = {};
     for o in (all_objects)
-      "Object is available if caller owns it or it has read flag";
-      if (o.owner == perms || o.r)
+      info = this:_do_get_object_visibility_info(o);
+      if (info['owner] == perms || info['readable])
         available = {@available, o};
       endif
     endfor
     return available;
+  endmethod
+
+  method _do_get_object_visibility_info owner: ARCH_WIZARD
+    "Internal helper to get object visibility fields with elevated permissions";
+    caller == this || raise(E_PERM);
+    {target_obj} = args;
+    set_task_perms(player, {{"object_read", target_obj}});
+    return ['owner -> target_obj.owner, 'readable -> target_obj.r];
   endmethod
 
   verb "@grep" (any any any) owner: ARCH_WIZARD flags: "rd"
