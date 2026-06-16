@@ -2732,37 +2732,29 @@ object PROG_FEATURES
     if (!scope)
       return $match:match_object(ref, context);
     endif
-    candidates = this:_matching_candidates(ref, context);
-    if (!candidates)
-      raise(E_INVARG, "No " + label + " found matching '" + ref + "'.");
-    endif
-    exact = {};
-    needle = ref:lowercase();
-    for o in (candidates)
+    scope_entries = {};
+    for o in (scope)
       candidate_info = this:_do_get_object_match_info(o);
-      names = {candidate_info['name]};
+      entry = {o, candidate_info['name]};
       aliases = candidate_info['aliases];
       if (typeof(aliases) == TYPE_LIST)
-        names = {@names, @aliases};
+        entry = {@entry, @aliases};
       endif
-      for n in (names)
-        if (typeof(n) == TYPE_STR && n:lowercase() == needle)
-          exact = {@exact, o};
-          break;
-        endif
-      endfor
+      scope_entries = {@scope_entries, entry};
     endfor
-    if (length(exact) == 1)
-      return exact[1];
+    result = $match:resolve_in_scope(ref, scope_entries, ['fuzzy_threshold -> 0.5]);
+    if (result == $failed_match)
+      raise(E_INVARG, "No " + label + " found matching '" + ref + "'.");
     endif
-    if (length(candidates) == 1 && !exact)
-      return candidates[1];
-    endif
-    if (length(exact) > 1 || length(candidates) > 1)
+    if (result == $ambiguous_match)
+      candidates = this:_matching_candidates(ref, context);
+      if (!candidates)
+        raise(E_INVARG, "Ambiguous " + label + " reference '" + ref + "'.");
+      endif
       formatted = {};
       max_show = 8;
       count = 0;
-      for o in (exact || candidates)
+      for o in (candidates)
         count = count + 1;
         if (count > max_show)
           break;
@@ -2774,7 +2766,7 @@ object PROG_FEATURES
       msg = "Ambiguous " + label + " '" + ref + "'. Candidates: " + formatted:join(", ") + suffix;
       raise(E_INVARG, msg);
     endif
-    raise(E_INVARG, "No " + label + " found matching '" + ref + "'.");
+    return result;
   endmethod
 
   method _matching_candidates owner: HACKER
