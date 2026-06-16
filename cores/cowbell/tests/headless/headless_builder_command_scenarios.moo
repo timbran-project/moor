@@ -113,6 +113,44 @@ object HEADLESS_BUILDER_COMMAND_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_builder_commands_wizard_builds_without_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: wizard builders can @build in an area without stored capability grants.";
+    player == $arch_wizard || raise(E_INVARG, "This scenario must run with --test-task-player set to ARCH_WIZARD.");
+    test_area = #-1;
+    current_room = #-1;
+    built_room = #-1;
+    old_location = $arch_wizard.location;
+    old_is_builder = $arch_wizard.is_builder;
+    stubbed_inform = false;
+    added_inform_log = false;
+    try
+      test_area = create($area);
+      current_room = test_area:make_room_in($room);
+      current_room:set_name_aliases("wizard current room", {});
+      $arch_wizard.is_builder = true;
+      $arch_wizard:moveto(current_room);
+      add_property($arch_wizard, "headless_last_inform", false, {$arch_wizard, "r"});
+      added_inform_log = true;
+      add_verb($arch_wizard, {$arch_wizard, "rxd", "inform_current"}, {"this", "none", "this"});
+      compile_errors = set_verb_code($arch_wizard, "inform_current", {"this.headless_last_inform = args;", "return true;"}, 2, 1);
+      $test_utils:assert_false(compile_errors, "temporary wizard inform_current stub should compile");
+      stubbed_inform = true;
+      build_result = this:_dispatch_builder_any("@build", "wizard build room", {});
+      built_room = this:_find_room_named_in_area(test_area, "wizard build room");
+      $test_utils:assert_true(valid(built_room), "wizard @build should create a room without stored grants: " + toliteral($arch_wizard.headless_last_inform));
+      $test_utils:assert_eq(build_result, built_room, "wizard @build should return the created room");
+    finally
+      stubbed_inform && `delete_verb($arch_wizard, "inform_current") ! E_VERBNF => 0';
+      added_inform_log && `delete_property($arch_wizard, "headless_last_inform") ! E_PROPNF => 0';
+      $arch_wizard.is_builder = old_is_builder;
+      valid(old_location) && $arch_wizard:moveto(old_location);
+      valid(built_room) && built_room:destroy();
+      valid(current_room) && current_room:destroy();
+      valid(test_area) && test_area:destroy();
+    endtry
+    return true;
+  endverb
+
   verb _dispatch_builder_any (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Dispatch a builder command declared as any/any/any.";
     {verb_name, arg_string, command_args, ?prep_string = "", ?iobj_string = ""} = args;

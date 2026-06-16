@@ -325,11 +325,19 @@ object SYSOBJ
 
   method bf_recycle owner: ARCH_WIZARD
     "Intercept recycle() to enforce permission checking through :destroy.";
-    "Allows direct recycle() if: wizard, object not rooted in #1, or called from :destroy";
+    "Allows direct recycle() if: wizard, object not rooted in #1, or called from :destroy.";
     {target} = args;
     "If not an object, let builtin raise the appropriate error";
     if (typeof(target) != TYPE_OBJ)
       return recycle(target);
+    endif
+    "Check if we're being called directly from $root:destroy before downgrading, so runtime grants installed by :destroy are preserved.";
+    stack = callers();
+    if (length(stack))
+      frame = stack[1];
+      if (frame[2] == "destroy" && frame[4] == $root && (frame[1] == target || (typeof(frame[1]) == TYPE_FLYWEIGHT && frame[1].delegate == target)))
+        return recycle(target);
+      endif
     endif
     "IMPORTANT: Run as the caller, so that the right permissions are applied...";
     set_task_perms(caller_perms());
@@ -341,12 +349,6 @@ object SYSOBJ
     if (!isa(target, $root))
       return recycle(target);
     endif
-    "Check if we're being called from :destroy by examining call stack, to avoid cyclic agony and pain...";
-    for frame in (callers())
-      if (frame[2] == "destroy" && frame[1] == target)
-        return recycle(target);
-      endif
-    endfor
     "Not authorized - must go through :destroy for permission checking";
     raise(E_PERM);
   endmethod

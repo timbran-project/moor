@@ -207,6 +207,46 @@ object HEADLESS_OBJECT_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_hostile_destroy_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-owner helper must not destroy another object through the wizard-owned wrapper.";
+    target = #-1;
+    try
+      target = $thing:create();
+      denied = false;
+      try
+        this:_call_destroy_as_player(target);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-owner destroy wrapper call should be denied");
+      $test_utils:assert_true(valid(target), "denied destroy should preserve target");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_spoofed_destroy_frame_does_not_authorize_recycle (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: a non-root verb named destroy must not satisfy the recycle interceptor bypass.";
+    target = #-1;
+    try
+      target = $thing:create();
+      add_verb(target, {$player, "rxd", "destroy"}, {"this", "none", "this"});
+      set_verb_code(target, "destroy", {"recycle(this);", "return true;"});
+      denied = false;
+      try
+        target:destroy();
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "non-root destroy frame should not authorize direct recycle");
+      $test_utils:assert_true(valid(target), "denied spoofed destroy should preserve target");
+    finally
+      valid(target) && recycle(target);
+    endtry
+    return true;
+  endverb
+
   verb test_headless_hostile_player_set_home_denied (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Security challenge: a non-owner helper must not set another player's home through the wizard-owned wrapper.";
     target = #-1;
@@ -339,6 +379,13 @@ object HEADLESS_OBJECT_SCENARIOS
     "Attempt moveto() through a non-owner player-owned helper.";
     {target, destination} = args;
     target:moveto(destination);
+    return true;
+  endverb
+
+  verb _call_destroy_as_player (this none this) owner: PLAYER flags: "rxd"
+    "Attempt destroy() through a non-owner player-owned helper.";
+    {target} = args;
+    target:destroy();
     return true;
   endverb
 

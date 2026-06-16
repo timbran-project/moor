@@ -530,38 +530,34 @@ object HEADLESS_CAPABILITY_SCENARIOS
     try
       target = create($thing);
       target:set_description("unchanged");
-      cap = $root:issue_capability(target, {'set_description}, 0, $arch_wizard);
+      $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
+      $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
+      cap = $root:issue_capability(target, {'set_description});
       this:_set_description_with_cap_as_player(cap, "capability description");
       $test_utils:assert_eq(target.description, "capability description", "set_description capability should update target description");
+      $test_utils:assert_true(target.owner != $player, "capability use should not transfer ownership");
     finally
       valid(target) && target:destroy();
     endtry
     return true;
   endverb
 
-  verb test_headless_capability_root_mutation_caps_allow_expected_operations (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Runtime scenario: root mutation capabilities allow delegated metadata, ownership, movement, and recycle operations.";
+  verb test_headless_capability_move_and_recycle_install_runtime_grants (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: root mutation capabilities install narrow runtime grants for delegated movement and recycle operations.";
     target = #-1;
     new_home = #-1;
     doomed = #-1;
     try
       target = create($thing);
       new_home = create($room);
-      name_cap = $root:issue_capability(target, {'set_name_aliases}, 0, $arch_wizard);
-      owner_cap = $root:issue_capability(target, {'set_owner}, 0, $arch_wizard);
-      move_cap = $root:issue_capability(target, {'move}, 0, $arch_wizard);
-      thumbnail_cap = $root:issue_capability(target, {'set_thumbnail}, 0, $arch_wizard);
-      this:_set_name_aliases_with_cap_as_player(name_cap, "cap named thing", {"cap-alias"});
-      this:_set_owner_with_cap_as_player(owner_cap, $player);
+      $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
+      $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
+      move_cap = $root:issue_capability(target, {'move});
       this:_move_with_cap_as_player(move_cap, new_home);
-      thumbnail = {"image/png", b"iVBORw0KGgo="};
-      this:_set_thumbnail_with_cap_as_player(thumbnail_cap, @thumbnail);
-      $test_utils:assert_eq(target.name, "cap named thing", "set_name_aliases capability should update name");
-      $test_utils:assert_eq(target.aliases, {"cap-alias"}, "set_name_aliases capability should update aliases");
-      $test_utils:assert_eq(target.owner, $player, "set_owner capability should update owner");
+      $test_utils:assert_true(target.owner != $player, "capability use should not transfer ownership");
       $test_utils:assert_eq(target.location, new_home, "move capability should update location");
-      $test_utils:assert_eq(target.thumbnail, thumbnail, "set_thumbnail capability should update thumbnail");
       doomed = create($thing);
+      $test_utils:assert_true(doomed.owner != $player, "fixture player should not own the doomed object");
       recycle_cap = $root:issue_capability(doomed, {'recycle});
       this:_destroy_with_cap_as_player(recycle_cap);
       $test_utils:assert_false(valid(doomed), "recycle capability should destroy the target");
@@ -570,6 +566,145 @@ object HEADLESS_CAPABILITY_SCENARIOS
       valid(doomed) && doomed:destroy();
       valid(target) && target:destroy();
       valid(new_home) && new_home:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_owner_run_as_allows_non_owner_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Compatibility scenario: set_owner capability still works for a non-owner actor when the capability carries run_as authority.";
+    target = #-1;
+    try
+      target = create($thing);
+      original_owner = target.owner;
+      $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
+      $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
+      cap = $root:issue_capability(target, {'set_owner}, 0, $arch_wizard);
+      this:_set_owner_with_cap_as_player(cap, $player);
+      $test_utils:assert_eq(target.owner, $player, "run_as set_owner capability should update owner");
+      $test_utils:assert_true(original_owner != target.owner, "set_owner test fixture should actually change ownership");
+      $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_name_aliases_allows_non_owner_object_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: set_name_aliases capability lets a non-owner rename and update aliases without run_as.";
+    target = #-1;
+    try
+      target = create($thing);
+      target:set_name_aliases("unchanged name", {"unchanged-alias"});
+      $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
+      $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
+      cap = $root:issue_capability(target, {'set_name_aliases});
+      this:_set_name_aliases_with_cap_as_player(cap, "plain cap name", {"plain-cap-alias"});
+      $test_utils:assert_eq(target.name, "plain cap name", "set_name_aliases capability should update name");
+      $test_utils:assert_eq(target.aliases, {"plain-cap-alias"}, "set_name_aliases capability should update aliases");
+      $test_utils:assert_true(target.owner != $player, "capability use should not transfer ownership");
+      $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_name_aliases_run_as_allows_non_owner_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Compatibility scenario: set_name_aliases still works for a non-owner actor when the capability carries run_as authority.";
+    target = #-1;
+    try
+      target = create($thing);
+      target:set_name_aliases("unchanged name", {"unchanged-alias"});
+      $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
+      $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
+      cap = $root:issue_capability(target, {'set_name_aliases}, 0, $arch_wizard);
+      this:_set_name_aliases_with_cap_as_player(cap, "run-as cap name", {"run-as-cap-alias"});
+      $test_utils:assert_eq(target.name, "run-as cap name", "run_as set_name_aliases capability should update name");
+      $test_utils:assert_eq(target.aliases, {"run-as-cap-alias"}, "run_as set_name_aliases capability should update aliases");
+      $test_utils:assert_true(target.owner != $player, "capability use should not transfer ownership");
+      $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_thumbnail_run_as_allows_non_owner_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Compatibility scenario: set_thumbnail capability still works for a non-owner actor when the capability carries run_as authority.";
+    target = #-1;
+    try
+      target = create($thing);
+      $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
+      $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
+      cap = $root:issue_capability(target, {'set_thumbnail}, 0, $arch_wizard);
+      thumbnail = {"image/png", b"iVBORw0KGgo="};
+      this:_set_thumbnail_with_cap_as_player(cap, @thumbnail);
+      $test_utils:assert_eq(target.thumbnail, thumbnail, "run_as set_thumbnail capability should update thumbnail");
+      $test_utils:assert_true(target.owner != $player, "capability use should not transfer ownership");
+      $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_root_mutation_wrong_cap_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: an unrelated root mutation capability should not authorize another mutation.";
+    target = #-1;
+    try
+      target = create($thing);
+      target:set_description("unchanged");
+      move_cap = $root:issue_capability(target, {'move});
+      denied = false;
+      try
+        this:_set_description_with_cap_as_player(move_cap, "wrong cap description");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "move capability should not authorize set_description");
+      $test_utils:assert_eq(target.description, "unchanged", "denied wrong-cap mutation should preserve description");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_root_mutation_revoked_bearer_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Security challenge: revoking a copied root mutation bearer token should deny later runtime-grant installation.";
+    target = #-1;
+    try
+      target = create($thing);
+      target:set_description("unchanged");
+      cap = $root:issue_capability(target, {'set_description});
+      $root:_revoke_capability_token(cap);
+      denied = false;
+      try
+        this:_set_description_with_cap_as_player(cap, "revoked description");
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "revoked set_description capability should be denied");
+      $test_utils:assert_eq(target.description, "unchanged", "revoked capability should not mutate description");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_runtime_grant_literals_accept_string_and_symbol_specs (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Runtime scenario: task capability grant specs accept string and symbol grant/property names.";
+    target = #-1;
+    symbol_target = #-1;
+    try
+      target = create($thing);
+      this:_set_description_with_string_runtime_grant(target, "string grant description");
+      $test_utils:assert_eq(target.description, "string grant description", "string-shaped property_write grant should authorize description write");
+      symbol_target = create($thing);
+      this:_set_description_with_symbol_runtime_grant(symbol_target, "symbol grant description");
+      $test_utils:assert_eq(symbol_target.description, "symbol grant description", "symbol-shaped property_write grant should authorize description write");
+    finally
+      valid(symbol_target) && symbol_target:destroy();
+      valid(target) && target:destroy();
     endtry
     return true;
   endverb
@@ -999,6 +1134,22 @@ object HEADLESS_CAPABILITY_SCENARIOS
     "Use a supplied set_description capability as PLAYER.";
     {cap, description} = args;
     return cap:set_description(description);
+  endverb
+
+  verb _set_description_with_string_runtime_grant (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Install a string-shaped runtime property_write grant for description.";
+    {target, description} = args;
+    set_task_perms($player, {{"property_write", target, "description"}});
+    target.description = description;
+    return true;
+  endverb
+
+  verb _set_description_with_symbol_runtime_grant (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Install a symbol-shaped runtime property_write grant for description.";
+    {target, description} = args;
+    set_task_perms($player, {{'property_write, target, 'description}});
+    target.description = description;
+    return true;
   endverb
 
   verb _set_thumbnail_with_cap_as_player (this none this) owner: PLAYER flags: "rxd"

@@ -47,7 +47,8 @@ object ROOT
 
   method destroy owner: ARCH_WIZARD
     "Destroy this object. Permission: wizard, owner, or capability.";
-    {target, _} = this:check_permissions_as(caller_perms(), 'recycle);
+    {target, perms, grants} = this:check_permissions_with_grants_as(caller_perms(), 'recycle);
+    set_task_perms(perms, grants);
     recycle(target);
   endmethod
 
@@ -66,8 +67,8 @@ object ROOT
     "Move this object to destination. Permission: wizard, owner, or capability.";
     {destination} = args;
     actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'move);
-    set_task_perms(perms);
+    {this, perms, grants} = this:check_permissions_with_grants_as(actor, 'move);
+    set_task_perms(perms, grants);
     return `move(this, destination) ! ANY';
   endmethod
 
@@ -96,8 +97,8 @@ object ROOT
   method set_name_aliases owner: ARCH_WIZARD
     "Set this object's name and aliases. Permission: wizard, owner, or 'set_name_aliases capability.";
     actor = caller_perms();
-    {target, perms} = this:check_permissions_as(actor, 'set_name_aliases);
-    set_task_perms(perms);
+    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_name_aliases);
+    set_task_perms(perms, grants);
     {new_name, new_aliases} = args;
     target.name = new_name;
     target.aliases = new_aliases;
@@ -145,8 +146,8 @@ object ROOT
   method set_description owner: ARCH_WIZARD
     "Set this object's description. Permission: wizard, owner, or 'set_description capability.";
     actor = caller_perms();
-    {target, perms} = this:check_permissions_as(actor, 'set_description);
-    set_task_perms(perms);
+    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_description);
+    set_task_perms(perms, grants);
     {description} = args;
     "If description is a string with substitution tokens, compile it into $sub content so substitutions can render in looks.";
     if (typeof(description) == TYPE_STR && ("{" in description || "}" in description))
@@ -513,6 +514,46 @@ object ROOT
       return this:challenge_for(@required_caps);
     endif
     raise(E_PERM);
+  endmethod
+
+  method check_permissions_with_grants_as owner: HACKER
+    "Check wizard, owner, or capability permission for an explicit actor. Returns {target, perms_object, runtime_grants}.";
+    {actor, @required_caps} = args;
+    target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
+    if (valid(actor) && actor.wizard)
+      return {target, actor, {}};
+    endif
+    if (valid(actor) && actor == target.owner)
+      return {target, actor, {}};
+    endif
+    if (typeof(this) == TYPE_FLYWEIGHT)
+      {target, perms} = this:challenge_for(@required_caps);
+      if (valid(actor) && perms == $hacker)
+        perms = actor;
+      endif
+      return {target, perms, target:_runtime_grants_for_caps(required_caps)};
+    endif
+    raise(E_PERM);
+  endmethod
+
+  method _runtime_grants_for_caps owner: HACKER
+    "Return low-level runtime grants for supported root object mutation capabilities.";
+    {caps} = args;
+    grants = {};
+    for cap in (caps)
+      if (cap == 'move)
+        grants = {@grants, {"object_move", this}};
+      elseif (cap == 'recycle)
+        grants = {@grants, {"object_recycle", this}};
+      elseif (cap == 'set_description)
+        grants = {@grants, {"property_write", this, "description"}};
+      elseif (cap == 'set_name_aliases)
+        grants = {@grants, {"object_rename", this}, {"property_write", this, "aliases"}};
+      else
+        raise(E_PERM, "No runtime grant mapping for capability " + tostr(cap));
+      endif
+    endfor
+    return grants;
   endmethod
 
   method _capability_challenge owner: ARCH_WIZARD
