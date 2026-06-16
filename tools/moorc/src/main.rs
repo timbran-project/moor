@@ -22,8 +22,9 @@ use clap::Parser;
 use clap_derive::Parser;
 use moor_common::{
     build,
-    model::{CompileError, Named, ObjectRef, PropFlag, ValSet, WorldStateSource},
+    model::{CompileError, Named, ObjectRef, PropFlag, TaskPermissions, ValSet, WorldStateSource},
     tasks::{NoopSystemControl, SchedulerError, SessionFactory},
+    util::BitEnum,
 };
 use moor_compiler::emit_compile_error;
 use moor_db::{Database, DatabaseConfig, TxDB};
@@ -491,6 +492,7 @@ fn main() -> Result<(), eyre::Report> {
     }
 
     let wizard = Obj::mk_id(args.test_wizard.expect("Must specify wizard object"));
+    let wizard_permissions = TaskPermissions::new(wizard, BitEnum::new());
 
     let tasks_db = Box::new(NoopTasksDb {});
     let test_version = semver::Version::new(0, 1, 0);
@@ -501,7 +503,7 @@ fn main() -> Result<(), eyre::Report> {
     if args.test_files.is_some() {
         let mut tx = db.new_world_state().unwrap();
         tx.define_property(
-            &wizard,
+            &wizard_permissions,
             &SYSTEM_OBJECT,
             &SYSTEM_OBJECT,
             Symbol::mk("scratch"),
@@ -518,11 +520,11 @@ fn main() -> Result<(), eyre::Report> {
     let mut unit_tests = vec![];
     if args.run_tests == Some(true) {
         let tx = db.new_world_state().unwrap();
-        let mo = tx.max_object(&wizard).unwrap().as_u64();
+        let mo = tx.max_object(&wizard_permissions).unwrap().as_u64();
         info!("Scanning objects 0..{} for tests", mo);
         for o in 0..=mo {
             let o = Obj::mk_id(o as i32);
-            if let Ok(verbs) = tx.verbs(&wizard, &o) {
+            if let Ok(verbs) = tx.verbs(&wizard_permissions, &o) {
                 for verb in verbs.iter() {
                     for name in verb.names() {
                         if name.as_arc_str().starts_with("test_") {
