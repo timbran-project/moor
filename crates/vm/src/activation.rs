@@ -27,7 +27,7 @@ use moor_var::{
 };
 
 use crate::{
-    auth::Authority,
+    auth::TaskPermissions,
     moo_frame::{MooStackFrame, ProgramSlot},
     scatter_assign::scatter_assign,
 };
@@ -111,7 +111,7 @@ pub struct Activation {
     /// Compact resolved metadata for the running verb.
     pub verbdef: ResolvedVerb,
     /// The current task authority for this activation.
-    authority: Authority,
+    authority: TaskPermissions,
 }
 
 // Boxing MooStackFrame would add pointer indirection on every opcode dispatch,
@@ -258,7 +258,7 @@ impl Activation {
         player: Obj,
         verb_name: Symbol,
         verbdef: ResolvedVerb,
-        authority: Authority,
+        authority: TaskPermissions,
     ) -> Self {
         Self {
             frame,
@@ -290,12 +290,12 @@ impl Activation {
 
     #[inline]
     #[must_use]
-    pub fn authority(&self) -> Authority {
+    pub fn authority(&self) -> TaskPermissions {
         self.authority
     }
 
     #[inline]
-    pub fn set_authority(&mut self, authority: Authority) {
+    pub fn set_authority(&mut self, authority: TaskPermissions) {
         self.authority = authority;
     }
 
@@ -398,7 +398,7 @@ impl Activation {
             player,
             verbdef: resolved_verb,
             verb_name,
-            authority: Authority::new(verb_owner, permissions_flags),
+            authority: TaskPermissions::new(verb_owner, permissions_flags),
         }
     }
 
@@ -639,7 +639,7 @@ impl Activation {
             player: *player,
             verbdef,
             verb_name: *EVAL_SYMBOL,
-            authority: Authority::new(authority_principal, authority_flags),
+            authority: TaskPermissions::new(authority_principal, authority_flags),
         }
     }
 
@@ -669,7 +669,7 @@ impl Activation {
             player,
             verbdef,
             verb_name: bf_name,
-            authority: Authority::new(NOTHING, BitEnum::new()),
+            authority: TaskPermissions::new(NOTHING, BitEnum::new()),
         }
     }
 

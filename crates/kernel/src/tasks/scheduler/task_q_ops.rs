@@ -32,7 +32,7 @@ impl TaskQ {
     fn authority_may_kill_task(
         &self,
         task_id: TaskId,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
     ) -> Result<bool, ErrorCode> {
         if self.suspended.tasks.contains_key(&task_id) {
             if sender_authority.is_wizard()
@@ -62,7 +62,7 @@ impl TaskQ {
     fn require_resume_authority(
         &self,
         task_id: TaskId,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
     ) -> Result<(), ErrorCode> {
         if self.suspended.authority_principal_controls_task(
             task_id,
@@ -88,7 +88,7 @@ impl TaskQ {
     pub(super) fn require_task_send_authority(
         &self,
         target_task_id: TaskId,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
     ) -> Result<(), ErrorCode> {
         let Some(owner) = self.task_owner(target_task_id) else {
             return Err(E_INVARG);
@@ -502,7 +502,11 @@ impl TaskQ {
         });
     }
 
-    pub(super) fn kill_task(&mut self, victim_task_id: TaskId, sender_authority: Authority) -> Var {
+    pub(super) fn kill_task(
+        &mut self,
+        victim_task_id: TaskId,
+        sender_authority: TaskPermissions,
+    ) -> Var {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
@@ -541,7 +545,7 @@ impl TaskQ {
         &mut self,
         requesting_task_id: TaskId,
         queued_task_id: TaskId,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
         return_value: Var,
         scheduler: &Scheduler,
         database: &dyn Database,
@@ -630,8 +634,8 @@ mod tests {
         }
     }
 
-    fn authority(principal: i32, flags: BitEnum<ObjFlag>) -> Authority {
-        Authority::new(Obj::mk_id(principal), flags)
+    fn authority(principal: i32, flags: BitEnum<ObjFlag>) -> TaskPermissions {
+        TaskPermissions::new(Obj::mk_id(principal), flags)
     }
 
     fn task_q() -> TaskQ {

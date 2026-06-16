@@ -17,10 +17,10 @@ use moor_common::{
 };
 use moor_var::Obj;
 
-/// Compact execution authority facts for a VM activation.
+/// Effective task permissions for a VM activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Authority {
-    /// The object whose authority the activation executes under.
+pub struct TaskPermissions {
+    /// The object whose permissions the activation executes under.
     ///
     /// This starts as the resolved verb owner. The MOO-visible `set_task_perms()` builtin changes
     /// this principal for the current task.
@@ -29,8 +29,8 @@ pub struct Authority {
     principal_flags: BitEnum<ObjFlag>,
 }
 
-impl Authority {
-    /// Build an authority value from a principal and the principal's cached object flags.
+impl TaskPermissions {
+    /// Build task permissions from a principal and the principal's cached object flags.
     #[inline]
     #[must_use]
     pub fn new(principal: Obj, principal_flags: BitEnum<ObjFlag>) -> Self {
@@ -40,28 +40,28 @@ impl Authority {
         }
     }
 
-    /// Object whose authority the activation runs under.
+    /// Object whose permissions the activation runs under.
     #[inline]
     #[must_use]
     pub fn principal(&self) -> Obj {
         self.principal
     }
 
-    /// Cached object flags for the authority principal.
+    /// Cached object flags for the permissions principal.
     #[inline]
     #[must_use]
     pub fn principal_flags(&self) -> BitEnum<ObjFlag> {
         self.principal_flags
     }
 
-    /// Whether the authority principal has the wizard bit.
+    /// Whether the permissions principal has the wizard bit.
     #[inline]
     #[must_use]
     pub fn is_wizard(&self) -> bool {
         self.principal_flags.contains(ObjFlag::Wizard)
     }
 
-    /// Require wizard authority for operations that do not have an owner fallback.
+    /// Require wizard permissions for operations that do not have an owner fallback.
     #[inline]
     pub fn require_wizard(&self) -> Result<(), WorldStateError> {
         if self.is_wizard() {
@@ -70,14 +70,14 @@ impl Authority {
         Err(WorldStateError::ObjectPermissionDenied)
     }
 
-    /// Whether the authority principal has the programmer bit.
+    /// Whether the permissions principal has the programmer bit.
     #[inline]
     #[must_use]
     pub fn is_programmer(&self) -> bool {
         self.principal_flags.contains(ObjFlag::Programmer)
     }
 
-    /// Require programmer authority for operations that compile or update executable code.
+    /// Require programmer permissions for operations that compile or update executable code.
     #[inline]
     pub fn require_programmer(&self) -> Result<(), WorldStateError> {
         if self.is_programmer() {
@@ -86,14 +86,14 @@ impl Authority {
         Err(WorldStateError::ObjectPermissionDenied)
     }
 
-    /// Whether this authority controls an owner-only operation.
+    /// Whether these task permissions control an owner-only operation.
     #[inline]
     #[must_use]
     pub fn controls(&self, owner: &Obj) -> bool {
         self.is_wizard() || self.principal == *owner
     }
 
-    /// Require owner-or-wizard authority.
+    /// Require owner-or-wizard permissions.
     #[inline]
     pub fn require_controls(&self, owner: &Obj) -> Result<(), WorldStateError> {
         if self.controls(owner) {
@@ -107,8 +107,8 @@ impl Authority {
 mod tests {
     use super::*;
 
-    fn authority(principal: i32, flags: BitEnum<ObjFlag>) -> Authority {
-        Authority::new(Obj::mk_id(principal), flags)
+    fn authority(principal: i32, flags: BitEnum<ObjFlag>) -> TaskPermissions {
+        TaskPermissions::new(Obj::mk_id(principal), flags)
     }
 
     #[test]

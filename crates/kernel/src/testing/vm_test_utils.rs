@@ -532,7 +532,7 @@ pub fn run_activation_assembly_cycle_for_bench(state: &mut ActivationAssemblyBen
         state.player,
         state.verb_name,
         verbdef,
-        moor_vm::Authority::new(verbdef.owner(), state.permissions_flags),
+        moor_vm::TaskPermissions::new(verbdef.owner(), state.permissions_flags),
     );
     let activation = std::hint::black_box(activation);
     let args = activation.args().clone();

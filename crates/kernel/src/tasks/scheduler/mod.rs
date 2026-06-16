@@ -44,7 +44,7 @@ use uuid::Uuid;
 use moor_common::model::{CommitResult, WorldState};
 use moor_compiler::to_literal;
 use moor_db::Database;
-use moor_vm::Authority;
+use moor_vm::TaskPermissions;
 
 use crate::{
     config::Config,

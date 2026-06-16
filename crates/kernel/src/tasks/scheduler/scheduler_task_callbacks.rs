@@ -536,7 +536,7 @@ impl Scheduler {
         &self,
         _task_id: TaskId,
         victim_task_id: TaskId,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
         lc.task_q.kill_task(victim_task_id, sender_authority)
@@ -546,7 +546,7 @@ impl Scheduler {
         &self,
         task_id: TaskId,
         queued_task_id: TaskId,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
         return_value: Var,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
@@ -711,7 +711,7 @@ impl Scheduler {
         task_id: TaskId,
         target_task_id: TaskId,
         value: Var,
-        sender_authority: Authority,
+        sender_authority: TaskPermissions,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
 

@@ -51,7 +51,7 @@ use moor_var::{
     E_INVARG, E_PERM, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant,
     v_bool_int, v_map,
 };
-use moor_vm::{Authority, BuiltinFrame, ExecState, Frame};
+use moor_vm::{BuiltinFrame, ExecState, Frame, TaskPermissions};
 
 mod bf_cryptography;
 mod bf_documents;
@@ -314,12 +314,12 @@ impl BfCallState<'_> {
     /// Use this for builtin-level wizard/programmer/control checks. The principal comes from
     /// `task_authority_principal()`, while flags are read from the current transaction so changes
     /// to object flags during the task are observed.
-    pub fn task_authority(&self) -> Result<Authority, WorldStateError> {
+    pub fn task_authority(&self) -> Result<TaskPermissions, WorldStateError> {
         let who = self.task_authority_principal();
         // Always do a live lookup here - object flags can change mid-execution
         // (e.g., player.programmer = 0) and builtins need to see current state
         let flags = with_current_transaction(|ws| ws.flags_of(&who))?;
-        Ok(Authority::new(who, flags))
+        Ok(TaskPermissions::new(who, flags))
     }
 
     pub fn require_wizard(&self) -> Result<(), BfErr> {

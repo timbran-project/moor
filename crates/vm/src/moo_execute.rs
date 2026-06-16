@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Authority, VmHost,
+    TaskPermissions, VmHost,
     config::FeaturesConfig,
     moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeType},
     scatter_assign::scatter_assign,
@@ -261,8 +261,8 @@ mod execution_request_tests {
 /// Activation data needed by opcodes that prepare host-level execution requests.
 #[derive(Debug, Clone)]
 pub struct FrameExecutionContext<'a> {
-    /// Authority of the activation currently executing this frame.
-    authority: Authority,
+    /// Task permissions of the activation currently executing this frame.
+    authority: TaskPermissions,
     activation_player: Obj,
     this: &'a Var,
     verb_name: Symbol,
@@ -273,7 +273,7 @@ impl<'a> FrameExecutionContext<'a> {
     #[inline]
     #[must_use]
     pub fn new(
-        authority: Authority,
+        authority: TaskPermissions,
         activation_player: Obj,
         this: &'a Var,
         verb_name: Symbol,

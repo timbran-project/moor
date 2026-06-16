@@ -32,7 +32,7 @@ use moor_var::{
 
 use crate::activation::CallProgram;
 use crate::moo_execute::{ExecutionResult, Fork, VerbExecutionRequest};
-use crate::{Activation, Authority, Frame, PhantomUnsync, VmHost};
+use crate::{Activation, Frame, PhantomUnsync, TaskPermissions, VmHost};
 
 static LIST_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("list_proto"));
 static MAP_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("map_proto"));
@@ -259,7 +259,7 @@ impl ExecState {
         // Copy the authority up to the last non-builtin frame so builtin frames and the current
         // MOO frame see the same principal.
         for activation in self.stack.iter_mut().rev() {
-            activation.set_authority(Authority::new(authority_principal, authority_flags));
+            activation.set_authority(TaskPermissions::new(authority_principal, authority_flags));
             if !activation.is_builtin_frame() {
                 break;
             }

@@ -1405,7 +1405,7 @@ pub(crate) fn activation_from_ref(
         player,
         verb_name,
         verbdef.as_resolved(),
-        moor_vm::Authority::new(permissions, permissions_flags),
+        moor_vm::TaskPermissions::new(permissions, permissions_flags),
     ))
 }
 
