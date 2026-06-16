@@ -152,11 +152,11 @@ open an issue on the
 
 ### Structured Data Matching and Pathfinding
 
-| Name                                               | Complete | Notes                                   |
-| -------------------------------------------------- | -------- | --------------------------------------- |
-| [`astar`](algorithms.md#astar)                     | &check;  | mooR extension. Tile-grid pathfinding   |
-| [`term_unify`](algorithms.md#term_unify)           | &check;  | mooR extension. Structural unification  |
-| [`term_substitute`](algorithms.md#term_substitute) | &check;  | mooR extension. Structural substitution |
+| Name                                               | Complete | Notes                                    |
+| -------------------------------------------------- | -------- | ---------------------------------------- |
+| [`astar`](algorithms.md#astar)                     | &check;  | mooR extension. Tile-grid pathfinding    |
+| [`term_unify`](algorithms.md#term_unify)           | &check;  | mooR extension. Structural unification   |
+| [`term_substitute`](algorithms.md#term_substitute) | &check;  | mooR extension. Structural substitution  |
 | [`term_query`](algorithms.md#term_query)           | &check;  | mooR extension. Bounded structural query |
 
 ### Server

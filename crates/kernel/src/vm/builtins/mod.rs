@@ -48,8 +48,8 @@ use moor_common::model::{TaskPermissions, WorldStateError};
 use moor_common::util::hot_stride;
 use moor_compiler::{BUILTINS, BuiltinId, DiagnosticRenderOptions, DiagnosticVerbosity};
 use moor_var::{
-    E_INVARG, E_PERM, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var, Variant,
-    v_bool_int, v_map,
+    E_INVARG, E_MAXREC, E_PERM, E_TYPE, Error, ErrorCode, List, Map, Obj, Sequence, Symbol, Var,
+    Variant, v_bool_int, v_map,
 };
 use moor_vm::{BuiltinFrame, ExecState, Frame};
 
@@ -287,6 +287,28 @@ pub(crate) struct BfCallState<'a> {
     pub(crate) config: &'a FeaturesConfig,
 }
 
+pub(crate) struct BuiltinTickBudget<'a> {
+    tick_count: &'a mut usize,
+    max_ticks: usize,
+}
+
+impl<'a> BuiltinTickBudget<'a> {
+    pub(crate) fn new(tick_count: &'a mut usize, max_ticks: usize) -> Self {
+        Self {
+            tick_count,
+            max_ticks,
+        }
+    }
+
+    pub(crate) fn consume_ticks(&mut self, ticks: usize) -> Result<(), BfErr> {
+        *self.tick_count = (*self.tick_count).saturating_add(ticks);
+        if *self.tick_count >= self.max_ticks {
+            return Err(BfErr::ErrValue(E_MAXREC.msg("Task exceeded ticks limit")));
+        }
+        Ok(())
+    }
+}
+
 impl BfCallState<'_> {
     /// Return the MOO-visible `caller_perms()`: the authority principal of the previous
     /// non-builtin activation, or `#-1` when there is no MOO caller.
@@ -312,6 +334,10 @@ impl BfCallState<'_> {
 
     pub fn player(&self) -> Obj {
         self.exec_state.top().player()
+    }
+
+    pub(crate) fn tick_budget(&mut self) -> BuiltinTickBudget<'_> {
+        BuiltinTickBudget::new(&mut self.exec_state.tick_count, self.exec_state.max_ticks)
     }
 
     /// Return the current task authority with freshly loaded object flags.

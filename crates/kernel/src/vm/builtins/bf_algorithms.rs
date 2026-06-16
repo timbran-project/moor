@@ -27,7 +27,9 @@ use moor_var::{
     v_list, v_list_iter, v_map, v_sym,
 };
 
-use crate::vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction};
+use crate::vm::builtins::{
+    BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, BuiltinTickBudget,
+};
 
 static VAR_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("var"));
 static UNBOUND_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("unbound"));
@@ -847,6 +849,7 @@ struct QueryEngine<'a> {
     rules: Vec<QueryRule>,
     public_variables: &'a [Symbol],
     options: QueryOptions,
+    tick_budget: Option<BuiltinTickBudget<'a>>,
     fresh_scope: usize,
     steps: usize,
     solutions: Vec<Var>,
@@ -863,6 +866,9 @@ impl QueryEngine<'_> {
 
     fn check_search_step(&mut self) -> Result<(), BfErr> {
         self.steps += 1;
+        if let Some(tick_budget) = self.tick_budget.as_mut() {
+            tick_budget.consume_ticks(1)?;
+        }
         if self.steps > self.options.max_steps {
             return Err(BfErr::ErrValue(
                 E_MAXREC.msg("term_query() exceeded max_steps"),
@@ -1031,20 +1037,141 @@ fn bf_term_query(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             public_variables.push(*name);
         }
     }
+    let query = bf_args.args[0].clone();
 
     let mut engine = QueryEngine {
         facts,
         rules,
         public_variables: &public_variables,
         options,
+        tick_budget: Some(bf_args.tick_budget()),
         fresh_scope: 0,
         steps: 0,
         solutions: Vec::new(),
         seen_solutions: HashSet::new(),
         active_states: HashSet::new(),
     };
-    engine.solve(vec![bf_args.args[0].clone()], bindings, 0)?;
+    engine.solve(vec![query], bindings, 0)?;
     Ok(Ret(v_list(&engine.solutions)))
+}
+
+fn astar_path(
+    width: usize,
+    height: usize,
+    start_x: i32,
+    start_y: i32,
+    goal_x: i32,
+    goal_y: i32,
+    passable: &[bool],
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Var, BfErr> {
+    let w = width as i32;
+    let h = height as i32;
+
+    // Validate start/goal in bounds.
+    if start_x < 0 || start_x >= w || start_y < 0 || start_y >= h {
+        return Err(BfErr::ErrValue(
+            E_INVARG.msg("start position out of bounds"),
+        ));
+    }
+    if goal_x < 0 || goal_x >= w || goal_y < 0 || goal_y >= h {
+        return Err(BfErr::ErrValue(E_INVARG.msg("goal position out of bounds")));
+    }
+    let grid_size = width * height;
+
+    // Check goal is passable.
+    if !passable[(goal_y as usize) * width + (goal_x as usize)] {
+        return Ok(v_empty_list());
+    }
+
+    // Already there.
+    if start_x == goal_x && start_y == goal_y {
+        return Ok(v_empty_list());
+    }
+
+    let is_passable = |x: i32, y: i32| -> bool {
+        x >= 0 && x < w && y >= 0 && y < h && passable[(y as usize) * width + (x as usize)]
+    };
+
+    // A* with binary heap (min-heap via Reverse).
+    // Node: (f_score, g_score, x, y)
+    let mut open: BinaryHeap<Reverse<(i32, i32, i32, i32)>> = BinaryHeap::new();
+    let mut g_score = vec![i32::MAX; grid_size];
+    let mut came_from = vec![u32::MAX; grid_size]; // flat index of parent
+
+    let start_idx = (start_y as usize) * width + (start_x as usize);
+    let goal_idx = (goal_y as usize) * width + (goal_x as usize);
+
+    g_score[start_idx] = 0;
+    let h0 = (goal_x - start_x).abs().max((goal_y - start_y).abs()); // Chebyshev
+    open.push(Reverse((h0, 0, start_x, start_y)));
+
+    // 8-directional neighbors.
+    const DIRS: [(i32, i32); 8] = [
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (-1, 0),
+        (1, 0),
+        (-1, 1),
+        (0, 1),
+        (1, 1),
+    ];
+
+    while let Some(Reverse((_f, g, cx, cy))) = open.pop() {
+        if let Some(tick_budget) = tick_budget.as_mut() {
+            tick_budget.consume_ticks(1)?;
+        }
+
+        let cidx = (cy as usize) * width + (cx as usize);
+
+        // Skip stale entries.
+        if g > g_score[cidx] {
+            continue;
+        }
+
+        // Goal reached.
+        if cidx == goal_idx {
+            // Reconstruct path.
+            let mut path = Vec::new();
+            let mut idx = goal_idx;
+            while idx != start_idx {
+                let px = (idx % width) as i64;
+                let py = (idx / width) as i64;
+                path.push(v_list(&[v_int(px), v_int(py)]));
+                idx = came_from[idx] as usize;
+            }
+            path.reverse();
+            return Ok(v_list_iter(path));
+        }
+
+        let ng = g + 1;
+
+        for &(dx, dy) in &DIRS {
+            let nx = cx + dx;
+            let ny = cy + dy;
+
+            if !is_passable(nx, ny) {
+                continue;
+            }
+
+            // Diagonal corner-cutting check.
+            if dx != 0 && dy != 0 && (!is_passable(cx + dx, cy) || !is_passable(cx, cy + dy)) {
+                continue;
+            }
+
+            let nidx = (ny as usize) * width + (nx as usize);
+            if ng < g_score[nidx] {
+                g_score[nidx] = ng;
+                came_from[nidx] = cidx as u32;
+                let heuristic = (goal_x - nx).abs().max((goal_y - ny).abs());
+                open.push(Reverse((ng + heuristic, ng, nx, ny)));
+            }
+        }
+    }
+
+    // No path found.
+    Ok(v_empty_list())
 }
 
 /// Usage: `list astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles)`
@@ -1105,21 +1232,7 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .as_list()
         .ok_or_else(|| BfErr::ErrValue(E_TYPE.msg("solid_tiles must be a list")))?;
 
-    let w = width as i32;
-    let h = height as i32;
-
-    // Validate start/goal in bounds.
-    if start_x < 0 || start_x >= w || start_y < 0 || start_y >= h {
-        return Err(BfErr::ErrValue(
-            E_INVARG.msg("start position out of bounds"),
-        ));
-    }
-    if goal_x < 0 || goal_x >= w || goal_y < 0 || goal_y >= h {
-        return Err(BfErr::ErrValue(E_INVARG.msg("goal position out of bounds")));
-    }
-
-    // Build passability bitmap from tile_map and solid_tiles.
-    // solid_tile_ids: collect into a set for fast lookup.
+    let grid_size = width * height;
     let mut solid_ids = std::collections::HashSet::new();
     for item in solid_tiles_list.iter() {
         if let Variant::Int(id) = item.variant() {
@@ -1127,8 +1240,6 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     }
 
-    // Build flat passability grid: true = passable.
-    let grid_size = width * height;
     let mut passable = vec![true; grid_size];
     for (i, item) in tile_map_list.iter().enumerate() {
         if i >= grid_size {
@@ -1141,95 +1252,17 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     }
 
-    // Check goal is passable.
-    if !passable[(goal_y as usize) * width + (goal_x as usize)] {
-        return Ok(Ret(v_empty_list()));
-    }
-
-    // Already there.
-    if start_x == goal_x && start_y == goal_y {
-        return Ok(Ret(v_empty_list()));
-    }
-
-    let is_passable = |x: i32, y: i32| -> bool {
-        x >= 0 && x < w && y >= 0 && y < h && passable[(y as usize) * width + (x as usize)]
-    };
-
-    // A* with binary heap (min-heap via Reverse).
-    // Node: (f_score, g_score, x, y)
-    let mut open: BinaryHeap<Reverse<(i32, i32, i32, i32)>> = BinaryHeap::new();
-    let mut g_score = vec![i32::MAX; grid_size];
-    let mut came_from = vec![u32::MAX; grid_size]; // flat index of parent
-
-    let start_idx = (start_y as usize) * width + (start_x as usize);
-    let goal_idx = (goal_y as usize) * width + (goal_x as usize);
-
-    g_score[start_idx] = 0;
-    let h0 = (goal_x - start_x).abs().max((goal_y - start_y).abs()); // Chebyshev
-    open.push(Reverse((h0, 0, start_x, start_y)));
-
-    // 8-directional neighbors.
-    const DIRS: [(i32, i32); 8] = [
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (-1, 0),
-        (1, 0),
-        (-1, 1),
-        (0, 1),
-        (1, 1),
-    ];
-
-    while let Some(Reverse((_f, g, cx, cy))) = open.pop() {
-        let cidx = (cy as usize) * width + (cx as usize);
-
-        // Skip stale entries.
-        if g > g_score[cidx] {
-            continue;
-        }
-
-        // Goal reached.
-        if cidx == goal_idx {
-            // Reconstruct path.
-            let mut path = Vec::new();
-            let mut idx = goal_idx;
-            while idx != start_idx {
-                let px = (idx % width) as i64;
-                let py = (idx / width) as i64;
-                path.push(v_list(&[v_int(px), v_int(py)]));
-                idx = came_from[idx] as usize;
-            }
-            path.reverse();
-            return Ok(Ret(v_list_iter(path)));
-        }
-
-        let ng = g + 1;
-
-        for &(dx, dy) in &DIRS {
-            let nx = cx + dx;
-            let ny = cy + dy;
-
-            if !is_passable(nx, ny) {
-                continue;
-            }
-
-            // Diagonal corner-cutting check.
-            if dx != 0 && dy != 0 && (!is_passable(cx + dx, cy) || !is_passable(cx, cy + dy)) {
-                continue;
-            }
-
-            let nidx = (ny as usize) * width + (nx as usize);
-            if ng < g_score[nidx] {
-                g_score[nidx] = ng;
-                came_from[nidx] = cidx as u32;
-                let heuristic = (goal_x - nx).abs().max((goal_y - ny).abs());
-                open.push(Reverse((ng + heuristic, ng, nx, ny)));
-            }
-        }
-    }
-
-    // No path found.
-    Ok(Ret(v_empty_list()))
+    let path = astar_path(
+        width,
+        height,
+        start_x,
+        start_y,
+        goal_x,
+        goal_y,
+        &passable,
+        Some(bf_args.tick_budget()),
+    )?;
+    Ok(Ret(path))
 }
 
 pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
@@ -1290,6 +1323,7 @@ mod tests {
             rules: parsed_rules,
             public_variables: &public_variables,
             options: QueryOptions::default(),
+            tick_budget: None,
             fresh_scope: 0,
             steps: 0,
             solutions: Vec::new(),
@@ -1298,6 +1332,55 @@ mod tests {
         };
         engine.solve(vec![query], bindings, 0)?;
         Ok(v_list(&engine.solutions))
+    }
+
+    #[test]
+    fn astar_consumes_task_tick_budget() {
+        let passable = vec![true; 25];
+        let mut tick_count = 0;
+        let err = astar_path(
+            5,
+            5,
+            0,
+            0,
+            4,
+            4,
+            &passable,
+            Some(BuiltinTickBudget::new(&mut tick_count, 2)),
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));
+        assert_eq!(tick_count, 2);
+    }
+
+    #[test]
+    fn term_query_consumes_task_tick_budget() {
+        let query = var("X");
+        let facts = vec![v_int(1)];
+        let mut public_variables = Vec::new();
+        collect_variables(&query, &mut public_variables).unwrap();
+
+        let mut tick_count = 0;
+        let err = {
+            let mut engine = QueryEngine {
+                facts,
+                rules: Vec::new(),
+                public_variables: &public_variables,
+                options: QueryOptions::default(),
+                tick_budget: Some(BuiltinTickBudget::new(&mut tick_count, 2)),
+                fresh_scope: 0,
+                steps: 0,
+                solutions: Vec::new(),
+                seen_solutions: HashSet::new(),
+                active_states: HashSet::new(),
+            };
+            engine.solve(vec![query], TermBindings::default(), 0)
+        }
+        .unwrap_err();
+
+        assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));
+        assert_eq!(tick_count, 2);
     }
 
     #[test]

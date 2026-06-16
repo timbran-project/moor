@@ -40,23 +40,21 @@ You can think of them as pattern matching for structured data, similar to how
 [`match()`](regex.md#match) searches for a regex pattern in a string — but they work on lists and
 maps instead of on text, and the "captures" are named placeholders rather than numbered groups.
 
-A **pattern** is a MOO value with "holes" in it. Each hole is a placeholder,
-written as a two-item list:
+A **pattern** is a MOO value with "holes" in it. Each hole is a placeholder, written as a two-item
+list:
 
 ```moo
 {'var, 'Name}
 ```
 
-The symbol `'var` marks this list as a placeholder — it tells the server "this
-is not a normal list, treat it as a variable". The second item, `'Name`, is the
-variable's name. Using a symbol like `'var` as a tag means placeholders are
-always two-element lists whose first element is `'var`, so they stand out from
-ordinary data and can never be confused with a real record that just happens
-to contain a symbol called `'var`.
+The symbol `'var` marks this list as a placeholder — it tells the server "this is not a normal list,
+treat it as a variable". The second item, `'Name`, is the variable's name. Using a symbol like
+`'var` as a tag means placeholders are always two-element lists whose first element is `'var`, so
+they stand out from ordinary data and can never be confused with a real record that just happens to
+contain a symbol called `'var`.
 
-A **term** is just the MOO value you want to check against the pattern. When
-the structure matches, every hole gets filled in and you receive a map of the
-filled-in values.
+A **term** is just the MOO value you want to check against the pattern. When the structure matches,
+every hole gets filled in and you receive a map of the filled-in values.
 
 For example, this pattern:
 
@@ -104,12 +102,11 @@ These builtins do not inspect world state, object ownership, task permissions, o
 MAP | BOOL term_unify(ANY pattern, ANY value [, MAP bindings [, MAP options]])
 ```
 
-Compares a pattern with exactly one value. On success, returns the extended
-bindings map. On mismatch, returns false.
+Compares a pattern with exactly one value. On success, returns the extended bindings map. On
+mismatch, returns false.
 
-Use `term_unify()` when you have a single value to check — for example, a
-record you pulled out of a list with `listassoc()`, or a verb argument you
-want to match against a command template.
+Use `term_unify()` when you have a single value to check — for example, a record you pulled out of a
+list with `listassoc()`, or a verb argument you want to match against a command template.
 
 ```moo
 term_unify({'edge, {'var, 'From}, {'var, 'To}}, {'edge, #10, #11})
@@ -132,9 +129,8 @@ term_unify({'edge, {'var, 'From}, {'var, 'To}},
 => ['From -> #10, 'To -> #11]
 ```
 
-Lists are compared item by item and must have equal length. Maps must have the
-same keys; values under those keys are compared recursively. Non-placeholder
-values compare with normal MOO equality.
+Lists are compared item by item and must have equal length. Maps must have the same keys; values
+under those keys are compared recursively. Non-placeholder values compare with normal MOO equality.
 
 ## `term_query`
 
@@ -194,10 +190,9 @@ or partially ground:
 {'edge, {'var, 'From}, #2}
 ```
 
-Variables inside facts behave like wildcards for that fact. They are fresh for each attempted
-match — each time the query engine tries a fact against a goal, that fact's variables get new
-internal names — so they are never returned as output variables and cannot interfere with other
-matches.
+Variables inside facts behave like wildcards for that fact. They are fresh for each attempted match
+— each time the query engine tries a fact against a goal, that fact's variables get new internal
+names — so they are never returned as output variables and cannot interfere with other matches.
 
 `rules` is a list of `{head, body}` pairs. The head is one term. The body is a list of positive
 terms. Each time a rule is tried, its variables are also given fresh internal names, so the same
@@ -214,7 +209,7 @@ rule can apply to different values in different search branches without conflict
 
 This rule says that `A` reaches `B` when there is an `edge` from `A` to `B`.
 
-Recursive rules are allowed, subject to the search limits:
+Recursive rules are allowed, subject to the search limits and the running task's normal tick budget:
 
 ```moo
 rules = {
@@ -327,9 +322,10 @@ term_substitute({"property_write", {'var, 'Missing}},
 
 `max_depth` limits recursive traversal and, for `term_query()`, recursive rule expansion.
 `max_bindings` limits the number of variables that may be present in the binding set.
-`max_solutions` stops the query search after that many answers. `max_steps` limits the total
-amount of search work. `dedupe` removes duplicate result maps and suppresses repeated active
-recursive states.
+`max_solutions` stops the query search after that many answers. `max_steps` limits the total amount
+of search work before the builtin raises `E_MAXREC`. `term_query()` also consumes the running task's
+normal tick budget as it searches, so expensive queries can raise `E_MAXREC` even before `max_steps`
+is reached. `dedupe` removes duplicate result maps and suppresses repeated active recursive states.
 
 ## Pathfinding with `astar`
 
@@ -428,3 +424,6 @@ this is a shortest valid path.
 The exact path is deterministic for a given map, but callers should treat any shortest valid path as
 acceptable. If the goal tile is solid, or no route reaches it, the function returns `{}`. Invalid
 dimensions or out-of-bounds start/goal coordinates raise `E_INVARG`.
+
+`astar()` consumes the running task's normal tick budget as it searches. Large or difficult path
+requests can therefore raise `E_MAXREC` if the task runs out of ticks before the search finishes.

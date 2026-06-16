@@ -32,8 +32,8 @@ Bindings are maps keyed by the variable identifier:
 ['From -> #10, 'To -> #11]
 ```
 
-The identifier is a symbol in v1. Malformed variable markers, such as `{'var}`, `{'var, 'A, 'B}`,
-or `{'var, "A"}`, raise `E_INVARG`.
+The identifier is a symbol in v1. Malformed variable markers, such as `{'var}`, `{'var, 'A, 'B}`, or
+`{'var, "A"}`, raise `E_INVARG`.
 
 MOO string and symbol comparisons are case-insensitive. Initial-capitalized variable names are only
 a readability convention; `'From` and `'from` are the same variable identifier.
@@ -201,8 +201,7 @@ This is structural substitution. It is separate from the string `substitute()` b
 ]
 ```
 
-For `term_substitute()`, `'unbound -> 'leave` preserves unbound variable markers instead of
-raising.
+For `term_substitute()`, `'unbound -> 'leave` preserves unbound variable markers instead of raising.
 
 `term_query()` accepts:
 
@@ -233,5 +232,5 @@ The builtin surface is deliberately small:
   mismatch returns no solutions.
 
 Runtime grant construction must remain explicit. A successful query does not itself install task
-permissions. A user-space caller must still construct the grant values and call the relevant
-runtime operation explicitly.
+permissions. A user-space caller must still construct the grant values and call the relevant runtime
+operation explicitly.

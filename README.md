@@ -18,6 +18,9 @@ enhancements.
 > `v1.0-release` branch, or published `1.0.1` images/packages for running worlds and evaluating
 > mooR. `main` tracks `1.1.0-dev` and contains active next-version development work.
 >
+> Exception: Cowbell currently tracks `main` and requires post-1.0 runtime/compiler features. Use
+> `main` if you want to build and run Cowbell through the bundled setup scripts.
+>
 > See the [Status](#status) section below for the branch policy.
 
 📖 **For comprehensive documentation, see our [mooR Book](https://timbran.org/book/html/).**
@@ -113,7 +116,7 @@ scripts automatically handle Docker setup, resource isolation, and feature flag 
 Choose one of the pre-configured cores to explore (the scripts will automatically fetch any missing
 dependencies):
 
-- **Cowbell** (Modern core with web-native features):
+- **Cowbell** (Modern core with web-native features; requires mooR `main`):
   ```bash
   ./scripts/start-moor-cowbell.sh
   ```
