@@ -1,0 +1,29 @@
+; return term_unify({'edge, {'var, 'From}, {'var, 'To}}, {'edge, #10, #11});
+['From -> #10, 'To -> #11]
+
+; return term_unify({'edge, {'var, 'From}, {'var, 'From}}, {'edge, #10, #10});
+['From -> #10]
+
+; return term_unify({'edge, {'var, 'From}, {'var, 'From}}, {'edge, #10, #11});
+0
+
+; return term_unify({'edge, {'var, 'From}, {'var, 'To}}, {'edge, #10, #11}, ['From -> #10]);
+['From -> #10, 'To -> #11]
+
+; return term_unify({'edge, {'var, 'From}}, {'edge, #10}, ['From -> #12]);
+0
+
+; return term_unify({"grant", {'var, 'Target}, ["prop" -> {'var, 'Prop}]}, {"grant", #123, ["prop" -> "description"]});
+['Prop -> "description", 'Target -> #123]
+
+; return term_substitute({"property_write", {'var, 'Target}, "description"}, ['Target -> #123]);
+{"property_write", #123, "description"}
+
+; return term_substitute({"property_write", {'var, 'Missing}}, [], ['unbound -> 'leave]);
+{"property_write", {'var, 'Missing}}
+
+; return term_substitute({"property_write", {'var, 'Missing}}, []);
+E_INVARG
+
+; return term_unify({'var, "X"}, 1);
+E_INVARG

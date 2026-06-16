@@ -48,6 +48,12 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 - `commit` - Immediately commits data, suspends, then resumes (semantically same as `suspend(0)`)
 - `rollback` - Immediately rollbacks all mutations to the DB and aborts the current task
 
+**Algorithmic Builtins:**
+
+- [`astar`](algorithms.md#astar) - Run A* pathfinding over a tile grid
+- [`term_unify`](algorithms.md#term_unify) - Unify structural MOO values
+- [`term_substitute`](algorithms.md#term_substitute) - Substitute term variables using a bindings map
+
 ### Functions Borrowed from ToastStunt
 
 The following functions were originally extensions in ToastStunt that have been incorporated into mooR:

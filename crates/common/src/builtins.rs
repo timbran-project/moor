@@ -1008,24 +1008,40 @@ fn mk_builtin_table() -> Vec<Builtin> {
 
     // Richer nested/complicated list/map data structure algorithms
     let start = builtins.len();
-    builtins.extend([mk_builtin(
-        "astar",
-        Q(8),
-        Q(8),
-        vec![
-            Typed(TYPE_INT),  // width
-            Typed(TYPE_INT),  // height
-            Typed(TYPE_INT),  // start_x
-            Typed(TYPE_INT),  // start_y
-            Typed(TYPE_INT),  // goal_x
-            Typed(TYPE_INT),  // goal_y
-            Typed(TYPE_LIST), // tile_map
-            Typed(TYPE_LIST), // solid_tiles
-        ],
-        true,
-    )]);
+    builtins.extend([
+        mk_builtin(
+            "astar",
+            Q(8),
+            Q(8),
+            vec![
+                Typed(TYPE_INT),  // width
+                Typed(TYPE_INT),  // height
+                Typed(TYPE_INT),  // start_x
+                Typed(TYPE_INT),  // start_y
+                Typed(TYPE_INT),  // goal_x
+                Typed(TYPE_INT),  // goal_y
+                Typed(TYPE_LIST), // tile_map
+                Typed(TYPE_LIST), // solid_tiles
+            ],
+            true,
+        ),
+        mk_builtin(
+            "term_unify",
+            Q(2),
+            Q(4),
+            vec![Any, Any, Typed(TYPE_MAP), Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "term_substitute",
+            Q(2),
+            Q(3),
+            vec![Any, Typed(TYPE_MAP), Typed(TYPE_MAP)],
+            true,
+        ),
+    ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
-    pad_group(&mut builtins, start, "spatial");
+    pad_group(&mut builtins, start, "algorithms");
 
     assert_eq!(builtins.len(), BUILTIN_ID_SPACE);
     builtins

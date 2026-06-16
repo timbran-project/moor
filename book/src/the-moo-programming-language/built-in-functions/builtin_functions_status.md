@@ -149,6 +149,14 @@ repository issue tracker](https://codeberg.org/timbran/moor/issues).
 | [`encode_binary`](strings.md#encode_binary) |          |                                                                                    |
 | [`object_bytes`](values.md#object_bytes)    | &check;  |                                                                                    |
 
+### Algorithms
+
+| Name                                                  | Complete | Notes                                   |
+|-------------------------------------------------------|----------|-----------------------------------------|
+| [`astar`](algorithms.md#astar)                        | &check;  | mooR extension. Tile-grid pathfinding   |
+| [`term_unify`](algorithms.md#term_unify)              | &check;  | mooR extension. Structural unification  |
+| [`term_substitute`](algorithms.md#term_substitute)    | &check;  | mooR extension. Structural substitution |
+
 ### Server
 
 | Name                                                         | Complete | Notes                                                                    |
@@ -302,6 +310,14 @@ Functions not part of the original LambdaMOO, but added in moor
 |-----------------|--------------------------------------------------------------------------------|-------|
 | `error_code`    | Strip off any message or value from an error and return only the code portion  |       |
 | `error_message` | Return the message portion of the error, or the default message if none exists |       |
+
+### Algorithms
+
+| Name                                               | Description                               | Notes |
+|----------------------------------------------------|-------------------------------------------|-------|
+| [`astar`](algorithms.md#astar)                     | Run A* pathfinding over a tile grid       |       |
+| [`term_unify`](algorithms.md#term_unify)           | Unify structural MOO values               |       |
+| [`term_substitute`](algorithms.md#term_substitute) | Substitute term variables using a binding |       |
 
 ### Admin
 
