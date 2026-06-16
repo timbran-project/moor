@@ -815,6 +815,22 @@ object PROG_FEATURES
     return target_obj.(prop_name);
   endmethod
 
+  method _do_get_object_display_info owner: ARCH_WIZARD
+    "Internal helper to get object display fields with elevated permissions";
+    caller == this || raise(E_PERM);
+    {target_obj} = args;
+    set_task_perms(player, {{"object_read", target_obj}});
+    return ['name -> target_obj.name, 'owner -> target_obj.owner, 'parent -> parent(target_obj), 'location -> target_obj.location];
+  endmethod
+
+  method _do_find_verb_definer owner: ARCH_WIZARD
+    "Internal helper to find a verb definer with elevated permissions";
+    caller == this || raise(E_PERM);
+    {target_obj, verb_name} = args;
+    set_task_perms(player, {{"object_read", target_obj}});
+    return target_obj:find_verb_definer(verb_name);
+  endmethod
+
   verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>[selectors] -- Display object information.";
     "Syntax:";
@@ -903,11 +919,10 @@ object PROG_FEATURES
     endfor
   endverb
 
-  method _display_property owner: ARCH_WIZARD
+  method _display_property owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, prop_name} = args;
-    metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
+    metadata = this:_do_get_property_metadata(target_obj, prop_name);
     prop_value = metadata:is_clear() ? "(clear)" | toliteral(this:_do_get_property_value(target_obj, prop_name));
     "Truncate long values";
     if (length(prop_value) > 50)
@@ -922,19 +937,23 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, table));
   endmethod
 
-  method _display_inherited_property owner: ARCH_WIZARD
+  method _display_inherited_property owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, prop_name} = args;
     "Find where property is defined";
     current = target_obj;
     definer = #-1;
     while (valid(current))
-      if (prop_name in this:_do_get_properties(current))
-        definer = current;
+      for p in (this:_do_get_properties(current))
+        if (tostr(p) == prop_name)
+          definer = current;
+          break;
+        endif
+      endfor
+      if (definer != #-1)
         break;
       endif
-      current = parent(current);
+      current = this:_do_get_object_display_info(current)['parent];
     endwhile
     if (definer == #-1)
       raise(E_PROPNF, "Property not found: " + prop_name);
@@ -942,9 +961,8 @@ object PROG_FEATURES
     this:_display_property(definer, prop_name);
   endmethod
 
-  method _display_all_properties owner: ARCH_WIZARD
+  method _display_all_properties owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, include_inherited} = args;
     rows = {};
     if (include_inherited)
@@ -954,6 +972,7 @@ object PROG_FEATURES
       current = target_obj;
       while (valid(current))
         props = this:_do_get_properties(current);
+        current_info = this:_do_get_object_display_info(current);
         for prop_name in (props)
           if (prop_name in seen)
             continue;
@@ -961,9 +980,9 @@ object PROG_FEATURES
           seen = {@seen, prop_name};
           prop_display = tostr(prop_name);
           "Format definer as Name (#num)";
-          definer_str = `current.name ! ANY => "???"' + " (" + tostr(current) + ")";
+          definer_str = current_info['name] + " (" + tostr(current) + ")";
           try
-            metadata = $prog_utils:get_property_metadata(current, prop_name);
+            metadata = this:_do_get_property_metadata(current, prop_name);
           except (E_PERM)
             rows = {@rows, {"." + prop_display, definer_str, "(no access)", "", ""}};
             continue;
@@ -977,7 +996,7 @@ object PROG_FEATURES
           owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
           rows = {@rows, {"." + prop_display, definer_str, owner_str, metadata:perms(), prop_value}};
         endfor
-        current = parent(current);
+        current = current_info['parent];
       endwhile
     else
       "No Definer column for local-only";
@@ -986,7 +1005,7 @@ object PROG_FEATURES
       for prop_name in (props)
         prop_display = tostr(prop_name);
         try
-          metadata = $prog_utils:get_property_metadata(target_obj, prop_name);
+          metadata = this:_do_get_property_metadata(target_obj, prop_name);
         except (E_PERM)
           rows = {@rows, {"." + prop_display, "(no access)", "", ""}};
           continue;
@@ -1009,11 +1028,10 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, table));
   endmethod
 
-  method _display_verb owner: ARCH_WIZARD
+  method _display_verb owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, verb_name} = args;
-    verb_location = target_obj:find_verb_definer(verb_name);
+    verb_location = this:_do_find_verb_definer(target_obj, verb_name);
     if (verb_location == #-1)
       raise(E_VERBNF, "Verb not found: " + verb_name);
     endif
@@ -1029,20 +1047,18 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, table));
   endmethod
 
-  method _display_inherited_verb owner: ARCH_WIZARD
+  method _display_inherited_verb owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, verb_name} = args;
-    verb_location = target_obj:find_verb_definer(verb_name);
+    verb_location = this:_do_find_verb_definer(target_obj, verb_name);
     if (verb_location == #-1)
       raise(E_VERBNF, "Verb not found: " + verb_name);
     endif
     this:_display_verb(verb_location, verb_name);
   endmethod
 
-  method _display_all_verbs owner: ARCH_WIZARD
+  method _display_all_verbs owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, include_inherited} = args;
     rows = {};
     if (include_inherited)
@@ -1051,36 +1067,35 @@ object PROG_FEATURES
       seen = {};
       current = target_obj;
       while (valid(current))
-        verbs_metadata = $prog_utils:get_verbs_metadata(current);
-        for metadata in (verbs_metadata)
-          verb_name = metadata:name();
+        verb_names = this:_do_get_verbs(current);
+        current_info = this:_do_get_object_display_info(current);
+        for verb_name in (verb_names)
           verb_display = tostr(verb_name);
           if (verb_name in seen)
             continue;
           endif
           seen = {@seen, verb_name};
-          args_spec = metadata:args_spec();
+          {verb_owner, verb_flags, dobj, prep, iobj, code_lines} = this:_do_get_verb_listing(current, verb_name, false);
+          args_spec = dobj + " " + prep + " " + iobj;
           "Format definer as Name (#num)";
-          definer_str = `current.name ! ANY => "???"' + " (" + tostr(current) + ")";
+          definer_str = current_info['name] + " (" + tostr(current) + ")";
           "Format owner as Name (#num)";
-          verb_owner = metadata:verb_owner();
           owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
-          rows = {@rows, {":" + verb_display, definer_str, owner_str, metadata:flags(), args_spec}};
+          rows = {@rows, {":" + verb_display, definer_str, owner_str, verb_flags, args_spec}};
         endfor
-        current = parent(current);
+        current = current_info['parent];
       endwhile
     else
       "No Definer column for local-only";
       headers = {"Verb", "Owner", "Flags", "Args"};
-      verbs_metadata = $prog_utils:get_verbs_metadata(target_obj);
-      for metadata in (verbs_metadata)
-        verb_name = metadata:name();
+      verb_names = this:_do_get_verbs(target_obj);
+      for verb_name in (verb_names)
         verb_display = tostr(verb_name);
-        args_spec = metadata:args_spec();
+        {verb_owner, verb_flags, dobj, prep, iobj, code_lines} = this:_do_get_verb_listing(target_obj, verb_name, false);
+        args_spec = dobj + " " + prep + " " + iobj;
         "Format owner as Name (#num)";
-        verb_owner = metadata:verb_owner();
         owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
-        rows = {@rows, {":" + verb_display, owner_str, metadata:flags(), args_spec}};
+        rows = {@rows, {":" + verb_display, owner_str, verb_flags, args_spec}};
       endfor
     endif
     if (!rows)
@@ -1091,15 +1106,15 @@ object PROG_FEATURES
     player:inform_current($event:mk_info(player, table));
   endmethod
 
-  method _display_object owner: ARCH_WIZARD
+  method _display_object owner: HACKER
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj} = args;
     "Show object header info as definition list, then all properties and verbs";
-    obj_name = target_obj.name;
-    obj_owner = target_obj.owner;
-    obj_parent = parent(target_obj);
-    obj_location = target_obj.location;
+    obj_info = this:_do_get_object_display_info(target_obj);
+    obj_name = obj_info['name];
+    obj_owner = obj_info['owner];
+    obj_parent = obj_info['parent];
+    obj_location = obj_info['location];
     "Build deflist items";
     items = {{"Object", tostr(target_obj)}};
     items = {@items, {"Name", obj_name}};
@@ -1800,16 +1815,16 @@ object PROG_FEATURES
     return {'simple, toliteral(result)};
   endmethod
 
-  method _display_summary owner: ARCH_WIZARD
+  method _display_summary owner: HACKER
     "Display object summary with counts and usage hints.";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj} = args;
     "Get object info";
-    obj_name = target_obj.name;
-    obj_owner = target_obj.owner;
-    obj_parent = parent(target_obj);
-    obj_location = target_obj.location;
+    obj_info = this:_do_get_object_display_info(target_obj);
+    obj_name = obj_info['name];
+    obj_owner = obj_info['owner];
+    obj_parent = obj_info['parent];
+    obj_location = obj_info['location];
     "Count local properties and verbs";
     local_props = this:_do_get_properties(target_obj);
     local_verbs = this:_do_get_verbs(target_obj);
@@ -1818,11 +1833,11 @@ object PROG_FEATURES
     "Count inherited (walk up parent chain)";
     inherited_prop_count = 0;
     inherited_verb_count = 0;
-    current = parent(target_obj);
+    current = obj_parent;
     while (valid(current))
       inherited_prop_count = inherited_prop_count + length(this:_do_get_properties(current));
       inherited_verb_count = inherited_verb_count + length(this:_do_get_verbs(current));
-      current = parent(current);
+      current = this:_do_get_object_display_info(current)['parent];
     endwhile
     "Build single deflist with all info - wrap object refs in djot backticks";
     obj_ref = tostr(target_obj);
@@ -1855,16 +1870,16 @@ object PROG_FEATURES
     player:inform_current(event);
   endmethod
 
-  method _display_header owner: ARCH_WIZARD
+  method _display_header owner: HACKER
     "Display object header info only (no counts/hints).";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj} = args;
     "Get object info";
-    obj_name = target_obj.name;
-    obj_owner = target_obj.owner;
-    obj_parent = parent(target_obj);
-    obj_location = target_obj.location;
+    obj_info = this:_do_get_object_display_info(target_obj);
+    obj_name = obj_info['name];
+    obj_owner = obj_info['owner];
+    obj_parent = obj_info['parent];
+    obj_location = obj_info['location];
     "Build deflist with object info - wrap object refs in djot backticks";
     obj_ref = tostr(target_obj);
     items = {{"Object", "`" + obj_ref + "`"}};
@@ -2894,6 +2909,64 @@ object PROG_FEATURES
         `delete_property(fixture, "grant_added_prop") ! E_PROPNF => 0';
         `delete_property(fixture, "private_helper_prop") ! E_PROPNF => 0';
         recycle(fixture);
+      endif
+    endtry
+    return true;
+  endmethod
+
+  method test_show_display_helpers_scoped_grants owner: ARCH_WIZARD
+    "Unit test: @show display helpers use scoped grants for private object/property/verb reads.";
+    parent_fixture = #-1;
+    fixture = #-1;
+    stubbed_inform = false;
+    added_inform_log = false;
+    try
+      add_property(player, "prog_show_last_inform", false, {$arch_wizard, "r"});
+      added_inform_log = true;
+      add_verb(player, {$arch_wizard, "rxd", "inform_current"}, {"this", "none", "this"});
+      errors = set_verb_code(player, "inform_current", {"this.prog_show_last_inform = args;", "return true;"}, 2, 1);
+      $test_utils:assert_false(errors, "temporary inform_current stub should compile");
+      stubbed_inform = true;
+
+      parent_fixture = create($root);
+      parent_fixture.owner = $hacker;
+      parent_fixture.r = 0;
+      parent_fixture.w = 0;
+      add_property(parent_fixture, "private_display_parent_prop", "parent secret", {$hacker, ""});
+      add_verb(parent_fixture, {$hacker, "", "private_display_parent_verb"}, {"this", "none", "this"});
+      errors = set_verb_code(parent_fixture, "private_display_parent_verb", {"return \"parent secret\";"}, 2, 1);
+      $test_utils:assert_false(errors, "private parent display probe should compile");
+
+      fixture = create(parent_fixture);
+      fixture.owner = $hacker;
+      fixture.r = 0;
+      fixture.w = 0;
+      add_property(fixture, "private_display_prop", "secret", {$hacker, ""});
+      add_verb(fixture, {$hacker, "", "private_display_verb"}, {"this", "none", "this"});
+      errors = set_verb_code(fixture, "private_display_verb", {"return \"secret\";"}, 2, 1);
+      $test_utils:assert_false(errors, "private display probe should compile");
+
+      this:_display_header(fixture);
+      this:_display_summary(fixture);
+      this:_display_property(fixture, "private_display_prop");
+      this:_display_inherited_property(fixture, "private_display_parent_prop");
+      this:_display_all_properties(fixture, true);
+      this:_display_verb(fixture, "private_display_verb");
+      this:_display_inherited_verb(fixture, "private_display_parent_verb");
+      this:_display_all_verbs(fixture, true);
+      $test_utils:assert_true(true, "display helpers should complete for non-readable hacker-owned fixtures");
+    finally
+      stubbed_inform && `delete_verb(player, "inform_current") ! E_VERBNF => 0';
+      added_inform_log && `delete_property(player, "prog_show_last_inform") ! E_PROPNF => 0';
+      if (valid(fixture))
+        `delete_verb(fixture, "private_display_verb") ! E_VERBNF => 0';
+        `delete_property(fixture, "private_display_prop") ! E_PROPNF => 0';
+        recycle(fixture);
+      endif
+      if (valid(parent_fixture))
+        `delete_verb(parent_fixture, "private_display_parent_verb") ! E_VERBNF => 0';
+        `delete_property(parent_fixture, "private_display_parent_prop") ! E_PROPNF => 0';
+        recycle(parent_fixture);
       endif
     endtry
     return true;
