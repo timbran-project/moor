@@ -23,10 +23,12 @@ object AGENTIC_CODING_ROOM
   method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Dump object summary with properties and verbs.";
     {args_map, actor} = args;
+    valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
+    set_task_perms(actor, {{"object_read", obj}});
     name = `obj.name ! ANY => tostr(obj)';
     parent_obj = parent(obj);
     props = properties(obj);
@@ -38,10 +40,12 @@ object AGENTIC_CODING_ROOM
   method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
     {args_map, actor} = args;
+    valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
+    set_task_perms(actor, {{"object_read", obj}});
     verbs_list = verbs(obj);
     !verbs_list && return "No verbs on " + tostr(obj) + ".";
     return "Verbs on " + tostr(obj) + ":\n- " + verbs_list:join("\n- ");
@@ -50,12 +54,14 @@ object AGENTIC_CODING_ROOM
   method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Return full code for a verb.";
     {args_map, actor} = args;
+    valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     verb_name = `args_map["verb"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     typeof(verb_name) == TYPE_STR || raise(E_TYPE, "verb must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
+    set_task_perms(actor, {{"verb_read", obj, verb_name}});
     code_lines = `verb_code(obj, verb_name) ! E_VERBNF => 0';
     code_lines == 0 && raise(E_VERBNF, "Verb not found: " + verb_name);
     return code_lines:join("\n");
@@ -64,12 +70,14 @@ object AGENTIC_CODING_ROOM
   method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object.";
     {args_map, actor} = args;
+    valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     prop_name = `args_map["property"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     typeof(prop_name) == TYPE_STR || raise(E_TYPE, "property must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
+    set_task_perms(actor, {{"property_read", obj, prop_name}});
     value = `obj.(prop_name) ! E_PROPNF => E_PROPNF';
     value == E_PROPNF && raise(E_PROPNF, "Property not found: " + prop_name);
     return toliteral(value);
@@ -86,6 +94,27 @@ object AGENTIC_CODING_ROOM
     $test_utils:assert_true(index(dump_out, "Properties (") > 0, "dump_object should include property count");
     $test_utils:assert_true(index(dump_out, "Verbs (") > 0, "dump_object should include verb count");
     $test_utils:assert_raises(E_PROPNF, this, "_tool_read_property", {["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player}, "read_property should surface missing property");
+    private_obj = #-1;
+    try
+      private_obj = $thing:create();
+      private_obj.name = "agentic private probe";
+      add_property(private_obj, "agentic_private_probe", "secret", {$hacker, ""});
+      add_verb(private_obj, {$hacker, "xd", "agentic_private_verb"}, {"this", "none", "this"});
+      set_verb_code(private_obj, "agentic_private_verb", {"return \"secret\";"});
+      private_obj.r = 0;
+      private_ref = tostr(private_obj);
+      prop_out = this:_tool_read_property(["object" -> private_ref, "property" -> "agentic_private_probe"], player);
+      $test_utils:assert_eq(prop_out, "\"secret\"", "read_property should use a scoped property_read grant");
+      code_out = this:_tool_get_verb_code(["object" -> private_ref, "verb" -> "agentic_private_verb"], player);
+      $test_utils:assert_true(index(code_out, "return \"secret\";") > 0, "get_verb_code should use a scoped verb_read grant");
+      verbs_out = this:_tool_list_verbs(["object" -> private_ref], player);
+      $test_utils:assert_true(index(verbs_out, "agentic_private_verb") > 0, "list_verbs should use scoped object/verb read grants");
+      dump_out = this:_tool_dump_object(["object" -> private_ref], player);
+      $test_utils:assert_true(index(dump_out, "agentic_private_probe") > 0, "dump_object should include granted private properties");
+      $test_utils:assert_true(index(dump_out, "agentic_private_verb") > 0, "dump_object should include granted private verbs");
+    finally
+      valid(private_obj) && private_obj:destroy();
+    endtry
     return true;
   endmethod
 
