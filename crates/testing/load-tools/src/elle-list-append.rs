@@ -18,7 +18,8 @@
 use clap::Parser;
 use clap_derive::Parser;
 use edn_format::{Keyword, Value};
-use moor_common::model::{ObjAttrs, ObjectKind, WorldStateSource};
+use moor_common::model::{ObjAttrs, ObjectKind, TaskPermissions, WorldStateSource};
+use moor_common::util::BitEnum;
 use moor_db::{Database, TxDB};
 use moor_var::{Obj, Symbol, v_int, v_list};
 use rand::Rng;
@@ -119,6 +120,7 @@ fn workload_thread(
     let mut total_retries = 0;
     let mut skipped_ops = 0;
     let mut rng = rand::rng();
+    let perms = TaskPermissions::new(obj, BitEnum::new());
 
     for iteration in 0..num_iterations {
         // Print progress every 100 iterations
@@ -152,7 +154,7 @@ fn workload_thread(
                 let start = Instant::now();
 
                 let tx = db.new_world_state()?;
-                let value = tx.retrieve_property(&obj, &obj, prop_sym)?;
+                let value = tx.retrieve_property(&perms, &obj, prop_sym)?;
 
                 match tx.commit()? {
                     moor_common::model::CommitResult::Success { .. } => {
@@ -182,7 +184,7 @@ fn workload_thread(
                 let start = Instant::now();
 
                 let mut tx = db.new_world_state()?;
-                let value = tx.retrieve_property(&obj, &obj, prop_sym)?;
+                let value = tx.retrieve_property(&perms, &obj, prop_sym)?;
 
                 // Generate a few unique values from this thread's range
                 let num_values = rng.random_range(1..=10);
@@ -208,7 +210,7 @@ fn workload_thread(
                     )
                 };
 
-                tx.update_property(&obj, &obj, prop_sym, &new_list)?;
+                tx.update_property(&perms, &obj, prop_sym, &new_list)?;
 
                 match tx.commit()? {
                     moor_common::model::CommitResult::Success { .. } => {

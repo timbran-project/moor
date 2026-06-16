@@ -17,7 +17,8 @@
 use clap::Parser;
 use clap_derive::Parser;
 use edn_format::{Keyword, Value};
-use moor_common::model::{CommitResult, WorldStateSource};
+use moor_common::model::{CommitResult, TaskPermissions, WorldStateSource};
+use moor_common::util::BitEnum;
 use moor_db::TxDB;
 use moor_model_checker::elle_common::{self, EdnEvent};
 use moor_var::{Obj, Symbol, v_int};
@@ -54,6 +55,7 @@ fn workload_thread(
     let mut events = Vec::new();
     let mut skipped_ops = 0;
     const MAX_RETRIES: usize = 100;
+    let perms = TaskPermissions::new(obj, BitEnum::new());
 
     for iteration in 0..num_iterations {
         if iteration > 0 && iteration % 100 == 0 {
@@ -87,11 +89,11 @@ fn workload_thread(
 
                 // Read both accounts
                 let from_balance = tx
-                    .retrieve_property(&obj, &obj, account_symbols[from_idx])?
+                    .retrieve_property(&perms, &obj, account_symbols[from_idx])?
                     .as_integer()
                     .unwrap_or(0);
                 let to_balance = tx
-                    .retrieve_property(&obj, &obj, account_symbols[to_idx])?
+                    .retrieve_property(&perms, &obj, account_symbols[to_idx])?
                     .as_integer()
                     .unwrap_or(0);
 
@@ -137,13 +139,13 @@ fn workload_thread(
 
                 // Perform transfer
                 tx.update_property(
-                    &obj,
+                    &perms,
                     &obj,
                     account_symbols[from_idx],
                     &v_int(from_balance - amount),
                 )?;
                 tx.update_property(
-                    &obj,
+                    &perms,
                     &obj,
                     account_symbols[to_idx],
                     &v_int(to_balance + amount),
@@ -199,7 +201,7 @@ fn workload_thread(
                 let mut balances = BTreeMap::new();
                 for (idx, &sym) in account_symbols.iter().enumerate() {
                     let balance = tx
-                        .retrieve_property(&obj, &obj, sym)?
+                        .retrieve_property(&perms, &obj, sym)?
                         .as_integer()
                         .unwrap_or(0);
                     balances.insert(Value::Integer(idx as i64), Value::Integer(balance));
@@ -290,10 +292,11 @@ fn main() -> Result<(), eyre::Error> {
     // Create initial read to establish the account universe for Elle
     let mut initial_events = Vec::new();
     let tx = db.new_world_state()?;
+    let perms = TaskPermissions::new(obj, BitEnum::new());
     let mut balances = BTreeMap::new();
     for (idx, &sym) in account_symbols.iter().enumerate() {
         let balance = tx
-            .retrieve_property(&obj, &obj, sym)?
+            .retrieve_property(&perms, &obj, sym)?
             .as_integer()
             .unwrap_or(0);
         balances.insert(Value::Integer(idx as i64), Value::Integer(balance));

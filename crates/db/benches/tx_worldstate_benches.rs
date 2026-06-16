@@ -17,7 +17,10 @@ use micromeasure::{
     BenchmarkMainOptions, BenchmarkRuntimeOptions, ConcurrentBenchContext, ConcurrentBenchControl,
     ConcurrentWorker, ConcurrentWorkerResult, Throughput, benchmark_main,
 };
-use moor_common::model::{CommitResult, ObjFlag, ObjectKind, PropFlag, WorldStateSource};
+use moor_common::model::{
+    CommitResult, ObjFlag, ObjectKind, PropFlag, TaskPermissions, WorldStateSource,
+};
+use moor_common::util::BitEnum;
 use moor_db::{DatabaseConfig, TxDB};
 use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_int, v_list_iter};
 use rand::Rng;
@@ -49,9 +52,10 @@ impl ConcurrentBenchContext for TxDbConcurrentContext {
 fn create_db() -> TxDB {
     let (ws_source, _) = TxDB::open(None, DatabaseConfig::default());
     let mut tx = ws_source.new_world_state().unwrap();
+    let perms = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
     let _sysobj = tx
         .create_object(
-            &SYSTEM_OBJECT,
+            &perms,
             &NOTHING,
             &SYSTEM_OBJECT,
             ObjFlag::all_flags(),
@@ -68,13 +72,14 @@ fn setup_multi_object(
     props_per_object: usize,
 ) -> (Vec<Obj>, Vec<Symbol>) {
     let initial_value = v_list_iter((0..10).map(v_int));
+    let perms = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
     let mut tx = db.new_world_state().unwrap();
 
     let mut prop_names = Vec::with_capacity(props_per_object);
     for i in 0..props_per_object {
         let name = Symbol::mk(&format!("bench_prop_{i}"));
         tx.define_property(
-            &SYSTEM_OBJECT,
+            &perms,
             &SYSTEM_OBJECT,
             &SYSTEM_OBJECT,
             name,
@@ -92,7 +97,7 @@ fn setup_multi_object(
     for _ in 0..num_objects {
         let obj = tx
             .create_object(
-                &SYSTEM_OBJECT,
+                &perms,
                 &SYSTEM_OBJECT,
                 &SYSTEM_OBJECT,
                 ObjFlag::all_flags(),
@@ -108,12 +113,13 @@ fn setup_multi_object(
 
 fn setup_single_object_properties(db: &TxDB, count: usize) -> Vec<Symbol> {
     let append_values = v_list_iter((0..100).map(v_int));
+    let perms = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
     let mut tx = db.new_world_state().unwrap();
     let mut prop_names = Vec::with_capacity(count);
     for index in 0..count {
         let name = Symbol::mk(&format!("bench_prop_{index}"));
         tx.define_property(
-            &SYSTEM_OBJECT,
+            &perms,
             &SYSTEM_OBJECT,
             &SYSTEM_OBJECT,
             name,
@@ -137,6 +143,7 @@ fn run_single_object_worker(
     let mut retries = 0_u64;
     let mut read_ops = 0_u64;
     let mut write_ops = 0_u64;
+    let perms = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
 
     while !control.should_stop() {
         let mut tx = ctx.db.new_world_state().unwrap();
@@ -146,10 +153,10 @@ fn run_single_object_worker(
                 let value = v_int(
                     (control.thread_index() as i64) * 1_000_000 + commits as i64 + write_ops as i64,
                 );
-                let _ = tx.update_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, prop_name, &value);
+                let _ = tx.update_property(&perms, &SYSTEM_OBJECT, prop_name, &value);
                 write_ops = write_ops.wrapping_add(1);
             } else {
-                let _ = tx.retrieve_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, prop_name);
+                let _ = tx.retrieve_property(&perms, &SYSTEM_OBJECT, prop_name);
                 read_ops = read_ops.wrapping_add(1);
             }
         }
@@ -180,6 +187,7 @@ fn run_multi_object_worker(
     let mut read_ops = 0_u64;
     let mut write_ops = 0_u64;
     let home_obj = ctx.objects[control.thread_index() % ctx.objects.len()];
+    let perms = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
 
     while !control.should_stop() {
         let mut tx = ctx.db.new_world_state().unwrap();
@@ -189,11 +197,11 @@ fn run_multi_object_worker(
                 let value = v_int(
                     (control.thread_index() as i64) * 1_000_000 + commits as i64 + write_ops as i64,
                 );
-                let _ = tx.update_property(&home_obj, &SYSTEM_OBJECT, prop_name, &value);
+                let _ = tx.update_property(&perms, &home_obj, prop_name, &value);
                 write_ops = write_ops.wrapping_add(1);
             } else {
                 let read_obj = ctx.objects[rng.random_range(0..ctx.objects.len())];
-                let _ = tx.retrieve_property(&read_obj, &SYSTEM_OBJECT, prop_name);
+                let _ = tx.retrieve_property(&perms, &read_obj, prop_name);
                 read_ops = read_ops.wrapping_add(1);
             }
         }

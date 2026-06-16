@@ -17,7 +17,8 @@
 use clap::Parser;
 use clap_derive::Parser;
 use edn_format::{Keyword, Value};
-use moor_common::model::{CommitResult, WorldStateSource};
+use moor_common::model::{CommitResult, TaskPermissions, WorldStateSource};
+use moor_common::util::BitEnum;
 use moor_db::TxDB;
 use moor_model_checker::elle_common::{self, EdnEvent, EventType};
 use moor_var::{Obj, Symbol, v_int};
@@ -54,6 +55,7 @@ fn workload_thread(
     let mut events = Vec::new();
     let mut skipped_ops = 0;
     const MAX_RETRIES: usize = 100;
+    let perms = TaskPermissions::new(obj, BitEnum::new());
 
     for iteration in 0..num_iterations {
         if iteration > 0 && iteration % 100 == 0 {
@@ -79,7 +81,7 @@ fn workload_thread(
 
                 let start = Instant::now();
                 let mut tx = db.new_world_state()?;
-                tx.update_property(&obj, &obj, register_sym, &v_int(value_to_write))?;
+                tx.update_property(&perms, &obj, register_sym, &v_int(value_to_write))?;
 
                 match tx.commit()? {
                     CommitResult::Success { .. } => {
@@ -120,7 +122,7 @@ fn workload_thread(
 
                 let start = Instant::now();
                 let tx = db.new_world_state()?;
-                let value = tx.retrieve_property(&obj, &obj, register_sym)?;
+                let value = tx.retrieve_property(&perms, &obj, register_sym)?;
 
                 match tx.commit()? {
                     CommitResult::Success { .. } => {
