@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use crate::{model::ObjFlag, util::BitEnum};
 use moor_var::{Obj, Symbol};
+use uuid::Uuid;
 
 /// A normalized runtime capability grant.
 ///
@@ -32,11 +33,11 @@ pub enum CapabilityGrant {
     PropertyWrite { obj: Obj, prop: Symbol },
     PropertyDefine(Obj),
     PropertyDelete { obj: Obj, prop: Symbol },
-    VerbRead { obj: Obj, verb: Symbol },
-    VerbWrite { obj: Obj, verb: Symbol },
-    VerbProgram { obj: Obj, verb: Symbol },
+    VerbRead { obj: Obj, verb: Uuid },
+    VerbWrite { obj: Obj, verb: Uuid },
+    VerbProgram { obj: Obj, verb: Uuid },
     VerbAdd(Obj),
-    VerbCall { obj: Obj, verb: Symbol },
+    VerbCall { obj: Obj, verb: Uuid },
 }
 
 /// Additive runtime capability grants attached to an activation's task permissions.

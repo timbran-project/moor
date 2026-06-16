@@ -1,0 +1,179 @@
+@wizard
+; add_property($system, "cap_helper", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+
+; add_property($system, "cap_object_read_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_object_write_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_property_read_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($cap_property_read_obj, "secret", 37, {$wizard_player, ""});
+; add_property($system, "cap_property_write_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($cap_property_write_obj, "editable", 0, {$wizard_player, "r"});
+; add_property($system, "cap_verb_read_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_read_obj, {$wizard_player, "", "hidden_source"}, {"this", "none", "this"});
+; set_verb_code($cap_verb_read_obj, "hidden_source", {"return 17;"});
+; add_property($system, "cap_verb_write_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_write_obj, {$wizard_player, "", "editable_info"}, {"this", "none", "this"});
+
+; add_property($system, "cap_move_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_recycle_no_grant_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_recycle_grant_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_chparent_no_grant_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_chparent_grant_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_chparent_parent", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; $cap_chparent_parent.f = 1;
+; add_property($system, "cap_property_define_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_property_delete_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($cap_property_delete_obj, "doomed", 1, {$wizard_player, ""});
+; add_property($system, "cap_verb_add_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_property($system, "cap_verb_program_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_program_obj, {$wizard_player, "rw", "programmable"}, {"this", "none", "this"});
+; set_verb_code($cap_verb_program_obj, "programmable", {"return 0;"});
+; add_property($system, "cap_verb_call_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_call_obj, {$wizard_player, "", "hidden_call"}, {"this", "none", "this"});
+; set_verb_code($cap_verb_call_obj, "hidden_call", {"return 4242;"});
+; add_property($system, "cap_verb_binding_read_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_binding_read_obj, {$wizard_player, "", "bound_source_original"}, {"this", "none", "this"});
+; set_verb_code($cap_verb_binding_read_obj, "bound_source_original", {"return 55;"});
+; add_property($system, "cap_verb_binding_call_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_binding_call_obj, {$wizard_player, "", "bound_call_original"}, {"this", "none", "this"});
+; set_verb_code($cap_verb_binding_call_obj, "bound_call_original", {"return 606;"});
+; add_property($system, "cap_verb_inherited_parent", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_verb_inherited_parent, {$wizard_player, "", "inherited_hidden"}, {"this", "none", "this"});
+; set_verb_code($cap_verb_inherited_parent, "inherited_hidden", {"return 707;"});
+; add_property($system, "cap_verb_inherited_child", create($cap_verb_inherited_parent, $wizard_player), {$wizard_player, "rwc"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_read_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_read_no_grant", {"set_task_perms($player);", "properties($cap_object_read_obj);", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_read_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_read_with_grant", {"set_task_perms($player, {{\"object_read\", $cap_object_read_obj}});", "properties($cap_object_read_obj);", "return 1;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_write_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_write_with_grant", {"set_task_perms($player, {{\"object_write\", $cap_object_write_obj}});", "add_property($cap_object_write_obj, \"via_object_write\", 7, {$player, \"r\"});", "return $cap_object_write_obj.via_object_write;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_read_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_read_no_grant", {"set_task_perms($player);", "return $cap_property_read_obj.secret;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_read_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_read_with_grant", {"set_task_perms($player, {{\"property_read\", $cap_property_read_obj, \"secret\"}});", "return $cap_property_read_obj.secret;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_write_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_write_no_grant", {"set_task_perms($player);", "$cap_property_write_obj.editable = 12;", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_write_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_write_with_grant", {"set_task_perms($player, {{\"property_write\", $cap_property_write_obj, \"editable\"}});", "$cap_property_write_obj.editable = 12;", "return $cap_property_write_obj.editable;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_read_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_read_no_grant", {"set_task_perms($player);", "verb_code($cap_verb_read_obj, \"hidden_source\");", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_read_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_read_with_grant", {"set_task_perms($player, {{\"verb_read\", $cap_verb_read_obj, \"hidden_source\"}});", "return length(verb_code($cap_verb_read_obj, \"hidden_source\")) > 0;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_write_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_write_no_grant", {"set_task_perms($player);", "set_verb_info($cap_verb_write_obj, \"editable_info\", {$wizard_player, \"r\", \"renamed_info\"});", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_write_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_write_with_grant", {"set_task_perms($player, {{\"verb_write\", $cap_verb_write_obj, \"editable_info\"}});", "set_verb_info($cap_verb_write_obj, \"editable_info\", {$wizard_player, \"r\", \"renamed_info\"});", "return 1;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_move_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_move_no_grant", {"set_task_perms($player);", "move($cap_move_obj, $nothing);", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_move_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_move_with_grant", {"set_task_perms($player, {{\"object_move\", $cap_move_obj}});", "move($cap_move_obj, $nothing);", "return $cap_move_obj.location == $nothing;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_recycle_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_recycle_no_grant", {"set_task_perms($player);", "recycle($cap_recycle_no_grant_obj);", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_recycle_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_recycle_with_grant", {"set_task_perms($player, {{\"object_recycle\", $cap_recycle_grant_obj}});", "recycle($cap_recycle_grant_obj);", "return !valid($cap_recycle_grant_obj);"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_chparent_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_chparent_no_grant", {"set_task_perms($player);", "chparent($cap_chparent_no_grant_obj, $cap_chparent_parent);", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "object_chparent_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "object_chparent_with_grant", {"set_task_perms($player, {{\"object_chparent\", $cap_chparent_grant_obj}});", "chparent($cap_chparent_grant_obj, $cap_chparent_parent);", "return parent($cap_chparent_grant_obj) == $cap_chparent_parent;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_define_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_define_no_grant", {"set_task_perms($player);", "add_property($cap_property_define_obj, \"defined_without_grant\", 1, {$player, \"r\"});", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_define_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_define_with_grant", {"set_task_perms($player, {{\"property_define\", $cap_property_define_obj}});", "add_property($cap_property_define_obj, \"defined_with_grant\", 1, {$player, \"r\"});", "return $cap_property_define_obj.defined_with_grant;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_delete_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_delete_no_grant", {"set_task_perms($player);", "delete_property($cap_property_delete_obj, \"doomed\");", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "property_delete_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "property_delete_with_grant", {"set_task_perms($player, {{\"property_delete\", $cap_property_delete_obj, \"doomed\"}});", "delete_property($cap_property_delete_obj, \"doomed\");", "return `property_info($cap_property_delete_obj, \"doomed\") ! E_PROPNF => 1';"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_add_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_add_no_grant", {"set_task_perms($player);", "add_verb($cap_verb_add_obj, {$player, \"r\", \"added_without_grant\"}, {\"this\", \"none\", \"this\"});", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_add_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_add_with_grant", {"set_task_perms($player, {{\"verb_add\", $cap_verb_add_obj}});", "add_verb($cap_verb_add_obj, {$player, \"r\", \"added_with_grant\"}, {\"this\", \"none\", \"this\"});", "return 1;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_program_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_program_no_grant", {"set_task_perms($player);", "set_verb_code($cap_verb_program_obj, \"programmable\", {\"return 99;\"});", "return 1;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_program_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_program_with_grant", {"set_task_perms($player, {{\"verb_program\", $cap_verb_program_obj, \"programmable\"}});", "set_verb_code($cap_verb_program_obj, \"programmable\", {\"return 99;\"});", "return length(verb_code($cap_verb_program_obj, \"programmable\")) > 0;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_call_no_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_call_no_grant", {"set_task_perms($player);", "return $cap_verb_call_obj:hidden_call();"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_call_with_grant"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_call_with_grant", {"set_task_perms($player, {{\"verb_call\", $cap_verb_call_obj, \"hidden_call\"}});", "return $cap_verb_call_obj:hidden_call();"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_read_grant_survives_rename"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_read_grant_survives_rename", {"set_task_perms($player, {{\"verb_read\", $cap_verb_binding_read_obj, \"bound_source_original\"}, {\"verb_write\", $cap_verb_binding_read_obj, \"bound_source_original\"}});", "set_verb_info($cap_verb_binding_read_obj, \"bound_source_original\", {$wizard_player, \"\", \"bound_source_renamed\"});", "return length(verb_code($cap_verb_binding_read_obj, \"bound_source_renamed\")) > 0;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_call_grant_survives_rename"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_call_grant_survives_rename", {"set_task_perms($player, {{\"verb_call\", $cap_verb_binding_call_obj, \"bound_call_original\"}, {\"verb_write\", $cap_verb_binding_call_obj, \"bound_call_original\"}});", "set_verb_info($cap_verb_binding_call_obj, \"bound_call_original\", {$wizard_player, \"\", \"bound_call_renamed\"});", "return $cap_verb_binding_call_obj:bound_call_renamed();"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "verb_call_grant_on_inherited_binding"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "verb_call_grant_on_inherited_binding", {"set_task_perms($player, {{\"verb_call\", $cap_verb_inherited_child, \"inherited_hidden\"}});", "return $cap_verb_inherited_child:inherited_hidden();"});
+
+@programmer
+; return $cap_helper:object_read_no_grant();
+E_PERM
+; return $cap_helper:object_read_with_grant();
+1
+; return $cap_helper:object_write_with_grant();
+7
+; return $cap_helper:property_read_no_grant();
+E_PERM
+; return $cap_helper:property_read_with_grant();
+37
+; return $cap_helper:property_write_no_grant();
+E_PERM
+; return $cap_helper:property_write_with_grant();
+12
+; return $cap_helper:verb_read_no_grant();
+E_PERM
+; return $cap_helper:verb_read_with_grant();
+1
+; return $cap_helper:verb_write_no_grant();
+E_PERM
+; return $cap_helper:verb_write_with_grant();
+1
+; return $cap_helper:object_move_no_grant();
+E_PERM
+; return $cap_helper:object_move_with_grant();
+1
+; return $cap_helper:object_recycle_no_grant();
+E_PERM
+; return $cap_helper:object_recycle_with_grant();
+1
+; return $cap_helper:object_chparent_no_grant();
+E_PERM
+; return $cap_helper:object_chparent_with_grant();
+1
+; return $cap_helper:property_define_no_grant();
+E_PERM
+; return $cap_helper:property_define_with_grant();
+1
+; return $cap_helper:property_delete_no_grant();
+E_PERM
+; return $cap_helper:property_delete_with_grant();
+1
+; return $cap_helper:verb_add_no_grant();
+E_PERM
+; return $cap_helper:verb_add_with_grant();
+1
+; return $cap_helper:verb_program_no_grant();
+E_PERM
+; return $cap_helper:verb_program_with_grant();
+1
+; return $cap_helper:verb_call_no_grant();
+E_VERBNF
+; return $cap_helper:verb_call_with_grant();
+4242
+; return $cap_helper:verb_read_grant_survives_rename();
+1
+; return $cap_helper:verb_call_grant_survives_rename();
+606
+; return $cap_helper:verb_call_grant_on_inherited_binding();
+707

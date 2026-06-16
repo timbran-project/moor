@@ -268,7 +268,8 @@ impl VmHost {
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
-                            &exec_request.lookup_principal(),
+                            exec_request.lookup_permissions(),
+                            &exec_request.program_authorization_object(),
                             &exec_request.program_key.verb_definer,
                             exec_request.program_key.verb_uuid,
                         )
@@ -310,7 +311,8 @@ impl VmHost {
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
-                            &exec_request.lookup_principal(),
+                            exec_request.lookup_permissions(),
+                            &exec_request.program_authorization_object(),
                             &exec_request.program_key.verb_definer,
                             exec_request.program_key.verb_uuid,
                         )

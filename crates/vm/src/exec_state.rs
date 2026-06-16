@@ -647,7 +647,8 @@ impl ExecState {
         // Defer program materialization/slot resolution to VmHost so it can source programs
         // from the task-owned cache.
         ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
-            self.top().authority_principal(),
+            self.top().authority(),
+            location,
             permissions_flags,
             resolved_verb,
             verb_name,
@@ -725,10 +726,11 @@ impl ExecState {
 
         let player = self.top().player();
         let args_list = args.clone();
-        let lookup_principal = self.top().authority_principal();
+        let lookup_permissions = self.top().authority();
         Ok(Some(ExecutionResult::DispatchVerb(Box::new(
             VerbExecutionRequest::new(
-                lookup_principal,
+                lookup_permissions,
+                SYSTEM_OBJECT,
                 permissions_flags,
                 resolved_verb,
                 bf_override_name,

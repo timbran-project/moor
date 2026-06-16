@@ -308,6 +308,12 @@ pub trait WorldState: Send {
     /// the chain, including removing property definitions inherited from the object.
     /// If the object is a location, the contents of that location are moved to #-1.
     /// (It is the caller's (bf_recycle) responsibility to execute :exitfunc for those objects).
+    fn check_recycle_object(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+    ) -> Result<(), WorldStateError>;
+
     fn recycle_object(
         &mut self,
         permissions: &TaskPermissions,
@@ -485,6 +491,18 @@ pub trait WorldState: Send {
     fn retrieve_verb(
         &self,
         permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<(ProgramType, VerbDef), WorldStateError>;
+
+    /// Retrieve executable verb program data after dispatch has selected a verb to run.
+    ///
+    /// This is separate from `retrieve_verb()`, which is source/read access. Execution
+    /// materialization is authorized by verb execute permission or a matching call grant.
+    fn retrieve_verb_for_execution(
+        &self,
+        permissions: &TaskPermissions,
+        authorization_obj: &Obj,
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(ProgramType, VerbDef), WorldStateError>;

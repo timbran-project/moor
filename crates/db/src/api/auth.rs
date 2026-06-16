@@ -25,6 +25,7 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_var::{Obj, Symbol};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 struct DbAuthPrincipal {
@@ -66,6 +67,12 @@ pub(super) enum AuthRule<'a> {
     ObjectWizard,
     /// Principal must own an object-domain resource or have the wizard bit.
     ObjectOwnerOrWizard { owner: &'a Obj },
+    /// Principal may move the given object.
+    ObjectMove { obj: &'a Obj, owner: &'a Obj },
+    /// Principal may recycle the given object.
+    ObjectRecycle { obj: &'a Obj, owner: &'a Obj },
+    /// Principal may change the given object's parent.
+    ObjectChparent { obj: &'a Obj, owner: &'a Obj },
     /// Object owner, wizard bit, or all requested object flags authorize access.
     ///
     /// When more than one object flag is requested, public access requires every requested flag.
@@ -82,6 +89,19 @@ pub(super) enum AuthRule<'a> {
         property_perms: &'a PropPerms,
         required: PropFlag,
     },
+    /// Principal may define a property on the given object.
+    PropertyDefine {
+        obj: &'a Obj,
+        owner: &'a Obj,
+        flags: BitEnum<ObjFlag>,
+    },
+    /// Principal may delete the named property from the given object.
+    PropertyDelete {
+        obj: &'a Obj,
+        prop: Symbol,
+        owner: &'a Obj,
+        flags: BitEnum<ObjFlag>,
+    },
     /// Principal must have the wizard bit for a property operation.
     PropertyWizard,
     /// Principal must be the requested property owner or have the wizard bit.
@@ -94,10 +114,16 @@ pub(super) enum AuthRule<'a> {
     /// Verb owner, wizard bit, or the requested verb flag authorizes access.
     VerbAllows {
         obj: &'a Obj,
-        verb: Symbol,
+        verb: Uuid,
         owner: &'a Obj,
         flags: BitEnum<VerbFlag>,
         required: VerbFlag,
+    },
+    /// Principal may add a verb to the given object.
+    VerbAdd {
+        obj: &'a Obj,
+        owner: &'a Obj,
+        flags: BitEnum<ObjFlag>,
     },
     /// Principal must be the requested verb owner or have the wizard bit.
     VerbOwnerOrWizard { owner: &'a Obj },
@@ -106,8 +132,8 @@ pub(super) enum AuthRule<'a> {
         current_owner: &'a Obj,
         requested_owner: &'a Obj,
     },
-    /// Updating verb code requires programmer or wizard authority.
-    VerbProgrammerOrWizard,
+    /// Principal may update code for the named verb.
+    VerbProgram { obj: &'a Obj, verb: Uuid },
 }
 
 impl AuthRule<'_> {
@@ -121,6 +147,24 @@ impl AuthRule<'_> {
     #[inline]
     pub(super) fn object_owner_or_wizard(owner: &Obj) -> AuthRule<'_> {
         AuthRule::ObjectOwnerOrWizard { owner }
+    }
+
+    /// Principal must control the object or hold a move grant for it.
+    #[inline]
+    pub(super) fn object_move<'a>(obj: &'a Obj, owner: &'a Obj) -> AuthRule<'a> {
+        AuthRule::ObjectMove { obj, owner }
+    }
+
+    /// Principal must control the object or hold a recycle grant for it.
+    #[inline]
+    pub(super) fn object_recycle<'a>(obj: &'a Obj, owner: &'a Obj) -> AuthRule<'a> {
+        AuthRule::ObjectRecycle { obj, owner }
+    }
+
+    /// Principal must control the object or hold a chparent grant for it.
+    #[inline]
+    pub(super) fn object_chparent<'a>(obj: &'a Obj, owner: &'a Obj) -> AuthRule<'a> {
+        AuthRule::ObjectChparent { obj, owner }
     }
 
     /// Principal must control the object owner or the object must expose all required flags.
@@ -152,6 +196,32 @@ impl AuthRule<'_> {
             prop,
             property_perms,
             required,
+        }
+    }
+
+    /// Principal must be able to define properties on the object.
+    #[inline]
+    pub(super) fn property_define<'a>(
+        obj: &'a Obj,
+        owner: &'a Obj,
+        flags: BitEnum<ObjFlag>,
+    ) -> AuthRule<'a> {
+        AuthRule::PropertyDefine { obj, owner, flags }
+    }
+
+    /// Principal must be able to delete the named property from the object.
+    #[inline]
+    pub(super) fn property_delete<'a>(
+        obj: &'a Obj,
+        prop: Symbol,
+        owner: &'a Obj,
+        flags: BitEnum<ObjFlag>,
+    ) -> AuthRule<'a> {
+        AuthRule::PropertyDelete {
+            obj,
+            prop,
+            owner,
+            flags,
         }
     }
 
@@ -189,7 +259,7 @@ impl AuthRule<'_> {
     #[inline]
     pub(super) fn verb_allows<'a>(
         obj: &'a Obj,
-        verb: Symbol,
+        verb: Uuid,
         owner: &'a Obj,
         flags: BitEnum<VerbFlag>,
         required: VerbFlag,
@@ -201,6 +271,16 @@ impl AuthRule<'_> {
             flags,
             required,
         }
+    }
+
+    /// Principal must be able to add verbs to the object.
+    #[inline]
+    pub(super) fn verb_add<'a>(
+        obj: &'a Obj,
+        owner: &'a Obj,
+        flags: BitEnum<ObjFlag>,
+    ) -> AuthRule<'a> {
+        AuthRule::VerbAdd { obj, owner, flags }
     }
 
     /// Principal may leave the verb owner unchanged; only wizards may change it.
@@ -215,28 +295,34 @@ impl AuthRule<'_> {
         }
     }
 
-    /// Principal must be a programmer or wizard.
+    /// Principal must be able to update code for the named verb.
     #[inline]
-    pub(super) fn verb_programmer_or_wizard() -> Self {
-        Self::VerbProgrammerOrWizard
+    pub(super) fn verb_program(obj: &Obj, verb: Uuid) -> AuthRule<'_> {
+        AuthRule::VerbProgram { obj, verb }
     }
 
     #[inline]
     fn denial(self) -> WorldStateError {
         match self {
             Self::PropertyAllows { .. }
+            | Self::PropertyDefine { .. }
+            | Self::PropertyDelete { .. }
             | Self::PropertyWizard
             | Self::PropertyOwnerOrWizard { .. }
             | Self::PropertyOwnerUnchangedOrWizard { .. } => {
                 WorldStateError::PropertyPermissionDenied
             }
             Self::VerbAllows { .. }
+            | Self::VerbAdd { .. }
             | Self::VerbOwnerOrWizard { .. }
             | Self::VerbOwnerUnchangedOrWizard { .. }
-            | Self::VerbProgrammerOrWizard => WorldStateError::VerbPermissionDenied,
-            Self::ObjectWizard | Self::ObjectOwnerOrWizard { .. } | Self::ObjectAllows { .. } => {
-                WorldStateError::ObjectPermissionDenied
-            }
+            | Self::VerbProgram { .. } => WorldStateError::VerbPermissionDenied,
+            Self::ObjectWizard
+            | Self::ObjectOwnerOrWizard { .. }
+            | Self::ObjectMove { .. }
+            | Self::ObjectRecycle { .. }
+            | Self::ObjectChparent { .. }
+            | Self::ObjectAllows { .. } => WorldStateError::ObjectPermissionDenied,
         }
     }
 }
@@ -278,6 +364,11 @@ impl AuthContext {
     }
 
     #[inline]
+    fn has_grant(&self, expected: CapabilityGrant) -> bool {
+        self.grants.iter().any(|grant| grant == expected)
+    }
+
+    #[inline]
     fn has_object_grant(&self, obj: &Obj, required: BitEnum<ObjFlag>) -> bool {
         self.grants.iter().any(|grant| match grant {
             CapabilityGrant::ObjectRead(grant_obj) => {
@@ -306,7 +397,7 @@ impl AuthContext {
     }
 
     #[inline]
-    fn has_verb_grant(&self, obj: &Obj, verb: Symbol, required: VerbFlag) -> bool {
+    fn has_verb_grant(&self, obj: &Obj, verb: Uuid, required: VerbFlag) -> bool {
         self.grants.iter().any(|grant| match grant {
             CapabilityGrant::VerbRead {
                 obj: grant_obj,
@@ -316,8 +407,17 @@ impl AuthContext {
                 obj: grant_obj,
                 verb: grant_verb,
             } => grant_obj == *obj && grant_verb == verb && required == VerbFlag::Write,
+            CapabilityGrant::VerbCall {
+                obj: grant_obj,
+                verb: grant_verb,
+            } => grant_obj == *obj && grant_verb == verb && required == VerbFlag::Exec,
             _ => false,
         })
+    }
+
+    #[inline]
+    pub(super) fn has_verb_call_grant(&self, obj: &Obj, verb: Uuid) -> bool {
+        self.has_grant(CapabilityGrant::VerbCall { obj: *obj, verb })
     }
 
     /// Evaluate a rule without mapping failure to an error.
@@ -326,6 +426,15 @@ impl AuthContext {
         match rule {
             AuthRule::ObjectWizard => self.is_wizard(),
             AuthRule::ObjectOwnerOrWizard { owner } => self.controls_owner(owner),
+            AuthRule::ObjectMove { obj, owner } => {
+                self.controls_owner(owner) || self.has_grant(CapabilityGrant::ObjectMove(*obj))
+            }
+            AuthRule::ObjectRecycle { obj, owner } => {
+                self.controls_owner(owner) || self.has_grant(CapabilityGrant::ObjectRecycle(*obj))
+            }
+            AuthRule::ObjectChparent { obj, owner } => {
+                self.controls_owner(owner) || self.has_grant(CapabilityGrant::ObjectChparent(*obj))
+            }
             AuthRule::ObjectAllows {
                 obj,
                 owner,
@@ -335,6 +444,23 @@ impl AuthContext {
                 self.controls_owner(owner)
                     || flags.contains_all(required)
                     || self.has_object_grant(obj, required)
+            }
+            AuthRule::PropertyDefine { obj, owner, flags } => {
+                self.controls_owner(owner)
+                    || flags.contains(ObjFlag::Write)
+                    || self.has_object_grant(obj, ObjFlag::Write.into())
+                    || self.has_grant(CapabilityGrant::PropertyDefine(*obj))
+            }
+            AuthRule::PropertyDelete {
+                obj,
+                prop,
+                owner,
+                flags,
+            } => {
+                self.controls_owner(owner)
+                    || flags.contains(ObjFlag::Write)
+                    || self.has_object_grant(obj, ObjFlag::Write.into())
+                    || self.has_grant(CapabilityGrant::PropertyDelete { obj: *obj, prop })
             }
             AuthRule::PropertyAllows {
                 obj,
@@ -365,13 +491,21 @@ impl AuthContext {
                     || flags.contains(required)
                     || self.has_verb_grant(obj, verb, required)
             }
+            AuthRule::VerbAdd { obj, owner, flags } => {
+                self.controls_owner(owner)
+                    || flags.contains(ObjFlag::Write)
+                    || self.has_object_grant(obj, ObjFlag::Write.into())
+                    || self.has_grant(CapabilityGrant::VerbAdd(*obj))
+            }
             AuthRule::VerbOwnerOrWizard { owner } => self.controls_owner(owner),
             AuthRule::VerbOwnerUnchangedOrWizard {
                 current_owner,
                 requested_owner,
             } => self.is_wizard() || requested_owner == current_owner,
-            AuthRule::VerbProgrammerOrWizard => {
-                self.is_wizard() || self.principal.flags.contains(ObjFlag::Programmer)
+            AuthRule::VerbProgram { obj, verb } => {
+                self.is_wizard()
+                    || self.principal.flags.contains(ObjFlag::Programmer)
+                    || self.has_grant(CapabilityGrant::VerbProgram { obj: *obj, verb })
             }
         }
     }
@@ -555,7 +689,7 @@ mod tests {
     #[test]
     fn verb_allows_owner_wizard_or_verb_flag() {
         let obj = Obj::mk_id(10);
-        let verb = Symbol::mk("v");
+        let verb = Uuid::from_u128(1);
         let owner = Obj::mk_id(1);
         let readable = BitEnum::new_with(VerbFlag::Read);
 
@@ -624,20 +758,32 @@ mod tests {
     }
 
     #[test]
-    fn verb_code_write_requires_programmer_or_wizard() {
+    fn verb_program_allows_programmer_wizard_or_grant() {
+        let obj = Obj::mk_id(10);
+        let verb = Uuid::from_u128(2);
+
         assert!(
             context(1, BitEnum::new_with(ObjFlag::Programmer))
-                .require(AuthRule::verb_programmer_or_wizard())
+                .require(AuthRule::verb_program(&obj, verb))
                 .is_ok()
         );
         assert!(
             context(1, BitEnum::new_with(ObjFlag::Wizard))
-                .require(AuthRule::verb_programmer_or_wizard())
+                .require(AuthRule::verb_program(&obj, verb))
                 .is_ok()
         );
         assert!(
+            context_with_grants(
+                1,
+                BitEnum::new(),
+                vec![CapabilityGrant::VerbProgram { obj, verb }]
+            )
+            .require(AuthRule::verb_program(&obj, verb))
+            .is_ok()
+        );
+        assert!(
             context(1, BitEnum::new())
-                .require(AuthRule::verb_programmer_or_wizard())
+                .require(AuthRule::verb_program(&obj, verb))
                 .is_err()
         );
     }
@@ -646,7 +792,7 @@ mod tests {
     fn require_returns_domain_specific_denial() {
         let obj = Obj::mk_id(10);
         let prop = Symbol::mk("p");
-        let verb = Symbol::mk("v");
+        let verb = Uuid::from_u128(3);
         let owner = Obj::mk_id(1);
         let other = Obj::mk_id(2);
         let propperms = PropPerms::new(owner, BitEnum::new());
@@ -657,6 +803,10 @@ mod tests {
         ));
         assert!(matches!(
             context(3, BitEnum::new()).require(AuthRule::object_owner_or_wizard(&owner)),
+            Err(WorldStateError::ObjectPermissionDenied)
+        ));
+        assert!(matches!(
+            context(3, BitEnum::new()).require(AuthRule::object_move(&obj, &owner)),
             Err(WorldStateError::ObjectPermissionDenied)
         ));
         assert!(matches!(
@@ -674,6 +824,15 @@ mod tests {
         ));
         assert!(matches!(
             context(3, BitEnum::new()).require(AuthRule::property_wizard()),
+            Err(WorldStateError::PropertyPermissionDenied)
+        ));
+        assert!(matches!(
+            context(3, BitEnum::new()).require(AuthRule::property_delete(
+                &obj,
+                prop,
+                &owner,
+                BitEnum::new()
+            )),
             Err(WorldStateError::PropertyPermissionDenied)
         ));
         assert!(matches!(
@@ -696,6 +855,10 @@ mod tests {
             Err(WorldStateError::VerbPermissionDenied)
         ));
         assert!(matches!(
+            context(3, BitEnum::new()).require(AuthRule::verb_program(&obj, verb)),
+            Err(WorldStateError::VerbPermissionDenied)
+        ));
+        assert!(matches!(
             context(3, BitEnum::new())
                 .require(AuthRule::verb_owner_unchanged_or_wizard(&owner, &other)),
             Err(WorldStateError::VerbPermissionDenied)
@@ -707,7 +870,7 @@ mod tests {
         let obj = Obj::mk_id(10);
         let owner = Obj::mk_id(1);
         let prop = Symbol::mk("p");
-        let verb = Symbol::mk("v");
+        let verb = Uuid::from_u128(4);
         let propperms = PropPerms::new(owner, BitEnum::new());
 
         assert!(
@@ -741,6 +904,146 @@ mod tests {
                 BitEnum::new(),
                 VerbFlag::Read
             ))
+        );
+    }
+
+    #[test]
+    fn grants_add_object_operation_access() {
+        let obj = Obj::mk_id(10);
+        let owner = Obj::mk_id(1);
+
+        assert!(
+            !context(2, BitEnum::new()).allows(AuthRule::object_move(&obj, &owner)),
+            "move should not be granted by default"
+        );
+        assert!(
+            context_with_grants(2, BitEnum::new(), vec![CapabilityGrant::ObjectMove(obj)])
+                .allows(AuthRule::object_move(&obj, &owner))
+        );
+        assert!(
+            context_with_grants(2, BitEnum::new(), vec![CapabilityGrant::ObjectRecycle(obj)])
+                .allows(AuthRule::object_recycle(&obj, &owner))
+        );
+        assert!(
+            context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::ObjectChparent(obj)]
+            )
+            .allows(AuthRule::object_chparent(&obj, &owner))
+        );
+        assert!(
+            !context_with_grants(2, BitEnum::new(), vec![CapabilityGrant::ObjectWrite(obj)])
+                .allows(AuthRule::object_recycle(&obj, &owner)),
+            "object_write should not authorize owner-only recycle"
+        );
+    }
+
+    #[test]
+    fn grants_add_property_operation_access() {
+        let obj = Obj::mk_id(10);
+        let owner = Obj::mk_id(1);
+        let prop = Symbol::mk("p");
+
+        assert!(
+            context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::PropertyDefine(obj)]
+            )
+            .allows(AuthRule::property_define(&obj, &owner, BitEnum::new()))
+        );
+        assert!(
+            context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::PropertyDelete { obj, prop }]
+            )
+            .allows(AuthRule::property_delete(
+                &obj,
+                prop,
+                &owner,
+                BitEnum::new()
+            ))
+        );
+        assert!(
+            context(2, BitEnum::new()).allows(AuthRule::property_define(
+                &obj,
+                &owner,
+                BitEnum::new_with(ObjFlag::Write)
+            )),
+            "public object write still authorizes property definition"
+        );
+        assert!(
+            !context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::PropertyDefine(obj)]
+            )
+            .allows(AuthRule::property_delete(
+                &obj,
+                prop,
+                &owner,
+                BitEnum::new()
+            )),
+            "property_define should not authorize property_delete"
+        );
+    }
+
+    #[test]
+    fn grants_add_verb_operation_access() {
+        let obj = Obj::mk_id(10);
+        let owner = Obj::mk_id(1);
+        let verb = Uuid::from_u128(5);
+
+        assert!(
+            context_with_grants(2, BitEnum::new(), vec![CapabilityGrant::VerbAdd(obj)])
+                .allows(AuthRule::verb_add(&obj, &owner, BitEnum::new()))
+        );
+        assert!(
+            context(2, BitEnum::new()).allows(AuthRule::verb_add(
+                &obj,
+                &owner,
+                BitEnum::new_with(ObjFlag::Write)
+            )),
+            "public object write still authorizes verb addition"
+        );
+        assert!(
+            context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::VerbProgram { obj, verb }]
+            )
+            .allows(AuthRule::verb_program(&obj, verb))
+        );
+        assert!(
+            context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::VerbCall { obj, verb }]
+            )
+            .allows(AuthRule::verb_allows(
+                &obj,
+                verb,
+                &owner,
+                BitEnum::new(),
+                VerbFlag::Exec
+            ))
+        );
+        assert!(
+            !context_with_grants(
+                2,
+                BitEnum::new(),
+                vec![CapabilityGrant::VerbCall { obj, verb }]
+            )
+            .allows(AuthRule::verb_allows(
+                &obj,
+                verb,
+                &owner,
+                BitEnum::new(),
+                VerbFlag::Read
+            )),
+            "verb_call should not authorize verb read"
         );
     }
 }

@@ -440,9 +440,6 @@ fn bf_set_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     }
 
-    // Setting verb code is limited to programmers in LambdaMOO/ToastStunt.
-    bf_args.require_programmer()?;
-
     let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
 
     // Parse optional verbosity (default 2 for set_verb_code) and output_mode (default 0)

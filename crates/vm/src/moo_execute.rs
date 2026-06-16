@@ -41,12 +41,17 @@ use std::{sync::LazyLock, time::Duration};
 /// The set of parameters for a scheduler-requested *resolved* verb method dispatch.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VerbExecutionRequest {
-    /// Principal used for permission-sensitive program lookup and cache resolution.
+    /// Permissions used for permission-sensitive program lookup and cache resolution.
     ///
-    /// This is not necessarily the authority principal of the activation that will be pushed. For
-    /// normal verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and
-    /// program materialization still use this principal.
-    lookup_principal: Obj,
+    /// This is not necessarily the authority of the activation that will be pushed. For normal
+    /// verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and program
+    /// materialization still use these permissions.
+    lookup_permissions: TaskPermissions,
+    /// Object used when authorizing executable program materialization.
+    ///
+    /// This is usually the dispatch receiver. It can differ from `program_key.verb_definer` for
+    /// inherited verbs, while the cache key remains the concrete verb definition.
+    program_authorization_object: Obj,
     /// Cached flags for the activation authority selected by dispatch.
     ///
     /// `Activation::for_call` pairs these flags with `resolved_verb.owner()`.
@@ -73,7 +78,8 @@ impl VerbExecutionRequest {
     #[allow(clippy::too_many_arguments)]
     #[inline]
     pub fn new(
-        lookup_principal: Obj,
+        lookup_permissions: TaskPermissions,
+        program_authorization_object: Obj,
         activation_authority_flags: BitEnum<ObjFlag>,
         resolved_verb: ResolvedVerb,
         verb_name: Symbol,
@@ -85,7 +91,8 @@ impl VerbExecutionRequest {
         program_key: VerbProgramKey,
     ) -> Self {
         Self {
-            lookup_principal,
+            lookup_permissions,
+            program_authorization_object,
             activation_authority_flags,
             resolved_verb,
             verb_name,
@@ -101,7 +108,19 @@ impl VerbExecutionRequest {
     /// Principal used to resolve or materialize the target verb program.
     #[inline]
     pub fn lookup_principal(&self) -> Obj {
-        self.lookup_principal
+        self.lookup_permissions.principal()
+    }
+
+    /// Permissions used to resolve or materialize the target verb program.
+    #[inline]
+    pub fn lookup_permissions(&self) -> &TaskPermissions {
+        &self.lookup_permissions
+    }
+
+    /// Object to check when authorizing executable program materialization.
+    #[inline]
+    pub fn program_authorization_object(&self) -> Obj {
+        self.program_authorization_object
     }
 
     /// Cached flags paired with the resolved verb owner for the new activation.
@@ -114,12 +133,17 @@ impl VerbExecutionRequest {
 /// The set of parameters for a command verb dispatch with full command environment.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandVerbExecutionRequest {
-    /// Principal used for permission-sensitive program lookup and cache resolution.
+    /// Permissions used for permission-sensitive program lookup and cache resolution.
     ///
-    /// This is not necessarily the authority principal of the activation that will be pushed. For
-    /// normal verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and
-    /// program materialization still use this principal.
-    lookup_principal: Obj,
+    /// This is not necessarily the authority of the activation that will be pushed. For normal
+    /// verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and program
+    /// materialization still use these permissions.
+    lookup_permissions: TaskPermissions,
+    /// Object used when authorizing executable program materialization.
+    ///
+    /// This is usually the dispatch receiver. It can differ from `program_key.verb_definer` for
+    /// inherited verbs, while the cache key remains the concrete verb definition.
+    program_authorization_object: Obj,
     /// Cached flags for the activation authority selected by dispatch.
     ///
     /// `Activation::for_call` pairs these flags with `resolved_verb.owner()`.
@@ -144,7 +168,8 @@ impl CommandVerbExecutionRequest {
     #[allow(clippy::too_many_arguments)]
     #[inline]
     pub fn new(
-        lookup_principal: Obj,
+        lookup_permissions: TaskPermissions,
+        program_authorization_object: Obj,
         activation_authority_flags: BitEnum<ObjFlag>,
         resolved_verb: ResolvedVerb,
         verb_name: Symbol,
@@ -155,7 +180,8 @@ impl CommandVerbExecutionRequest {
         program_key: VerbProgramKey,
     ) -> Self {
         Self {
-            lookup_principal,
+            lookup_permissions,
+            program_authorization_object,
             activation_authority_flags,
             resolved_verb,
             verb_name,
@@ -170,7 +196,19 @@ impl CommandVerbExecutionRequest {
     /// Principal used to resolve or materialize the target verb program.
     #[inline]
     pub fn lookup_principal(&self) -> Obj {
-        self.lookup_principal
+        self.lookup_permissions.principal()
+    }
+
+    /// Permissions used to resolve or materialize the target verb program.
+    #[inline]
+    pub fn lookup_permissions(&self) -> &TaskPermissions {
+        &self.lookup_permissions
+    }
+
+    /// Object to check when authorizing executable program materialization.
+    #[inline]
+    pub fn program_authorization_object(&self) -> Obj {
+        self.program_authorization_object
     }
 
     /// Cached flags paired with the resolved verb owner for the new activation.
@@ -201,7 +239,8 @@ mod execution_request_tests {
         let lookup_principal = Obj::mk_id(10);
         let activation_flags = BitEnum::new_with(ObjFlag::Programmer);
         let request = VerbExecutionRequest::new(
-            lookup_principal,
+            TaskPermissions::new(lookup_principal, BitEnum::new()),
+            Obj::mk_id(30),
             activation_flags,
             resolved_verb(Obj::mk_id(20)),
             Symbol::mk("test"),
@@ -239,7 +278,8 @@ mod execution_request_tests {
             ambiguous_iobj: None,
         };
         let request = CommandVerbExecutionRequest::new(
-            lookup_principal,
+            TaskPermissions::new(lookup_principal, BitEnum::new()),
+            Obj::mk_id(31),
             activation_flags,
             resolved_verb(Obj::mk_id(21)),
             Symbol::mk("look"),
@@ -700,7 +740,8 @@ fn prepare_pass_verb<H: VmHost>(
     };
 
     ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
-        context.authority.principal(),
+        context.authority.clone(),
+        parent,
         permissions_flags,
         resolved_verb,
         context.verb_name,
@@ -764,7 +805,8 @@ fn prepare_call_verb<H: VmHost>(
     };
 
     ExecutionResult::DispatchVerb(Box::new(VerbExecutionRequest::new(
-        context.authority.principal(),
+        context.authority.clone(),
+        location,
         permissions_flags,
         resolved_verb,
         verb_name,

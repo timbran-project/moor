@@ -17,7 +17,6 @@ use std::sync::LazyLock;
 use ahash::AHasher;
 use fast_telemetry::{DeriveLabel, LabeledCounter};
 use moor_common::model::{TaskPermissions, VerbProgramKey, WorldState, WorldStateError};
-use moor_common::util::BitEnum;
 use moor_compiler::Program;
 use moor_var::{Obj, program::ProgramType};
 pub use moor_vm::{CachedProgramPtr, ProgramSlot};
@@ -110,7 +109,8 @@ impl TaskProgramCache {
     pub fn resolve_verb_slot(
         &mut self,
         world_state: &dyn WorldState,
-        authority_principal: &Obj,
+        permissions: &TaskPermissions,
+        authorization_obj: &Obj,
         verb_definer: &Obj,
         verb_uuid: uuid::Uuid,
     ) -> Result<ResolveVerbSlotResult, WorldStateError> {
@@ -133,8 +133,12 @@ impl TaskProgramCache {
         self.local_misses += 1;
         PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Misses);
 
-        let permissions = TaskPermissions::new(*authority_principal, BitEnum::new());
-        let (program, _) = world_state.retrieve_verb(&permissions, verb_definer, verb_uuid)?;
+        let (program, _) = world_state.retrieve_verb_for_execution(
+            permissions,
+            authorization_obj,
+            verb_definer,
+            verb_uuid,
+        )?;
         let ProgramType::MooR(program) = program;
         let entry = CachedProgramSlot { program };
 

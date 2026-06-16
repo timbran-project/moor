@@ -75,7 +75,6 @@ fn create_object_with_initialize(
     .map_err(world_state_bf_err)?;
 
     // Try to call :initialize on the new object
-    let authority_principal = bf_args.task_authority_principal();
     let Ok(Some(verb_result)) = with_current_transaction(|world_state| {
         world_state.dispatch_verb(
             &bf_args.task_permissions(),
@@ -99,7 +98,8 @@ fn create_object_with_initialize(
     };
 
     let ve = VerbExecutionRequest::new(
-        authority_principal,
+        bf_args.task_permissions(),
+        new_obj,
         verb_result.permissions_flags,
         verb_result.verbdef,
         *INITIALIZE_SYM,
@@ -695,7 +695,15 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    bf_args.require_object_control_msg(&obj, "recycle() permission denied")?;
+    with_current_transaction(|world_state| {
+        world_state.check_recycle_object(&bf_args.task_permissions(), &obj)
+    })
+    .map_err(|err| match err {
+        WorldStateError::ObjectPermissionDenied => {
+            BfErr::ErrValue(E_PERM.msg("recycle() permission denied"))
+        }
+        err => world_state_bf_err(err),
+    })?;
 
     // Before actually recycling the object, we need to move all its contents to #-1. While
     // `recycle_object` will actually do this, we need to make sure :exitfunc is called on each
@@ -735,7 +743,6 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     }
                 }
                 let contents = v_list(&contents);
-                let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &bf_args.task_permissions(),
@@ -751,7 +758,8 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline_arg = Some(contents);
 
                         return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
-                            authority_principal,
+                            bf_args.task_permissions(),
+                            obj,
                             verb_result.permissions_flags,
                             verb_result.verbdef,
                             *RECYCLE_SYM,
@@ -802,7 +810,6 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     // :exitfunc *should* exist because we looked for it earlier, and we're supposed to
                     // be transactionally isolated. But we need to do resolution anyways, so we will
                     // look again anyways.
-                    let authority_principal = bf_args.task_authority_principal();
                     let Ok(Some(verb_result)) = with_current_transaction(|world_state| {
                         world_state.dispatch_verb(
                             &bf_args.task_permissions(),
@@ -823,7 +830,8 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
                     // Call :exitfunc on the head object.
                     return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
-                        authority_principal,
+                        bf_args.task_permissions(),
+                        head_obj,
                         verb_result.permissions_flags,
                         verb_result.verbdef,
                         *EXITFUNC_SYM,
@@ -922,7 +930,6 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                     tramp = BF_MOVE_TRAMPOLINE_MOVE_CALL_EXITFUNC;
                     continue;
                 }
-                let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &bf_args.task_permissions(),
@@ -937,7 +944,8 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline = Some(BF_MOVE_TRAMPOLINE_MOVE_CALL_EXITFUNC);
                         bf_frame.bf_trampoline_arg = None;
                         return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
-                            authority_principal,
+                            bf_args.task_permissions(),
+                            whereto,
                             verb_result.permissions_flags,
                             verb_result.verbdef,
                             *ACCEPT_SYM,
@@ -999,7 +1007,6 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 }
 
                 // Call exitfunc...
-                let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &bf_args.task_permissions(),
@@ -1015,7 +1022,8 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline_arg = None;
 
                         let continuation = DispatchVerb(Box::new(VerbExecutionRequest::new(
-                            authority_principal,
+                            bf_args.task_permissions(),
+                            original_location,
                             verb_result.permissions_flags,
                             verb_result.verbdef,
                             *EXITFUNC_SYM,
@@ -1048,7 +1056,6 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
                 // Exitfunc has been called, and returned. Result is irrelevant. Prepare to call
                 // :enterfunc on the destination.
-                let authority_principal = bf_args.task_authority_principal();
                 match with_current_transaction(|world_state| {
                     world_state.dispatch_verb(
                         &bf_args.task_permissions(),
@@ -1064,7 +1071,8 @@ fn bf_move(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                         bf_frame.bf_trampoline_arg = None;
 
                         return Ok(VmInstr(DispatchVerb(Box::new(VerbExecutionRequest::new(
-                            authority_principal,
+                            bf_args.task_permissions(),
+                            whereto,
                             verb_result.permissions_flags,
                             verb_result.verbdef,
                             *ENTERFUNC_SYM,
@@ -2033,9 +2041,9 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
             };
 
             // Build the CommandVerbExecutionRequest
-            let permissions = verb_result.verbdef.owner();
             let exec_request = Box::new(crate::vm::CommandVerbExecutionRequest::new(
-                permissions,
+                bf_args.task_permissions(),
+                target,
                 verb_result.permissions_flags,
                 verb_result.verbdef,
                 verb_name,

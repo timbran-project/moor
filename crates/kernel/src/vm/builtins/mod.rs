@@ -371,26 +371,6 @@ impl BfCallState<'_> {
             .map_err(|_| BfErr::ErrValue(E_PERM.msg(message)))
     }
 
-    /// Require object control through `WorldState::controls()` and use a builtin-specific message.
-    ///
-    /// This is for gates that control a database object rather than an owner principal already
-    /// available to the builtin.
-    pub fn require_object_control_msg(
-        &self,
-        obj: &Obj,
-        message: &'static str,
-    ) -> Result<(), BfErr> {
-        let authority_principal = self.task_authority_principal();
-        let controls =
-            with_current_transaction(|world_state| world_state.controls(&authority_principal, obj))
-                .map_err(world_state_bf_err)?;
-        if controls {
-            return Ok(());
-        }
-
-        Err(BfErr::ErrValue(E_PERM.msg(message)))
-    }
-
     pub fn bf_frame(&self) -> &BuiltinFrame {
         let Frame::Bf(frame) = &self.exec_state.top().frame else {
             panic!("Expected a BF frame at the top of the stack");

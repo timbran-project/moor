@@ -28,9 +28,9 @@ use crate::{
 };
 use moor_common::{
     model::{
-        BuiltinProxyCacheBits, CommitResult, DispatchFlagsSource, HasUuid, Named, ObjAttrs,
-        ObjFlag, ObjSet, ObjectKind, ObjectQuery, ObjectRef, PropAttrs, PropDef, PropDefs,
-        PropFlag, PropPerms, TaskPermissions, ValSet, VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs,
+        BuiltinProxyCacheBits, CommitResult, DispatchFlagsSource, HasUuid, ObjAttrs, ObjFlag,
+        ObjSet, ObjectKind, ObjectQuery, ObjectRef, PropAttrs, PropDef, PropDefs, PropFlag,
+        PropPerms, TaskPermissions, ValSet, VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs,
         VerbDispatch, VerbDispatchResult, VerbFlag, VerbLookup, VerbProgramKey, WorldState,
         WorldStateError, WorldStatePerf, WorldStateTimerOp,
     },
@@ -246,7 +246,7 @@ impl DbWorldState {
         let auth = self.auth_context(permissions)?;
         auth.require(AuthRule::verb_allows(
             obj,
-            verbdef.names()[0],
+            verbdef.uuid(),
             &verbdef.owner(),
             verbdef.flags(),
             VerbFlag::Write,
@@ -260,9 +260,9 @@ impl DbWorldState {
             ))?;
         }
 
-        // If the verb code is being altered, a programmer or wizard bit is required.
+        // If the verb code is being altered, require code-writing authority.
         if verb_attrs.program.is_some() {
-            auth.require(AuthRule::verb_programmer_or_wizard())?;
+            auth.require(AuthRule::verb_program(obj, verbdef.uuid()))?;
         }
 
         self.get_tx_mut()
@@ -438,6 +438,16 @@ impl WorldState for DbWorldState {
         self.get_tx_mut().create_object(id_kind, attrs)
     }
 
+    fn check_recycle_object(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+    ) -> Result<(), WorldStateError> {
+        let owner = self.owner_of(obj)?;
+        self.auth_context(permissions)?
+            .require(AuthRule::object_recycle(obj, &owner))
+    }
+
     fn recycle_object(
         &mut self,
         permissions: &TaskPermissions,
@@ -446,9 +456,7 @@ impl WorldState for DbWorldState {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::RecycleObject);
-        let owner = self.owner_of(obj)?;
-        self.auth_context(permissions)?
-            .require(AuthRule::object_owner_or_wizard(&owner))?;
+        self.check_recycle_object(permissions, obj)?;
 
         self.get_tx_mut().recycle_object(obj)
     }
@@ -468,7 +476,7 @@ impl WorldState for DbWorldState {
             .start(WorldStateTimerOp::MoveObject);
         let owner = self.owner_of(obj)?;
         self.auth_context(permissions)?
-            .require(AuthRule::object_owner_or_wizard(&owner))?;
+            .require(AuthRule::object_move(obj, &owner))?;
 
         // Get the old location before moving
         let old_loc = self.get_tx().get_object_location(obj)?;
@@ -749,16 +757,11 @@ impl WorldState for DbWorldState {
             return Err(WorldStateError::PropertyPermissionDenied);
         }
 
-        // Defining a property requires write permission on the object and authority over the
+        // Defining a property requires object-write-equivalent authority and authority over the
         // requested property owner.
         let (flags, objowner) = (self.flags_of(location)?, self.owner_of(location)?);
         let auth = self.auth_context(permissions)?;
-        auth.require(AuthRule::object_allows(
-            location,
-            &objowner,
-            flags,
-            ObjFlag::Write.into(),
-        ))?;
+        auth.require(AuthRule::property_define(location, &objowner, flags))?;
         auth.require(AuthRule::property_owner_or_wizard(propowner))?;
 
         if initial_value.as_ref().is_some_and(Var::is_none) {
@@ -791,12 +794,7 @@ impl WorldState for DbWorldState {
             .ok_or_else(|| WorldStateError::PropertyNotFound(*obj, pname.to_string()))?;
         let (objflags, objowner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         self.auth_context(permissions)?
-            .require(AuthRule::object_allows(
-                obj,
-                &objowner,
-                objflags,
-                ObjFlag::Write.into(),
-            ))?;
+            .require(AuthRule::property_delete(obj, pname, &objowner, objflags))?;
 
         self.get_tx_mut().delete_property(obj, pdef.uuid())
     }
@@ -814,12 +812,7 @@ impl WorldState for DbWorldState {
         let _t = db_counters().timers_hot.start(WorldStateTimerOp::AddVerb);
         let (objflags, obj_owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
         let auth = self.auth_context(permissions)?;
-        auth.require(AuthRule::object_allows(
-            obj,
-            &obj_owner,
-            objflags,
-            ObjFlag::Write.into(),
-        ))?;
+        auth.require(AuthRule::verb_add(obj, &obj_owner, objflags))?;
         // LambdaMOO/ToastStunt semantics: non-wizards can only create verbs owned by themselves.
         auth.require(AuthRule::verb_owner_or_wizard(owner))?;
 
@@ -926,7 +919,7 @@ impl WorldState for DbWorldState {
         self.auth_context(permissions)?
             .require(AuthRule::verb_allows(
                 obj,
-                vname,
+                vh.uuid(),
                 &vh.owner(),
                 vh.flags(),
                 VerbFlag::Read,
@@ -945,15 +938,10 @@ impl WorldState for DbWorldState {
             .timers_hot
             .start(WorldStateTimerOp::GetVerbAtIndex);
         let vh = self.get_tx().get_verb_by_index(obj, vidx)?;
-        let verb_name = vh
-            .names()
-            .first()
-            .copied()
-            .unwrap_or_else(|| Symbol::mk(""));
         self.auth_context(permissions)?
             .require(AuthRule::verb_allows(
                 obj,
-                verb_name,
+                vh.uuid(),
                 &vh.owner(),
                 vh.flags(),
                 VerbFlag::Read,
@@ -974,18 +962,36 @@ impl WorldState for DbWorldState {
         let vh = verbs
             .find(&uuid)
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
-        let verb_name = vh
-            .names()
-            .first()
-            .copied()
-            .unwrap_or_else(|| Symbol::mk(""));
         self.auth_context(permissions)?
             .require(AuthRule::verb_allows(
                 obj,
-                verb_name,
+                vh.uuid(),
                 &vh.owner(),
                 vh.flags(),
                 VerbFlag::Read,
+            ))?;
+        let binary = self.get_tx().get_verb_program(&vh.location(), vh.uuid())?;
+        Ok((binary, vh))
+    }
+
+    fn retrieve_verb_for_execution(
+        &self,
+        permissions: &TaskPermissions,
+        authorization_obj: &Obj,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<(ProgramType, VerbDef), WorldStateError> {
+        let verbs = self.get_tx().get_verbs(obj)?;
+        let vh = verbs
+            .find(&uuid)
+            .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
+        self.auth_context(permissions)?
+            .require(AuthRule::verb_allows(
+                authorization_obj,
+                vh.uuid(),
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Exec,
             ))?;
         let binary = self.get_tx().get_verb_program(&vh.location(), vh.uuid())?;
         Ok((binary, vh))
@@ -1016,7 +1022,7 @@ impl WorldState for DbWorldState {
         self.auth_context(permissions)?
             .require(AuthRule::verb_allows(
                 lookup.object,
-                lookup.verb_name,
+                vh.uuid(),
                 &vh.owner(),
                 vh.flags(),
                 VerbFlag::Read,
@@ -1046,16 +1052,32 @@ impl WorldState for DbWorldState {
             dispatch.lookup.flagspec,
         ) {
             Ok(vh) => vh,
-            Err(WorldStateError::VerbNotFound(_, _)) => return Ok(None),
+            Err(WorldStateError::VerbNotFound(_, _)) => {
+                let candidate = match tx.resolve_verb_handle(
+                    dispatch.lookup.object,
+                    dispatch.lookup.verb_name,
+                    dispatch.lookup.argspec,
+                    None,
+                ) {
+                    Ok(vh) => vh,
+                    Err(WorldStateError::VerbNotFound(_, _)) => return Ok(None),
+                    Err(e) => return Err(e),
+                };
+                if auth.has_verb_call_grant(dispatch.lookup.object, candidate.uuid()) {
+                    candidate
+                } else {
+                    return Ok(None);
+                }
+            }
             Err(e) => return Err(e),
         };
 
         auth.require(AuthRule::verb_allows(
             dispatch.lookup.object,
-            dispatch.lookup.verb_name,
+            vh.uuid(),
             &vh.owner(),
             vh.flags(),
-            VerbFlag::Read,
+            VerbFlag::Exec,
         ))?;
         let permissions_flags = match dispatch.flags_source {
             DispatchFlagsSource::Permissions => auth.principal_flags(),
@@ -1116,7 +1138,7 @@ impl WorldState for DbWorldState {
 
         self.check_parent(permissions, new_parent, &owner)?;
         self.auth_context(permissions)?
-            .require(AuthRule::object_owner_or_wizard(&owner))?;
+            .require(AuthRule::object_chparent(obj, &owner))?;
         self.check_chparent_property_conflict(permissions, obj, new_parent)?;
 
         self.get_tx_mut().set_object_parent(obj, new_parent)

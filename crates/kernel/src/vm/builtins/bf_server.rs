@@ -42,7 +42,10 @@ use crate::{
 };
 use moor_common::{
     build,
-    model::{CapabilityGrant, CapabilityGrants, ObjFlag, WorldStateError},
+    model::{
+        CapabilityGrant, CapabilityGrants, DispatchFlagsSource, HasUuid, ObjFlag, VerbDispatch,
+        VerbLookup, WorldStateError,
+    },
     util::{
         MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
     },
@@ -57,6 +60,7 @@ use moor_var::{
     VarType::TYPE_NONE, v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str,
     v_string, v_sym,
 };
+use uuid::Uuid;
 
 /// Placeholder function for unimplemented builtins.
 pub(crate) fn bf_noop(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
@@ -108,7 +112,10 @@ fn bf_caller_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_obj(bf_args.caller_perms())))
 }
 
-fn parse_capability_grants(value: &Var) -> Result<CapabilityGrants, BfErr> {
+fn parse_capability_grants(
+    value: &Var,
+    mut resolve_verb: impl FnMut(VerbGrantKind, Obj, Symbol) -> Result<Uuid, BfErr>,
+) -> Result<CapabilityGrants, BfErr> {
     let Some(grants_list) = value.as_list() else {
         return Err(ErrValue(
             E_TYPE.msg("set_task_perms() capability grants must be a list"),
@@ -117,13 +124,22 @@ fn parse_capability_grants(value: &Var) -> Result<CapabilityGrants, BfErr> {
 
     let mut grants = Vec::with_capacity(grants_list.len());
     for grant in grants_list.iter() {
-        grants.push(parse_capability_grant(&grant)?);
+        grants.push(parse_capability_grant(&grant, &mut resolve_verb)?);
     }
 
     Ok(CapabilityGrants::from_vec(grants))
 }
 
-fn parse_capability_grant(value: &Var) -> Result<CapabilityGrant, BfErr> {
+#[derive(Clone, Copy)]
+enum VerbGrantKind {
+    Definition,
+    Call,
+}
+
+fn parse_capability_grant(
+    value: &Var,
+    resolve_verb: &mut impl FnMut(VerbGrantKind, Obj, Symbol) -> Result<Uuid, BfErr>,
+) -> Result<CapabilityGrant, BfErr> {
     let Some(spec) = value.as_list() else {
         return Err(ErrValue(
             E_TYPE.msg("set_task_perms() capability grant entries must be lists"),
@@ -140,6 +156,9 @@ fn parse_capability_grant(value: &Var) -> Result<CapabilityGrant, BfErr> {
     match grant_name.as_str() {
         "object_read" => parse_object_grant(&spec, CapabilityGrant::ObjectRead),
         "object_write" => parse_object_grant(&spec, CapabilityGrant::ObjectWrite),
+        "object_move" => parse_object_grant(&spec, CapabilityGrant::ObjectMove),
+        "object_recycle" => parse_object_grant(&spec, CapabilityGrant::ObjectRecycle),
+        "object_chparent" => parse_object_grant(&spec, CapabilityGrant::ObjectChparent),
         "property_read" => parse_property_grant(&spec, |obj, prop| CapabilityGrant::PropertyRead {
             obj,
             prop,
@@ -147,10 +166,32 @@ fn parse_capability_grant(value: &Var) -> Result<CapabilityGrant, BfErr> {
         "property_write" => parse_property_grant(&spec, |obj, prop| {
             CapabilityGrant::PropertyWrite { obj, prop }
         }),
-        "verb_read" => parse_verb_grant(&spec, |obj, verb| CapabilityGrant::VerbRead { obj, verb }),
-        "verb_write" => {
-            parse_verb_grant(&spec, |obj, verb| CapabilityGrant::VerbWrite { obj, verb })
-        }
+        "property_define" => parse_object_grant(&spec, CapabilityGrant::PropertyDefine),
+        "property_delete" => parse_property_grant(&spec, |obj, prop| {
+            CapabilityGrant::PropertyDelete { obj, prop }
+        }),
+        "verb_read" => parse_verb_grant(
+            &spec,
+            resolve_verb,
+            VerbGrantKind::Definition,
+            |obj, verb| CapabilityGrant::VerbRead { obj, verb },
+        ),
+        "verb_write" => parse_verb_grant(
+            &spec,
+            resolve_verb,
+            VerbGrantKind::Definition,
+            |obj, verb| CapabilityGrant::VerbWrite { obj, verb },
+        ),
+        "verb_add" => parse_object_grant(&spec, CapabilityGrant::VerbAdd),
+        "verb_program" => parse_verb_grant(
+            &spec,
+            resolve_verb,
+            VerbGrantKind::Definition,
+            |obj, verb| CapabilityGrant::VerbProgram { obj, verb },
+        ),
+        "verb_call" => parse_verb_grant(&spec, resolve_verb, VerbGrantKind::Call, |obj, verb| {
+            CapabilityGrant::VerbCall { obj, verb }
+        }),
         _ => Err(ErrValue(
             E_INVARG.msg("set_task_perms() capability grant name is not supported"),
         )),
@@ -194,7 +235,9 @@ fn parse_property_grant(
 
 fn parse_verb_grant(
     spec: &[Var],
-    grant: impl FnOnce(Obj, Symbol) -> CapabilityGrant,
+    resolve_verb: &mut impl FnMut(VerbGrantKind, Obj, Symbol) -> Result<Uuid, BfErr>,
+    kind: VerbGrantKind,
+    grant: impl FnOnce(Obj, Uuid) -> CapabilityGrant,
 ) -> Result<CapabilityGrant, BfErr> {
     if spec.len() != 3 {
         return Err(ErrValue(
@@ -207,7 +250,8 @@ fn parse_verb_grant(
         ));
     };
     let verb = spec[2].as_symbol().map_err(ErrValue)?;
-    Ok(grant(obj, verb))
+    let uuid = resolve_verb(kind, obj, verb)?;
+    Ok(grant(obj, uuid))
 }
 
 /// Usage: `none set_task_perms(obj perms[, list grants])`
@@ -230,7 +274,33 @@ fn bf_set_task_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         bf_args.require_wizard_msg(
             "set_task_perms() with capability grants requires wizard permissions",
         )?;
-        let grants = parse_capability_grants(&bf_args.args[1])?;
+        let permissions = bf_args.task_permissions();
+        let grants = parse_capability_grants(&bf_args.args[1], |kind, obj, verb| {
+            with_current_transaction(|world_state| match kind {
+                VerbGrantKind::Definition => world_state
+                    .get_verb(&permissions, &obj, verb)
+                    .map(|verbdef| verbdef.uuid()),
+                VerbGrantKind::Call => world_state
+                    .dispatch_verb(
+                        &permissions,
+                        VerbDispatch::new(
+                            VerbLookup {
+                                object: &obj,
+                                verb_name: verb,
+                                argspec: None,
+                                flagspec: None,
+                            },
+                            DispatchFlagsSource::VerbOwner,
+                        ),
+                    )
+                    .and_then(|result| {
+                        result
+                            .map(|verb_result| verb_result.program_key.verb_uuid)
+                            .ok_or_else(|| WorldStateError::VerbNotFound(obj, verb.to_string()))
+                    }),
+            })
+            .map_err(world_state_bf_err)
+        })?;
         bf_args.exec_state.set_task_perms_with_grants(
             &mut crate::vm::kernel_host::KernelHost,
             perms_for,
@@ -1326,11 +1396,29 @@ mod tests {
     #[test]
     fn parses_supported_capability_grants() {
         let obj = Obj::mk_id(10);
-        let grants = parse_capability_grants(&v_list(&[
-            v_list(&[v_str("object_read"), v_obj(obj)]),
-            v_list(&[v_str("property_write"), v_obj(obj), v_str("p")]),
-            v_list(&[v_sym(Symbol::mk("verb_read")), v_obj(obj), v_str("v")]),
-        ]))
+        let verb_read = Uuid::from_u128(1);
+        let verb_write = Uuid::from_u128(2);
+        let verb_program = Uuid::from_u128(3);
+        let verb_call = Uuid::from_u128(4);
+        let mut verb_ids = [verb_read, verb_write, verb_program, verb_call].into_iter();
+        let grants = parse_capability_grants(
+            &v_list(&[
+                v_list(&[v_str("object_read"), v_obj(obj)]),
+                v_list(&[v_str("object_write"), v_obj(obj)]),
+                v_list(&[v_str("object_move"), v_obj(obj)]),
+                v_list(&[v_str("object_recycle"), v_obj(obj)]),
+                v_list(&[v_str("object_chparent"), v_obj(obj)]),
+                v_list(&[v_str("property_define"), v_obj(obj)]),
+                v_list(&[v_str("property_write"), v_obj(obj), v_str("p")]),
+                v_list(&[v_str("property_delete"), v_obj(obj), v_str("p")]),
+                v_list(&[v_str("verb_add"), v_obj(obj)]),
+                v_list(&[v_sym(Symbol::mk("verb_read")), v_obj(obj), v_str("v")]),
+                v_list(&[v_str("verb_write"), v_obj(obj), v_str("v")]),
+                v_list(&[v_str("verb_program"), v_obj(obj), v_str("v")]),
+                v_list(&[v_str("verb_call"), v_obj(obj), v_str("v")]),
+            ]),
+            |_, _, _| Ok(verb_ids.next().unwrap()),
+        )
         .unwrap();
 
         let parsed = grants.iter().collect::<Vec<_>>();
@@ -1338,13 +1426,35 @@ mod tests {
             parsed,
             vec![
                 CapabilityGrant::ObjectRead(obj),
+                CapabilityGrant::ObjectWrite(obj),
+                CapabilityGrant::ObjectMove(obj),
+                CapabilityGrant::ObjectRecycle(obj),
+                CapabilityGrant::ObjectChparent(obj),
+                CapabilityGrant::PropertyDefine(obj),
                 CapabilityGrant::PropertyWrite {
                     obj,
                     prop: Symbol::mk("p"),
                 },
+                CapabilityGrant::PropertyDelete {
+                    obj,
+                    prop: Symbol::mk("p"),
+                },
+                CapabilityGrant::VerbAdd(obj),
                 CapabilityGrant::VerbRead {
                     obj,
-                    verb: Symbol::mk("v"),
+                    verb: verb_read,
+                },
+                CapabilityGrant::VerbWrite {
+                    obj,
+                    verb: verb_write,
+                },
+                CapabilityGrant::VerbProgram {
+                    obj,
+                    verb: verb_program,
+                },
+                CapabilityGrant::VerbCall {
+                    obj,
+                    verb: verb_call,
                 },
             ]
         );
@@ -1354,8 +1464,11 @@ mod tests {
     fn rejects_unsupported_capability_grants() {
         let obj = Obj::mk_id(10);
         assert!(
-            parse_capability_grants(&v_list(&[v_list(&[v_str("object_move"), v_obj(obj)])]))
-                .is_err()
+            parse_capability_grants(
+                &v_list(&[v_list(&[v_str("object_takeover"), v_obj(obj)])]),
+                |_, _, _| panic!("unsupported grant should not resolve verbs")
+            )
+            .is_err()
         );
     }
 }
