@@ -381,6 +381,7 @@ object SCHEDULER
   method _log owner: ARCH_WIZARD
     {message} = args;
     caller == this || caller.wizard || raise(E_PERM);
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log("SCHEDULER(" + tostr(this) + ") " + message);
   endmethod
 

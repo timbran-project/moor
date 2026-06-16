@@ -47,6 +47,7 @@ object LLM_AGENT
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {tool_name, tool_args, error_msg} = args;
     safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log("LLM tool error [" + toliteral(tool_name) + "]: " + toliteral(error_msg) + " args=" + toliteral(safe_args));
     return true;
   endmethod
@@ -339,6 +340,7 @@ object LLM_AGENT
     "Log message to server log. Internal method - only callable by agent itself.";
     caller == this || raise(E_PERM);
     {message} = args;
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log(message);
   endmethod
 

@@ -354,6 +354,7 @@ object LLM_ROOM_OBSERVER
     "Handle and log errors from agent operations. Override in children to customize.";
     {context, error} = args;
     error_msg = tostr(error[1]) + ": " + tostr(error[2]);
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log("LLM observer error [" + tostr(this) + " " + context + "]: " + error_msg);
     "Announce error to room if configured to do so";
     if (valid(this.location) && respond_to(this, 'on_agent_error))

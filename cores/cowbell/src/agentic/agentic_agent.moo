@@ -56,6 +56,7 @@ object AGENTIC_AGENT
     "Internal server log helper.";
     caller == this || raise(E_PERM);
     {message} = args;
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log("[agentic] " + message);
   endmethod
 
@@ -64,6 +65,7 @@ object AGENTIC_AGENT
     caller == this || caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     {tool_name, tool_args, error_msg} = args;
     safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log("[agentic] tool error [" + toliteral(tool_name) + "]: " + toliteral(error_msg) + " args=" + toliteral(safe_args));
     return 1;
   endmethod

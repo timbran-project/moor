@@ -255,8 +255,8 @@ object LLM_WEARABLE
     "Log tool execution errors to server_log. Called by agent when a tool raises.";
     {tool_name, tool_args, error_msg} = args;
     caller == this.agent || caller_perms().wizard || raise(E_PERM);
-    "Do not downgrade perms; server_log requires wizard perms.";
     safe_args = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
+    set_task_perms(this.owner, {{"builtin_call", "server_log"}});
     server_log("LLM tool error [" + tostr(tool_name) + "]: " + tostr(error_msg) + " args=" + safe_args);
     return true;
   endmethod
