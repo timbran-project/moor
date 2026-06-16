@@ -439,11 +439,11 @@ object DATA_VISOR
   method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Get the complete source dump of an object";
     {args_map, actor} = args;
-    wearer = this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
+    set_task_perms(wearer, {{"builtin_call", "dump_object"}});
     dump_lines = dump_object(o);
     return dump_lines:join("\n");
   endmethod
@@ -1699,6 +1699,8 @@ object DATA_VISOR
       $test_utils:assert_true(index(metadata_result, "visor_private_verb") > 0, "get_verb_metadata should inspect a non-readable verb through grants");
       properties_result = visor:_tool_get_properties(["object" -> tostr(target)], $test_player);
       $test_utils:assert_true(index(properties_result, "visor_private_probe") > 0, "get_properties should enumerate a non-readable object through object_read and property_read grants");
+      dump_result = visor:_tool_dump_object(["object" -> "$data_visor"], $test_player);
+      $test_utils:assert_true(index(dump_result, "_tool_dump_object") > 0, "dump_object should use a scoped builtin_call grant");
     finally
       $test_utils:destroy_if_valid(target);
       $test_utils:destroy_if_valid(visor);
