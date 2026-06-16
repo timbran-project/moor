@@ -810,26 +810,16 @@ object AGENT_BUILDING_TOOLS
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
-    prop_exists = prop_key != E_PROPNF;
-    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
     "Compile the template";
     compiled = $sub_utils:compile(template);
-    is_bag_prop = prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag");
-    "Set or create property";
-    if (prop_exists)
-      if (is_bag_prop)
-        "For bag properties, create flyweight with single entry";
-        target_obj.(prop_key) = $msg_bag:mk(compiled);
-      else
-        target_obj.(prop_key) = compiled;
-      endif
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    if (prop_key != E_PROPNF)
+      $obj_utils:set_compiled_message(target_obj, prop_key, compiled, actor);
+    elseif (prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag"))
+      $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor);
     else
-      if (is_bag_prop)
-        add_property(target_obj, prop_name, $msg_bag:mk(compiled), {actor, "rc"});
-      else
-        add_property(target_obj, prop_name, compiled, {actor, "rc"});
-      endif
+      set_task_perms(actor, {{"property_define", target_obj}});
+      add_property(target_obj, prop_name, compiled, {actor, "rc"});
     endif
     return "Set " + tostr(target_obj) + "." + prop_name + ": " + template;
   endmethod
@@ -843,32 +833,8 @@ object AGENT_BUILDING_TOOLS
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs or _msg_bag");
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
-    prop_exists = prop_key != E_PROPNF;
-    prop_exists || set_task_perms(actor, {{"property_define", target_obj}});
     compiled = $sub_utils:compile(template);
-    if (prop_exists)
-      set_task_perms(actor, {{"property_read", target_obj, prop_key}});
-      existing = target_obj.(prop_key);
-      if ($msg_bag:is_msg_bag(existing))
-        "Use the bag's add method - handles both object and flyweight";
-        if (typeof(existing) == TYPE_OBJ)
-          set_task_perms(actor, {{"property_write", existing, "entries"}});
-          result = existing:add(compiled, true);
-        else
-          set_task_perms(actor, {{"property_write", target_obj, prop_key}});
-          result = existing:add(compiled, true);
-        endif
-        "For flyweights, add returns new flyweight; for objects, it mutates in place";
-        typeof(result) == TYPE_FLYWEIGHT && (target_obj.(prop_key) = result);
-      else
-        "Create new flyweight bag";
-        set_task_perms(actor, {{"property_write", target_obj, prop_key}});
-        target_obj.(prop_key) = $msg_bag:mk(compiled);
-      endif
-    else
-      add_property(target_obj, prop_name, $msg_bag:mk(compiled), {actor, "rc"});
-    endif
+    $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor);
     return "Added message to " + tostr(target_obj) + "." + prop_name + ": " + template;
   endmethod
 
@@ -880,29 +846,7 @@ object AGENT_BUILDING_TOOLS
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to modify messages on " + tostr(target_obj));
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
-    prop_key == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
-    set_task_perms(actor, {{"property_read", target_obj, prop_key}});
-    existing = target_obj.(prop_key);
-    if ($msg_bag:is_msg_bag(existing))
-      "Use the bag's remove method - handles both object and flyweight";
-      if (typeof(existing) == TYPE_OBJ)
-        set_task_perms(actor, {{"property_write", existing, "entries"}});
-        result = existing:remove(index, true);
-      else
-        set_task_perms(actor, {{"property_write", target_obj, prop_key}});
-        result = existing:remove(index, true);
-      endif
-      "For flyweights, remove returns new flyweight; for objects, it mutates in place";
-      typeof(result) == TYPE_FLYWEIGHT && (target_obj.(prop_key) = result);
-    elseif (typeof(existing) == TYPE_LIST)
-      "Legacy list format";
-      index >= 1 && index <= length(existing) || raise(E_RANGE, "Index out of range");
-      set_task_perms(actor, {{"property_write", target_obj, prop_key}});
-      target_obj.(prop_key) = listdelete(existing, index);
-    else
-      raise(E_INVARG, prop_name + " is not a message bag");
-    endif
+    $obj_utils:remove_message_entry(target_obj, prop_name, index, actor);
     return "Deleted message " + tostr(index) + " from " + tostr(target_obj) + "." + prop_name;
   endmethod
 
@@ -1239,6 +1183,15 @@ object AGENT_BUILDING_TOOLS
       $test_utils:assert_true(index(rules, "probe_rule: (no rule set)") > 0, "list_rules should read real rule property values");
       messages = this:list_messages(["object" -> tostr(created)], $hacker);
       $test_utils:assert_true(index(messages, "probe_msg: \"Probe message.\"") > 0, "list_messages should read real message property values");
+      message = this:set_message_template(["object" -> tostr(created), "property" -> "probe_msg", "template" -> "Updated probe message."], $hacker);
+      $test_utils:assert_true(index(message, "Set " + tostr(created) + ".probe_msg") > 0, "set_message_template should report scalar message update");
+      $test_utils:assert_true(index($sub_utils:decompile(created.probe_msg), "Updated probe message") > 0, "set_message_template should store compiled scalar message");
+      message = this:add_message_template(["object" -> tostr(created), "property" -> "probe_msgs", "template" -> "First bag message."], $hacker);
+      $test_utils:assert_true(index(message, "Added message to " + tostr(created) + ".probe_msgs") > 0, "add_message_template should report bag append");
+      $test_utils:assert_eq(length(created.probe_msgs:entries()), 1, "add_message_template should create a one-entry bag");
+      message = this:delete_message_template(["object" -> tostr(created), "property" -> "probe_msgs", "index" -> 1], $hacker);
+      $test_utils:assert_true(index(message, "Deleted message 1 from " + tostr(created) + ".probe_msgs") > 0, "delete_message_template should report bag removal");
+      $test_utils:assert_eq(length(created.probe_msgs:entries()), 0, "delete_message_template should remove the bag entry");
     finally
       $test_utils:destroy_if_valid(created);
     endtry
