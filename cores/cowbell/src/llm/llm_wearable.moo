@@ -502,6 +502,107 @@ object LLM_WEARABLE
     return ["prompt_tokens" -> prompt_tokens, "token_limit" -> token_limit, "compaction_threshold" -> compaction_threshold, "threshold_tokens" -> threshold_tokens, "context_percent" -> context_percent, "threshold_percent" -> threshold_percent, "test_gte_100" -> threshold_percent >= 100, "test_gte_80" -> threshold_percent >= 80, "status" -> status];
   endmethod
 
+  method test_tool_get_message_template_scoped_grants owner: ARCH_WIZARD
+    "get_message_template should read a private target property through a narrow grant.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_private_msg", "secret message", {$hacker, ""});
+      msg_result = tool:_tool_get_message_template(["object" -> tostr(target), "property" -> "wearable_private_msg"], $test_player);
+      $test_utils:assert_true(index(msg_result, "\"secret message\"") > 0, "get_message_template should read a non-readable property through a property_read grant");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
+  method test_tool_list_messages_scoped_grants owner: ARCH_WIZARD
+    "list_messages should enumerate and read private target message properties through narrow grants.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_private_msg", "secret message", {$hacker, ""});
+      msg_list = tool:_tool_list_messages(["object" -> tostr(target)], $test_player);
+      $test_utils:assert_true(index(msg_list, "wearable_private_msg") > 0, "list_messages should read private message properties through property_read grants");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
+  method test_tool_show_rule_scoped_grants owner: ARCH_WIZARD
+    "show_rule should read a private target rule through a narrow grant.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_private_rule", 0, {$hacker, ""});
+      rule_result = tool:_tool_show_rule(["object" -> tostr(target), "property" -> "wearable_private_rule"], $test_player);
+      $test_utils:assert_true(index(rule_result, "(not set)") > 0, "show_rule should read a non-readable rule through a property_read grant");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
+  method test_tool_list_rules_scoped_grants owner: ARCH_WIZARD
+    "list_rules should enumerate and read private target rule properties through narrow grants.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_private_rule", 0, {$hacker, ""});
+      rule_list = tool:_tool_list_rules(["object" -> tostr(target)], $test_player);
+      $test_utils:assert_true(index(rule_list, "wearable_private_rule") > 0, "list_rules should read private rule properties through property_read grants");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
+  method test_tool_set_rule_scoped_grants owner: ARCH_WIZARD
+    "set_rule should write a private target rule through a narrow grant.";
+    target = $thing:create(0);
+    tool = this:create(true);
+    try
+      tool:moveto($test_player);
+      target.owner = $test_player;
+      target.name = "Wearable Private Probe";
+      target.r = 1;
+      add_property(target, "wearable_set_rule", 1, {$hacker, ""});
+      set_result = tool:_tool_set_rule(["object" -> tostr(target), "property" -> "wearable_set_rule", "expression" -> "0"], $test_player);
+      $test_utils:assert_true(index(set_result, "Cleared rule") > 0, "set_rule should write a non-writable rule through a property_write grant");
+      $test_utils:assert_eq(target.wearable_set_rule, 0, "set_rule should update the private rule property");
+    finally
+      `set_task_perms($arch_wizard) ! ANY => 0';
+      `$test_utils:destroy_if_valid(tool) ! ANY => 0';
+      `$test_utils:destroy_if_valid(target) ! ANY => 0';
+    endtry
+    return true;
+  endmethod
+
   method recycle owner: ARCH_WIZARD
     "Clean up agent when object is destroyed";
     caller == this || caller_perms() == this.owner || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
@@ -649,18 +750,29 @@ object LLM_WEARABLE
   method _tool_list_messages owner: ARCH_WIZARD
     "Tool: List *_msg properties and message bags on an object (like @messages)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    msg_props = $obj_utils:message_properties(target_obj);
+    msg_props = {};
+    for prop_name in (target_obj:all_properties())
+      prop_text = tostr(prop_name);
+      if (prop_text:ends_with("_msg") || prop_text:ends_with("_msgs") || prop_text:ends_with("_msg_bag"))
+        msg_props = {@msg_props, prop_name};
+      endif
+    endfor
     !msg_props && return tostr(target_obj) + " has no message properties. (@messages command available)";
+    grants = {};
+    for prop_name in (msg_props)
+      grants = {@grants, {"property_read", target_obj, prop_name}};
+    endfor
+    set_task_perms(wearer, grants);
     lines = {"Message properties for " + tostr(target_obj) + ":"};
-    for prop_info in (msg_props)
-      {prop_name, prop_value} = prop_info;
+    for prop_name in (msg_props)
+      prop_value = target_obj.(prop_name);
+      prop_text = tostr(prop_name);
       value_summary = typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag) ? "message bag (" + tostr(length(prop_value:entries())) + " entries)" | typeof(prop_value) == TYPE_LIST ? `$sub_utils:decompile(prop_value) ! ANY => toliteral(prop_value)' | toliteral(prop_value);
-      lines = {@lines, " - " + prop_name + ": " + value_summary};
+      lines = {@lines, " - " + prop_text + ": " + value_summary};
     endfor
     return lines:join("\n");
   endmethod
@@ -668,14 +780,13 @@ object LLM_WEARABLE
   method _tool_get_message_template owner: ARCH_WIZARD
     "Tool: Read a single message template (like @getm)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
     prop_name = args_map["property"];
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
-    set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    set_task_perms(wearer, {{"property_read", target_obj, prop_name}});
     value = target_obj.(prop_name);
     if (typeof(value) == TYPE_OBJ && isa(value, $msg_bag))
       entries = value:entries();
@@ -762,17 +873,24 @@ object LLM_WEARABLE
   method _tool_list_rules owner: ARCH_WIZARD
     "Tool: List *_rule properties on an object (like @rules)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
-    set_task_perms(wearer);
+    wearer = this:_action_perms_check(actor);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    rule_props = $obj_utils:rule_properties(target_obj);
+    rule_props = {};
+    for prop_name in (target_obj:all_properties())
+      tostr(prop_name):ends_with("_rule") && (rule_props = {@rule_props, prop_name});
+    endfor
     !rule_props && return tostr(target_obj) + " has no rule properties. (@rules command available)";
+    grants = {};
+    for prop_name in (rule_props)
+      grants = {@grants, {"property_read", target_obj, prop_name}};
+    endfor
+    set_task_perms(wearer, grants);
     lines = {"Rule properties for " + tostr(target_obj) + ":"};
-    for prop_info in (rule_props)
-      {prop_name, prop_value} = prop_info;
-      lines = {@lines, " - " + prop_name + ": " + (prop_value == 0 ? "(not set)" | $rule_engine:decompile_rule(prop_value))};
+    for prop_name in (rule_props)
+      prop_value = target_obj.(prop_name);
+      lines = {@lines, " - " + tostr(prop_name) + ": " + (prop_value == 0 ? "(not set)" | $rule_engine:decompile_rule(prop_value))};
     endfor
     return lines:join("\n");
   endmethod
@@ -780,15 +898,14 @@ object LLM_WEARABLE
   method _tool_set_rule owner: ARCH_WIZARD
     "Tool: Set a rule on an object property (like @set-rule)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
     {prop_name, expression} = {args_map["property"], args_map["expression"]};
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
     expression || raise(E_INVARG, "Rule expression required");
-    set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj) + ". Use add_property to create it first.");
+    set_task_perms(wearer, {{"property_write", target_obj, prop_name}});
     "Handle special cases";
     if (expression == "0" || expression == "none" || expression == "always" || expression == "true")
       target_obj.(prop_name) = 0;
@@ -810,14 +927,13 @@ object LLM_WEARABLE
   method _tool_show_rule owner: ARCH_WIZARD
     "Tool: Display a rule property expression (like @show-rule)";
     {args_map, actor} = args;
-    wearer = actor || this:_action_perms_check();
+    wearer = this:_action_perms_check(actor);
     prop_name = args_map["property"];
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
-    set_task_perms(wearer);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property '" + prop_name + "' not found on " + tostr(target_obj));
+    set_task_perms(wearer, {{"property_read", target_obj, prop_name}});
     rule = target_obj.(prop_name);
     return tostr(target_obj) + "." + prop_name + " = " + (rule == 0 ? "(not set)" | $rule_engine:decompile_rule(rule));
   endmethod
