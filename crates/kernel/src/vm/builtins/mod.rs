@@ -354,18 +354,27 @@ impl BfCallState<'_> {
         Ok(permissions.with_principal_flags(flags))
     }
 
-    pub fn require_wizard(&self) -> Result<(), BfErr> {
-        self.task_authority()
-            .map_err(world_state_bf_err)?
-            .require_wizard()
-            .map_err(world_state_bf_err)
-    }
-
     pub fn require_wizard_msg(&self, message: &'static str) -> Result<(), BfErr> {
         self.task_authority()
             .map_err(world_state_bf_err)?
             .require_wizard()
             .map_err(|_| BfErr::ErrValue(E_PERM.msg(message)))
+    }
+
+    pub fn require_wizard_or_builtin_call(&self) -> Result<(), BfErr> {
+        let authority = self.task_authority().map_err(world_state_bf_err)?;
+        if authority.is_wizard() || authority.can_call_builtin(self.name) {
+            return Ok(());
+        }
+        Err(world_state_bf_err(WorldStateError::ObjectPermissionDenied))
+    }
+
+    pub fn require_wizard_or_builtin_call_msg(&self, message: &'static str) -> Result<(), BfErr> {
+        let authority = self.task_authority().map_err(world_state_bf_err)?;
+        if authority.is_wizard() || authority.can_call_builtin(self.name) {
+            return Ok(());
+        }
+        Err(BfErr::ErrValue(E_PERM.msg(message)))
     }
 
     pub fn require_programmer(&self) -> Result<(), BfErr> {
@@ -375,19 +384,21 @@ impl BfCallState<'_> {
             .map_err(world_state_bf_err)
     }
 
-    pub fn require_controls(&self, owner: &Obj) -> Result<(), BfErr> {
-        self.task_authority()
-            .map_err(world_state_bf_err)?
-            .require_controls(owner)
-            .map_err(world_state_bf_err)
+    pub fn require_controls_or_builtin_call(&self, owner: &Obj) -> Result<(), BfErr> {
+        let authority = self.task_authority().map_err(world_state_bf_err)?;
+        if authority.controls(owner) || authority.can_call_builtin(self.name) {
+            return Ok(());
+        }
+        Err(world_state_bf_err(WorldStateError::ObjectPermissionDenied))
     }
 
-    /// Require owner-or-wizard authority and preserve builtins that raise bare `E_PERM`.
-    pub fn require_controls_code(&self, owner: &Obj) -> Result<(), BfErr> {
-        self.task_authority()
-            .map_err(world_state_bf_err)?
-            .require_controls(owner)
-            .map_err(|_| BfErr::Code(E_PERM))
+    /// Require owner-or-wizard authority or a builtin-call grant, preserving bare `E_PERM`.
+    pub fn require_controls_or_builtin_call_code(&self, owner: &Obj) -> Result<(), BfErr> {
+        let authority = self.task_authority().map_err(world_state_bf_err)?;
+        if authority.controls(owner) || authority.can_call_builtin(self.name) {
+            return Ok(());
+        }
+        Err(BfErr::Code(E_PERM))
     }
 
     pub fn require_controls_msg(&self, owner: &Obj, message: &'static str) -> Result<(), BfErr> {
@@ -395,6 +406,18 @@ impl BfCallState<'_> {
             .map_err(world_state_bf_err)?
             .require_controls(owner)
             .map_err(|_| BfErr::ErrValue(E_PERM.msg(message)))
+    }
+
+    pub fn require_controls_or_builtin_call_msg(
+        &self,
+        owner: &Obj,
+        message: &'static str,
+    ) -> Result<(), BfErr> {
+        let authority = self.task_authority().map_err(world_state_bf_err)?;
+        if authority.controls(owner) || authority.can_call_builtin(self.name) {
+            return Ok(());
+        }
+        Err(BfErr::ErrValue(E_PERM.msg(message)))
     }
 
     pub fn bf_frame(&self) -> &BuiltinFrame {

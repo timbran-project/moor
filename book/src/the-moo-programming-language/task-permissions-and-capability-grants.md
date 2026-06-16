@@ -46,7 +46,8 @@ set_task_perms(
     {
         {"property_read", secret_obj, "secret"},
         {"property_write", target_obj, "status"},
-        {"verb_call", service_obj, "internal_lookup"}
+        {"verb_call", service_obj, "internal_lookup"},
+        {"builtin_call", "server_log"}
     }
 );
 ```
@@ -67,6 +68,7 @@ Object grants:
 | ----------------- | -------------------------- | --------------------------------------------------- |
 | `object_read`     | `{"object_read", obj}`     | Satisfies object read permission checks for `obj`.  |
 | `object_write`    | `{"object_write", obj}`    | Satisfies object write permission checks for `obj`. |
+| `object_rename`   | `{"object_rename", obj}`   | Allows changing `obj.name`.                         |
 | `object_move`     | `{"object_move", obj}`     | Allows moving `obj`.                                |
 | `object_recycle`  | `{"object_recycle", obj}`  | Allows recycling `obj`.                             |
 | `object_chparent` | `{"object_chparent", obj}` | Allows changing `obj`'s parent.                     |
@@ -98,6 +100,25 @@ is later given the old name, the existing grant does not move to the new verb.
 For `verb_call`, the selector is resolved using normal method dispatch. This matters for inherited
 verbs and wildcard-style verb names: the grant is bound to the verb definition selected by dispatch
 at grant creation time, not to the literal string forever.
+
+Builtin grants:
+
+| Grant          | Shape                           | Meaning                                                        |
+| -------------- | ------------------------------- | -------------------------------------------------------------- |
+| `builtin_call` | `{"builtin_call", "builtin"}`   | Allows the named builtin's own wizard or owner fallback checks. |
+
+The builtin name must name a real builtin when `set_task_perms()` is called. A `builtin_call` grant
+is scoped to that builtin only. For example, `{"builtin_call", "server_log"}` allows
+`server_log()` to pass its wizard-only call check, but it does not make the task a wizard and does
+not authorize `log_cache_stats()`.
+
+For builtins that normally allow either the target object or a wizard, such as `notify(player, ...)`,
+the matching `builtin_call` grant allows that builtin's call check for other targets. This is still
+only a call-surface grant: lower-level object, property, verb, or database checks may require their
+own grants.
+
+`set_task_perms(perms, grants)` remains directly wizard-only. A `builtin_call` grant for
+`set_task_perms` does not authorize non-wizard code to install arbitrary grant sets.
 
 ## Multiple Checks
 

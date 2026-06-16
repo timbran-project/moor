@@ -629,7 +629,7 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // create_at is wizard-only
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     let tramp = bf_args
         .bf_frame_mut()
@@ -1180,7 +1180,7 @@ fn bf_set_player_flag(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let f = f == 1;
 
     // User must be a wizard.
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     // Get and set object flags
     let mut flags = with_current_transaction(|world_state| world_state.flags_of(&obj))
@@ -1226,7 +1226,7 @@ fn bf_players(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Usage: `list objects()`
 /// Returns a list of all valid objects in the database. Wizard-only.
 fn bf_objects(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     if !bf_args.args.is_empty() {
         return Err(BfErr::ErrValue(E_ARGS.msg("objects() takes no arguments")));
@@ -1884,7 +1884,7 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
     }
 
     // Must be a wizard to use this function
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     let Some(target) = bf_args.args[0].as_object() else {
         return Err(BfErr::ErrValue(

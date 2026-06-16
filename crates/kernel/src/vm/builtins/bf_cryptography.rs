@@ -495,7 +495,7 @@ fn bf_age_passphrase_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
 /// Wizard-only.
 fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Must be wizard.
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     if bf_args.args.len() > 5 || bf_args.args.len() < 2 {
         return Err(BfErr::Code(E_ARGS));
@@ -559,7 +559,7 @@ fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Verifies a password against an Argon2 hash. Wizard-only.
 fn bf_argon2_verify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Must be wizard.
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     if bf_args.args.len() != 2 {
         return Err(BfErr::Code(E_ARGS));
@@ -982,7 +982,7 @@ fn bf_paseto_make_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         parse_symmetric_key(&bf_args.args[1])?
     } else {
         // Server key mode - requires wizard
-        bf_args.require_wizard()?;
+        bf_args.require_wizard_or_builtin_call()?;
 
         let Some(key) = crate::get_server_symmetric_key() else {
             return Err(BfErr::ErrValue(
@@ -1048,7 +1048,7 @@ fn bf_paseto_verify_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
         parse_symmetric_key(&bf_args.args[1])?
     } else {
         // Server key mode - requires wizard
-        bf_args.require_wizard()?;
+        bf_args.require_wizard_or_builtin_call()?;
 
         let Some(key) = crate::get_server_symmetric_key() else {
             return Err(BfErr::ErrValue(

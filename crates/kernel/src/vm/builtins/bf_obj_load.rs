@@ -89,7 +89,7 @@ fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Check permissions: wizard only (object dumps can expose properties owned by others)
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     // Use the task scheduler client to request the dump from the scheduler.
     // The scheduler already returns string Vars, so there is no reason to bounce
@@ -524,7 +524,7 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     // Check permissions: wizard only (object creation with arbitrary properties/verbs)
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     // Create options object for the loader
     let loader_options = ObjDefLoaderOptions {
@@ -636,7 +636,7 @@ fn bf_reload_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     // Check permissions: wizard only
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     // Use the current task's transaction via loader interface
     let result = match with_loader_interface(|loader| {

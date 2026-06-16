@@ -39,6 +39,7 @@ pub enum CapabilityGrant {
     VerbProgram { obj: Obj, verb: Uuid },
     VerbAdd(Obj),
     VerbCall { obj: Obj, verb: Uuid },
+    BuiltinCall(Symbol),
 }
 
 /// Additive runtime capability grants attached to an activation's task permissions.
@@ -141,6 +142,15 @@ impl TaskPermissions {
     #[must_use]
     pub fn grants(&self) -> &CapabilityGrants {
         &self.grants
+    }
+
+    /// Whether these task permissions include an explicit grant to call a builtin.
+    #[inline]
+    #[must_use]
+    pub fn can_call_builtin(&self, builtin: Symbol) -> bool {
+        self.grants
+            .iter()
+            .any(|grant| matches!(grant, CapabilityGrant::BuiltinCall(grant) if grant == builtin))
     }
 
     /// Whether the permissions principal has the wizard bit.

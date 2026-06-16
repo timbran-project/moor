@@ -139,7 +139,7 @@ fn bf_commit(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// the session output buffer is preserved. Wizard-only.
 fn bf_rollback(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Rollback is wizard only
-    bf_args.require_wizard()?;
+    bf_args.require_wizard_or_builtin_call()?;
 
     if bf_args.args.len() > 1 {
         return Err(ErrValue(E_ARGS.msg("rollback() requires 0 or 1 arguments")));
@@ -271,7 +271,7 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Wizards see all tasks, others see only tasks where they are the programmer.
     let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    let is_wizard = authority.is_wizard();
+    let can_see_all = authority.is_wizard() || authority.can_call_builtin(bf_args.name);
     let authority_principal = authority.principal();
 
     // return in form:
@@ -279,7 +279,7 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     //      <programmer>, <verb-loc>, <verb-name>, <line>, <this>}
     let tasks = tasks
         .iter()
-        .filter(|task| is_wizard || task.authority_principal == authority_principal)
+        .filter(|task| can_see_all || task.authority_principal == authority_principal)
         .map(|task| {
             let task_id = v_int(task.task_id as i64);
             let start_time = match task.start_time {
@@ -316,11 +316,11 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-    let is_wizard = authority.is_wizard();
+    let can_see_all = authority.is_wizard() || authority.can_call_builtin(bf_args.name);
     let authority_principal = authority.principal();
 
     let results = tasks.iter().filter(|(_, player_id, _)| {
-        if is_wizard {
+        if can_see_all {
             true
         } else {
             *player_id == authority_principal
