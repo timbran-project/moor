@@ -1006,7 +1006,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "cryptography");
 
-    // Spatial/tile-map builtins (crates/kernel/src/vm/builtins/bf_spatial.rs).
+    // Richer nested/complicated list/map data structure algorithms
     let start = builtins.len();
     builtins.extend([mk_builtin(
         "astar",

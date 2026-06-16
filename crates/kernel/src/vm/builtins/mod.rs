@@ -26,6 +26,7 @@ use crate::{
     task_context::with_current_transaction,
     vm::{
         builtins::{
+            bf_algorithms::register_bf_algorithms,
             bf_cryptography::register_bf_cryptography,
             bf_documents::register_bf_documents,
             bf_flyweights::register_bf_flyweights,
@@ -35,7 +36,6 @@ use crate::{
             bf_objects::register_bf_objects,
             bf_properties::register_bf_properties,
             bf_server::{bf_noop, register_bf_server},
-            bf_spatial::register_bf_spatial,
             bf_strings::register_bf_strings,
             bf_values::register_bf_values,
             bf_verbs::register_bf_verbs,
@@ -68,8 +68,8 @@ mod bf_values;
 mod bf_verbs;
 mod docs;
 
+mod bf_algorithms;
 mod bf_connection;
-mod bf_spatial;
 mod bf_task;
 #[cfg(test)]
 #[path = "test_function_help.rs"]
@@ -261,7 +261,7 @@ impl BuiltinRegistry {
         register_bf_flyweights(&mut builtins);
         register_bf_documents(&mut builtins);
         register_bf_cryptography(&mut builtins);
-        register_bf_spatial(&mut builtins);
+        register_bf_algorithms(&mut builtins);
 
         BuiltinRegistry {
             builtins: Arc::from(builtins),

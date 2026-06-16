@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Builtin functions for spatial/tile-map operations (pathfinding, etc.).
+//! Builtin functions for pure algorithms over supplied MOO values.
+//!
+//! These builtins operate on caller-provided values such as lists, maps,
+//! symbols, and objects. They do not inspect world state or task permissions.
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -206,6 +209,6 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_empty_list()))
 }
 
-pub(crate) fn register_bf_spatial(builtins: &mut [BuiltinFunction]) {
+pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("astar")] = bf_astar;
 }
