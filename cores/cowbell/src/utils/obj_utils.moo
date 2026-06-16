@@ -279,21 +279,34 @@ object OBJ_UTILS
 
   method reaction_properties owner: ARCH_WIZARD
     "Return list of reaction properties (ending with _reaction) on an object.";
-    "Args: {target_obj}";
+    "Args: {target_obj, ?who, ?grant_reads}";
     "Returns: list of {property_name, reaction_flyweight}";
-    set_task_perms(caller_perms());
-    {target_obj} = args;
+    {target_obj, ?who = caller_perms(), ?grant_reads = false} = args;
+    if (!grant_reads)
+      set_task_perms(who);
+    endif
     !valid(target_obj) && return {};
     result = {};
+    reaction_props = {};
     all_props = target_obj:all_properties();
     typeof(all_props) != TYPE_LIST && return {};
     for prop_name in (all_props)
-      if (prop_name:ends_with("_reaction"))
-        prop_value = target_obj.(prop_name);
-        "Only include if it's actually a reaction flyweight";
-        if (typeof(prop_value) == TYPE_FLYWEIGHT && prop_value.delegate == $reaction)
-          result = {@result, {prop_name, prop_value}};
-        endif
+      if (tostr(prop_name):ends_with("_reaction"))
+        reaction_props = {@reaction_props, prop_name};
+      endif
+    endfor
+    if (grant_reads)
+      grants = {};
+      for prop_name in (reaction_props)
+        grants = {@grants, {"property_read", target_obj, prop_name}};
+      endfor
+      set_task_perms(who, grants);
+    endif
+    for prop_name in (reaction_props)
+      prop_value = target_obj.(prop_name);
+      "Only include if it's actually a reaction flyweight";
+      if (typeof(prop_value) == TYPE_FLYWEIGHT && prop_value.delegate == $reaction)
+        result = {@result, {prop_name, prop_value}};
       endif
     endfor
     return result;

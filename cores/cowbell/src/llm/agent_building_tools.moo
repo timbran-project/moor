@@ -504,27 +504,22 @@ object AGENT_BUILDING_TOOLS
   method list_rules owner: ARCH_WIZARD
     "Tool: List all rule properties on an object";
     {args_map, actor} = args;
-    set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    all_props = target_obj:all_properties();
-    rule_props = {};
-    for prop in (all_props)
-      prop_name = tostr(prop);
-      prop_name:ends_with("_rule") && (rule_props = {@rule_props, prop_name});
-    endfor
+    rule_props = $obj_utils:rule_properties(target_obj, actor, true);
     !rule_props && return "No rule properties found on " + tostr(target_obj) + ".";
     lines = {"Rules on " + tostr(target_obj) + ":"};
-    for prop in (rule_props)
-      value = target_obj.(prop);
+    for prop_info in (rule_props)
+      {prop, value} = prop_info;
+      prop_name = tostr(prop);
       if (value == 0)
-        lines = {@lines, "  " + prop + ": (no rule set)"};
+        lines = {@lines, "  " + prop_name + ": (no rule set)"};
       elseif (typeof(value) == TYPE_FLYWEIGHT)
         rule_str = $rule_engine:decompile_rule(value);
-        lines = {@lines, "  " + prop + ": " + rule_str};
+        lines = {@lines, "  " + prop_name + ": " + rule_str};
       else
-        lines = {@lines, "  " + prop + ": " + toliteral(value)};
+        lines = {@lines, "  " + prop_name + ": " + toliteral(value)};
       endif
     endfor
     return lines:join("\n");
@@ -539,13 +534,14 @@ object AGENT_BUILDING_TOOLS
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set rules on " + tostr(target_obj));
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property name must end with '_rule'");
-    prop_exists = prop_name in target_obj:all_properties();
-    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_name} | {"property_define", target_obj}});
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_exists = prop_key != E_PROPNF;
+    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
     compiled = $rule_engine:parse_expression(expression, prop_name, actor);
     validation = $rule_engine:validate_rule(compiled);
     !validation['valid] && raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
     if (prop_exists)
-      target_obj.(prop_name) = compiled;
+      target_obj.(prop_key) = compiled;
     else
       add_property(target_obj, prop_name, compiled, {actor, "r"});
     endif
@@ -560,9 +556,10 @@ object AGENT_BUILDING_TOOLS
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property name must end with '_rule'");
-    prop_name in target_obj:all_properties() || return tostr(target_obj) + "." + prop_name + " is not defined.";
-    set_task_perms(actor, {{"property_read", target_obj, prop_name}});
-    value = target_obj.(prop_name);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && return tostr(target_obj) + "." + prop_name + " is not defined.";
+    set_task_perms(actor, {{"property_read", target_obj, prop_key}});
+    value = target_obj.(prop_key);
     if (value == 0)
       return tostr(target_obj) + "." + prop_name + ": (no rule set)";
     elseif (typeof(value) == TYPE_FLYWEIGHT)
@@ -602,26 +599,7 @@ object AGENT_BUILDING_TOOLS
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    all_props = target_obj:all_properties();
-    reaction_names = {};
-    for prop_name in (all_props)
-      prop_name:ends_with("_reaction") && (reaction_names = {@reaction_names, prop_name});
-    endfor
-    if (!reaction_names || length(reaction_names) == 0)
-      return "No reactions found on " + tostr(target_obj);
-    endif
-    grants = {};
-    for prop_name in (reaction_names)
-      grants = {@grants, {"property_read", target_obj, prop_name}};
-    endfor
-    set_task_perms(actor, grants);
-    reaction_props = {};
-    for prop_name in (reaction_names)
-      reaction = target_obj.(prop_name);
-      if (typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction)
-        reaction_props = {@reaction_props, {prop_name, reaction}};
-      endif
-    endfor
+    reaction_props = $obj_utils:reaction_properties(target_obj, actor, true);
     if (!reaction_props || length(reaction_props) == 0)
       return "No reactions found on " + tostr(target_obj);
     endif
@@ -679,8 +657,9 @@ object AGENT_BUILDING_TOOLS
     if (!actor.wizard && target_obj.owner != actor)
       return "Permission denied: You do not own " + tostr(target_obj) + " and are not a wizard.";
     endif
-    prop_exists = prop_name in target_obj:all_properties();
-    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_name} | {"property_define", target_obj}});
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_exists = prop_key != E_PROPNF;
+    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
     "Parse trigger";
     if (pcre_match(trigger_str, "^[a-z_]+$"))
       trigger = tosym(trigger_str);
@@ -711,7 +690,7 @@ object AGENT_BUILDING_TOOLS
     endtry
     "Add or update property";
     if (prop_exists)
-      target_obj.(prop_name) = reaction;
+      target_obj.(prop_key) = reaction;
     else
       add_property(target_obj, prop_name, reaction, {actor, "r"});
     endif
@@ -735,13 +714,14 @@ object AGENT_BUILDING_TOOLS
       return "Permission denied: You do not own " + tostr(target_obj);
     endif
     "Check property exists and is a reaction";
-    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
-    set_task_perms(actor, {{"property_read", target_obj, prop_name}, {"property_write", target_obj, prop_name}});
-    reaction = target_obj.(prop_name);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
+    set_task_perms(actor, {{"property_read", target_obj, prop_key}, {"property_write", target_obj, prop_key}});
+    reaction = target_obj.(prop_key);
     typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
     "Reconstruct flyweight with new enabled state (flyweights are immutable)";
     new_reaction = <reaction.delegate, .when = reaction.when, .trigger = reaction.trigger, .effects = reaction.effects, .enabled = enabled, .fired_at = reaction.fired_at>;
-    target_obj.(prop_name) = new_reaction;
+    target_obj.(prop_key) = new_reaction;
     return (enabled ? "Enabled" | "Disabled") + " " + tostr(target_obj) + "." + prop_name;
   endmethod
 
@@ -751,40 +731,31 @@ object AGENT_BUILDING_TOOLS
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    all_props = target_obj:all_properties();
-    msg_props = {};
-    for prop in (all_props)
-      prop_name = tostr(prop);
-      prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") && (msg_props = {@msg_props, prop_name});
-    endfor
+    msg_props = $obj_utils:message_properties(target_obj, actor, true);
     !msg_props && return "No message properties found on " + tostr(target_obj) + ".";
-    grants = {};
-    for prop in (msg_props)
-      grants = {@grants, {"property_read", target_obj, prop}};
-    endfor
-    set_task_perms(actor, grants);
     lines = {"Messages on " + tostr(target_obj) + ":"};
-    for prop in (msg_props)
-      value = target_obj.(prop);
+    for prop_info in (msg_props)
+      {prop, value} = prop_info;
+      prop_name = tostr(prop);
       if ($msg_bag:is_msg_bag(value))
-        lines = {@lines, "  " + prop + ": " + tostr(value) + " (" + tostr(length(value:entries())) + " entries)"};
+        lines = {@lines, "  " + prop_name + ": " + tostr(value) + " (" + tostr(length(value:entries())) + " entries)"};
       elseif (typeof(value) == TYPE_STR)
-        lines = {@lines, "  " + prop + ": \"" + (length(value) > 50 ? value[1..50] + "..." | value) + "\""};
+        lines = {@lines, "  " + prop_name + ": \"" + (length(value) > 50 ? value[1..50] + "..." | value) + "\""};
       elseif (typeof(value) == TYPE_FLYWEIGHT)
-        lines = {@lines, "  " + prop + ": (compiled template)"};
+        lines = {@lines, "  " + prop_name + ": (compiled template)"};
       elseif (typeof(value) == TYPE_LIST)
         "Check if it's a compiled template (first item not a list) or a message bag (list of lists)";
         is_compiled = length(value) > 0 && typeof(value[1]) != TYPE_LIST;
         is_bag = length(value) > 0 && typeof(value[1]) == TYPE_LIST;
         if (is_compiled)
-          lines = {@lines, "  " + prop + ": (compiled template)"};
+          lines = {@lines, "  " + prop_name + ": (compiled template)"};
         elseif (is_bag)
-          lines = {@lines, "  " + prop + ": [" + tostr(length(value)) + " entries]"};
+          lines = {@lines, "  " + prop_name + ": [" + tostr(length(value)) + " entries]"};
         else
-          lines = {@lines, "  " + prop + ": (empty)"};
+          lines = {@lines, "  " + prop_name + ": (empty)"};
         endif
       else
-        lines = {@lines, "  " + prop + ": " + toliteral(value)};
+        lines = {@lines, "  " + prop_name + ": " + toliteral(value)};
       endif
     endfor
     return lines:join("\n");
@@ -797,9 +768,10 @@ object AGENT_BUILDING_TOOLS
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_name in target_obj:all_properties() || return tostr(target_obj) + "." + prop_name + " is not defined.";
-    set_task_perms(actor, {{"property_read", target_obj, prop_name}});
-    value = target_obj.(prop_name);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && return tostr(target_obj) + "." + prop_name + " is not defined.";
+    set_task_perms(actor, {{"property_read", target_obj, prop_key}});
+    value = target_obj.(prop_key);
     "Check for message bag (object or flyweight)";
     if ($msg_bag:is_msg_bag(value))
       entries = value:entries();
@@ -838,8 +810,9 @@ object AGENT_BUILDING_TOOLS
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
-    prop_exists = prop_name in target_obj:all_properties();
-    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_name} | {"property_define", target_obj}});
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_exists = prop_key != E_PROPNF;
+    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
     "Compile the template";
     compiled = $sub_utils:compile(template);
     is_bag_prop = prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag");
@@ -847,9 +820,9 @@ object AGENT_BUILDING_TOOLS
     if (prop_exists)
       if (is_bag_prop)
         "For bag properties, create flyweight with single entry";
-        target_obj.(prop_name) = $msg_bag:mk(compiled);
+        target_obj.(prop_key) = $msg_bag:mk(compiled);
       else
-        target_obj.(prop_name) = compiled;
+        target_obj.(prop_key) = compiled;
       endif
     else
       if (is_bag_prop)
@@ -870,23 +843,28 @@ object AGENT_BUILDING_TOOLS
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs or _msg_bag");
-    prop_exists = prop_name in target_obj:all_properties();
-    if (prop_exists)
-      set_task_perms(actor, {{"property_read", target_obj, prop_name}, {"property_write", target_obj, prop_name}});
-    else
-      set_task_perms(actor, {{"property_define", target_obj}});
-    endif
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_exists = prop_key != E_PROPNF;
+    prop_exists || set_task_perms(actor, {{"property_define", target_obj}});
     compiled = $sub_utils:compile(template);
     if (prop_exists)
-      existing = target_obj.(prop_name);
+      set_task_perms(actor, {{"property_read", target_obj, prop_key}});
+      existing = target_obj.(prop_key);
       if ($msg_bag:is_msg_bag(existing))
         "Use the bag's add method - handles both object and flyweight";
-        result = existing:add(compiled);
+        if (typeof(existing) == TYPE_OBJ)
+          set_task_perms(actor, {{"property_write", existing, "entries"}});
+          result = existing:add(compiled, true);
+        else
+          set_task_perms(actor, {{"property_write", target_obj, prop_key}});
+          result = existing:add(compiled, true);
+        endif
         "For flyweights, add returns new flyweight; for objects, it mutates in place";
-        typeof(result) == TYPE_FLYWEIGHT && (target_obj.(prop_name) = result);
+        typeof(result) == TYPE_FLYWEIGHT && (target_obj.(prop_key) = result);
       else
         "Create new flyweight bag";
-        target_obj.(prop_name) = $msg_bag:mk(compiled);
+        set_task_perms(actor, {{"property_write", target_obj, prop_key}});
+        target_obj.(prop_key) = $msg_bag:mk(compiled);
       endif
     else
       add_property(target_obj, prop_name, $msg_bag:mk(compiled), {actor, "rc"});
@@ -902,18 +880,26 @@ object AGENT_BUILDING_TOOLS
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to modify messages on " + tostr(target_obj));
-    prop_name in target_obj:all_properties() || raise(E_INVARG, "Property not found: " + prop_name);
-    set_task_perms(actor, {{"property_read", target_obj, prop_name}, {"property_write", target_obj, prop_name}});
-    existing = target_obj.(prop_name);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
+    set_task_perms(actor, {{"property_read", target_obj, prop_key}});
+    existing = target_obj.(prop_key);
     if ($msg_bag:is_msg_bag(existing))
       "Use the bag's remove method - handles both object and flyweight";
-      result = existing:remove(index);
+      if (typeof(existing) == TYPE_OBJ)
+        set_task_perms(actor, {{"property_write", existing, "entries"}});
+        result = existing:remove(index, true);
+      else
+        set_task_perms(actor, {{"property_write", target_obj, prop_key}});
+        result = existing:remove(index, true);
+      endif
       "For flyweights, remove returns new flyweight; for objects, it mutates in place";
-      typeof(result) == TYPE_FLYWEIGHT && (target_obj.(prop_name) = result);
+      typeof(result) == TYPE_FLYWEIGHT && (target_obj.(prop_key) = result);
     elseif (typeof(existing) == TYPE_LIST)
       "Legacy list format";
       index >= 1 && index <= length(existing) || raise(E_RANGE, "Index out of range");
-      target_obj.(prop_name) = listdelete(existing, index);
+      set_task_perms(actor, {{"property_write", target_obj, prop_key}});
+      target_obj.(prop_key) = listdelete(existing, index);
     else
       raise(E_INVARG, prop_name + " is not a message bag");
     endif
