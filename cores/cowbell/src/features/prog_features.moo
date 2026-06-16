@@ -556,7 +556,7 @@ object PROG_FEATURES
     return verbs(target_obj);
   endmethod
 
-  verb "@verbs" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@verbs" (any any any) owner: HACKER flags: "rd"
     "HINT: <object> -- List all verbs on an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -599,7 +599,7 @@ object PROG_FEATURES
     add_property(target_obj, prop_name, value, prop_info);
   endmethod
 
-  verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@properties @props" (any any any) owner: HACKER flags: "rd"
     "HINT: <object> -- List all properties on an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -626,7 +626,7 @@ object PROG_FEATURES
     player:inform_current(listing_event);
   endverb
 
-  verb "@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@prop*erty" (any any any) owner: HACKER flags: "rd"
     "HINT: <object>.<property> [value [perms [owner]]] -- Add a property to an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -691,7 +691,7 @@ object PROG_FEATURES
     delete_property(target_obj, prop_name);
   endmethod
 
-  verb "@rmprop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@rmprop*erty" (any any any) owner: HACKER flags: "rd"
     "HINT: <object>.<property> [--dry-run] -- Remove a property from an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -855,7 +855,7 @@ object PROG_FEATURES
     return ['name -> target_obj.name, 'aliases -> `target_obj.aliases ! ANY => {}', 'contents -> target_obj.contents, 'location -> target_obj.location];
   endmethod
 
-  verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@sh*ow @d*isplay" (any any any) owner: HACKER flags: "rd"
     "HINT: <object>[selectors] -- Display object information.";
     "Syntax:";
     "  @show obj         Summary with counts and hints";
