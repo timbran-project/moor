@@ -141,13 +141,13 @@ object LOGIN
         this:add_interception(player, "intercepted_password", candidate);
         return 0;
       elseif (status == 'external_only)
-        server_log(tostr("FAILED CONNECT (NO PASSWORD): ", name, " (", candidate, ") on ", connection_name(player)));
+        this:_server_log(tostr("FAILED CONNECT (NO PASSWORD): ", name, " (", candidate, ") on ", connection_name(player)));
         raise(E_INVARG, "This account uses external authentication.");
       elseif (status == 'invalid_type)
-        server_log(tostr("FAILED CONNECT (BAD PASSWORD TYPE): ", name, " (", candidate, ") on ", connection_name(player)));
+        this:_server_log(tostr("FAILED CONNECT (BAD PASSWORD TYPE): ", name, " (", candidate, ") on ", connection_name(player)));
         raise(E_INVARG, "Cannot authenticate this account.");
       else
-        server_log(tostr("FAILED CONNECT: ", name, " (", candidate, ") on ", connection_name(player)));
+        this:_server_log(tostr("FAILED CONNECT: ", name, " (", candidate, ") on ", connection_name(player)));
         raise(E_INVARG, "Invalid password.");
       endif
       "TODO: block lists, guests, etc";
@@ -171,14 +171,14 @@ object LOGIN
       return 0;
     endtry
     candidate = this:find_by_oauth2(provider, external_id);
-    server_log(tostr("OAUTH2 CHECK: candidate=", candidate, " valid=", valid(candidate), " typeof=", typeof(candidate)));
+    this:_server_log(tostr("OAUTH2 CHECK: candidate=", candidate, " valid=", valid(candidate), " typeof=", typeof(candidate)));
     if (valid(candidate))
-      server_log(tostr("OAUTH2 CHECK SUCCESS: ", provider, ":", external_id, " -> ", candidate));
+      this:_server_log(tostr("OAUTH2 CHECK SUCCESS: ", provider, ":", external_id, " -> ", candidate));
       return candidate;
     else
-      server_log(tostr("OAUTH2 CHECK NOT FOUND: ", provider, ":", external_id, " returning 0"));
+      this:_server_log(tostr("OAUTH2 CHECK NOT FOUND: ", provider, ":", external_id, " returning 0"));
       ret = 0;
-      server_log(tostr("OAUTH2 CHECK: about to return ", ret, " typeof=", typeof(ret)));
+      this:_server_log(tostr("OAUTH2 CHECK: about to return ", ret, " typeof=", typeof(ret)));
       return ret;
     endif
   endverb
@@ -213,7 +213,7 @@ object LOGIN
       return 0;
     endif
     new = this:_create_player(player_name, 0, email || "", {{provider, external_id}});
-    server_log(tostr("OAUTH2 CREATE: ", player_name, " (", new, ") via ", provider, ":", external_id));
+    this:_server_log(tostr("OAUTH2 CREATE: ", player_name, " (", new, ") via ", provider, ":", external_id));
     return new;
   endverb
 
@@ -277,7 +277,7 @@ object LOGIN
         candidate.email_address = email;
       endif
     endif
-    server_log(tostr("OAUTH2 CONNECT: ", existing_name, " (", candidate, ") linked ", provider, ":", external_id));
+    this:_server_log(tostr("OAUTH2 CONNECT: ", existing_name, " (", candidate, ") linked ", provider, ":", external_id));
     return candidate;
   endverb
 
@@ -451,10 +451,11 @@ object LOGIN
     return new_player;
   endmethod
 
-  method _server_log owner: ARCH_WIZARD
+  method _server_log owner: LOGIN
     "Write an internal login service message to the server log.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {message} = args;
+    set_task_perms(this, {{"builtin_call", "server_log"}});
     server_log(message);
   endmethod
 
@@ -479,17 +480,17 @@ object LOGIN
     "Args: {player_obj}";
     {new_player} = args;
     !valid(new_player) && return;
-    server_log(tostr("setup_new_player called for ", new_player));
+    this:_server_log(tostr("setup_new_player called for ", new_player));
     "Create welcome letter if configured";
     letter_config = this.new_player_letter;
-    server_log(tostr("setup_new_player: letter_config type = ", typeof(letter_config), " length = ", typeof(letter_config) == TYPE_LIST ? length(letter_config) | 0));
+    this:_server_log(tostr("setup_new_player: letter_config type = ", typeof(letter_config), " length = ", typeof(letter_config) == TYPE_LIST ? length(letter_config) | 0));
     if (typeof(letter_config) == TYPE_LIST && length(letter_config) == 3)
       {from_obj, subject, msg_lines} = letter_config;
       "Create mailbox for new player";
       mailbox = create($mailbox, new_player);
       mailbox.name = new_player.name + "'s mailbox";
       move(mailbox, $mail_room);
-      server_log(tostr("setup_new_player: created mailbox ", mailbox, " owner = ", mailbox.owner));
+      this:_server_log(tostr("setup_new_player: created mailbox ", mailbox, " owner = ", mailbox.owner));
       "Create the welcome letter";
       letter = create($letter, from_obj);
       letter.name = subject;
@@ -503,9 +504,9 @@ object LOGIN
         endfor
       endif
       move(letter, mailbox);
-      server_log(tostr("setup_new_player: created letter ", letter, " in mailbox"));
+      this:_server_log(tostr("setup_new_player: created letter ", letter, " in mailbox"));
     else
-      server_log("setup_new_player: letter_config not valid, skipping mailbox creation");
+      this:_server_log("setup_new_player: letter_config not valid, skipping mailbox creation");
     endif
   endmethod
 
