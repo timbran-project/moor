@@ -52,6 +52,7 @@ object PROG_FEATURES
     "Internal helper to check verb exists with elevated permissions";
     caller == this || raise(E_PERM);
     {verb_location, verb_name} = args;
+    set_task_perms(player, {{"verb_read", verb_location, verb_name}});
     "This will raise E_VERBNF if verb doesn't exist";
     $prog_utils:get_verb_metadata(verb_location, verb_name);
     return true;
@@ -225,8 +226,8 @@ object PROG_FEATURES
   method _do_get_verb_listing owner: ARCH_WIZARD
     "Internal helper to get verb listing with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {verb_location, verb_name, show_all_parens} = args;
+    set_task_perms(player, {{"verb_read", verb_location, verb_name}});
     metadata = $prog_utils:get_verb_metadata(verb_location, verb_name);
     code_lines = verb_code(verb_location, verb_name, show_all_parens, true);
     return {metadata:verb_owner(), metadata:flags(), metadata:dobj(), metadata:prep(), metadata:iobj(), code_lines};
@@ -318,8 +319,8 @@ object PROG_FEATURES
   method _do_add_verb owner: ARCH_WIZARD
     "Internal helper to add verb with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, verb_info, verb_args} = args;
+    set_task_perms(player, {{"verb_add", target_obj}});
     add_verb(target_obj, verb_info, verb_args);
   endmethod
 
@@ -458,8 +459,8 @@ object PROG_FEATURES
   method _do_delete_verb owner: ARCH_WIZARD
     "Internal helper to delete verb with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, verb_name} = args;
+    set_task_perms(player, {{"object_write", target_obj}});
     delete_verb(target_obj, verb_name);
   endmethod
 
@@ -526,16 +527,16 @@ object PROG_FEATURES
   method _do_set_verb_args owner: ARCH_WIZARD
     "Internal helper to set verb args with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj, verb_name, new_args} = args;
+    set_task_perms(player, {{"verb_write", target_obj, verb_name}});
     set_verb_args(target_obj, verb_name, new_args);
   endmethod
 
   method _do_get_verbs owner: ARCH_WIZARD
     "Internal helper to get verb list with elevated permissions";
     caller == this || raise(E_PERM);
-    set_task_perms(player);
     {target_obj} = args;
+    set_task_perms(player, {{"object_read", target_obj}});
     return verbs(target_obj);
   endmethod
 
@@ -2792,6 +2793,40 @@ object PROG_FEATURES
     finally
       if (valid(fixture))
         `delete_verb(fixture, "argspec_probe") ! E_VERBNF => 0';
+        recycle(fixture);
+      endif
+    endtry
+    return true;
+  endmethod
+
+  method test_verb_command_helpers_scoped_grants owner: ARCH_WIZARD
+    "Unit test: verb command helpers use scoped grants for private object/verb operations.";
+    fixture = #-1;
+    try
+      fixture = create($root);
+      fixture.owner = $hacker;
+      fixture.r = 0;
+      fixture.w = 0;
+      add_verb(fixture, {$hacker, "", "private_helper_probe"}, {"this", "none", "this"});
+      errors = set_verb_code(fixture, "private_helper_probe", {"return 42;"}, 2, 1);
+      $test_utils:assert_false(errors, "private helper probe should compile");
+      $test_utils:assert_true(fixture.owner != player, "fixture should not be owned by the player");
+      verb_list = this:_do_get_verbs(fixture);
+      $test_utils:assert_true("private_helper_probe" in verb_list, "_do_get_verbs should use an object_read grant");
+      listing = this:_do_get_verb_listing(fixture, "private_helper_probe", false);
+      $test_utils:assert_eq(listing[6], {"return 42;"}, "_do_get_verb_listing should use a verb_read grant");
+      this:_do_check_verb_exists(fixture, "private_helper_probe");
+      this:_do_set_verb_args(fixture, "private_helper_probe", {"none", "none", "none"});
+      metadata = $prog_utils:get_verb_metadata(fixture, "private_helper_probe");
+      $test_utils:assert_eq(metadata:dobj(), "none", "_do_set_verb_args should use a verb_write grant");
+      this:_do_add_verb(fixture, {player, "rxd", "grant_added_probe"}, {"this", "none", "this"});
+      $test_utils:assert_true("grant_added_probe" in verbs(fixture), "_do_add_verb should use a verb_add grant");
+      this:_do_delete_verb(fixture, "grant_added_probe");
+      $test_utils:assert_false("grant_added_probe" in verbs(fixture), "_do_delete_verb should use an object_write grant");
+    finally
+      if (valid(fixture))
+        `delete_verb(fixture, "grant_added_probe") ! E_VERBNF => 0';
+        `delete_verb(fixture, "private_helper_probe") ! E_VERBNF => 0';
         recycle(fixture);
       endif
     endtry
