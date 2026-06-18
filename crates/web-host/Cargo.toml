@@ -42,7 +42,6 @@ rpc-common = { path = "../rpc/rpc-common" }
 # Command Line & Configuration
 clap.workspace = true
 clap_derive.workspace = true
-figment.workspace = true
 
 # Serialization & Data Formats
 serde.workspace = true
@@ -81,3 +80,6 @@ planus.workspace = true
 url.workspace = true
 urlencoding.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

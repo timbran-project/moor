@@ -14,11 +14,6 @@
 use crate::feature_args::FeatureArgs;
 use clap::builder::ValueHint;
 use clap_derive::{Parser, ValueEnum};
-use eyre::eyre;
-use figment::{
-    Figment,
-    providers::{Format as ProviderFormat, Serialized, Yaml},
-};
 use moor_common::threading::TaskPoolPinningMode;
 use moor_common::util::config_path;
 use moor_db::DatabaseConfig;
@@ -237,10 +232,9 @@ pub struct ImportExportArgs {
         long,
         value_name = "import-format",
         help = "Format to import from.",
-        value_enum,
-        default_value_t = Format::Textdump
+        value_enum
     )]
-    pub import_format: Format,
+    pub import_format: Option<Format>,
 
     #[arg(
         long,
@@ -270,10 +264,12 @@ impl ImportExportArgs {
         if let Some(args) = self.checkpoint_interval_seconds {
             config.checkpoint_interval = Some(std::time::Duration::from_secs(u64::from(args)));
         }
-        config.import_format = match self.import_format {
-            Format::Textdump => ImportFormat::Textdump,
-            Format::Objdef => ImportFormat::Objdef,
-        };
+        if let Some(import_format) = self.import_format {
+            config.import_format = match import_format {
+                Format::Textdump => ImportFormat::Textdump,
+                Format::Objdef => ImportFormat::Objdef,
+            };
+        }
         if self.export_format.is_some() {
             tracing::warn!(
                 "--export-format is deprecated and ignored. Checkpoints always use objdef format."
@@ -392,25 +388,9 @@ impl Args {
 
     /// Load the configuration file if we have it, and then we'll merge the arguments into it.
     pub fn load_config(&self) -> Result<Arc<Config>, eyre::Report> {
-        // We use figment to load, but cannot use its merge functionality because our clap enums are
-        // nested using flattening, and figment doesn't support that.
         let config_path = self.config_file.clone();
-        let config = Config::default();
-        let config = config_path
-            .map(|config_path| {
-                let f = Figment::new()
-                    .merge(Serialized::defaults(config))
-                    .merge(Yaml::file(config_path.clone()));
-
-                f.extract::<Config>().map_err(|e| {
-                    eyre!(
-                        "Failed to parse configuration from {:?}: {}",
-                        config_path,
-                        e
-                    )
-                })
-            })
-            .unwrap_or_else(|| Ok(Config::default()))?;
+        let config =
+            moor_common::config::apply_yaml_config_file(Config::default(), config_path.as_deref())?;
         let config = self.merge_config(config)?;
         let config = Arc::new(config);
         Ok(config)
@@ -567,6 +547,7 @@ import_export:
         let config = args.load_config().expect("load config");
 
         assert!(config.features.custom_errors);
+        assert!(config.features.rich_notify);
         assert_eq!(config.import_export.import_format, ImportFormat::Objdef);
     }
 
@@ -586,6 +567,52 @@ features_config:
         .expect("parse args");
 
         assert!(args.load_config().is_err());
+    }
+
+    #[test]
+    fn load_config_rejects_unknown_nested_keys() {
+        let (_dir, config_path) = write_config(
+            r#"
+features:
+  custom_errors: true
+  typo: true
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
+
+        assert!(args.load_config().is_err());
+    }
+
+    #[test]
+    fn load_config_cli_args_override_file_values() {
+        let (_dir, config_path) = write_config(
+            r#"
+features:
+  custom_errors: false
+import_export:
+  import_format: Objdef
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+            "--custom-errors",
+            "true",
+            "--import-format",
+            "textdump",
+        ])
+        .expect("parse args");
+
+        let config = args.load_config().expect("load config");
+
+        assert!(config.features.custom_errors);
+        assert_eq!(config.import_export.import_format, ImportFormat::Textdump);
     }
 
     #[test]

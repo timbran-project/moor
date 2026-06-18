@@ -29,6 +29,7 @@ use uuid::Uuid;
 
 /// Configuration for a single OAuth2 provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OAuth2ProviderConfig {
     pub client_id: String,
     pub client_secret: String,

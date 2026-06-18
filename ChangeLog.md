@@ -121,9 +121,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `daemon`:
 
-- YAML configuration files now reject unknown fields instead of silently ignoring stale or
-  misspelled keys; book examples now use the current `features`, `import_export`, and `database`
-  section names.
+- Daemon and host YAML configuration loading now uses direct serde/clap overlay logic instead of
+  Figment, rejects unknown keys instead of silently ignoring stale or misspelled keys, and preserves
+  the current config-file shapes. Book examples now use the current `features`, `import_export`, and
+  `database` section names.
 
 `docs`:
 

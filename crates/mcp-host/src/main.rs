@@ -55,10 +55,6 @@ use clap::Parser;
 use clap_derive::Parser;
 use connection::{ConnectionConfig, ConnectionManager, Credentials};
 use eyre::Result;
-use figment::{
-    Figment,
-    providers::{Format, Serialized, Yaml},
-};
 use mcp_server::McpServer;
 use moor_client::MoorClientConfig;
 use rpc_common::client_args::RpcClientArgs;
@@ -72,6 +68,7 @@ use tracing::{info, warn};
 #[command(version)]
 struct Args {
     #[command(flatten)]
+    #[serde(flatten)]
     client_args: RpcClientArgs,
 
     /// Username for default (programmer) connection
@@ -106,11 +103,11 @@ async fn main() -> Result<()> {
     // Parse arguments
     let cli_args = Args::parse();
     let config_file = cli_args.config_file.clone();
-    let mut args_figment = Figment::new().merge(Serialized::defaults(cli_args));
-    if let Some(config_file) = config_file {
-        args_figment = args_figment.merge(Yaml::file(config_file));
-    }
-    let args: Args = args_figment.extract()?;
+    let args = moor_common::config::apply_yaml_config_file_with_flattened_sections(
+        cli_args,
+        config_file.as_deref().map(std::path::Path::new),
+        &["client_args"],
+    )?;
 
     // Setup logging to stderr (so it doesn't interfere with MCP on stdout)
     setup_logging(args.debug)?;

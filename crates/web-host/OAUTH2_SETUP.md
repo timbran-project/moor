@@ -113,8 +113,6 @@ listen_address: "0.0.0.0:8080"
 debug: true
 rpc_address: "tcp://127.0.0.1:7899"
 events_address: "tcp://127.0.0.1:7898"
-public_key: "moor-data/moor_host.pem.pub"
-private_key: "moor-data/moor_host.pem"
 
 # OAuth2 settings
 oauth2:

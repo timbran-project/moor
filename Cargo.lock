@@ -355,15 +355,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomic"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a89cbf775b137e9b968e67227ef7f775587cde3fd31b0d8599dbd0f598a48340"
-dependencies = [
- "bytemuck",
-]
-
-[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1729,20 +1720,6 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
-
-[[package]]
-name = "figment"
-version = "0.10.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cb01cd46b0cf372153850f4c6c272d9cbea2da513e07538405148f95bd789f3"
-dependencies = [
- "atomic",
- "serde",
- "serde_json",
- "serde_yaml",
- "uncased",
- "version_check",
-]
 
 [[package]]
 name = "filetime"
@@ -3186,9 +3163,11 @@ dependencies = [
  "moor-var",
  "serde",
  "serde_json",
+ "serde_yaml",
  "smallvec",
  "strsim",
  "strum",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
  "tracing-log",
@@ -3260,7 +3239,6 @@ dependencies = [
  "ed25519-dalek",
  "eyre",
  "fast-telemetry",
- "figment",
  "fjall",
  "flume",
  "fs2",
@@ -3333,7 +3311,6 @@ dependencies = [
  "color-eyre",
  "crossterm",
  "eyre",
- "figment",
  "fs2",
  "moor-common",
  "moor-compiler",
@@ -3422,7 +3399,6 @@ dependencies = [
  "color-eyre",
  "diffy",
  "eyre",
- "figment",
  "futures-util",
  "moor-common",
  "moor-compiler",
@@ -3543,7 +3519,6 @@ dependencies = [
  "colored",
  "escargot",
  "eyre",
- "figment",
  "futures-util",
  "hickory-resolver",
  "jotdown",
@@ -3634,7 +3609,6 @@ dependencies = [
  "clap_derive",
  "color-eyre",
  "eyre",
- "figment",
  "futures-util",
  "hickory-resolver",
  "ipnet",
@@ -3651,6 +3625,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha2",
+ "tempfile",
  "thiserror 2.0.18",
  "tmq",
  "tokio",
@@ -6374,15 +6349,6 @@ name = "unarray"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
-
-[[package]]
-name = "uncased"
-version = "0.9.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1b88fcfe09e89d3866a5c11019378088af2d24c3fbd4f0543f96b479ec90697"
-dependencies = [
- "version_check",
-]
 
 [[package]]
 name = "unic-langid"

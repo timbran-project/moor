@@ -17,10 +17,6 @@ use crate::listen::{Listeners, load_tls_config};
 use clap::Parser;
 use clap_derive::Parser;
 use colored::control;
-use figment::{
-    Figment,
-    providers::{Format, Serialized, Yaml},
-};
 use moor_var::SYSTEM_OBJECT;
 use rpc_async_client::{process_hosts_events, start_host_session};
 use rpc_common::{HostType, client_args::RpcClientArgs};
@@ -59,6 +55,7 @@ static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
 #[command(version = VERSION_STRING.as_str())]
 struct Args {
     #[command(flatten)]
+    #[serde(flatten)]
     client_args: RpcClientArgs,
 
     #[arg(
@@ -118,11 +115,11 @@ async fn main() -> Result<(), eyre::Error> {
     color_eyre::install()?;
     let cli_args = Args::parse();
     let config_file = cli_args.config_file.clone();
-    let mut args_figment = Figment::new().merge(Serialized::defaults(cli_args));
-    if let Some(config_file) = config_file {
-        args_figment = args_figment.merge(Yaml::file(config_file));
-    }
-    let args = args_figment.extract::<Args>().unwrap();
+    let args = moor_common::config::apply_yaml_config_file_with_flattened_sections(
+        cli_args,
+        config_file.as_deref().map(std::path::Path::new),
+        &["client_args"],
+    )?;
 
     moor_common::tracing::init_tracing(args.debug).unwrap_or_else(|e| {
         eprintln!("Unable to configure logging: {e}");

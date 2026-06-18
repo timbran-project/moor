@@ -4,8 +4,6 @@
 listen_address: "0.0.0.0:8080"
 rpc_address: "tcp://127.0.0.1:7899"
 events_address: "tcp://127.0.0.1:7898"
-public_key: "path/to/public_key.pem"
-private_key: "path/to/private_key.pem"
 
 oauth2:
   enabled: true

@@ -37,7 +37,6 @@ moor-var = { path = "../../crates/var" }
 # Command Line & Configuration
 clap.workspace = true
 clap_derive.workspace = true
-figment.workspace = true
 
 # Database & Persistence
 fs2.workspace = true

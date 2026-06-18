@@ -26,10 +26,6 @@ use axum::{
 use clap::Parser;
 use clap_derive::Parser;
 
-use figment::{
-    Figment,
-    providers::{Format, Serialized, Yaml},
-};
 use ipnet::IpNet;
 use moor_var::{Obj, SYSTEM_OBJECT};
 use rpc_async_client::{
@@ -169,6 +165,7 @@ impl Default for RateLimitConfig {
 #[command(version = VERSION_STRING.as_str())]
 struct Args {
     #[command(flatten)]
+    #[serde(flatten)]
     client_args: RpcClientArgs,
 
     #[arg(
@@ -692,11 +689,11 @@ async fn main() -> Result<(), eyre::Error> {
     color_eyre::install()?;
     let cli_args = Args::parse();
     let config_file = cli_args.config_file.clone();
-    let mut args_figment = Figment::new().merge(Serialized::defaults(cli_args));
-    if let Some(config_file) = config_file {
-        args_figment = args_figment.merge(Yaml::file(config_file));
-    }
-    let mut args = match args_figment.extract::<Args>() {
+    let mut args = match moor_common::config::apply_yaml_config_file_with_flattened_sections(
+        cli_args,
+        config_file.as_deref().map(std::path::Path::new),
+        &["client_args"],
+    ) {
         Ok(args) => args,
         Err(e) => {
             eprintln!("Unable to parse arguments/configuration: {e}");
@@ -886,4 +883,73 @@ async fn main() -> Result<(), eyre::Error> {
     info!("Done.");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Args;
+    use clap::Parser as _;
+
+    fn write_config(contents: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("web-host.yaml");
+        std::fs::write(&path, contents).expect("write config");
+        (dir, path)
+    }
+
+    fn load_config(contents: &str) -> Result<Args, eyre::Report> {
+        let (_dir, path) = write_config(contents);
+        let args = Args::try_parse_from(["moor-web-host"]).expect("parse args");
+        moor_common::config::apply_yaml_config_file_with_flattened_sections(
+            args,
+            Some(&path),
+            &["client_args"],
+        )
+    }
+
+    #[test]
+    fn config_file_accepts_flattened_rpc_client_args() {
+        let args = load_config(
+            r#"
+listen_address: "127.0.0.1:9000"
+rpc_address: "tcp://127.0.0.1:7899"
+events_address: "tcp://127.0.0.1:7898"
+"#,
+        )
+        .expect("load config");
+
+        assert_eq!(args.listen_address, "127.0.0.1:9000");
+        assert_eq!(args.client_args.rpc_address, "tcp://127.0.0.1:7899");
+        assert_eq!(args.client_args.events_address, "tcp://127.0.0.1:7898");
+    }
+
+    #[test]
+    fn config_file_accepts_nested_rpc_client_args() {
+        let args = load_config(
+            r#"
+client_args:
+  rpc_address: "ipc:///tmp/moor/rpc.sock"
+  events_address: "ipc:///tmp/moor/events.sock"
+"#,
+        )
+        .expect("load config");
+
+        assert_eq!(args.client_args.rpc_address, "ipc:///tmp/moor/rpc.sock");
+        assert_eq!(
+            args.client_args.events_address,
+            "ipc:///tmp/moor/events.sock"
+        );
+    }
+
+    #[test]
+    fn config_file_rejects_unknown_keys() {
+        assert!(
+            load_config(
+                r#"
+public_key: "stale.pem"
+"#
+            )
+            .is_err()
+        );
+    }
 }
