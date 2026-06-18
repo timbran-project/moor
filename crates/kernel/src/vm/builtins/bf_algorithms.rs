@@ -1055,16 +1055,29 @@ fn bf_term_query(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_list(&engine.solutions)))
 }
 
-fn astar_path(
+struct AstarPathArgs<'grid, 'budget> {
     width: usize,
     height: usize,
     start_x: i32,
     start_y: i32,
     goal_x: i32,
     goal_y: i32,
-    passable: &[bool],
-    mut tick_budget: Option<BuiltinTickBudget<'_>>,
-) -> Result<Var, BfErr> {
+    passable: &'grid [bool],
+    tick_budget: Option<BuiltinTickBudget<'budget>>,
+}
+
+fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
+    let AstarPathArgs {
+        width,
+        height,
+        start_x,
+        start_y,
+        goal_x,
+        goal_y,
+        passable,
+        ref mut tick_budget,
+    } = args;
+
     let w = width as i32;
     let h = height as i32;
 
@@ -1252,16 +1265,16 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     }
 
-    let path = astar_path(
+    let path = astar_path(AstarPathArgs {
         width,
         height,
         start_x,
         start_y,
         goal_x,
         goal_y,
-        &passable,
-        Some(bf_args.tick_budget()),
-    )?;
+        passable: &passable,
+        tick_budget: Some(bf_args.tick_budget()),
+    })?;
     Ok(Ret(path))
 }
 
@@ -1338,16 +1351,16 @@ mod tests {
     fn astar_consumes_task_tick_budget() {
         let passable = vec![true; 25];
         let mut tick_count = 0;
-        let err = astar_path(
-            5,
-            5,
-            0,
-            0,
-            4,
-            4,
-            &passable,
-            Some(BuiltinTickBudget::new(&mut tick_count, 2)),
-        )
+        let err = astar_path(AstarPathArgs {
+            width: 5,
+            height: 5,
+            start_x: 0,
+            start_y: 0,
+            goal_x: 4,
+            goal_y: 4,
+            passable: &passable,
+            tick_budget: Some(BuiltinTickBudget::new(&mut tick_count, 2)),
+        })
         .unwrap_err();
 
         assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));

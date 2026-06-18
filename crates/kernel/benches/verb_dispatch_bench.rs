@@ -21,8 +21,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 use moor_common::{
     model::{
-        CommitResult, DispatchFlagsSource, ObjFlag, ObjectKind, VerbArgsSpec, VerbDispatch,
-        VerbFlag, VerbLookup, WorldState, WorldStateSource,
+        CommitResult, DispatchFlagsSource, ObjFlag, ObjectKind, TaskPermissions, VerbArgsSpec,
+        VerbDispatch, VerbFlag, VerbLookup, WorldState, WorldStateSource,
     },
     tasks::{AbortLimitReason, NoopClientSession, Session},
     util::BitEnum,
@@ -37,13 +37,17 @@ use moor_kernel::{
 };
 use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_obj};
 
+fn system_permissions() -> TaskPermissions {
+    TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+}
+
 fn create_db_with_verbs(inner_verb_code: &str, outer_verb_code: &str) -> TxDB {
     let (ws_source, _) = TxDB::open(None, DatabaseConfig::default());
     let mut tx = ws_source.new_world_state().unwrap();
 
     let _sysobj = tx
         .create_object(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &NOTHING,
             &SYSTEM_OBJECT,
             ObjFlag::all_flags(),
@@ -53,7 +57,7 @@ fn create_db_with_verbs(inner_verb_code: &str, outer_verb_code: &str) -> TxDB {
 
     let inner_program = compile(inner_verb_code, CompileOptions::default()).unwrap();
     tx.add_verb(
-        &SYSTEM_OBJECT,
+        &system_permissions(),
         &SYSTEM_OBJECT,
         vec![Symbol::mk("inner")],
         &SYSTEM_OBJECT,
@@ -65,7 +69,7 @@ fn create_db_with_verbs(inner_verb_code: &str, outer_verb_code: &str) -> TxDB {
 
     let outer_program = compile(outer_verb_code, CompileOptions::default()).unwrap();
     tx.add_verb(
-        &SYSTEM_OBJECT,
+        &system_permissions(),
         &SYSTEM_OBJECT,
         vec![Symbol::mk("outer")],
         &SYSTEM_OBJECT,
@@ -89,7 +93,7 @@ fn prepare_call_verb(
     let verb_name = Symbol::mk(verb_name);
     let verb_result = world_state
         .dispatch_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, verb_name),
                 DispatchFlagsSource::Permissions,
@@ -101,7 +105,7 @@ fn prepare_call_verb(
     };
     let (program, _) = world_state
         .retrieve_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &verb_result.program_key.verb_definer,
             verb_result.program_key.verb_uuid,
         )

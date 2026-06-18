@@ -34,8 +34,7 @@ use moor_var::{
     program::{ProgramType, opcode::BuiltinId},
 };
 
-pub const BUILTIN_PROXY_CACHE_WORDS: usize =
-    (BUILTIN_ID_SPACE + u64::BITS as usize - 1) / u64::BITS as usize;
+pub const BUILTIN_PROXY_CACHE_WORDS: usize = BUILTIN_ID_SPACE.div_ceil(u64::BITS as usize);
 pub type BuiltinProxyCacheBits = [u64; BUILTIN_PROXY_CACHE_WORDS];
 
 /// Specifies the way the object ID should be allocated when creating a new object.

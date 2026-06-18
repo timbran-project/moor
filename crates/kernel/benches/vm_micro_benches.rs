@@ -17,8 +17,8 @@
 use micromeasure::{BenchContext, BenchmarkMainOptions, Throughput, benchmark_main, black_box};
 use moor_common::{
     model::{
-        CommitResult, DispatchFlagsSource, ObjFlag, ObjectKind, VerbArgsSpec, VerbDispatch,
-        VerbFlag, VerbLookup, WorldState, WorldStateSource,
+        CommitResult, DispatchFlagsSource, ObjFlag, ObjectKind, TaskPermissions, VerbArgsSpec,
+        VerbDispatch, VerbFlag, VerbLookup, WorldState, WorldStateSource,
     },
     tasks::{AbortLimitReason, NoopClientSession, Session},
     util::BitEnum,
@@ -37,12 +37,16 @@ use std::{sync::Arc, time::Duration};
 const MAX_TICKS: usize = 100_000_000;
 const CHUNK_SIZE: usize = 1; // Each "chunk" is one full execution run (100M opcodes)
 
+fn system_permissions() -> TaskPermissions {
+    TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+}
+
 fn create_db() -> TxDB {
     let (ws_source, _) = TxDB::open(None, DatabaseConfig::default());
     let mut tx = ws_source.new_world_state().unwrap();
     let _sysobj = tx
         .create_object(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &NOTHING,
             &SYSTEM_OBJECT,
             ObjFlag::all_flags(),
@@ -64,7 +68,7 @@ fn prepare_call_verb(
     let verb_name = Symbol::mk(verb_name);
     let verb_result = world_state
         .dispatch_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             VerbDispatch::new(
                 VerbLookup::method(&SYSTEM_OBJECT, verb_name),
                 DispatchFlagsSource::Permissions,
@@ -76,7 +80,7 @@ fn prepare_call_verb(
     };
     let (program, _) = world_state
         .retrieve_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             &verb_result.program_key.verb_definer,
             verb_result.program_key.verb_uuid,
         )
@@ -106,7 +110,7 @@ fn prepare_vm_execution(
     let program = compile(program, CompileOptions::default()).unwrap();
     let mut tx = ws_source.new_world_state().unwrap();
     tx.add_verb(
-        &SYSTEM_OBJECT,
+        &system_permissions(),
         &SYSTEM_OBJECT,
         vec![Symbol::mk("test")],
         &SYSTEM_OBJECT,
