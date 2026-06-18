@@ -117,9 +117,10 @@ object LIST_PROTO
     return tostr(ret, andstr, things[nthings]);
   endmethod
 
-  method map owner: HACKER
+  method map owner: ARCH_WIZARD
     "Return a new list containing func(item) for each item in the input list.";
     "Example: {1, 2, 3}:map({x} => x * 2) => {2, 4, 6}.";
+    set_task_perms(caller_perms());
     {lst, func} = args;
     result = {};
     for item in (lst)
@@ -128,9 +129,10 @@ object LIST_PROTO
     return result;
   endmethod
 
-  method filter owner: HACKER
+  method filter owner: ARCH_WIZARD
     "Return a new list containing only items for which pred(item) is true.";
     "Example: {1, 2, 3, 4, 5}:filter({x} => x % 2 == 0) => {2, 4}.";
+    set_task_perms(caller_perms());
     {lst, pred} = args;
     result = {};
     for item in (lst)
@@ -141,9 +143,10 @@ object LIST_PROTO
     return result;
   endmethod
 
-  method reduce owner: HACKER
+  method reduce owner: ARCH_WIZARD
     "Fold the list from left to right by repeatedly calling func(accumulator, item).";
     "Returns initial when the input list is empty.";
+    set_task_perms(caller_perms());
     {lst, func, initial} = args;
     accumulator = initial;
     for item in (lst)
@@ -152,8 +155,9 @@ object LIST_PROTO
     return accumulator;
   endmethod
 
-  method find owner: HACKER
+  method find owner: ARCH_WIZARD
     "Return the first item for which pred(item) is true, or 0 when no item matches.";
+    set_task_perms(caller_perms());
     {lst, pred} = args;
     for item in (lst)
       if (pred(item))
@@ -163,8 +167,9 @@ object LIST_PROTO
     return 0;
   endmethod
 
-  method any owner: HACKER
+  method any owner: ARCH_WIZARD
     "Return true if pred(item) is true for at least one item in the list.";
+    set_task_perms(caller_perms());
     {lst, pred} = args;
     for item in (lst)
       if (pred(item))
@@ -174,9 +179,10 @@ object LIST_PROTO
     return false;
   endmethod
 
-  method all owner: HACKER
+  method all owner: ARCH_WIZARD
     "Return true if pred(item) is true for every item in the list.";
     "The empty list returns true.";
+    set_task_perms(caller_perms());
     {lst, pred} = args;
     for item in (lst)
       if (!(pred(item)))
@@ -201,9 +207,10 @@ object LIST_PROTO
     return result;
   endmethod
 
-  method group_by owner: HACKER
+  method group_by owner: ARCH_WIZARD
     "Return a map from key_func(item) to the list of items with that key.";
     "Each group preserves the original item order.";
+    set_task_perms(caller_perms());
     {lst, key_func} = args;
     groups = [];
     for item in (lst)
@@ -267,7 +274,7 @@ object LIST_PROTO
     return true;
   endmethod
 
-  method test_functional_list_helpers owner: HACKER
+  method test_functional_list_helpers owner: ARCH_WIZARD
     "Cover map, filter, reduce, find, any, and all.";
     $test_utils:assert_eq({1, 2, 3}:map({x} => x * 2), {2, 4, 6}, "map transforms every item");
     $test_utils:assert_eq({}:map({x} => x + 1), {}, "map preserves empty lists");
@@ -283,6 +290,14 @@ object LIST_PROTO
     $test_utils:assert_true({2, 4, 6}:all({x} => x % 2 == 0), "all true case");
     $test_utils:assert_false({1, 2, 3}:all({x} => x % 2 == 0), "all false case");
     $test_utils:assert_true({}:all({x} => x > 100), "all empty list is true");
+    expected = task_perms()[1];
+    {1}:map({x} => caller_perms()) == {expected} || raise(E_ASSERT("map callback should run with caller perms"));
+    {1}:filter({x} => caller_perms() == expected) == {1} || raise(E_ASSERT("filter callback should run with caller perms"));
+    {1}:reduce({acc, x} => caller_perms(), 0) == expected || raise(E_ASSERT("reduce callback should run with caller perms"));
+    {1}:find({x} => caller_perms() == expected) == 1 || raise(E_ASSERT("find callback should run with caller perms"));
+    {1}:any({x} => caller_perms() == expected) || raise(E_ASSERT("any callback should run with caller perms"));
+    {1}:all({x} => caller_perms() == expected) || raise(E_ASSERT("all callback should run with caller perms"));
+    {"a"}:group_by({x} => caller_perms()) == [expected -> {"a"}] || raise(E_ASSERT("group_by callback should run with caller perms"));
     return true;
   endmethod
 

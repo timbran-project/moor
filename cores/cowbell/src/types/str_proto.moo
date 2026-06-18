@@ -824,16 +824,18 @@ object STR_PROTO
     return string + this:space(padding_needed, fill);
   endmethod
 
-  method words_list owner: HACKER
+  method words_list owner: ARCH_WIZARD
     "words_list(string) => list of words split by whitespace using modern approach";
     "Example: \"hello world test\":words_list() => {\"hello\", \"world\", \"test\"}";
+    set_task_perms(caller_perms());
     string = args[1];
     return this:split(this:trim(string), " "):filter({w} => w != "");
   endmethod
 
-  method map_chars owner: HACKER
+  method map_chars owner: ARCH_WIZARD
     "map_chars(string, function) => string with function applied to each character";
     "Example: \"hello\":map_chars({c} => uppercase(c)) => \"HELLO\"";
+    set_task_perms(caller_perms());
     {string, func} = args;
     result = "";
     for i in [1..length(string)]
@@ -842,9 +844,10 @@ object STR_PROTO
     return result;
   endmethod
 
-  method filter_chars owner: HACKER
+  method filter_chars owner: ARCH_WIZARD
     "filter_chars(string, predicate) => string with only characters matching predicate";
     "Example: \"abc123def\":filter_chars({c} => c in \"abcdefghijklmnopqrstuvwxyz\") => \"abcdef\"";
+    set_task_perms(caller_perms());
     {string, pred} = args;
     result = "";
     for i in [1..length(string)]
@@ -1065,7 +1068,7 @@ object STR_PROTO
     return true;
   endmethod
 
-  method test_split_search_and_transform_helpers owner: HACKER
+  method test_split_search_and_transform_helpers owner: ARCH_WIZARD
     "Cover split/search/replace and string transforms.";
     $test_utils:assert_eq("a,b,c":split(","), {"a", "b", "c"}, "split basic delimiter");
     $test_utils:assert_eq("a,,c":split(","), {"a", "", "c"}, "split preserves empty parts");
@@ -1086,6 +1089,9 @@ object STR_PROTO
     $test_utils:assert_eq("hello world":substring(7, 5), "world", "substring range");
     $test_utils:assert_eq("hello":map_chars({c0} => this:uppercase(c0)), "HELLO", "map_chars uppercase function");
     $test_utils:assert_eq("abc123def":filter_chars({c1} => c1 in "abcdefghijklmnopqrstuvwxyz"), "abcdef", "filter_chars letters");
+    expected = task_perms()[1];
+    "a":map_chars({c2} => caller_perms() == expected ? c2 | "x") == "a" || raise(E_ASSERT("map_chars callback should run with caller perms"));
+    "a":filter_chars({c3} => caller_perms() == expected) == "a" || raise(E_ASSERT("filter_chars callback should run with caller perms"));
     return true;
   endmethod
 
