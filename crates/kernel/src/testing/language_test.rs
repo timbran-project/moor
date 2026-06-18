@@ -28,9 +28,9 @@ mod tests {
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::program::ProgramType;
     use moor_var::{
-        E_ARGS, E_DIV, E_PERM, E_QUOTA, E_RANGE, E_TYPE, Error, IndexMode, List, NOTHING, Obj,
-        SYSTEM_OBJECT, Symbol, Var, v_bool_int, v_empty_list, v_err, v_float, v_flyweight, v_int,
-        v_list, v_map, v_obj, v_objid, v_str, v_sym,
+        E_ARGS, E_DIV, E_INVARG, E_PERM, E_QUOTA, E_RANGE, E_TYPE, Error, IndexMode, List, NOTHING,
+        Obj, SYSTEM_OBJECT, Symbol, Var, v_bool_int, v_empty_list, v_err, v_float, v_flyweight,
+        v_int, v_list, v_map, v_obj, v_objid, v_str, v_sym,
     };
     use test_case::test_case;
 
@@ -138,6 +138,53 @@ mod tests {
         let state = world_with_test_program(program);
         let session = Arc::new(NoopClientSession::new());
         call_verb(state, session, BuiltinRegistry::new(), "test", args)
+    }
+
+    #[test]
+    fn test_fromliteral_parses_value() {
+        let program = "return fromliteral(args[1]);";
+        let literal = r#"{1, "two", #-1, E_INVARG}"#;
+        assert_eq!(
+            run_moo_with_args(program, List::mk_list(&[v_str(literal)])),
+            Ok(v_list(&[
+                v_int(1),
+                v_str("two"),
+                v_objid(-1),
+                v_err(E_INVARG)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_fromliteral_rejects_non_literal_input() {
+        let program = r#"
+            try
+                return fromliteral(args[1]);
+            except (E_INVARG)
+                return "invalid";
+            endtry
+        "#;
+        assert_eq!(
+            run_moo_with_args(program, List::mk_list(&[v_str("1 + 2")])),
+            Ok(v_str("invalid"))
+        );
+    }
+
+    #[test]
+    fn test_fromliteral_roundtrips_toliteral_output() {
+        let program = r#"
+            value = {1, "two", #-1, E_INVARG};
+            return fromliteral(toliteral(value));
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_int(1),
+                v_str("two"),
+                v_objid(-1),
+                v_err(E_INVARG)
+            ]))
+        );
     }
 
     #[test]

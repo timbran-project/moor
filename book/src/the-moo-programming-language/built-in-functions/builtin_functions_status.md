@@ -38,6 +38,7 @@ open an issue on the
 | ----------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
 | [`tostr`](strings.md#tostr)                     | &check;  |                                                                                                      |
 | [`toliteral`](strings.md#toliteral)             | &check;  |                                                                                                      |
+| [`fromliteral`](values.md#fromliteral)          | &check;  | Parses one literal value without evaluating MOO code                                                 |
 | [`crypt`](crypto.md#crypt)                      | &check;  | Pretty damned insecure, only here to support existing core password functions.                       |
 | [`index`](strings.md#index)                     | &check;  |                                                                                                      |
 | [`rindex`](strings.md#rindex)                   | &check;  |                                                                                                      |

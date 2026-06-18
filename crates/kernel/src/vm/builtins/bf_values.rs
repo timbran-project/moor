@@ -18,7 +18,7 @@ use crate::{
     vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, world_state_bf_err},
 };
 use md5::Digest;
-use moor_compiler::{offset_for_builtin, to_literal};
+use moor_compiler::{offset_for_builtin, parse_literal_value, to_literal};
 use moor_var::{
     ByteSized, E_ARGS, E_INVARG, E_RANGE, E_TYPE, Variant, v_err, v_float, v_int, v_obj, v_objid,
     v_str, v_sym,
@@ -132,6 +132,26 @@ fn bf_toliteral(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let literal = to_literal(&bf_args.args[0]);
     Ok(Ret(v_str(literal.as_str())))
+}
+
+/// Usage: `any fromliteral(str literal)`
+/// Parses a single MOO literal value from a string without evaluating code.
+fn bf_fromliteral(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 1 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("fromliteral() requires exactly 1 argument"),
+        ));
+    }
+
+    let Some(literal) = bf_args.args[0].as_string() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("fromliteral() requires a string argument"),
+        ));
+    };
+
+    let value = parse_literal_value(literal)
+        .map_err(|err| BfErr::ErrValue(E_INVARG.with_msg(|| format!("invalid literal: {err}"))))?;
+    Ok(Ret(value))
 }
 
 /// Usage: `int toint(int|float|obj|str|error value)`
@@ -441,6 +461,7 @@ pub(crate) fn register_bf_values(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("tostr")] = bf_tostr;
     builtins[offset_for_builtin("tosym")] = bf_tosym;
     builtins[offset_for_builtin("toliteral")] = bf_toliteral;
+    builtins[offset_for_builtin("fromliteral")] = bf_fromliteral;
     builtins[offset_for_builtin("toint")] = bf_toint;
     builtins[offset_for_builtin("tonum")] = bf_toint;
     builtins[offset_for_builtin("toobj")] = bf_toobj;

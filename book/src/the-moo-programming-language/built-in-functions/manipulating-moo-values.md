@@ -73,6 +73,30 @@ toliteral([1 -> 2]    =>   "[1 -> 2]"
 toliteral(E_PERM)     =>   "E_PERM"
 ```
 
+### `fromliteral`
+
+```
+any fromliteral(str)
+```
+
+Parses a string containing one MOO literal value and returns that value. This is the inverse of
+`toliteral()` for values that have literal representations.
+
+`fromliteral()` parses data, not code. It is the right tool for accepting serialized values from
+players, files, web requests, or other untrusted sources where using `eval()` would run arbitrary
+MOO code.
+
+```
+fromliteral("17")                    =>   17
+fromliteral("\"foo\"")               =>   "foo"
+fromliteral("{1, \"two\", #-1}")     =>   {1, "two", #-1}
+fromliteral("E_PERM")                =>   E_PERM
+fromliteral("1 + 2")                 =>   raises E_INVARG
+```
+
+If the argument is not a string, `fromliteral()` raises `E_TYPE`. If the string is not exactly one
+valid literal value, it raises `E_INVARG`.
+
 ### `toint`
 
 ```

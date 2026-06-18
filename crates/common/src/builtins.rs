@@ -373,6 +373,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("tostr", Q(0), U, vec![], true),
         mk_builtin("tosym", Q(1), Q(1), vec![Any], true),
         mk_builtin("toliteral", Q(1), Q(1), vec![Any], true),
+        mk_builtin("fromliteral", Q(1), Q(1), vec![Typed(TYPE_STR)], true),
         mk_builtin("toint", Q(1), Q(1), vec![Any], true),
         mk_builtin("tonum", Q(1), Q(1), vec![Any], true),
         mk_builtin("toobj", Q(1), Q(1), vec![Any], true),

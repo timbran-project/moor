@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `astar()` builtin for server-side A* pathfinding; accepts grid dimensions, start/goal
   coordinates, tile map, and solid tile set; returns a list of `{x, y}` waypoints with 8-directional
   movement and corner-cutting prevention
+- New `fromliteral()` builtin for parsing one MOO literal value from a string without evaluating MOO
+  code
 
 `compiler`:
 

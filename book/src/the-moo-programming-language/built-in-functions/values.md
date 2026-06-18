@@ -49,6 +49,28 @@
 **Returns:** A string containing the literal representation of the value\
 **Note:** This produces a string that could be evaluated to recreate the original value.
 
+### `fromliteral`
+
+**Description**: Parses a single MOO literal string into the value it represents.\
+**Arguments**:
+
+- `literal`: A string containing one MOO literal value
+
+**Returns:** The parsed value\
+**Note:** This parses data literals only; it does not evaluate MOO code. Use this instead of
+`eval()` when accepting a serialized value from a player, file, web request, or another untrusted
+source. Raises `E_INVARG` if the string is not exactly one valid literal.
+
+Examples:
+
+```
+fromliteral("17")                    =>   17
+fromliteral("\"foo\"")               =>   "foo"
+fromliteral("{1, \"two\", #-1}")     =>   {1, "two", #-1}
+fromliteral("E_PERM")                =>   E_PERM
+fromliteral("1 + 2")                 =>   raises E_INVARG
+```
+
 ### `toint`
 
 **Description**: Converts a value to an integer.\
