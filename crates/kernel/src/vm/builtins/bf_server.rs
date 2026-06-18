@@ -43,8 +43,8 @@ use crate::{
 use moor_common::{
     build,
     model::{
-        CapabilityGrant, CapabilityGrants, DispatchFlagsSource, HasUuid, ObjFlag, VerbDispatch,
-        VerbLookup, WorldStateError,
+        CapabilityGrant, CapabilityGrants, DispatchFlagsSource, HasUuid, Named, ObjFlag,
+        VerbDispatch, VerbLookup, WorldStateError,
     },
     util::{
         MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
@@ -110,6 +110,100 @@ fn bf_caller_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     Ok(Ret(v_obj(bf_args.caller_perms())))
+}
+
+/// Usage: `list task_perms()`
+/// Returns `{principal, grant, ...}` for the current task permissions.
+fn bf_task_perms(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if !bf_args.args.is_empty() {
+        return Err(ErrValue(
+            E_ARGS.msg("task_perms() does not take any arguments"),
+        ));
+    }
+
+    let permissions = bf_args.task_permissions();
+    let mut result = vec![v_obj(permissions.principal())];
+    for grant in permissions.grants().iter() {
+        if let Some(grant_var) = task_permission_grant_to_var(&permissions, grant)? {
+            result.push(grant_var);
+        }
+    }
+
+    Ok(Ret(v_list(&result)))
+}
+
+fn task_permission_grant_to_var(
+    permissions: &moor_common::model::TaskPermissions,
+    grant: CapabilityGrant,
+) -> Result<Option<Var>, BfErr> {
+    let grant_var = match grant {
+        CapabilityGrant::ObjectRead(obj) => v_list(&[v_str("object_read"), v_obj(obj)]),
+        CapabilityGrant::ObjectWrite(obj) => v_list(&[v_str("object_write"), v_obj(obj)]),
+        CapabilityGrant::ObjectRename(obj) => v_list(&[v_str("object_rename"), v_obj(obj)]),
+        CapabilityGrant::ObjectMove(obj) => v_list(&[v_str("object_move"), v_obj(obj)]),
+        CapabilityGrant::ObjectRecycle(obj) => v_list(&[v_str("object_recycle"), v_obj(obj)]),
+        CapabilityGrant::ObjectChparent(obj) => v_list(&[v_str("object_chparent"), v_obj(obj)]),
+        CapabilityGrant::ObjectList => v_list(&[v_str("object_list")]),
+        CapabilityGrant::PropertyRead { obj, prop } => {
+            v_list(&[v_str("property_read"), v_obj(obj), v_sym(prop)])
+        }
+        CapabilityGrant::PropertyWrite { obj, prop } => {
+            v_list(&[v_str("property_write"), v_obj(obj), v_sym(prop)])
+        }
+        CapabilityGrant::PropertyDefine(obj) => v_list(&[v_str("property_define"), v_obj(obj)]),
+        CapabilityGrant::PropertyDelete { obj, prop } => {
+            v_list(&[v_str("property_delete"), v_obj(obj), v_sym(prop)])
+        }
+        CapabilityGrant::VerbRead { obj, verb } => {
+            let Some(names) = grant_verb_names(permissions, obj, verb)? else {
+                return Ok(None);
+            };
+            v_list(&[v_str("verb_read"), v_obj(obj), v_string(names)])
+        }
+        CapabilityGrant::VerbWrite { obj, verb } => {
+            let Some(names) = grant_verb_names(permissions, obj, verb)? else {
+                return Ok(None);
+            };
+            v_list(&[v_str("verb_write"), v_obj(obj), v_string(names)])
+        }
+        CapabilityGrant::VerbProgram { obj, verb } => {
+            let Some(names) = grant_verb_names(permissions, obj, verb)? else {
+                return Ok(None);
+            };
+            v_list(&[v_str("verb_program"), v_obj(obj), v_string(names)])
+        }
+        CapabilityGrant::VerbAdd(obj) => v_list(&[v_str("verb_add"), v_obj(obj)]),
+        CapabilityGrant::VerbCall { obj, verb } => {
+            let Some(names) = grant_verb_names(permissions, obj, verb)? else {
+                return Ok(None);
+            };
+            v_list(&[v_str("verb_call"), v_obj(obj), v_string(names)])
+        }
+        CapabilityGrant::BuiltinCall(builtin) => v_list(&[v_str("builtin_call"), v_sym(builtin)]),
+    };
+
+    Ok(Some(grant_var))
+}
+
+fn grant_verb_names(
+    permissions: &moor_common::model::TaskPermissions,
+    obj: Obj,
+    verb: Uuid,
+) -> Result<Option<String>, BfErr> {
+    match with_current_transaction(|world_state| {
+        world_state.get_verb_by_id(permissions, &obj, verb)
+    }) {
+        Ok(verbdef) => Ok(Some(
+            verbdef
+                .names()
+                .iter()
+                .map(|name| name.to_string())
+                .collect::<Vec<_>>()
+                .join(" "),
+        )),
+        Err(WorldStateError::VerbNotFound(_, _)) => Ok(None),
+        Err(err) => Err(world_state_bf_err(err)),
+    }
 }
 
 fn parse_capability_grants(
@@ -1388,6 +1482,7 @@ fn bf_function_help(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 pub(crate) fn register_bf_server(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("is_player")] = bf_is_player;
     builtins[offset_for_builtin("caller_perms")] = bf_caller_perms;
+    builtins[offset_for_builtin("task_perms")] = bf_task_perms;
     builtins[offset_for_builtin("set_task_perms")] = bf_set_task_perms;
     builtins[offset_for_builtin("time")] = bf_time;
     builtins[offset_for_builtin("ftime")] = bf_ftime;

@@ -487,6 +487,14 @@ pub trait WorldState: Send {
         vidx: usize,
     ) -> Result<VerbDef, WorldStateError>;
 
+    /// Get verb metadata by stable verb UUID.
+    fn get_verb_by_id(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<VerbDef, WorldStateError>;
+
     /// Get the verb binary for the given verbdef.
     fn retrieve_verb(
         &self,

@@ -429,6 +429,29 @@ impl AuthContext {
         self.has_grant(CapabilityGrant::VerbCall { obj: *obj, verb })
     }
 
+    #[inline]
+    pub(super) fn has_any_verb_grant(&self, obj: &Obj, verb: Uuid) -> bool {
+        self.grants.iter().any(|grant| match grant {
+            CapabilityGrant::VerbRead {
+                obj: grant_obj,
+                verb: grant_verb,
+            }
+            | CapabilityGrant::VerbWrite {
+                obj: grant_obj,
+                verb: grant_verb,
+            }
+            | CapabilityGrant::VerbProgram {
+                obj: grant_obj,
+                verb: grant_verb,
+            }
+            | CapabilityGrant::VerbCall {
+                obj: grant_obj,
+                verb: grant_verb,
+            } => grant_obj == *obj && grant_verb == verb,
+            _ => false,
+        })
+    }
+
     /// Evaluate a rule without mapping failure to an error.
     #[inline]
     pub(super) fn allows(&self, rule: AuthRule<'_>) -> bool {

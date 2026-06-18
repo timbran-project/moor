@@ -333,6 +333,33 @@ server_log("Verb called by: " + tostr(caller_perms()));
   called them
 - Different from `this` (the object the verb is defined on)
 
+### `task_perms`
+
+**Description:** Returns the current task permissions principal and any active capability grants.
+
+**Syntax:** `list task_perms()`
+
+**Arguments:** None
+
+**Returns:** A list whose first element is the current permissions principal. Remaining elements, if
+any, are active capability grant specifications.
+
+**Examples:**
+
+```moo
+{principal, @grants} = task_perms();
+```
+
+**Errors:**
+
+- `E_ARGS`: Raised if any arguments are provided
+
+**Notes:**
+
+- Capability grant entries use the same MOO-facing shapes as `set_task_perms()` where possible
+- Verb grants are returned with the current verb names string, matching `verb_info()`
+- Deleted verb grants are omitted because there is no current verb name to report
+
 ### `set_task_perms`
 
 **Description:** Changes the effective permissions of the current task for subsequent operations.

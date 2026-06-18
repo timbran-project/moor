@@ -949,6 +949,36 @@ impl WorldState for DbWorldState {
         Ok(vh)
     }
 
+    fn get_verb_by_id(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<VerbDef, WorldStateError> {
+        let mut vh = None;
+        for ancestor in self.get_tx().ancestors(obj, true)?.iter() {
+            let verbs = self.get_tx().get_verbs(&ancestor)?;
+            if let Some(verb) = verbs.find(&uuid) {
+                vh = Some(verb);
+                break;
+            }
+        }
+
+        let vh = vh.ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
+        let auth = self.auth_context(permissions)?;
+        if auth.allows(AuthRule::verb_allows(
+            obj,
+            vh.uuid(),
+            &vh.owner(),
+            vh.flags(),
+            VerbFlag::Read,
+        )) || auth.has_any_verb_grant(obj, vh.uuid())
+        {
+            return Ok(vh);
+        }
+        Err(WorldStateError::VerbPermissionDenied)
+    }
+
     fn retrieve_verb(
         &self,
         permissions: &TaskPermissions,

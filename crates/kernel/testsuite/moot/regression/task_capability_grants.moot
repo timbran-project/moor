@@ -44,6 +44,9 @@
 ; add_property($system, "cap_verb_binding_call_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
 ; add_verb($cap_verb_binding_call_obj, {$wizard_player, "", "bound_call_original"}, {"this", "none", "this"});
 ; set_verb_code($cap_verb_binding_call_obj, "bound_call_original", {"return 606;"});
+; add_property($system, "cap_task_perms_verb_names_obj", create($nothing, $wizard_player), {$wizard_player, "rwc"});
+; add_verb($cap_task_perms_verb_names_obj, {$wizard_player, "", "task_perms_name_original"}, {"this", "none", "this"});
+; set_verb_code($cap_task_perms_verb_names_obj, "task_perms_name_original", {"return 808;"});
 ; add_property($system, "cap_verb_inherited_parent", create($nothing, $wizard_player), {$wizard_player, "rwc"});
 ; add_verb($cap_verb_inherited_parent, {$wizard_player, "", "inherited_hidden"}, {"this", "none", "this"});
 ; set_verb_code($cap_verb_inherited_parent, "inherited_hidden", {"return 707;"});
@@ -56,6 +59,15 @@
 
 ; add_verb($cap_helper, {$wizard_player, "rxd", "object_write_with_grant"}, {"this", "none", "this"});
 ; set_verb_code($cap_helper, "object_write_with_grant", {"set_task_perms($player, {{\"object_write\", $cap_object_write_obj}});", "add_property($cap_object_write_obj, \"via_object_write\", 7, {$player, \"r\"});", "return $cap_object_write_obj.via_object_write;"});
+
+; add_verb($cap_helper, {$wizard_player, "rxd", "task_perms_without_grants"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "task_perms_without_grants", {"set_task_perms($player);", "return task_perms() == {$player};"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "task_perms_with_grants"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "task_perms_with_grants", {"set_task_perms($player, {{\"object_list\"}, {\"property_read\", $cap_property_read_obj, \"secret\"}, {\"verb_call\", $cap_verb_call_obj, \"hidden_call\"}, {\"builtin_call\", \"server_log\"}});", "perms = task_perms();", "return perms[1] == $player && ({\"object_list\"} in perms) != 0 && ({\"property_read\", $cap_property_read_obj, 'secret} in perms) != 0 && ({\"verb_call\", $cap_verb_call_obj, \"hidden_call\"} in perms) != 0 && ({\"builtin_call\", 'server_log} in perms) != 0;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "task_perms_verb_grant_uses_current_names"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "task_perms_verb_grant_uses_current_names", {"set_task_perms($player, {{\"verb_call\", $cap_task_perms_verb_names_obj, \"task_perms_name_original\"}, {\"verb_write\", $cap_task_perms_verb_names_obj, \"task_perms_name_original\"}});", "set_verb_info($cap_task_perms_verb_names_obj, \"task_perms_name_original\", {$wizard_player, \"\", \"task_perms_name_current\"});", "return ({\"verb_call\", $cap_task_perms_verb_names_obj, \"task_perms_name_current\"} in task_perms()) != 0;"});
+; add_verb($cap_helper, {$wizard_player, "rxd", "task_perms_inherited_verb_grant_uses_names"}, {"this", "none", "this"});
+; set_verb_code($cap_helper, "task_perms_inherited_verb_grant_uses_names", {"set_task_perms($player, {{\"verb_call\", $cap_verb_inherited_child, \"inherited_hidden\"}});", "return ({\"verb_call\", $cap_verb_inherited_child, \"inherited_hidden\"} in task_perms()) != 0;"});
 
 ; add_verb($cap_helper, {$wizard_player, "rxd", "builtin_call_server_log_no_grant"}, {"this", "none", "this"});
 ; set_verb_code($cap_helper, "builtin_call_server_log_no_grant", {"set_task_perms($player);", "server_log(\"capability grant test without grant\");", "return 1;"});
@@ -163,6 +175,14 @@ E_PERM
 1
 ; return $cap_helper:object_write_with_grant();
 7
+; return $cap_helper:task_perms_without_grants();
+1
+; return $cap_helper:task_perms_with_grants();
+1
+; return $cap_helper:task_perms_verb_grant_uses_current_names();
+1
+; return $cap_helper:task_perms_inherited_verb_grant_uses_names();
+1
 ; return $cap_helper:builtin_call_server_log_no_grant();
 E_PERM
 ; return $cap_helper:builtin_call_server_log_with_grant();

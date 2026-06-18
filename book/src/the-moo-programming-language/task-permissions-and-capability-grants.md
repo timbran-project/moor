@@ -145,7 +145,18 @@ operation invokes another verb, such as `move()` calling `:accept`, `:exitfunc`,
 the called verb runs with its normal activation permissions and does not automatically receive the
 grant set from the caller.
 
-There is currently no MOO-level `task_perms()` builtin that exposes the active grant set.
+The active permissions can be inspected with `task_perms()`, which returns a list whose first
+element is the current permissions principal and whose remaining elements are the active capability
+grants:
+
+```moo
+{#123, {"property_read", #456, 'secret}, {"builtin_call", 'server_log}}
+```
+
+`task_perms()` uses the same grant shapes as `set_task_perms()` where possible. Verb grants are
+stored internally as bindings to resolved verb definitions, so `task_perms()` looks up the current
+verb definition and returns its current names string, matching `verb_info()`. If a bound verb has
+been deleted, that stale grant is omitted from the returned list.
 
 ## Error Behavior
 

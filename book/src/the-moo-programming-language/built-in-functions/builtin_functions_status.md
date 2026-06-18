@@ -210,6 +210,7 @@ open an issue on the
 | [`ticks_left`](server.md#ticks_left)         | &check;  |                                                                                                                  |
 | [`pass`](server.md#pass)                     | &check;  | Is an opcode                                                                                                     |
 | [`set_task_perms`](server.md#set_task_perms) | &check;  |                                                                                                                  |
+| [`task_perms`](server.md#task_perms)         | &check;  | mooR extension                                                                                                   |
 | [`caller_perms`](server.md#caller_perms)     | &check;  |                                                                                                                  |
 | [`callers`](server.md#callers)               | &check;  |                                                                                                                  |
 | [`task_stack`](server.md#task_stack)         |          | Not supported: running tasks are parallel, so stacks are moving targets without pausing or heavy instrumentation |
