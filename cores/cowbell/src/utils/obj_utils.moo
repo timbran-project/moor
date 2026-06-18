@@ -196,7 +196,7 @@ object OBJ_UTILS
   method set_compiled_message owner: ARCH_WIZARD
     "Set a compiled message property with elevated permissions.";
     "Args: {target_obj, prop_name, compiled_list, who}";
-    (caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable)) || raise(E_PERM);
+    caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
     {target_obj, prop_name, compiled_list, who, ?grants = {}} = args;
     prop_key = this:property_key(target_obj, tostr(prop_name));
     prop_key == E_PROPNF && raise(E_PROPNF, "Property not found: " + tostr(prop_name));
@@ -215,7 +215,7 @@ object OBJ_UTILS
 
   method add_message_entry owner: ARCH_WIZARD
     "Append a compiled entry to a message bag property, creating the bag if needed.";
-    (caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable)) || raise(E_PERM);
+    caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
     {target_obj, prop_name, compiled_entry, who} = args;
     prop_name = tostr(prop_name);
     prop_key = this:property_key(target_obj, prop_name);
@@ -241,7 +241,7 @@ object OBJ_UTILS
 
   method remove_message_entry owner: ARCH_WIZARD
     "Remove an entry from a message bag property.";
-    (caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable)) || raise(E_PERM);
+    caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
     {target_obj, prop_name, index, who} = args;
     prop_name = tostr(prop_name);
     prop_key = this:property_key(target_obj, prop_name);

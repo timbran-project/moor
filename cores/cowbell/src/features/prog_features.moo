@@ -2988,7 +2988,6 @@ object PROG_FEATURES
       errors = set_verb_code(player, "inform_current", {"this.prog_show_last_inform = args;", "return true;"}, 2, 1);
       $test_utils:assert_false(errors, "temporary inform_current stub should compile");
       stubbed_inform = true;
-
       parent_fixture = create($root);
       parent_fixture.owner = $hacker;
       parent_fixture.r = 0;
@@ -2997,7 +2996,6 @@ object PROG_FEATURES
       add_verb(parent_fixture, {$hacker, "", "private_display_parent_verb"}, {"this", "none", "this"});
       errors = set_verb_code(parent_fixture, "private_display_parent_verb", {"return \"parent secret\";"}, 2, 1);
       $test_utils:assert_false(errors, "private parent display probe should compile");
-
       fixture = create(parent_fixture);
       fixture.owner = $hacker;
       fixture.r = 0;
@@ -3006,7 +3004,6 @@ object PROG_FEATURES
       add_verb(fixture, {$hacker, "", "private_display_verb"}, {"this", "none", "this"});
       errors = set_verb_code(fixture, "private_display_verb", {"return \"secret\";"}, 2, 1);
       $test_utils:assert_false(errors, "private display probe should compile");
-
       this:_display_header(fixture);
       this:_display_summary(fixture);
       this:_display_property(fixture, "private_display_prop");
