@@ -29,7 +29,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use eyre::eyre;
-use hickory_resolver::TokioResolver;
+use hickory_resolver::{TokioResolver, proto::rr::RData};
 use ipnet::IpNet;
 use moor_common::model::ObjectRef;
 use moor_schema::{convert::obj_from_ref, rpc as moor_rpc};
@@ -289,7 +289,7 @@ static DNS_RESOLVER: LazyLock<Result<TokioResolver, String>> = LazyLock::new(|| 
     debug!("DNS resolver initialization STARTING");
     let builder = TokioResolver::builder_tokio().map_err(|e| e.to_string())?;
     debug!("DNS resolver builder created, calling build()");
-    let resolver = builder.build();
+    let resolver = builder.build().map_err(|e| e.to_string())?;
     debug!("DNS resolver initialization COMPLETE");
     Ok(resolver)
 });
@@ -324,7 +324,14 @@ async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
     debug!("resolve_hostname: Got DNS response, extracting hostname");
 
     // Get the first hostname from the response
-    if let Some(name) = response.iter().next() {
+    if let Some(name) = response
+        .answers()
+        .iter()
+        .find_map(|record| match &record.data {
+            RData::PTR(name) => Some(name),
+            _ => None,
+        })
+    {
         let hostname = name.to_string().trim_end_matches('.').to_string();
         debug!(
             "resolve_hostname: Successfully resolved {} to {}",

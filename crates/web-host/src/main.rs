@@ -553,9 +553,7 @@ fn mk_routes(
             .key_extractor(key_extractor)
             .finish()
             .ok_or_else(|| eyre::eyre!("Failed to build rate limiter config"))?;
-        auth_routes = auth_routes.layer(GovernorLayer {
-            config: Arc::new(governor_conf),
-        });
+        auth_routes = auth_routes.layer(GovernorLayer::new(Arc::new(governor_conf)));
         info!(
             "Rate limiting enabled on auth endpoints: {}/s burst={}",
             rate_limit_config.requests_per_second, rate_limit_config.burst_size

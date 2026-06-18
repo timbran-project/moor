@@ -40,7 +40,7 @@ use moor_model_checker::bench_common::{
     update_spinner,
 };
 use moor_var::{NOTHING, Obj, Symbol, v_int};
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{RngExt, SeedableRng, rngs::SmallRng};
 use tabled::{Table, Tabled};
 use tracing::info;
 

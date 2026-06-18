@@ -22,7 +22,7 @@ use moor_common::model::{ObjAttrs, ObjectKind, TaskPermissions, WorldStateSource
 use moor_common::util::BitEnum;
 use moor_db::{Database, TxDB};
 use moor_var::{Obj, Symbol, v_int, v_list};
-use rand::Rng;
+use rand::RngExt;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},

@@ -398,7 +398,7 @@ impl TerminalRenderer {
                 self.style_stack.push(StyleModifier::BgColor(Color::Yellow));
                 self.style_stack.push(StyleModifier::FgColor(Color::Black));
             }
-            Container::Span | Container::LinkDefinition { .. } => {}
+            Container::Document | Container::Span | Container::LinkDefinition { .. } => {}
         }
     }
 
@@ -534,7 +534,7 @@ impl TerminalRenderer {
                 self.style_stack.pop();
                 self.style_stack.pop();
             }
-            Container::Span | Container::LinkDefinition { .. } => {}
+            Container::Document | Container::Span | Container::LinkDefinition { .. } => {}
         }
     }
 

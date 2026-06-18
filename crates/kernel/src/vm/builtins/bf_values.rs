@@ -334,9 +334,11 @@ fn bf_value_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
     let s = to_literal(&bf_args.args[0]);
     let hash_digest = md5::Md5::digest(s.as_bytes());
-    Ok(Ret(v_str(
-        format!("{hash_digest:x}").to_uppercase().as_str(),
-    )))
+    let mut hex = String::with_capacity(hash_digest.len() * 2);
+    for byte in hash_digest {
+        write!(&mut hex, "{byte:02X}").map_err(|_| BfErr::Code(E_INVARG))?;
+    }
+    Ok(Ret(v_str(&hex)))
 }
 
 /// Usage: `int length(list|map|str|binary value)`

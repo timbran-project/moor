@@ -22,7 +22,7 @@ use moor_common::util::BitEnum;
 use moor_db::TxDB;
 use moor_model_checker::elle_common::{self, EdnEvent, EventType};
 use moor_var::{Obj, Symbol, v_int};
-use rand::Rng;
+use rand::RngExt;
 use std::{
     collections::BTreeMap,
     path::PathBuf,

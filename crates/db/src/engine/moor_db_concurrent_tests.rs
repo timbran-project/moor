@@ -26,7 +26,7 @@ mod tests {
         OP_HINT_NONE, Obj, SYSTEM_OBJECT, Sequence, Symbol, Var, program::ProgramType,
         v_empty_list, v_empty_map, v_flyweight, v_int, v_str,
     };
-    use shuttle::{check_random, sync::Arc, sync::Barrier, thread};
+    use shuttle::{Config, Runner, scheduler::RandomScheduler, sync::Arc, sync::Barrier, thread};
     use std::{
         collections::HashMap,
         sync::{
@@ -37,6 +37,15 @@ mod tests {
 
     fn permissions(principal: Obj) -> TaskPermissions {
         TaskPermissions::new(principal, BitEnum::new())
+    }
+
+    fn check_random<F>(f: F, iterations: usize)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        let mut config = Config::default();
+        config.stack_size = 8 * 1024 * 1024;
+        Runner::new(RandomScheduler::new(iterations), config).run(f);
     }
 
     fn setup_test_db() -> Arc<MoorDB> {

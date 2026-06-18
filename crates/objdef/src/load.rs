@@ -1326,8 +1326,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
 mod tests {
     use crate::{ConflictMode, ObjDefLoaderOptions, ObjdefLoaderError, ObjectDefinitionLoader};
     use moor_common::model::{
-        HasUuid, Named, PrepSpec, VerbLookup, WorldStateSource, command_verb_argspec,
+        HasUuid, Named, PrepSpec, TaskPermissions, VerbLookup, WorldStateSource,
+        command_verb_argspec,
     };
+    use moor_common::util::BitEnum;
     use moor_compiler::{CompileOptions, ObjFileContext};
     use moor_db::{Database, DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_str};
@@ -1335,6 +1337,10 @@ mod tests {
 
     fn test_db(path: &Path) -> Arc<TxDB> {
         Arc::new(TxDB::open(Some(path), DatabaseConfig::default()).0)
+    }
+
+    fn system_permissions() -> TaskPermissions {
+        TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
     }
 
     #[test]
@@ -1383,9 +1389,11 @@ mod tests {
         // Verify the object was created using a new transaction
         let tx = db.new_world_state().unwrap();
         let owner = tx.owner_of(&Obj::mk_id(1)).unwrap();
-        let name = tx.name_of(&SYSTEM_OBJECT, &Obj::mk_id(1)).unwrap();
-        let parent = tx.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(1)).unwrap();
-        let location = tx.location_of(&SYSTEM_OBJECT, &Obj::mk_id(1)).unwrap();
+        let name = tx.name_of(&system_permissions(), &Obj::mk_id(1)).unwrap();
+        let parent = tx.parent_of(&system_permissions(), &Obj::mk_id(1)).unwrap();
+        let location = tx
+            .location_of(&system_permissions(), &Obj::mk_id(1))
+            .unwrap();
 
         assert_eq!(owner, SYSTEM_OBJECT);
         assert_eq!(name, "Test Object");
@@ -1459,7 +1467,7 @@ mod tests {
         let argspec = command_verb_argspec(&target, &target, PrepSpec::None, &NOTHING);
         let v = ws
             .lookup_verb(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 VerbLookup::command(&target, Symbol::mk("look"), argspec),
             )
             .unwrap();
@@ -1467,7 +1475,11 @@ mod tests {
         assert!(v.unwrap().names().contains(&Symbol::mk("look")));
 
         let p = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("description"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(2),
+                Symbol::mk("description"),
+            )
             .unwrap();
         assert_eq!(p, v_str("This is a generic thing"));
     }
@@ -1512,9 +1524,9 @@ mod tests {
 
         // Verify the object was created correctly
         let tx = db.new_world_state().unwrap();
-        let name = tx.name_of(&SYSTEM_OBJECT, &oid).unwrap();
+        let name = tx.name_of(&system_permissions(), &oid).unwrap();
         let prop_value = tx
-            .retrieve_property(&SYSTEM_OBJECT, &oid, Symbol::mk("test_prop"))
+            .retrieve_property(&system_permissions(), &oid, Symbol::mk("test_prop"))
             .unwrap();
 
         assert_eq!(name, "Single Test Object");
@@ -1890,7 +1902,9 @@ mod tests {
 
         // Verify initial parent is #1
         let ws = db.new_world_state().unwrap();
-        let parent = ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(53)).unwrap();
+        let parent = ws
+            .parent_of(&system_permissions(), &Obj::mk_id(53))
+            .unwrap();
         assert_eq!(parent, Obj::mk_id(1), "Initial parent should be #1");
 
         // Now load with parent=#2 (clobber mode)
@@ -1920,7 +1934,9 @@ mod tests {
 
         // Verify parent was updated to #2
         let ws = db.new_world_state().unwrap();
-        let parent = ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(53)).unwrap();
+        let parent = ws
+            .parent_of(&system_permissions(), &Obj::mk_id(53))
+            .unwrap();
         assert_eq!(
             parent,
             Obj::mk_id(2),
@@ -1984,7 +2000,9 @@ mod tests {
 
         // Verify initial location
         let ws = db.new_world_state().unwrap();
-        let location = ws.location_of(&SYSTEM_OBJECT, &Obj::mk_id(54)).unwrap();
+        let location = ws
+            .location_of(&system_permissions(), &Obj::mk_id(54))
+            .unwrap();
         assert_eq!(location, Obj::mk_id(1), "Initial location should be #1");
 
         // Now load with location=#2
@@ -2008,7 +2026,9 @@ mod tests {
 
         // Verify location was updated to #2
         let ws = db.new_world_state().unwrap();
-        let location = ws.location_of(&SYSTEM_OBJECT, &Obj::mk_id(54)).unwrap();
+        let location = ws
+            .location_of(&system_permissions(), &Obj::mk_id(54))
+            .unwrap();
         assert_eq!(
             location,
             Obj::mk_id(2),
@@ -2132,7 +2152,11 @@ mod tests {
         // Verify initial property value
         let ws = db.new_world_state().unwrap();
         let prop_value = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(56), Symbol::mk("test_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(56),
+                Symbol::mk("test_prop"),
+            )
             .unwrap();
         assert_eq!(
             prop_value,
@@ -2163,7 +2187,11 @@ mod tests {
         // Verify property value was updated
         let ws = db.new_world_state().unwrap();
         let prop_value = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(56), Symbol::mk("test_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(56),
+                Symbol::mk("test_prop"),
+            )
             .unwrap();
         assert_eq!(
             prop_value,
@@ -2205,7 +2233,11 @@ mod tests {
         // Get initial verb
         let ws = db.new_world_state().unwrap();
         let initial_verbdef = ws
-            .get_verb(&SYSTEM_OBJECT, &Obj::mk_id(58), Symbol::mk("test_verb"))
+            .get_verb(
+                &system_permissions(),
+                &Obj::mk_id(58),
+                Symbol::mk("test_verb"),
+            )
             .unwrap();
 
         // Now load with verb returning "updated"
@@ -2233,7 +2265,11 @@ mod tests {
         // Verify verb was updated by checking UUID changed (verb got replaced)
         let ws = db.new_world_state().unwrap();
         let updated_verbdef = ws
-            .get_verb(&SYSTEM_OBJECT, &Obj::mk_id(58), Symbol::mk("test_verb"))
+            .get_verb(
+                &system_permissions(),
+                &Obj::mk_id(58),
+                Symbol::mk("test_verb"),
+            )
             .unwrap();
 
         // The verb should still exist with same name but different UUID indicates it was replaced
@@ -2307,7 +2343,9 @@ mod tests {
 
         // Verify initial parent is #1
         let ws = db.new_world_state().unwrap();
-        let parent = ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(60)).unwrap();
+        let parent = ws
+            .parent_of(&system_permissions(), &Obj::mk_id(60))
+            .unwrap();
         assert_eq!(parent, Obj::mk_id(1), "Initial parent should be #1");
 
         // Now load with parent=#2 in Skip mode
@@ -2342,7 +2380,9 @@ mod tests {
 
         // Verify parent was NOT updated (Skip mode)
         let ws = db.new_world_state().unwrap();
-        let parent = ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(60)).unwrap();
+        let parent = ws
+            .parent_of(&system_permissions(), &Obj::mk_id(60))
+            .unwrap();
         assert_eq!(
             parent,
             Obj::mk_id(1),
@@ -2406,7 +2446,9 @@ mod tests {
 
         // Verify initial location
         let ws = db.new_world_state().unwrap();
-        let location = ws.location_of(&SYSTEM_OBJECT, &Obj::mk_id(61)).unwrap();
+        let location = ws
+            .location_of(&system_permissions(), &Obj::mk_id(61))
+            .unwrap();
         assert_eq!(location, Obj::mk_id(1), "Initial location should be #1");
 
         // Now load with location=#2 in Skip mode
@@ -2441,7 +2483,9 @@ mod tests {
 
         // Verify location was NOT updated (Skip mode)
         let ws = db.new_world_state().unwrap();
-        let location = ws.location_of(&SYSTEM_OBJECT, &Obj::mk_id(61)).unwrap();
+        let location = ws
+            .location_of(&system_permissions(), &Obj::mk_id(61))
+            .unwrap();
         assert_eq!(
             location,
             Obj::mk_id(1),
@@ -2572,7 +2616,11 @@ mod tests {
         // Verify initial property value
         let ws = db.new_world_state().unwrap();
         let prop_value = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(63), Symbol::mk("test_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(63),
+                Symbol::mk("test_prop"),
+            )
             .unwrap();
         assert_eq!(
             prop_value,
@@ -2614,7 +2662,11 @@ mod tests {
         // Verify property value was NOT updated (Skip mode)
         let ws = db.new_world_state().unwrap();
         let prop_value = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(63), Symbol::mk("test_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(63),
+                Symbol::mk("test_prop"),
+            )
             .unwrap();
         assert_eq!(
             prop_value,
@@ -2653,7 +2705,11 @@ mod tests {
         // Get initial verb
         let ws = db.new_world_state().unwrap();
         let initial_verbdef = ws
-            .get_verb(&SYSTEM_OBJECT, &Obj::mk_id(64), Symbol::mk("test_verb"))
+            .get_verb(
+                &system_permissions(),
+                &Obj::mk_id(64),
+                Symbol::mk("test_verb"),
+            )
             .unwrap();
         let initial_uuid = initial_verbdef.uuid();
 
@@ -2693,7 +2749,11 @@ mod tests {
         // Verify verb was NOT updated (Skip mode) - UUID should be unchanged
         let ws = db.new_world_state().unwrap();
         let final_verbdef = ws
-            .get_verb(&SYSTEM_OBJECT, &Obj::mk_id(64), Symbol::mk("test_verb"))
+            .get_verb(
+                &system_permissions(),
+                &Obj::mk_id(64),
+                Symbol::mk("test_verb"),
+            )
             .unwrap();
         assert_eq!(
             final_verbdef.uuid(),
@@ -2912,20 +2972,36 @@ mod tests {
         // Verify initial state
         let ws = db.new_world_state().unwrap();
         assert!(
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("old_prop"))
-                .is_ok()
+            ws.retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("old_prop")
+            )
+            .is_ok()
         );
         assert!(
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("keep_prop"))
-                .is_ok()
+            ws.retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("keep_prop")
+            )
+            .is_ok()
         );
         assert!(
-            ws.get_verb(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("old_verb"))
-                .is_ok()
+            ws.get_verb(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("old_verb")
+            )
+            .is_ok()
         );
         assert!(
-            ws.get_verb(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("keep_verb"))
-                .is_ok()
+            ws.get_verb(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("keep_verb")
+            )
+            .is_ok()
         );
 
         // Now reload with different verbs and properties
@@ -2967,38 +3043,62 @@ mod tests {
 
         // New property should exist
         let new_prop = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("new_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("new_prop"),
+            )
             .unwrap();
         assert_eq!(new_prop, v_str("new value"));
 
         // Old property should be updated
         let old_prop = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("old_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("old_prop"),
+            )
             .unwrap();
         assert_eq!(old_prop, v_str("updated value"));
 
         // keep_prop should be GONE
         assert!(
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("keep_prop"))
-                .is_err()
+            ws.retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("keep_prop")
+            )
+            .is_err()
         );
 
         // new_verb should exist
         assert!(
-            ws.get_verb(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("new_verb"))
-                .is_ok()
+            ws.get_verb(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("new_verb")
+            )
+            .is_ok()
         );
 
         // old_verb should exist
         assert!(
-            ws.get_verb(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("old_verb"))
-                .is_ok()
+            ws.get_verb(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("old_verb")
+            )
+            .is_ok()
         );
 
         // keep_verb should be GONE
         assert!(
-            ws.get_verb(&SYSTEM_OBJECT, &Obj::mk_id(100), Symbol::mk("keep_verb"))
-                .is_err()
+            ws.get_verb(
+                &system_permissions(),
+                &Obj::mk_id(100),
+                Symbol::mk("keep_verb")
+            )
+            .is_err()
         );
 
         // Wizard flag should be updated
@@ -3053,17 +3153,25 @@ mod tests {
 
         // Verify #200 was updated
         let ws = db.new_world_state().unwrap();
-        let name = ws.name_of(&SYSTEM_OBJECT, &Obj::mk_id(200)).unwrap();
+        let name = ws.name_of(&system_permissions(), &Obj::mk_id(200)).unwrap();
         assert_eq!(name, "Reloaded Object");
 
         // old_prop should be gone, new_prop should exist
         assert!(
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(200), Symbol::mk("old_prop"))
-                .is_err()
+            ws.retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(200),
+                Symbol::mk("old_prop")
+            )
+            .is_err()
         );
         assert!(
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(200), Symbol::mk("new_prop"))
-                .is_ok()
+            ws.retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(200),
+                Symbol::mk("new_prop")
+            )
+            .is_ok()
         );
 
         // #999 should NOT exist
@@ -3097,7 +3205,7 @@ mod tests {
         // Verify object was created
         let ws = db.new_world_state().unwrap();
         assert!(ws.valid(&Obj::mk_id(300)).unwrap());
-        let name = ws.name_of(&SYSTEM_OBJECT, &Obj::mk_id(300)).unwrap();
+        let name = ws.name_of(&system_permissions(), &Obj::mk_id(300)).unwrap();
         assert_eq!(name, "New Object");
     }
 
@@ -3171,7 +3279,7 @@ mod tests {
         // Inherited property should still be accessible
         let inherited = ws
             .retrieve_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &Obj::mk_id(401),
                 Symbol::mk("inherited_prop"),
             )
@@ -3180,13 +3288,21 @@ mod tests {
 
         // Old own property should be gone
         assert!(
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(401), Symbol::mk("own_prop"))
-                .is_err()
+            ws.retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(401),
+                Symbol::mk("own_prop")
+            )
+            .is_err()
         );
 
         // New own property should exist
         let new_own = ws
-            .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(401), Symbol::mk("new_own_prop"))
+            .retrieve_property(
+                &system_permissions(),
+                &Obj::mk_id(401),
+                Symbol::mk("new_own_prop"),
+            )
             .unwrap();
         assert_eq!(new_own, v_str("new own value"));
     }

@@ -51,7 +51,7 @@ use moor_kernel::{
 use moor_objdef::ObjectDefinitionLoader;
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_empty_str};
-use rand::Rng;
+use rand::RngExt;
 use rpc_common::load_keypair;
 use sha2::{Digest, Sha256};
 

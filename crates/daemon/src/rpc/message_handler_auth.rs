@@ -103,7 +103,7 @@ impl RpcMessageHandler {
 
     pub(crate) fn make_client_token(&self, client_id: Uuid) -> ClientToken {
         let privkey: PasetoAsymmetricPrivateKey<V4, Public> =
-            PasetoAsymmetricPrivateKey::from(self.private_key.as_ref());
+            PasetoAsymmetricPrivateKey::from(&self.private_key);
         let token = Paseto::<V4, Public>::default()
             .set_footer(Footer::from(MOOR_SESSION_TOKEN_FOOTER))
             .set_payload(Payload::from(
@@ -122,7 +122,7 @@ impl RpcMessageHandler {
     }
 
     pub(crate) fn make_auth_token(&self, oid: &Obj) -> AuthToken {
-        let privkey = PasetoAsymmetricPrivateKey::from(self.private_key.as_ref());
+        let privkey = PasetoAsymmetricPrivateKey::from(&self.private_key);
         let token = Paseto::<V4, Public>::default()
             .set_footer(Footer::from(MOOR_AUTH_TOKEN_FOOTER))
             .set_payload(Payload::from(

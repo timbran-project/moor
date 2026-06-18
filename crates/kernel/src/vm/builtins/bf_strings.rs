@@ -21,6 +21,15 @@ use moor_var::{E_ARGS, E_INVARG, E_TYPE, Variant, v_binary, v_int, v_list, v_str
 
 use crate::vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction};
 
+fn uppercase_hex(bytes: &[u8]) -> String {
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        write!(&mut hex, "{byte:02X}").expect("writing to String cannot fail");
+    }
+    hex
+}
+
 /// Usage: `str strsub(str subject, str what, str with [, bool case_matters])`
 /// Replaces all occurrences of 'what' in 'subject' with 'with'. Occurrences are found
 /// left to right and all substitutions happen simultaneously. By default, the search
@@ -150,9 +159,7 @@ fn bf_string_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     match bf_args.args[0].variant() {
         Variant::Str(s) => {
             let hash_digest = md5::Md5::digest(s.as_str().as_bytes());
-            Ok(Ret(v_str(
-                format!("{hash_digest:x}").to_uppercase().as_str(),
-            )))
+            Ok(Ret(v_str(&uppercase_hex(hash_digest.as_slice()))))
         }
         _ => Err(BfErr::Code(E_INVARG)),
     }
@@ -168,9 +175,7 @@ fn bf_binary_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_INVARG));
     };
     let hash_digest = md5::Md5::digest(b.as_bytes());
-    Ok(Ret(v_str(
-        format!("{hash_digest:x}").to_uppercase().as_str(),
-    )))
+    Ok(Ret(v_str(&uppercase_hex(hash_digest.as_slice()))))
 }
 
 /// Usage: `str encode_base64(str|binary data [, bool url_safe] [, bool no_padding])`

@@ -21,8 +21,8 @@ mod test {
 
     use moor_common::{
         model::{
-            CommitResult, PropFlag, ValSet, VerbArgsSpec, VerbFlag, WorldStateSource,
-            loader::LoaderInterface,
+            CommitResult, PropFlag, TaskPermissions, ValSet, VerbArgsSpec, VerbFlag,
+            WorldStateSource, loader::LoaderInterface,
         },
         util::BitEnum,
     };
@@ -45,6 +45,10 @@ mod test {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let minimal_db = manifest_dir.join("tests/Minimal.db");
         File::open(minimal_db.clone()).unwrap()
+    }
+
+    fn permissions(principal: Obj) -> TaskPermissions {
+        TaskPermissions::new(principal, BitEnum::new())
     }
 
     fn load_textdump_file(mut tx: Box<dyn LoaderInterface>, path: &str) {
@@ -180,25 +184,29 @@ mod test {
         // Check a few things in a new transaction.
         let tx = db.new_world_state().unwrap();
         assert_eq!(
-            tx.names_of(&Obj::mk_id(3), &Obj::mk_id(1)).unwrap(),
+            tx.names_of(&permissions(Obj::mk_id(3)), &Obj::mk_id(1))
+                .unwrap(),
             ("Root Class".into(), vec![])
         );
         assert_eq!(
-            tx.names_of(&Obj::mk_id(3), &Obj::mk_id(2)).unwrap(),
+            tx.names_of(&permissions(Obj::mk_id(3)), &Obj::mk_id(2))
+                .unwrap(),
             ("The First Room".into(), vec![])
         );
         assert_eq!(
-            tx.names_of(&Obj::mk_id(3), &Obj::mk_id(3)).unwrap(),
+            tx.names_of(&permissions(Obj::mk_id(3)), &Obj::mk_id(3))
+                .unwrap(),
             ("Wizard".into(), vec![])
         );
         assert_eq!(
-            tx.names_of(&Obj::mk_id(3), &SYSTEM_OBJECT).unwrap(),
+            tx.names_of(&permissions(Obj::mk_id(3)), &SYSTEM_OBJECT)
+                .unwrap(),
             ("System Object".into(), vec![])
         );
 
         let dlc = tx
             .get_verb(
-                &Obj::mk_id(3),
+                &permissions(Obj::mk_id(3)),
                 &SYSTEM_OBJECT,
                 Symbol::mk("do_login_command"),
             )
@@ -252,7 +260,7 @@ mod test {
 
             // Store the lambda
             tx.define_property(
-                &wizard,
+                &permissions(wizard),
                 &wizard,
                 &system_obj,
                 Symbol::mk("test_lambda"),
@@ -272,7 +280,7 @@ mod test {
             let system_obj = SYSTEM_OBJECT;
 
             let retrieved = tx
-                .retrieve_property(&wizard, &system_obj, Symbol::mk("test_lambda"))
+                .retrieve_property(&permissions(wizard), &system_obj, Symbol::mk("test_lambda"))
                 .unwrap();
 
             assert!(

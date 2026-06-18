@@ -17,7 +17,7 @@ use crate::{
 };
 use eyre::bail;
 use futures_util::StreamExt;
-use hickory_resolver::TokioResolver;
+use hickory_resolver::{TokioResolver, proto::rr::RData};
 use moor_schema::{convert::var_to_flatbuffer, rpc as moor_rpc};
 use moor_var::{Obj, Symbol};
 use rpc_async_client::{
@@ -81,10 +81,17 @@ pub fn load_tls_config(
 
 /// Perform async reverse DNS lookup for an IP address
 async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
-    let resolver = TokioResolver::builder_tokio()?.build();
+    let resolver = TokioResolver::builder_tokio()?.build()?;
     let response = resolver.reverse_lookup(ip).await?;
 
-    if let Some(name) = response.iter().next() {
+    if let Some(name) = response
+        .answers()
+        .iter()
+        .find_map(|record| match &record.data {
+            RData::PTR(name) => Some(name),
+            _ => None,
+        })
+    {
         Ok(name.to_string().trim_end_matches('.').to_string())
     } else {
         Err(eyre::eyre!("No PTR record found"))

@@ -14,6 +14,7 @@
 use std::backtrace::Backtrace;
 
 use moor_common::tasks::{EventLogPurgeResult, EventLogStats, Exception, ListenerInfo};
+use rand::RngExt;
 
 use crate::tasks::{
     TaskDescription,

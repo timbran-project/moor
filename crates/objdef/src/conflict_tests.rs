@@ -18,8 +18,10 @@
 mod tests {
     use crate::{ConflictMode, Entity, ObjDefLoaderOptions, ObjectDefinitionLoader};
     use moor_common::model::{
-        ObjFlag, PrepSpec, VerbFlag, VerbLookup, WorldStateSource, command_verb_argspec,
+        ObjFlag, PrepSpec, TaskPermissions, VerbFlag, VerbLookup, WorldStateSource,
+        command_verb_argspec,
     };
+    use moor_common::util::BitEnum;
     use moor_compiler::CompileOptions;
     use moor_db::{Database, DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
@@ -27,6 +29,10 @@ mod tests {
 
     fn test_db(path: &Path) -> Arc<TxDB> {
         Arc::new(TxDB::open(Some(path), DatabaseConfig::default()).0)
+    }
+
+    fn system_permissions() -> TaskPermissions {
+        TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
     }
 
     /// Create initial objects with inheritance relationships and commit them
@@ -133,11 +139,18 @@ mod tests {
 
         // Verify values weren't changed due to Skip mode
         let ws = db.new_world_state()?;
-        let desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("description"))?;
-        let count = ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("count"))?;
-        let base_prop =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("base_prop"))?;
+        let desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(1),
+            Symbol::mk("description"),
+        )?;
+        let count =
+            ws.retrieve_property(&system_permissions(), &Obj::mk_id(1), Symbol::mk("count"))?;
+        let base_prop = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(1),
+            Symbol::mk("base_prop"),
+        )?;
 
         assert_eq!(desc, v_str("initial value"));
         assert_eq!(count, v_int(42));
@@ -178,11 +191,18 @@ mod tests {
 
         // Values should be changed due to Clobber mode
         let ws = db.new_world_state()?;
-        let desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("description"))?;
-        let count = ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("count"))?;
-        let base_prop =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("base_prop"))?;
+        let desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(1),
+            Symbol::mk("description"),
+        )?;
+        let count =
+            ws.retrieve_property(&system_permissions(), &Obj::mk_id(1), Symbol::mk("count"))?;
+        let base_prop = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(1),
+            Symbol::mk("base_prop"),
+        )?;
 
         assert_eq!(desc, v_str("clobbered value"));
         assert_eq!(count, v_int(777));
@@ -290,8 +310,11 @@ mod tests {
 
         let ws = db.new_world_state()?;
         let _flags = ws.flags_of(&Obj::mk_id(1))?;
-        let _desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("description"))?;
+        let _desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(1),
+            Symbol::mk("description"),
+        )?;
 
         // Verify entity-specific overrides work
 
@@ -336,7 +359,7 @@ mod tests {
         let target = Obj::mk_id(1);
         let argspec = command_verb_argspec(&target, &target, PrepSpec::None, &NOTHING);
         let verb_result = ws.lookup_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             VerbLookup::command(&target, Symbol::mk("look"), argspec),
         )?;
 
@@ -386,8 +409,11 @@ mod tests {
         // Don't commit (as recommended)
         // Verify nothing changed
         let ws = db.new_world_state()?;
-        let desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), Symbol::mk("description"))?;
+        let desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(1),
+            Symbol::mk("description"),
+        )?;
         let flags = ws.flags_of(&Obj::mk_id(1))?;
 
         assert_eq!(desc, v_str("initial value"));
@@ -434,7 +460,7 @@ mod tests {
 
         // Verify parent relationship remained unchanged
         let ws = db.new_world_state()?;
-        let child_parent = ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(2))?;
+        let child_parent = ws.parent_of(&system_permissions(), &Obj::mk_id(2))?;
         assert_eq!(child_parent, Obj::mk_id(1), "Child parent should remain #1");
 
         Ok(())
@@ -482,10 +508,16 @@ mod tests {
 
         // Verify original property values are preserved
         let ws = db.new_world_state()?;
-        let child_desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("description"))?;
-        let child_only =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("child_prop"))?;
+        let child_desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(2),
+            Symbol::mk("description"),
+        )?;
+        let child_only = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(2),
+            Symbol::mk("child_prop"),
+        )?;
 
         assert_eq!(child_desc, v_str("child overridden"));
         assert_eq!(child_only, v_str("child only"));
@@ -524,7 +556,7 @@ mod tests {
 
         // Verify parent relationship was changed
         let ws = db.new_world_state()?;
-        let child_parent = ws.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(2))?;
+        let child_parent = ws.parent_of(&system_permissions(), &Obj::mk_id(2))?;
         assert_eq!(
             child_parent, NOTHING,
             "Child parent should now be NOTHING (#-1)"
@@ -568,7 +600,7 @@ mod tests {
         let target = Obj::mk_id(1);
         let argspec = command_verb_argspec(&target, &target, PrepSpec::None, &NOTHING);
         let verb_result = ws.lookup_verb(
-            &SYSTEM_OBJECT,
+            &system_permissions(),
             VerbLookup::command(&target, Symbol::mk("look"), argspec),
         )?;
 
@@ -704,10 +736,16 @@ mod tests {
 
         // Verify original override values are preserved
         let ws = db.new_world_state()?;
-        let desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("description"))?;
-        let base_prop =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("base_prop"))?;
+        let desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(2),
+            Symbol::mk("description"),
+        )?;
+        let base_prop = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(2),
+            Symbol::mk("base_prop"),
+        )?;
 
         assert_eq!(desc, v_str("first override"));
         assert_eq!(base_prop, v_str("first base override"));
@@ -774,10 +812,16 @@ mod tests {
 
         // Verify override values were changed due to Clobber mode
         let ws = db.new_world_state()?;
-        let desc =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("description"))?;
-        let base_prop =
-            ws.retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), Symbol::mk("base_prop"))?;
+        let desc = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(2),
+            Symbol::mk("description"),
+        )?;
+        let base_prop = ws.retrieve_property(
+            &system_permissions(),
+            &Obj::mk_id(2),
+            Symbol::mk("base_prop"),
+        )?;
 
         assert_eq!(desc, v_str("second override"));
         assert_eq!(base_prop, v_str("second base override"));

@@ -426,7 +426,7 @@ pub fn dump_object(
 mod tests {
     use crate::{ObjectDefinitionLoader, collect_object_definitions, dump_object_definitions};
     use moor_common::{
-        model::{CommitResult, ObjectKind, PropFlag, WorldStateSource},
+        model::{CommitResult, ObjectKind, PropFlag, TaskPermissions, WorldStateSource},
         util::BitEnum,
     };
     use moor_compiler::{CompileOptions, compile};
@@ -443,6 +443,10 @@ mod tests {
     };
     use semver::Version;
     use std::{path::PathBuf, sync::Arc};
+
+    fn system_permissions() -> TaskPermissions {
+        TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+    }
 
     /// 1. Load from a classical textdump
     /// 2. Dump to a objdef dump
@@ -517,7 +521,7 @@ mod tests {
             // Create the system object first
             let system_obj = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &Obj::mk_id(-1), // parent: nothing
                     &SYSTEM_OBJECT,  // owner: self
                     BitEnum::new(),  // flags: none
@@ -528,7 +532,7 @@ mod tests {
 
             // Add import_export_id so the object gets a file during dump
             tx.define_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 &SYSTEM_OBJECT,
                 Symbol::mk("import_export_id"),
@@ -575,7 +579,7 @@ mod tests {
 
             // Define lambda properties
             tx.define_property(
-                &SYSTEM_OBJECT,                                      // perms
+                &system_permissions(),                               // perms
                 &SYSTEM_OBJECT,                                      // definer
                 &SYSTEM_OBJECT,                                      // location
                 Symbol::mk("simple_lambda"),                         // pname
@@ -586,7 +590,7 @@ mod tests {
             .unwrap();
 
             tx.define_property(
-                &SYSTEM_OBJECT,                                      // perms
+                &system_permissions(),                               // perms
                 &SYSTEM_OBJECT,                                      // definer
                 &SYSTEM_OBJECT,                                      // location
                 Symbol::mk("captured_lambda"),                       // pname
@@ -670,7 +674,11 @@ mod tests {
             let tx = db2.new_world_state().unwrap();
 
             let simple_prop = tx
-                .retrieve_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, Symbol::mk("simple_lambda"))
+                .retrieve_property(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    Symbol::mk("simple_lambda"),
+                )
                 .unwrap();
             assert!(
                 simple_prop.as_lambda().is_some(),
@@ -679,7 +687,7 @@ mod tests {
 
             let captured_prop = tx
                 .retrieve_property(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &SYSTEM_OBJECT,
                     Symbol::mk("captured_lambda"),
                 )
@@ -731,7 +739,7 @@ mod tests {
             // Create system object
             let system_obj = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &Obj::mk_id(-1),
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -743,7 +751,7 @@ mod tests {
             // Create parent object
             let parent_obj = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &SYSTEM_OBJECT,
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -755,7 +763,7 @@ mod tests {
             // Create child object
             let child_obj = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &parent_obj,
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -766,7 +774,7 @@ mod tests {
 
             // Add a property to system object that references parent (so parent gets a constant)
             tx.define_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 &SYSTEM_OBJECT,
                 Symbol::mk("parent_ref"),
@@ -802,7 +810,7 @@ mod tests {
 
             let system_obj = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &Obj::mk_id(-1),
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -813,7 +821,7 @@ mod tests {
 
             let obj1 = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &SYSTEM_OBJECT,
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -823,7 +831,7 @@ mod tests {
 
             let obj2 = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &obj1,
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -833,7 +841,7 @@ mod tests {
 
             let obj3 = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &obj2,
                     &SYSTEM_OBJECT,
                     BitEnum::new(),
@@ -844,7 +852,7 @@ mod tests {
             // Define import_export_id on root object, then update values on children
             // (children inherit the property definition, we just set their values)
             tx.define_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 &SYSTEM_OBJECT,
                 Symbol::mk("import_export_id"),
@@ -856,7 +864,7 @@ mod tests {
 
             // Set import_export_id values on child objects
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &obj1,
                 Symbol::mk("import_export_id"),
                 &v_str("obj1"),
@@ -864,7 +872,7 @@ mod tests {
             .unwrap();
 
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &obj2,
                 Symbol::mk("import_export_id"),
                 &v_str("obj2"),
@@ -872,7 +880,7 @@ mod tests {
             .unwrap();
 
             tx.update_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &obj3,
                 Symbol::mk("import_export_id"),
                 &v_str("obj3"),
@@ -922,15 +930,15 @@ mod tests {
 
             // Check hierarchy
             assert_eq!(
-                tx.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(1)).unwrap(),
+                tx.parent_of(&system_permissions(), &Obj::mk_id(1)).unwrap(),
                 SYSTEM_OBJECT
             );
             assert_eq!(
-                tx.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(2)).unwrap(),
+                tx.parent_of(&system_permissions(), &Obj::mk_id(2)).unwrap(),
                 Obj::mk_id(1)
             );
             assert_eq!(
-                tx.parent_of(&SYSTEM_OBJECT, &Obj::mk_id(3)).unwrap(),
+                tx.parent_of(&system_permissions(), &Obj::mk_id(3)).unwrap(),
                 Obj::mk_id(2)
             );
 
@@ -938,22 +946,22 @@ mod tests {
             let import_export_id_sym = Symbol::mk("import_export_id");
 
             let sysobj_id = tx
-                .retrieve_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, import_export_id_sym)
+                .retrieve_property(&system_permissions(), &SYSTEM_OBJECT, import_export_id_sym)
                 .unwrap();
             assert_eq!(sysobj_id.as_string().unwrap(), "sysobj");
 
             let obj1_id = tx
-                .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(1), import_export_id_sym)
+                .retrieve_property(&system_permissions(), &Obj::mk_id(1), import_export_id_sym)
                 .unwrap();
             assert_eq!(obj1_id.as_string().unwrap(), "obj1");
 
             let obj2_id = tx
-                .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(2), import_export_id_sym)
+                .retrieve_property(&system_permissions(), &Obj::mk_id(2), import_export_id_sym)
                 .unwrap();
             assert_eq!(obj2_id.as_string().unwrap(), "obj2");
 
             let obj3_id = tx
-                .retrieve_property(&SYSTEM_OBJECT, &Obj::mk_id(3), import_export_id_sym)
+                .retrieve_property(&system_permissions(), &Obj::mk_id(3), import_export_id_sym)
                 .unwrap();
             assert_eq!(obj3_id.as_string().unwrap(), "obj3");
         }
@@ -977,7 +985,7 @@ mod tests {
             // Create the system object first
             let system_obj = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &Obj::mk_id(-1), // parent: nothing
                     &SYSTEM_OBJECT,  // owner: self
                     BitEnum::new(),  // flags: none
@@ -988,7 +996,7 @@ mod tests {
 
             // Add import_export_id so the object gets a file during dump
             tx.define_property(
-                &SYSTEM_OBJECT,
+                &system_permissions(),
                 &SYSTEM_OBJECT,
                 &SYSTEM_OBJECT,
                 Symbol::mk("import_export_id"),
@@ -1001,7 +1009,7 @@ mod tests {
             // Create anonymous objects
             anon_obj1 = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &SYSTEM_OBJECT, // parent: system
                     &SYSTEM_OBJECT, // owner: system
                     BitEnum::new(), // flags: none
@@ -1011,7 +1019,7 @@ mod tests {
 
             anon_obj2 = tx
                 .create_object(
-                    &SYSTEM_OBJECT,
+                    &system_permissions(),
                     &SYSTEM_OBJECT, // parent: system
                     &SYSTEM_OBJECT, // owner: system
                     BitEnum::new(), // flags: none
@@ -1026,7 +1034,7 @@ mod tests {
 
             // Add properties that reference anonymous objects
             tx.define_property(
-                &SYSTEM_OBJECT,                                      // perms
+                &system_permissions(),                               // perms
                 &SYSTEM_OBJECT,                                      // definer
                 &SYSTEM_OBJECT,                                      // location
                 Symbol::mk("anon_ref1"),                             // pname
@@ -1037,7 +1045,7 @@ mod tests {
             .unwrap();
 
             tx.define_property(
-                &SYSTEM_OBJECT,                                                 // perms
+                &system_permissions(),                                          // perms
                 &SYSTEM_OBJECT,                                                 // definer
                 &SYSTEM_OBJECT,                                                 // location
                 Symbol::mk("anon_list"),                                        // pname
@@ -1049,7 +1057,7 @@ mod tests {
 
             // Add a property to the anonymous object itself
             tx.define_property(
-                &SYSTEM_OBJECT,                                      // perms
+                &system_permissions(),                               // perms
                 &anon_obj1,                                          // definer
                 &anon_obj1,                                          // location
                 Symbol::mk("anon_prop"),                             // pname
@@ -1158,7 +1166,11 @@ mod tests {
 
             // Get the anonymous object reference from system object property
             let anon_ref_prop = tx
-                .retrieve_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, Symbol::mk("anon_ref1"))
+                .retrieve_property(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    Symbol::mk("anon_ref1"),
+                )
                 .unwrap();
             let loaded_anon_obj1 = anon_ref_prop.as_object().unwrap();
             assert!(
@@ -1168,7 +1180,11 @@ mod tests {
 
             // Get the list with anonymous objects
             let anon_list_prop = tx
-                .retrieve_property(&SYSTEM_OBJECT, &SYSTEM_OBJECT, Symbol::mk("anon_list"))
+                .retrieve_property(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    Symbol::mk("anon_list"),
+                )
                 .unwrap();
             let list = anon_list_prop.as_list().unwrap();
             assert_eq!(list.len(), 3, "List should have 3 elements");
@@ -1190,7 +1206,11 @@ mod tests {
 
             // Verify the property on the anonymous object itself
             let anon_prop = tx
-                .retrieve_property(&SYSTEM_OBJECT, &loaded_anon_obj1, Symbol::mk("anon_prop"))
+                .retrieve_property(
+                    &system_permissions(),
+                    &loaded_anon_obj1,
+                    Symbol::mk("anon_prop"),
+                )
                 .unwrap();
             assert_eq!(
                 anon_prop.as_string().unwrap(),
@@ -1204,7 +1224,8 @@ mod tests {
                 "Anonymous object should be valid"
             );
             assert_eq!(
-                tx.parent_of(&SYSTEM_OBJECT, &loaded_anon_obj1).unwrap(),
+                tx.parent_of(&system_permissions(), &loaded_anon_obj1)
+                    .unwrap(),
                 SYSTEM_OBJECT,
                 "Anonymous object parent should be preserved"
             );

@@ -578,7 +578,7 @@ mod tests {
                 Symbol::mk("owner"),
                 &new_owner_var
             ),
-            Err(WorldStateError::ObjectPermissionDenied)
+            Err(WorldStateError::PropertyPermissionDenied)
         );
 
         ws.update_property(
@@ -745,7 +745,7 @@ mod tests {
                 VerbArgsSpec::this_none_this(),
                 ProgramType::MooR(Program::new()),
             ),
-            Err(WorldStateError::ObjectPermissionDenied)
+            Err(WorldStateError::VerbPermissionDenied)
         );
 
         ws.add_verb(

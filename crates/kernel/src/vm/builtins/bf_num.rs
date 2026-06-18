@@ -13,7 +13,7 @@
 
 //! Builtin functions for numeric operations, mathematical functions, and random number generation.
 
-use rand::Rng;
+use rand::RngExt;
 
 use moor_compiler::offset_for_builtin;
 use moor_var::{E_ARGS, E_INVARG, E_TYPE, Var, Variant, v_float, v_int, v_str};

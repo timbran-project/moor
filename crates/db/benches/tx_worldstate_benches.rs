@@ -23,7 +23,7 @@ use moor_common::model::{
 use moor_common::util::BitEnum;
 use moor_db::{DatabaseConfig, TxDB};
 use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_int, v_list_iter};
-use rand::Rng;
+use rand::RngExt;
 use std::time::Duration;
 
 struct TxDbConcurrentContext {

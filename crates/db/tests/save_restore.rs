@@ -24,7 +24,7 @@ mod tests {
     };
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_int};
-    use rand::Rng;
+    use rand::RngExt;
     use std::{collections::HashMap, path::Path, sync::Arc};
 
     fn permissions(principal: Obj) -> TaskPermissions {
