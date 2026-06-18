@@ -363,7 +363,8 @@ fn main() -> Result<(), eyre::Report> {
         _temp_dir_guard.path()
     };
 
-    let (database, _) = TxDB::open(Some(db_path), DatabaseConfig::default());
+    let (database, _) = TxDB::try_open(Some(db_path), DatabaseConfig::default())
+        .map_err(|e| eyre::eyre!("Unable to open database at {}: {e}", db_path.display()))?;
     let mut loader_interface = match database.loader_client() {
         Ok(loader) => loader,
         Err(e) => {
