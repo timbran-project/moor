@@ -1301,6 +1301,13 @@ object PLAYER
     return env;
   endmethod
 
+  method _server_log owner: ARCH_WIZARD
+    "Write a server log entry without keeping the caller's full wizard authority.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this, {{"builtin_call", "server_log"}});
+    server_log(@args);
+  endmethod
+
   method find_help_topic owner: ARCH_WIZARD
     "Search environment for help topics. Returns single $help flyweight, list of {source, topic} for ambiguous, or 0.";
     {topic} = args;
@@ -1359,7 +1366,7 @@ object PLAYER
       try
         topics = o:help_topics(this, "");
       except e (ANY)
-        server_log("[help] topic collection failed for " + tostr(o) + ": " + toliteral(e));
+        this:_server_log("[help] topic collection failed for " + tostr(o) + ": " + toliteral(e));
         continue;
       endtry
       if (typeof(topics) != TYPE_LIST)
@@ -3216,7 +3223,7 @@ object PLAYER
                   candidate_ok = true;
                 endif
               except e (ANY)
-                server_log("[assist] candidate validation failed for " + toliteral(candidate) + ": " + toliteral(e));
+                this:_server_log("[assist] candidate validation failed for " + toliteral(candidate) + ": " + toliteral(e));
               endtry
               if (!candidate_ok)
                 first_space = index(candidate, " ");
@@ -3237,7 +3244,7 @@ object PLAYER
           endif
         endif
       except e (ANY)
-        server_log("[assist] command suggestion failed for " + tostr(this) + ": " + toliteral(e));
+        this:_server_log("[assist] command suggestion failed for " + tostr(this) + ": " + toliteral(e));
       endtry
       if (length(note) > 220)
         note = note[1..220];
