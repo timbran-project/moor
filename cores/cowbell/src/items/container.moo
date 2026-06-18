@@ -325,6 +325,8 @@ object CONTAINER
   endmethod
 
   method _log owner: ARCH_WIZARD
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this, {{"builtin_call", "server_log"}});
     server_log(@args);
   endmethod
 

@@ -939,6 +939,7 @@ object AGENT_ROOM
           try
             this:_execute_task(task);
           except e (ANY)
+            set_task_perms(this.owner, {{"builtin_call", "server_log"}});
             server_log("AGENT WORKER FAILED on " + tostr(this) + ": " + toliteral(e));
           endtry
           "Signal completion back to the loop";

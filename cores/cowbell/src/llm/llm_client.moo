@@ -33,6 +33,7 @@ object LLM_CLIENT
     req_end = ftime();
     typeof(response) == TYPE_LIST && length(response) >= 3 || raise(E_INVARG, "Invalid response from LLM: " + toliteral(response));
     {status, response_headers, body} = response;
+    set_task_perms(this, {{"builtin_call", "server_log"}});
     server_log("LLM response " + tostr(status) + " time: " + tostr(req_end - req_start) + "s (" + model + " @ " + this.api_endpoint + ")");
     if (status < 200 || status >= 300)
       err = status == 401 || status == 403 ? E_PERM | E_INVARG;
@@ -122,6 +123,7 @@ object LLM_CLIENT
     req_end = ftime();
     typeof(response) == TYPE_LIST && length(response) >= 3 || raise(E_INVARG, "Invalid response from LLM models endpoint: " + toliteral(response));
     {status, response_headers, body} = response;
+    set_task_perms(this, {{"builtin_call", "server_log"}});
     server_log("LLM models response " + tostr(status) + " time: " + tostr(req_end - req_start) + "s (" + models_endpoint + ")");
     if (status < 200 || status >= 300)
       err = status == 401 || status == 403 ? E_PERM | E_INVARG;

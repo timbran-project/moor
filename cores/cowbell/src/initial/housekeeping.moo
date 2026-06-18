@@ -30,7 +30,7 @@ object HOUSEKEEPING
       endif
       home = `p.home ! E_PROPNF => #-1';
       if (typeof(home) != TYPE_OBJ || !valid(home))
-        server_log("Player with no home: " + tostr(p) + " (" + p.name + ") .. resetting to $login.default_home");
+        this:_server_log("Player with no home: " + tostr(p) + " (" + p.name + ") .. resetting to $login.default_home");
         p.home = $login.default_home;
         home = p.home;
       endif
@@ -75,8 +75,15 @@ object HOUSEKEEPING
       endif
       `room:announce($event:mk_info(this, msg):with_audience('utility)) ! ANY';
     endfor
-    total_swept > 0 && `server_log(tostr("Housekeeping swept ", total_swept, " sleeping player(s) home.")) ! E_PERM';
+    total_swept > 0 && this:_server_log(tostr("Housekeeping swept ", total_swept, " sleeping player(s) home."));
     return total_swept;
+  endmethod
+
+  method _server_log owner: ARCH_WIZARD
+    "Write a server log entry without keeping the caller's full wizard authority.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this, {{"builtin_call", "server_log"}});
+    server_log(@args);
   endmethod
 
   method start owner: ARCH_WIZARD
