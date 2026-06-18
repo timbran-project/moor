@@ -197,7 +197,7 @@ Event logging is disabled by default and must be explicitly enabled by server ad
 In your YAML configuration file:
 
 ```yaml
-features_config:
+features:
   enable_eventlog: true
 ```
 

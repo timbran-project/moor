@@ -295,12 +295,12 @@ Here's an example configuration file:
 
 ```yaml
 # Database configuration
-database_config:
-  cache_eviction_interval: 300
-  default_eviction_threshold: 100000000
+database:
+  object_verbs:
+    max_memtable_size: 536870912
 
 # Language features configuration
-features_config:
+features:
   persistent_tasks: true
   rich_notify: true
   lexical_scopes: true
@@ -317,7 +317,7 @@ features_config:
   anonymous_objects: true
 
 # Import/export configuration
-import_export_config:
+import_export:
   checkpoint_interval: "60s"
 
 # Runtime timing configuration
@@ -337,7 +337,7 @@ disable several features. Here's a configuration that maintains LambdaMOO compat
 
 ```yaml
 # LambdaMOO 1.8 compatible features
-features_config:
+features:
   persistent_tasks: true
   rich_notify: false
   lexical_scopes: false
@@ -368,7 +368,7 @@ This feature is disabled by default due to performance considerations.
 To enable anonymous objects, set the flag in your configuration file:
 
 ```yaml
-features_config:
+features:
   anonymous_objects: true
 ```
 
