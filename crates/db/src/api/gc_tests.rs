@@ -29,7 +29,7 @@ mod tests {
     }
 
     fn test_db() -> TxDB {
-        let db = TxDB::open(None, DatabaseConfig::default()).0;
+        let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
         let mut loader = db.loader_client().unwrap();
         let wizard = Obj::mk_id(2);
         loader

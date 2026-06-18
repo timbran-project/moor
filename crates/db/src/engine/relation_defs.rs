@@ -320,13 +320,12 @@ macro_rules! define_relations {
                 /// - `config`: Database configuration containing keyspace options
                 /// - `batch_collector`: Shared batch collector for all providers
                 ///
-                /// # Panics
-                /// Panics if any keyspace creation or relation seeding fails.
                 fn init(
                     keyspace: &fjall::Database,
                     config: &DatabaseConfig,
                     batch_collector: std::sync::Arc<crate::provider::batch_writer::BatchCollector>,
-                ) -> Self {
+                    db_path: &std::path::Path,
+                ) -> Result<Self, crate::DatabaseOpenError> {
                     $(
                         // Create keyspace using field name as keyspace name
                         let [<$field _partition>] = keyspace
@@ -338,7 +337,11 @@ macro_rules! define_relations {
                                     .unwrap_or_default()
                                     .keyspace_options(),
                             )
-                            .unwrap();
+                            .map_err(|e| crate::DatabaseOpenError::Keyspace {
+                                path: db_path.to_path_buf(),
+                                keyspace: stringify!($field),
+                                detail: e.to_string(),
+                            })?;
 
                         // Create provider with shared batch collector
                         let [<$field _provider>] = FjallProvider::new(
@@ -355,7 +358,7 @@ macro_rules! define_relations {
                     let relations = Relations {
                         $( $field: [<$field _relation>], )*
                     };
-                    relations
+                    Ok(relations)
                 }
 
                 fn snapshot(
@@ -363,21 +366,26 @@ macro_rules! define_relations {
                     version: u64,
                     committed_ts: crate::tx::Timestamp,
                     caches: std::sync::Arc<crate::engine::moor_db::Caches>,
-                ) -> WorldStateSnapshot {
-                    WorldStateSnapshot {
+                    db_path: &std::path::Path,
+                ) -> Result<WorldStateSnapshot, crate::DatabaseOpenError> {
+                    Ok(WorldStateSnapshot {
                         version,
                         committed_ts,
                         caches,
                         $(
                             $field: {
                                 let index = self.$field.seeded_index()
-                                    .expect(concat!("Failed to seed ", stringify!($field), " index"));
+                                    .map_err(|e| crate::DatabaseOpenError::SeedRelation {
+                                        path: db_path.to_path_buf(),
+                                        relation: stringify!($field),
+                                        detail: e.to_string(),
+                                    })?;
                                 std::sync::Arc::from(index)
                             },
                         )*
                         commit_bloom: None,
                         bloom_since_version: 0,
-                    }
+                    })
                 }
 
                 fn snapshot_with_all_fully_loaded(

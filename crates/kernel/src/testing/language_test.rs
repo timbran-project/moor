@@ -43,7 +43,7 @@ mod tests {
 
     /// Create an in-memory db with a single object (#0) containing verbs.
     fn test_db_with_verbs(verbs: &[(&str, &Program)]) -> TxDB {
-        let (state, _) = TxDB::open(None, DatabaseConfig::default());
+        let (state, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let mut tx = state.new_world_state().unwrap();
         let sysobj = tx
             .create_object(
@@ -2496,7 +2496,7 @@ mod tests {
     fn test_eval_initial_env() {
         // Compile a program that references variable 'x'
         let program = compile("return x;", CompileOptions::default()).unwrap();
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
@@ -2537,7 +2537,7 @@ mod tests {
     #[test]
     fn test_eval_initial_env_multiple_vars() {
         let program = compile("return x + y;", CompileOptions::default()).unwrap();
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
@@ -2579,7 +2579,7 @@ mod tests {
     fn test_eval_initial_env_object_var() {
         // Note: can't use "obj" as it's a type constant (OBJ)
         let program = compile("return target;", CompileOptions::default()).unwrap();
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(
@@ -2620,7 +2620,7 @@ mod tests {
     #[test]
     fn test_eval_initial_env_unused_var() {
         let program = compile("return 42;", CompileOptions::default()).unwrap();
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         {
             let mut tx = db.new_world_state().unwrap();
             tx.create_object(

@@ -18,7 +18,7 @@
 
 use crate::provider::fjall_provider;
 use crate::{
-    AnonymousObjectMetadata, ObjAndUUIDHolder, StringHolder,
+    AnonymousObjectMetadata, DatabaseOpenError, ObjAndUUIDHolder, StringHolder,
     cache::{
         ancestry_cache::AncestryCache, prop_cache::PropResolutionCache,
         verb_cache::VerbResolutionCache,
@@ -239,24 +239,41 @@ impl MoorDB {
     /// Open (or initialize) a database and return `(db, fresh)`.
     ///
     /// `fresh` indicates no existing relation keyspaces were found.
-    pub fn open(path: Option<&Path>, config: DatabaseConfig) -> (Arc<Self>, bool) {
+    pub fn try_open(
+        path: Option<&Path>,
+        config: DatabaseConfig,
+    ) -> Result<(Arc<Self>, bool), DatabaseOpenError> {
         let tmpdir = if path.is_none() {
-            Some(TempDir::new().unwrap())
+            Some(TempDir::new().map_err(|source| DatabaseOpenError::TempDir { source })?)
         } else {
             None
         };
         let path = path.unwrap_or_else(|| tmpdir.as_ref().unwrap().path());
+        let path_buf = path.to_path_buf();
 
         // Check and perform migration BEFORE opening the database
         // This ensures migration happens atomically via copy-and-swap
-        fjall_migration::fjall_check_and_migrate(path)
-            .unwrap_or_else(|e| panic!("Failed to migrate database: {e}"));
+        fjall_migration::fjall_check_and_migrate(path).map_err(|e| {
+            DatabaseOpenError::Migration {
+                path: path_buf.clone(),
+                detail: e.to_string(),
+            }
+        })?;
 
-        let keyspace = Database::builder(path).open().unwrap();
+        let keyspace = Database::builder(path)
+            .open()
+            .map_err(|e| DatabaseOpenError::Open {
+                path: path_buf.clone(),
+                detail: e.to_string(),
+            })?;
 
         let sequences_partition = keyspace
             .keyspace("sequences", KeyspaceCreateOptions::default)
-            .unwrap();
+            .map_err(|e| DatabaseOpenError::Keyspace {
+                path: path_buf.clone(),
+                keyspace: "sequences",
+                detail: e.to_string(),
+            })?;
 
         let sequences = Arc::new([(); 16].map(|_| CachePadded::new(AtomicI64::new(-1))));
 
@@ -267,8 +284,22 @@ impl MoorDB {
 
         let start_tx_num = sequences_partition
             .get(15_u64.to_le_bytes())
-            .unwrap()
-            .map(|b| u64::from_le_bytes(b[0..8].try_into().unwrap()))
+            .map_err(|e| DatabaseOpenError::ReadSequence {
+                path: path_buf.clone(),
+                index: 15,
+                detail: e.to_string(),
+            })?
+            .map(|b| {
+                b.get(..8)
+                    .and_then(|bytes| bytes.try_into().ok())
+                    .map(u64::from_le_bytes)
+                    .ok_or_else(|| DatabaseOpenError::DecodeSequence {
+                        path: path_buf.clone(),
+                        index: 15,
+                        len: b.len(),
+                    })
+            })
+            .transpose()?
             .unwrap_or(1);
 
         if fresh {
@@ -276,14 +307,31 @@ impl MoorDB {
             let migrator = FjallMigrator::new(keyspace.clone(), sequences_partition.clone());
             migrator
                 .mark_current_version()
-                .unwrap_or_else(|e| error!("Failed to mark fresh database version: {}", e));
+                .map_err(|e| DatabaseOpenError::MarkVersion {
+                    path: path_buf.clone(),
+                    detail: e.to_string(),
+                })?;
         } else {
             // Load sequences from existing database
             for (i, seq) in sequences.iter().enumerate() {
                 let seq_value = sequences_partition
                     .get(i.to_le_bytes())
-                    .unwrap()
-                    .map(|b| i64::from_le_bytes(b[0..8].try_into().unwrap()))
+                    .map_err(|e| DatabaseOpenError::ReadSequence {
+                        path: path_buf.clone(),
+                        index: i,
+                        detail: e.to_string(),
+                    })?
+                    .map(|b| {
+                        b.get(..8)
+                            .and_then(|bytes| bytes.try_into().ok())
+                            .map(i64::from_le_bytes)
+                            .ok_or_else(|| DatabaseOpenError::DecodeSequence {
+                                path: path_buf.clone(),
+                                index: i,
+                                len: b.len(),
+                            })
+                    })
+                    .transpose()?
                     .unwrap_or(-1);
                 seq.store(seq_value, std::sync::atomic::Ordering::SeqCst);
             }
@@ -293,12 +341,13 @@ impl MoorDB {
         let batch_collector = Arc::new(BatchCollector::new());
         let batch_writer = BatchWriter::new(keyspace.clone());
 
-        let relations = Relations::init(&keyspace, &config, batch_collector.clone());
+        let relations = Relations::init(&keyspace, &config, batch_collector.clone(), &path_buf)?;
         let initial_root = Arc::new(relations.snapshot(
             0,
             Timestamp(start_tx_num.saturating_sub(1)),
             Arc::new(Caches::new()),
-        ));
+            &path_buf,
+        )?);
         let snapshot_planes = SnapshotPlanes::new(initial_root);
 
         // Create background sequence writer
@@ -317,7 +366,7 @@ impl MoorDB {
             _tmpdir: tmpdir,
         });
 
-        (s, fresh)
+        Ok((s, fresh))
     }
 
     /// Return current on-disk database usage in bytes.

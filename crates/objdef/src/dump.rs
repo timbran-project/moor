@@ -460,7 +460,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdir_path = tmpdir.path();
         {
-            let (db, _) = TxDB::open(None, DatabaseConfig::default());
+            let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
             let db = Arc::new(db);
             let mut loader_client = db.clone().loader_client().unwrap();
 
@@ -483,7 +483,7 @@ mod tests {
             dump_object_definitions(&object_defs, tmpdir_path).unwrap();
         }
 
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
 
         // Now load
@@ -512,7 +512,7 @@ mod tests {
         let tmpdir_path = tmpdir.path();
 
         // Create database with lambda properties
-        let (db1, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db1, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db1 = Arc::new(db1);
 
         {
@@ -649,7 +649,7 @@ mod tests {
         );
 
         // Load objdef back into new database - should now work with literal_lambda support
-        let (db2, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db2, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db2 = Arc::new(db2);
 
         {
@@ -729,7 +729,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdir_path = tmpdir.path();
 
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
 
         // Create a simple hierarchy: #0 (system) -> #1 (parent) -> #2 (child)
@@ -801,7 +801,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdir_path = tmpdir.path();
 
-        let (db1, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db1, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db1 = Arc::new(db1);
 
         // Create hierarchy: #0 -> #1 -> #2 -> #3
@@ -898,7 +898,7 @@ mod tests {
         }
 
         // Load into new database
-        let (db2, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db2, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db2 = Arc::new(db2);
 
         {
@@ -974,7 +974,7 @@ mod tests {
         let tmpdir_path = tmpdir.path();
 
         // Create database with anonymous objects and properties
-        let (db1, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db1, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db1 = Arc::new(db1);
 
         let anon_obj1;
@@ -1140,7 +1140,7 @@ mod tests {
         );
 
         // Load objdef back into new database
-        let (db2, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db2, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db2 = Arc::new(db2);
 
         {

@@ -530,10 +530,10 @@ fn main() -> Result<(), Report> {
         configured_service_perf_cores = config.runtime.service_perf_cores,
         "Thread core reservations initialized"
     );
-    let (database, freshly_made) = TxDB::open(
+    let (database, freshly_made) = TxDB::try_open(
         Some(&resolved_db_path),
         config.database.clone().unwrap_or_default(),
-    );
+    )?;
     let database = Box::new(database);
     info!(path = ?resolved_db_path, "Opened database");
 

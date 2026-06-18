@@ -187,7 +187,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         let db_path = temp_dir.path().join("test.db");
 
         // Create database
-        let (db, _) = TxDB::open(Some(&db_path), DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(Some(&db_path), DatabaseConfig::default()).unwrap();
         let db = Box::new(db) as Box<dyn Database>;
 
         // Load JHCore

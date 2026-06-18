@@ -49,7 +49,7 @@ mod tests {
     }
 
     fn setup_test_db() -> Arc<MoorDB> {
-        let (db, _) = MoorDB::open(None, DatabaseConfig::default());
+        let (db, _) = MoorDB::try_open(None, DatabaseConfig::default()).unwrap();
 
         // Create a few initial objects for testing
         let tx = db.start_transaction();

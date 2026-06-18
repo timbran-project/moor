@@ -16,7 +16,10 @@
 use moor_common::model::loader::{LoaderInterface, SnapshotInterface};
 use moor_common::model::{WorldState, WorldStateError, WorldStateSource};
 use moor_common::threading::spawn_efficient;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 mod api;
 mod cache;
@@ -58,6 +61,51 @@ pub type SnapshotCallback = Box<
 // Re-export sequence constants for use in VM
 pub use engine::SEQUENCE_MAX_OBJECT;
 
+#[derive(Debug, thiserror::Error)]
+pub enum DatabaseOpenError {
+    #[error("failed to create temporary database directory: {source}")]
+    TempDir { source: std::io::Error },
+
+    #[error("failed to migrate database at {path:?}: {detail}")]
+    Migration { path: PathBuf, detail: String },
+
+    #[error("failed to open database at {path:?}: {detail}")]
+    Open { path: PathBuf, detail: String },
+
+    #[error("failed to open keyspace {keyspace:?} in database at {path:?}: {detail}")]
+    Keyspace {
+        path: PathBuf,
+        keyspace: &'static str,
+        detail: String,
+    },
+
+    #[error("failed to read sequence {index} from database at {path:?}: {detail}")]
+    ReadSequence {
+        path: PathBuf,
+        index: usize,
+        detail: String,
+    },
+
+    #[error(
+        "failed to decode sequence {index} from database at {path:?}: expected 8 bytes, got {len}"
+    )]
+    DecodeSequence {
+        path: PathBuf,
+        index: usize,
+        len: usize,
+    },
+
+    #[error("failed to mark fresh database version at {path:?}: {detail}")]
+    MarkVersion { path: PathBuf, detail: String },
+
+    #[error("failed to seed relation {relation:?} from database at {path:?}: {detail}")]
+    SeedRelation {
+        path: PathBuf,
+        relation: &'static str,
+        detail: String,
+    },
+}
+
 pub trait Database: Send + Sync + WorldStateSource {
     fn loader_client(&self) -> Result<Box<dyn LoaderInterface>, WorldStateError>;
     fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError>;
@@ -71,9 +119,12 @@ pub struct TxDB {
 }
 
 impl TxDB {
-    pub fn open(path: Option<&Path>, database_config: DatabaseConfig) -> (Self, bool) {
-        let (storage, fresh) = MoorDB::open(path, database_config);
-        (Self { storage }, fresh)
+    pub fn try_open(
+        path: Option<&Path>,
+        database_config: DatabaseConfig,
+    ) -> Result<(Self, bool), DatabaseOpenError> {
+        let (storage, fresh) = MoorDB::try_open(path, database_config)?;
+        Ok((Self { storage }, fresh))
     }
 
     /// Mark all relations as fully loaded from their backing providers.

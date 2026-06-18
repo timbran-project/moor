@@ -1485,7 +1485,7 @@ mod tests {
     /// Create a TxDB, populate it with a system object (wizard/programmer),
     /// optionally add verbs, commit, then create a Scheduler + SchedulerClient.
     fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, Scheduler) {
-        let (db, _) = TxDB::open(None, DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let mut tx = db.new_world_state().unwrap();
 
         let sysobj = tx

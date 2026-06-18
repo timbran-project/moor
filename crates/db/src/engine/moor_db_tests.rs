@@ -37,7 +37,7 @@ mod tests {
     }
 
     fn test_db() -> Arc<MoorDB> {
-        MoorDB::open(None, DatabaseConfig::default()).0
+        MoorDB::try_open(None, DatabaseConfig::default()).unwrap().0
     }
 
     #[test]

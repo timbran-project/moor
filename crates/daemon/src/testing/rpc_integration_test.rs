@@ -85,7 +85,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let db_path = temp_dir.path().join("test.db");
 
-        let (db, _) = TxDB::open(Some(&db_path), DatabaseConfig::default());
+        let (db, _) = TxDB::try_open(Some(&db_path), DatabaseConfig::default()).unwrap();
         let db = Box::new(db) as Box<dyn Database>;
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

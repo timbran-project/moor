@@ -48,7 +48,7 @@ fn system_permissions() -> TaskPermissions {
 }
 
 fn create_db() -> TxDB {
-    let (ws_source, _) = TxDB::open(None, DatabaseConfig::default());
+    let (ws_source, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
     let mut tx = ws_source.new_world_state().unwrap();
     let _sysobj = tx
         .create_object(

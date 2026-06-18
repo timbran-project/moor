@@ -1336,7 +1336,11 @@ mod tests {
     use std::{path::Path, sync::Arc};
 
     fn test_db(path: &Path) -> Arc<TxDB> {
-        Arc::new(TxDB::open(Some(path), DatabaseConfig::default()).0)
+        Arc::new(
+            TxDB::try_open(Some(path), DatabaseConfig::default())
+                .unwrap()
+                .0,
+        )
     }
 
     fn system_permissions() -> TaskPermissions {
