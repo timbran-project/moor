@@ -98,16 +98,20 @@ object PROG_UTILS
   method grep_object owner: ARCH_WIZARD
     "Search all verbs on an object for a pattern.";
     "Returns list of matches: {{obj, verb_name, line_num, matching_line}, ...}";
-    "Args: {pattern, search_obj, casematters}";
-    set_task_perms(caller_perms());
-    {pattern, search_obj, casematters} = args;
+    "Args: {pattern, search_obj, casematters[, run_as[, grants]]}";
+    {pattern, search_obj, casematters, ?run_as = caller_perms(), ?grants = {}} = args;
+    if (grants)
+      set_task_perms(run_as, grants);
+    else
+      set_task_perms(run_as);
+    endif
     if (!valid(search_obj))
       return {};
     endif
     matches = {};
     verb_count = 0;
     "Get metadata for all verbs on this object";
-    verbs_metadata = this:get_verbs_metadata(search_obj);
+    verbs_metadata = this:get_verbs_metadata(search_obj, true);
     "Search each verb using its metadata";
     for metadata in (verbs_metadata)
       verb_count = verb_count + 1;
@@ -116,7 +120,7 @@ object PROG_UTILS
       endif
       verb_name = metadata:name();
       verb_index = metadata:index();
-      match_result = this:grep_verb_code(pattern, search_obj, verb_index, casematters);
+      match_result = this:grep_verb_code(pattern, search_obj, verb_index, casematters, true);
       if (typeof(match_result) == TYPE_LIST)
         "Found a match - return just the essential data";
         {line_num, matching_line} = match_result;
@@ -149,9 +153,11 @@ object PROG_UTILS
   method get_verb_metadata owner: ARCH_WIZARD
     "Get metadata for a verb as a flyweight with $verb delegate.";
     "Slots: owner_obj, location, name, verb_owner, flags, dobj, prep, iobj, index";
-    "Args: {object, verb_name}";
-    set_task_perms(caller_perms());
-    {verb_obj, verb_name} = args;
+    "Args: {object, verb_name[, preserve_task_perms]}";
+    {verb_obj, verb_name, ?preserve_task_perms = false} = args;
+    if (!preserve_task_perms)
+      set_task_perms(caller_perms());
+    endif
     verb_info_data = verb_info(verb_obj, verb_name);
     {verb_owner, verb_flags, verb_names} = verb_info_data;
     verb_args_data = verb_args(verb_obj, verb_name);
@@ -174,9 +180,11 @@ object PROG_UTILS
   method get_verbs_metadata owner: ARCH_WIZARD
     "Get metadata for all verbs on an object as a list of flyweights.";
     "Returns list of $verb flyweights, one for each verb";
-    "Args: {object}";
-    set_task_perms(caller_perms());
-    {verb_obj} = args;
+    "Args: {object[, preserve_task_perms]}";
+    {verb_obj, ?preserve_task_perms = false} = args;
+    if (!preserve_task_perms)
+      set_task_perms(caller_perms());
+    endif
     verb_list = verbs(verb_obj);
     metadata_list = {};
     for verb_index in [1..length(verb_list)]

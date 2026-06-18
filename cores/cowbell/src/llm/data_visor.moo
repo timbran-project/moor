@@ -1353,19 +1353,7 @@ object DATA_VISOR
     for verb_name in (verb_names)
       grants = {@grants, {"verb_read", o, verb_name}};
     endfor
-    set_task_perms(wearer, grants);
-    matches = {};
-    for verb_index in [1..length(verb_names)]
-      if (verb_index % 5 == 0)
-        suspend_if_needed();
-      endif
-      match_result = $prog_utils:grep_verb_code(pattern, o, verb_index, false, true);
-      if (typeof(match_result) == TYPE_LIST)
-        {line_num, matching_line} = match_result;
-        matches = {@matches, {o, verb_names[verb_index], line_num, matching_line}};
-      endif
-    endfor
-    return matches;
+    return $prog_utils:grep_object(pattern, o, false, wearer, grants);
   endmethod
 
   method _tool_create_task owner: ARCH_WIZARD
