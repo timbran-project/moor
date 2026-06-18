@@ -123,7 +123,6 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
     const errorDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
     const modelUriRef = useRef<string | null>(null);
     const contentRef = useRef(content);
-    const compileButtonRef = useRef<HTMLButtonElement | null>(null);
     const editorAriaLabel = `Code editor for verb ${verbName} on ${objectCurie}`;
 
     // Keep contentRef in sync with content state
@@ -829,10 +828,9 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
             setTimeout(() => setCompileAnnouncement(`Compilation failed. ${errorMessage}`), 50);
         } finally {
             setIsCompiling(false);
-            // Return focus to compile button for accessibility
-            // Use setTimeout to ensure state updates have completed
+            // Keep editing uninterrupted after toolbar or keyboard-triggered compiles.
             setTimeout(() => {
-                compileButtonRef.current?.focus();
+                editorRef.current?.focus();
             }, 0);
         }
     }, [authToken, content, objectCurie, verbName, uploadAction, onSendMessage, isCompiling]);
@@ -1076,7 +1074,6 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                     </button>
                     {/* Compile button */}
                     <button
-                        ref={compileButtonRef}
                         onClick={(e) => {
                             e.stopPropagation();
                             compileVerb();

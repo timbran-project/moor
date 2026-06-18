@@ -74,6 +74,11 @@ export const EditorWindow: React.FC<EditorWindowProps> = ({
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
     const [zIndex, setZIndex] = useState(() => getNextZIndex());
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
 
     // Bring window to front when clicked or focused
     const bringToFront = useCallback(() => {
@@ -151,7 +156,7 @@ export const EditorWindow: React.FC<EditorWindowProps> = ({
         // Handle keyboard events
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                onClose();
+                onCloseRef.current();
                 return;
             }
 
@@ -191,7 +196,7 @@ export const EditorWindow: React.FC<EditorWindowProps> = ({
                 previouslyFocused.focus();
             }
         };
-    }, [visible, splitMode, onClose]);
+    }, [visible, splitMode]);
 
     if (!visible) {
         return null;
