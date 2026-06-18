@@ -445,52 +445,32 @@ object PROG_UTILS
   endmethod
 
   method eval_literal owner: ARCH_WIZARD
-    "Safely evaluate a MOO literal from a string, returning value and remaining text";
+    "Safely parse a MOO literal from a string, returning value and remaining text";
     "Returns {true, value, remaining_text} on success";
     "Returns {false, error_message, ''} on failure";
     "Accepts: numbers, strings, objects, lists, maps, symbols, errors";
-    "If value starts with '(', parses until matching ')'; otherwise takes first whitespace token";
-    "IMPORTANT: Runs with caller's permissions, not elevated";
+    "If the whole string is not one literal, tries whitespace-delimited prefixes.";
     input_str = args[1]:trim();
-    original_len = length(input_str);
     if (!input_str)
       return {false, "Empty input", ""};
     endif
-    "Set permissions to caller to prevent privilege escalation";
-    set_task_perms(caller_perms());
-    "Determine where the literal ends";
-    lit_end = 0;
-    if (input_str[1] == "(")
-      "Find matching closing paren";
-      paren_depth = 0;
-      for i in [1..original_len]
-        char = input_str[i];
-        if (char == "(")
-          paren_depth = paren_depth + 1;
-        elseif (char == ")")
-          paren_depth = paren_depth - 1;
-          if (paren_depth == 0)
-            lit_end = i;
-            break;
-          endif
-        endif
-      endfor
-      if (lit_end == 0)
-        return {false, "Mismatched parentheses", ""};
-      endif
-    else
-      "Find first whitespace for simple tokens";
-      lit_end = index(input_str + " ", " ") - 1;
-    endif
-    "Extract the literal part";
-    literal_part = input_str[1..lit_end];
-    remaining = lit_end < original_len ? input_str[lit_end + 1..original_len]:trim() | "";
-    "Try to evaluate the literal";
-    eval_result = eval("return " + literal_part + ";", ['me -> player, 'here -> player.location], 1, 2);
-    if (!eval_result[1])
-      return {false, tostr(eval_result[2]), ""};
-    endif
-    return {true, eval_result[2], remaining};
+    try
+      return {true, fromliteral(input_str), ""};
+    except e (E_INVARG, E_TYPE)
+      parse_error = e[2];
+    endtry
+    words = input_str:words();
+    word_count = length(words);
+    while (word_count >= 1)
+      literal_part = words[1..word_count]:join(" ");
+      remaining = word_count < length(words) ? words[word_count + 1..$]:join(" ") | "";
+      try
+        return {true, fromliteral(literal_part), remaining};
+      except e (E_INVARG, E_TYPE)
+      endtry
+      word_count = word_count - 1;
+    endwhile
+    return {false, parse_error, ""};
   endmethod
 
   method test_eval_literal owner: HACKER
@@ -501,18 +481,15 @@ object PROG_UTILS
     "Test integer with remaining text";
     result = this:eval_literal("42 rc");
     result[1] && result[2] == 42 && result[3] == "rc" || raise(E_ASSERT, "42 rc should parse 42 with remainder rc");
-    "Test parenthesized expression";
-    result = this:eval_literal("(123 / 2)");
-    result[1] && result[2] == 61 || raise(E_ASSERT, "(123 / 2) should evaluate to 61");
-    "Test parenthesized expression with remaining text";
-    result = this:eval_literal("(123 / 2) rc");
-    result[1] && result[2] == 61 && result[3] == "rc" || raise(E_ASSERT, "(123 / 2) rc should parse expr with remainder rc");
+    "Test list literal with embedded whitespace";
+    result = this:eval_literal("{123, 2} rc");
+    result[1] && result[2] == {123, 2} && result[3] == "rc" || raise(E_ASSERT, "{123, 2} rc should parse list literal with remainder rc");
     "Test symbol";
     result = this:eval_literal("'atom");
     result[1] && result[2] == 'atom || raise(E_ASSERT, "'atom should parse as symbol");
-    "Test object reference";
-    result = this:eval_literal("$root");
-    result[1] && result[2] == $root || raise(E_ASSERT, "$root should parse as object");
+    "Test object literal";
+    result = this:eval_literal(toliteral($root));
+    result[1] && result[2] == $root || raise(E_ASSERT, "object literal should parse as object");
     return true;
   endmethod
 endobject

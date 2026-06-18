@@ -660,22 +660,22 @@ object AGENT_BUILDING_TOOLS
     prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_exists = prop_key != E_PROPNF;
     set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
-    "Parse trigger";
+    "Parse trigger literal";
     if (pcre_match(trigger_str, "^[a-z_]+$"))
       trigger = tosym(trigger_str);
     else
-      parsed_trigger = eval("return " + trigger_str + ";");
-      if (!parsed_trigger[1])
-        return "Error parsing trigger: " + tostr(parsed_trigger[2]);
-      endif
-      trigger = parsed_trigger[2];
+      try
+        trigger = fromliteral(trigger_str);
+      except e (E_INVARG, E_TYPE)
+        return "Error parsing trigger: " + (length(e) >= 2 ? e[2] | toliteral(e));
+      endtry
     endif
-    "Parse effects";
-    parsed_effects = eval("return " + effects_str + ";");
-    if (!parsed_effects[1])
-      return "Error parsing effects: " + tostr(parsed_effects[2]);
-    endif
-    effects = parsed_effects[2];
+    "Parse effects literal";
+    try
+      effects = fromliteral(effects_str);
+    except e (E_INVARG, E_TYPE)
+      return "Error parsing effects: " + (length(e) >= 2 ? e[2] | toliteral(e));
+    endtry
     "When clause";
     if (when_str == "0")
       when_clause = 0;

@@ -924,15 +924,14 @@ object DATA_VISOR
         return "STOP. Do not proceed with this action. User requested a different approach: " + result;
       endif
     endif
-    "Parse value from literal using eval with return statement";
+    "Parse value from literal";
     set_task_perms(wearer, {{"property_define", o}});
-    eval_code = "return " + value_str + ";";
-    eval_result = eval(eval_code);
-    if (!eval_result[1])
-      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+    try
+      value = fromliteral(value_str);
+    except e (E_INVARG, E_TYPE)
+      error_text = length(e) >= 2 ? e[2] | toliteral(e);
       return "Error parsing value: " + error_text;
-    endif
-    value = eval_result[2];
+    endtry
     "Add property with wearer as owner";
     prop_info = {wearer, permissions};
     add_property(o, prop_name, value, prop_info);
@@ -1006,15 +1005,14 @@ object DATA_VISOR
         return "STOP. Do not proceed with this action. User requested a different approach: " + result;
       endif
     endif
-    "Parse value from literal using eval with return statement";
+    "Parse value from literal";
     set_task_perms(wearer, {{"property_read", o, prop_name}, {"property_write", o, prop_name}});
-    eval_code = "return " + value_str + ";";
-    eval_result = eval(eval_code);
-    if (!eval_result[1])
-      error_text = typeof(eval_result[2]) == TYPE_LIST ? eval_result[2]:join("\n") | toliteral(eval_result[2]);
+    try
+      value = fromliteral(value_str);
+    except e (E_INVARG, E_TYPE)
+      error_text = length(e) >= 2 ? e[2] | toliteral(e);
       return "Error parsing value: " + error_text;
-    endif
-    value = eval_result[2];
+    endtry
     o.(prop_name) = value;
     return "Property " + tostr(o) + "." + prop_name + " set successfully";
   endmethod

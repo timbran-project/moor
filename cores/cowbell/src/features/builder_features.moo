@@ -1817,26 +1817,26 @@ object BUILDER_FEATURES
       if (!player.wizard && target_obj.owner != player)
         raise(E_PERM, "You don't own " + tostr(target_obj) + ".");
       endif
-      "Parse trigger expression";
+      "Parse trigger literal";
       trigger_str = args[2];
-      trigger_eval = eval("return " + trigger_str + ";");
-      if (!trigger_eval[1])
-        detail = length(trigger_eval) >= 2 ? toliteral(trigger_eval[2]) | toliteral(trigger_eval);
+      try
+        trigger = fromliteral(trigger_str);
+      except e (E_INVARG, E_TYPE)
+        detail = length(e) >= 2 ? e[2] | toliteral(e);
         raise(E_INVARG, "Invalid trigger expression: " + detail);
-      endif
-      trigger = trigger_eval[2];
+      endtry
       "Parse when clause";
       when_str = args[3];
       when_clause = when_str == "0" ? 0 | when_str;
-      "Parse effects expression";
+      "Parse effects literal";
       effects_parts = args[4..length(args)];
       effects_str = $list_proto:join(effects_parts, " ");
-      effects_eval = eval("return " + effects_str + ";");
-      if (!effects_eval[1])
-        detail = length(effects_eval) >= 2 ? toliteral(effects_eval[2]) | toliteral(effects_eval);
+      try
+        effects = fromliteral(effects_str);
+      except e (E_INVARG, E_TYPE)
+        detail = length(e) >= 2 ? e[2] | toliteral(e);
         raise(E_INVARG, "Invalid effects expression: " + detail);
-      endif
-      effects = effects_eval[2];
+      endtry
       typeof(effects) != TYPE_LIST && raise(E_INVARG, "Effects must evaluate to a list.");
       reaction = $reaction:mk(trigger, when_clause, effects);
       "Add or update property";
@@ -2200,10 +2200,11 @@ object BUILDER_FEATURES
       !length(prop_chain) && raise(E_INVARG, "Assignment requires a property (e.g., #obj.prop = value)");
       value_str = rest[2..$]:trim();
       !value_str && raise(E_INVARG, "Missing value after =");
-      "Parse the value using eval";
-      eval_result = eval("return " + value_str + ";");
-      !eval_result[1] && raise(E_INVARG, "Invalid value: " + toliteral(eval_result));
-      assignment_value = eval_result[2];
+      try
+        assignment_value = fromliteral(value_str);
+      except e (E_INVARG, E_TYPE)
+        raise(E_INVARG, "Invalid value: " + (length(e) >= 2 ? e[2] | toliteral(e)));
+      endtry
       rest = "";
     endif
     "Parse remaining argstr for scope and for-clause";
