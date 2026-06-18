@@ -22,6 +22,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 pub use moor_vm::FeaturesConfig;
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     pub database: Option<DatabaseConfig>,
     pub features: Arc<FeaturesConfig>,
@@ -31,6 +32,7 @@ pub struct Config {
 
 /// Configuration for runtime/scheduler behavior
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeConfig {
     /// Interval between automatic garbage collection cycles.
     /// If None, automatic GC uses database settings or default.
@@ -63,6 +65,7 @@ pub enum ImportFormat {
 
 /// Configuration for database import and checkpoint export.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ImportExportConfig {
     /// Where to read the initial import from, if any.
     pub input_path: Option<PathBuf>,

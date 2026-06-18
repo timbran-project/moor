@@ -15,6 +15,7 @@ use fjall::KeyspaceCreateOptions;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DatabaseConfig {
     /// Per-table configurations
     pub object_location: Option<TableConfig>,
@@ -64,6 +65,7 @@ impl Default for DatabaseConfig {
 
 /// Per-table configuration.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TableConfig {
     /// Various fjall keyspace creation options.
     /// Refer to the fjall documentation for more information.

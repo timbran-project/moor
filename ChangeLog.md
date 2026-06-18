@@ -119,6 +119,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ownership of or write permission on the property itself.
 - `queue_info()` is now available to regular callers instead of requiring wizard permissions.
 
+`daemon`:
+
+- YAML configuration files now reject unknown fields instead of silently ignoring stale or
+  misspelled keys; book examples now use the current `features`, `import_export`, and `database`
+  section names.
+
 `docs`:
 
 - Corrected book documentation for `verb_info()`, `verb_code()`, `set_verb_code()`, `add_verb()`,

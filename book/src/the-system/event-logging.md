@@ -214,7 +214,7 @@ enable event logging:
 In your YAML configuration file:
 
 ```yaml
-features_config:
+features:
   enable_eventlog: true
 ```
 

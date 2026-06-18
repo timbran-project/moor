@@ -15,6 +15,7 @@ use moor_compiler::CompileOptions;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct FeaturesConfig {
     /// Whether to host a tasks DB and persist the state of suspended/forked tasks between restarts.
     /// Note that this is the default behaviour in LambdaMOO.

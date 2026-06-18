@@ -533,3 +533,76 @@ impl Args {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Args;
+    use clap::Parser as _;
+    use moor_kernel::config::ImportFormat;
+
+    fn write_config(contents: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("daemon.yaml");
+        std::fs::write(&path, contents).expect("write config");
+        (dir, path)
+    }
+
+    #[test]
+    fn load_config_reads_features_section() {
+        let (_dir, config_path) = write_config(
+            r#"
+features:
+  custom_errors: true
+import_export:
+  import_format: Objdef
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
+
+        let config = args.load_config().expect("load config");
+
+        assert!(config.features.custom_errors);
+        assert_eq!(config.import_export.import_format, ImportFormat::Objdef);
+    }
+
+    #[test]
+    fn load_config_rejects_unknown_sections() {
+        let (_dir, config_path) = write_config(
+            r#"
+features_config:
+  custom_errors: true
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
+
+        assert!(args.load_config().is_err());
+    }
+
+    #[test]
+    fn packaged_daemon_config_loads() {
+        let config_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("debian")
+            .join("moor-daemon-config.yaml");
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
+
+        let config = args.load_config().expect("load packaged config");
+
+        assert!(config.features.custom_errors);
+        assert_eq!(config.import_export.import_format, ImportFormat::Objdef);
+    }
+}
