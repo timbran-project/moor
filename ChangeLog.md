@@ -16,6 +16,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   movement and corner-cutting prevention
 - New `fromliteral()` builtin for parsing one MOO literal value from a string without evaluating MOO
   code
+- New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small,
+  deterministic building blocks for pattern matching over MOO values and for implementing
+  Datalog/Prolog-like rule evaluation in core code without writing a custom search engine in MOO:
+  - `term_unify(pattern, value [, bindings [, options]])` unifies supplied MOO values using
+    `{'var, name}` variable markers and returns the resulting bindings map or false.
+  - `term_substitute(template, bindings [, options])` replaces variable markers from a bindings
+    map, with options for raising on or leaving unbound variables.
+  - `term_query(query, facts [, rules [, bindings [, options]]])` evaluates positive rule/fact
+    queries over supplied MOO values, with bounded depth, step, binding, and solution limits.
+- Granular task capability grants via the wizard-only two-argument form of `set_task_perms()`.
+  Trusted code can now run as a selected principal while attaching additive, operation-specific
+  grants for object reads/writes, object rename/move/recycle/chparent/listing, property
+  read/write/define/delete, verb read/write/add/program/call, and selected builtin calls. This lets
+  wizard-owned policy code delegate a narrow operation after doing its own authorization check
+  instead of temporarily running broad follow-up work as a wizard or changing object ownership.
+- New `task_perms()` builtin returning the current permissions principal and active capability
+  grants for MOO-level inspection.
 
 `compiler`:
 
