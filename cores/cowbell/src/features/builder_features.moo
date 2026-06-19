@@ -79,7 +79,9 @@ object BUILDER_FEATURES
       player:inform_current($event:mk_error(player, "Template compilation failed: " + compiled):with_audience('utility));
       return;
     endif
-    $obj_utils:add_message_entry(target, prop_name, compiled, player);
+    prop_key = $obj_utils:property_key(target, prop_name);
+    grants = prop_key == E_PROPNF ? {{"property_define", target}} | {{"property_write", target, prop_key}};
+    $obj_utils:add_message_entry(target, prop_name, compiled, player, grants);
     player:inform_current($event:mk_info(player, "Added message to " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
@@ -109,7 +111,9 @@ object BUILDER_FEATURES
     target = $match:match_object(target_name, player);
     valid(target) || raise(E_INVARG, "Object not found");
     prop_name:ends_with("_msg_bag") || prop_name:ends_with("_msgs") || raise(E_INVARG, "Property must end with _msg_bag or _msgs");
-    $obj_utils:remove_message_entry(target, prop_name, idx, player);
+    prop_key = $obj_utils:property_key(target, prop_name);
+    prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target) + "." + prop_name);
+    $obj_utils:remove_message_entry(target, prop_key, idx, player, {{"property_write", target, prop_key}});
     player:inform_current($event:mk_info(player, "Removed message #" + tostr(idx) + " from " + tostr(target) + "." + prop_name):with_audience('utility));
   endverb
 
@@ -1406,7 +1410,9 @@ object BUILDER_FEATURES
       obj_name = `target_obj.name ! ANY => tostr(target_obj)';
       success_message = "Set message template on " + obj_name + " (" + tostr(target_obj) + ")." + prop_name + ".";
       "Set the compiled message";
-      $obj_utils:set_compiled_message(target_obj, prop_name, compiled_list, player);
+      prop_key = $obj_utils:property_key(target_obj, prop_name);
+      prop_key == E_PROPNF && raise(E_PROPNF, "Property not found: " + prop_name);
+      $obj_utils:set_compiled_message(target_obj, prop_key, compiled_list, player, {{"property_write", target_obj, prop_key}});
       player:inform_current($event:mk_info(player, success_message));
       return true;
     except e (ANY)

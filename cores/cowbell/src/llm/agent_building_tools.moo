@@ -846,9 +846,9 @@ object AGENT_BUILDING_TOOLS
     compiled = $sub_utils:compile(template);
     prop_key = $obj_utils:property_key(target_obj, prop_name);
     if (prop_key != E_PROPNF)
-      $obj_utils:set_compiled_message(target_obj, prop_key, compiled, actor);
+      $obj_utils:set_compiled_message(target_obj, prop_key, compiled, actor, {{"property_write", target_obj, prop_key}});
     elseif (prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag"))
-      $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor);
+      $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor, {{"property_define", target_obj}});
     else
       set_task_perms(actor, {{"property_define", target_obj}});
       add_property(target_obj, prop_name, compiled, {actor, "rc"});
@@ -867,7 +867,9 @@ object AGENT_BUILDING_TOOLS
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs or _msg_bag");
     compiled = $sub_utils:compile(template);
-    $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    grants = prop_key == E_PROPNF ? {{"property_define", target_obj}} | {{"property_write", target_obj, prop_key}};
+    $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor, grants);
     return "Added message to " + tostr(target_obj) + "." + prop_name + ": " + template;
   endmethod
 
@@ -880,7 +882,9 @@ object AGENT_BUILDING_TOOLS
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to modify messages on " + tostr(target_obj));
-    $obj_utils:remove_message_entry(target_obj, prop_name, index, actor);
+    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
+    $obj_utils:remove_message_entry(target_obj, prop_key, index, actor, {{"property_write", target_obj, prop_key}});
     return "Deleted message " + tostr(index) + " from " + tostr(target_obj) + "." + prop_name;
   endmethod
 

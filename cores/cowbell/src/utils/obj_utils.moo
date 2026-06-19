@@ -216,25 +216,25 @@ object OBJ_UTILS
   method add_message_entry owner: ARCH_WIZARD
     "Append a compiled entry to a message bag property, creating the bag if needed.";
     caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
-    {target_obj, prop_name, compiled_entry, who} = args;
+    {target_obj, prop_name, compiled_entry, who, ?grants = {}} = args;
     prop_name = tostr(prop_name);
     prop_key = this:property_key(target_obj, prop_name);
     if (prop_key == E_PROPNF)
-      set_task_perms(who, {{"property_define", target_obj}});
+      set_task_perms(who, {@grants, {"property_define", target_obj}});
       add_property(target_obj, prop_name, $msg_bag:mk(compiled_entry), {who, "rc"});
       return;
     endif
     existing = target_obj.(prop_key);
     if ($msg_bag:is_msg_bag(existing))
       if (typeof(existing) == TYPE_OBJ)
-        set_task_perms(who, {{"property_write", existing, "entries"}});
+        set_task_perms(who, {@grants, {"property_write", existing, "entries"}});
         existing.entries = {@existing.entries, compiled_entry};
       else
-        set_task_perms(who, {{"property_write", target_obj, prop_key}});
+        set_task_perms(who, {@grants, {"property_write", target_obj, prop_key}});
         target_obj.(prop_key) = toflyweight($msg_bag, flyslots(existing), {@flycontents(existing), compiled_entry});
       endif
     else
-      set_task_perms(who, {{"property_write", target_obj, prop_key}});
+      set_task_perms(who, {@grants, {"property_write", target_obj, prop_key}});
       target_obj.(prop_key) = $msg_bag:mk(compiled_entry);
     endif
   endmethod
@@ -242,25 +242,25 @@ object OBJ_UTILS
   method remove_message_entry owner: ARCH_WIZARD
     "Remove an entry from a message bag property.";
     caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
-    {target_obj, prop_name, index, who} = args;
+    {target_obj, prop_name, index, who, ?grants = {}} = args;
     prop_name = tostr(prop_name);
     prop_key = this:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
     existing = target_obj.(prop_key);
     if ($msg_bag:is_msg_bag(existing))
       if (typeof(existing) == TYPE_OBJ)
-        set_task_perms(who, {{"property_write", existing, "entries"}});
+        set_task_perms(who, {@grants, {"property_write", existing, "entries"}});
         index >= 1 && index <= length(existing.entries) || raise(E_RANGE, "Index out of range");
         existing.entries = listdelete(existing.entries, index);
       else
-        set_task_perms(who, {{"property_write", target_obj, prop_key}});
+        set_task_perms(who, {@grants, {"property_write", target_obj, prop_key}});
         entries = flycontents(existing);
         index >= 1 && index <= length(entries) || raise(E_RANGE, "Index out of range");
         target_obj.(prop_key) = toflyweight($msg_bag, flyslots(existing), listdelete(entries, index));
       endif
     elseif (typeof(existing) == TYPE_LIST)
       index >= 1 && index <= length(existing) || raise(E_RANGE, "Index out of range");
-      set_task_perms(who, {{"property_write", target_obj, prop_key}});
+      set_task_perms(who, {@grants, {"property_write", target_obj, prop_key}});
       target_obj.(prop_key) = listdelete(existing, index);
     else
       raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);

@@ -913,10 +913,10 @@ object LLM_WEARABLE
       if (!wearer.wizard && target_obj.owner != wearer)
         raise(E_PERM, "Cannot add property to " + tostr(target_obj) + ": not owner");
       endif
-      $obj_utils:add_message_entry(target_obj, prop_name, compiled, wearer);
+      $obj_utils:add_message_entry(target_obj, prop_name, compiled, wearer, {{"property_define", target_obj}});
       return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
     endif
-    $obj_utils:add_message_entry(target_obj, prop_key, compiled, wearer);
+    $obj_utils:add_message_entry(target_obj, prop_key, compiled, wearer, {{"property_write", target_obj, prop_key}});
     return "Added entry to " + tostr(target_obj) + "." + prop_name + ".";
   endmethod
 
@@ -933,7 +933,7 @@ object LLM_WEARABLE
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
-    $obj_utils:remove_message_entry(target_obj, prop_key, idx, wearer);
+    $obj_utils:remove_message_entry(target_obj, prop_key, idx, wearer, {{"property_write", target_obj, prop_key}});
     return "Removed entry #" + tostr(idx) + " from " + tostr(target_obj) + "." + prop_name + ".";
   endmethod
 
