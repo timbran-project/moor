@@ -115,7 +115,7 @@ object ROOT
     return this.contents;
   endmethod
 
-  verb all_contents (this none this) owner: ARCH_WIZARD flags: "rd"
+  method all_contents owner: ARCH_WIZARD
     "Return a list of all objects contained (at some level) by this object.";
     set_task_perms(caller_perms());
     res = {};
@@ -123,7 +123,7 @@ object ROOT
       res = {@res, y, y:all_contents()};
     endfor
     return res;
-  endverb
+  endmethod
 
   method description owner: ARCH_WIZARD
     "Returns the external description of the object.";
