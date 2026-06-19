@@ -224,6 +224,7 @@ object AGENT_ROOM
   method _tool_present_code owner: ARCH_WIZARD
     "Tool: Present formatted code to the room.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     title = maphaskey(args_map, "title") ? args_map["title"] | "Code";
     code = args_map["code"];
     language = maphaskey(args_map, "language") ? args_map["language"] | 'moo;
@@ -248,6 +249,7 @@ object AGENT_ROOM
   method _tool_present_report owner: ARCH_WIZARD
     "Tool: Present a formatted report/document to the room.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     title = maphaskey(args_map, "title") ? args_map["title"] | "";
     content = args_map["content"];
     "Get the agent - it's stored on this.agent during task execution";
@@ -275,6 +277,7 @@ object AGENT_ROOM
   method _tool_present_table owner: ARCH_WIZARD
     "Tool: Present a formatted table to the room.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     title = maphaskey(args_map, "title") ? args_map["title"] | "";
     headers = args_map["headers"];
     rows = args_map["rows"];
@@ -343,9 +346,16 @@ object AGENT_ROOM
     return {["name" -> "show_verb", "description" -> "Display a verb's source code. Always include 'reason' to explain WHY you're reading this code.", "target_obj" -> this, "target_verb" -> "_tool_show_verb", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room', '$thing', '#123'"], "verb" -> ["type" -> "string", "description" -> "Verb name to display"], "reason" -> ["type" -> "string", "description" -> "WHY you're reading this - e.g. 'to understand how wearables work'"]], "required" -> {"object", "verb", "reason"}]], ["name" -> "present_report", "description" -> "Present a prose report. Write clear explanatory text about what you DID or found.", "target_obj" -> this, "target_verb" -> "_tool_present_report", "input_schema" -> ["type" -> "object", "properties" -> ["title" -> ["type" -> "string", "description" -> "Report title"], "content" -> ["type" -> "string", "description" -> "Report text - prose paragraphs"]], "required" -> {"content"}]], ["name" -> "present_table", "description" -> "Present tabular data like verb lists or property comparisons.", "target_obj" -> this, "target_verb" -> "_tool_present_table", "input_schema" -> ["type" -> "object", "properties" -> ["title" -> ["type" -> "string", "description" -> "Table title"], "headers" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Column headers"], "rows" -> ["type" -> "array", "items" -> ["type" -> "array"], "description" -> "Table rows"]], "required" -> {"headers", "rows"}]], ["name" -> "program_verb", "description" -> "Set the MOO code for a verb. IMPORTANT: 'code' must be a single string containing the COMPLETE verb body. Use \\n for line breaks. Example: code=\"\\\"Docstring\\\";\\nplayer:inform_current($event:mk_info(player, ctime()));\"", "target_obj" -> this, "target_verb" -> "_tool_program_verb", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$thing', '#123'"], "verb" -> ["type" -> "string", "description" -> "Verb name to program"], "code" -> ["type" -> "string", "description" -> "Complete MOO code as a SINGLE STRING. Use \\n for newlines. NOT an object/map."]], "required" -> {"object", "verb", "code"}]]};
   endmethod
 
+  method _require_tool_dispatch owner: ARCH_WIZARD
+    "Only registered tool dispatch or same-room internals may invoke tool handlers.";
+    stack = callers();
+    caller == $llm_agent_tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+  endmethod
+
   method _tool_show_verb owner: ARCH_WIZARD
     "Tool: Fetch and present verb code with explanation of why.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     obj_ref = args_map["object"];
     verb_name = args_map["verb"];
     reason = maphaskey(args_map, "reason") ? args_map["reason"] | "";
@@ -581,6 +591,7 @@ object AGENT_ROOM
   method _tool_program_verb owner: ARCH_WIZARD
     "Tool: Program a verb with code preview.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     obj_ref = args_map["object"];
     verb_name = args_map["verb"];
     code = args_map["code"];

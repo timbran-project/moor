@@ -536,6 +536,7 @@ object RLM_AGENT
     "Usage: $rlm_agent:ask(query, actor, client)";
     "Agent is anonymous - garbage collected after use.";
     {query, actor, client} = args;
+    actor == caller_perms() || caller_perms().wizard || isa(caller, $agent_room) || raise(E_PERM);
     set_task_perms(actor);
     agent = $rlm_agent:create(true);
     agent:set_owner(actor);
@@ -553,6 +554,7 @@ object RLM_AGENT
   verb setup (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Set up an RLM agent instance with query, actor, and optional initial context.";
     {query, actor, ?parent = #-1, ?depth = 0, ?initial_workspace = []} = args;
+    actor == caller_perms() || caller_perms().wizard || isa(caller, $agent_room) || isa(caller, $rlm_agent) || raise(E_PERM);
     this.query = query;
     this.actor = actor;
     this.parent_agent = parent;

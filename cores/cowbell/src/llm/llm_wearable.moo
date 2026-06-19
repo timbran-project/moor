@@ -77,6 +77,12 @@ object LLM_WEARABLE
     return wearer;
   endmethod
 
+  method _require_tool_dispatch owner: ARCH_WIZARD
+    "Only registered tool dispatch or same-object internals may invoke tool handlers.";
+    stack = callers();
+    caller == $llm_agent_tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+  endmethod
+
   method _check_user_eligible owner: HACKER
     "Override in children to customize user eligibility requirements. Default: no restrictions";
     {wearer} = args;
@@ -175,6 +181,7 @@ object LLM_WEARABLE
   method _tool_explain owner: HACKER
     "Tool: Communicate reasoning, progress updates, or error details to user";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     message = args_map["message"];
     typeof(message) == TYPE_STR || raise(E_TYPE("Expected message string"));
     "Message is displayed by on_tool_call callback, no need to display here";
@@ -184,6 +191,7 @@ object LLM_WEARABLE
   method _tool_ask_user owner: ARCH_WIZARD
     "Tool: Ask the wearer a question, supporting choices or free-text responses";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = actor || this:_action_perms_check();
     question = args_map["question"];
     typeof(question) == TYPE_STR || raise(E_TYPE("Expected question string"));
@@ -706,6 +714,7 @@ object LLM_WEARABLE
   method _tool_todo_write owner: ARCH_WIZARD
     "Tool: Replace the entire todo list to track multi-step tasks";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     actor || this:_action_perms_check();
     todos_input = args_map["todos"];
     typeof(todos_input) != TYPE_LIST && raise(E_TYPE, "todos must be a list");
@@ -728,6 +737,7 @@ object LLM_WEARABLE
   method _tool_get_todos owner: ARCH_WIZARD
     "Tool: Get the current todo list";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     actor || this:_action_perms_check();
     return this.agent:format_todos();
   endmethod
@@ -762,6 +772,7 @@ object LLM_WEARABLE
   method _tool_doc_lookup owner: ARCH_WIZARD
     "Tool: Fetch developer documentation for object/verb/property (like @doc)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = actor || this:_action_perms_check();
     target_spec = args_map["target"];
     set_task_perms(wearer);
@@ -816,6 +827,7 @@ object LLM_WEARABLE
   method _tool_list_messages owner: ARCH_WIZARD
     "Tool: List *_msg properties and message bags on an object (like @messages)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -834,6 +846,7 @@ object LLM_WEARABLE
   method _tool_get_message_template owner: ARCH_WIZARD
     "Tool: Read a single message template (like @getm)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     prop_name = args_map["property"];
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
@@ -858,6 +871,7 @@ object LLM_WEARABLE
   method _tool_set_message_template owner: ARCH_WIZARD
     "Tool: Set a message template (like @setm). Creates property if missing.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {prop_name, template} = {args_map["property"], args_map["template"]};
     prop_name:ends_with("_msg") || prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msg/_msgs/_msg_bag");
@@ -885,6 +899,7 @@ object LLM_WEARABLE
   method _tool_add_message_template owner: ARCH_WIZARD
     "Tool: Append a template to a message bag (like @add-message)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {prop_name, template} = {args_map["property"], args_map["template"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
@@ -908,6 +923,7 @@ object LLM_WEARABLE
   method _tool_delete_message_template owner: ARCH_WIZARD
     "Tool: Delete a template by index from a message bag (like @del-message)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {prop_name, idx} = {args_map["property"], args_map["index"]};
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs/_msg_bag");
@@ -924,6 +940,7 @@ object LLM_WEARABLE
   method _tool_list_rules owner: ARCH_WIZARD
     "Tool: List *_rule properties on an object (like @rules)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     target_obj = $match:match_object(args_map["object"], wearer);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -941,6 +958,7 @@ object LLM_WEARABLE
   method _tool_set_rule owner: ARCH_WIZARD
     "Tool: Set a rule on an object property (like @set-rule)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {prop_name, expression} = {args_map["property"], args_map["expression"]};
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
@@ -970,6 +988,7 @@ object LLM_WEARABLE
   method _tool_show_rule owner: ARCH_WIZARD
     "Tool: Display a rule property expression (like @show-rule)";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     prop_name = args_map["property"];
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");

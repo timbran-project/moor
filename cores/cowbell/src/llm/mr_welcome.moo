@@ -157,6 +157,12 @@ object MR_WELCOME
     this:_register_memory_tools(agent);
   endmethod
 
+  method _require_tool_dispatch owner: ARCH_WIZARD
+    "Only registered tool dispatch or same-object internals may invoke privileged tool handlers.";
+    stack = callers();
+    caller == $llm_agent_tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+  endmethod
+
   method _tool_list_players owner: HACKER
     "Tool: Get list of all connected players with activity information";
     {args_map, actor} = args;
@@ -290,6 +296,7 @@ object MR_WELCOME
   method _tool_find_route owner: ARCH_WIZARD
     "Tool: Find route from current location to a destination";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     destination_name = args_map["destination"];
     typeof(destination_name) == TYPE_STR || raise(E_TYPE("Expected destination name string"));
     "Get current room and area";
@@ -356,6 +363,7 @@ object MR_WELCOME
     "Tool: Find an object by name in current room";
     try
       {args_map, actor} = args;
+      this:_require_tool_dispatch();
       object_name = args_map["object_name"];
       typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
       query = object_name:trim();
@@ -419,6 +427,7 @@ object MR_WELCOME
     "Tool: List command verbs available on an object (includes inherited, readable verbs only)";
     try
       {args_map, actor} = args;
+      this:_require_tool_dispatch();
       object_name = args_map["object_name"];
       typeof(object_name) == TYPE_STR || raise(E_TYPE("Expected object name string"));
       query = object_name:trim();
@@ -736,6 +745,7 @@ object MR_WELCOME
   method _tool_help_lookup owner: ARCH_WIZARD
     "Tool: Look up a help topic to get information about commands and features.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     topic = args_map["topic"];
     typeof(topic) != TYPE_STR && return "Error: topic must be a string.";
     "Use Mr. Welcome's location as reference for help environment";

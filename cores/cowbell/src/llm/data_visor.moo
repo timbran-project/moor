@@ -439,6 +439,7 @@ object DATA_VISOR
   method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Get the complete source dump of an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str);
@@ -451,6 +452,7 @@ object DATA_VISOR
   method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Get the code of a specific verb on an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
@@ -465,6 +467,7 @@ object DATA_VISOR
   method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List all verb names on an object and its ancestors";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     o = $match:match_object(obj_str, wearer);
@@ -483,6 +486,7 @@ object DATA_VISOR
   method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
@@ -497,6 +501,7 @@ object DATA_VISOR
   method _tool_evaluate_rule owner: ARCH_WIZARD
     "Tool: Evaluate a rule with variable bindings to test behavior";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check();
     {prop_name, bindings_str} = {args_map["property"], args_map["bindings"]};
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property must end with _rule");
@@ -520,6 +525,7 @@ object DATA_VISOR
   method _tool_find_object owner: ARCH_WIZARD
     "Tool: Find an object by name, reference, or ID and return detailed information";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     ref = args_map["reference"];
     typeof(ref) == TYPE_STR || raise(E_TYPE("Expected reference string"));
@@ -535,6 +541,7 @@ object DATA_VISOR
   method _tool_ancestors owner: ARCH_WIZARD
     "Tool: Get the ancestor chain of an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
@@ -545,6 +552,7 @@ object DATA_VISOR
   method _tool_descendants owner: ARCH_WIZARD
     "Tool: Get all descendants of an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     o = $match:match_object(args_map["object"]);
@@ -555,6 +563,7 @@ object DATA_VISOR
   method _tool_function_info owner: ARCH_WIZARD
     "Tool: Get information about a builtin function";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     this:_action_perms_check();
     func_name = args_map["function_name"];
     typeof(func_name) == TYPE_STR || raise(E_TYPE("Expected function name string"));
@@ -564,6 +573,7 @@ object DATA_VISOR
   method _tool_list_builtin_functions owner: ARCH_WIZARD
     "Tool: List all builtin functions with signatures";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     this:_action_perms_check();
     all_funcs = function_info();
     type_names = [0 -> "INT", 1 -> "OBJ", 2 -> "STR", 3 -> "ERR", 4 -> "LIST", 9 -> "FLOAT", 10 -> "MAP", 14 -> "BOOL", 15 -> "FLYWEIGHT", 16 -> "SYMBOL", 17 -> "BINARY", 18 -> "LAMBDA", -1 -> "any", -2 -> "int|float"];
@@ -579,6 +589,7 @@ object DATA_VISOR
   method _tool_get_verb_code_range owner: ARCH_WIZARD
     "Tool: Get specific lines from a verb's code";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
@@ -594,6 +605,7 @@ object DATA_VISOR
   method _tool_get_verb_metadata owner: ARCH_WIZARD
     "Tool: Get metadata about a verb";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {verb_name, o} = {args_map["verb"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
@@ -609,6 +621,7 @@ object DATA_VISOR
   method _tool_get_properties owner: ARCH_WIZARD
     "Tool: Get list of properties on an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     o = $match:match_object(args_map["object"], wearer);
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
@@ -629,6 +642,7 @@ object DATA_VISOR
   method _tool_present_verb_code owner: ARCH_WIZARD
     "Tool: Present formatted verb code to the user";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     payload = this:_tool_build_present_verb_code_payload(args_map, actor, false);
     "Send to wearer";
@@ -641,6 +655,7 @@ object DATA_VISOR
   method _tool_present_verb_code_range owner: ARCH_WIZARD
     "Tool: Present a range of verb code to the user";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     payload = this:_tool_build_present_verb_code_payload(args_map, actor, true);
     "Send to wearer";
@@ -714,6 +729,7 @@ object DATA_VISOR
   method _tool_add_verb owner: ARCH_WIZARD
     "Tool: Add a new verb to an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {verb_names, rationale, o} = {args_map["verb_names"], args_map["rationale"], $match:match_object(args_map["object"], wearer)};
     dobj = maphaskey(args_map, "dobj") ? args_map["dobj"] | "this";
@@ -759,6 +775,7 @@ object DATA_VISOR
   method _tool_delete_verb owner: ARCH_WIZARD
     "Tool: Delete a verb from an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {verb_name, rationale, o} = {args_map["verb"], args_map["rationale"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
@@ -793,6 +810,7 @@ object DATA_VISOR
   method _tool_set_verb_code owner: ARCH_WIZARD
     "Tool: Compile and set new code for a verb";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     {verb_name, rationale, code_str, o} = {args_map["verb"], args_map["rationale"], args_map["code"], $match:match_object(args_map["object"], wearer)};
     typeof(o) == TYPE_OBJ || raise(E_TYPE("Expected valid object"));
@@ -846,6 +864,7 @@ object DATA_VISOR
   method _tool_set_verb_args owner: ARCH_WIZARD
     "Tool: Change verb argument specification";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
@@ -891,6 +910,7 @@ object DATA_VISOR
   method _tool_add_property owner: ARCH_WIZARD
     "Tool: Add a new property to an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
@@ -941,6 +961,7 @@ object DATA_VISOR
   method _tool_delete_property owner: ARCH_WIZARD
     "Tool: Delete a property from an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
@@ -975,6 +996,7 @@ object DATA_VISOR
   method _tool_set_property owner: ARCH_WIZARD
     "Tool: Set the value of a property";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
@@ -1020,6 +1042,7 @@ object DATA_VISOR
   method _tool_set_verb_perms owner: ARCH_WIZARD
     "Tool: Change verb permissions";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     verb_name = args_map["verb"];
@@ -1074,6 +1097,7 @@ object DATA_VISOR
   method _tool_set_property_perms owner: ARCH_WIZARD
     "Tool: Change property permissions";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     prop_name = args_map["property"];
@@ -1124,6 +1148,7 @@ object DATA_VISOR
   method _tool_eval owner: ARCH_WIZARD
     "Tool: Execute MOO code and return result";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     rationale = maphaskey(args_map, "rationale") ? args_map["rationale"] | "";
@@ -1181,6 +1206,7 @@ object DATA_VISOR
   method _tool_create_object owner: ARCH_WIZARD
     "Tool: Create a new object as child of parent";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check();
     set_task_perms(wearer);
     parent_str = args_map["parent"];
@@ -1240,6 +1266,7 @@ object DATA_VISOR
   method _tool_recycle_object owner: ARCH_WIZARD
     "Tool: Destroy an object permanently";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     obj_str = args_map["object"];
     rationale = args_map["rationale"];
@@ -1277,6 +1304,7 @@ object DATA_VISOR
   method _tool_grep owner: ARCH_WIZARD
     "Tool: Search verb code for patterns";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     pattern = args_map["pattern"];
     object_spec = maphaskey(args_map, "object") ? args_map["object"] | false;
@@ -1351,12 +1379,38 @@ object DATA_VISOR
     for verb_name in (verb_names)
       grants = {@grants, {"verb_read", o, verb_name}};
     endfor
-    return $prog_utils:grep_object(pattern, o, false, wearer, grants);
+    set_task_perms(wearer, grants);
+    matches = {};
+    for verb_name in (verb_names)
+      code_lines = `verb_code(o, verb_name) ! E_VERBNF => {}';
+      for line_num in [1..length(code_lines)]
+        line = code_lines[line_num];
+        match_pos = index(line, pattern, false);
+        if (match_pos)
+          max_len = 50;
+          matching_line = line;
+          if (length(line) > max_len)
+            pattern_len = length(pattern);
+            start_pos = max(1, match_pos - (max_len - pattern_len) / 2);
+            end_pos = min(length(line), start_pos + max_len - 1);
+            if (end_pos == length(line) && end_pos - start_pos < max_len - 1)
+              start_pos = max(1, end_pos - max_len + 1);
+            endif
+            matching_line = line[start_pos..end_pos];
+            start_pos > 1 && (matching_line = "..." + matching_line);
+            end_pos < length(line) && (matching_line = matching_line + "...");
+          endif
+          matches = {@matches, {o, verb_name, line_num, matching_line}};
+        endif
+      endfor
+    endfor
+    return matches;
   endmethod
 
   method _tool_create_task owner: ARCH_WIZARD
     "Tool: Create a new investigation task";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     description = args_map["description"];
     typeof(description) == TYPE_STR || raise(E_TYPE("Description must be string"));
@@ -1369,6 +1423,7 @@ object DATA_VISOR
   method _tool_record_finding owner: ARCH_WIZARD
     "Tool: Record a finding in current task's knowledge base";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     this:_action_perms_check();
     {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
     typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
@@ -1383,6 +1438,7 @@ object DATA_VISOR
   method _tool_get_findings owner: ARCH_WIZARD
     "Tool: Retrieve findings for a subject from current task";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     this:_action_perms_check();
     subject = args_map["subject"];
     typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
@@ -1405,6 +1461,7 @@ object DATA_VISOR
   method _tool_task_status owner: ARCH_WIZARD
     "Tool: Get current investigation task status";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     this:_action_perms_check();
     this.current_investigation_task == -1 && return "No active investigation task.";
     task_obj = this.agent.current_tasks[this.current_investigation_task];
@@ -1825,6 +1882,7 @@ object DATA_VISOR
   method _tool_help_lookup owner: ARCH_WIZARD
     "Tool: Look up a help topic to get information about commands and features.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = this:_action_perms_check(actor);
     set_task_perms(wearer);
     topic = args_map["topic"];

@@ -14,7 +14,10 @@ object PROG_UTILS
     "Returns {line_number, truncated_line} if found, or 0 if no match.";
     "Args: {pattern, object, verb_num, casematters[, preserve_task_perms]}";
     {pattern, object, vnum, casematters, ?preserve_task_perms = false} = args;
-    if (!preserve_task_perms)
+    if (preserve_task_perms)
+      stack = callers();
+      (caller == this || (length(stack) && stack[1][4] == this)) || raise(E_PERM);
+    else
       set_task_perms(caller_perms());
     endif
     "A missing verb is not a match; other failures should surface to the caller.";
@@ -100,6 +103,9 @@ object PROG_UTILS
     "Returns list of matches: {{obj, verb_name, line_num, matching_line}, ...}";
     "Args: {pattern, search_obj, casematters[, run_as[, grants]]}";
     {pattern, search_obj, casematters, ?run_as = caller_perms(), ?grants = {}} = args;
+    if (run_as != caller_perms() || grants)
+      caller == $data_visor || raise(E_PERM);
+    endif
     if (grants)
       set_task_perms(run_as, grants);
     else
@@ -155,7 +161,10 @@ object PROG_UTILS
     "Slots: owner_obj, location, name, verb_owner, flags, dobj, prep, iobj, index";
     "Args: {object, verb_name[, preserve_task_perms]}";
     {verb_obj, verb_name, ?preserve_task_perms = false} = args;
-    if (!preserve_task_perms)
+    if (preserve_task_perms)
+      stack = callers();
+      (caller == this || (length(stack) && stack[1][4] == this)) || raise(E_PERM);
+    else
       set_task_perms(caller_perms());
     endif
     verb_info_data = verb_info(verb_obj, verb_name);
@@ -182,7 +191,10 @@ object PROG_UTILS
     "Returns list of $verb flyweights, one for each verb";
     "Args: {object[, preserve_task_perms]}";
     {verb_obj, ?preserve_task_perms = false} = args;
-    if (!preserve_task_perms)
+    if (preserve_task_perms)
+      stack = callers();
+      (caller == this || (length(stack) && stack[1][4] == this)) || raise(E_PERM);
+    else
       set_task_perms(caller_perms());
     endif
     verb_list = verbs(verb_obj);

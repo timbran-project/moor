@@ -32,6 +32,7 @@ object LLM_AGENT_TOOL
 
   method execute owner: ARCH_WIZARD
     "Execute the tool with given arguments and optional actor";
+    isa(caller, $llm_agent) || isa(caller, $rlm_agent) || raise(E_PERM);
     {args_json, ?actor = false} = args;
     "Parse arguments if they're JSON";
     if (typeof(args_json) == TYPE_STR)

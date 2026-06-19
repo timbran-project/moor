@@ -32,6 +32,7 @@ object AGENTIC_TOOL
 
   method execute owner: ARCH_WIZARD
     "Execute tool with args map (or JSON string) and optional actor.";
+    isa(caller, $agentic_agent) || raise(E_PERM);
     {args_json, ?actor = #-1} = args;
     if (typeof(args_json) == TYPE_STR)
       tool_args = parse_json(args_json);

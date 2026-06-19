@@ -355,6 +355,7 @@ object ARCHITECTS_COMPASS
   method _tool_create_project owner: ARCH_WIZARD
     "Tool: Create a new building project task";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = actor || this:_action_perms_check();
     description = args_map["description"];
     typeof(description) == TYPE_STR || raise(E_TYPE("Description must be string"));
@@ -367,6 +368,7 @@ object ARCHITECTS_COMPASS
   method _tool_record_creation owner: ARCH_WIZARD
     "Tool: Record a creation in current project's knowledge base";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = actor || this:_action_perms_check();
     {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
     typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
@@ -381,6 +383,7 @@ object ARCHITECTS_COMPASS
   method _tool_project_status owner: ARCH_WIZARD
     "Tool: Get current building project status";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     wearer = actor || this:_action_perms_check();
     this.current_building_task == -1 && return "No active building project.";
     task_obj = this.agent.current_tasks[this.current_building_task];

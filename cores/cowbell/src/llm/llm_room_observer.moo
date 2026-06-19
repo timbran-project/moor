@@ -421,9 +421,16 @@ object LLM_ROOM_OBSERVER
     return this.knowledge_base;
   endmethod
 
+  method _require_tool_dispatch owner: ARCH_WIZARD
+    "Only registered tool dispatch or same-object internals may invoke tool handlers.";
+    stack = callers();
+    caller == $llm_agent_tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+  endmethod
+
   method _tool_remember_fact owner: ARCH_WIZARD
     "Tool: Store a fact about a subject for later recall.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     "Safely extract arguments with defaults";
     subject = `args_map["subject"] ! E_RANGE => ""';
     fact = `args_map["fact"] ! E_RANGE => ""';
@@ -463,6 +470,7 @@ object LLM_ROOM_OBSERVER
   method _tool_recall_facts owner: ARCH_WIZARD
     "Tool: Retrieve stored facts about a subject.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     subject = args_map["subject"];
     typeof(subject) != TYPE_STR && raise(E_TYPE, "subject must be a string");
     if (!valid(this.knowledge_base))
@@ -579,6 +587,7 @@ object LLM_ROOM_OBSERVER
   method _tool_current_time owner: ARCH_WIZARD
     "Tool: Get the current time.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     now = time();
     return ["current_time" -> ctime(), "timestamp" -> now];
   endmethod

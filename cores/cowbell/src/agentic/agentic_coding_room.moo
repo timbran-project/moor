@@ -23,6 +23,8 @@ object AGENTIC_CODING_ROOM
   method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Dump object summary with properties and verbs.";
     {args_map, actor} = args;
+    stack = callers();
+    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
@@ -40,6 +42,8 @@ object AGENTIC_CODING_ROOM
   method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
     {args_map, actor} = args;
+    stack = callers();
+    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
@@ -54,6 +58,8 @@ object AGENTIC_CODING_ROOM
   method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Return full code for a verb.";
     {args_map, actor} = args;
+    stack = callers();
+    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     verb_name = `args_map["verb"] ! ANY => ""';
@@ -70,6 +76,8 @@ object AGENTIC_CODING_ROOM
   method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object.";
     {args_map, actor} = args;
+    stack = callers();
+    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     valid(actor) || raise(E_PERM);
     obj_ref = `args_map["object"] ! ANY => ""';
     prop_name = `args_map["property"] ! ANY => ""';
@@ -77,9 +85,12 @@ object AGENTIC_CODING_ROOM
     typeof(prop_name) == TYPE_STR || raise(E_TYPE, "property must be string");
     obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
-    set_task_perms(actor, {{"property_read", obj, prop_name}});
-    value = `obj.(prop_name) ! E_PROPNF => E_PROPNF';
-    value == E_PROPNF && raise(E_PROPNF, "Property not found: " + prop_name);
+    try
+      set_task_perms(actor, {{"property_read", obj, prop_name}});
+      value = obj.(prop_name);
+    except e (E_PROPNF, E_PERM)
+      raise(E_PROPNF, "Property not found: " + prop_name);
+    endtry
     return toliteral(value);
   endmethod
 
@@ -93,7 +104,14 @@ object AGENTIC_CODING_ROOM
     dump_out = this:_tool_dump_object(["object" -> "$agentic.agent"], player);
     $test_utils:assert_true(index(dump_out, "Properties (") > 0, "dump_object should include property count");
     $test_utils:assert_true(index(dump_out, "Verbs (") > 0, "dump_object should include verb count");
-    $test_utils:assert_raises(E_PROPNF, this, "_tool_read_property", {["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player}, "read_property should surface missing property");
+    missing_prop_raised = false;
+    try
+      this:_tool_read_property(["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player);
+    except e (E_PROPNF)
+      missing_prop_raised = true;
+    endtry
+    $test_utils:assert_true(missing_prop_raised, "read_property should surface missing property");
+    $test_utils:assert_raises(E_PERM, this, "_tool_read_property", {["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player}, "read_property should reject unrelated direct callers");
     private_obj = #-1;
     try
       private_obj = $thing:create();

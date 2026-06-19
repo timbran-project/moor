@@ -75,9 +75,16 @@ object AGENT_BUILDING_TOOLS
     return {colon_parts[1], @$str_proto:split(colon_parts[2], ",")};
   endmethod
 
+  method _require_tool_dispatch owner: ARCH_WIZARD
+    "Only registered agent/tool dispatchers may invoke shared building tool handlers.";
+    stack = callers();
+    caller == $llm_agent_tool || caller == $agent_room || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+  endmethod
+
   method build_room owner: ARCH_WIZARD
     "Tool: Create a new room";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     {room_name, area_spec, parent_spec} = {args_map["name"], maphaskey(args_map, "area") ? args_map["area"] | "", maphaskey(args_map, "parent") ? args_map["parent"] | "$room"};
     parent_obj = this:_resolve_object(parent_spec, actor);
@@ -116,6 +123,7 @@ object AGENT_BUILDING_TOOLS
   method dig_passage owner: ARCH_WIZARD
     "Tool: Create a passage between two rooms";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     {source_spec, direction, target_spec, return_dir, oneway_flag} = {maphaskey(args_map, "source_room") ? args_map["source_room"] | "", args_map["direction"], args_map["target_room"], maphaskey(args_map, "return_direction") ? args_map["return_direction"] | "", maphaskey(args_map, "oneway") ? args_map["oneway"] | false};
     "Parse direction string into list";
@@ -173,6 +181,7 @@ object AGENT_BUILDING_TOOLS
   method remove_passage owner: ARCH_WIZARD
     "Tool: Remove a passage between two rooms";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     {target_spec, source_spec} = {args_map["target_room"], maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
     "Resolve source_room - may be object, string, or empty";
@@ -224,6 +233,7 @@ object AGENT_BUILDING_TOOLS
   method set_passage_description owner: ARCH_WIZARD
     "Tool: Set description and ambient flag for a passage";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     {direction, description, ambient, source_spec} = {args_map["direction"], args_map["description"], maphaskey(args_map, "ambient") ? args_map["ambient"] | true, maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
     typeof(description) == TYPE_STR && ("{" in description || "}" in description) && (description = $sub_utils:compile(description));
@@ -252,6 +262,7 @@ object AGENT_BUILDING_TOOLS
   method create_object owner: ARCH_WIZARD
     "Tool: Create an object from a parent";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {parent_spec, name_spec, extra_aliases} = {args_map["parent"], args_map["name"], maphaskey(args_map, "aliases") ? args_map["aliases"] | {}};
     {primary_name, parsed_aliases} = $str_proto:parse_name_aliases(name_spec);
     final_aliases = {@parsed_aliases, @extra_aliases};
@@ -274,6 +285,7 @@ object AGENT_BUILDING_TOOLS
   method recycle_object owner: ARCH_WIZARD
     "Tool: Permanently destroy an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -287,6 +299,7 @@ object AGENT_BUILDING_TOOLS
   method rename_object owner: ARCH_WIZARD
     "Tool: Rename an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -304,6 +317,7 @@ object AGENT_BUILDING_TOOLS
   method describe_object owner: ARCH_WIZARD
     "Tool: Set object description";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -317,6 +331,7 @@ object AGENT_BUILDING_TOOLS
   method move_object owner: ARCH_WIZARD
     "Tool: Move an object to a new location";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     {obj_spec, dest_spec} = {args_map["object"], args_map["destination"]};
     target_obj = this:_resolve_object(obj_spec, actor);
@@ -334,6 +349,7 @@ object AGENT_BUILDING_TOOLS
   method set_integrated_description owner: ARCH_WIZARD
     "Tool: Set object's integrated description";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -347,6 +363,7 @@ object AGENT_BUILDING_TOOLS
   method grant_capability owner: ARCH_WIZARD
     "Tool: Grant capabilities to a player";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {target_spec, category, perms, grantee_spec} = {args_map["target"], args_map["category"], args_map["permissions"], args_map["grantee"]};
     set_task_perms(actor);
     target_obj = this:_resolve_object(target_spec, actor);
@@ -364,6 +381,7 @@ object AGENT_BUILDING_TOOLS
   method audit_owned owner: ARCH_WIZARD
     "Tool: List all owned objects";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     owned = sort(owned_objects(actor));
     !owned && return "You don't own any objects.";
@@ -378,6 +396,7 @@ object AGENT_BUILDING_TOOLS
   method area_map owner: ARCH_WIZARD
     "Tool: Get list of all rooms in the current area";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     current_room = actor.location;
     !valid(current_room) && return "Error: You are not in a room.";
     area = current_room.location;
@@ -394,6 +413,7 @@ object AGENT_BUILDING_TOOLS
   method find_route owner: ARCH_WIZARD
     "Tool: Find route between two rooms";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {to_spec, from_spec} = {args_map["to_room"], maphaskey(args_map, "from_room") ? args_map["from_room"] | ""};
     set_task_perms(actor);
     "Resolve from_room - may be object, string, or empty";
@@ -443,6 +463,7 @@ object AGENT_BUILDING_TOOLS
   method list_prototypes owner: HACKER
     "Tool: List available prototype objects for building";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     prototypes = $sysobj:list_builder_prototypes();
     result = {"Available prototypes for creating objects:", ""};
     for proto_info in (prototypes)
@@ -454,6 +475,7 @@ object AGENT_BUILDING_TOOLS
   method inspect_object owner: ARCH_WIZARD
     "Tool: Inspect an object and return detailed information";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     set_task_perms(actor);
     target = this:_resolve_object(args_map["object"], actor);
     typeof(target) == TYPE_OBJ || return "Error: Could not find object '" + tostr(args_map["object"]) + "'.";
@@ -504,6 +526,7 @@ object AGENT_BUILDING_TOOLS
   method list_rules owner: ARCH_WIZARD
     "Tool: List all rule properties on an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -528,6 +551,7 @@ object AGENT_BUILDING_TOOLS
   method set_rule owner: ARCH_WIZARD
     "Tool: Set a rule on an object property";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {obj_spec, prop_name, expression} = {args_map["object"], args_map["property"], args_map["expression"]};
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -551,6 +575,7 @@ object AGENT_BUILDING_TOOLS
   method show_rule owner: ARCH_WIZARD
     "Tool: Show a specific rule property";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {obj_spec, prop_name} = {args_map["object"], args_map["property"]};
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -572,6 +597,7 @@ object AGENT_BUILDING_TOOLS
   method tool_test_rule owner: ARCH_WIZARD
     "Tool: Test a rule expression with specific variable bindings";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {expression, bindings} = {args_map["expression"], args_map["bindings"]};
     typeof(expression) == TYPE_STR || raise(E_TYPE, "expression must be string");
     typeof(bindings) == TYPE_MAP || raise(E_TYPE, "bindings must be object/map");
@@ -596,6 +622,7 @@ object AGENT_BUILDING_TOOLS
   method list_reactions owner: ARCH_WIZARD
     "Tool: List reactions on an object with details";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -642,6 +669,7 @@ object AGENT_BUILDING_TOOLS
   method add_reaction owner: ARCH_WIZARD
     "Tool: Add a reaction to an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     obj_spec = args_map["object"];
     prop_name = args_map["property_name"];
     trigger_str = args_map["trigger"];
@@ -700,6 +728,7 @@ object AGENT_BUILDING_TOOLS
   method set_reaction_enabled owner: ARCH_WIZARD
     "Tool: Enable or disable a reaction";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     obj_spec = args_map["object"];
     prop_name = args_map["property_name"];
     enabled = args_map["enabled"];
@@ -728,6 +757,7 @@ object AGENT_BUILDING_TOOLS
   method list_messages owner: ARCH_WIZARD
     "Tool: List message template properties on an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -764,6 +794,7 @@ object AGENT_BUILDING_TOOLS
   method get_message_template owner: ARCH_WIZARD
     "Tool: Get a message template value";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {obj_spec, prop_name} = {args_map["object"], args_map["property"]};
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -805,6 +836,7 @@ object AGENT_BUILDING_TOOLS
   method set_message_template owner: ARCH_WIZARD
     "Tool: Set a message template on an object";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {obj_spec, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -827,6 +859,7 @@ object AGENT_BUILDING_TOOLS
   method add_message_template owner: ARCH_WIZARD
     "Tool: Add a message to a message bag";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {obj_spec, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -841,6 +874,7 @@ object AGENT_BUILDING_TOOLS
   method delete_message_template owner: ARCH_WIZARD
     "Tool: Delete a message from a message bag by index";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     {obj_spec, prop_name, index} = {args_map["object"], args_map["property"], args_map["index"]};
     target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
@@ -853,6 +887,7 @@ object AGENT_BUILDING_TOOLS
   method doc_lookup owner: ARCH_WIZARD
     "Tool: Fetch developer documentation for object/verb/property";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_spec = args_map["target"];
     set_task_perms(actor);
     "Handle special alias cases";
@@ -906,6 +941,7 @@ object AGENT_BUILDING_TOOLS
   method help_lookup owner: ARCH_WIZARD
     "Tool: Look up a help topic";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     topic = args_map["topic"];
     typeof(topic) != TYPE_STR && return "Error: topic must be a string.";
     "If empty topic, list available topics";
@@ -929,6 +965,7 @@ object AGENT_BUILDING_TOOLS
   method get_verb_code owner: ARCH_WIZARD
     "Tool: Get the code of a verb. If verb is omitted, lists verbs on the object.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -969,6 +1006,7 @@ object AGENT_BUILDING_TOOLS
   method add_verb owner: ARCH_WIZARD
     "Tool: Add a new verb to an object.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -989,6 +1027,7 @@ object AGENT_BUILDING_TOOLS
   method program_verb owner: ARCH_WIZARD
     "Tool: Set the code for a verb.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1010,6 +1049,7 @@ object AGENT_BUILDING_TOOLS
   method list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1034,6 +1074,7 @@ object AGENT_BUILDING_TOOLS
   method delete_verb owner: ARCH_WIZARD
     "Tool: Delete a verb from an object.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1048,6 +1089,7 @@ object AGENT_BUILDING_TOOLS
   method list_properties owner: ARCH_WIZARD
     "Tool: List properties on an object.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1079,6 +1121,7 @@ object AGENT_BUILDING_TOOLS
   method get_property owner: ARCH_WIZARD
     "Tool: Get the value of a property.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1092,6 +1135,7 @@ object AGENT_BUILDING_TOOLS
   method set_property owner: ARCH_WIZARD
     "Tool: Set the value of a property.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1106,6 +1150,7 @@ object AGENT_BUILDING_TOOLS
   method add_property owner: ARCH_WIZARD
     "Tool: Add a new property to an object.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
@@ -1121,6 +1166,7 @@ object AGENT_BUILDING_TOOLS
   verb set_verb_info (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set verb metadata (permissions, names).";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
@@ -1138,6 +1184,7 @@ object AGENT_BUILDING_TOOLS
   verb set_verb_args (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set verb argument specification.";
     {args_map, actor} = args;
+    this:_require_tool_dispatch();
     target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");

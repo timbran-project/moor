@@ -228,10 +228,10 @@ object OBJ_UTILS
     if ($msg_bag:is_msg_bag(existing))
       if (typeof(existing) == TYPE_OBJ)
         set_task_perms(who, {{"property_write", existing, "entries"}});
-        existing:add(compiled_entry, true);
+        existing.entries = {@existing.entries, compiled_entry};
       else
         set_task_perms(who, {{"property_write", target_obj, prop_key}});
-        target_obj.(prop_key) = existing:add(compiled_entry, true);
+        target_obj.(prop_key) = toflyweight($msg_bag, flyslots(existing), {@flycontents(existing), compiled_entry});
       endif
     else
       set_task_perms(who, {{"property_write", target_obj, prop_key}});
@@ -250,10 +250,13 @@ object OBJ_UTILS
     if ($msg_bag:is_msg_bag(existing))
       if (typeof(existing) == TYPE_OBJ)
         set_task_perms(who, {{"property_write", existing, "entries"}});
-        existing:remove(index, true);
+        index >= 1 && index <= length(existing.entries) || raise(E_RANGE, "Index out of range");
+        existing.entries = listdelete(existing.entries, index);
       else
         set_task_perms(who, {{"property_write", target_obj, prop_key}});
-        target_obj.(prop_key) = existing:remove(index, true);
+        entries = flycontents(existing);
+        index >= 1 && index <= length(entries) || raise(E_RANGE, "Index out of range");
+        target_obj.(prop_key) = toflyweight($msg_bag, flyslots(existing), listdelete(entries, index));
       endif
     elseif (typeof(existing) == TYPE_LIST)
       index >= 1 && index <= length(existing) || raise(E_RANGE, "Index out of range");
@@ -282,6 +285,9 @@ object OBJ_UTILS
     "Args: {target_obj, ?who, ?grant_reads}";
     "Returns: list of {property_name, current_value}";
     {target_obj, ?who = caller_perms(), ?grant_reads = false} = args;
+    if (who != caller_perms() || grant_reads)
+      caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
+    endif
     if (!grant_reads)
       set_task_perms(who);
     endif
@@ -315,6 +321,9 @@ object OBJ_UTILS
     "Args: {target_obj, ?who, ?grant_reads}";
     "Returns: list of {property_name, current_value}";
     {target_obj, ?who = caller_perms(), ?grant_reads = false} = args;
+    if (who != caller_perms() || grant_reads)
+      caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
+    endif
     if (!grant_reads)
       set_task_perms(who);
     endif
@@ -347,6 +356,9 @@ object OBJ_UTILS
     "Args: {target_obj, ?who, ?grant_reads}";
     "Returns: list of {property_name, reaction_flyweight}";
     {target_obj, ?who = caller_perms(), ?grant_reads = false} = args;
+    if (who != caller_perms() || grant_reads)
+      caller == $builder_features || caller == $agent_building_tools || isa(caller, $llm_wearable) || raise(E_PERM);
+    endif
     if (!grant_reads)
       set_task_perms(who);
     endif
