@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use axum::extract::ws::{Message, WebSocket};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use moor_schema::{
     common as moor_common, convert::uuid_from_ref, convert::var_from_flatbuffer_ref,
     rpc as moor_rpc, var as moor_var_schema,
@@ -225,9 +225,8 @@ impl WebSocketConnection {
                         Message::Text(_) | Message::Binary(_) => {
                             if !expecting_input.is_empty() {
                                 return ReadEvent::InputReply(msg);
-                            } else {
-                                return ReadEvent::Command(msg);
                             }
+                            return ReadEvent::Command(msg);
                         }
                         Message::Ping(payload) => {
                             // Client sent us a ping - we must respond with a pong
@@ -292,53 +291,8 @@ impl WebSocketConnection {
                             pending_heartbeat = None;
                         }
                         ReadEvent::WebRtcSignaling(data) => {
-                            if !self.webrtc_config.enabled {
-                                debug!("WebRTC signaling received but WebRTC is disabled");
-                                continue;
-                            }
-                            let Some(msg) = parse_signaling_message(&data) else {
-                                warn!("Failed to parse WebRTC signaling message");
-                                continue;
-                            };
-                            match msg {
-                                SignalingMessage::Offer { sdp } => {
-                                    match WebRtcPeer::new(&self.webrtc_config, &sdp).await {
-                                        Ok((peer, answer_sdp)) => {
-                                            // Set up ICE candidate forwarding over WebSocket.
-                                            let (ice_tx, ice_rx) = tokio::sync::mpsc::unbounded_channel();
-                                            peer.on_ice_candidate(ice_tx);
-                                            ice_candidate_rx = Some(ice_rx);
-
-                                            // Send SDP answer back.
-                                            let answer = encode_signaling_message(&SignalingMessage::Answer { sdp: answer_sdp });
-                                            if let Err(e) = ws_sender.send(Message::Binary(answer.into())).await {
-                                                error!("Failed to send WebRTC answer: {e}");
-                                                break;
-                                            }
-                                            self.webrtc_peer = Some(peer);
-                                            info!("WebRTC peer connection established");
-                                        }
-                                        Err(e) => {
-                                            warn!("Failed to create WebRTC peer: {e}");
-                                        }
-                                    }
-                                }
-                                SignalingMessage::IceCandidate { candidate, sdp_mid, sdp_mline_index } => {
-                                    if let Some(peer) = &self.webrtc_peer {
-                                        let candidate_json = serde_json::json!({
-                                            "candidate": candidate,
-                                            "sdpMid": sdp_mid,
-                                            "sdpMLineIndex": sdp_mline_index,
-                                        }).to_string();
-                                        if let Err(e) = peer.add_ice_candidate(&candidate_json).await {
-                                            warn!("Failed to add ICE candidate: {e}");
-                                        }
-                                    }
-                                }
-                                SignalingMessage::Answer { .. } => {
-                                    // Server shouldn't receive answers — we send them.
-                                    warn!("Received unexpected SDP answer from client");
-                                }
+                            if !self.handle_webrtc_signaling(&data, &mut ws_sender, &mut ice_candidate_rx).await {
+                                break;
                             }
                         }
                     }
@@ -462,24 +416,8 @@ impl WebSocketConnection {
                     }
                     let use_data_channel = dc_open && is_realtime;
 
-                    let bytes = event_msg.consume();
-                    if use_data_channel {
-                        if let Some(peer) = &self.webrtc_peer
-                            && let Err(e) = peer.send(&bytes).await {
-                                // Fall back to WebSocket on send failure.
-                                debug!("Data channel send failed, falling back to WS: {e}");
-                                let msg = Message::Binary(bytes.into());
-                                if let Err(e) = ws_sender.send(msg).await {
-                                    error!("Failed to send message to websocket: {}", e);
-                                    break;
-                                }
-                            }
-                    } else {
-                        let msg = Message::Binary(bytes.into());
-                        if let Err(e) = ws_sender.send(msg).await {
-                            error!("Failed to send message to websocket: {}", e);
-                            break;
-                        }
+                    if !self.forward_event_bytes(event_msg.consume(), use_data_channel, &mut ws_sender).await {
+                        break;
                     }
                 }
             }
@@ -539,48 +477,19 @@ impl WebSocketConnection {
                 return;
             }
         };
-        match reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success)) => {
-                let daemon_reply = match client_success.reply().ok() {
-                    Some(daemon_reply) => daemon_reply,
-                    None => {
-                        warn!("Command reply missing daemon reply");
-                        return;
-                    }
-                };
-                match daemon_reply.reply() {
-                    Ok(moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted)) => {
-                        let ti = match task_submitted.task_id() {
-                            Ok(task_id) => task_id as usize,
-                            Err(e) => {
-                                warn!("TaskSubmitted missing task_id: {}", e);
-                                return;
-                            }
-                        };
-                        self.pending_task = Some(PendingTask {
-                            task_id: ti,
-                            start_time: Instant::now(),
-                        });
-                    }
-                    Ok(moor_rpc::DaemonToClientReplyUnionRef::InputThanks(_)) => {
-                        warn!("Received input thanks unprovoked, out of order")
-                    }
-                    Ok(_) => {
-                        error!("Unexpected daemon to client reply");
-                    }
-                    Err(e) => {
-                        warn!("Command reply missing daemon reply union: {}", e);
-                    }
-                }
+        let Some(reply_union) = daemon_reply_union(reply, "Command") else {
+            return;
+        };
+
+        match reply_union {
+            moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted) => {
+                self.set_pending_task_from_reply(task_submitted);
             }
-            Ok(moor_rpc::ReplyResultUnionRef::Failure(failure)) => {
-                log_rpc_failure(failure);
+            moor_rpc::DaemonToClientReplyUnionRef::InputThanks(_) => {
+                warn!("Received input thanks unprovoked, out of order")
             }
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(_)) => {
-                error!("Unexpected host success");
-            }
-            Err(e) => {
-                warn!("Command reply missing top-level result: {}", e);
+            _ => {
+                error!("Unexpected daemon to client reply");
             }
         }
     }
@@ -597,29 +506,8 @@ impl WebSocketConnection {
         message: Message,
         expecting_input: &mut VecDeque<Uuid>,
     ) {
-        let cmd: Var = match message {
-            Message::Text(text) => v_str(&text),
-            Message::Binary(bytes) => {
-                // Parse binary as FlatBuffer-encoded Var
-                let var_ref = match moor_var_schema::VarRef::read_as_root(&bytes) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!("Invalid FlatBuffer in binary input: {}", e);
-                        return;
-                    }
-                };
-                match var_from_flatbuffer_ref(var_ref) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!("Failed to decode Var from FlatBuffer: {}", e);
-                        return;
-                    }
-                }
-            }
-            _ => {
-                warn!("Received unsupported message type for input");
-                return;
-            }
+        let Some(cmd) = var_from_input_message(message) else {
+            return;
         };
 
         let Some(input_request_id) = expecting_input.front() else {
@@ -656,50 +544,217 @@ impl WebSocketConnection {
                 return;
             }
         };
-        match reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success)) => {
-                let daemon_reply = match client_success.reply().ok() {
-                    Some(daemon_reply) => daemon_reply,
-                    None => {
-                        warn!("Input reply missing daemon reply");
-                        return;
-                    }
-                };
-                match daemon_reply.reply() {
-                    Ok(moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted)) => {
-                        let task_id = match task_submitted.task_id() {
-                            Ok(task_id) => task_id as usize,
-                            Err(e) => {
-                                warn!("TaskSubmitted missing task_id: {}", e);
-                                return;
-                            }
-                        };
-                        self.pending_task = Some(PendingTask {
-                            task_id,
-                            start_time: Instant::now(),
-                        });
-                        warn!("Got TaskSubmitted when expecting input-thanks")
-                    }
-                    Ok(moor_rpc::DaemonToClientReplyUnionRef::InputThanks(_)) => {
-                        expecting_input.pop_front();
-                    }
-                    Ok(_) => {
-                        error!("Unexpected daemon to client reply");
-                    }
-                    Err(e) => {
-                        warn!("Input reply missing daemon reply union: {}", e);
-                    }
+        let Some(reply_union) = daemon_reply_union(reply, "Input") else {
+            return;
+        };
+
+        match reply_union {
+            moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted) => {
+                self.set_pending_task_from_reply(task_submitted);
+                warn!("Got TaskSubmitted when expecting input-thanks")
+            }
+            moor_rpc::DaemonToClientReplyUnionRef::InputThanks(_) => {
+                expecting_input.pop_front();
+            }
+            _ => {
+                error!("Unexpected daemon to client reply");
+            }
+        }
+    }
+
+    async fn handle_webrtc_signaling(
+        &mut self,
+        data: &[u8],
+        ws_sender: &mut SplitSink<WebSocket, Message>,
+        ice_candidate_rx: &mut Option<tokio::sync::mpsc::UnboundedReceiver<SignalingMessage>>,
+    ) -> bool {
+        if !self.webrtc_config.enabled {
+            debug!("WebRTC signaling received but WebRTC is disabled");
+            return true;
+        }
+
+        let Some(msg) = parse_signaling_message(data) else {
+            warn!("Failed to parse WebRTC signaling message");
+            return true;
+        };
+
+        match msg {
+            SignalingMessage::Offer { sdp } => {
+                self.handle_webrtc_offer(sdp, ws_sender, ice_candidate_rx)
+                    .await
+            }
+            SignalingMessage::IceCandidate {
+                candidate,
+                sdp_mid,
+                sdp_mline_index,
+            } => {
+                self.add_webrtc_ice_candidate(candidate, sdp_mid, sdp_mline_index)
+                    .await;
+                true
+            }
+            SignalingMessage::Answer { .. } => {
+                // Server shouldn't receive answers; we send them.
+                warn!("Received unexpected SDP answer from client");
+                true
+            }
+        }
+    }
+
+    async fn handle_webrtc_offer(
+        &mut self,
+        sdp: String,
+        ws_sender: &mut SplitSink<WebSocket, Message>,
+        ice_candidate_rx: &mut Option<tokio::sync::mpsc::UnboundedReceiver<SignalingMessage>>,
+    ) -> bool {
+        let (peer, answer_sdp) = match WebRtcPeer::new(&self.webrtc_config, &sdp).await {
+            Ok(peer_and_answer) => peer_and_answer,
+            Err(e) => {
+                warn!("Failed to create WebRTC peer: {e}");
+                return true;
+            }
+        };
+
+        let (ice_tx, ice_rx) = tokio::sync::mpsc::unbounded_channel();
+        peer.on_ice_candidate(ice_tx);
+        *ice_candidate_rx = Some(ice_rx);
+
+        let answer = encode_signaling_message(&SignalingMessage::Answer { sdp: answer_sdp });
+        if let Err(e) = ws_sender.send(Message::Binary(answer.into())).await {
+            error!("Failed to send WebRTC answer: {e}");
+            return false;
+        }
+
+        self.webrtc_peer = Some(peer);
+        info!("WebRTC peer connection established");
+        true
+    }
+
+    async fn add_webrtc_ice_candidate(
+        &mut self,
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_mline_index: Option<u16>,
+    ) {
+        let Some(peer) = &self.webrtc_peer else {
+            return;
+        };
+
+        let candidate_json = serde_json::json!({
+            "candidate": candidate,
+            "sdpMid": sdp_mid,
+            "sdpMLineIndex": sdp_mline_index,
+        })
+        .to_string();
+        if let Err(e) = peer.add_ice_candidate(&candidate_json).await {
+            warn!("Failed to add ICE candidate: {e}");
+        }
+    }
+
+    async fn forward_event_bytes(
+        &mut self,
+        bytes: Vec<u8>,
+        use_data_channel: bool,
+        ws_sender: &mut SplitSink<WebSocket, Message>,
+    ) -> bool {
+        if use_data_channel && let Some(peer) = &self.webrtc_peer {
+            match peer.send(&bytes).await {
+                Ok(()) => return true,
+                Err(e) => {
+                    debug!("Data channel send failed, falling back to WS: {e}");
                 }
             }
-            Ok(moor_rpc::ReplyResultUnionRef::Failure(failure)) => {
-                log_rpc_failure(failure);
-            }
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(_)) => {
-                error!("Unexpected host success");
-            }
+        }
+
+        let msg = Message::Binary(bytes.into());
+        if let Err(e) = ws_sender.send(msg).await {
+            error!("Failed to send message to websocket: {}", e);
+            return false;
+        }
+        true
+    }
+
+    fn set_pending_task_from_reply(
+        &mut self,
+        task_submitted: moor_rpc::TaskSubmittedRef<'_>,
+    ) -> bool {
+        let task_id = match task_submitted.task_id() {
+            Ok(task_id) => task_id as usize,
             Err(e) => {
-                warn!("Input reply missing top-level result: {}", e);
+                warn!("TaskSubmitted missing task_id: {}", e);
+                return false;
             }
+        };
+
+        self.pending_task = Some(PendingTask {
+            task_id,
+            start_time: Instant::now(),
+        });
+        true
+    }
+}
+
+fn daemon_reply_union<'a>(
+    reply: moor_rpc::ReplyResultRef<'a>,
+    context: &str,
+) -> Option<moor_rpc::DaemonToClientReplyUnionRef<'a>> {
+    let result = match reply.result() {
+        Ok(result) => result,
+        Err(e) => {
+            warn!("{context} reply missing top-level result: {e}");
+            return None;
+        }
+    };
+
+    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
+        match result {
+            moor_rpc::ReplyResultUnionRef::Failure(failure) => log_rpc_failure(failure),
+            moor_rpc::ReplyResultUnionRef::HostSuccess(_) => error!("Unexpected host success"),
+            moor_rpc::ReplyResultUnionRef::ClientSuccess(_) => unreachable!(),
+        }
+        return None;
+    };
+
+    let Ok(daemon_reply) = client_success.reply() else {
+        warn!("{context} reply missing daemon reply");
+        return None;
+    };
+
+    let reply_union = match daemon_reply.reply() {
+        Ok(reply_union) => reply_union,
+        Err(e) => {
+            warn!("{context} reply missing daemon reply union: {e}");
+            return None;
+        }
+    };
+
+    Some(reply_union)
+}
+
+fn var_from_input_message(message: Message) -> Option<Var> {
+    match message {
+        Message::Text(text) => Some(v_str(&text)),
+        Message::Binary(bytes) => var_from_binary_input(&bytes),
+        _ => {
+            warn!("Received unsupported message type for input");
+            None
+        }
+    }
+}
+
+fn var_from_binary_input(bytes: &[u8]) -> Option<Var> {
+    let var_ref = match moor_var_schema::VarRef::read_as_root(bytes) {
+        Ok(var_ref) => var_ref,
+        Err(e) => {
+            warn!("Invalid FlatBuffer in binary input: {}", e);
+            return None;
+        }
+    };
+
+    match var_from_flatbuffer_ref(var_ref) {
+        Ok(var) => Some(var),
+        Err(e) => {
+            warn!("Failed to decode Var from FlatBuffer: {}", e);
+            None
         }
     }
 }

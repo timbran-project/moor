@@ -72,10 +72,9 @@ pub async fn list_objects_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 
@@ -146,10 +145,9 @@ pub async fn query_objects_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 
@@ -214,9 +212,8 @@ pub async fn update_property_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }

@@ -67,10 +67,9 @@ pub async fn properties_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 
@@ -112,9 +111,8 @@ pub async fn property_retrieval_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }

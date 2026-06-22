@@ -66,27 +66,23 @@ pub async fn batch_handler(
                 };
                 let mut actions = Vec::new();
                 for entry_ref_result in actions_ref.iter() {
-                    let entry_ref = match entry_ref_result {
-                        Ok(e) => e,
-                        Err(_) => continue,
+                    let Ok(entry_ref) = entry_ref_result else {
+                        continue;
                     };
-                    let id = match entry_ref.id() {
-                        Ok(i) => i.to_string(),
-                        Err(_) => continue,
+                    let Ok(id) = entry_ref.id() else {
+                        continue;
                     };
-                    let action_union_ref = match entry_ref.action() {
-                        Ok(a) => a,
-                        Err(_) => continue,
+                    let Ok(action_union_ref) = entry_ref.action() else {
+                        continue;
                     };
-
-                    let action = match moor_rpc::WorldStateActionUnion::try_from(action_union_ref) {
-                        Ok(a) => a,
-                        Err(e) => {
-                            error!("Failed to convert action union: {}", e);
-                            return StatusCode::BAD_REQUEST.into_response();
-                        }
+                    let Ok(action) = moor_rpc::WorldStateActionUnion::try_from(action_union_ref)
+                    else {
+                        continue;
                     };
-                    actions.push(BatchAction { id, action });
+                    actions.push(BatchAction {
+                        id: id.into(),
+                        action,
+                    });
                 }
                 let rollback = batch_ref.rollback().unwrap_or(false);
                 (actions, rollback)
@@ -139,9 +135,8 @@ pub async fn batch_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }

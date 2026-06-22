@@ -82,10 +82,9 @@ pub async fn verb_retrieval_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 
@@ -123,10 +122,9 @@ pub async fn verbs_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 
@@ -307,10 +305,9 @@ pub async fn invoke_verb_handler(
             let response_bytes = builder.finish(&response, None).to_vec();
             flatbuffer_response(response_bytes)
         }
-        ResponseFormat::Json => match verb_call_response_to_json(&response) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            verb_call_response_to_json(&response).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 
@@ -366,9 +363,8 @@ pub async fn verb_program_handler(
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
     }
 }

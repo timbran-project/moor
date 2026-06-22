@@ -256,63 +256,9 @@ async fn auth_handler(
         }
     };
 
-    // Check if login was successful and extract auth_token
-    let auth_token = match reply.result() {
-        Ok(moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success)) => {
-            let daemon_reply = match client_success.reply().ok() {
-                Some(reply) => reply,
-                None => {
-                    error!("Login response missing daemon reply");
-                    return StatusCode::BAD_GATEWAY.into_response();
-                }
-            };
-            match daemon_reply.reply() {
-                Ok(moor_rpc::DaemonToClientReplyUnionRef::LoginResult(login_result)) => {
-                    let success = match login_result.success() {
-                        Ok(success) => success,
-                        Err(e) => {
-                            error!("LoginResult missing success flag: {}", e);
-                            return StatusCode::BAD_GATEWAY.into_response();
-                        }
-                    };
-                    if success {
-                        let auth_token_ref = match login_result.auth_token().ok().flatten() {
-                            Some(auth_token_ref) => auth_token_ref,
-                            None => {
-                                error!("LoginResult missing auth token");
-                                return StatusCode::BAD_GATEWAY.into_response();
-                            }
-                        };
-                        match auth_token_ref.token() {
-                            Ok(token) => AuthToken(token.to_string()),
-                            Err(e) => {
-                                error!("LoginResult auth token missing token string: {}", e);
-                                return StatusCode::BAD_GATEWAY.into_response();
-                            }
-                        }
-                    } else {
-                        error!("Login failed");
-                        return StatusCode::UNAUTHORIZED.into_response();
-                    }
-                }
-                Ok(_) => {
-                    error!("Unexpected reply type");
-                    return StatusCode::BAD_GATEWAY.into_response();
-                }
-                Err(e) => {
-                    error!("Login response missing daemon reply union: {}", e);
-                    return StatusCode::BAD_GATEWAY.into_response();
-                }
-            }
-        }
-        Ok(_) => {
-            error!("Login failed");
-            return StatusCode::UNAUTHORIZED.into_response();
-        }
-        Err(e) => {
-            error!("Login response missing top-level result: {}", e);
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
+    let auth_token = match auth_token_from_login_reply(reply) {
+        Ok(auth_token) => auth_token,
+        Err(status) => return status.into_response(),
     };
 
     // Keep the connection alive - WebSocket will reattach to it, preserving the connection ID
@@ -331,6 +277,72 @@ async fn auth_handler(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+fn auth_token_from_login_reply(
+    reply: moor_rpc::ReplyResultRef<'_>,
+) -> Result<AuthToken, StatusCode> {
+    let result = match reply.result() {
+        Ok(result) => result,
+        Err(e) => {
+            error!("Login response missing top-level result: {}", e);
+            return Err(StatusCode::BAD_GATEWAY);
+        }
+    };
+
+    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
+        error!("Login failed");
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    let Ok(daemon_reply) = client_success.reply() else {
+        error!("Login response missing daemon reply");
+        return Err(StatusCode::BAD_GATEWAY);
+    };
+
+    let reply_union = match daemon_reply.reply() {
+        Ok(reply_union) => reply_union,
+        Err(e) => {
+            error!("Login response missing daemon reply union: {}", e);
+            return Err(StatusCode::BAD_GATEWAY);
+        }
+    };
+
+    let moor_rpc::DaemonToClientReplyUnionRef::LoginResult(login_result) = reply_union else {
+        error!("Unexpected reply type");
+        return Err(StatusCode::BAD_GATEWAY);
+    };
+
+    auth_token_from_login_result(login_result)
+}
+
+fn auth_token_from_login_result(
+    login_result: moor_rpc::LoginResultRef<'_>,
+) -> Result<AuthToken, StatusCode> {
+    let success = match login_result.success() {
+        Ok(success) => success,
+        Err(e) => {
+            error!("LoginResult missing success flag: {}", e);
+            return Err(StatusCode::BAD_GATEWAY);
+        }
+    };
+
+    if !success {
+        error!("Login failed");
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let Ok(Some(auth_token_ref)) = login_result.auth_token() else {
+        error!("LoginResult missing auth token");
+        return Err(StatusCode::BAD_GATEWAY);
+    };
+
+    let Ok(token) = auth_token_ref.token() else {
+        error!("LoginResult auth token missing token string");
+        return Err(StatusCode::BAD_GATEWAY);
+    };
+
+    Ok(AuthToken(token.to_string()))
 }
 
 /// Validate an auth token by round-tripping to the daemon.
