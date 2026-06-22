@@ -11,37 +11,21 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Telnet host process startup, configuration loading, and shutdown coordination.
-
-#![allow(clippy::too_many_arguments)]
-
-use crate::health::spawn_health_check;
-use crate::listeners::{Listeners, load_tls_config};
 use clap::Parser;
 use clap_derive::Parser;
 use colored::control;
-use moor_var::SYSTEM_OBJECT;
-use rpc_async_client::{process_hosts_events, start_host_session};
-use rpc_common::{HostType, client_args::RpcClientArgs};
+use moor_telnet_host::{HostRuntime, TelnetHostConfig};
+use rpc_common::client_args::{RpcClientArgs, RpcClientConfig};
 use serde::{Deserialize, Serialize};
 use std::{
-    net::SocketAddr,
     path::PathBuf,
-    sync::{
-        Arc, LazyLock,
-        atomic::{AtomicBool, AtomicU64},
-    },
+    sync::{Arc, LazyLock, atomic::AtomicBool},
 };
 use tokio::{
     select,
     signal::unix::{SignalKind, signal},
 };
 use tracing::{error, info};
-use uuid::Uuid;
-
-mod health;
-mod listeners;
-mod session;
 
 static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
     format!(
@@ -126,6 +110,7 @@ async fn main() -> Result<(), eyre::Error> {
         std::process::exit(1);
     });
     control::set_override(true);
+    let kill_switch = Arc::new(AtomicBool::new(false));
 
     let mut hup_signal = match signal(SignalKind::hangup()) {
         Ok(signal) => signal,
@@ -142,153 +127,24 @@ async fn main() -> Result<(), eyre::Error> {
         }
     };
 
-    let kill_switch = Arc::new(AtomicBool::new(false));
-
-    // Parse the telnet address and port.
-    let listen_addr = format!("{}:{}", args.telnet_address, args.telnet_port);
-    let telnet_sockaddr = match listen_addr.parse::<SocketAddr>() {
-        Ok(addr) => addr,
-        Err(e) => {
-            error!(
-                "Failed to parse telnet socket address {}: {}",
-                listen_addr, e
-            );
-            std::process::exit(1);
-        }
+    let config = TelnetHostConfig {
+        connection: RpcClientConfig::from(&args.client_args),
+        telnet_address: args.telnet_address,
+        telnet_port: args.telnet_port,
+        health_check_port: args.health_check_port,
+        tls_port: args.tls_port,
+        tls_cert: args.tls_cert,
+        tls_key: args.tls_key,
+    };
+    let runtime = HostRuntime {
+        zmq_context: tmq::Context::new(),
+        kill_switch: kill_switch.clone(),
     };
 
-    let zmq_ctx = tmq::Context::new();
-
-    // Setup CURVE encryption if using TCP endpoint
-    let curve_keys = match rpc_async_client::enrollment_client::setup_curve_auth(
-        &args.client_args.rpc_address,
-        &args.client_args.enrollment_address,
-        args.client_args.enrollment_token_file.as_deref(),
-        "telnet-host",
-        &args.client_args.data_dir,
-    ) {
-        Ok(keys) => keys,
-        Err(e) => {
-            error!("Failed to setup CURVE authentication: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let host_id = Uuid::new_v4();
-    let last_daemon_ping = Arc::new(AtomicU64::new(0));
-
-    // Load TLS config if cert and key are provided
-    let tls_config = match (&args.tls_cert, &args.tls_key) {
-        (Some(cert_path), Some(key_path)) => {
-            info!("Loading TLS certificate from {:?}", cert_path);
-            match load_tls_config(cert_path, key_path) {
-                Ok(config) => Some(config),
-                Err(e) => {
-                    error!("Failed to load TLS configuration: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-        (Some(_), None) | (None, Some(_)) => {
-            error!("Both --tls-cert and --tls-key must be provided together");
-            std::process::exit(1);
-        }
-        (None, None) => None,
-    };
-
-    // Validate TLS port requires TLS config
-    if args.tls_port.is_some() && tls_config.is_none() {
-        error!("--tls-port requires --tls-cert and --tls-key");
-        std::process::exit(1);
-    }
-
-    let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
-        zmq_ctx.clone(),
-        args.client_args.rpc_address.clone(),
-        args.client_args.events_address.clone(),
-        kill_switch.clone(),
-        curve_keys.clone(),
-        tls_config,
-    );
-
-    let listeners_thread = tokio::spawn(async move {
-        listeners_server.run(listeners_channel).await;
-    });
-
-    listeners
-        .add_listener(&SYSTEM_OBJECT, telnet_sockaddr)
-        .await
-        .unwrap_or_else(|e| {
-            error!("Unable to start default listener: {}", e);
-            std::process::exit(1);
-        });
-
-    // Add TLS listener if configured
-    if let Some(tls_port) = args.tls_port {
-        let tls_listen_addr = format!("{}:{}", args.telnet_address, tls_port);
-        let tls_sockaddr = match tls_listen_addr.parse::<SocketAddr>() {
-            Ok(addr) => addr,
-            Err(e) => {
-                error!(
-                    "Failed to parse TLS socket address {}: {}",
-                    tls_listen_addr, e
-                );
-                std::process::exit(1);
-            }
-        };
-        listeners
-            .add_tls_listener(&SYSTEM_OBJECT, tls_sockaddr)
-            .await
-            .unwrap_or_else(|e| {
-                error!("Unable to start TLS listener: {}", e);
-                std::process::exit(1);
-            });
-    }
-
-    let health_check_addr = format!("{}:{}", args.telnet_address, args.health_check_port);
-    spawn_health_check(
-        health_check_addr,
-        kill_switch.clone(),
-        last_daemon_ping.clone(),
-    );
-
-    info!("Starting host session...");
-
-    let (rpc_client, host_id) = match start_host_session(
-        host_id,
-        zmq_ctx.clone(),
-        args.client_args.rpc_address.clone(),
-        kill_switch.clone(),
-        listeners.clone(),
-        curve_keys.clone(),
-    )
-    .await
-    {
-        Ok((client, id)) => (client, id),
-        Err(e) => {
-            error!("Unable to establish initial host session: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let host_listen_loop = process_hosts_events(
-        rpc_client,
-        host_id,
-        zmq_ctx.clone(),
-        args.client_args.events_address.clone(),
-        args.telnet_address.clone(),
-        kill_switch.clone(),
-        listeners.clone(),
-        HostType::TCP,
-        curve_keys,
-        Some(last_daemon_ping),
-    );
+    let host_runtime = moor_telnet_host::run(config, runtime);
     select! {
-        _ = host_listen_loop => {
-            info!("Host events loop exited.");
-        },
-        _ = listeners_thread => {
-            info!("Listener set exited.");
+        result = host_runtime => {
+            result?;
         }
         _ = hup_signal.recv() => {
             info!("HUP received, stopping...");

@@ -15,6 +15,18 @@ use clap_derive::Parser;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Runtime connection settings for hosts and clients.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RpcClientConfig {
+    pub rpc_address: String,
+    pub events_address: String,
+    pub workers_response_address: String,
+    pub workers_request_address: String,
+    pub enrollment_address: String,
+    pub data_dir: PathBuf,
+    pub enrollment_token_file: Option<PathBuf>,
+}
+
 /// Common command line / config arguments for hosts / clients
 #[derive(Clone, Parser, Debug, Serialize, Deserialize)] // requires `derive` feature
 pub struct RpcClientArgs {
@@ -72,4 +84,18 @@ pub struct RpcClientArgs {
         help = "Path to enrollment token file (if not specified, checks MOOR_ENROLLMENT_TOKEN env var)"
     )]
     pub enrollment_token_file: Option<PathBuf>,
+}
+
+impl From<&RpcClientArgs> for RpcClientConfig {
+    fn from(args: &RpcClientArgs) -> Self {
+        Self {
+            rpc_address: args.rpc_address.clone(),
+            events_address: args.events_address.clone(),
+            workers_response_address: args.workers_response_address.clone(),
+            workers_request_address: args.workers_request_address.clone(),
+            enrollment_address: args.enrollment_address.clone(),
+            data_dir: args.data_dir.clone(),
+            enrollment_token_file: args.enrollment_token_file.clone(),
+        }
+    }
 }

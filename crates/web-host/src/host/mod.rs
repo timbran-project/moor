@@ -20,6 +20,7 @@ mod session;
 pub mod web_host;
 
 pub(crate) use session::webrtc;
+pub use session::webrtc::WebRtcConfig;
 
 pub use auth::{
     OAuth2Config, OAuth2Manager, OAuth2State, PendingOAuth2Store, oauth2_account_choice_handler,

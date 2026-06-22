@@ -11,36 +11,24 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Web host process startup, configuration loading, and shutdown coordination.
-
-mod host;
-mod listeners;
-mod routes;
-
-use crate::host::webrtc::WebRtcConfig;
-use crate::host::{OAuth2Config, OAuth2Manager};
-use crate::listeners::Listeners;
-use crate::routes::{CorsConfig, RateLimitConfig};
 use std::sync::Arc;
 
 use clap::Parser;
 use clap_derive::Parser;
 
-use ipnet::IpNet;
-use moor_var::SYSTEM_OBJECT;
-use rpc_async_client::{process_hosts_events, start_host_session};
-use rpc_common::{HostType, client_args::RpcClientArgs};
-use serde_derive::{Deserialize, Serialize};
-use std::sync::{
-    LazyLock,
-    atomic::{AtomicBool, AtomicU64},
+use moor_web_host::{
+    HostRuntime, WebHostConfig,
+    host::{OAuth2Config, WebRtcConfig},
+    routes::{CorsConfig, RateLimitConfig},
 };
+use rpc_common::client_args::{RpcClientArgs, RpcClientConfig};
+use serde_derive::{Deserialize, Serialize};
+use std::sync::{LazyLock, atomic::AtomicBool};
 use tokio::{
     select,
     signal::unix::{SignalKind, signal},
 };
 use tracing::{error, info};
-use uuid::Uuid;
 
 static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
     format!(
@@ -118,53 +106,6 @@ fn apply_cli_overrides(args: &mut Args) {
     }
 }
 
-fn init_oauth2_manager(config: &OAuth2Config) -> Option<Arc<OAuth2Manager>> {
-    if !config.enabled {
-        info!("OAuth2 authentication is disabled");
-        return None;
-    }
-
-    match OAuth2Manager::new(config.clone()) {
-        Ok(manager) => {
-            info!(
-                "OAuth2 enabled with {} providers",
-                manager.available_providers().len()
-            );
-            Some(Arc::new(manager))
-        }
-        Err(e) => {
-            error!("Failed to initialize OAuth2Manager: {}", e);
-            error!("OAuth2 authentication will be disabled");
-            None
-        }
-    }
-}
-
-fn parse_trusted_proxy_cidrs(cidrs: &[String]) -> Vec<IpNet> {
-    let trusted_proxy_cidrs = cidrs
-        .iter()
-        .filter_map(|cidr| match cidr.parse::<IpNet>() {
-            Ok(net) => Some(net),
-            Err(e) => {
-                error!("Invalid trusted proxy CIDR '{}': {}", cidr, e);
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if !trusted_proxy_cidrs.is_empty() {
-        info!(
-            "Trusted proxy CIDRs: {:?}",
-            trusted_proxy_cidrs
-                .iter()
-                .map(|c| c.to_string())
-                .collect::<Vec<_>>()
-        );
-    }
-
-    trusted_proxy_cidrs
-}
-
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), eyre::Error> {
     color_eyre::install()?;
@@ -188,6 +129,7 @@ async fn main() -> Result<(), eyre::Error> {
         eprintln!("Unable to configure logging: {e}");
         std::process::exit(1);
     });
+    let kill_switch = Arc::new(AtomicBool::new(false));
 
     let mut hup_signal = match signal(SignalKind::hangup()) {
         Ok(signal) => signal,
@@ -204,106 +146,25 @@ async fn main() -> Result<(), eyre::Error> {
         }
     };
 
-    let kill_switch = Arc::new(AtomicBool::new(false));
-
-    // Setup CURVE encryption if using TCP endpoint
-    let curve_keys = match rpc_async_client::enrollment_client::setup_curve_auth(
-        &args.client_args.rpc_address,
-        &args.client_args.enrollment_address,
-        args.client_args.enrollment_token_file.as_deref(),
-        "web-host",
-        &args.client_args.data_dir,
-    ) {
-        Ok(keys) => keys,
-        Err(e) => {
-            error!("Failed to setup CURVE authentication: {}", e);
-            std::process::exit(1);
-        }
+    let config = WebHostConfig {
+        connection: RpcClientConfig::from(&args.client_args),
+        listen_address: args.listen_address,
+        enable_webhooks: args.enable_webhooks,
+        oauth2: args.oauth2,
+        cors: args.cors,
+        rate_limit: args.rate_limit,
+        trusted_proxy_cidrs: args.trusted_proxy_cidrs,
+        webrtc: args.webrtc,
+    };
+    let runtime = HostRuntime {
+        zmq_context: tmq::Context::new(),
+        kill_switch: kill_switch.clone(),
     };
 
-    let zmq_ctx = tmq::Context::new();
-
-    let oauth2_manager = init_oauth2_manager(&args.oauth2);
-    let trusted_proxy_cidrs = Arc::new(parse_trusted_proxy_cidrs(&args.trusted_proxy_cidrs));
-
-    let host_id = Uuid::new_v4();
-    let last_daemon_ping = Arc::new(AtomicU64::new(0));
-    let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
-        host_id,
-        zmq_ctx.clone(),
-        args.client_args.rpc_address.clone(),
-        args.client_args.events_address.clone(),
-        kill_switch.clone(),
-        oauth2_manager,
-        curve_keys.clone(),
-        args.enable_webhooks,
-        last_daemon_ping.clone(),
-        args.cors.clone(),
-        args.rate_limit.clone(),
-        trusted_proxy_cidrs,
-        Arc::new(args.webrtc.clone()),
-    );
-    info!("Starting up listener thread...");
-    let listeners_thread = tokio::spawn(async move {
-        listeners_server.run(listeners_channel).await;
-    });
-    listeners
-        .add_listener(
-            &SYSTEM_OBJECT,
-            match args.listen_address.parse() {
-                Ok(addr) => addr,
-                Err(e) => {
-                    error!(
-                        "Unable to parse listen address {}: {}",
-                        args.listen_address, e
-                    );
-                    std::process::exit(1);
-                }
-            },
-        )
-        .await
-        .unwrap_or_else(|e| {
-            error!("Unable to start default listener: {}", e);
-            std::process::exit(1);
-        });
-
-    info!("Starting host session....");
-    let (rpc_client, host_id) = match start_host_session(
-        host_id,
-        zmq_ctx.clone(),
-        args.client_args.rpc_address.clone(),
-        kill_switch.clone(),
-        listeners.clone(),
-        curve_keys.clone(),
-    )
-    .await
-    {
-        Ok((client, id)) => (client, id),
-        Err(e) => {
-            error!("Unable to establish initial host session: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let host_listen_loop = process_hosts_events(
-        rpc_client,
-        host_id,
-        zmq_ctx.clone(),
-        args.client_args.events_address.clone(),
-        args.listen_address.clone(),
-        kill_switch.clone(),
-        listeners.clone(),
-        HostType::TCP,
-        curve_keys,
-        Some(last_daemon_ping),
-    );
-
+    let host_runtime = moor_web_host::run(config, runtime);
     select! {
-        _ = host_listen_loop => {
-            info!("Host events loop exited.");
-        },
-        _ = listeners_thread => {
-            info!("Listener set exited.");
+        result = host_runtime => {
+            result?;
         }
         _ = hup_signal.recv() => {
             info!("HUP received, stopping...");
