@@ -119,7 +119,6 @@ impl TextdumpVersion {
             let features = features.split(' ').collect::<Vec<_>>();
             let features = CompileOptions {
                 flyweight_type: features.iter().any(|s| s == &"flyweight_type=true"),
-                lexical_scopes: features.iter().any(|s| s == &"lexical_scopes=true"),
                 ..Default::default()
             };
             let encoding = parts.iter().find(|s| s.starts_with("encoding: "))?;
@@ -139,10 +138,7 @@ impl TextdumpVersion {
                 unimplemented!("ToastStunt dump format ({v}) not supported for output");
             }
             TextdumpVersion::Moor(v, features, encoding) => {
-                let features = format!(
-                    "flyweight_type={} lexical_scopes={}",
-                    features.flyweight_type, features.lexical_scopes,
-                );
+                let features = format!("flyweight_type={}", features.flyweight_type);
                 format!("Moor {v}, features: \"{features}\", encoding: {encoding:?}")
             }
         }
@@ -242,7 +238,6 @@ mod tests {
             semver::Version::parse("0.1.0").unwrap(),
             CompileOptions {
                 flyweight_type: true,
-                lexical_scopes: true,
                 ..Default::default()
             },
             super::EncodingMode::UTF8,

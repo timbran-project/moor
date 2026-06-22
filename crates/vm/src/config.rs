@@ -13,6 +13,7 @@
 
 use moor_compiler::CompileOptions;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -24,15 +25,14 @@ pub struct FeaturesConfig {
     /// the common varies depending on host/client.
     /// If this is false, only strings are allowed, as in LambdaMOO.
     pub rich_notify: bool,
-    /// Whether to support block-level lexical scoping, and the 'begin', 'let' and 'global'
-    /// keywords.
+    /// Deprecated. Lexical scoping is always enabled.
     pub lexical_scopes: bool,
     /// Whether to support primitive-type verb dispatching. E.g. "test":reverse() becomes
     ///   $string:reverse("test")
     pub type_dispatch: bool,
     /// Whether to support flyweight types. Flyweights are a lightweight, non-persistent thingy
     pub flyweight_type: bool,
-    /// Whether to support list/range comprehensions in the language
+    /// Deprecated. List/range comprehensions are always enabled.
     pub list_comprehensions: bool,
     /// Whether to support a boolean literal type in the compiler
     pub bool_type: bool,
@@ -86,30 +86,30 @@ impl Default for FeaturesConfig {
 }
 
 impl FeaturesConfig {
+    pub fn normalize_deprecated_flags(&mut self) {
+        if !self.lexical_scopes {
+            warn!(
+                "The lexical_scopes feature flag is deprecated and ignored; lexical scoping is always enabled"
+            );
+            self.lexical_scopes = true;
+        }
+
+        if !self.list_comprehensions {
+            warn!(
+                "The list_comprehensions feature flag is deprecated and ignored; list and range comprehensions are always enabled"
+            );
+            self.list_comprehensions = true;
+        }
+    }
+
     pub fn compile_options(&self) -> CompileOptions {
         CompileOptions {
-            lexical_scopes: self.lexical_scopes,
             flyweight_type: self.flyweight_type,
-            list_comprehensions: self.list_comprehensions,
             bool_type: self.bool_type,
             symbol_type: self.symbol_type,
             custom_errors: self.custom_errors,
             call_unsupported_builtins: false,
             legacy_type_constants: false,
         }
-    }
-
-    /// Returns true if the configuration is backwards compatible with LambdaMOO 1.8 features
-    pub fn is_lambdamoo_compatible(&self) -> bool {
-        !self.lexical_scopes
-            && !self.type_dispatch
-            && !self.flyweight_type
-            && !self.rich_notify
-            && !self.bool_type
-            && !self.list_comprehensions
-            && !self.use_boolean_returns
-            && !self.symbol_type
-            && !self.custom_errors
-            && self.persistent_tasks
     }
 }

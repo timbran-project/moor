@@ -314,10 +314,10 @@ impl MessageHandler for RpcMessageHandler {
                         moor_rpc::ServerFeatures {
                             persistent_tasks: features.persistent_tasks,
                             rich_notify: features.rich_notify,
-                            lexical_scopes: features.lexical_scopes,
+                            lexical_scopes: true,
                             type_dispatch: features.type_dispatch,
                             flyweight_type: features.flyweight_type,
-                            list_comprehensions: features.list_comprehensions,
+                            list_comprehensions: true,
                             bool_type: features.bool_type,
                             use_boolean_returns: features.use_boolean_returns,
                             symbol_type: features.symbol_type,

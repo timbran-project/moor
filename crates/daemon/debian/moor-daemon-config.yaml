@@ -3,10 +3,8 @@
 features:
   persistent_tasks: true
   rich_notify: true
-  lexical_scopes: true
   type_dispatch: true
   flyweight_type: true
-  list_comprehensions: true
   bool_type: true
   use_boolean_returns: false
   custom_errors: true

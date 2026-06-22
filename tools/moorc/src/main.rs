@@ -377,6 +377,7 @@ fn main() -> Result<(), eyre::Report> {
     if let Some(fa) = args.feature_args.as_ref() {
         fa.merge_config(&mut features)?;
     }
+    features.normalize_deprecated_flags();
     info!("Importing with features: {features:?}");
 
     // Create compile options from features, then apply legacy flag if set

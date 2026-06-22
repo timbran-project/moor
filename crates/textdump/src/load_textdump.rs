@@ -193,21 +193,6 @@ pub fn textdump_load(
     read_textdump(ldr, br, moor_version, features_config, import_options)
 }
 
-/// Returns true if the compile options are compatible with another configuration, for the purposes
-/// of textdump loading.
-///
-/// Which means that if the other configuration has a feature enabled, this configuration
-/// must also have it enabled.
-/// The other way around is fine.
-pub fn is_textdump_compatible(a: &CompileOptions, other: &CompileOptions) -> bool {
-    (!other.lexical_scopes || a.lexical_scopes)
-        && (!other.bool_type || a.bool_type)
-        && (!other.flyweight_type || a.flyweight_type)
-        && (!other.symbol_type || a.symbol_type)
-        && (!other.list_comprehensions || a.list_comprehensions)
-        && (!other.custom_errors || a.custom_errors)
-}
-
 pub fn read_textdump<T: io::Read>(
     loader: &mut dyn LoaderInterface,
     reader: BufReader<T>,
@@ -234,20 +219,13 @@ pub fn read_textdump<T: io::Read>(
                      and datatypes unsupported by mooR. This may cause errors requiring manual intervention."
             );
         }
-        TextdumpVersion::Moor(v, other_options, _encoding) => {
+        TextdumpVersion::Moor(v, _options, _encoding) => {
             // Semver major versions must match.
             // TODO: We will let minor and patch versions slide, but may need to get stricter
             //   about minor in the future.
             if v.major != moo_version.major {
                 return Err(TextdumpReaderError::VersionError(
                     "Incompatible major moor version".to_string(),
-                ));
-            }
-
-            // Features mut be compatible
-            if !is_textdump_compatible(&compile_options, other_options) {
-                return Err(TextdumpReaderError::VersionError(
-                    "Incompatible compiler features".to_string(),
                 ));
             }
         }

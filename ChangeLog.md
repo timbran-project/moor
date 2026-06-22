@@ -108,6 +108,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rate at 10K keys), eliminating RwLock contention on the provider read path
 - Faster `Instant` on ARM64
 
+`compiler`:
+
+- Lexical scopes and list/range comprehensions are now always enabled. The corresponding compiler
+  options and feature compatibility checks were removed; deprecated daemon and `moorc` feature flags
+  are accepted for old configs, but false values warn and are treated as enabled.
+
 ### Fixed
 
 `kernel`:

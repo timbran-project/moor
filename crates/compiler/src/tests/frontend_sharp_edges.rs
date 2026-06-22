@@ -189,22 +189,6 @@ fn reports_unknown_loop_labels() {
 }
 
 #[test]
-fn rejects_lexical_scopes_when_disabled() {
-    let err = parse_program_frontend(
-        "begin\n  let a = 1;\nend",
-        CompileOptions {
-            lexical_scopes: false,
-            ..Default::default()
-        },
-    )
-    .unwrap_err();
-    match err {
-        CompileError::DisabledFeature(_, feature) => assert_eq!(feature, "lexical_scopes"),
-        other => panic!("expected ParseError, got {other:?}"),
-    }
-}
-
-#[test]
 fn rejects_assignment_to_const_scatter_bindings() {
     let err = parse_program_frontend(
         r#"

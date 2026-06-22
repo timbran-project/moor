@@ -588,8 +588,6 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_decl_stmt(&mut self, stmt: LetStmt, is_const: bool) -> Result<Stmt, CompileError> {
-        self.expect_lexical_scopes(stmt.syntax().text_range())?;
-
         if let Some(scatter) = stmt.scatter() {
             let rhs = self.scatter_rhs(stmt.syntax())?;
             let expr = self.lower_scatter_assign(scatter, rhs, true, is_const)?;
@@ -620,8 +618,6 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_const_stmt(&mut self, stmt: ConstStmt) -> Result<Stmt, CompileError> {
-        self.expect_lexical_scopes(stmt.syntax().text_range())?;
-
         if let Some(scatter) = stmt.scatter() {
             let rhs = self.scatter_rhs(stmt.syntax())?;
             let expr = self.lower_scatter_assign(scatter, rhs, true, true)?;
@@ -653,7 +649,6 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_global_stmt(&mut self, stmt: GlobalStmt) -> Result<Stmt, CompileError> {
-        self.expect_lexical_scopes(stmt.syntax().text_range())?;
         let name_token = self.require_node(
             stmt.name_token(),
             stmt.syntax().text_range(),
@@ -682,7 +677,6 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_begin_stmt(&mut self, stmt: BeginStmt) -> Result<Stmt, CompileError> {
-        self.expect_lexical_scopes(stmt.syntax().text_range())?;
         let (body, num_bindings) = self.lower_scoped_stmt_list(
             stmt.body(),
             stmt.syntax().text_range(),
@@ -1191,13 +1185,6 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_comprehension_expr(&mut self, node: &SyntaxNode) -> Result<Expr, CompileError> {
-        if !self.options.list_comprehensions {
-            return Err(CompileError::DisabledFeature(
-                self.compile_context(node.text_range()),
-                "ListComprehension".to_string(),
-            ));
-        }
-
         let elements = significant_elements(node);
         let variable_ident = expect_token(&elements, 3)?;
         let Some(variable) = self
@@ -1548,16 +1535,11 @@ impl<'a> Lowerer<'a> {
     }
 
     fn enter_scope(&mut self) {
-        if self.options.lexical_scopes {
-            self.names.enter_new_scope();
-        }
+        self.names.enter_new_scope();
     }
 
     fn exit_scope(&mut self) -> usize {
-        if self.options.lexical_scopes {
-            return self.names.exit_scope();
-        }
-        0
+        self.names.exit_scope()
     }
 
     fn enter_dollars_ok(&mut self) {
@@ -1570,17 +1552,6 @@ impl<'a> Lowerer<'a> {
 
     fn compile_context(&self, range: TextRange) -> CompileContext {
         CompileContext::new(self.line_col(range))
-    }
-
-    fn expect_lexical_scopes(&self, range: TextRange) -> Result<(), CompileError> {
-        if self.options.lexical_scopes {
-            return Ok(());
-        }
-
-        Err(CompileError::DisabledFeature(
-            self.compile_context(range),
-            "lexical_scopes".to_string(),
-        ))
     }
 
     fn line_col(&self, range: TextRange) -> (usize, usize) {

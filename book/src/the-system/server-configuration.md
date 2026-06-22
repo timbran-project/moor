@@ -137,12 +137,13 @@ absolute paths.
 
 ## Language Features Configuration
 
-These options enable or disable various MOO language features:
+These options enable or disable runtime and language features. Lexical scopes and list/range
+comprehensions are always enabled; older config files may still contain those keys, but they are
+ignored.
 
 | Feature             | Command Line                | Default | Description                                                                      |
 | ------------------- | --------------------------- | ------- | -------------------------------------------------------------------------------- |
 | Rich notify         | `--rich-notify`             | `true`  | Allow notify() to send arbitrary MOO values to players                           |
-| Lexical scopes      | `--lexical-scopes`          | `true`  | Enable block-level lexical scoping with begin/end syntax and let/global keywords |
 | Type dispatch       | `--type-dispatch`           | `true`  | Enable primitive-type verb dispatching (e.g., "test":reverse())                  |
 | Flyweight type      | `--flyweight-type`          | `true`  | Enable flyweight types (lightweight object delegates)                            |
 | Boolean type        | `--bool-type`               | `true`  | Enable boolean true/false literals                                               |
@@ -150,7 +151,6 @@ These options enable or disable various MOO language features:
 | Symbol type         | `--symbol-type`             | `true`  | Enable symbol literals                                                           |
 | Custom errors       | `--custom-errors`           | `false` | Enable error symbols beyond standard builtin set                                 |
 | Symbols in builtins | `--use-symbols-in-builtins` | `false` | Use symbols instead of strings in builtins                                       |
-| List comprehensions | `--list-comprehensions`     | `true`  | Enable list/range comprehensions                                                 |
 | Persistent tasks    | `--persistent-tasks`        | `true`  | Enable persistent tasks between server restarts                                  |
 | Event logging       | `--enable-eventlog`         | `true`  | Enable persistent event logging and history features                             |
 | Anonymous objects   | `--anonymous-objects`       | `false` | Enable anonymous objects with automatic garbage collection                       |
@@ -315,12 +315,10 @@ database:
 features:
   persistent_tasks: true
   rich_notify: true
-  lexical_scopes: true
   bool_type: true
   symbol_type: true
   type_dispatch: true
   flyweight_type: true
-  list_comprehensions: true
   use_boolean_returns: false
   use_symbols_in_builtins: false
   custom_errors: false
@@ -342,23 +340,20 @@ runtime:
 
 ## LambdaMOO Compatibility Mode
 
-If you need to maintain compatibility with LambdaMOO 1.8, you'll need to either update your core
-with the changes provided in the
-[Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md) or
-disable several features. Here's a configuration that maintains LambdaMOO compatibility by disabling
-mooR features:
+If you need to import LambdaMOO 1.8 content, use the
+[Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md)
+or disable the remaining compatibility-sensitive features. Lexical scopes and list/range
+comprehensions are part of the language now and cannot be disabled.
 
 ```yaml
 # LambdaMOO 1.8 compatible features
 features:
   persistent_tasks: true
   rich_notify: false
-  lexical_scopes: false
   bool_type: false
   symbol_type: false
   type_dispatch: false
   flyweight_type: false
-  list_comprehensions: false
   use_boolean_returns: false
   use_symbols_in_builtins: false
   custom_errors: false

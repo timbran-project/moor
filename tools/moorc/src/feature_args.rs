@@ -29,10 +29,7 @@ pub struct FeatureArgs {
 
     #[arg(
         long,
-        help = "Enable block-level lexical scoping in programs. \
-                Adds the `begin`/`end` syntax for creating lexical scopes, and `let` and `global`
-                for declaring variables. \
-                This is a feature that is not present in LambdaMOO, so if you need backwards compatibility, turn this off."
+        help = "Deprecated and ignored. Lexical scoping is always enabled."
     )]
     pub lexical_scopes: Option<bool>,
 
@@ -74,7 +71,7 @@ pub struct FeatureArgs {
 
     #[arg(
         long,
-        help = "Enable support for list / range comprehensions in the language"
+        help = "Deprecated and ignored. List and range comprehensions are always enabled."
     )]
     pub list_comprehensions: Option<bool>,
 
@@ -104,9 +101,6 @@ impl FeatureArgs {
         if let Some(args) = self.rich_notify {
             config.rich_notify = args;
         }
-        if let Some(args) = self.lexical_scopes {
-            config.lexical_scopes = args;
-        }
         if let Some(args) = self.type_dispatch {
             config.type_dispatch = args;
         }
@@ -130,9 +124,6 @@ impl FeatureArgs {
         }
         if let Some(args) = self.persistent_tasks {
             config.persistent_tasks = args;
-        }
-        if let Some(args) = self.list_comprehensions {
-            config.list_comprehensions = args;
         }
         if let Some(args) = self.use_uuobjids {
             config.use_uuobjids = args;

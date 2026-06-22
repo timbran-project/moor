@@ -379,6 +379,10 @@ impl Args {
             args.merge_config(&mut copy)?;
             config.features = Arc::new(copy);
         }
+        let mut features = config.features.as_ref().clone();
+        features.normalize_deprecated_flags();
+        config.features = Arc::new(features);
+
         if let Some(database_config) = config.database.as_mut() {
             self.db_args.merge_config(database_config)?;
         }

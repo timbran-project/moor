@@ -17,12 +17,12 @@ See [Task Permissions and Capability Grants](task-permissions-and-capability-gra
 
 Adds block-level lexical scoping to the LambdaMOO language.
 
-Enabled by default, can be disabled with command line option `--lexical-scopes=false`
+Lexical scoping is always enabled.
 
 In LambdaMOO all variables are global to the verb scope, and are bound at the first assignment.
-`mooR` adds optional lexical scoping, where variables are bound to the scope in which they are
-declared, and leave the scope when it is exited. This is done by using the `let` keyword to declare
-variables that will exist only in the current scope.
+`mooR` adds lexical scoping, where variables are bound to the scope in which they are declared, and
+leave the scope when it is exited. This is done by using the `let` keyword to declare variables that
+will exist only in the current scope.
 
 ```moo
 while (y < 10)

@@ -14,12 +14,8 @@
 /// Options controlling MOO compilation behavior.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CompileOptions {
-    /// Whether we allow lexical scope blocks. begin/end blocks and 'let' and 'global' statements.
-    pub lexical_scopes: bool,
     /// Whether to support the flyweight type (a delegate object with slots and contents).
     pub flyweight_type: bool,
-    /// Whether to support list and range comprehensions in the compiler.
-    pub list_comprehensions: bool,
     /// Whether to support boolean types in compilation.
     pub bool_type: bool,
     /// Whether to support symbol types ('sym) in compilation.
@@ -39,9 +35,7 @@ pub struct CompileOptions {
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
-            lexical_scopes: true,
             flyweight_type: true,
-            list_comprehensions: true,
             bool_type: true,
             symbol_type: true,
             custom_errors: true,
