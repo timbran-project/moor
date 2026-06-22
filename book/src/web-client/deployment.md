@@ -14,7 +14,7 @@ Browser → nginx (or other proxy) → moor web host → daemon runtime
 ```
 
 1. Browser loads static web client assets (HTML/CSS/JS) from the proxy
-2. The proxy forwards `/api`, `/auth`, `/fb`, and `/ws` traffic to the web host
+2. The proxy forwards `/v1/`, `/auth/`, `/ws/`, and `/webhooks/` traffic to the web host
 3. The web host relays RPC and event traffic to the daemon runtime
 
 ## Deployment Options
@@ -64,12 +64,14 @@ See `deploy/clustered/kubernetes/` for Ingress and Deployment manifests.
 
 The proxy must forward these paths to `moor-web-host`:
 
-| Path     | Purpose                  |
-| -------- | ------------------------ |
-| `/api/`  | REST API endpoints       |
-| `/auth/` | Authentication endpoints |
-| `/fb/`   | FlatBuffer RPC endpoints |
-| `/ws/`   | WebSocket connections    |
+| Path          | Purpose                  |
+| ------------- | ------------------------ |
+| `/v1/`        | Versioned REST API       |
+| `/auth/`      | Authentication endpoints |
+| `/ws/`        | WebSocket connections    |
+| `/webhooks/`  | External webhook ingress |
+| `/health`     | Health check             |
+| `/version`    | Version info             |
 
 All other paths serve static web client assets.
 
@@ -94,7 +96,7 @@ server {
     }
 
     # API routes
-    location /api/ {
+    location /v1/ {
         proxy_pass http://moor_api;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -106,7 +108,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    location /fb/ {
+    location /webhooks/ {
+        proxy_pass http://moor_api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Health and version
+    location ~ ^/(health|version)$ {
         proxy_pass http://moor_api;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
