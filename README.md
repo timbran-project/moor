@@ -147,11 +147,9 @@ The system isolates runtime data for each core in its own directory (`run-cowbel
 
 ## What the services are
 
-This starts four services:
+This starts two containers:
 
-- **moor-daemon**: The backend MOO service
-- **moor-telnet-host**: Traditional telnet interface on port 8888
-- **moor-web-host**: REST API and WebSocket server for web clients
+- **moor**: The combined backend, telnet host, web host, and embedded curl worker
 - **moor-frontend**: Web client served via nginx on port 8080
 
 Connect via:
@@ -184,10 +182,10 @@ web host together while Vite provides hot-reloading for frontend development. Se
 
 mooR provides multiple deployment configurations to suit different use cases:
 
-### Development & Single-Machine Deployments
+### Development & Single-Process Deployments
 
-The root `docker-compose.yml` is designed for development and single-machine deployments. All
-services run on the same host and communicate via **IPC (Unix domain sockets)**.
+The root `docker-compose.yml` is designed for development and single-process deployments. The
+backend runs as one `moor` process, with nginx serving the Meadow frontend.
 
 The recommended way to start this setup is via the core-specific scripts, which handle all
 environment isolation and permissions for you.
@@ -205,12 +203,12 @@ keeping your project root clean.
 
 ### Testing Clustered Configuration
 
-The `docker-compose.cluster.yml` file is an example configuration that demonstrates TCP-based
-communication with CURVE encryption. It runs on a single machine but shows what a multi-machine
-clustered setup would look like:
+The `deploy/clustered/docker-compose.tcp.yml` file is an example configuration that demonstrates
+TCP-based communication with CURVE encryption. It runs on a single machine but shows what a
+multi-machine clustered setup would look like:
 
 ```bash
-docker compose -f docker-compose.cluster.yml up -d
+docker compose -f deploy/clustered/docker-compose.tcp.yml up -d
 ```
 
 This uses TCP with CURVE encryption and enrollment tokens for host authentication. It's useful for
@@ -221,16 +219,17 @@ Debian packages on separate servers.
 
 ### Production Deployment Configurations
 
-The `deploy/` directory contains a series of production-ready configuration examples:
+The `deploy/` directory contains deployment examples:
 
-- **`telnet-only/`**: Minimal telnet-only setup for traditional MUD usage
-- **`web-basic/`**: Web-enabled deployment with HTTP (for use behind reverse proxies)
-- **`web-ssl/`**: Web-enabled deployment with HTTPS/TLS support
+- **`single-process/basic/`**: Combined backend with telnet, embedded web API, and curl worker
+- **`single-process/web/`**: Combined backend plus nginx serving Meadow, with curl worker enabled
+- **`clustered/telnet-only/`**: Split-process telnet setup
+- **`clustered/web-basic/`**: Split-process web deployment with HTTP
+- **`clustered/web-ssl/`**: Split-process web deployment with HTTPS/TLS support
 - **`debian-packages/`**: Native Debian/Ubuntu packages with systemd (no Docker)
 
-All production configurations use IPC for single-machine deployments and include automated testing
-scripts. See each deployment's README for specific setup instructions. If you run into problems with
-these scripts, please file an issue on our
+See each deployment's README for specific setup instructions. If you run into problems with these
+scripts, please file an issue on our
 [Codeberg issue tracker](https://codeberg.org/timbran/moor/issues) as they may fall out of date with
 the latest changes.
 

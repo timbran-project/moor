@@ -1,35 +1,63 @@
 # Server Configuration
 
-This section describes the options available for configuring and running the `moor-daemon` server
-binary.
+This section describes the options available for configuring and running the mooR server.
+
+For most deployments, the combined `moor` binary handles everything — database, verb execution,
+telnet connections, web API, and outbound HTTP — in one process. The configuration options below
+apply to that binary unless noted otherwise. Options specific to split-process or clustered
+deployment are called out in their own sections.
 
 For a deeper discussion of mooR's threading model, database concurrency model, performance counters,
 and tuning guidance, see [Performance and Concurrency](performance-and-concurrency.md).
 
-## Daemon, Hosts, Workers, and RPC
+## Single-Process Configuration
 
-The `moor-daemon` server binary provides the main server functionality, including hosting the
-database, handling verb executions, and scheduling tasks. However it does _not_ handle network
-connections directly. Instead, special helper processes called _hosts_ manage incoming network
-connections and forward them to the daemon. Likewise, outbound network connections (or future
-facilities like file access) are handled by _workers_ that communicate with the daemon to perform
-those activities.
+The `moor` binary is the default way to run the server. It bundles the daemon, telnet host, web
+host, and curl worker into one process — no socket configuration or encryption setup needed. This is
+the closest analogue to running a traditional LambdaMOO or ToastStunt server.
 
-To run the server, you therefore need to run not just the `moor-daemon` binary, but also one or more
-"hosts" (and, optionally "workers") that will connect to the daemon.
+To start the server:
+
+```bash
+moor /path/to/database --db development.db --generate-keypair
+```
+
+The same configuration file and most command-line options described in this page apply to the
+combined `moor` binary. The transport endpoint and enrollment options (described below) are not
+needed in single-process mode — they only apply when running components as separate processes.
+
+## Daemon, Hosts, Workers, and RPC (Advanced)
+
+For split-process or clustered deployment, the server is broken into separate binaries:
+
+The `moor-daemon` binary provides the core server functionality — hosting the database, handling
+verb executions, and scheduling tasks. It does _not_ handle network connections directly. Special
+helper processes called _hosts_ manage incoming network connections and forward them to the daemon.
+Likewise, outbound network connections (or future facilities like file access) are handled by
+_workers_ that communicate with the daemon to perform those activities.
+
+To run a split-process deployment, you therefore need to run not just the `moor-daemon` binary, but
+also one or more "hosts" (and, optionally "workers") that will connect to the daemon.
 
 These processes communicate over ZeroMQ sockets, with the daemon listening for RPC requests and
 events, and the hosts and workers connecting to those sockets to send requests and receive
 responses.
 
-Hosts and workers can be run on the same machine as the daemon (the default) or distributed across
-multiple machines for clustered deployments. They are stateless and can be restarted independently
-of the daemon, allowing for flexible deployment and scaling.
+Hosts and workers can be run on the same machine as the daemon (using IPC) or distributed across
+multiple machines for clustered deployments (using TCP with CURVE encryption). They are stateless
+and can be restarted independently of the daemon, allowing for flexible deployment and scaling.
+
+See [Clustered Deployment](clustered-deployment.md) for complete details on split-process and
+multi-machine setups.
 
 ## Transport Modes
 
-For single-machine deployments (the default), components communicate via **IPC (Unix domain
-sockets)** which use filesystem permissions for security and require no additional configuration.
+For single-process deployment (the default), all components run inside the `moor` binary and no
+transport configuration is needed.
+
+For split-process same-machine deployments, components run as separate processes and communicate via
+**IPC (Unix domain sockets)**, which use filesystem permissions for security and require no
+additional configuration.
 
 For clustered/multi-machine deployments, components communicate via **TCP with CURVE encryption**.
 See the [Clustered Deployment](clustered-deployment.md) guide for complete details on distributed
@@ -40,13 +68,13 @@ deployments, security considerations, and setup instructions.
 ### PASETO Keys (Ed25519) - Client/Player Authentication
 
 PASETO tokens authenticate **clients/players** (connecting users) using Ed25519 digital signatures.
-These are used * _only by the daemon_* to sign and verify player session tokens.
+These are used _only by the daemon_ to sign and verify player session tokens.
 
 The daemon automatically generates these keys on first run when using the `--generate-keypair` flag:
 
 ```bash
 # Keys are auto-generated on first run
-moor-daemon --generate-keypair <other-args>
+moor --generate-keypair <other-args>
 ```
 
 This creates `moor-signing-key.pem` (private key) and `moor-verifying-key.pem` (public key) in the
@@ -89,11 +117,12 @@ These options control the basic server behavior:
 - `--num-io-threads <NUM>` (default: `8`): Number of ZeroMQ IO threads
 - `--debug` (default: `false`): Enable debug logging
 
-### Transport Endpoint Configuration
+### Transport Endpoint Configuration (Split-Process Only)
 
-These options configure how the daemon communicates with hosts and workers. The defaults use IPC
-(Unix domain sockets) for single-machine deployments. Change these to TCP addresses (e.g.,
-`tcp://0.0.0.0:7899`) only for clustered deployments - see
+These options configure how the daemon communicates with hosts and workers when running as separate
+processes. They do not apply to the combined `moor` binary, which uses in-process endpoints. The
+defaults use IPC (Unix domain sockets) for same-machine split-process deployments. Change these to
+TCP addresses (e.g., `tcp://0.0.0.0:7899`) only for clustered deployments - see
 [Clustered Deployment](clustered-deployment.md) for details.
 
 | Option                      | Default                                 | Description                     |
@@ -141,20 +170,20 @@ These options enable or disable runtime and language features. Lexical scopes an
 comprehensions are always enabled; older config files may still contain those keys, but they are
 ignored.
 
-| Feature             | Command Line                | Default | Description                                                                      |
-| ------------------- | --------------------------- | ------- | -------------------------------------------------------------------------------- |
-| Rich notify         | `--rich-notify`             | `true`  | Allow notify() to send arbitrary MOO values to players                           |
-| Type dispatch       | `--type-dispatch`           | `true`  | Enable primitive-type verb dispatching (e.g., "test":reverse())                  |
-| Flyweight type      | `--flyweight-type`          | `true`  | Enable flyweight types (lightweight object delegates)                            |
-| Boolean type        | `--bool-type`               | `true`  | Enable boolean true/false literals                                               |
-| Boolean returns     | `--use-boolean-returns`     | `false` | Make builtins return boolean types instead of integers 0/1                       |
-| Symbol type         | `--symbol-type`             | `true`  | Enable symbol literals                                                           |
-| Custom errors       | `--custom-errors`           | `false` | Enable error symbols beyond standard builtin set                                 |
-| Symbols in builtins | `--use-symbols-in-builtins` | `false` | Use symbols instead of strings in builtins                                       |
-| Persistent tasks    | `--persistent-tasks`        | `true`  | Enable persistent tasks between server restarts                                  |
-| Event logging       | `--enable-eventlog`         | `true`  | Enable persistent event logging and history features                             |
-| Anonymous objects   | `--anonymous-objects`       | `false` | Enable anonymous objects with automatic garbage collection                       |
-| UUID objects        | `--use-uuobjids`            | `false` | Enable UUID object identifiers like #048D05-1234567890                           |
+| Feature             | Command Line                | Default | Description                                                     |
+| ------------------- | --------------------------- | ------- | --------------------------------------------------------------- |
+| Rich notify         | `--rich-notify`             | `true`  | Allow notify() to send arbitrary MOO values to players          |
+| Type dispatch       | `--type-dispatch`           | `true`  | Enable primitive-type verb dispatching (e.g., "test":reverse()) |
+| Flyweight type      | `--flyweight-type`          | `true`  | Enable flyweight types (lightweight object delegates)           |
+| Boolean type        | `--bool-type`               | `true`  | Enable boolean true/false literals                              |
+| Boolean returns     | `--use-boolean-returns`     | `false` | Make builtins return boolean types instead of integers 0/1      |
+| Symbol type         | `--symbol-type`             | `true`  | Enable symbol literals                                          |
+| Custom errors       | `--custom-errors`           | `false` | Enable error symbols beyond standard builtin set                |
+| Symbols in builtins | `--use-symbols-in-builtins` | `false` | Use symbols instead of strings in builtins                      |
+| Persistent tasks    | `--persistent-tasks`        | `true`  | Enable persistent tasks between server restarts                 |
+| Event logging       | `--enable-eventlog`         | `true`  | Enable persistent event logging and history features            |
+| Anonymous objects   | `--anonymous-objects`       | `false` | Enable anonymous objects with automatic garbage collection      |
+| UUID objects        | `--use-uuobjids`            | `false` | Enable UUID object identifiers like #048D05-1234567890          |
 
 ## Import/Export Configuration
 
@@ -341,9 +370,9 @@ runtime:
 ## LambdaMOO Compatibility Mode
 
 If you need to import LambdaMOO 1.8 content, use the
-[Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md)
-or disable the remaining compatibility-sensitive features. Lexical scopes and list/range
-comprehensions are part of the language now and cannot be disabled.
+[Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md) or
+disable the remaining compatibility-sensitive features. Lexical scopes and list/range comprehensions
+are part of the language now and cannot be disabled.
 
 ```yaml
 # LambdaMOO 1.8 compatible features

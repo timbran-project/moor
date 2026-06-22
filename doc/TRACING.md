@@ -1,8 +1,8 @@
 # Tracing Support in Moor
 
-Moor includes comprehensive Chrome Trace Event Format tracing for performance diagnostics and
-debugging. This allows you to capture detailed performance data about task execution, VM operations,
-and database transactions.
+Moor includes Chrome Trace Event Format tracing for performance diagnostics and debugging. This
+allows you to capture detailed performance data about task execution, VM operations, and database
+transactions.
 
 ## Overview
 
@@ -27,8 +27,8 @@ This builds with the `trace_events` feature and outputs traces to `moor-trace.js
 For convenience, npm scripts are available for tracing:
 
 ```bash
-# Daemon with tracing
-npm run daemon:traced
+# Single-process backend with tracing
+npm run moor:traced
 
 # Full development stack with tracing
 npm run full:dev-traced
@@ -47,12 +47,13 @@ The easiest way to enable tracing in Docker is using the tracing override file:
 mkdir -p traces
 
 # Start with tracing enabled
-docker compose -f docker-compose.yml -f docker-compose.tracing.yml up
+docker compose -f deploy/clustered/docker-compose.tcp.yml \
+  -f deploy/clustered/docker-compose.tracing.yml up
 ```
 
 This will:
 
-- Build all services with the `trace_events` feature
+- Build the clustered services with the `trace_events` feature
 - Mount the `./traces` directory to `/moor/traces` in the container
 - Output trace events to `/moor/traces/moor-trace.json`
 - Enable full backtraces for debugging
@@ -67,7 +68,7 @@ docker build --build-arg TRACE_EVENTS=true -t moor-tracing .
 
 # Run with trace output
 docker run -v $(pwd)/traces:/moor/traces moor-tracing \
-  ./moor-daemon /db/moor-data --trace-output=/moor/traces/moor-trace.json
+  ./moor /db/moor-data --trace-output=/moor/traces/moor-trace.json
 ```
 
 ## Using Trace Output
@@ -111,10 +112,10 @@ The system uses:
 
 ### Command Line Options
 
-When built with tracing enabled, the daemon supports:
+When built with tracing enabled, the single-process backend supports:
 
 ```bash
-./moor-daemon --trace-output=path/to/trace.json
+./moor --trace-output=path/to/trace.json
 ```
 
 ### Environment Variables

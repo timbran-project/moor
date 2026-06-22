@@ -19,13 +19,14 @@ set -e
 export RUN_DIR="run-cowbell"
 export IMPORT_PATH="/db/cores/cowbell/src"
 export BUILD_PROFILE="release-fast"
+COMPOSE_ARGS=()
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --debug) export BUILD_PROFILE="debug"; shift ;;
         --release) export BUILD_PROFILE="release-fast"; shift ;;
-        *) echo "Unknown parameter: $1"; exit 1 ;;
+        *) COMPOSE_ARGS+=("$1"); shift ;;
     esac
 done
 
@@ -39,9 +40,8 @@ echo "Starting mooR with Cowbell core..."
 echo "Build profile: $BUILD_PROFILE"
 echo "Runtime directory: $RUN_DIR"
 
-# Ensure runtime directories exist and IPC is clean
-mkdir -p "$RUN_DIR/ipc" "$RUN_DIR/config" "$RUN_DIR/moor-data" "$RUN_DIR/export"
-rm -f "$RUN_DIR/ipc"/*.sock
+# Ensure runtime directories exist
+mkdir -p "$RUN_DIR/config" "$RUN_DIR/moor-data" "$RUN_DIR/export" "$RUN_DIR/local-share"
 
 # Ensure cowbell is fetched
 if [ ! -d "cores/cowbell/src" ]; then
@@ -62,13 +62,6 @@ fi
 
 export USER_ID=$(id -u)
 export GROUP_ID=$(id -g)
+export MOOR_CONFIG_FILE="${MOOR_CONFIG_FILE:-moor-dev.yaml}"
 
-# Core-specific features
-export USE_BOOLEAN_RETURNS=true
-export CUSTOM_ERRORS=true
-export USE_UUOBJIDS=true
-export ANONYMOUS_OBJECTS=true
-export ENABLE_EVENTLOG=true
-export USE_SYMBOLS_IN_BUILTINS=true
-
-docker compose up --build
+docker compose up --build "${COMPOSE_ARGS[@]}"

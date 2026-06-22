@@ -3,46 +3,47 @@
 This directory contains deployment configurations and guides for various mooR deployment scenarios.
 Choose the approach that best fits your needs.
 
-## Single-Machine vs Multi-Machine Deployments
+## Single-Process vs Clustered Deployments
 
-**Important**: These examples use IPC (Unix domain sockets) for communication between mooR
-components because they're designed for single-machine deployments.
+The default deployment path is the combined `moor` binary. It runs the daemon, telnet host, and web
+host in one process.
 
-mooR **can** be deployed across multiple machines using TCP sockets with CURVE encryption and
-enrollment tokens for security. However, these examples don't show that configuration because:
+_Clustered_ deployments run the daemon, hosts, and workers as separate processes. The clustered
+examples under `clustered/` use IPC for _same_-machine deployments and TCP/CURVE for _multi_-machine
+testing.
 
-- **Single-machine deployments** (Docker Compose, process-compose, Debian packages) use IPC for
-  simplicity, security, and performance
-- **Multi-machine deployments** (Kubernetes, manual multi-host setups) would use TCP with CURVE
-  enrollment
-- The complexity of enrollment tokens and CURVE key management is unnecessary when all services run
-  on the same host
-
-If you need multi-machine deployment examples, see the Kubernetes section or consider contributing
-to expand these examples.
+- **Single-process deployments** use the `moor` binary and are the intended default for one-host
+  installs.
+- **Same-machine clustered deployments** use separate binaries with IPC sockets.
+- **Multi-machine clustered deployments** use TCP sockets with CURVE encryption and enrollment
+  tokens.
 
 ## Quick Decision Guide
 
 **Are you...**
 
 - **Just getting started or developing?** → Use the [root docker-compose.yml](../docker-compose.yml)
-  for quick development setup (IPC-based, no enrollment tokens)
+  for a quick single-process setup.
 - **Testing TCP/CURVE enrollment flows?** → Use
-  [docker-compose.cluster.yml](../docker-compose.cluster.yml) for multi-machine deployment testing
+  [clustered/docker-compose.tcp.yml](clustered/docker-compose.tcp.yml) for multi-machine deployment
+  testing.
 
-- **Deploying with web access on a local network?** → See [web-basic/](web-basic/) for HTTP-only
-  Docker deployment
+- **Deploying with web access on a local network?** → See [single-process/web/](single-process/web/)
+  for a single-process web deployment.
 
-- **Running a production web-enabled MOO on the internet?** → See [web-ssl/](web-ssl/) for HTTPS
-  Docker deployment with Let's Encrypt
+- **Running only telnet plus the embedded API?** → See
+  [single-process/basic/](single-process/basic/) for the minimal single-process Docker deployment.
 
-- **Setting up a classic telnet-only MOO?** → See [telnet-only/](telnet-only/) for minimal Docker
-  deployment
+- **Need the split-process examples?** → See [clustered/](clustered/).
+
+- **Running a public web-enabled MOO on the internet?** → See
+  [clustered/web-ssl/](clustered/web-ssl/) for the existing HTTPS Docker deployment with Let's
+  Encrypt.
 
 - **Installing on a traditional Linux server?** → See [debian-packages/](debian-packages/) for
   systemd-based deployment
 
-- **Need Kubernetes?** → See [kubernetes/](kubernetes/) (contributions welcome, you masochist!)
+- **Need Kubernetes?** → See [clustered/kubernetes/](clustered/kubernetes/).
 
 ## Deployment Options
 
@@ -56,8 +57,7 @@ Several tools are available for local development and testing:
 
 **Purpose**: Quick containerized development setup
 
-Uses fast debug builds without optimization, running all services in containers isolated from the
-host system. **Not recommended for production** deployments.
+Uses a local build of the combined backend plus the Meadow frontend container.
 
 **Quick start**:
 
@@ -98,9 +98,9 @@ process-compose up
 
 **Purpose**: File-watching development with automatic restarts
 
-Watches source files for changes and automatically rebuilds and restarts services. Provides separate
-jobs for daemon, telnet, and web host, making it ideal for rapid iteration when working on a single
-service.
+Watches source files for changes and automatically rebuilds and restarts services. The default job
+runs the combined `moor` binary; split-service jobs are still available for work on individual
+components.
 
 **Prerequisites**: Install bacon (`cargo install bacon`)
 
@@ -109,6 +109,7 @@ service.
 **Available jobs**:
 
 ```bash
+bacon moor            # Run single-process moor with file watching
 bacon daemon          # Run daemon with file watching (release build)
 bacon daemon-debug    # Run daemon with file watching (debug build)
 bacon daemon-debug-traced  # Run daemon with tracing enabled
@@ -124,26 +125,26 @@ bacon curl-worker     # Run curl worker with file watching
 
 **Purpose**: Workflows for web client development in [web-client/](../web-client/)
 
-Starts daemon, web-host, and Vite dev server together using concurrently, providing hot module
+Starts the combined backend and Vite dev server together using concurrently, providing hot module
 reloading for web client changes. Includes tracing variants for debugging backend issues while
-working on the UI. **Primary use case is active development on the web client UI** in `web-client/`.
+working on the UI.
 
 **Available scripts**:
 
 ```bash
 # Development servers
 npm run dev                  # Web client dev server only (port 3000)
-npm run daemon:dev           # Daemon only (debug build)
-npm run daemon:traced        # Daemon with tracing enabled
+npm run moor:dev             # Single-process backend
+npm run moor:traced          # Single-process backend with tracing enabled
 npm run web-host:dev         # Web host only
 
 # Full stack
-npm run full:dev             # All services: web client + daemon + web-host
-npm run full:dev-traced      # All services with daemon tracing
+npm run full:dev             # Web client + single-process backend
+npm run full:dev-traced      # Web client + traced single-process backend
 
 # Build
 npm run build                # Build web client
-npm run full:build           # Build web client + web host (release)
+npm run full:build           # Build web client + single-process backend (release)
 ```
 
 **Recommended Development Workflow**:
@@ -160,9 +161,8 @@ npm run full:build           # Build web client + web host (release)
 
 3. **Active backend development** (working on Rust code): Use bacon for file watching
    ```bash
-   bacon daemon-debug    # Terminal 1: daemon with file watching
-   bacon telnet          # Terminal 2: telnet host with file watching (optional)
-   npm run dev           # Terminal 3: web client dev server only
+   bacon moor            # Terminal 1: single-process backend with file watching
+   npm run dev           # Terminal 2: web client dev server only
    ```
 
 4. **Testing full stack natively**: Use process-compose
@@ -172,82 +172,64 @@ npm run full:build           # Build web client + web host (release)
 
 ---
 
-### 2. Web-Basic Deployment (HTTP)
+### 2. Single-Process Basic Deployment
 
-**Location**: [web-basic/](web-basic/)
+**Location**: [single-process/basic/](single-process/basic/)
 
-**Purpose**: Full-featured deployment with web client, HTTP only
+**Purpose**: One backend process with telnet, the embedded web API, and the embedded curl worker
 
-Provides a modern web interface with WebSocket support alongside traditional telnet access, running
-over HTTP without SSL/TLS encryption. Suitable for local network deployments, running behind an
-external reverse proxy that handles SSL, development/testing environments, or as a quick web-enabled
-setup.
+Runs the combined `moor` binary in one container. Telnet is exposed on port 8888, the embedded web
+API is exposed on port 8080, and the embedded curl worker is enabled.
 
 **Quick start**:
 
 ```bash
-cd web-basic
-cp .env.example .env
-docker compose up -d
-# Visit http://localhost:8080
-```
-
-[Read full guide →](web-basic/README.md)
-
----
-
-### 3. Web-SSL Deployment (HTTPS)
-
-**Location**: [web-ssl/](web-ssl/)
-
-**Purpose**: Production internet-facing deployment with HTTPS
-
-Production-type configuration with automatic Let's Encrypt SSL certificates, modern TLS, and HTTP to
-HTTPS redirect. Includes both web client and telnet access. Designed for public internet-facing MOO
-servers and production deployments requiring trusted SSL certificates.
-
-Obviously for running on your own host you will need to use this as a starting place, since every
-hosting situation is a little bit different, and everybody has their own preferences for what
-packages to use and how to configure them. But this should give you an idea of how the pieces fit
-together.
-
-**Prerequisites**: Domain name pointing to your server, with ports 80 and 443 accessible from the
-internet.
-
-**Quick start**:
-
-```bash
-cd web-ssl
-cp .env.example .env
-# Edit .env with your domain and email
-docker compose up -d
-# Obtain certificate (see guide)
-```
-
-[Read full guide →](web-ssl/README.md)
-
----
-
-### 4. Telnet-Only Deployment
-
-**Location**: [telnet-only/](telnet-only/)
-
-**Purpose**: Traditional MUD/MOO server without web interface
-
-Minimal resource deployment providing a classic telnet-only experience with production-ready release
-builds and no web dependencies. Ideal for traditional MOO/MUD communities, users who prefer telnet
-clients, or environments with limited server resources.
-
-**Quick start**:
-
-```bash
-cd telnet-only
+cd single-process/basic
 cp .env.example .env
 docker compose up -d
 telnet localhost 8888
 ```
 
-[Read full guide →](telnet-only/README.md)
+[Read full guide →](single-process/basic/README.md)
+
+---
+
+### 3. Single-Process Web Deployment
+
+**Location**: [single-process/web/](single-process/web/)
+
+**Purpose**: One backend process with nginx serving Meadow
+
+Runs the combined `moor` backend in one container and an nginx container for the Meadow frontend.
+The browser UI is exposed on port 8080.
+
+**Quick start**:
+
+```bash
+cd single-process/web
+cp .env.example .env
+docker compose up -d
+# Visit http://localhost:8080
+```
+
+[Read full guide →](single-process/web/README.md)
+
+---
+
+### 4. Clustered Docker Examples
+
+**Location**: [clustered/](clustered/)
+
+**Purpose**: Split-process deployments
+
+These examples run separate daemon, host, frontend, and worker containers. They are useful when
+testing the clustered architecture or deploying with separate service boundaries.
+
+- [clustered/telnet-only/](clustered/telnet-only/)
+- [clustered/web-basic/](clustered/web-basic/)
+- [clustered/web-ssl/](clustered/web-ssl/)
+- [clustered/kubernetes/](clustered/kubernetes/)
+- [clustered/docker-compose.tcp.yml](clustered/docker-compose.tcp.yml)
 
 ---
 
@@ -286,7 +268,7 @@ sudo systemctl start moor-daemon
 
 ### 6. Kubernetes Deployment
 
-**Location**: [kubernetes/](kubernetes/)
+**Location**: [clustered/kubernetes/](clustered/kubernetes/)
 
 **Purpose**: Cloud-native deployment with horizontal scaling and distributed architecture
 
@@ -299,7 +281,7 @@ requiring horizontal scaling and high availability.
 **Quick start**:
 
 ```bash
-cd kubernetes
+cd clustered/kubernetes
 # Configure image registry in kustomization.yaml
 # Build and push images, or load into kind/minikube
 kubectl apply -k .
@@ -308,11 +290,11 @@ kubectl apply -k .
 **Test locally with kind**:
 
 ```bash
-cd kubernetes
+cd clustered/kubernetes
 ./test.sh
 ```
 
-[Read full guide →](kubernetes/README.md)
+[Read full guide →](clustered/kubernetes/README.md)
 
 ---
 
@@ -327,7 +309,7 @@ All deployment options use the same mooR architecture:
 └────────┬────────┘
          │ HTTP/WebSocket
 ┌────────▼────────┐
-│  moor-web-host  │ (Optional: Web API server)
+│  moor-web-host  │ or embedded web host
 └────────┬────────┘
          │
          │ ZeroMQ RPC
@@ -344,14 +326,16 @@ All deployment options use the same mooR architecture:
 
 **Components**:
 
+- **moor**: Combined daemon, telnet host, web host, and optional embedded workers for single-process
+  deployments
 - **moor-daemon**: Core MOO server (database, VM, task scheduler)
 - **moor-telnet-host**: Traditional telnet interface
 - **moor-web-host**: Web API and WebSocket server
 - **moor-frontend**: Static web client (HTML/CSS/JS)
 - **moor-curl-worker**: Handles outbound HTTP from MOO code
 
-All components communicate via ZeroMQ using IPC (Unix domain sockets) for single-machine
-deployments.
+Single-process deployments use in-process ZeroMQ endpoints inside `moor`. Clustered same-machine
+deployments use IPC sockets, and multi-machine clustered deployments use TCP/CURVE.
 
 ## Common Configuration
 
@@ -364,8 +348,8 @@ Default ports used across deployments:
 - **8888**: Telnet interface
 - **8081**: Web API server (internal)
 
-**Note**: Internal communication between mooR components uses IPC (Unix domain sockets) for
-single-machine deployments, so no additional TCP ports are exposed.
+**Note**: Single-process deployments do not expose internal ZeroMQ endpoints. Clustered deployments
+only expose extra TCP ports when explicitly configured to do so.
 
 ### Environment Variables
 
@@ -498,9 +482,9 @@ cd deploy/
 
 This runs automated tests for:
 
-- `telnet-only/` - Telnet-only deployment
-- `web-basic/` - HTTP web deployment
-- `web-ssl/` - HTTPS web deployment
+- `clustered/telnet-only/` - Split telnet-only deployment
+- `clustered/web-basic/` - Split HTTP web deployment
+- `clustered/web-ssl/` - Split HTTPS web deployment
 
 ### Testing Individual Deployments
 
@@ -508,15 +492,15 @@ Each deployment directory has its own `test.sh` script:
 
 ```bash
 # Test telnet-only deployment
-cd deploy/telnet-only/
+cd deploy/clustered/telnet-only/
 ./test.sh
 
 # Test web-basic deployment
-cd deploy/web-basic/
+cd deploy/clustered/web-basic/
 ./test.sh
 
 # Test web-ssl deployment
-cd deploy/web-ssl/
+cd deploy/clustered/web-ssl/
 ./test.sh
 ```
 
@@ -570,8 +554,8 @@ components.
 
 ### SSL Certificate Testing
 
-The `web-ssl/` test cannot validate SSL certificates in automated testing because Let's Encrypt
-requires a real domain with valid DNS. To fully test SSL:
+The `clustered/web-ssl/` test cannot validate SSL certificates in automated testing because Let's
+Encrypt requires a real domain with valid DNS. To fully test SSL:
 
 1. Deploy on a server with a real domain name
 2. Configure DNS to point to your server
@@ -597,7 +581,7 @@ When reporting deployment issues, please include:
 
 1. Deployment method used (Docker, Debian packages, etc.)
 2. Operating system and version
-3. mooR version (from logs or `moor-daemon --version`)
+3. mooR version (from logs or `moor --version`)
 4. Relevant error messages or logs
 5. Steps to reproduce
 

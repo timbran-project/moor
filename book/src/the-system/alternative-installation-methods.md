@@ -10,13 +10,15 @@ cleanly with your system's package management and systemd service management.
 
 ### About Debian Packages
 
-mooR packages include:
+mooR provides two packaging options:
 
-- **moor-daemon**: Core MOO server with systemd service
-- **moor-telnet-host**: Telnet server with systemd service
-- **moor-web-host**: Web API server with systemd service
-- **moor-curl-worker**: HTTP request worker with systemd service
-- **moor-web-client**: Static web client files (architecture-independent)
+- **moor**: The combined single-process binary (daemon, telnet host, web host, and curl worker in
+  one process) with a single systemd service. This is the recommended package for most deployments.
+- **Split-service packages**: `moor-daemon`, `moor-telnet-host`, `moor-web-host`, and
+  `moor-curl-worker` as separate packages with individual systemd services. Use these when you need
+  clustered deployment across multiple machines.
+- **moor-web-client**: Static web client files (architecture-independent). Required if you want the
+  web frontend with the split-service packages.
 
 All packages integrate with systemd, create necessary users and directories, and include the
 LambdaMOO-based lambda-moor core database by default.
@@ -36,12 +38,12 @@ sudo curl https://codeberg.org/api/packages/timbran/debian/repository.key \
 echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/api/packages/timbran/debian bookworm main" \
     | sudo tee /etc/apt/sources.list.d/moor.list
 
-# Update and install
+# Update and install the combined package (recommended):
 sudo apt update
 sudo apt install moor
 
-# Or install the split services instead:
-sudo apt install moor-daemon moor-telnet-host moor-web-host moor-web-client
+# Or install the split-service packages for clustered deployment:
+sudo apt install moor-daemon moor-telnet-host moor-web-host moor-curl-worker moor-web-client
 ```
 
 **Option 2: Download from Releases**
@@ -50,10 +52,11 @@ Download pre-built `.deb` packages from the
 [mooR 1.0.0 Codeberg release](https://codeberg.org/timbran/moor/releases/tag/1.0.0):
 
 ```bash
+# Combined package (recommended):
 sudo dpkg -i moor_*.deb
 
-# Or install split-service packages:
-sudo dpkg -i moor-daemon_*.deb moor-telnet-host_*.deb moor-web-host_*.deb
+# Or split-service packages for clustered deployment:
+sudo dpkg -i moor-daemon_*.deb moor-telnet-host_*.deb moor-web-host_*.deb moor-curl-worker_*.deb
 
 sudo apt-get install -f  # Install any missing dependencies
 ```
@@ -65,12 +68,15 @@ Build packages yourself using the provided scripts in `deploy/debian-packages/`:
 ```bash
 cd deploy/debian-packages
 ./build-all-packages.sh
+
+# Combined package:
 sudo dpkg -i ../../target/debian/moor_*.deb
 
-# Or install split-service packages:
+# Or split-service packages:
 sudo dpkg -i ../../target/debian/moor-daemon_*.deb
 sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
 sudo dpkg -i ../../target/debian/moor-web-host_*.deb
+sudo dpkg -i ../../target/debian/moor-curl-worker_*.deb
 ```
 
 ### Comprehensive Documentation
@@ -97,7 +103,10 @@ Debian packages are ideal when:
 - You want system-level integration (systemd services, standard file locations)
 - You prefer traditional package management over containers
 - You're setting up a production server on bare metal or VPS
-- You want to deploy on multiple separate machines
+
+Use the combined `moor` package for single-server deployments. Use the split-service packages when
+you need to deploy components across multiple machines (see
+[Clustered Deployment](clustered-deployment.md)).
 
 ## Building from Source
 
@@ -132,10 +141,11 @@ source ~/.cargo/env
    This will take some time as Rust compiles all dependencies and mooR components.
 
 3. **Find your binaries**: After building, you'll find the executables in `target/release/`:
-   - `moor-daemon`
-   - `moor-telnet-host`
-   - `moor-web-host`
-   - `curl-worker`
+   - `moor` — combined single-process binary (recommended for most deployments)
+   - `moor-daemon` — daemon only (for clustered deployment)
+   - `moor-telnet-host` — telnet host only
+   - `moor-web-host` — web host only
+   - `moor-curl-worker` — curl worker only
 
 ### Manual Configuration
 
@@ -145,11 +155,13 @@ When building from source, you'll need to manually set up:
   flag (creates `moor-signing-key.pem` and `moor-verifying-key.pem`)
 - **Configuration files**: Create appropriate configuration for each component
 - **Core database**: Install and configure your chosen MOO core
-- **Service coordination**: Ensure all components can communicate properly (see
+- **Service coordination**: For single-process deployment, just run `moor` — no coordination needed.
+  For clustered deployment, ensure all components can communicate properly (see
   [Server Architecture](server-architecture.md#communication-transport))
-  - Default: IPC (Unix domain sockets) - simplest, no encryption needed
-  - Clustered: TCP with CURVE encryption requires enrollment tokens (see `--rotate-enrollment-token`
-    flag)
+  - Single-process: In-process endpoints, no configuration needed
+  - Same-machine clustered: IPC (Unix domain sockets), simplest split-process option
+  - Multi-machine clustered: TCP with CURVE encryption requires enrollment tokens (see
+    `--rotate-enrollment-token` flag)
 
 The `docker-compose.yml` and `process-compose.yaml` files provide excellent examples of how to
 configure each component.

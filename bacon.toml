@@ -3,9 +3,35 @@
 # See: https://dystroy.org/bacon/
 # To install bacon, run `cargo install bacon`
 # To run:
-# `bacon daemon`, `bacon telnet`, and `bacon web` respectively.
+# `bacon moor`, `bacon daemon`, `bacon telnet`, and `bacon web` respectively.
 
-default_job = "daemon"
+default_job = "moor"
+
+[jobs.moor]
+command = [
+    "cargo",
+    "run",
+    "-p",
+    "moor-daemon",
+    "--bin",
+    "moor",
+    "--",
+    "./moor-data",
+    "--db",
+    "development.db",
+    "--config-file",
+    "moor-dev.yaml",
+    "--import",
+    "cores/cowbell/src",
+    "--import-format",
+    "objdef",
+    "--export",
+    "development-export",
+    "--generate-keypair",
+    "--enable-curl-worker",
+]
+allow_warnings = true
+need_stdout = true
 
 [jobs.daemon]
 command = [
@@ -28,12 +54,6 @@ command = [
     "objdef",
     "--checkpoint-interval-seconds",
     "3600",
-    "--use-boolean-returns",
-    "true",
-    "--custom-errors",
-    "true",
-    "--use-uuobjids",
-    "true",
     "--generate-keypair",
 ]
 allow_warnings = true
@@ -59,12 +79,6 @@ command = [
     "objdef",
     "--checkpoint-interval-seconds",
     "3600",
-    "--use-boolean-returns",
-    "true",
-    "--custom-errors",
-    "true",
-    "--use-uuobjids",
-    "true",
     "--generate-keypair",
 ]
 allow_warnings = true
@@ -92,12 +106,6 @@ command = [
     "objdef",
     "--checkpoint-interval-seconds",
     "3600",
-    "--use-boolean-returns",
-    "true",
-    "--custom-errors",
-    "true",
-    "--use-uuobjids",
-    "true",
     "--generate-keypair",
     "--trace-output",
     "moor-trace.json",

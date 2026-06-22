@@ -1,35 +1,103 @@
 # Server Architecture
 
 Understanding mooR's architecture is key to successfully running and maintaining a mooR server.
-Unlike traditional MOO servers that consisted of a single executable, mooR is designed as a modular
-system with multiple components working together.
 
-## Component Overview
+## Components
 
-A complete mooR installation consists of several specialized components:
+mooR is built from several specialized components that work together:
 
-### Core Components
+- **Daemon** (`moor-daemon`): The core of the system. Manages the MOO database, executes verbs,
+  handles object manipulation, and coordinates all MOO operations. Think of it as the "brain" that
+  understands MOO code and maintains the virtual world's state.
 
-**moor-daemon** : The heart of the system. This component manages the MOO database, executes verbs,
-handles object manipulation, and coordinates all MOO operations. Think of it as the "brain" that
-understands MOO code and maintains the virtual world's state.
+- **Telnet host** (`moor-telnet-host`): Provides traditional telnet access for players. Handles the
+  classic MOO experience that players familiar with LambdaMOO expect — text-based connections over
+  port 8888 (by default).
 
-**moor-telnet-host** : Provides traditional telnet access for players. This component handles the
-classic MOO experience that players familiar with LambdaMOO expect - text-based connections over
-port 8888 (by default).
+- **Web host** (`moor-web-host`): Provides RESTful API endpoints and WebSocket connections for web
+  clients. Handles authentication, property access, verb execution, and real-time communication via
+  WebSockets.
 
-**moor-web-host** : Provides RESTful API endpoints and WebSocket connections for web clients. This
-component handles authentication, property access, verb execution, and real-time communication via
-WebSockets.
+- **Curl worker** (`moor-curl-worker`): Handles outbound HTTP requests from MOO code. When your MOO
+  needs to fetch data from external APIs, send webhooks, or interact with web services, this
+  component manages those network operations safely.
 
-**moor-frontend** : The web client application. This is served by nginx in production or Vite in
-development, providing the browser-based interface that communicates with moor-web-host.
+- **Frontend** (`moor-frontend`): The web client application (Meadow). Served by a static file
+  server or reverse proxy in production, or by Vite in development, providing the browser-based
+  interface that communicates with the web host.
 
-**curl-worker** : Handles outbound HTTP requests from MOO code. When your MOO needs to fetch data
-from external APIs, send webhooks, or interact with web services, this component manages those
-network operations safely.
+These components can run either inside a single `moor` process or as separate processes. How you
+choose to run them is the main deployment decision.
 
-## How Components Communicate
+## Single-Process Deployment (Default)
+
+The default way to run mooR is a single binary, `moor`, which runs the daemon, telnet host, web
+host, and curl worker together in one process. This is the simplest deployment path — no sockets, no
+encryption, no extra configuration — and is what the provided Docker Compose configurations and
+Debian packages use by default. This is the closest analogue to running a traditional LambdaMOO or
+ToastStunt server: one process, one database, telnet and (optionally) web access built in.
+
+```
+┌─────────────────────────────────────────────┐
+│                   moor                      │
+│  ┌──────────┐  ┌────────────┐  ┌──────────┐ │
+│  │ daemon   │  │ telnet host│  │ web host │ │
+│  │ (VM, DB) │  │ (port 8888)│  │(:8081)   │ │
+│  └──────────┘  └────────────┘  └──────────┘ │
+│  ┌──────────────────────────────────────┐   │
+│  │ curl worker (embedded)               │   │
+│  └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────┘
+        ↑                    ↑
+   telnet clients         web clients
+```
+
+The one piece that does not run inside `moor` is the web frontend client (Meadow). Meadow is a
+static-served browser application: any static file server or reverse proxy (nginx, Apache, Caddy, a
+CDN, etc.) serves its HTML/CSS/JS and proxies API and WebSocket requests to `moor`'s web host port
+(8081 by default). Telnet-only deployments can skip the frontend entirely; web-enabled deployments
+pair `moor` with a frontend server, as shown in the deployment examples (which use nginx).
+
+### When to Use Single-Process
+
+Single-process deployment is the right choice for:
+
+- Getting started and development
+- Single-server production deployments
+- Any deployment where you don't need to split components across machines
+
+Most users should start here.
+
+## Split-Process and Clustered Deployment (Advanced)
+
+The same components introduced above can run as independent processes that communicate over ZeroMQ
+sockets. This is the advanced path, and there are two variants:
+
+**Same-machine split-process** runs the daemon, hosts, and workers as separate processes on one
+host, communicating over IPC (Unix domain sockets). Reasons to do this even when everything is on
+one machine:
+
+- **Process or privilege isolation**: Run the daemon under a restricted user with no network access,
+  while the telnet host and web host run under separate users that only have the privileges they
+  need. A compromise of a host process does not directly expose the database.
+- **Independent restarts**: Restart or update a host or worker without taking down the daemon or
+  dropping existing connections on other hosts.
+- **Resource isolation**: Apply separate resource limits (cgroups, systemd units, containers) per
+  component.
+
+**Multi-machine clustered** distributes components across separate machines, communicating over TCP
+with CURVE encryption. Reasons to do this:
+
+- **Geographic distribution**: Place web hosts and telnet hosts in different availability zones,
+  regions, or datacentres to reduce latency for users in different locations.
+- **Differing firewall and network policies**: Run the daemon on a private network with strict
+  inbound rules while exposing only the web host or telnet host to the public internet. Put the curl
+  worker in a segment with outbound-only access.
+- **Scaling hosts independently**: Run multiple web-host or telnet-host instances behind a load
+  balancer. (Note: WebSocket connections are long-lived and stateful, so load balancing the web host
+  requires sticky sessions or a Layer 4 balancer that supports connection affinity.)
+
+### How Components Communicate
 
 All components communicate through authenticated RPC (Remote Procedure Call) connections:
 
@@ -42,24 +110,35 @@ All components communicate through authenticated RPC (Remote Procedure Call) con
 
 mooR supports two communication modes between its components:
 
-**IPC (Unix Domain Sockets)** - Default for single-machine deployments
+**In-process** (default, single-process) — Components run inside the `moor` binary and communicate
+through in-process ZeroMQ endpoints. No sockets, no encryption, no configuration needed.
 
-- Simplest configuration
-- No encryption needed (kernel-level security)
-- Used by default in Docker Compose and Debian packages
-- Best for development and single-server production
+**IPC (Unix Domain Sockets)** — Used for same-machine clustered deployments where components run as
+separate processes but on the same host. Uses filesystem permissions for security, no encryption
+needed.
 
-**TCP with CURVE Encryption** - For clustered/multi-machine deployments
+**TCP with CURVE Encryption** — Required when services run on separate machines. Uses CURVE
+encryption with enrollment-based authentication. See `deploy/clustered/docker-compose.tcp.yml` for
+an example configuration.
 
-- Required when services run on separate machines
-- Uses CURVE encryption with enrollment-based authentication
-- Enrollment tokens authenticate hosts connecting to the daemon
-- See `docker-compose.cluster.yml` for example configuration
+### When to Use Clustered Deployment
 
-## Advantages of This Design
+Clustered deployment is the advanced path. Use it when you have specific requirements that
+single-process can't meet:
 
-**Flexibility**: You can run different components on different machines or scale them independently
-based on your needs.
+- **Security segmentation**: Isolate the daemon on a private network while exposing only hosts to
+  the public internet
+- **Load distribution**: Spread network I/O across multiple machines for high-traffic deployments
+- **Functional isolation**: Run curl-worker in a restricted network with outbound-only access
+- **Multi-datacenter**: Distribute hosts geographically for latency or redundancy
+- **Horizontal scaling**: Scale hosts and workers independently (the daemon itself is a singleton)
+
+For a complete guide to clustered deployment, see [Clustered Deployment](clustered-deployment.md).
+
+## Advantages of the Modular Design
+
+**Flexibility**: Start with a single process, split into components when needed, and distribute
+across machines when your requirements demand it.
 
 **Security**: Network operations are isolated in separate workers, reducing security risks to the
 core MOO environment.
@@ -67,7 +146,7 @@ core MOO environment.
 **Modernization**: The modular design allows adding new connection types (like web interfaces)
 without changing the core MOO logic.
 
-**Reliability**: If a host crashes, only that connection type is affected - the core MOO world
+**Reliability**: If a host crashes, only that connection type is affected — the core MOO world
 continues running.
 
 ## Build and Performance Considerations
@@ -95,10 +174,10 @@ build profile.
 
 ### Deployment Approaches
 
-This modular architecture means there are more pieces to coordinate compared to traditional MOO
-servers. However, mooR provides several approaches to make this manageable:
+Regardless of whether you choose single-process or clustered, mooR provides several approaches to
+manage the deployment:
 
-- **Docker Compose**: Orchestrates all components automatically (recommended for most users)
+- **Docker Compose**: Orchestrates everything automatically (recommended for most users)
 - **Debian Packages**: Handles system integration for Debian-based systems
 - **Manual Setup**: For custom deployments or development environments
 

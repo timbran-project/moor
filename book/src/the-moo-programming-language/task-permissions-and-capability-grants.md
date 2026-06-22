@@ -103,19 +103,19 @@ at grant creation time, not to the literal string forever.
 
 Builtin grants:
 
-| Grant          | Shape                           | Meaning                                                        |
-| -------------- | ------------------------------- | -------------------------------------------------------------- |
-| `builtin_call` | `{"builtin_call", "builtin"}`   | Allows the named builtin's own wizard or owner fallback checks. |
+| Grant          | Shape                         | Meaning                                                         |
+| -------------- | ----------------------------- | --------------------------------------------------------------- |
+| `builtin_call` | `{"builtin_call", "builtin"}` | Allows the named builtin's own wizard or owner fallback checks. |
 
 The builtin name must name a real builtin when `set_task_perms()` is called. A `builtin_call` grant
-is scoped to that builtin only. For example, `{"builtin_call", "server_log"}` allows
-`server_log()` to pass its wizard-only call check, but it does not make the task a wizard and does
-not authorize `log_cache_stats()`.
+is scoped to that builtin only. For example, `{"builtin_call", "server_log"}` allows `server_log()`
+to pass its wizard-only call check, but it does not make the task a wizard and does not authorize
+`log_cache_stats()`.
 
-For builtins that normally allow either the target object or a wizard, such as `notify(player, ...)`,
-the matching `builtin_call` grant allows that builtin's call check for other targets. This is still
-only a call-surface grant: lower-level object, property, verb, or database checks may require their
-own grants.
+For builtins that normally allow either the target object or a wizard, such as
+`notify(player, ...)`, the matching `builtin_call` grant allows that builtin's call check for other
+targets. This is still only a call-surface grant: lower-level object, property, verb, or database
+checks may require their own grants.
 
 `set_task_perms(perms, grants)` remains directly wizard-only. A `builtin_call` grant for
 `set_task_perms` does not authorize non-wizard code to install arbitrary grant sets.

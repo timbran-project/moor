@@ -104,9 +104,6 @@ COMMON_ARGS=(
     --export "$MOOR_EXPORT"
     --export-format objdef
     --checkpoint-interval-seconds "$MOOR_CHECKPOINT_INTERVAL"
-    --use-boolean-returns true
-    --custom-errors true
-    --use-uuobjids true
     --generate-keypair
 )
 

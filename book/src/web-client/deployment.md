@@ -1,20 +1,21 @@
 # Deployment
 
 The web client is optional, but when enabled it typically sits behind a proxy that serves static
-assets and forwards API/WebSocket traffic to `moor-web-host`.
+assets and forwards API/WebSocket traffic to the embedded web host in `moor` or to `moor-web-host`
+in split deployments.
 
 ## Typical Topology
 
 ```
-Browser → nginx (or other proxy) → moor-web-host → moor-daemon
+Browser → nginx (or other proxy) → moor web host → daemon runtime
             ↓
       Static assets
       (HTML/CSS/JS)
 ```
 
 1. Browser loads static web client assets (HTML/CSS/JS) from the proxy
-2. The proxy forwards `/api`, `/auth`, `/fb`, and `/ws` traffic to `moor-web-host`
-3. `moor-web-host` connects to the daemon over RPC and relays FlatBuffer events to the client
+2. The proxy forwards `/api`, `/auth`, `/fb`, and `/ws` traffic to the web host
+3. The web host relays RPC and event traffic to the daemon runtime
 
 ## Deployment Options
 
@@ -23,16 +24,17 @@ Browser → nginx (or other proxy) → moor-web-host → moor-daemon
 The simplest way to deploy is using the provided Docker Compose configurations:
 
 ```bash
-# Basic HTTP deployment
-docker compose -f deploy/web-basic/docker-compose.yml up -d
+# Single-process web deployment
+docker compose -f deploy/single-process/web/docker-compose.yml up -d
 
-# HTTPS with Let's Encrypt
-docker compose -f deploy/web-ssl/docker-compose.yml up -d
+# Clustered HTTPS with Let's Encrypt
+docker compose -f deploy/clustered/web-ssl/docker-compose.yml up -d
 ```
 
 ### Debian Packages
 
-For Debian/Ubuntu systems, install the packages and configure nginx:
+For Debian/Ubuntu systems, install the packages and configure a reverse proxy (the examples use
+nginx):
 
 ```bash
 # Install from APT repository (recommended)
@@ -54,7 +56,7 @@ Web client files are installed to `/usr/share/moor/web-client/`.
 
 ### Kubernetes
 
-See `deploy/kubernetes/` for Ingress and Deployment manifests.
+See `deploy/clustered/kubernetes/` for Ingress and Deployment manifests.
 
 ## Proxy Configuration
 
@@ -125,7 +127,7 @@ server {
 
 ### HTTPS Configuration
 
-For production, use HTTPS. See `deploy/web-ssl/nginx-ssl.conf` for a complete example with:
+For HTTPS, see `deploy/clustered/web-ssl/nginx-ssl.conf` for an example with:
 
 - TLS termination
 - HTTP to HTTPS redirect

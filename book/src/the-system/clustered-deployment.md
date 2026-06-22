@@ -181,15 +181,15 @@ Protocol (ZAP):
 
 ## Example Configurations
 
-### docker-compose.cluster.yml
+### deploy/clustered/docker-compose.tcp.yml
 
-The mooR repository includes `docker-compose.cluster.yml` as a reference implementation. **This
-configuration runs on a single host** (all containers on one machine) but demonstrates the TCP/CURVE
-setup you'd use for an actual multi-machine clustered deployment:
+The mooR repository includes `deploy/clustered/docker-compose.tcp.yml` as a reference
+implementation. **This configuration runs on a single host** (all containers on one machine) but
+demonstrates the TCP/CURVE setup you'd use for an actual multi-machine clustered deployment:
 
 ```bash
 # Test clustered configuration locally on a single machine
-docker compose -f docker-compose.cluster.yml up -d
+docker compose -f deploy/clustered/docker-compose.tcp.yml up -d
 ```
 
 This example configuration shows:
@@ -203,10 +203,10 @@ This example configuration shows:
 locally before deploying across actual separate machines. For production multi-machine deployments,
 adapt the endpoint addresses to point to different hosts and configure appropriate network routing.
 
-### Kubernetes Deployment (deploy/kubernetes/)
+### Kubernetes Deployment (deploy/clustered/kubernetes/)
 
 For a more complete example of multi-machine clustered deployment, see the Kubernetes manifests in
-`deploy/kubernetes/`. This configuration demonstrates:
+`deploy/clustered/kubernetes/`. This configuration demonstrates:
 
 - Health checks with daemon ping/pong verification
 - Horizontal scaling of hosts and workers
@@ -216,8 +216,8 @@ For a more complete example of multi-machine clustered deployment, see the Kuber
 - Enrollment token management via Secrets
 
 While designed for local testing with kind/minikube, these manifests serve as a solid reference for
-production Kubernetes deployments. See the `deploy/kubernetes/README.md` for detailed deployment
-instructions.
+production Kubernetes deployments. See the `deploy/clustered/kubernetes/README.md` for detailed
+deployment instructions.
 
 ## Managing Enrollment Tokens
 
@@ -429,13 +429,12 @@ The daemon can handle many host/worker connections, but consider:
 - You need geographic distribution of hosts
 - You have specific firewall or network segmentation requirements
 
-**Use single-machine IPC when**:
+**Use single-process when**:
 
-- Running on a single server or VM
-- Using Docker Compose for development or small deployments
-- Network latency would be a concern
+- Getting started, developing, or running a single-server production deployment
+- You don't need to split components across machines or isolate them as separate processes
 - Simpler configuration is preferred
 
-For most users, the default IPC configuration (Docker Compose, Debian packages) is the recommended
-starting point. Graduate to clustered deployment when you have specific scaling, security, or
-distribution requirements.
+For most users, the single-process `moor` binary (Docker Compose default, Debian `moor` package) is
+the recommended starting point. Graduate to split-process or clustered deployment when you have
+specific isolation, scaling, or distribution requirements.

@@ -196,7 +196,7 @@ setup() {
     docker compose down -v 2>&1 | grep -v "^$" || true
 
     # Also manually remove any moor containers that might be stuck
-    for container in moor-daemon moor-telnet-host moor-web-host moor-frontend moor-curl-worker; do
+    for container in moor moor-daemon moor-telnet-host moor-web-host moor-frontend moor-curl-worker; do
         if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
             log_info "Removing stuck container: $container"
             docker rm -f "$container" 2>&1 | grep -v "^$" || true
@@ -212,7 +212,7 @@ setup() {
 
     # Pre-create directories with correct ownership to prevent Docker from creating them as root
     log_info "Creating data directories with correct ownership..."
-    mkdir -p ./moor-data ./moor-ipc ./moor-config ./moor-local-share ./moor-telnet-host-data ./moor-web-host-data ./moor-curl-worker-data 2>/dev/null || true
+    mkdir -p ./moor-data ./moor-ipc ./moor-config ./moor-local-share ./moor-telnet-host-data ./moor-web-host-data ./moor-curl-worker-data ./export 2>/dev/null || true
 
     log_info "Setup complete"
 }

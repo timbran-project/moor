@@ -70,6 +70,7 @@ WORKDIR /moor
 
 # The compiled service binaries from the backend build (debug or release depending on BUILD_PROFILE)
 COPY --from=backend-build /moor-build/target-final/moor-daemon /moor/moor-daemon
+COPY --from=backend-build /moor-build/target-final/moor /moor/moor
 COPY --from=backend-build /moor-build/target-final/moor-web-host /moor/moor-web-host
 COPY --from=backend-build /moor-build/target-final/moor-telnet-host /moor/moor-telnet-host
 COPY --from=backend-build /moor-build/target-final/moor-curl-worker /moor/moor-curl-worker
@@ -79,7 +80,7 @@ COPY --from=backend-build /moor-build/target-final/moorc /moor/moorc
 COPY --from=backend-build /moor-build/target-final/moor-emh /moor/moor-emh
 COPY --from=backend-build /moor-build/target-final/moor-mcp-host /moor/moor-mcp-host
 
-EXPOSE 8080
+EXPOSE 8080 8081 8888
 
 # Default stage - backend services with web client
 FROM backend AS default

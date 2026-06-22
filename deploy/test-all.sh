@@ -81,9 +81,9 @@ main() {
 
     # List of deployments to test
     declare -a DEPLOYMENTS=(
-        "telnet-only"
-        "web-basic"
-        "web-ssl"
+        "clustered/telnet-only"
+        "clustered/web-basic"
+        "clustered/web-ssl"
     )
 
     # Add debian-packages if prerequisites are available
@@ -96,7 +96,7 @@ main() {
 
     # Add kubernetes if prerequisites are available
     if command -v kind &> /dev/null && command -v kubectl &> /dev/null; then
-        DEPLOYMENTS+=("kubernetes")
+        DEPLOYMENTS+=("clustered/kubernetes")
     else
         echo -e "${YELLOW}⚠ Skipping kubernetes test (requires kind and kubectl)${NC}"
         echo
