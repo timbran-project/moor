@@ -19,7 +19,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::PathBuf,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{Arc, atomic::AtomicBool, mpsc},
 };
 
 use crate::{
@@ -103,6 +103,7 @@ pub struct DaemonRuntimeConfig {
     pub endpoints: DaemonEndpoints,
     pub keys: DaemonKeys,
     pub num_io_threads: i32,
+    pub workers_enabled: bool,
     #[cfg(feature = "trace_events")]
     pub trace_output_path: Option<PathBuf>,
 }
@@ -112,6 +113,7 @@ pub struct DaemonRuntime {
     pub zmq_context: zmq::Context,
     pub kill_switch: Arc<AtomicBool>,
     pub emergency_checkpoint: Option<Arc<AtomicBool>>,
+    pub ready_sender: Option<mpsc::Sender<()>>,
 }
 
 impl Default for DaemonRuntime {
@@ -120,6 +122,7 @@ impl Default for DaemonRuntime {
             zmq_context: zmq::Context::new(),
             kill_switch: Arc::new(AtomicBool::new(false)),
             emergency_checkpoint: None,
+            ready_sender: None,
         }
     }
 }
@@ -351,6 +354,7 @@ fn create_rpc_transport(
     events_listen: &str,
     rpc_listen: &str,
     curve_secret_key: Option<String>,
+    ready_sender: Option<mpsc::Sender<()>>,
 ) -> Result<Arc<dyn Transport>, Report> {
     let transport = Arc::new(
         RpcTransport::new(
@@ -359,6 +363,7 @@ fn create_rpc_transport(
             events_listen,
             rpc_listen,
             curve_secret_key,
+            ready_sender,
         )
         .map_err(|e| eyre!("Failed to create RPC transport: {}", e))?,
     ) as Arc<dyn Transport>;
@@ -448,6 +453,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         zmq_context,
         kill_switch,
         emergency_checkpoint,
+        ready_sender,
     } = runtime;
     let DaemonRuntimeConfig {
         version,
@@ -456,6 +462,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         endpoints,
         keys,
         num_io_threads,
+        workers_enabled,
         #[cfg(feature = "trace_events")]
         trace_output_path,
     } = runtime_config;
@@ -623,8 +630,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         |endpoints: &str| endpoints.split(',').any(|e| e.trim().starts_with("tcp://"));
     let use_curve =
         has_tcp_endpoint(&endpoints.rpc_listen) || has_tcp_endpoint(&endpoints.events_listen);
-    let use_curve_for_workers = has_tcp_endpoint(&endpoints.workers_request_listen)
-        || has_tcp_endpoint(&endpoints.workers_response_listen);
+    let use_curve_for_workers = workers_enabled
+        && (has_tcp_endpoint(&endpoints.workers_request_listen)
+            || has_tcp_endpoint(&endpoints.workers_response_listen));
 
     if use_curve {
         // Start ZAP authentication handler for CURVE
@@ -659,6 +667,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         } else {
             None
         },
+        ready_sender,
     )?;
 
     // Create the event log based on configuration
@@ -672,22 +681,64 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         Arc::new(NoOpEventLog::new())
     };
 
-    let (worker_scheduler_send, worker_scheduler_recv) = flume::unbounded();
+    let (workers_sender, worker_scheduler_recv, worker_info_source) = if workers_enabled {
+        let (worker_scheduler_send, worker_scheduler_recv) = flume::unbounded();
+        let workers_message_handler = Arc::new(
+            workers::WorkersMessageHandlerImpl::new(
+                zmq_ctx.clone(),
+                &endpoints.workers_request_listen,
+                worker_scheduler_send,
+                if use_curve_for_workers {
+                    Some(daemon_curve_keypair.secret.clone())
+                } else {
+                    None
+                },
+            )
+            .map_err(|e| eyre!("Failed to create workers message handler: {e}"))?,
+        );
 
-    // Create workers message handler early so it can be shared with SystemControlHandle
-    let workers_message_handler = Arc::new(
-        workers::WorkersMessageHandlerImpl::new(
+        let mut workers_server = WorkersServer::new(
+            kill_switch.clone(),
             zmq_ctx.clone(),
-            &endpoints.workers_request_listen,
-            worker_scheduler_send,
+            workers_message_handler.clone(),
             if use_curve_for_workers {
                 Some(daemon_curve_keypair.secret.clone())
             } else {
                 None
             },
+        );
+        let workers_sender = workers_server.start().map_err(|e| {
+            eyre!(
+                "Failed to start workers server on {}: {}",
+                endpoints.workers_request_listen,
+                e
+            )
+        })?;
+
+        let workers_listen_addr = endpoints.workers_response_listen.clone();
+        spawn_efficient("moor-workers-listen", move || {
+            if let Err(e) = workers_server.listen(&workers_listen_addr) {
+                error!(
+                    "Workers server failed to listen on {}: {}",
+                    workers_listen_addr, e
+                );
+            }
+        })?;
+
+        (
+            Some(workers_sender),
+            Some(worker_scheduler_recv),
+            workers_message_handler as Arc<dyn system_control::WorkerInfoSource>,
         )
-        .map_err(|e| eyre!("Failed to create workers message handler: {e}"))?,
-    );
+    } else {
+        info!("External worker transport is disabled");
+        (
+            None,
+            None,
+            Arc::new(system_control::NoopWorkerInfoSource)
+                as Arc<dyn system_control::WorkerInfoSource>,
+        )
+    };
 
     let (rpc_server, task_monitor, system_control) = RpcServer::new(
         kill_switch.clone(),
@@ -702,38 +753,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         } else {
             None
         },
-        workers_message_handler.clone(),
+        worker_info_source,
     );
     let rpc_server = Arc::new(rpc_server);
-
-    // Workers RPC server
-    let mut workers_server = WorkersServer::new(
-        kill_switch.clone(),
-        zmq_ctx.clone(),
-        workers_message_handler,
-        if use_curve_for_workers {
-            Some(daemon_curve_keypair.secret.clone())
-        } else {
-            None
-        },
-    );
-    let workers_sender = workers_server.start().map_err(|e| {
-        eyre!(
-            "Failed to start workers server on {}: {}",
-            endpoints.workers_request_listen,
-            e
-        )
-    })?;
-
-    let workers_listen_addr = endpoints.workers_response_listen.clone();
-    spawn_efficient("moor-workers-listen", move || {
-        if let Err(e) = workers_server.listen(&workers_listen_addr) {
-            error!(
-                "Workers server failed to listen on {}: {}",
-                workers_listen_addr, e
-            );
-        }
-    })?;
 
     // Enrollment server for host registration (only needed for CURVE/TCP)
     if use_curve {
@@ -764,8 +786,8 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         tasks_db,
         config.clone(),
         Arc::new(system_control),
-        Some(workers_sender),
-        Some(worker_scheduler_recv),
+        workers_sender,
+        worker_scheduler_recv,
     );
     let scheduler_client = scheduler.client().unwrap();
 

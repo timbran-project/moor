@@ -143,9 +143,6 @@ impl Scheduler {
         &self,
         cli_checkpoint_interval: Option<Duration>,
     ) -> Option<Duration> {
-        // Reload server options to get fresh dump_interval from database
-        self.reload_server_options();
-
         let so = self.server_options.load();
 
         // Determine the checkpoint interval using the proper precedence:
@@ -168,9 +165,6 @@ impl Scheduler {
     }
 
     pub fn get_gc_interval(&self) -> Option<Duration> {
-        // Reload server options to get fresh gc_interval from database
-        self.reload_server_options();
-
         let so = self.server_options.load();
 
         // Determine the GC interval using the proper precedence:

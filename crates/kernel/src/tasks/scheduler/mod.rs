@@ -229,8 +229,6 @@ impl Scheduler {
             lc.running = true;
         }
 
-        self.reload_server_options();
-
         // Start worker response thread if we have a worker receiver.
         if let Some(recv) = self.worker_response_recv.lock().take() {
             let scheduler = self.clone();

@@ -39,9 +39,8 @@ use moor_var::{Obj, Symbol};
 use rpc_async_client::{rpc_client::RpcClient, zmq};
 use rpc_common::{
     AuthToken, CLIENT_BROADCAST_TOPIC, ClientToken, mk_attach_msg, mk_call_system_verb_msg,
-    mk_connection_establish_msg, mk_detach_host_msg, mk_eval_msg, mk_get_server_features_msg,
-    mk_reattach_msg, mk_register_host_msg, mk_request_sys_prop_msg, mk_resolve_msg,
-    read_reply_result,
+    mk_connection_establish_msg, mk_eval_msg, mk_get_server_features_msg, mk_reattach_msg,
+    mk_request_sys_prop_msg, mk_resolve_msg, read_reply_result,
 };
 use std::{
     net::{IpAddr, SocketAddr},
@@ -385,6 +384,7 @@ pub enum WsHostError {
 
 impl WebHost {
     pub fn new(
+        zmq_context: tmq::Context,
         rpc_addr: String,
         narrative_addr: String,
         handler_object: Obj,
@@ -395,9 +395,8 @@ impl WebHost {
         trusted_proxy_cidrs: Arc<Vec<IpNet>>,
         webrtc_config: Arc<WebRtcConfig>,
     ) -> Self {
-        let tmq_context = tmq::Context::new();
         Self {
-            zmq_context: tmq_context,
+            zmq_context,
             rpc_addr,
             pubsub_addr: narrative_addr,
             handler_object,
@@ -898,99 +897,22 @@ impl WebHost {
     }
 
     pub async fn fetch_server_features(&self) -> Result<Vec<u8>, StatusCode> {
-        let zmq_ctx = self.zmq_context.clone();
-
-        let rpc_client = RpcClient::new_with_defaults(
-            std::sync::Arc::new(zmq_ctx.clone()),
-            self.rpc_addr.clone(),
-            self.curve_keys
-                .as_ref()
-                .map(|(client_secret, client_public, server_public)| {
-                    rpc_async_client::rpc_client::CurveKeys {
-                        client_secret: client_secret.clone(),
-                        client_public: client_public.clone(),
-                        server_public: server_public.clone(),
-                    }
-                }),
-        );
-        let timestamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(duration) => duration.as_nanos() as u64,
-            Err(e) => {
-                error!(
-                    "Invalid system time while registering temporary host: {}",
-                    e
-                );
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        let register_msg = mk_register_host_msg(
-            self.host_id,
-            timestamp,
-            moor_rpc::HostType::WebSocket,
-            Vec::new(),
-        );
-
-        let register_bytes = match rpc_client
-            .make_host_rpc_call(self.host_id, register_msg)
-            .await
-        {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                error!("Failed to register temporary host for feature fetch: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        let register_reply = match read_reply_result(&register_bytes) {
-            Ok(reply) => reply,
-            Err(e) => {
-                error!("Failed to parse register reply: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        let register_success = match register_reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(success)) => success,
-            Ok(_) => {
-                error!("Unexpected reply while registering temporary host");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-            Err(e) => {
-                error!("Missing register result: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        let register_reply_body = match register_success.reply() {
-            Ok(reply) => reply,
-            Err(e) => {
-                error!("Missing register reply body: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        match register_reply_body.reply() {
-            Ok(moor_rpc::DaemonToHostReplyUnionRef::DaemonToHostAck(_)) => {}
-            Ok(_) => {
-                error!("Unexpected register reply union");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-            Err(e) => {
-                error!("Missing register reply union: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        }
-
+        let rpc_client = self.build_rpc_client();
         let request_msg = mk_get_server_features_msg();
 
-        let reply_bytes = match rpc_client
-            .make_host_rpc_call(self.host_id, request_msg)
-            .await
+        let reply_bytes = match timeout(
+            Duration::from_secs(5),
+            rpc_client.make_host_rpc_call(self.host_id, request_msg),
+        )
+        .await
         {
-            Ok(bytes) => bytes,
-            Err(e) => {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(e)) => {
                 error!("Failed to fetch server features: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+            Err(_) => {
+                error!("Timed out fetching server features");
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         };
@@ -1035,14 +957,6 @@ impl WebHost {
             }
         }
 
-        let detach_msg = mk_detach_host_msg(self.host_id);
-        if let Err(e) = rpc_client
-            .make_host_rpc_call(self.host_id, detach_msg)
-            .await
-        {
-            error!("Failed to detach temporary host after feature fetch: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
         Ok(reply_bytes)
     }
 }

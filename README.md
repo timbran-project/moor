@@ -168,15 +168,16 @@ in the mooR Book.
 
 ### Alternative: Frontend Development Setup
 
-For frontend development and testing, you can run just the daemon and web client without Docker:
+For frontend development and testing, you can run the single-process `moor` server and web client
+without Docker:
 
 ```bash
 npm run full:dev
 ```
 
-This starts the moor-daemon and web development server, accessible at
-[http://localhost:3000](http://localhost:3000). This setup excludes telnet and provides
-hot-reloading for frontend development, but it requires installing some dependencies. See
+This starts the `moor` single-process binary and web development server, accessible at
+[http://localhost:3000](http://localhost:3000). The `moor` process runs the daemon, telnet host, and
+web host together while Vite provides hot-reloading for frontend development. See
 [the Meadow repository](https://codeberg.org/timbran/meadow) for details.
 
 ## Deployment Options

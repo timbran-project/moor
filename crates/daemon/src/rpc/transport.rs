@@ -19,6 +19,7 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
+        mpsc,
     },
     time::Duration,
 };
@@ -80,6 +81,7 @@ pub struct RpcTransport {
     ipc_rpc_endpoints: Vec<String>,
     /// TCP endpoints for RPC (with CURVE)
     tcp_rpc_endpoints: Vec<String>,
+    ready_sender: Option<mpsc::Sender<()>>,
 }
 
 impl RpcTransport {
@@ -110,6 +112,7 @@ impl RpcTransport {
         events_endpoints: &str,
         rpc_endpoints: &str,
         curve_secret_key: Option<String>,
+        ready_sender: Option<mpsc::Sender<()>>,
     ) -> Result<Self, eyre::Error> {
         // Parse endpoints into IPC and TCP groups
         let (ipc_events_endpoints, tcp_events_endpoints) = Self::parse_endpoints(events_endpoints);
@@ -175,6 +178,7 @@ impl RpcTransport {
             curve_secret_key,
             ipc_rpc_endpoints,
             tcp_rpc_endpoints,
+            ready_sender,
         })
     }
 
@@ -199,6 +203,52 @@ impl RpcTransport {
 
         loop {
             if kill_switch.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+
+            let poll_result = rpc_socket
+                .poll(zmq::POLLIN, 1000)
+                .with_context(|| "Error polling ZMQ socket. Bailing out.")?;
+            if poll_result == 0 {
+                continue;
+            }
+
+            match rpc_socket.recv_multipart(0) {
+                Err(_) => {
+                    info!("ZMQ socket closed, exiting");
+                    return Ok(());
+                }
+                Ok(request) => {
+                    if let Err(e) = Self::process_request(
+                        &rpc_socket,
+                        request,
+                        &scheduler_client,
+                        message_handler.as_ref(),
+                    ) {
+                        error!(error = ?e, "Error processing request");
+                    }
+                }
+            }
+        }
+    }
+
+    fn rpc_direct_inproc_loop(
+        &self,
+        scheduler_client: SchedulerClient,
+        message_handler: Arc<dyn MessageHandler>,
+    ) -> eyre::Result<()> {
+        let rpc_socket = self.zmq_context.socket(zmq::REP)?;
+        for endpoint in &self.ipc_rpc_endpoints {
+            rpc_socket.bind(endpoint)?;
+            info!("Inproc RPC endpoint bound at {}", endpoint);
+        }
+
+        if let Some(ready_sender) = self.ready_sender.as_ref() {
+            let _ = ready_sender.send(());
+        }
+
+        loop {
+            if self.kill_switch.load(Ordering::Relaxed) {
                 return Ok(());
             }
 
@@ -551,6 +601,17 @@ impl Transport for RpcTransport {
             num_io_threads, self.ipc_rpc_endpoints, self.tcp_rpc_endpoints
         );
 
+        let inproc_only = !has_tcp
+            && has_ipc
+            && self
+                .ipc_rpc_endpoints
+                .iter()
+                .all(|endpoint| endpoint.starts_with("inproc://"));
+        if inproc_only {
+            info!("Using direct inproc RPC server path");
+            return self.rpc_direct_inproc_loop(scheduler_client, message_handler);
+        }
+
         // Set up IPC ROUTER/DEALER if we have IPC endpoints
         if has_ipc {
             let mut ipc_clients = self.zmq_context.socket(zmq::ROUTER)?;
@@ -651,6 +712,10 @@ impl Transport for RpcTransport {
         } else {
             None
         };
+
+        if let Some(ready_sender) = self.ready_sender.as_ref() {
+            let _ = ready_sender.send(());
+        }
 
         loop {
             if self.kill_switch.load(Ordering::Relaxed) {

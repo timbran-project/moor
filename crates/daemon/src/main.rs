@@ -132,6 +132,7 @@ fn main() -> Result<(), Report> {
             allowed_hosts_dir: args.resolved_allowed_hosts_dir(),
         },
         num_io_threads: args.num_io_threads,
+        workers_enabled: true,
         #[cfg(feature = "trace_events")]
         trace_output_path: args.resolved_trace_output_path(),
     };
@@ -139,6 +140,7 @@ fn main() -> Result<(), Report> {
         zmq_context: zmq::Context::new(),
         kill_switch,
         emergency_checkpoint: Some(emergency_checkpoint),
+        ready_sender: None,
     };
 
     moor_daemon::run(runtime_config, runtime)

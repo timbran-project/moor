@@ -53,6 +53,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `daemon`:
 
+- New `moor` single-process binary runs daemon, telnet host, and web host in one process using a
+  shared ZeroMQ context and internal `inproc://` RPC/event endpoints, with Debian config and
+  systemd service assets.
 - `TaskClient` high-level async client for verb invocation from hosts, with session event streaming
   and `TaskResult::Suspended` support
 - `invoke_verb_handler` rewritten to use `TaskClient`, removing ~162 lines of per-handler ZMQ

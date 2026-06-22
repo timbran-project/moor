@@ -155,6 +155,7 @@ impl Listeners {
         };
 
         let web_host = WebHost::new(
+            self.zmq_ctx.clone(),
             self.rpc_address.clone(),
             self.events_address.clone(),
             handler,

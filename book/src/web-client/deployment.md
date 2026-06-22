@@ -143,21 +143,11 @@ proxy_send_timeout 3600s;
 During development, Vite serves the web client and proxies API/WebSocket requests:
 
 ```bash
-# Terminal 1: Start daemon
-npm run daemon:dev
-
-# Terminal 2: Start web host
-npm run web-host:dev
-
-# Terminal 3: Start Vite dev server
-npm run dev
-```
-
-Or use the combined script:
-
-```bash
 npm run full:dev
 ```
+
+This starts the Vite dev server and the single-process `moor` server. The `moor` process runs the
+daemon, telnet host, and web host together for local development.
 
 Vite's proxy configuration is in `vite.config.ts`.
 
