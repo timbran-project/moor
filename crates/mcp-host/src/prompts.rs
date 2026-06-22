@@ -264,7 +264,9 @@ Use the `moo_function_help` tool to get documentation for any builtin function.
 
 ## Reference
 
-- Full grammar: https://raw.githubusercontent.com/rdaum/moor/refs/heads/main/crates/compiler/src/moo.pest
+- Current syntax implementation:
+  - Lexer: https://raw.githubusercontent.com/rdaum/moor/refs/heads/main/crates/compiler/src/lexer.rs
+  - Parser: https://raw.githubusercontent.com/rdaum/moor/refs/heads/main/crates/compiler/src/frontend/parser.rs
 - Documentation: https://timbran.codeberg.page/moor-book-html/
 "#;
 
