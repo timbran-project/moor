@@ -11,6 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Per-client telnet session state machine, daemon RPC flow, and terminal output.
+
+pub(crate) mod codec;
+mod djot_formatter;
+mod moo_highlighter;
+
 use std::{
     collections::{HashMap, VecDeque},
     net::SocketAddr,
@@ -19,7 +25,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use crate::connection_codec::{ConnectionCodec, ConnectionFrame, ConnectionItem};
+use self::codec::{ConnectionCodec, ConnectionFrame, ConnectionItem};
 use eyre::{Context, bail};
 use futures_util::{
     SinkExt, StreamExt,
@@ -63,7 +69,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
 /// Type alias for a boxed async stream that can be either TcpStream or TlsStream.
 pub(crate) type BoxedAsyncIo = Pin<Box<dyn AsyncStream>>;
 
-use crate::djot_formatter::{RenderOptions, djot_to_terminal_with_options};
+use self::djot_formatter::{RenderOptions, djot_to_terminal_with_options};
 
 /// Out of band messages are prefixed with this string, e.g. for MCP clients.
 const OUT_OF_BAND_PREFIX: &str = "#$#";
@@ -561,7 +567,7 @@ impl TelnetConnection {
                 self.is_binary_mode = binary_mode;
 
                 // Switch the codec mode by sending a SetMode frame
-                use crate::connection_codec::ConnectionMode;
+                use self::codec::ConnectionMode;
                 let new_mode = if binary_mode {
                     ConnectionMode::Binary
                 } else {

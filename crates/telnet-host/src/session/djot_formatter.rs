@@ -13,7 +13,7 @@
 
 //! Djot to ANSI terminal formatter using jotdown parser, colored output, and tabled.
 
-use crate::moo_highlighter::highlight_moo;
+use super::moo_highlighter::highlight_moo;
 use colored::{Color, ColoredString, Colorize};
 use jotdown::{
     Alignment, Container, Event, ListKind, OrderedListNumbering, OrderedListStyle, Parser,

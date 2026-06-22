@@ -179,101 +179,125 @@ impl ConnectionCodec {
             let c = buf[0];
             buf.advance(1);
 
-            match self.telnet_state {
-                TelnetState::Normal => {
-                    if c == 0xFF {
-                        // IAC — begin telnet command sequence
-                        self.telnet_state = TelnetState::Iac;
-                        self.command_buf.clear();
-                        self.command_buf.push(c);
-                    } else if c == b'\r' || (c == b'\n' && !self.last_input_was_cr) {
-                        // Line ending (LambdaMOO semantics)
-                        self.last_input_was_cr = c == b'\r';
-                        let line = String::from_utf8_lossy(&self.line_buf).into_owned();
-                        self.line_buf.clear();
-                        return Ok(Some(ConnectionItem::Line(line)));
-                    } else if c == b'\n' && self.last_input_was_cr {
-                        // LF immediately following CR — part of CRLF, ignore
-                        self.last_input_was_cr = false;
-                    } else {
-                        self.last_input_was_cr = false;
-                        // Keep printable characters and tab, filter control chars
-                        // Matches ToastStunt: isgraph(c) || c == ' ' || c == '\t'
-                        if c == 0x09 || (c >= 0x20 && c != 0x7F) {
-                            self.line_buf.push(c);
-                            // Check max line length
-                            if let Some(max) = self.max_length
-                                && self.line_buf.len() > max
-                            {
-                                self.line_buf.clear();
-                                return Err(ConnectionCodecError::MaxLineLengthExceeded);
-                            }
-                        }
-                    }
-                }
-                TelnetState::Iac => {
-                    self.command_buf.push(c);
-                    match c {
-                        0xFF => {
-                            // IAC IAC — escaped literal 0xFF
-                            // Not valid in UTF-8 text, so just discard
-                            self.telnet_state = TelnetState::Normal;
-                        }
-                        0xFA => {
-                            // SB — subnegotiation begin
-                            self.telnet_state = TelnetState::Subneg;
-                        }
-                        0xFB..=0xFE => {
-                            // WILL (0xFB), WONT (0xFC), DO (0xFD), DONT (0xFE)
-                            // Need one more byte (the option code)
-                            self.telnet_state = TelnetState::WillWontDoDont;
-                        }
-                        _ => {
-                            // Two-byte command: NOP(0xF1), DM(0xF2), BRK(0xF3),
-                            // IP(0xF4), AO(0xF5), AYT(0xF6), EC(0xF7), EL(0xF8),
-                            // GA(0xF9), SE(0xF0), or unknown
-                            self.telnet_state = TelnetState::Normal;
-                            let cmd = Bytes::from(std::mem::take(&mut self.command_buf));
-                            return Ok(Some(ConnectionItem::TelnetCommand(cmd)));
-                        }
-                    }
-                }
-                TelnetState::WillWontDoDont => {
-                    // Option byte after WILL/WONT/DO/DONT
-                    self.command_buf.push(c);
-                    self.telnet_state = TelnetState::Normal;
-                    let cmd = Bytes::from(std::mem::take(&mut self.command_buf));
-                    return Ok(Some(ConnectionItem::TelnetCommand(cmd)));
-                }
-                TelnetState::Subneg => {
-                    self.command_buf.push(c);
-                    if c == 0xFF {
-                        self.telnet_state = TelnetState::SubnegIac;
-                    }
-                }
-                TelnetState::SubnegIac => {
-                    self.command_buf.push(c);
-                    match c {
-                        0xF0 => {
-                            // SE — end of subnegotiation
-                            self.telnet_state = TelnetState::Normal;
-                            let cmd = Bytes::from(std::mem::take(&mut self.command_buf));
-                            return Ok(Some(ConnectionItem::TelnetCommand(cmd)));
-                        }
-                        0xFF => {
-                            // IAC IAC within subneg — escaped 0xFF data byte
-                            self.telnet_state = TelnetState::Subneg;
-                        }
-                        _ => {
-                            // Unexpected byte after IAC in subneg — continue
-                            self.telnet_state = TelnetState::Subneg;
-                        }
-                    }
-                }
+            if let Some(item) = self.process_text_byte(c)? {
+                return Ok(Some(item));
             }
         }
 
         Ok(None)
+    }
+
+    fn process_text_byte(&mut self, c: u8) -> Result<Option<ConnectionItem>, ConnectionCodecError> {
+        match self.telnet_state {
+            TelnetState::Normal => self.process_normal_byte(c),
+            TelnetState::Iac => Ok(self.process_iac_byte(c)),
+            TelnetState::WillWontDoDont => Ok(Some(self.process_option_byte(c))),
+            TelnetState::Subneg => Ok(self.process_subneg_byte(c)),
+            TelnetState::SubnegIac => Ok(self.process_subneg_iac_byte(c)),
+        }
+    }
+
+    fn process_normal_byte(
+        &mut self,
+        c: u8,
+    ) -> Result<Option<ConnectionItem>, ConnectionCodecError> {
+        if c == 0xFF {
+            self.start_telnet_command(c);
+            return Ok(None);
+        }
+
+        if c == b'\r' || (c == b'\n' && !self.last_input_was_cr) {
+            self.last_input_was_cr = c == b'\r';
+            return Ok(Some(self.emit_line()));
+        }
+
+        if c == b'\n' && self.last_input_was_cr {
+            self.last_input_was_cr = false;
+            return Ok(None);
+        }
+
+        self.last_input_was_cr = false;
+        self.push_text_byte(c)?;
+        Ok(None)
+    }
+
+    fn process_iac_byte(&mut self, c: u8) -> Option<ConnectionItem> {
+        self.command_buf.push(c);
+        match c {
+            0xFF => {
+                // IAC IAC: escaped literal 0xFF. Not valid UTF-8 text, so discard.
+                self.telnet_state = TelnetState::Normal;
+                None
+            }
+            0xFA => {
+                self.telnet_state = TelnetState::Subneg;
+                None
+            }
+            0xFB..=0xFE => {
+                self.telnet_state = TelnetState::WillWontDoDont;
+                None
+            }
+            _ => {
+                self.telnet_state = TelnetState::Normal;
+                Some(self.emit_telnet_command())
+            }
+        }
+    }
+
+    fn process_option_byte(&mut self, c: u8) -> ConnectionItem {
+        self.command_buf.push(c);
+        self.telnet_state = TelnetState::Normal;
+        self.emit_telnet_command()
+    }
+
+    fn process_subneg_byte(&mut self, c: u8) -> Option<ConnectionItem> {
+        self.command_buf.push(c);
+        if c == 0xFF {
+            self.telnet_state = TelnetState::SubnegIac;
+        }
+        None
+    }
+
+    fn process_subneg_iac_byte(&mut self, c: u8) -> Option<ConnectionItem> {
+        self.command_buf.push(c);
+        if c == 0xF0 {
+            self.telnet_state = TelnetState::Normal;
+            return Some(self.emit_telnet_command());
+        }
+
+        self.telnet_state = TelnetState::Subneg;
+        None
+    }
+
+    fn start_telnet_command(&mut self, c: u8) {
+        self.telnet_state = TelnetState::Iac;
+        self.command_buf.clear();
+        self.command_buf.push(c);
+    }
+
+    fn push_text_byte(&mut self, c: u8) -> Result<(), ConnectionCodecError> {
+        if c != 0x09 && (c < 0x20 || c == 0x7F) {
+            return Ok(());
+        }
+
+        self.line_buf.push(c);
+        if let Some(max) = self.max_length
+            && self.line_buf.len() > max
+        {
+            self.line_buf.clear();
+            return Err(ConnectionCodecError::MaxLineLengthExceeded);
+        }
+        Ok(())
+    }
+
+    fn emit_line(&mut self) -> ConnectionItem {
+        let line = String::from_utf8_lossy(&self.line_buf).into_owned();
+        self.line_buf.clear();
+        ConnectionItem::Line(line)
+    }
+
+    fn emit_telnet_command(&mut self) -> ConnectionItem {
+        ConnectionItem::TelnetCommand(Bytes::from(std::mem::take(&mut self.command_buf)))
     }
 }
 

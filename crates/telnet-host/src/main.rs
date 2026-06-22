@@ -11,9 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Telnet host process startup, configuration loading, and shutdown coordination.
+
 #![allow(clippy::too_many_arguments)]
 
-use crate::listen::{Listeners, load_tls_config};
+use crate::health::spawn_health_check;
+use crate::listeners::{Listeners, load_tls_config};
 use clap::Parser;
 use clap_derive::Parser;
 use colored::control;
@@ -30,18 +33,15 @@ use std::{
     },
 };
 use tokio::{
-    net::TcpListener,
     select,
     signal::unix::{SignalKind, signal},
 };
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use uuid::Uuid;
 
-mod connection;
-mod connection_codec;
-mod djot_formatter;
-mod listen;
-mod moo_highlighter;
+mod health;
+mod listeners;
+mod session;
 
 static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
     format!(
@@ -245,62 +245,12 @@ async fn main() -> Result<(), eyre::Error> {
             });
     }
 
-    // Start health check server
     let health_check_addr = format!("{}:{}", args.telnet_address, args.health_check_port);
-    info!("Starting health check endpoint on {}", health_check_addr);
-    let health_kill_switch = kill_switch.clone();
-    let health_ping_tracker = last_daemon_ping.clone();
-    tokio::spawn(async move {
-        let health_sockaddr = match health_check_addr.parse::<SocketAddr>() {
-            Ok(addr) => addr,
-            Err(e) => {
-                error!(
-                    "Failed to parse health check address {}: {}",
-                    health_check_addr, e
-                );
-                return;
-            }
-        };
-
-        let listener = match TcpListener::bind(health_sockaddr).await {
-            Ok(l) => l,
-            Err(e) => {
-                error!("Unable to bind health check listener: {}", e);
-                return;
-            }
-        };
-
-        loop {
-            if health_kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
-                break;
-            }
-
-            match listener.accept().await {
-                Ok((mut socket, addr)) => {
-                    debug!("Health check probe from {}", addr);
-
-                    // Check if we've received a daemon ping recently
-                    let last_ping = health_ping_tracker.load(std::sync::atomic::Ordering::Relaxed);
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-
-                    // Report healthy if: no ping yet (last_ping == 0, still starting up) OR ping within last 30s
-                    let response: &[u8] = if last_ping == 0 || now - last_ping < 30 {
-                        b"OK\n"
-                    } else {
-                        b"UNHEALTHY\n"
-                    };
-
-                    let _ = tokio::io::AsyncWriteExt::write_all(&mut socket, response).await;
-                }
-                Err(e) => {
-                    debug!("Health check accept error: {}", e);
-                }
-            }
-        }
-    });
+    spawn_health_check(
+        health_check_addr,
+        kill_switch.clone(),
+        last_daemon_ping.clone(),
+    );
 
     info!("Starting host session...");
 
