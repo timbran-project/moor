@@ -1,0 +1,25 @@
+[Unit]
+AssertPathExists=/usr/bin/moor
+After=network.target
+Description=mooR single-process server
+
+[Service]
+Environment="RUST_BACKTRACE=full"
+Environment="XDG_CONFIG_HOME=/etc"
+Environment="XDG_DATA_HOME=/var/lib"
+ExecStart=/usr/bin/moor \
+  --config-file /etc/moor/moor-config.yaml \
+  --generate-keypair \
+  /var/spool/moor
+Restart=on-failure
+Type=simple
+WorkingDirectory=/var/spool/moor
+PrivateTmp=false
+NoNewPrivileges=true
+User=moor
+Group=moor
+RuntimeDirectory=moor
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

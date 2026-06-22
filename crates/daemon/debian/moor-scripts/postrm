@@ -1,0 +1,32 @@
+#!/bin/sh
+
+MOOR_CONF=/etc/moor/moor-config.yaml
+
+case "$1" in
+purge)
+    if [ -f ${MOOR_CONF} ]; then
+        rm ${MOOR_CONF}
+    fi
+
+    if [ -d /var/spool/moor ]; then
+        rm -rf /var/spool/moor
+    fi
+
+    if [ -d /var/lib/moor ]; then
+        rm -rf /var/lib/moor
+    fi
+
+    ;;
+esac
+
+#DEBHELPER#
+
+if [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+
+if [ "$1" = "remove" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper mask moor.service >/dev/null
+	fi
+fi
