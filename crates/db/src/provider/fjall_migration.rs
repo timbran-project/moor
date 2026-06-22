@@ -453,9 +453,9 @@ mod tests {
     fn test_fjall_semver_version_comparison() {
         // Test that semver comparisons work as expected for our use case
         let v1_0_0 = Version::parse("1.0.0").unwrap();
-        let v1_1_0 = Version::parse("1.1.0").unwrap();
-        let v1_0_1 = Version::parse("1.0.1").unwrap();
         let v2_0_0 = Version::parse("2.0.0").unwrap();
+        let v2_1_0 = Version::parse("2.1.0").unwrap();
+        let v2_0_1 = Version::parse("2.0.1").unwrap();
 
         // Major version changes require migration
         assert!(v1_0_0 < v2_0_0);
@@ -463,12 +463,12 @@ mod tests {
         assert_eq!(v2_0_0.major, 2);
 
         // Minor version changes are backward compatible (no migration needed)
-        assert!(v1_0_0 < v1_1_0);
-        assert_eq!(v1_0_0.major, v1_1_0.major);
+        assert!(v2_0_0 < v2_1_0);
+        assert_eq!(v2_0_0.major, v2_1_0.major);
 
         // Patch version changes are bug fixes (no migration needed)
-        assert!(v1_0_0 < v1_0_1);
-        assert_eq!(v1_0_0.major, v1_0_1.major);
+        assert!(v2_0_0 < v2_0_1);
+        assert_eq!(v2_0_0.major, v2_0_1.major);
     }
 
     #[test]

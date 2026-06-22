@@ -16,7 +16,7 @@ enhancements.
 >
 > Use the stable [`1.0.1` release](https://codeberg.org/timbran/moor/releases/tag/1.0.1), the
 > `v1.0-release` branch, or published `1.0.1` images/packages for running worlds and evaluating
-> mooR. `main` tracks `1.1.0-dev` and contains active next-version development work.
+> mooR. `main` tracks `2.0.0-dev` and contains active next-version development work.
 >
 > Exception: Cowbell currently tracks `main` and requires post-1.0 runtime/compiler features. Use
 > `main` if you want to build and run Cowbell through the bundled setup scripts.
@@ -97,7 +97,7 @@ testing.
 **Branch policy**:
 
 - `v1.0-release` branch: stable `1.0` release line for bug fixes, stability work, and patch releases
-- `main` branch: `1.1.0-dev` feature development
+- `main` branch: `2.0.0-dev` feature development
 - Bug fixes land on `main` first, then are cherry-picked to `v1.0-release` when safe
 - Stable release tags, packages, and published images are cut from `v1.0-release`
 - Database formats and APIs are stable on the 1.0 release branch
