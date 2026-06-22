@@ -154,10 +154,10 @@ OAuth2 is enabled.
 
 ### `GET /auth/oauth2/{provider}/authorize`
 
-**Start an OAuth2 authorization flow**
+**Start a cookie-bound OAuth2 authorization flow**
 
 Generates a provider authorization URL and a CSRF state token. Sets a `moor_oauth_nonce` cookie for
-browser-binding.
+cookie-bound redemption.
 
 **Parameters**
 
@@ -176,17 +176,54 @@ browser-binding.
 
 ---
 
+### `POST /auth/oauth2/{provider}/app/start`
+
+**Start a proof-bound OAuth2 authorization flow**
+
+Starts OAuth2 for clients that do not rely on browser cookies. Stores redirect target + PKCE
+challenge server-side and returns an authorization URL. Callback redirects to the app redirect URI
+with a one-time `handoff_code`.
+
+**Parameters**
+
+| Name       | In   | Type   | Required | Description                |
+| ---------- | ---- | ------ | -------- | -------------------------- |
+| `provider` | path | string | Yes      | OAuth2 provider identifier |
+
+**Request body** (required)
+
+- Content-Type: `application/json`
+
+  | Field                   | Type   | Required | Description                                      |
+  | ----------------------- | ------ | -------- | ------------------------------------------------ |
+  | `redirect_uri`          | string | Yes      | Redirect target for proof-bound callback handoff |
+  | `intent`                | string | No       | Optional client-defined intent/context           |
+  | `code_challenge`        | string | Yes      | PKCE code challenge (S256)                       |
+  | `code_challenge_method` | `S256` | Yes      |                                                  |
+
+**Responses**
+
+- **200**: Authorization URL generated
+  - Content-Type: `application/json`
+- **400**: Invalid provider, redirect URI, or PKCE input
+  - Content-Type: `application/json`
+- **404**: OAuth2 not enabled
+
+---
+
 ### `GET /auth/oauth2/{provider}/callback`
 
 **OAuth2 provider callback**
 
 Called by the OAuth2 provider after user consent. Validates the CSRF state, exchanges the
-authorization code for user info, and redirects the browser:
+authorization code for user info, and redirects according to flow binding:
 
-- **Existing user** → `/#auth_code={code}`
-- **New user** → `/#oauth2_code={code}&oauth2_display={json}`
+- **Cookie-bound existing user** → `/#auth_code={code}`
+- **Cookie-bound new user** → `/#oauth2_code={code}&oauth2_display={json}`
+- **Proof-bound** → `{redirect_uri}?handoff_code={code}`
 
-The code is a server-side one-time token redeemable via `/auth/oauth2/exchange`.
+The code is a server-side one-time token redeemable via `/auth/oauth2/exchange` (cookie) or
+`/auth/oauth2/app/exchange` (proof).
 
 **Parameters**
 
@@ -205,7 +242,7 @@ The code is a server-side one-time token redeemable via `/auth/oauth2/exchange`.
 
 ### `POST /auth/oauth2/exchange`
 
-**Exchange a one-time code for tokens or identity**
+**Exchange a cookie-bound one-time code for tokens or identity**
 
 Redeems a server-side one-time code produced by the callback. Returns either an `auth_session`
 (existing user) or an `identity` (new user needing account choice). Requires the `moor_oauth_nonce`
@@ -224,6 +261,32 @@ cookie.
 - **200**: Code exchanged
   - Content-Type: `application/json`
 - **401**: Invalid/expired code or missing nonce cookie
+  - Content-Type: `application/json`
+- **404**: OAuth2 not enabled (route absent)
+
+---
+
+### `POST /auth/oauth2/app/exchange`
+
+**Exchange a proof-bound handoff code**
+
+Redeems a one-time proof-bound handoff code using a PKCE verifier. Returns an auth session for
+existing users, or identity details plus an `identity_code` for account-choice submission.
+
+**Request body** (required)
+
+- Content-Type: `application/json`
+
+  | Field           | Type   | Required | Description                                        |
+  | --------------- | ------ | -------- | -------------------------------------------------- |
+  | `handoff_code`  | string | Yes      | One-time handoff code from callback redirect       |
+  | `code_verifier` | string | Yes      | PKCE verifier matching the start request challenge |
+
+**Responses**
+
+- **200**: Code exchanged
+  - Content-Type: `application/json`
+- **401**: Invalid/expired code or invalid verifier
   - Content-Type: `application/json`
 - **404**: OAuth2 not enabled (route absent)
 
@@ -248,6 +311,39 @@ cookie.
   | `player_name`       | string                              | No       | Desired player name (for oauth2_create)                |
   | `existing_email`    | string                              | No       | Email of existing account to link (for oauth2_connect) |
   | `existing_password` | string                              | No       | Password of existing account (for oauth2_connect)      |
+
+**Responses**
+
+- **200**: Account created/linked, session established
+  - Content-Type: `application/json`
+- **400**: Invalid mode or code type mismatch
+  - Content-Type: `application/json`
+- **401**: Authentication failed or invalid code
+  - Content-Type: `application/json`
+- **404**: OAuth2 not enabled
+- **500**: Internal server error
+
+---
+
+### `POST /auth/oauth2/app/account`
+
+**Create or link account using proof-bound identity code**
+
+Submits account-choice for proof-bound OAuth2 flows. Requires `identity_code` and PKCE
+`code_verifier`; no nonce cookie.
+
+**Request body** (required)
+
+- Content-Type: `application/json`
+
+  | Field               | Type                                | Required | Description                                             |
+  | ------------------- | ----------------------------------- | -------- | ------------------------------------------------------- |
+  | `mode`              | `oauth2_create` \| `oauth2_connect` | Yes      |                                                         |
+  | `identity_code`     | string                              | Yes      | One-time identity code from `/auth/oauth2/app/exchange` |
+  | `code_verifier`     | string                              | Yes      | PKCE verifier used to bind account-choice redemption    |
+  | `player_name`       | string                              | No       | Desired player name (for oauth2_create)                 |
+  | `existing_email`    | string                              | No       | Email of existing account to link (for oauth2_connect)  |
+  | `existing_password` | string                              | No       | Password of existing account (for oauth2_connect)       |
 
 **Responses**
 
@@ -584,6 +680,36 @@ Requires: `X-Moor-Auth-Token`
 
 ---
 
+### `GET /v1/objects/query`
+
+**Query objects with filters**
+
+Returns a list of objects matching the provided filters. Internally uses BatchWorldState with a
+WsQueryObjects action.
+
+Requires: `X-Moor-Auth-Token`
+
+**Parameters**
+
+| Name        | In    | Type             | Required | Description                          |
+| ----------- | ----- | ---------------- | -------- | ------------------------------------ |
+| `parent`    | query | string           | No       | Filter by direct parent (CURIE)      |
+| `location`  | query | string           | No       | Filter by container (CURIE)          |
+| `owner`     | query | string           | No       | Filter by owner (CURIE)              |
+| `flags_all` | query | integer (uint16) | No       | Require all of these flags (bitmask) |
+| `flags_any` | query | integer (uint16) | No       | Require any of these flags (bitmask) |
+
+**Responses**
+
+- **200**: Query results
+  - Content-Type: `application/x-flatbuffers`
+  - Content-Type: `application/json`
+- **401**: Missing or invalid auth token
+- **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
+- **500**: Internal server error
+
+---
+
 ### `GET /v1/objects/{object}`
 
 **Resolve an object reference**
@@ -604,6 +730,37 @@ Requires: `X-Moor-Auth-Token`
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
 - **400**: Invalid object CURIE
+- **401**: Missing or invalid auth token
+- **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
+- **500**: Internal server error
+
+---
+
+### `POST /v1/batch`
+
+**Execute multiple world state operations atomically**
+
+Submits a list of world state actions to be executed in a single transaction. Supports both
+FlatBuffers (`BatchWorldState` table) and JSON payloads.
+
+Requires: `X-Moor-Auth-Token`
+
+**Request body** (required)
+
+- Content-Type: `application/x-flatbuffers`
+- Content-Type: `application/json`
+
+  | Field      | Type    | Required | Description |
+  | ---------- | ------- | -------- | ----------- |
+  | `actions`  | array   | Yes      |             |
+  | `rollback` | boolean | No       |             |
+
+**Responses**
+
+- **200**: Batch execution results
+  - Content-Type: `application/x-flatbuffers`
+  - Content-Type: `application/json`
+- **400**: Invalid request body
 - **401**: Missing or invalid auth token
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
 - **500**: Internal server error

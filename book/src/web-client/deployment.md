@@ -64,14 +64,14 @@ See `deploy/clustered/kubernetes/` for Ingress and Deployment manifests.
 
 The proxy must forward these paths to `moor-web-host`:
 
-| Path          | Purpose                  |
-| ------------- | ------------------------ |
-| `/v1/`        | Versioned REST API       |
-| `/auth/`      | Authentication endpoints |
-| `/ws/`        | WebSocket connections    |
-| `/webhooks/`  | External webhook ingress |
-| `/health`     | Health check             |
-| `/version`    | Version info             |
+| Path         | Purpose                  |
+| ------------ | ------------------------ |
+| `/v1/`       | Versioned REST API       |
+| `/auth/`     | Authentication endpoints |
+| `/ws/`       | WebSocket connections    |
+| `/webhooks/` | External webhook ingress |
+| `/health`    | Health check             |
+| `/version`   | Version info             |
 
 All other paths serve static web client assets.
 
@@ -163,7 +163,7 @@ npm run full:dev
 This starts the Vite dev server and the single-process `moor` server. The `moor` process runs the
 daemon, telnet host, and web host together for local development.
 
-Vite's proxy configuration is in `vite.config.ts`.
+Vite's proxy configuration is in `clients/meadow/vite.config.ts`.
 
 ## Environment Variables
 

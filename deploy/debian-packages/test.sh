@@ -251,7 +251,7 @@ if [ -n "$WEB_DEB" ]; then
 
     # Test web endpoint
     log_info "Testing web endpoint..."
-    HTTP_STATUS=$(incus exec "$CONTAINER_NAME" -- curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/fb/invoke_welcome_message)
+    HTTP_STATUS=$(incus exec "$CONTAINER_NAME" -- curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v1/invoke_welcome_message)
     if [ "$HTTP_STATUS" = "200" ]; then
         log_info "✓ Web host responding (HTTP $HTTP_STATUS)"
     else
