@@ -104,7 +104,7 @@ npm install
 # Start development server (defaults to http://localhost:3000)
 npm run dev
 
-# Start the full stack (requires 'moor' to be in a sibling directory)
+# Start the full stack with the single-process moor server
 npm run full:dev
 
 # Build for production
@@ -120,7 +120,7 @@ npm run lint
 ### Environment Variables
 
 - `MOOR_PATH`: Path to the mooR backend repository (defaults to `../moor`).
-- `MOOR_API_URL`: URL of the `moor-web-host` API (defaults to `http://localhost:8080`).
+- `MOOR_API_URL`: URL of the mooR web API (defaults to `http://localhost:8080`).
 - `MOOR_WS_URL`: URL of the WebSocket endpoint (defaults to `ws://localhost:8080`).
 
 ## FlatBuffer Schemas
