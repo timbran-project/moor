@@ -258,19 +258,25 @@ telnet localhost 8888
 **Purpose**: Traditional Linux installation with systemd services
 
 Native Linux installation using standard Debian/Ubuntu package management with systemd service
-control. Provides separate packages for each component: `moor-daemon` (core MOO server),
-`moor-telnet-host` (telnet server), `moor-web-host` (web API server), and `moor-web-client` (static
-web files). Best suited for traditional Linux server administration, integration with existing
-system management tools, and users comfortable with systemd on Debian/Ubuntu based systems.
+control. Provides a `moor` single-process package and split-service packages for `moor-daemon`,
+`moor-telnet-host`, `moor-web-host`, and web client assets. Best suited for traditional Linux server
+administration, integration with existing system management tools, and users comfortable with
+systemd on Debian/Ubuntu based systems.
 
 **Quick start**:
 
 ```bash
 cd debian-packages
 ./build-all-packages.sh
-sudo dpkg -i moor-daemon_*.deb
-sudo dpkg -i moor-telnet-host_*.deb
-sudo dpkg -i moor-web-host_*.deb
+
+# Single-process service:
+sudo dpkg -i ../../target/debian/moor_*.deb
+sudo systemctl start moor
+
+# Or split services:
+sudo dpkg -i ../../target/debian/moor-daemon_*.deb
+sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
+sudo dpkg -i ../../target/debian/moor-web-host_*.deb
 sudo systemctl start moor-daemon
 ```
 

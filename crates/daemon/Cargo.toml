@@ -9,26 +9,25 @@ license.workspace = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "The actual moor binary that runs as an RPC-accessible daemon that various frontends can connect to."
+description = "Server binaries for the Moor virtual machine."
 
 [package.metadata.deb]
 maintainer = "Ryan Daum, operating as Timbran Consulting <ryan.daum@gmail.com>"
 depends = "$auto, systemd, openssl"
+conflicts = "moor"
+replaces = "moor"
 extended-description = "Daemon for the Moor virtual machine. This is the main process that runs the Moor VM and provides an RPC interface for clients to connect to."
 section = "net"
 license-file = ["../../LICENSE", "0"]
 priority = "optional"
 assets = [
     ["target/release/moor-daemon", "/usr/bin/moor-daemon", "755"],
-    ["target/release/moor", "/usr/bin/moor", "755"],
     [
         "debian/moor-daemon.service",
         "/lib/systemd/system/moor-daemon.service",
         "644",
     ],
-    ["debian/moor.service", "/lib/systemd/system/moor.service", "644"],
     ["debian/moor-daemon-config.yaml", "/etc/moor/daemon-config.yaml", "644"],
-    ["debian/moor-config.yaml", "/etc/moor/moor-config.yaml", "644"],
     [
         "../../cores/lambda-moor/**/*",
         "/usr/share/moor/cores/lambda-moor/",
@@ -36,6 +35,25 @@ assets = [
     ],
 ]
 maintainer-scripts = "debian/scripts"
+systemd-units = { enable = false }
+
+[package.metadata.deb.variants.moor]
+name = "moor"
+depends = "$auto, systemd, openssl"
+conflicts = "moor-daemon"
+replaces = "moor-daemon"
+extended-description = "Single-process Moor server. This package runs the daemon runtime, telnet host, and web host in one process."
+assets = [
+    ["target/release/moor", "/usr/bin/moor", "755"],
+    ["debian/moor.service", "/lib/systemd/system/moor.service", "644"],
+    ["debian/moor-config.yaml", "/etc/moor/moor-config.yaml", "644"],
+    [
+        "../../cores/lambda-moor/**/*",
+        "/usr/share/moor/cores/lambda-moor/",
+        "644",
+    ],
+]
+maintainer-scripts = "debian/moor-scripts"
 systemd-units = { enable = false }
 
 [[bin]]
@@ -53,6 +71,7 @@ fast-telemetry.workspace = true
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-compiler = { path = "../compiler" }
+moor-curl-worker = { path = "../curl-worker" }
 moor-db = { path = "../db" }
 moor-kernel = { path = "../kernel" }
 moor-objdef = { path = "../objdef" }

@@ -16,13 +16,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   movement and corner-cutting prevention
 - New `fromliteral()` builtin for parsing one MOO literal value from a string without evaluating MOO
   code
-- New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small,
-  deterministic building blocks for pattern matching over MOO values and for implementing
-  Datalog/Prolog-like rule evaluation in core code without writing a custom search engine in MOO:
+- New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small, deterministic
+  building blocks for pattern matching over MOO values and for implementing Datalog/Prolog-like rule
+  evaluation in core code without writing a custom search engine in MOO:
   - `term_unify(pattern, value [, bindings [, options]])` unifies supplied MOO values using
     `{'var, name}` variable markers and returns the resulting bindings map or false.
-  - `term_substitute(template, bindings [, options])` replaces variable markers from a bindings
-    map, with options for raising on or leaving unbound variables.
+  - `term_substitute(template, bindings [, options])` replaces variable markers from a bindings map,
+    with options for raising on or leaving unbound variables.
   - `term_query(query, facts [, rules [, bindings [, options]]])` evaluates positive rule/fact
     queries over supplied MOO values, with bounded depth, step, binding, and solution limits.
 - Granular task capability grants via the wizard-only two-argument form of `set_task_perms()`.
@@ -54,8 +54,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `daemon`:
 
 - New `moor` single-process binary runs daemon, telnet host, and web host in one process using a
-  shared ZeroMQ context and internal `inproc://` RPC/event endpoints, with Debian config and
-  systemd service assets.
+  shared ZeroMQ context and internal `inproc://` RPC/event endpoints, with Debian config and systemd
+  service assets.
+- `moor` can optionally run an embedded curl worker over internal `inproc://` worker endpoints; this
+  is disabled by default.
+- Debian packaging now emits a separate `moor` package for the single-process server instead of
+  bundling `/usr/bin/moor` into `moor-daemon`.
 - `TaskClient` high-level async client for verb invocation from hosts, with session event streaming
   and `TaskResult::Suspended` support
 - `invoke_verb_handler` rewritten to use `TaskClient`, removing ~162 lines of per-handler ZMQ

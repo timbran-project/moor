@@ -3424,6 +3424,7 @@ dependencies = [
  "mimalloc",
  "moor-common",
  "moor-compiler",
+ "moor-curl-worker",
  "moor-db",
  "moor-kernel",
  "moor-objdef",

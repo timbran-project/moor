@@ -81,6 +81,8 @@ for pkg in moor-daemon moor-telnet-host moor-web-host moor-curl-worker moorc moo
     echo "  Building $pkg..."
     cargo deb -p "$pkg" --profile release --no-build
 done
+echo "  Building moor..."
+cargo deb -p moor-daemon --variant moor --profile release --no-build
 echo ""
 
 # Copy x86_64 packages to output

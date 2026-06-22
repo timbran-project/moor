@@ -29,10 +29,11 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use thiserror::Error;
 use tmq::{TmqError, request};
+use tokio::time::timeout;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -61,6 +62,36 @@ where
 {
     let zmq_ctx = tmq::Context::new();
 
+    worker_loop_with_context(
+        kill_switch,
+        my_id,
+        zmq_ctx,
+        worker_response_rpc_addr,
+        worker_request_rpc_addr,
+        worker_type,
+        perform,
+        curve_keys,
+        last_daemon_ping,
+    )
+    .await
+}
+
+pub async fn worker_loop_with_context<ProcessFunc, Fut>(
+    kill_switch: &Arc<AtomicBool>,
+    my_id: Uuid,
+    zmq_ctx: tmq::Context,
+    worker_response_rpc_addr: &str,
+    worker_request_rpc_addr: &str,
+    worker_type: Symbol,
+    perform: Arc<ProcessFunc>,
+    curve_keys: Option<(String, String, String)>, // (client_secret, client_public, server_public) - Z85 encoded
+    last_daemon_ping: Option<Arc<AtomicU64>>,
+) -> Result<(), WorkerRpcError>
+where
+    ProcessFunc:
+        Fn(Uuid, Symbol, Obj, Vec<Var>, Option<std::time::Duration>) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<Var, WorkerError>> + Send + 'static + Sync,
+{
     // First attempt to connect to the daemon and "attach" ourselves.
     let _rpc_client = attach_worker(
         worker_type,
@@ -116,9 +147,10 @@ where
         if kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
             break;
         }
-        let event = workers_events_recv(&mut sub)
-            .await
-            .map_err(WorkerRpcError::RpcError)?;
+        let event = match timeout(Duration::from_millis(250), workers_events_recv(&mut sub)).await {
+            Ok(result) => result.map_err(WorkerRpcError::RpcError)?,
+            Err(_) => continue,
+        };
 
         let ctx = zmq_ctx.clone();
         let perform_p = perform.clone();

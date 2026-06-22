@@ -38,6 +38,9 @@ echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/ap
 
 # Update and install
 sudo apt update
+sudo apt install moor
+
+# Or install the split services instead:
 sudo apt install moor-daemon moor-telnet-host moor-web-host moor-web-client
 ```
 
@@ -47,7 +50,11 @@ Download pre-built `.deb` packages from the
 [mooR 1.0.0 Codeberg release](https://codeberg.org/timbran/moor/releases/tag/1.0.0):
 
 ```bash
-sudo dpkg -i moor-*.deb
+sudo dpkg -i moor_*.deb
+
+# Or install split-service packages:
+sudo dpkg -i moor-daemon_*.deb moor-telnet-host_*.deb moor-web-host_*.deb
+
 sudo apt-get install -f  # Install any missing dependencies
 ```
 
@@ -58,7 +65,12 @@ Build packages yourself using the provided scripts in `deploy/debian-packages/`:
 ```bash
 cd deploy/debian-packages
 ./build-all-packages.sh
-sudo dpkg -i ../../target/debian/moor-*.deb
+sudo dpkg -i ../../target/debian/moor_*.deb
+
+# Or install split-service packages:
+sudo dpkg -i ../../target/debian/moor-daemon_*.deb
+sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
+sudo dpkg -i ../../target/debian/moor-web-host_*.deb
 ```
 
 ### Comprehensive Documentation

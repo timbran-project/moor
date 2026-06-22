@@ -39,6 +39,9 @@ For Debian/Ubuntu systems, install the packages and configure nginx:
 sudo apt install moor-daemon moor-web-host moor-web-client
 
 # Or install from downloaded .deb files
+sudo dpkg -i moor_*.deb moor-web-client_*.deb
+
+# Or install the split web host:
 sudo dpkg -i moor-daemon_*.deb moor-web-host_*.deb moor-web-client_*.deb
 
 # Configure nginx (copy from deploy/debian-packages/)

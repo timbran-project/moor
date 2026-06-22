@@ -7,10 +7,15 @@ suitable for traditional Linux server deployments using systemd service manageme
 
 mooR can be packaged into several Debian packages:
 
+- **moor**: Single-process server with daemon, telnet, and web host in one systemd service
 - **moor-daemon**: Core MOO server with systemd service
 - **moor-telnet-host**: Telnet server with systemd service
 - **moor-web-host**: Web API server with systemd service
 - **meadow**: Web client static files (architecture-independent, managed in Meadow repository)
+
+Install either `moor` or the split `moor-daemon`/host packages on a server. The `moor` and
+`moor-daemon` packages conflict because they own different service models and duplicate the bundled
+LambdaCore assets.
 
 ## Use Case
 
@@ -69,20 +74,26 @@ cd deploy/debian-packages
 ./build-all-packages.sh
 ```
 
-This will create .deb files in the repository root:
+This will create .deb files in `target/debian/`:
 
+- `moor_*.deb`
 - `moor-daemon_*.deb`
 - `moor-telnet-host_*.deb`
 - `moor-web-host_*.deb`
-- `moor-web-client_*.deb`
+- `moor-curl-worker_*.deb`
+- `moorc_*.deb`
+- `moor-emh_*.deb`
 
 ### Building Individual Packages
 
-#### Rust Binary Packages (daemon, telnet-host, web-host)
+#### Rust Binary Packages
 
 ```bash
 # Build in release mode first
 cargo build --release --workspace
+
+# Build single-process package
+cargo deb -p moor-daemon --variant moor --no-build
 
 # Build daemon package
 cargo deb -p moor-daemon --no-build
@@ -124,6 +135,9 @@ echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/ap
 
 # Update and install
 sudo apt update
+sudo apt install moor
+
+# Or install the split services instead:
 sudo apt install moor-daemon moor-telnet-host moor-web-host meadow
 ```
 
@@ -135,14 +149,15 @@ Download `.deb` packages from the [releases page](https://codeberg.org/timbran/m
 install manually:
 
 ```bash
-# 1. Install daemon first (core service)
-sudo dpkg -i moor-daemon_*.deb
+# Single-process server
+sudo dpkg -i moor_*.deb
 
-# 2. Install hosts (depend on daemon being installed)
+# Or install the split services:
+sudo dpkg -i moor-daemon_*.deb
 sudo dpkg -i moor-telnet-host_*.deb
 sudo dpkg -i moor-web-host_*.deb
 
-# 3. Install web client (optional, needs nginx or similar)
+# Web client is optional and needs nginx or similar.
 sudo dpkg -i meadow_*.deb
 
 # Fix any missing dependencies
@@ -154,7 +169,14 @@ sudo apt-get install -f
 If you built packages yourself (see Building Packages above):
 
 ```bash
-sudo dpkg -i ../../target/debian/moor-*.deb
+# Single-process server
+sudo dpkg -i ../../target/debian/moor_*.deb
+
+# Or split services:
+sudo dpkg -i ../../target/debian/moor-daemon_*.deb
+sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
+sudo dpkg -i ../../target/debian/moor-web-host_*.deb
+
 sudo apt-get install -f  # Fix any missing dependencies
 ```
 
