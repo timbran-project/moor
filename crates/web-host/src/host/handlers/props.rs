@@ -11,6 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Property listing and retrieval endpoints for world objects.
+
 use crate::host::{
     auth::StatelessAuth,
     flatbuffer_response,

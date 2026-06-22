@@ -11,12 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! HTTP handlers for OAuth2 authentication endpoints
+//! HTTP handlers for OAuth2 authentication endpoints.
 
-use crate::host::{
-    WebHost,
-    oauth2::{FlowBinding, OAuth2Manager, PendingOAuth2Code, PendingOAuth2Store},
-};
+use super::oauth2::{FlowBinding, OAuth2Manager, PendingOAuth2Code, PendingOAuth2Store};
+use crate::host::WebHost;
 use axum::{
     Json,
     extract::{ConnectInfo, Path, Query, State},

@@ -11,41 +11,34 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod auth;
-mod batch;
-mod event_log;
-pub(crate) mod negotiate;
-mod oauth2;
-mod oauth2_handlers;
-mod objects;
-mod props;
-mod verbs;
-pub mod web_host;
-mod webhooks;
-pub(crate) mod webrtc;
-mod ws_connection;
+//! Web host state, routing, authentication, session, and HTTP handler modules.
 
+mod auth;
+mod handlers;
+pub(crate) mod negotiate;
+mod session;
+pub mod web_host;
+
+pub(crate) use session::webrtc;
+
+pub use auth::{
+    OAuth2Config, OAuth2Manager, OAuth2State, PendingOAuth2Store, oauth2_account_choice_handler,
+    oauth2_app_account_choice_handler, oauth2_app_exchange_handler, oauth2_app_start_handler,
+    oauth2_authorize_handler, oauth2_callback_handler, oauth2_config_handler,
+    oauth2_exchange_handler,
+};
 pub use auth::{connect_auth_handler, create_auth_handler, logout_handler, validate_auth_handler};
-pub use batch::batch_handler;
-pub use event_log::{
-    delete_history_handler, dismiss_presentation_handler, get_pubkey_handler, history_handler,
-    presentations_handler, set_pubkey_handler,
+pub use handlers::{
+    batch_handler, delete_history_handler, dismiss_presentation_handler, get_pubkey_handler,
+    history_handler, invoke_verb_handler, list_objects_handler, presentations_handler,
+    properties_handler, property_retrieval_handler, query_objects_handler, set_pubkey_handler,
+    update_property_handler, verb_program_handler, verb_retrieval_handler, verbs_handler,
+    web_hook_handler,
 };
-pub use oauth2::{OAuth2Config, OAuth2Manager, PendingOAuth2Store};
-pub use oauth2_handlers::{
-    OAuth2State, oauth2_account_choice_handler, oauth2_app_account_choice_handler,
-    oauth2_app_exchange_handler, oauth2_app_start_handler, oauth2_authorize_handler,
-    oauth2_callback_handler, oauth2_config_handler, oauth2_exchange_handler,
-};
-pub use objects::{list_objects_handler, query_objects_handler, update_property_handler};
-pub use props::{properties_handler, property_retrieval_handler};
-pub use verbs::{invoke_verb_handler, verb_program_handler, verb_retrieval_handler, verbs_handler};
 pub use web_host::{
     WebHost, eval_handler, features_handler, health_handler, invoke_welcome_message_handler,
     openapi_handler, resolve_objref_handler, system_property_handler, version_handler,
     ws_connect_attach_handler, ws_create_attach_handler,
 };
-
-pub use webhooks::web_hook_handler;
 
 pub(crate) use negotiate::flatbuffer_response;

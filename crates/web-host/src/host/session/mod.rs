@@ -11,6 +11,11 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Per-client session event loop and realtime transport coordination.
+
+pub(crate) mod webrtc;
+mod websocket;
+
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use moor_schema::{
@@ -38,12 +43,11 @@ use tokio::select;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-use super::webrtc::{
-    self, SignalingMessage, WebRtcConfig, WebRtcPeer, encode_signaling_message,
-    parse_signaling_message,
+use self::webrtc::{
+    SignalingMessage, WebRtcConfig, WebRtcPeer, encode_signaling_message, parse_signaling_message,
 };
+use self::websocket::{ReadEvent, read_websocket_event};
 
-const TASK_TIMEOUT: Duration = Duration::from_secs(10);
 const WEBSOCKET_PING_INTERVAL: Duration = Duration::from_secs(30);
 
 // Application-level heartbeat to detect zombie WebSocket connections.
@@ -52,7 +56,6 @@ const WEBSOCKET_PING_INTERVAL: Duration = Duration::from_secs(30);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const HEARTBEAT_REQUEST: u8 = 0x02;
-const HEARTBEAT_RESPONSE: u8 = 0x01;
 
 fn log_rpc_failure(failure: moor_rpc::FailureRef<'_>) {
     match failure.error() {
@@ -64,7 +67,7 @@ fn log_rpc_failure(failure: moor_rpc::FailureRef<'_>) {
     }
 }
 
-pub struct WebSocketConnection {
+pub struct ClientSession {
     pub(crate) player: Obj,
     pub(crate) peer_addr: SocketAddr,
     pub(crate) broadcast_sub: Subscribe,
@@ -84,24 +87,11 @@ pub struct WebSocketConnection {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PendingTask {
-    task_id: usize,
-    start_time: Instant,
+    pub(crate) task_id: usize,
+    pub(crate) start_time: Instant,
 }
 
-pub enum ReadEvent {
-    Command(Message),
-    InputReply(Message),
-    ConnectionClose {
-        close_code: Option<u16>,
-        is_logout: bool,
-    },
-    PendingEvent,
-    Ping(Vec<u8>),
-    HeartbeatResponse,
-    WebRtcSignaling(Vec<u8>),
-}
-
-impl WebSocketConnection {
+impl ClientSession {
     /// Build a CredentialsUpdatedEvent as serialized FlatBuffer bytes
     fn build_credentials_event(&self) -> Vec<u8> {
         let event = moor_rpc::ClientEvent {
@@ -175,94 +165,12 @@ impl WebSocketConnection {
                 break;
             }
 
-            // We should not send the next line until we've received a narrative event for the
-            // previous.
-            //
-            let input_future = async {
-                if let Some(pt) = &self.pending_task
-                    && expecting_input.is_empty()
-                    && pt.start_time.elapsed() > TASK_TIMEOUT
-                {
-                    error!(
-                        "Task {} stuck without response for more than {TASK_TIMEOUT:?}",
-                        pt.task_id
-                    );
-                    self.pending_task = None;
-                } else if self.pending_task.is_some() && expecting_input.is_empty() {
-                    return ReadEvent::PendingEvent;
-                }
-
-                loop {
-                    let Some(Ok(msg)) = ws_receiver.next().await else {
-                        return ReadEvent::ConnectionClose {
-                            close_code: None,
-                            is_logout: false,
-                        };
-                    };
-
-                    // Filter out WebSocket control frames (ping, pong, close)
-                    // Only process actual data messages (text/binary)
-                    match msg {
-                        Message::Binary(ref data) if data.len() == 1 && data[0] == 0x00 => {
-                            // Application-level keepalive (single zero byte)
-                            // Used to prevent proxy idle timeouts (e.g., Cloudflare)
-                            trace!("Received keepalive from client");
-                            continue;
-                        }
-                        Message::Binary(ref data)
-                            if data.len() == 1 && data[0] == HEARTBEAT_RESPONSE =>
-                        {
-                            // Application-level heartbeat response
-                            trace!("Received heartbeat response from client");
-                            return ReadEvent::HeartbeatResponse;
-                        }
-                        Message::Binary(ref data)
-                            if !data.is_empty() && data[0] == webrtc::SIGNALING_PREFIX =>
-                        {
-                            // WebRTC signaling message
-                            return ReadEvent::WebRtcSignaling(data.to_vec());
-                        }
-                        Message::Text(_) | Message::Binary(_) => {
-                            if !expecting_input.is_empty() {
-                                return ReadEvent::InputReply(msg);
-                            }
-                            return ReadEvent::Command(msg);
-                        }
-                        Message::Ping(payload) => {
-                            // Client sent us a ping - we must respond with a pong
-                            trace!("Received ping from client");
-                            return ReadEvent::Ping(payload.to_vec());
-                        }
-                        Message::Pong(_) => {
-                            // Client responded to our ping
-                            trace!("Received pong from client");
-                            continue;
-                        }
-                        Message::Close(close_frame) => {
-                            let close_code = close_frame.as_ref().map(|f| f.code);
-                            let close_reason = close_frame.as_ref().map(|f| f.reason.to_string());
-                            if let Some(frame) = &close_frame {
-                                debug!(
-                                    "WebSocket close frame received: code={}, reason={:?}",
-                                    frame.code, frame.reason
-                                );
-                            }
-                            // Check if the reason is "LOGOUT" to determine if this is an explicit logout
-                            let is_logout = close_reason.as_deref() == Some("LOGOUT");
-                            if is_logout {
-                                debug!("Detected explicit logout from close reason");
-                            }
-                            return ReadEvent::ConnectionClose {
-                                close_code,
-                                is_logout,
-                            };
-                        }
-                    }
-                }
-            };
-
             select! {
-                line = input_future => {
+                line = read_websocket_event(
+                    &mut ws_receiver,
+                    !expecting_input.is_empty(),
+                    &mut self.pending_task,
+                ) => {
                     match line {
                         ReadEvent::Command(line) => {
                             self.process_command_line(line).await;

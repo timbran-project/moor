@@ -11,6 +11,18 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Authentication endpoints, extractors, and session-token validation.
+
+mod oauth2;
+mod oauth2_handlers;
+
+pub use oauth2::{OAuth2Config, OAuth2Manager, PendingOAuth2Store};
+pub use oauth2_handlers::{
+    OAuth2State, oauth2_account_choice_handler, oauth2_app_account_choice_handler,
+    oauth2_app_exchange_handler, oauth2_app_start_handler, oauth2_authorize_handler,
+    oauth2_callback_handler, oauth2_config_handler, oauth2_exchange_handler,
+};
+
 use crate::host::{
     WebHost,
     web_host::{LoginType, WsHostError},

@@ -11,6 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Web host state, route handlers, and daemon attach/reattach orchestration.
+
 #![allow(clippy::too_many_arguments)]
 
 use crate::host::{
@@ -19,7 +21,7 @@ use crate::host::{
         BOTH_FORMATS, ResponseFormat, TEXT_PLAIN_CONTENT_TYPE, negotiate_response_format,
         reply_result_to_json, require_content_type,
     },
-    ws_connection::WebSocketConnection,
+    session::{ClientSession, webrtc::WebRtcConfig},
 };
 use axum::{
     Json,
@@ -370,7 +372,7 @@ pub struct WebHost {
     pub(crate) trusted_proxy_cidrs: Arc<Vec<IpNet>>,
     /// Cached server features response (features don't change at runtime).
     features_cache: Arc<tokio::sync::OnceCell<Vec<u8>>>,
-    pub(crate) webrtc_config: Arc<super::webrtc::WebRtcConfig>,
+    pub(crate) webrtc_config: Arc<WebRtcConfig>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -391,7 +393,7 @@ impl WebHost {
         host_id: Uuid,
         last_daemon_ping: Arc<AtomicU64>,
         trusted_proxy_cidrs: Arc<Vec<IpNet>>,
-        webrtc_config: Arc<super::webrtc::WebRtcConfig>,
+        webrtc_config: Arc<WebRtcConfig>,
     ) -> Self {
         let tmq_context = tmq::Context::new();
         Self {
@@ -705,7 +707,7 @@ impl WebHost {
     }
 
     /// Actually instantiate the connection now that we've validated the auth token.
-    pub async fn start_ws_connection(
+    pub async fn start_client_session(
         &self,
         handler_object: &Obj,
         player: &Obj,
@@ -714,7 +716,7 @@ impl WebHost {
         auth_token: AuthToken,
         rpc_client: RpcClient,
         peer_addr: SocketAddr,
-    ) -> Result<WebSocketConnection, eyre::Error> {
+    ) -> Result<ClientSession, eyre::Error> {
         let zmq_ctx = self.zmq_context.clone();
 
         // We'll need to subscribe to the narrative & broadcast messages for this connection.
@@ -779,7 +781,7 @@ impl WebHost {
             .iter()
             .cloned()
             .collect();
-        Ok(WebSocketConnection {
+        Ok(ClientSession {
             handler_object: *handler_object,
             player: *player,
             peer_addr,
@@ -1249,7 +1251,7 @@ async fn attach(
     let (player, client_id, client_token, rpc_client) = connection_details;
 
     let Ok(mut connection) = host
-        .start_ws_connection(
+        .start_client_session(
             &host.handler_object,
             &player,
             client_id,
