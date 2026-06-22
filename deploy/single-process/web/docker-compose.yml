@@ -1,0 +1,70 @@
+# Web deployment using the single-process `moor` backend.
+#
+# Set ARCH=aarch64 in your environment or .env file for ARM systems. Defaults to x86_64.
+
+x-moor-image: &moor-image
+  image: codeberg.org/timbran/moor:latest-${ARCH:-x86_64}
+
+networks:
+  moor_net:
+
+volumes:
+  web-client-files:
+
+services:
+  moor:
+    <<: *moor-image
+    container_name: "moor"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    environment:
+      - RUST_BACKTRACE=1
+      - HOME=/moor
+      - XDG_CONFIG_HOME=/moor/.config
+      - XDG_DATA_HOME=/moor/.local/share
+    working_dir: /moor
+    volumes:
+      - ./moor-data:/moor/moor-data
+      - ../../../cores:/moor/cores:ro
+      - ./moor-config:/moor/.config
+      - ./moor-local-share:/moor/.local/share
+      - ./export:/moor/export
+    command: >
+      ./moor
+        /moor/moor-data
+        --db=production.db
+        --generate-keypair
+        --import=/moor/cores/lambda-moor/src
+        --import-format=objdef
+        --export=/moor/export
+        --enable-curl-worker
+        --web-listen-address=0.0.0.0:8081
+    ports:
+      - "8888:8888"
+    networks:
+      - moor_net
+    restart: unless-stopped
+
+  moor-frontend-init:
+    <<: *moor-image
+    container_name: "moor-frontend-init"
+    command: ["cp", "-r", "/moor/web-client/.", "/web-client/"]
+    volumes:
+      - web-client-files:/web-client
+    restart: "no"
+
+  moor-frontend:
+    image: nginx:alpine
+    container_name: "moor-frontend"
+    volumes:
+      - web-client-files:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      moor-frontend-init:
+        condition: service_completed_successfully
+      moor:
+        condition: service_started
+    ports:
+      - "8080:80"
+    networks:
+      - moor_net
+    restart: unless-stopped

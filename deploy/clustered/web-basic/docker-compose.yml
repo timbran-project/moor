@@ -1,0 +1,174 @@
+# Web-enabled production deployment for mooR (HTTP only, no SSL)
+# This configuration includes the web client and API server alongside telnet support.
+# Suitable for local deployments or when SSL/TLS is handled by an external reverse proxy.
+# Uses IPC (Unix domain sockets) for inter-process communication since all services run on the same host.
+#
+# Set ARCH=aarch64 in your environment (or .env file) for ARM systems. Defaults to x86_64.
+
+# Reusable image reference -- change the arch in one place via the ARCH env var
+x-moor-image: &moor-image
+  image: codeberg.org/timbran/moor:latest-${ARCH:-x86_64}
+
+networks:
+  moor_net:
+
+# Named volume used to pass the pre-built web client from the moor image to the nginx frontend
+volumes:
+  web-client-files:
+
+services:
+  # The core Moor daemon, which handles the database, scheduling and execution of tasks, and hosts the RPC server.
+  moor-daemon:
+    <<: *moor-image
+    # To use locally-built images instead, comment out the x-moor-image merge above and uncomment:
+    # build:
+    #   context: ../../..
+    #   target: backend
+    #   network: host
+    #   args:
+    #     BUILD_PROFILE: release
+    container_name: "moor-daemon"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    environment:
+      - RUST_BACKTRACE=1
+      - HOME=/moor
+      - XDG_CONFIG_HOME=/moor/.config
+      - XDG_DATA_HOME=/moor/.local/share
+    working_dir: /moor
+    volumes:
+      - ./moor-data:/moor/moor-data
+      - ../../../cores:/moor/cores:ro
+      - ./moor-ipc:/var/run/moor
+      - ./moor-config:/moor/.config
+      - ./moor-local-share:/moor/.local/share
+    command: >
+      ./moor-daemon
+        /moor/moor-data
+        --db=production.db
+        --rpc-listen=ipc:///var/run/moor/rpc.sock
+        --events-listen=ipc:///var/run/moor/events.sock
+        --workers-response-listen=ipc:///var/run/moor/workers-response.sock
+        --workers-request-listen=ipc:///var/run/moor/workers-request.sock
+        --generate-keypair
+        --import=/moor/cores/lambda-moor/src --import-format=objdef
+    networks:
+      - moor_net
+    restart: unless-stopped
+
+  # A host process that runs the telnet server, and handles incoming connections and forwards events to the daemon.
+  moor-telnet-host:
+    <<: *moor-image
+    container_name: "moor-telnet-host"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    environment:
+      - RUST_BACKTRACE=1
+      - HOME=/moor
+      - XDG_CONFIG_HOME=/moor/.config
+      - XDG_DATA_HOME=/moor/.local/share
+    working_dir: /moor
+    volumes:
+      - ./moor-telnet-host-data:/moor/.moor-host-data
+      - ./moor-ipc:/var/run/moor
+      - ./moor-config:/moor/.config:ro
+      - ./moor-local-share:/moor/.local/share:ro
+    command:
+      - ./moor-telnet-host
+      - --telnet-address=0.0.0.0
+      - --telnet-port=8888
+      - --rpc-address=ipc:///var/run/moor/rpc.sock
+      - --events-address=ipc:///var/run/moor/events.sock
+    ports:
+      # Telnet listener
+      - "8888:8888"
+    networks:
+      - moor_net
+    depends_on:
+      moor-daemon:
+        condition: service_started
+    restart: unless-stopped
+
+  # API server that handles websocket connections and REST endpoints
+  moor-web-host:
+    <<: *moor-image
+    container_name: "moor-web-host"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    environment:
+      - RUST_BACKTRACE=1
+      - HOME=/moor
+      - XDG_CONFIG_HOME=/moor/.config
+      - XDG_DATA_HOME=/moor/.local/share
+    working_dir: /moor
+    volumes:
+      - ./moor-web-host-data:/moor/.moor-host-data
+      - ./moor-ipc:/var/run/moor
+      - ./moor-config:/moor/.config:ro
+      - ./moor-local-share:/moor/.local/share:ro
+    command:
+      - ./moor-web-host
+      - --listen-address=0.0.0.0:8081
+      - --rpc-address=ipc:///var/run/moor/rpc.sock
+      - --events-address=ipc:///var/run/moor/events.sock
+    networks:
+      - moor_net
+    depends_on:
+      moor-daemon:
+        condition: service_started
+    restart: unless-stopped
+
+  # One-shot init service that copies the pre-built web client out of the moor image into a shared volume
+  moor-frontend-init:
+    <<: *moor-image
+    container_name: "moor-frontend-init"
+    command: ["cp", "-r", "/moor/web-client/.", "/web-client/"]
+    volumes:
+      - web-client-files:/web-client
+    restart: "no"
+
+  # Frontend web server that serves static files and proxies API calls
+  moor-frontend:
+    image: nginx:alpine
+    container_name: "moor-frontend"
+    volumes:
+      - web-client-files:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      moor-frontend-init:
+        condition: service_completed_successfully
+      moor-web-host:
+        condition: service_started
+    ports:
+      # Main web interface
+      - "8080:80"
+    networks:
+      - moor_net
+    restart: unless-stopped
+
+  # A worker process that handles requests from the daemon for outbound HTTP requests and returns the results back
+  # to the daemon.
+  moor-curl-worker:
+    <<: *moor-image
+    container_name: "moor-curl-worker"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    environment:
+      - RUST_BACKTRACE=1
+      - HOME=/moor
+      - XDG_CONFIG_HOME=/moor/.config
+      - XDG_DATA_HOME=/moor/.local/share
+    working_dir: /moor
+    volumes:
+      - ./moor-curl-worker-data:/moor/.moor-host-data
+      - ./moor-ipc:/var/run/moor
+      - ./moor-config:/moor/.config:ro
+      - ./moor-local-share:/moor/.local/share:ro
+    command:
+      - ./moor-curl-worker
+      - --rpc-address=ipc:///var/run/moor/rpc.sock
+      - --events-address=ipc:///var/run/moor/events.sock
+      - --workers-request-address=ipc:///var/run/moor/workers-request.sock
+      - --workers-response-address=ipc:///var/run/moor/workers-response.sock
+    networks:
+      - moor_net
+    depends_on:
+      moor-daemon:
+        condition: service_started
+    restart: unless-stopped
