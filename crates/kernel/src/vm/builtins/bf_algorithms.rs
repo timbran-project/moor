@@ -134,33 +134,33 @@ impl Default for MatchOptions {
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-enum AstarReturn {
+enum GridAstarReturn {
     Path,
     Cost,
     Detail,
 }
 
 #[derive(Clone, Copy)]
-struct AstarOptions {
+struct GridAstarOptions {
     directions: u8,
     corner_cutting: bool,
-    return_mode: AstarReturn,
+    return_mode: GridAstarReturn,
     max_nodes: Option<usize>,
 }
 
-impl Default for AstarOptions {
+impl Default for GridAstarOptions {
     fn default() -> Self {
         Self {
             directions: 8,
             corner_cutting: false,
-            return_mode: AstarReturn::Path,
+            return_mode: GridAstarReturn::Path,
             max_nodes: None,
         }
     }
 }
 
 #[derive(Debug)]
-struct AstarResult {
+struct GridAstarResult {
     path: Vec<Var>,
     cost: i64,
     visited: usize,
@@ -344,13 +344,15 @@ fn parse_match_options(value: Option<&Var>) -> Result<MatchOptions, BfErr> {
     Ok(options)
 }
 
-fn parse_astar_options(value: Option<&Var>) -> Result<AstarOptions, BfErr> {
-    let mut options = AstarOptions::default();
+fn parse_grid_astar_options(value: Option<&Var>) -> Result<GridAstarOptions, BfErr> {
+    let mut options = GridAstarOptions::default();
     let Some(value) = value else {
         return Ok(options);
     };
     let Some(map) = value.as_map() else {
-        return Err(BfErr::ErrValue(E_TYPE.msg("astar() options must be a map")));
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("grid_astar() options must be a map"),
+        ));
     };
 
     for (key, value) in map.iter_ref() {
@@ -372,11 +374,11 @@ fn parse_astar_options(value: Option<&Var>) -> Result<AstarOptions, BfErr> {
         } else if key == *RETURN_SYM {
             let mode = option_value_symbol(value, "return")?;
             if mode == *PATH_SYM {
-                options.return_mode = AstarReturn::Path;
+                options.return_mode = GridAstarReturn::Path;
             } else if mode == *COST_SYM {
-                options.return_mode = AstarReturn::Cost;
+                options.return_mode = GridAstarReturn::Cost;
             } else if mode == *DETAIL_SYM {
-                options.return_mode = AstarReturn::Detail;
+                options.return_mode = GridAstarReturn::Detail;
             } else {
                 return Err(BfErr::ErrValue(
                     E_INVARG.msg("return option must be 'path, 'cost, or 'detail"),
@@ -386,7 +388,7 @@ fn parse_astar_options(value: Option<&Var>) -> Result<AstarOptions, BfErr> {
             options.max_nodes = Some(positive_usize_option(value, "max_nodes")?);
         } else {
             return Err(BfErr::ErrValue(
-                E_INVARG.msg(format!("unknown astar() option: {key}")),
+                E_INVARG.msg(format!("unknown grid_astar() option: {key}")),
             ));
         }
     }
@@ -1575,7 +1577,7 @@ fn bf_term_query(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_list(&engine.solutions)))
 }
 
-struct AstarPathArgs<'grid, 'budget> {
+struct GridAstarPathArgs<'grid, 'budget> {
     width: usize,
     height: usize,
     start_x: i32,
@@ -1583,12 +1585,12 @@ struct AstarPathArgs<'grid, 'budget> {
     goal_x: i32,
     goal_y: i32,
     passable: &'grid [bool],
-    options: AstarOptions,
+    options: GridAstarOptions,
     tick_budget: Option<BuiltinTickBudget<'budget>>,
 }
 
-fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
-    let AstarPathArgs {
+fn grid_astar_path(mut args: GridAstarPathArgs<'_, '_>) -> Result<GridAstarResult, BfErr> {
+    let GridAstarPathArgs {
         width,
         height,
         start_x,
@@ -1616,7 +1618,7 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
 
     // Check goal is passable.
     if !passable[(goal_y as usize) * width + (goal_x as usize)] {
-        return Ok(AstarResult {
+        return Ok(GridAstarResult {
             path: Vec::new(),
             cost: -1,
             visited: 0,
@@ -1625,7 +1627,7 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
 
     // Already there.
     if start_x == goal_x && start_y == goal_y {
-        return Ok(AstarResult {
+        return Ok(GridAstarResult {
             path: Vec::new(),
             cost: 0,
             visited: 0,
@@ -1669,7 +1671,9 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
         if let Some(max_nodes) = options.max_nodes
             && visited >= max_nodes
         {
-            return Err(BfErr::ErrValue(E_MAXREC.msg("astar() exceeded max_nodes")));
+            return Err(BfErr::ErrValue(
+                E_MAXREC.msg("grid_astar() exceeded max_nodes"),
+            ));
         }
         visited += 1;
 
@@ -1692,7 +1696,7 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
                 idx = came_from[idx] as usize;
             }
             path.reverse();
-            return Ok(AstarResult {
+            return Ok(GridAstarResult {
                 path,
                 cost: g as i64,
                 visited,
@@ -1732,7 +1736,7 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
     }
 
     // No path found.
-    Ok(AstarResult {
+    Ok(GridAstarResult {
         path: Vec::new(),
         cost: -1,
         visited,
@@ -2091,7 +2095,7 @@ fn graph_topsort(
     Ok(result)
 }
 
-/// Usage: `list|int|map astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles [, map options])`
+/// Usage: `list|int|map grid_astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles [, map options])`
 ///
 /// A* pathfinding on a tile grid. Returns a list of `{x, y}` waypoints from
 /// the start to the goal (excluding the start position), or an empty list if
@@ -2104,10 +2108,10 @@ fn graph_topsort(
 /// `solid_tiles` is a list of tile IDs that are impassable.
 ///
 /// Uses Chebyshev distance as the heuristic (diagonal cost = cardinal cost).
-fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+fn bf_grid_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() < 8 || bf_args.args.len() > 9 {
         return Err(BfErr::ErrValue(
-            E_ARGS.msg("astar() takes 8 or 9 arguments"),
+            E_ARGS.msg("grid_astar() takes 8 or 9 arguments"),
         ));
     }
 
@@ -2150,7 +2154,7 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let solid_tiles_list = bf_args.args[7]
         .as_list()
         .ok_or_else(|| BfErr::ErrValue(E_TYPE.msg("solid_tiles must be a list")))?;
-    let options = parse_astar_options(bf_args.args.iter_ref().nth(8))?;
+    let options = parse_grid_astar_options(bf_args.args.iter_ref().nth(8))?;
 
     let grid_size = width * height;
     let mut solid_ids = std::collections::HashSet::new();
@@ -2172,7 +2176,7 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     }
 
-    let result = astar_path(AstarPathArgs {
+    let result = grid_astar_path(GridAstarPathArgs {
         width,
         height,
         start_x,
@@ -2184,9 +2188,9 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         tick_budget: Some(bf_args.tick_budget()),
     })?;
     let value = match options.return_mode {
-        AstarReturn::Path => v_list_iter(result.path),
-        AstarReturn::Cost => v_int(result.cost),
-        AstarReturn::Detail => v_map(&[
+        GridAstarReturn::Path => v_list_iter(result.path),
+        GridAstarReturn::Cost => v_int(result.cost),
+        GridAstarReturn::Detail => v_map(&[
             (v_sym(*PATH_SYM), v_list_iter(result.path)),
             (v_sym(*COST_SYM), v_int(result.cost)),
             (v_sym(*VISITED_SYM), v_int(result.visited as i64)),
@@ -2359,7 +2363,7 @@ fn bf_graph_topsort(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 }
 
 pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
-    builtins[offset_for_builtin("astar")] = bf_astar;
+    builtins[offset_for_builtin("grid_astar")] = bf_grid_astar;
     builtins[offset_for_builtin("grid_reachable")] = bf_grid_reachable;
     builtins[offset_for_builtin("grid_line")] = bf_grid_line;
     builtins[offset_for_builtin("grid_los")] = bf_grid_los;
@@ -2439,10 +2443,10 @@ mod tests {
     }
 
     #[test]
-    fn astar_consumes_task_tick_budget() {
+    fn grid_astar_consumes_task_tick_budget() {
         let passable = vec![true; 25];
         let mut tick_count = 0;
-        let err = astar_path(AstarPathArgs {
+        let err = grid_astar_path(GridAstarPathArgs {
             width: 5,
             height: 5,
             start_x: 0,
@@ -2450,7 +2454,7 @@ mod tests {
             goal_x: 4,
             goal_y: 4,
             passable: &passable,
-            options: AstarOptions::default(),
+            options: GridAstarOptions::default(),
             tick_budget: Some(BuiltinTickBudget::new(&mut tick_count, 2)),
         })
         .unwrap_err();
@@ -2460,9 +2464,9 @@ mod tests {
     }
 
     #[test]
-    fn astar_can_restrict_to_cardinal_movement() {
+    fn grid_astar_can_restrict_to_cardinal_movement() {
         let passable = vec![true; 9];
-        let result = astar_path(AstarPathArgs {
+        let result = grid_astar_path(GridAstarPathArgs {
             width: 3,
             height: 3,
             start_x: 0,
@@ -2470,9 +2474,9 @@ mod tests {
             goal_x: 2,
             goal_y: 2,
             passable: &passable,
-            options: AstarOptions {
+            options: GridAstarOptions {
                 directions: 4,
-                ..AstarOptions::default()
+                ..GridAstarOptions::default()
             },
             tick_budget: None,
         })
@@ -2483,9 +2487,9 @@ mod tests {
     }
 
     #[test]
-    fn astar_respects_max_nodes_option() {
+    fn grid_astar_respects_max_nodes_option() {
         let passable = vec![true; 25];
-        let err = astar_path(AstarPathArgs {
+        let err = grid_astar_path(GridAstarPathArgs {
             width: 5,
             height: 5,
             start_x: 0,
@@ -2493,9 +2497,9 @@ mod tests {
             goal_x: 4,
             goal_y: 4,
             passable: &passable,
-            options: AstarOptions {
+            options: GridAstarOptions {
                 max_nodes: Some(2),
-                ..AstarOptions::default()
+                ..GridAstarOptions::default()
             },
             tick_budget: None,
         })

@@ -14,10 +14,34 @@ and map structures, including small rule queries over caller-supplied facts. The
 with flat tile maps for pathfinding, line-of-sight checks, and flood fills. The graph functions work
 over explicit edge lists for shortest paths, reachability, and topological ordering.
 
-## Pattern matching for structured data
+## Terms and small rule searches
+
+The `term_*` functions are for working with _facts_ that you store as ordinary MOO values. A fact
+might be an exit record like `{'exit, #10, 'north, #20}`, an event record, a permission rule, or any
+other list or map that has a regular shape. Instead of writing loops that pull those records apart
+one item at a time, you can describe the shape you want and let the server fill in the blanks.
+
+These functions also let MOO authors use a limited form of
+["logic programming"](https://en.wikipedia.org/wiki/Logic_programming) or
+["declarative programming"](https://en.wikipedia.org/wiki/Declarative_programming), in the style of
+systems like [Datalog](https://en.wikipedia.org/wiki/Datalog) or
+[Prolog](https://en.wikipedia.org/wiki/Prolog). In ordinary MOO code, you usually tell the server
+exactly what steps to run: loop over this list, check this field, recurse into that connection, and
+append each answer yourself. With these functions, you can instead describe facts and rules, then
+ask a question about them: "what exits leave this room?", "what rooms are reachable from here?",
+"which actions are allowed by these conditions?" The server searches the facts you supplied and
+returns the answers it can prove from them.
+
+That style fits text worlds especially well. In
+[interactive fiction](https://en.wikipedia.org/wiki/Interactive_fiction), MUDs, and MOOs, a lot of
+world logic is about relationships: rooms connected by exits, objects contained by other objects,
+locks opened by keys, quests unlocked by previous events, or commands allowed only in certain
+situations. The term builtins do not turn MOO into Prolog, and they do not read the object database
+for you, but they give MOO code a small, bounded way to work with that kind of relationship data
+without spelling out every search loop by hand.
 
 Suppose your world stores exits as records like `{'exit, #10, 'north, #20}`. To find every exit
-leaving room #10, you might write something like this:
+leaving room `#10`, you might write something like this:
 
 ```moo
 found = {};
@@ -33,21 +57,27 @@ complicated, the per-record check slows down and the code to pick apart each rec
 read.
 
 The `term_unify()`, `term_match()`, `term_query()`, and `term_substitute()` builtins make that kind
-of structured-data work faster and simpler. Instead of pulling each record apart by hand, you write
-a pattern that describes what you are looking for. Use `term_unify()` to match one value,
-`term_match()` to match a list of values, or `term_query()` when you also need rules:
+of structured-data work faster and simpler. You write a term with placeholders such as
+`{'var, 'Dir}` and `{'var, 'To}` where unknown values should go. When a stored value fits that
+shape, the result tells you what each placeholder matched.
+
+Use `term_unify()` to check one value, `term_match()` to scan a list of values, or `term_query()`
+when you want the server to combine facts using simple rules:
 
 ```moo
 term_query({'exit, #10, {'var, 'Dir}, {'var, 'To}}, exit_records)
 => {['Dir -> 'north, 'To -> #20], ...}
 ```
 
-For larger cases, `term_query()` can also follow simple positive rules over the facts you provide,
-so recursive queries like "find every room reachable from here" become a single call.
+For larger cases, `term_query()` can follow simple positive rules over the facts you provide. That
+lets MOO code ask questions like "which rooms are reachable from here?" or "which actions are
+allowed by these rules?" without hand-writing the nested loops and recursive walks each time.
 
-You can think of them as pattern matching for structured data, similar to how
-[`match()`](regex.md#match) searches for a regex pattern in a string — but they work on lists and
-maps instead of on text, and the "captures" are named placeholders rather than numbered groups.
+You can think of the simpler calls as pattern matching for structured data, similar to how
+[`match()`](regex.md#match) searches for a regex pattern in a string. The difference is that these
+functions work on lists and maps instead of text, and the "captures" are named placeholders rather
+than numbered groups. `term_query()` goes one step further: it can use a small rule list to derive
+answers from the facts you pass in.
 
 A **pattern** is a MOO value with "holes" in it. Each hole is a placeholder, written as a two-item
 list:
@@ -88,7 +118,7 @@ is an edge from `#10` to `#11`", and a map like `["action" -> "property_write", 
 might mean "write a property on `#123`" — but the server only sees lists, maps, symbols, strings,
 objects, and numbers. It matches structure, not meaning.
 
-Common uses for these functions include:
+Common uses for the term functions include:
 
 - Finding everywhere reachable through a graph of exits or connections.
 - Searching a list of records for ones that match a particular shape.
@@ -322,7 +352,7 @@ term_substitute({"property_write", {'var, 'Missing}},
 => {"property_write", {'var, 'Missing}}
 ```
 
-## Term inspection helpers
+## `term_variables`
 
 ```moo
 LIST term_variables(ANY term [, MAP options])
@@ -335,6 +365,8 @@ symbols.
 term_variables({'edge, {'var, 'From}, {'var, 'To}, {'var, 'From}})
 => {'From, 'To}
 ```
+
+## `term_ground`
 
 ```moo
 BOOL term_ground(ANY term [, MAP options])
@@ -350,6 +382,8 @@ term_ground({'edge, #10, {'var, 'To}})
 => 0
 ```
 
+## `term_normalize`
+
 ```moo
 ANY term_normalize(ANY term [, MAP bindings [, MAP options]])
 ```
@@ -364,7 +398,7 @@ term_normalize({'edge, {'var, 'Y}, {'var, 'X}, {'var, 'Y}},
 => {'edge, {'var, 'V1}, #10, {'var, 'V1}}
 ```
 
-## Options
+## Term options
 
 `term_unify()`, `term_substitute()`, `term_variables()`, `term_ground()`, and `term_normalize()`
 accept:
@@ -414,31 +448,15 @@ of search work before the builtin raises `E_MAXREC`. `term_query()` also consume
 normal tick budget as it searches, so expensive queries can raise `E_MAXREC` even before `max_steps`
 is reached. `dedupe` removes duplicate result maps and suppresses repeated active recursive states.
 
-## Pathfinding with `astar`
+## Grid tile maps
 
-The `astar()` function is separate from the `term_*` functions above. It can be used to find the
-shortest walkable path between two points on a flat list that represents a two-dimensional tile grid
-— like a game map. You might use it to route an NPC around walls in a dungeon, or find a walkable
-route across an overworld. Writing a pathfinder in MOO is possible but slow for large maps;
-`astar()` does the search in native code.
+The grid functions use a flat list to represent a two-dimensional tile map. They can be used for map
+operations that are awkward or expensive to write as MOO loops: pathfinding, line generation,
+line-of-sight checks, and flood fills. Callers supply the tile IDs and the set of solid tile IDs;
+the server derives walkability from those values and performs the requested bounded traversal.
 
-```moo
-LIST astar(INT width, INT height,
-           INT start_x, INT start_y,
-           INT goal_x, INT goal_y,
-           LIST tile_map, LIST solid_tiles
-           [, MAP options])
-```
-
-Returns a list of `{x, y}` waypoints from the start to the goal, excluding the start position. If no
-path exists, it returns `{}`. With `['return -> 'cost]`, it returns the path cost instead, or `-1`
-when no path exists. With `['return -> 'detail]`, it returns a map with `'path`, `'cost`,
-`'visited`, and `'found` entries.
-
-### The tile map
-
-The map is a flat list of tile IDs, laid out left-to-right, top-to-bottom. Think of it as reading
-the grid row by row, like lines of text:
+The map is laid out left-to-right, top-to-bottom. Think of it as reading the grid row by row, like
+lines of text:
 
 ```moo
 tile_map = {
@@ -465,14 +483,29 @@ index = y * width + x + 1
 
 The `+ 1` accounts for MOO lists being one-based.
 
-### Walkable and solid tiles
-
-Each tile has an integer ID. You tell `astar()` which IDs are impassable by passing them in
+Each tile has an integer ID. You tell the grid functions which IDs are impassable by passing them in
 `solid_tiles`. Any tile whose ID is in that list is treated as a wall; everything else is walkable.
 Extra entries in `tile_map` past `width * height` are ignored. Missing entries are treated as
 walkable.
 
-### Movement
+## `grid_astar`
+
+```moo
+LIST | INT | MAP grid_astar(INT width, INT height,
+                            INT start_x, INT start_y,
+                            INT goal_x, INT goal_y,
+                            LIST tile_map, LIST solid_tiles
+                            [, MAP options])
+```
+
+Finds the shortest walkable path between two points on a tile grid. You might use it to route an NPC
+around walls in a dungeon, or find a walkable route across an overworld. Writing a pathfinder in MOO
+is possible but slow for large maps; `grid_astar()` does the search in native code.
+
+By default, returns a list of `{x, y}` waypoints from the start to the goal, excluding the start
+position. If no path exists, it returns `{}`. With `['return -> 'cost]`, it returns the path cost
+instead, or `-1` when no path exists. With `['return -> 'detail]`, it returns a map with `'path`,
+`'cost`, `'visited`, and `'found` entries.
 
 Movement is 8-directional (including diagonals). Diagonal moves are only allowed when both adjacent
 cardinal tiles are also walkable, so paths cannot cut through the corner of a wall:
@@ -506,41 +539,33 @@ diagonal movement may pass between two blocked cardinal neighbors. `return` may 
 or `'detail`. `max_nodes`, when present, limits the number of grid nodes the search may visit before
 raising `E_MAXREC`.
 
-### Example
-
 A 3-by-3 open grid with start at `(0, 0)` and goal at `(2, 2)`:
 
 ```moo
-astar(3, 3,
-      0, 0,
-      2, 2,
-      {
-        1, 1, 1,
-        1, 1, 1,
-        1, 1, 1
-      },
-      {9})
+grid_astar(3, 3,
+           0, 0,
+           2, 2,
+           {
+             1, 1, 1,
+             1, 1, 1,
+             1, 1, 1
+           },
+           {9})
 => {{1, 1}, {2, 2}}
 ```
 
 The path reaches the goal in two diagonal steps. Diagonal moves cost the same as cardinal moves, so
 this is a shortest valid path.
 
-### Notes
-
 The exact path is deterministic for a given map, but callers should treat any shortest valid path as
 acceptable. If the goal tile is solid, or no route reaches it, the function returns `{}`. Invalid
 dimensions or out-of-bounds start/goal coordinates raise `E_INVARG`.
 
-`astar()` consumes the running task's normal tick budget as it searches. Large or difficult path
-requests can therefore raise `E_MAXREC` if the task runs out of ticks before the search finishes, or
-if the optional `max_nodes` limit is reached.
+`grid_astar()` consumes the running task's normal tick budget as it searches. Large or difficult
+path requests can therefore raise `E_MAXREC` if the task runs out of ticks before the search
+finishes, or if the optional `max_nodes` limit is reached.
 
-## Grid helper functions
-
-The grid helpers use the same flat `tile_map` and `solid_tiles` representation as `astar()`.
-Coordinates are zero-based and `tile_map` is row-major. Missing map entries are treated as walkable,
-and extra entries are ignored.
+## `grid_line`
 
 ```moo
 LIST grid_line(INT width, INT height,
@@ -556,6 +581,10 @@ grid_line(5, 5, 0, 0, 4, 2)
 => {{0, 0}, {1, 1}, {2, 1}, {3, 2}, {4, 2}}
 ```
 
+`grid_line()` consumes the running task's normal tick budget as it generates the line.
+
+## `grid_los`
+
 ```moo
 BOOL grid_los(INT width, INT height,
               INT x0, INT y0,
@@ -566,6 +595,10 @@ BOOL grid_los(INT width, INT height,
 Returns true if every tile on the inclusive line between the two points is walkable. A solid start
 or end tile blocks line of sight.
 
+`grid_los()` consumes the running task's normal tick budget as it checks the line.
+
+## `grid_reachable`
+
 ```moo
 LIST grid_reachable(INT width, INT height,
                     INT start_x, INT start_y,
@@ -575,6 +608,22 @@ LIST grid_reachable(INT width, INT height,
 
 Returns every coordinate reachable from the start tile, excluding the start tile itself. If the
 start tile is solid, it returns `{}`.
+
+`grid_reachable()` accepts:
+
+```moo
+[
+  'directions -> 8,
+  'corner_cutting -> false,
+  'max_nodes -> 1000
+]
+```
+
+`directions`, `corner_cutting`, and `max_nodes` have the same meaning as the `grid_astar()` options.
+The search consumes the running task's normal tick budget and may raise `E_MAXREC` if the task runs
+out of ticks or `max_nodes` is reached.
+
+## `grid_flood`
 
 ```moo
 LIST grid_flood(INT width, INT height,
@@ -587,7 +636,7 @@ Returns the flood-filled region reachable from the start tile, including the sta
 same search as `grid_reachable()`, but with the origin included for callers that want the full
 component.
 
-`grid_reachable()` and `grid_flood()` accept:
+`grid_flood()` accepts:
 
 ```moo
 [
@@ -597,14 +646,19 @@ component.
 ]
 ```
 
-`directions`, `corner_cutting`, and `max_nodes` have the same meaning as the `astar()` options.
-These searches consume the running task's normal tick budget and may raise `E_MAXREC` if the task
-runs out of ticks or `max_nodes` is reached.
+`directions`, `corner_cutting`, and `max_nodes` have the same meaning as the `grid_astar()` options.
+The search consumes the running task's normal tick budget and may raise `E_MAXREC` if the task runs
+out of ticks or `max_nodes` is reached.
 
-## Graph helper functions
+## Graph edge lists
 
-The graph helpers operate on directed graphs supplied entirely by the caller. Edges may be written
-as two-item lists, simple edge terms, or maps:
+The graph helpers are for data that describes things connected to other things. For example, rooms
+may be connected by exits, tasks may depend on other tasks, or quests may unlock later quests. In
+this section, each thing is called a **node**, and each one-way connection from one thing to another
+is called an **edge**.
+
+You supply the connections as a list of edges. Each edge says "from this node, you can go to that
+node". Edges may be written as two-item lists, simple edge terms, or maps:
 
 ```moo
 {from, to}
@@ -614,6 +668,20 @@ as two-item lists, simple edge terms, or maps:
 
 Node values may be any MOO value that can be compared as a map/list key. Edge order is preserved
 when traversing neighbors, so results are deterministic for a fixed input list.
+
+Graph helpers accept:
+
+```moo
+[
+  'max_steps -> 10000,
+  'max_nodes -> 1000
+]
+```
+
+They consume the running task's normal tick budget as they traverse the graph and may raise
+`E_MAXREC` when either explicit limit is reached.
+
+## `graph_shortest_path`
 
 ```moo
 LIST graph_shortest_path(LIST edges, ANY from, ANY to [, MAP options])
@@ -627,6 +695,8 @@ graph_shortest_path({{'A, 'B}, {'B, 'C}, {'A, 'C}}, 'A, 'C)
 => {'A, 'C}
 ```
 
+## `graph_reachable`
+
 ```moo
 LIST graph_reachable(LIST edges, ANY from [, MAP options])
 ```
@@ -637,6 +707,8 @@ Returns every node reachable from `from`, excluding `from` itself.
 graph_reachable({{'A, 'B}, {'A, 'C}, {'B, 'D}}, 'A)
 => {'B, 'C, 'D}
 ```
+
+## `graph_topsort`
 
 ```moo
 LIST graph_topsort(LIST edges [, MAP options])
@@ -649,15 +721,3 @@ Returns a topological ordering of the directed graph. If the graph contains a cy
 graph_topsort({{'cook, 'eat}, {'shop, 'cook}})
 => {'shop, 'cook, 'eat}
 ```
-
-Graph helpers accept:
-
-```moo
-[
-  'max_steps -> 10000,
-  'max_nodes -> 1000
-]
-```
-
-They consume the running task's normal tick budget as they traverse the graph and may raise
-`E_MAXREC` when either explicit limit is reached.

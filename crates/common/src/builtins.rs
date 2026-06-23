@@ -1012,7 +1012,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
     let start = builtins.len();
     builtins.extend([
         mk_builtin(
-            "astar",
+            "grid_astar",
             Q(8),
             Q(9),
             vec![
