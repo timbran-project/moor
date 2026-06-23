@@ -3422,6 +3422,7 @@ dependencies = [
  "fjall",
  "flume",
  "fs2",
+ "libc",
  "mimalloc",
  "moor-common",
  "moor-compiler",
