@@ -24,6 +24,7 @@ use thiserror::Error;
 // Re-export domain types
 pub mod api;
 pub mod api_codec;
+pub mod task_client;
 pub use host::{HostType, extract_host_type};
 pub use tokens::{
     AuthToken, ClientToken, KeyError, MOOR_AUTH_TOKEN_FOOTER, MOOR_SESSION_TOKEN_FOOTER,

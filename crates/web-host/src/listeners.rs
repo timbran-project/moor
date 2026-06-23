@@ -39,12 +39,8 @@ use crate::{
 pub struct Listeners {
     host_id: Uuid,
     listeners: HashMap<SocketAddr, Listener>,
-    zmq_ctx: tmq::Context,
-    rpc_address: String,
-    events_address: String,
     kill_switch: Arc<AtomicBool>,
     oauth2_manager: Option<Arc<OAuth2Manager>>,
-    curve_keys: Option<(String, String, String)>,
     host_services: Arc<dyn HostServices>,
     enable_webhooks: bool,
     last_daemon_ping: Arc<AtomicU64>,
@@ -58,12 +54,8 @@ impl Listeners {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         host_id: Uuid,
-        zmq_ctx: tmq::Context,
-        rpc_address: String,
-        events_address: String,
         kill_switch: Arc<AtomicBool>,
         oauth2_manager: Option<Arc<OAuth2Manager>>,
-        curve_keys: Option<(String, String, String)>,
         host_services: Arc<dyn HostServices>,
         enable_webhooks: bool,
         last_daemon_ping: Arc<AtomicU64>,
@@ -80,12 +72,8 @@ impl Listeners {
         let listeners = Self {
             host_id,
             listeners: HashMap::new(),
-            zmq_ctx,
-            rpc_address,
-            events_address,
             kill_switch,
             oauth2_manager,
-            curve_keys,
             host_services,
             enable_webhooks,
             last_daemon_ping,
@@ -102,11 +90,6 @@ impl Listeners {
         &mut self,
         mut listeners_channel: tokio::sync::mpsc::Receiver<ListenersMessage>,
     ) {
-        if let Err(e) = self.zmq_ctx.set_io_threads(8) {
-            error!("Unable to set ZMQ IO threads: {}", e);
-            return;
-        }
-
         loop {
             let message = select! {
                 _ = wait_for_kill_switch(self.kill_switch.clone()) => {
@@ -166,12 +149,8 @@ impl Listeners {
         };
 
         let web_host = WebHost::new(
-            self.zmq_ctx.clone(),
-            self.rpc_address.clone(),
-            self.events_address.clone(),
             handler,
             local_addr.port(),
-            self.curve_keys.clone(),
             self.host_id,
             self.last_daemon_ping.clone(),
             self.host_services.clone(),

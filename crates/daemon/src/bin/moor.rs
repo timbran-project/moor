@@ -36,7 +36,7 @@ use moor_db::DatabaseConfig;
 use moor_kernel::config::{
     Config, FeaturesConfig, ImportExportConfig, ImportFormat, RuntimeConfig,
 };
-use moor_runtime_api::{api::HostServices, client_args::RpcClientConfig, load_keypair};
+use moor_runtime_api::{api::HostServices, load_keypair};
 use moor_telnet_host::{HostRuntime as TelnetHostRuntime, TelnetHostConfig};
 use moor_web_host::{
     WebHostConfig,
@@ -450,20 +450,9 @@ async fn main() -> Result<(), Report> {
         .map_err(|e| eyre!("Daemon did not publish local runtime services: {e}"))?;
     let host_services = Arc::new(local_runtime_services) as Arc<dyn HostServices>;
 
-    let connection_config = RpcClientConfig {
-        rpc_address: INPROC_RPC_ENDPOINT.to_string(),
-        events_address: INPROC_EVENTS_ENDPOINT.to_string(),
-        workers_response_address: String::new(),
-        workers_request_address: String::new(),
-        enrollment_address: INPROC_ENROLLMENT_ENDPOINT.to_string(),
-        data_dir: args.data_dir.join("hosts"),
-        enrollment_token_file: None,
-    };
-
     let mut host_tasks = Vec::new();
     if services_config.telnet.enabled {
         let telnet_config = TelnetHostConfig {
-            connection: connection_config.clone(),
             telnet_address: services_config.telnet.address,
             telnet_port: services_config.telnet.port,
             health_check_port: services_config.telnet.health_check_port,
@@ -472,7 +461,6 @@ async fn main() -> Result<(), Report> {
             tls_key: services_config.telnet.tls_key,
         };
         let telnet_runtime = TelnetHostRuntime {
-            zmq_context: zmq_context.clone(),
             kill_switch: kill_switch.clone(),
         };
         let host_services = host_services.clone();
@@ -483,7 +471,6 @@ async fn main() -> Result<(), Report> {
 
     if services_config.web.enabled {
         let web_config = WebHostConfig {
-            connection: connection_config.clone(),
             listen_address: services_config.web.listen_address,
             enable_webhooks: services_config.web.enable_webhooks,
             oauth2: services_config.web.oauth2,
@@ -493,7 +480,6 @@ async fn main() -> Result<(), Report> {
             webrtc: services_config.web.webrtc,
         };
         let web_runtime = moor_web_host::HostRuntime {
-            zmq_context: zmq_context.clone(),
             kill_switch: kill_switch.clone(),
         };
         let host_services = host_services.clone();

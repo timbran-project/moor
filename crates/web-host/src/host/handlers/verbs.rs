@@ -35,6 +35,7 @@ use moor_common::tasks::NarrativeEvent;
 use moor_runtime_api::{
     api::{ClientRequest, EntityType},
     scheduler_error_to_flatbuffer_struct,
+    task_client::{SessionEvent, TaskResult},
 };
 use moor_schema::{
     common as moor_common_fb,
@@ -42,7 +43,6 @@ use moor_schema::{
     rpc as moor_rpc, var as moor_var_schema,
 };
 use moor_var::Symbol;
-use moor_zmq_client::task_client::{SessionEvent, TaskResult};
 use planus::ReadAsRoot;
 use serde::Deserialize;
 use tracing::{debug, error};

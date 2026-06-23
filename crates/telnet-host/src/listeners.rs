@@ -99,7 +99,6 @@ async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
 
 pub struct Listeners {
     listeners: HashMap<SocketAddr, Listener>,
-    zmq_ctx: tmq::Context,
     kill_switch: Arc<AtomicBool>,
     host_services: Arc<dyn HostServices>,
     tls_config: Option<Arc<ServerConfig>>,
@@ -122,11 +121,7 @@ struct ConnectionBootstrap {
 
 impl Listeners {
     pub fn new(
-        zmq_ctx: tmq::Context,
-        _rpc_address: String,
-        _events_address: String,
         kill_switch: Arc<AtomicBool>,
-        _curve_keys: Option<(String, String, String)>,
         host_services: Arc<dyn HostServices>,
         tls_config: Option<Arc<ServerConfig>>,
     ) -> (
@@ -137,7 +132,6 @@ impl Listeners {
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         let listeners = Self {
             listeners: HashMap::new(),
-            zmq_ctx,
             kill_switch,
             host_services,
             tls_config,
@@ -205,10 +199,6 @@ impl Listeners {
         &mut self,
         mut listeners_channel: tokio::sync::mpsc::Receiver<ListenersMessage>,
     ) {
-        self.zmq_ctx
-            .set_io_threads(8)
-            .expect("Unable to set ZMQ IO threads");
-
         loop {
             let message = select! {
                 _ = wait_for_kill_switch(self.kill_switch.clone()) => {

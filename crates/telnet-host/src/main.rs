@@ -15,7 +15,7 @@ use clap::Parser;
 use clap_derive::Parser;
 use colored::control;
 use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
-use moor_telnet_host::{HostRuntime, TelnetHostConfig};
+use moor_telnet_host::{HostRuntime, TelnetHostConfig, ZmqTelnetHostConfig};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -127,17 +127,18 @@ async fn main() -> Result<(), eyre::Error> {
         }
     };
 
-    let config = TelnetHostConfig {
+    let config = ZmqTelnetHostConfig {
         connection: RpcClientConfig::from(&args.client_args),
-        telnet_address: args.telnet_address,
-        telnet_port: args.telnet_port,
-        health_check_port: args.health_check_port,
-        tls_port: args.tls_port,
-        tls_cert: args.tls_cert,
-        tls_key: args.tls_key,
+        host: TelnetHostConfig {
+            telnet_address: args.telnet_address,
+            telnet_port: args.telnet_port,
+            health_check_port: args.health_check_port,
+            tls_port: args.tls_port,
+            tls_cert: args.tls_cert,
+            tls_key: args.tls_key,
+        },
     };
     let runtime = HostRuntime {
-        zmq_context: tmq::Context::new(),
         kill_switch: kill_switch.clone(),
     };
 

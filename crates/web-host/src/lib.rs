@@ -41,7 +41,6 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct WebHostConfig {
-    pub connection: RpcClientConfig,
     pub listen_address: String,
     pub enable_webhooks: bool,
     pub oauth2: OAuth2Config,
@@ -51,22 +50,26 @@ pub struct WebHostConfig {
     pub webrtc: WebRtcConfig,
 }
 
+#[derive(Clone, Debug)]
+pub struct ZmqWebHostConfig {
+    pub connection: RpcClientConfig,
+    pub host: WebHostConfig,
+}
+
 #[derive(Clone)]
 pub struct HostRuntime {
-    pub zmq_context: tmq::Context,
     pub kill_switch: Arc<AtomicBool>,
 }
 
 impl Default for HostRuntime {
     fn default() -> Self {
         Self {
-            zmq_context: tmq::Context::new(),
             kill_switch: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
-pub async fn run(config: WebHostConfig, runtime: HostRuntime) -> Result<()> {
+pub async fn run(config: ZmqWebHostConfig, runtime: HostRuntime) -> Result<()> {
     let curve_keys = moor_zmq_client::enrollment_client::setup_curve_auth(
         &config.connection.rpc_address,
         &config.connection.enrollment_address,
@@ -77,12 +80,12 @@ pub async fn run(config: WebHostConfig, runtime: HostRuntime) -> Result<()> {
     .map_err(|e| eyre!("Failed to setup CURVE authentication: {e}"))?;
 
     let host_services = Arc::new(ZmqHostServices::new(
-        runtime.zmq_context.clone(),
+        tmq::Context::new(),
         config.connection.rpc_address.clone(),
         config.connection.events_address.clone(),
         curve_keys.clone(),
     )) as Arc<dyn HostServices>;
-    run_with_host_services(config, runtime, curve_keys, host_services).await
+    run_with_host_services(config.host, runtime, host_services).await
 }
 
 pub async fn run_with_services(
@@ -90,13 +93,12 @@ pub async fn run_with_services(
     runtime: HostRuntime,
     host_services: Arc<dyn HostServices>,
 ) -> Result<()> {
-    run_with_host_services(config, runtime, None, host_services).await
+    run_with_host_services(config, runtime, host_services).await
 }
 
 async fn run_with_host_services(
     config: WebHostConfig,
     runtime: HostRuntime,
-    curve_keys: Option<(String, String, String)>,
     host_services: Arc<dyn HostServices>,
 ) -> Result<()> {
     let oauth2_manager = init_oauth2_manager(&config.oauth2);
@@ -106,12 +108,8 @@ async fn run_with_host_services(
     let last_daemon_ping = Arc::new(AtomicU64::new(0));
     let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
         host_id,
-        runtime.zmq_context.clone(),
-        config.connection.rpc_address.clone(),
-        config.connection.events_address.clone(),
         runtime.kill_switch.clone(),
         oauth2_manager,
-        curve_keys.clone(),
         host_services.clone(),
         config.enable_webhooks,
         last_daemon_ping.clone(),

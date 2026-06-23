@@ -41,6 +41,7 @@ use moor_runtime_api::{
         RuntimeClient,
     },
     api_codec::{encode_client_success_bytes, encode_host_success_bytes},
+    task_client::{TaskClient, TaskClientConfig, TaskClientError},
 };
 use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, Symbol};
@@ -319,12 +320,8 @@ struct WsAttachInfo {
 
 #[derive(Clone)]
 pub struct WebHost {
-    zmq_context: tmq::Context,
-    rpc_addr: String,
-    pubsub_addr: String,
     pub(crate) handler_object: Obj,
     local_port: u16,
-    curve_keys: Option<(String, String, String)>, // (client_secret, client_public, server_public) - Z85 encoded
     pub(crate) host_id: Uuid,
     last_daemon_ping: Arc<AtomicU64>,
     host_services: Arc<dyn HostServices>,
@@ -344,12 +341,8 @@ pub enum WsHostError {
 
 impl WebHost {
     pub fn new(
-        zmq_context: tmq::Context,
-        rpc_addr: String,
-        narrative_addr: String,
         handler_object: Obj,
         local_port: u16,
-        curve_keys: Option<(String, String, String)>,
         host_id: Uuid,
         last_daemon_ping: Arc<AtomicU64>,
         host_services: Arc<dyn HostServices>,
@@ -357,12 +350,8 @@ impl WebHost {
         webrtc_config: Arc<WebRtcConfig>,
     ) -> Self {
         Self {
-            zmq_context,
-            rpc_addr,
-            pubsub_addr: narrative_addr,
             handler_object,
             local_port,
-            curve_keys,
             host_id,
             last_daemon_ping,
             host_services,
@@ -386,27 +375,12 @@ impl WebHost {
         (Uuid::new_v4(), self.create_daemon_client())
     }
 
-    pub fn task_client_config(
-        &self,
-        auth_token: moor_runtime_api::AuthToken,
-    ) -> moor_zmq_client::task_client::TaskClientConfig {
-        moor_zmq_client::task_client::TaskClientConfig {
-            zmq_context: Arc::new(self.zmq_context.clone()),
-            rpc_addr: self.rpc_addr.clone(),
-            pubsub_addr: self.pubsub_addr.clone(),
+    pub fn task_client_config(&self, auth_token: moor_runtime_api::AuthToken) -> TaskClientConfig {
+        TaskClientConfig {
             auth_token,
             handler_object: self.handler_object,
             peer_addr: "web-host".to_string(),
             local_port: self.local_port,
-            curve_keys: self.curve_keys.as_ref().map(
-                |(client_secret, client_public, server_public)| {
-                    moor_zmq_client::rpc_client::CurveKeys {
-                        client_secret: client_secret.clone(),
-                        client_public: client_public.clone(),
-                        server_public: server_public.clone(),
-                    }
-                },
-            ),
             ..Default::default()
         }
     }
@@ -414,11 +388,8 @@ impl WebHost {
     pub async fn task_client(
         &self,
         auth_token: moor_runtime_api::AuthToken,
-    ) -> Result<
-        moor_zmq_client::task_client::TaskClient,
-        moor_zmq_client::task_client::TaskClientError,
-    > {
-        moor_zmq_client::task_client::TaskClient::connect_with_services(
+    ) -> Result<TaskClient, TaskClientError> {
+        TaskClient::connect_with_services(
             self.task_client_config(auth_token),
             self.host_services.clone(),
         )

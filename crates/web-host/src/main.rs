@@ -18,7 +18,7 @@ use clap_derive::Parser;
 
 use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
 use moor_web_host::{
-    HostRuntime, WebHostConfig,
+    HostRuntime, WebHostConfig, ZmqWebHostConfig,
     host::{OAuth2Config, WebRtcConfig},
     routes::{CorsConfig, RateLimitConfig},
 };
@@ -146,18 +146,19 @@ async fn main() -> Result<(), eyre::Error> {
         }
     };
 
-    let config = WebHostConfig {
+    let config = ZmqWebHostConfig {
         connection: RpcClientConfig::from(&args.client_args),
-        listen_address: args.listen_address,
-        enable_webhooks: args.enable_webhooks,
-        oauth2: args.oauth2,
-        cors: args.cors,
-        rate_limit: args.rate_limit,
-        trusted_proxy_cidrs: args.trusted_proxy_cidrs,
-        webrtc: args.webrtc,
+        host: WebHostConfig {
+            listen_address: args.listen_address,
+            enable_webhooks: args.enable_webhooks,
+            oauth2: args.oauth2,
+            cors: args.cors,
+            rate_limit: args.rate_limit,
+            trusted_proxy_cidrs: args.trusted_proxy_cidrs,
+            webrtc: args.webrtc,
+        },
     };
     let runtime = HostRuntime {
-        zmq_context: tmq::Context::new(),
         kill_switch: kill_switch.clone(),
     };
 

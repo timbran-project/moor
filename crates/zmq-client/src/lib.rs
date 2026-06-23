@@ -32,7 +32,6 @@ mod listeners;
 pub mod pubsub_client;
 pub mod rpc_client;
 mod runtime_client_impl;
-pub mod task_client;
 mod worker;
 mod worker_loop;
 mod worker_rpc_client;

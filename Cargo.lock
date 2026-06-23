@@ -3682,6 +3682,8 @@ dependencies = [
  "rusty_paseto",
  "serde",
  "thiserror 2.0.18",
+ "tokio",
+ "tracing",
  "uuid 1.23.3",
 ]
 

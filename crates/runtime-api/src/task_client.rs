@@ -13,7 +13,7 @@
 
 //! High-level async client for invoking verbs on a moor daemon.
 //!
-//! `TaskClient` wraps `RpcClient` + a PubSub subscription to provide a single
+//! `TaskClient` wraps a [`HostServices`] implementation to provide a single
 //! `invoke_verb(...).await` that submits a verb invocation and awaits the
 //! task completion event. Designed for hundreds of concurrent in-flight
 //! verb calls from a game host or similar.
@@ -22,22 +22,19 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use moor_common::model::ObjectRef;
-use moor_common::tasks::{NarrativeEvent, SchedulerError};
-use moor_runtime_api::{
+use crate::{
     AuthToken, ClientToken, RpcError,
     api::{
         ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, ConnectType,
         HostServices, RuntimeClient,
     },
 };
+use moor_common::model::ObjectRef;
+use moor_common::tasks::{NarrativeEvent, SchedulerError};
 use moor_var::{Obj, Symbol, Var};
 use tokio::sync::{broadcast, oneshot};
 use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
-
-use crate::ZmqHostServices;
-use crate::rpc_client::{CurveKeys, RpcClient};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -109,7 +106,7 @@ type WaiterMap = Mutex<HashMap<u64, oneshot::Sender<TaskResult>>>;
 ///
 /// # Example
 /// ```no_run
-/// use moor_zmq_client::task_client::TaskClient;
+/// use moor_runtime_api::task_client::TaskClient;
 ///
 /// # async fn example(client: &TaskClient) {
 /// use moor_common::model::ObjectRef;
@@ -135,12 +132,6 @@ pub struct TaskClient {
 
 /// Configuration for creating a TaskClient session.
 pub struct TaskClientConfig {
-    /// ZMQ context (shared across clients).
-    pub zmq_context: Arc<tmq::Context>,
-    /// Address of the daemon RPC endpoint (e.g. `ipc:///tmp/moor.rpc`).
-    pub rpc_addr: String,
-    /// Address of the daemon PubSub endpoint (e.g. `ipc:///tmp/moor.events`).
-    pub pubsub_addr: String,
     /// Auth token for the player session.
     pub auth_token: AuthToken,
     /// Handler object for this connection (e.g. `#0`).
@@ -149,8 +140,6 @@ pub struct TaskClientConfig {
     pub peer_addr: String,
     /// Local port for connection metadata.
     pub local_port: u16,
-    /// CURVE encryption keys (optional, for TCP connections).
-    pub curve_keys: Option<CurveKeys>,
     /// Default timeout for verb invocations.
     pub default_timeout: Duration,
 }
@@ -158,42 +147,21 @@ pub struct TaskClientConfig {
 impl Default for TaskClientConfig {
     fn default() -> Self {
         Self {
-            zmq_context: Arc::new(tmq::Context::new()),
-            rpc_addr: String::new(),
-            pubsub_addr: String::new(),
             auth_token: AuthToken(String::new()),
             handler_object: Obj::mk_id(0),
             peer_addr: "localhost".to_string(),
             local_port: 0,
-            curve_keys: None,
             default_timeout: DEFAULT_TIMEOUT,
         }
     }
 }
 
 impl TaskClient {
-    /// Create a new TaskClient, establishing a daemon session.
+    /// Create a new TaskClient through a host services implementation.
     ///
-    /// This performs the full attach flow: creates a client_id, sends an
-    /// Attach message, sets up the PubSub subscription, and spawns the
+    /// This performs the full attach flow: creates a client id, sends an
+    /// attach request, sets up the event subscription, and spawns the
     /// background event dispatcher.
-    pub async fn connect(config: TaskClientConfig) -> Result<Self, TaskClientError> {
-        let curve_keys = config.curve_keys.as_ref().map(|keys| {
-            (
-                keys.client_secret.clone(),
-                keys.client_public.clone(),
-                keys.server_public.clone(),
-            )
-        });
-        let services = Arc::new(ZmqHostServices::new(
-            (*config.zmq_context).clone(),
-            config.rpc_addr.clone(),
-            config.pubsub_addr.clone(),
-            curve_keys,
-        ));
-        Self::connect_with_services(config, services).await
-    }
-
     pub async fn connect_with_services(
         config: TaskClientConfig,
         services: Arc<dyn HostServices>,
@@ -256,48 +224,25 @@ impl TaskClient {
     }
 
     /// Create a TaskClient from an already-attached session.
-    ///
-    /// Use this when the caller has already performed attach and has a
-    /// client_id, client_token, and RpcClient. The PubSub subscription
-    /// is created internally.
-    pub async fn from_session(
-        rpc: RpcClient,
+    pub fn from_attached_session(
+        rpc: Arc<dyn RuntimeClient>,
+        subscription: Box<dyn ClientEventSubscription>,
         client_id: Uuid,
         client_token: ClientToken,
         auth_token: AuthToken,
-        zmq_context: &tmq::Context,
-        pubsub_addr: &str,
-        curve_keys: Option<&CurveKeys>,
         default_timeout: Duration,
-    ) -> Result<Self, TaskClientError> {
-        let curve_keys = curve_keys.map(|keys| {
-            (
-                keys.client_secret.clone(),
-                keys.client_public.clone(),
-                keys.server_public.clone(),
-            )
-        });
-        let services = ZmqHostServices::new(
-            zmq_context.clone(),
-            String::new(),
-            pubsub_addr.to_string(),
-            curve_keys,
-        );
-        let (subscribe, _) = services
-            .client_subscriptions(client_id)
-            .map_err(TaskClientError::Rpc)?;
-
+    ) -> Self {
         let waiters = Arc::new(WaiterMap::new(HashMap::new()));
         let (session_events_tx, _) = broadcast::channel(SESSION_EVENT_CHANNEL_CAPACITY);
 
         let dispatcher_handle = tokio::spawn(dispatcher_loop(
-            subscribe,
+            subscription,
             waiters.clone(),
             session_events_tx.clone(),
         ));
 
-        Ok(Self {
-            rpc: Arc::new(rpc),
+        Self {
+            rpc,
             client_id,
             client_token,
             auth_token,
@@ -305,7 +250,7 @@ impl TaskClient {
             session_events_tx,
             dispatcher_handle,
             default_timeout,
-        })
+        }
     }
 
     /// Invoke a verb on an object and await the result.
@@ -517,7 +462,7 @@ async fn dispatcher_loop(
 /// Extract task_id from a TaskSubmitted RPC reply.
 #[cfg(test)]
 fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
-    let reply = moor_runtime_api::read_reply_result(reply_bytes)
+    let reply = crate::read_reply_result(reply_bytes)
         .map_err(|e| TaskClientError::UnexpectedReply(format!("bad flatbuffer: {e}")))?;
 
     let result_union = reply
@@ -553,7 +498,7 @@ fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
 /// Decode the attach reply, extracting the client token.
 #[cfg(test)]
 fn decode_attach_reply(reply_bytes: &[u8]) -> Result<ClientToken, TaskClientError> {
-    let reply = moor_runtime_api::read_reply_result(reply_bytes)
+    let reply = crate::read_reply_result(reply_bytes)
         .map_err(|e| TaskClientError::AttachFailed(format!("bad flatbuffer: {e}")))?;
 
     let result_union = reply
@@ -707,14 +652,12 @@ mod tests {
     }
 
     struct TestSubscription {
-        rx: tokio::sync::mpsc::Receiver<moor_runtime_api::api::ClientEventMessage>,
+        rx: tokio::sync::mpsc::Receiver<crate::api::ClientEventMessage>,
     }
 
     #[async_trait::async_trait]
     impl ClientEventSubscription for TestSubscription {
-        async fn recv_client_event(
-            &mut self,
-        ) -> Result<moor_runtime_api::api::ClientEventMessage, RpcError> {
+        async fn recv_client_event(&mut self) -> Result<crate::api::ClientEventMessage, RpcError> {
             self.rx
                 .recv()
                 .await
@@ -723,7 +666,7 @@ mod tests {
     }
 
     fn test_subscription() -> (
-        tokio::sync::mpsc::Sender<moor_runtime_api::api::ClientEventMessage>,
+        tokio::sync::mpsc::Sender<crate::api::ClientEventMessage>,
         Box<dyn ClientEventSubscription>,
     ) {
         let (tx, rx) = tokio::sync::mpsc::channel(16);
@@ -731,10 +674,10 @@ mod tests {
     }
 
     async fn send_test_event(
-        tx: &tokio::sync::mpsc::Sender<moor_runtime_api::api::ClientEventMessage>,
+        tx: &tokio::sync::mpsc::Sender<crate::api::ClientEventMessage>,
         event: ClientEvent,
     ) {
-        tx.send(moor_runtime_api::api::ClientEventMessage {
+        tx.send(crate::api::ClientEventMessage {
             event,
             raw_bytes: Vec::new(),
         })

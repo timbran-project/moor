@@ -43,7 +43,6 @@ use crate::health::spawn_health_check;
 
 #[derive(Clone, Debug)]
 pub struct TelnetHostConfig {
-    pub connection: RpcClientConfig,
     pub telnet_address: String,
     pub telnet_port: u16,
     pub health_check_port: u16,
@@ -52,22 +51,26 @@ pub struct TelnetHostConfig {
     pub tls_key: Option<PathBuf>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ZmqTelnetHostConfig {
+    pub connection: RpcClientConfig,
+    pub host: TelnetHostConfig,
+}
+
 #[derive(Clone)]
 pub struct HostRuntime {
-    pub zmq_context: tmq::Context,
     pub kill_switch: Arc<AtomicBool>,
 }
 
 impl Default for HostRuntime {
     fn default() -> Self {
         Self {
-            zmq_context: tmq::Context::new(),
             kill_switch: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
-pub async fn run(config: TelnetHostConfig, runtime: HostRuntime) -> Result<()> {
+pub async fn run(config: ZmqTelnetHostConfig, runtime: HostRuntime) -> Result<()> {
     let curve_keys = moor_zmq_client::enrollment_client::setup_curve_auth(
         &config.connection.rpc_address,
         &config.connection.enrollment_address,
@@ -78,12 +81,12 @@ pub async fn run(config: TelnetHostConfig, runtime: HostRuntime) -> Result<()> {
     .map_err(|e| eyre!("Failed to setup CURVE authentication: {e}"))?;
 
     let host_services = Arc::new(ZmqHostServices::new(
-        runtime.zmq_context.clone(),
+        tmq::Context::new(),
         config.connection.rpc_address.clone(),
         config.connection.events_address.clone(),
         curve_keys.clone(),
     )) as Arc<dyn HostServices>;
-    run_with_host_services(config, runtime, curve_keys, host_services).await
+    run_with_host_services(config.host, runtime, host_services).await
 }
 
 pub async fn run_with_services(
@@ -91,13 +94,12 @@ pub async fn run_with_services(
     runtime: HostRuntime,
     host_services: Arc<dyn HostServices>,
 ) -> Result<()> {
-    run_with_host_services(config, runtime, None, host_services).await
+    run_with_host_services(config, runtime, host_services).await
 }
 
 async fn run_with_host_services(
     config: TelnetHostConfig,
     runtime: HostRuntime,
-    curve_keys: Option<(String, String, String)>,
     host_services: Arc<dyn HostServices>,
 ) -> Result<()> {
     let listen_addr = format!("{}:{}", config.telnet_address, config.telnet_port);
@@ -110,11 +112,7 @@ async fn run_with_host_services(
     let tls_config = load_optional_tls_config(&config)?;
 
     let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
-        runtime.zmq_context.clone(),
-        config.connection.rpc_address.clone(),
-        config.connection.events_address.clone(),
         runtime.kill_switch.clone(),
-        curve_keys.clone(),
         host_services.clone(),
         tls_config,
     );

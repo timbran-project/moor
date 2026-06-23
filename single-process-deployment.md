@@ -24,14 +24,9 @@ Add a new `moor` binary that runs the daemon runtime, telnet host, and web host 
 The first version should preserve existing daemon/session semantics. It should not create a parallel
 scheduler API or bypass connection/session/auth behavior.
 
-There are two useful milestones:
-
-- Stage 1: one binary, one shared ZeroMQ context, and `inproc://` endpoints for daemon/host RPC and
-  pub/sub. This keeps the current FlatBuffer protocol and host code shape, but removes external
-  socket files, TCP RPC listeners, CURVE/ZAP, multiple processes, and multiple service units.
-- Stage 2: replace the in-process FlatBuffer boundary with a typed Rust daemon API. FlatBuffers
-  remain the split-process wire format, with a ZeroMQ adapter translating between wire messages and
-  typed daemon requests/replies/events.
+The original plan had an intermediate `inproc://` ZeroMQ milestone. The current implementation has
+moved past that: single-process mode uses typed in-process services for daemon/host request-reply
+and event delivery, while ZeroMQ and FlatBuffers remain the split-process transport.
 
 ## Current Status
 
@@ -42,13 +37,20 @@ The current single-process path uses typed in-process services for host/runtime 
 event delivery:
 
 - `moor_runtime_api::api::RuntimeClient` is the host-side typed request client trait.
+- `moor_runtime_api::api::HostServices` bundles runtime clients and event subscriptions for host
+  code.
+- `moor_runtime_api::task_client::TaskClient` provides the high-level verb invocation client over
+  `HostServices`; it is not tied to ZeroMQ.
 - `crates/daemon/src/runtime/api.rs` defines the daemon-side `RuntimeApi`.
 - `LocalRuntimeClient`, `LocalEventBus`, and `LocalRuntimeServices` provide the in-process adapter.
 - `RpcClient` remains the ZeroMQ-backed split-process adapter and implements `RuntimeClient`.
+- `ZmqHostServices` remains in `moor-zmq-client` as the split-process host service factory.
 
 FlatBuffers remain the split-process wire format. The daemon `rpc` module owns FlatBuffer
 decode/encode and ZeroMQ transport handling; the daemon `runtime` module owns typed runtime APIs and
-local in-process implementations.
+local in-process implementations. The local event bus still preserves raw FlatBuffer event bytes for
+existing consumers, so event delivery is typed at the trait boundary but not yet fully schema-free
+inside the daemon.
 
 The default development workflow is `npm run full:dev`, which runs Meadow plus `npm run moor:dev`.
 That script uses the checked-in `moor-dev.yaml` unless `MOOR_CONFIG` is set.
@@ -77,42 +79,48 @@ The daemon already has a useful server-side abstraction:
 - `crates/daemon/src/rpc/session.rs`
   - VM sessions send `SessionActions` into the daemon RPC/event layer.
 
-The host side is more tightly coupled to ZeroMQ:
+The host side now works primarily through typed service traits:
 
-- `moor_zmq_client::rpc_client::RpcClient` owns ZeroMQ request/reply sockets.
-- `moor_zmq_client::pubsub_client` reads client and broadcast events from `tmq::Subscribe`.
-- Telnet and web sessions store `RpcClient` and `tmq::Subscribe` directly.
-- Host lifecycle uses `start_host_session()` and `process_hosts_events()`, which are
-  ZeroMQ-specific.
-- `TaskClient` wraps `RpcClient` plus ZeroMQ pub/sub for HTTP verb invocation.
+- Telnet and web sessions hold `Arc<dyn RuntimeClient>` rather than `RpcClient`.
+- Host lifecycle uses `HostServices` for runtime calls and event subscriptions.
+- Split-process hosts construct `ZmqHostServices`, which wraps `RpcClient` plus ZeroMQ
+  subscriptions.
+- Single-process hosts receive `LocalRuntimeServices` from the daemon runtime.
+- Web HTTP verb invocation uses `moor_runtime_api::task_client::TaskClient`, so task invocation is
+  no longer owned by the ZeroMQ client crate.
 
-For Stage 1 the central work is runtime assembly and sharing a single ZeroMQ context. For Stage 2
-the central work is extracting the daemon request/reply/event API from the current wire schema, then
-adapting ZeroMQ and single-process deployment to that API.
+Remaining seams are mostly cleanup:
+
+- Some local events are still encoded and decoded through FlatBuffers to preserve raw event bytes.
+- The daemon crate still contains both process-level daemon concerns and server/runtime library
+  concerns.
+- Split-host entry points still own enrollment and ZMQ setup, while injected local services bypass
+  that path.
 
 ## Target Architecture
 
 ```text
-               split deploy                              stage 1 single-process
+               split deploy                              single-process
 
  telnet/web process                                      moor process
       |                                                       |
-      | RpcClient + Subscribe                                | RpcClient + Subscribe
+      | ZmqHostServices                                      | LocalRuntimeServices
       v                                                       v
- FlatBuffer ZeroMQ  ----------------------->          FlatBuffer ZeroMQ inproc
+ typed RuntimeClient/EventSubscription          typed RuntimeClient/EventSubscription
       |                                                       |
+      v                                                       v
+ FlatBuffer ZeroMQ adapter                              daemon RuntimeApi
+      |
       v                                                       v
  moor-daemon process                                  daemon runtime + scheduler
 ```
 
 The same high-level host/session code should work in both modes:
 
-- In split mode, host code uses a ZeroMQ-backed client and pub/sub subscription.
-- In Stage 1 single-process mode, host code still uses ZeroMQ-backed clients and subscriptions, but
-  the endpoints are `inproc://` and all sockets share one context.
-- In Stage 2 single-process mode, host code uses an in-process client and in-process event
-  subscriptions.
-- Stage 2 shares the same typed request/reply/event model across split and single-process modes.
+- In split mode, host code receives `ZmqHostServices`.
+- In single-process mode, host code receives `LocalRuntimeServices`.
+- Both modes share typed request/reply/event traits.
+- FlatBuffer schema details stay at the ZeroMQ adapter and local raw-event compatibility boundary.
 
 ## Stage 2 Proposed Abstractions
 
@@ -796,29 +804,31 @@ Regression checks:
 - split `moor-telnet-host` still enrolls over TCP/CURVE
 - split `moor-web-host` still enrolls over TCP/CURVE
 
-#### Phase 1.11: Done Line
+#### Current Done Line
 
-Phase 1 is done when:
+The current implementation has reached the useful single-binary milestone by a more direct route
+than the original `inproc://` plan:
 
-- one `moor` binary can run daemon + telnet + web in one process
-- all daemon/host RPC and pub/sub traffic stays on one shared ZeroMQ context using `inproc://`
-- split binaries keep their current behavior
-- single-process config does not expose internal RPC/events endpoints
-- startup does not depend on sleeps
+- one `moor` binary runs daemon + telnet + web in one process
+- host request/reply calls use typed `RuntimeClient`/`HostServices`
+- single-process host runtime uses `LocalRuntimeServices`
+- split binaries keep using ZeroMQ enrollment, request/reply, and pub/sub
+- single-process config does not expose user-facing internal RPC/events endpoints
+- startup is gated on daemon readiness
 - shutdown is signal-driven and uses the shared kill switch
-- there is at least one repeatable smoke path for fresh start, listener bind, basic command,
-  restart, and shutdown
 
-This phase gives a useful single binary without changing daemon API shape.
+Remaining proof work is smoke coverage: fresh import, telnet/web listener bind, basic command,
+restart against an existing DB, SIGINT/SIGTERM shutdown, and SIGUSR1 emergency checkpoint.
 
 ### Phase 2: Typed Client Abstraction
 
 - Introduce typed request/reply enums.
 - Introduce `RuntimeClient` and adapt `RpcClient` to implement it by encoding/decoding FlatBuffers.
 - Parameterize telnet/web code over the client abstraction.
-- Keep ZeroMQ subscriptions unchanged initially.
+- Move high-level `TaskClient` out of `moor-zmq-client`.
 
-This phase removes direct FlatBuffer request/reply dependence from host/session logic.
+Status: done for the current host/session/task-client paths. `RpcClient` is now the ZeroMQ adapter,
+not the host-facing API.
 
 ### Phase 3: Typed Event Abstraction
 
@@ -828,18 +838,19 @@ This phase removes direct FlatBuffer request/reply dependence from host/session 
 
 This phase removes direct `tmq::Subscribe` dependence from host/session logic.
 
+Status: mostly done. `HostServices` returns typed event subscription trait objects. ZeroMQ
+subscriptions live in `moor-zmq-client`, and local subscriptions live behind `LocalEventBus`.
+
 ### Phase 4: Non-ZeroMQ In-Process Transport
 
-- Add `InProcessEventBus`.
-- Add `InProcessTransport`.
-- Add `InProcessClient`.
+- Add local event bus.
+- Add local runtime client.
 - Wire in-process request/reply dispatch through the typed daemon API.
-- Wire session/task/narrative/host broadcasts through `InProcessEventBus`.
+- Wire session/task/narrative/host broadcasts through the local event bus.
 
-At the end of this phase, tests should be able to run daemon + hosts in one process without ZeroMQ.
-
-At this point, the `moor` binary can switch from Stage 1 ZeroMQ `inproc://` plumbing to the typed
-local transport.
+Status: functionally done for the single-process binary. Remaining cleanup is to remove local
+FlatBuffer event encode/decode where raw event bytes are no longer required, and to add parity tests
+that run daemon + hosts in one process without ZeroMQ.
 
 ### Phase 1.7: Packaging
 
@@ -924,11 +935,10 @@ Development and example commands opt in so the bundled stack exercises the worke
 
 ### API Churn
 
-The Stage 1 `inproc://` binary should have limited API churn because it preserves `RpcClient`,
-`tmq::Subscribe`, FlatBuffer request/reply encoding, and daemon `MessageHandler`.
-
-Stage 2 trait extraction will touch more files. Keep the first trait minimal and keep conversion
-code at the ZeroMQ boundary so host/session logic does not learn schema details again.
+The typed host/runtime boundary is now the stable direction. Keep conversion code at the ZeroMQ
+boundary so host/session logic does not learn schema details again. Avoid reintroducing RPC address
+or ZeroMQ context fields into local host configuration; local hosts should receive listener config
+plus `HostServices`.
 
 ### Tokio vs Threaded Daemon
 
@@ -951,15 +961,12 @@ clear ownership model:
 - Should the in-process event bus use `tokio::sync::broadcast`, `flume`, or custom per-client
   bounded queues?
 
-## Recommended First Cut
+## Recommended Next Work
 
-Build the first cut around one shared ZeroMQ context and `inproc://` endpoints:
-
-1. Extract libraries without changing behavior.
-2. Add `moor` as a single binary that starts daemon + telnet + web.
-3. Pass one shared ZeroMQ context into all three components.
-4. Use `inproc://` RPC/events endpoints and preserve FlatBuffer message handling.
-5. Keep embedded curl-worker support disabled by default in the single-process binary.
-
-That gives a useful single-process deployment while keeping the current clustered architecture
-intact and leaves typed API extraction as a follow-up cleanup.
+1. Finish raw-event cleanup in `LocalEventBus` so local delivery no longer round-trips through
+   FlatBuffers except where a raw web payload is explicitly needed.
+2. Add repeatable single-process smoke coverage for startup, telnet/web listener bind, command
+   execution, restart, and signal shutdown.
+3. Split daemon process concerns from server/runtime concerns once the local transport boundary is
+   stable.
+4. Keep split ZeroMQ deployment as the compatibility path for clustered or multi-process installs.
