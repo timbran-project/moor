@@ -33,10 +33,14 @@ use moor_common::threading::spawn_efficient;
 use moor_kernel::SchedulerClient;
 use moor_rpc::{HostToDaemonMessageRef, MessageTypeRef};
 use moor_runtime_api::{
-    CLIENT_BROADCAST_TOPIC, HOST_BROADCAST_TOPIC, RpcMessageError, obj_fb,
-    scheduler_error_to_flatbuffer_struct, var_to_flatbuffer_rpc,
+    CLIENT_BROADCAST_TOPIC, HOST_BROADCAST_TOPIC, RpcMessageError,
+    api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
+    api_codec::{
+        encode_broadcast_event_bytes, encode_client_event_bytes, encode_host_broadcast_event_bytes,
+    },
+    scheduler_error_to_flatbuffer_struct,
 };
-use moor_schema::{convert::narrative_event_to_flatbuffer_struct, rpc as moor_rpc};
+use moor_schema::rpc as moor_rpc;
 use moor_var::Obj;
 /// Trait for the transport layer that handles communication between hosts and the daemon
 pub trait Transport: Send + Sync {
@@ -54,18 +58,11 @@ pub trait Transport: Send + Sync {
         connections: &dyn crate::connections::ConnectionRegistry,
     ) -> Result<(), eyre::Error>;
     /// Broadcast events to hosts
-    fn broadcast_host_event(&self, event: moor_rpc::HostBroadcastEvent) -> Result<(), eyre::Error>;
+    fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error>;
     /// Publish event to specific client
-    fn publish_client_event(
-        &self,
-        client_id: Uuid,
-        event: moor_rpc::ClientEvent,
-    ) -> Result<(), eyre::Error>;
+    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error>;
     /// Broadcast events to all clients
-    fn broadcast_client_event(
-        &self,
-        event: moor_rpc::ClientsBroadcastEvent,
-    ) -> Result<(), eyre::Error>;
+    fn broadcast_client_event(&self, event: BroadcastEvent) -> Result<(), eyre::Error>;
 }
 
 /// ZMQ + bincoded structs transport layer that handles socket management and message routing
@@ -754,36 +751,20 @@ impl Transport for RpcTransport {
                             Some(value.clone()),
                         )?;
                     }
-                    let value_fb = var_to_flatbuffer_rpc(value)
-                        .map_err(|e| eyre::eyre!("Failed to encode var: {}", e))?;
-                    moor_rpc::ClientEvent {
-                        event: moor_rpc::ClientEventUnion::SetConnectionOptionEvent(Box::new(
-                            moor_rpc::SetConnectionOptionEvent {
-                                connection_obj: obj_fb(connection),
-                                option_name: Box::new(moor_rpc::Symbol {
-                                    value: option.as_string(),
-                                }),
-                                value: Box::new(value_fb),
-                            },
-                        )),
+                    ClientEvent::SetConnectionOption {
+                        connection_obj: *connection,
+                        option_name: *option,
+                        value: value.clone(),
                     }
                 }
-                _ => {
-                    let narrative_fb = narrative_event_to_flatbuffer_struct(event.as_ref())
-                        .map_err(|e| eyre::eyre!("Failed to convert narrative event: {}", e))?;
-                    moor_rpc::ClientEvent {
-                        event: moor_rpc::ClientEventUnion::NarrativeEventMessage(Box::new(
-                            moor_rpc::NarrativeEventMessage {
-                                player: obj_fb(player),
-                                event: Box::new(narrative_fb),
-                            },
-                        )),
-                    }
-                }
+                _ => ClientEvent::Narrative {
+                    player: *player,
+                    event: event.as_ref().clone(),
+                },
             };
 
-            let mut builder = planus::Builder::new();
-            let event_bytes = builder.finish(&client_event, None).to_vec();
+            let event_bytes = encode_client_event_bytes(&client_event)
+                .map_err(|e| eyre::eyre!("Failed to encode client event: {e}"))?;
 
             for client_id in &client_ids {
                 let payload = vec![client_id.as_bytes().to_vec(), event_bytes.clone()];
@@ -806,9 +787,9 @@ impl Transport for RpcTransport {
         Ok(())
     }
     /// Broadcast events to hosts
-    fn broadcast_host_event(&self, event: moor_rpc::HostBroadcastEvent) -> Result<(), eyre::Error> {
-        let mut builder = planus::Builder::new();
-        let event_bytes = builder.finish(&event, None).to_vec();
+    fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
+        let event_bytes = encode_host_broadcast_event_bytes(&event)
+            .map_err(|e| eyre::eyre!("Failed to encode host event: {e}"))?;
         let payload = vec![HOST_BROADCAST_TOPIC.to_vec(), event_bytes];
 
         // Send to IPC socket if available
@@ -832,13 +813,9 @@ impl Transport for RpcTransport {
         Ok(())
     }
     /// Publish event to specific client
-    fn publish_client_event(
-        &self,
-        client_id: Uuid,
-        event: moor_rpc::ClientEvent,
-    ) -> Result<(), eyre::Error> {
-        let mut builder = planus::Builder::new();
-        let event_bytes = builder.finish(&event, None).to_vec();
+    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error> {
+        let event_bytes = encode_client_event_bytes(&event)
+            .map_err(|e| eyre::eyre!("Failed to encode client event: {e}"))?;
         let payload = vec![client_id.as_bytes().to_vec(), event_bytes];
 
         // Send to IPC socket if available
@@ -862,12 +839,8 @@ impl Transport for RpcTransport {
         Ok(())
     }
     /// Broadcast events to all clients
-    fn broadcast_client_event(
-        &self,
-        event: moor_rpc::ClientsBroadcastEvent,
-    ) -> Result<(), eyre::Error> {
-        let mut builder = planus::Builder::new();
-        let event_bytes = builder.finish(&event, None).to_vec();
+    fn broadcast_client_event(&self, event: BroadcastEvent) -> Result<(), eyre::Error> {
+        let event_bytes = encode_broadcast_event_bytes(&event);
         let payload = vec![CLIENT_BROADCAST_TOPIC.to_vec(), event_bytes];
 
         // Send to IPC socket if available

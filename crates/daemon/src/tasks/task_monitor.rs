@@ -26,7 +26,7 @@ use crate::rpc::SessionActions;
 use flume::Sender;
 use moor_common::tasks::{SchedulerError, TaskId};
 use moor_kernel::tasks::TaskHandle;
-use moor_schema::{convert::var_to_flatbuffer, rpc as moor_rpc};
+use moor_runtime_api::api::ClientEvent;
 
 /// Monitors task completions and handles their lifecycle
 pub struct TaskMonitor {
@@ -136,31 +136,9 @@ impl TaskMonitor {
         match result {
             Ok((task_id, r)) => match r {
                 Ok(moor_kernel::tasks::TaskNotification::Result(v)) => {
-                    let client_event = match var_to_flatbuffer(&v) {
-                        Ok(value_fb) => moor_rpc::ClientEvent {
-                            event: moor_rpc::ClientEventUnion::TaskSuccessEvent(Box::new(
-                                moor_rpc::TaskSuccessEvent {
-                                    task_id: task_id as u64,
-                                    result: Box::new(value_fb),
-                                },
-                            )),
-                        },
-                        Err(e) => {
-                            tracing::error!(?task_id, ?client_id, error = ?e, "Failed to encode task result - likely contains lambda or anonymous object");
-                            let error_event = moor_rpc::SchedulerError {
-                                error: moor_rpc::SchedulerErrorUnion::SchedulerNotResponding(
-                                    Box::new(moor_rpc::SchedulerNotResponding {}),
-                                ),
-                            };
-                            moor_rpc::ClientEvent {
-                                event: moor_rpc::ClientEventUnion::TaskErrorEvent(Box::new(
-                                    moor_rpc::TaskErrorEvent {
-                                        task_id: task_id as u64,
-                                        error: Box::new(error_event),
-                                    },
-                                )),
-                            }
-                        }
+                    let client_event = ClientEvent::TaskSuccess {
+                        task_id: task_id as u64,
+                        result: v,
                     };
 
                     if let Err(e) = self
@@ -176,12 +154,8 @@ impl TaskMonitor {
                     self.task_handles.remove(&task_id, &guard);
                 }
                 Ok(moor_kernel::tasks::TaskNotification::Suspended) => {
-                    let client_event = moor_rpc::ClientEvent {
-                        event: moor_rpc::ClientEventUnion::TaskSuspendedEvent(Box::new(
-                            moor_rpc::TaskSuspendedEvent {
-                                task_id: task_id as u64,
-                            },
-                        )),
+                    let client_event = ClientEvent::TaskSuspended {
+                        task_id: task_id as u64,
                     };
 
                     if let Err(e) = self
@@ -195,21 +169,9 @@ impl TaskMonitor {
                     }
                 }
                 Err(e) => {
-                    let scheduler_error = moor_runtime_api::scheduler_error_to_flatbuffer_struct(
-                        &e,
-                    )
-                    .unwrap_or_else(|_| moor_rpc::SchedulerError {
-                        error: moor_rpc::SchedulerErrorUnion::SchedulerNotResponding(Box::new(
-                            moor_rpc::SchedulerNotResponding {},
-                        )),
-                    });
-                    let client_event = moor_rpc::ClientEvent {
-                        event: moor_rpc::ClientEventUnion::TaskErrorEvent(Box::new(
-                            moor_rpc::TaskErrorEvent {
-                                task_id: task_id as u64,
-                                error: Box::new(scheduler_error),
-                            },
-                        )),
+                    let client_event = ClientEvent::TaskError {
+                        task_id: task_id as u64,
+                        error: e,
                     };
 
                     if let Err(e) = self

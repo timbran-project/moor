@@ -16,16 +16,13 @@
 use ahash::AHasher;
 use eyre::Error;
 use flume::Sender;
-use moor_rpc::{
-    ClientEvent, ClientEventUnion, DaemonToClientReply, DaemonToHostReply,
-    HostClientToDaemonMessageRef,
-};
-use moor_schema::{rpc as moor_rpc, var as moor_var_fb};
+use moor_rpc::{DaemonToClientReply, DaemonToHostReply, HostClientToDaemonMessageRef};
+use moor_schema::rpc as moor_rpc;
 use papaya::HashMap as PapayaHashMap;
 use std::{
     hash::BuildHasherDefault,
     sync::{Arc, LazyLock, RwLock},
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
@@ -46,11 +43,10 @@ use moor_kernel::{
 
 use crate::runtime::RuntimeApi;
 use moor_runtime_api::{
-    AuthToken, ClientToken, HostType, RpcMessageError, obj_fb, symbol_fb, uuid_fb,
-    var_to_flatbuffer_rpc,
+    AuthToken, ClientToken, HostType, RpcMessageError,
+    api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
 };
-use moor_schema::convert::var_to_flatbuffer;
-use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, v_sym};
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
 use rusty_paseto::prelude::Key;
 use tracing::{error, warn};
 
@@ -226,40 +222,11 @@ impl MessageHandler for RpcMessageHandler {
         port: u16,
         options: Vec<(Symbol, Var)>,
     ) -> Result<(), SessionError> {
-        let host_type_enum = match host_type {
-            HostType::TCP => moor_rpc::HostType::Tcp,
-            HostType::WebSocket => moor_rpc::HostType::WebSocket,
-        };
-
-        // Convert options to flatbuffer VarMapPair format
-        let options_fb: Option<Vec<moor_var_fb::VarMapPair>> = if options.is_empty() {
-            None
-        } else {
-            let pairs: Result<Vec<_>, _> = options
-                .iter()
-                .map(|(key, value)| {
-                    let key_fb =
-                        var_to_flatbuffer(&v_sym(*key)).map_err(|_| SessionError::DeliveryError)?;
-                    let value_fb =
-                        var_to_flatbuffer(value).map_err(|_| SessionError::DeliveryError)?;
-                    Ok(moor_var_fb::VarMapPair {
-                        key: Box::new(key_fb),
-                        value: Box::new(value_fb),
-                    })
-                })
-                .collect();
-            Some(pairs?)
-        };
-
-        let event = moor_rpc::HostBroadcastEvent {
-            event: moor_rpc::HostBroadcastEventUnion::HostBroadcastListen(Box::new(
-                moor_rpc::HostBroadcastListen {
-                    handler_object: obj_fb(&handler_object),
-                    host_type: host_type_enum,
-                    port,
-                    options: options_fb,
-                },
-            )),
+        let event = HostBroadcastEvent::Listen {
+            handler_object,
+            host_type,
+            port,
+            options,
         };
 
         self.transport
@@ -268,18 +235,7 @@ impl MessageHandler for RpcMessageHandler {
     }
 
     fn broadcast_unlisten(&self, host_type: HostType, port: u16) -> Result<(), SessionError> {
-        let host_type_enum = match host_type {
-            HostType::TCP => moor_rpc::HostType::Tcp,
-            HostType::WebSocket => moor_rpc::HostType::WebSocket,
-        };
-        let event = moor_rpc::HostBroadcastEvent {
-            event: moor_rpc::HostBroadcastEventUnion::HostBroadcastUnlisten(Box::new(
-                moor_rpc::HostBroadcastUnlisten {
-                    host_type: host_type_enum,
-                    port,
-                },
-            )),
-        };
+        let event = HostBroadcastEvent::Unlisten { host_type, port };
 
         self.transport
             .broadcast_host_event(event)
@@ -301,34 +257,14 @@ impl MessageHandler for RpcMessageHandler {
 
     fn ping_pong(&self) -> Result<(), SessionError> {
         // Send ping to all clients
-        let timestamp_nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
-        let client_event = moor_rpc::ClientsBroadcastEvent {
-            event: moor_rpc::ClientsBroadcastEventUnion::ClientsBroadcastPingPong(Box::new(
-                moor_rpc::ClientsBroadcastPingPong {
-                    timestamp: timestamp_nanos,
-                },
-            )),
-        };
+        let client_event = BroadcastEvent::PingPong;
         self.transport
             .broadcast_client_event(client_event)
             .map_err(|_| SessionError::DeliveryError)?;
         self.connections.ping_check();
 
         // Send ping to all hosts
-        let timestamp_nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
-        let host_event = moor_rpc::HostBroadcastEvent {
-            event: moor_rpc::HostBroadcastEventUnion::HostBroadcastPingPong(Box::new(
-                moor_rpc::HostBroadcastPingPong {
-                    timestamp: timestamp_nanos,
-                },
-            )),
-        };
+        let host_event = HostBroadcastEvent::PingPong;
         self.transport
             .broadcast_host_event(host_event)
             .map_err(|_| SessionError::DeliveryError)?;
@@ -517,15 +453,9 @@ impl MessageHandler for RpcMessageHandler {
         // Prepare events for all clients before making any changes
         let mut events_to_send = Vec::new();
         for client_id in &client_ids {
-            let event = ClientEvent {
-                event: ClientEventUnion::PlayerSwitchedEvent(Box::new(
-                    moor_rpc::PlayerSwitchedEvent {
-                        new_player: obj_fb(&new_player),
-                        new_auth_token: Box::new(moor_rpc::AuthToken {
-                            token: new_auth_token.0.clone(),
-                        }),
-                    },
-                )),
+            let event = ClientEvent::PlayerSwitched {
+                new_player,
+                new_auth_token: new_auth_token.clone(),
             };
             events_to_send.push((*client_id, event));
         }
@@ -577,9 +507,7 @@ impl RpcMessageHandler {
         let all_client_ids = self.connections.client_ids_for(player)?;
 
         // Send disconnect event to all client connections for this player
-        let event = ClientEvent {
-            event: ClientEventUnion::DisconnectEvent(Box::new(moor_rpc::DisconnectEvent {})),
-        };
+        let event = ClientEvent::Disconnect;
 
         for client_id in &all_client_ids {
             // First send the disconnect event to the client
@@ -614,27 +542,9 @@ impl RpcMessageHandler {
             return Err(eyre::eyre!("Player mismatch"));
         }
 
-        // Serialize metadata to FlatBuffer format
-        let metadata_fb = metadata.map(|meta| {
-            meta.iter()
-                .filter_map(|(key, value)| match var_to_flatbuffer(value) {
-                    Ok(value_fb) => Some(moor_rpc::MetadataPair {
-                        key: symbol_fb(key),
-                        value: Box::new(value_fb),
-                    }),
-                    Err(e) => {
-                        warn!(error = ?e, key = ?key, "Failed to serialize metadata value");
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-        });
-
-        let event = ClientEvent {
-            event: ClientEventUnion::RequestInputEvent(Box::new(moor_rpc::RequestInputEvent {
-                request_id: uuid_fb(input_request_id),
-                metadata: metadata_fb,
-            })),
+        let event = ClientEvent::RequestInput {
+            request_id: input_request_id,
+            metadata: metadata.unwrap_or_default(),
         };
         self.transport.publish_client_event(client_id, event)
     }
@@ -645,12 +555,7 @@ impl RpcMessageHandler {
         player: Obj,
         message: String,
     ) -> Result<(), Error> {
-        let event = ClientEvent {
-            event: ClientEventUnion::SystemMessageEvent(Box::new(moor_rpc::SystemMessageEvent {
-                player: obj_fb(&player),
-                message,
-            })),
-        };
+        let event = ClientEvent::SystemMessage { player, message };
         self.transport.publish_client_event(client_id, event)
     }
 
@@ -799,20 +704,12 @@ impl RpcMessageHandler {
             .set_client_attribute(client_id, key, Some(value.clone()))?;
 
         // Send SetConnectionOption event to the host
-        let value_fb = var_to_flatbuffer_rpc(&value)
-            .map_err(|e| eyre::eyre!("Failed to encode var: {}", e))?;
         self.transport.publish_client_event(
             client_id,
-            ClientEvent {
-                event: ClientEventUnion::SetConnectionOptionEvent(Box::new(
-                    moor_rpc::SetConnectionOptionEvent {
-                        connection_obj: obj_fb(&connection_obj),
-                        option_name: Box::new(moor_rpc::Symbol {
-                            value: key.as_string(),
-                        }),
-                        value: Box::new(value_fb),
-                    },
-                )),
+            ClientEvent::SetConnectionOption {
+                connection_obj,
+                option_name: key,
+                value,
             },
         )
     }

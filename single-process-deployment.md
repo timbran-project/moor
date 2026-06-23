@@ -48,9 +48,9 @@ event delivery:
 
 FlatBuffers remain the split-process wire format. The daemon `rpc` module owns FlatBuffer
 decode/encode and ZeroMQ transport handling; the daemon `runtime` module owns typed runtime APIs and
-local in-process implementations. The local event bus still preserves raw FlatBuffer event bytes for
-existing consumers, so event delivery is typed at the trait boundary but not yet fully schema-free
-inside the daemon.
+local in-process implementations. The local event bus carries typed events directly. FlatBuffer
+event encoding now lives at the ZeroMQ adapter boundary and at the web session payload edge where
+browser clients still expect the existing binary event format.
 
 The default development workflow is `npm run full:dev`, which runs Meadow plus `npm run moor:dev`.
 That script uses the checked-in `moor-dev.yaml` unless `MOOR_CONFIG` is set.
@@ -91,7 +91,6 @@ The host side now works primarily through typed service traits:
 
 Remaining seams are mostly cleanup:
 
-- Some local events are still encoded and decoded through FlatBuffers to preserve raw event bytes.
 - The daemon crate still contains both process-level daemon concerns and server/runtime library
   concerns.
 - Split-host entry points still own enrollment and ZMQ setup, while injected local services bypass
@@ -120,7 +119,8 @@ The same high-level host/session code should work in both modes:
 - In split mode, host code receives `ZmqHostServices`.
 - In single-process mode, host code receives `LocalRuntimeServices`.
 - Both modes share typed request/reply/event traits.
-- FlatBuffer schema details stay at the ZeroMQ adapter and local raw-event compatibility boundary.
+- FlatBuffer schema details stay at the ZeroMQ adapter and explicit web payload compatibility
+  boundary.
 
 ## Stage 2 Proposed Abstractions
 
@@ -848,9 +848,9 @@ subscriptions live in `moor-zmq-client`, and local subscriptions live behind `Lo
 - Wire in-process request/reply dispatch through the typed daemon API.
 - Wire session/task/narrative/host broadcasts through the local event bus.
 
-Status: functionally done for the single-process binary. Remaining cleanup is to remove local
-FlatBuffer event encode/decode where raw event bytes are no longer required, and to add parity tests
-that run daemon + hosts in one process without ZeroMQ.
+Status: functionally done for the single-process binary. Local event delivery is typed and no longer
+round-trips through FlatBuffers. Remaining proof work is to add parity tests that run daemon + hosts
+in one process without ZeroMQ.
 
 ### Phase 1.7: Packaging
 
@@ -963,10 +963,8 @@ clear ownership model:
 
 ## Recommended Next Work
 
-1. Finish raw-event cleanup in `LocalEventBus` so local delivery no longer round-trips through
-   FlatBuffers except where a raw web payload is explicitly needed.
-2. Add repeatable single-process smoke coverage for startup, telnet/web listener bind, command
+1. Add repeatable single-process smoke coverage for startup, telnet/web listener bind, command
    execution, restart, and signal shutdown.
-3. Split daemon process concerns from server/runtime concerns once the local transport boundary is
+2. Split daemon process concerns from server/runtime concerns once the local transport boundary is
    stable.
-4. Keep split ZeroMQ deployment as the compatibility path for clustered or multi-process installs.
+3. Keep split ZeroMQ deployment as the compatibility path for clustered or multi-process installs.

@@ -677,12 +677,9 @@ mod tests {
         tx: &tokio::sync::mpsc::Sender<crate::api::ClientEventMessage>,
         event: ClientEvent,
     ) {
-        tx.send(crate::api::ClientEventMessage {
-            event,
-            raw_bytes: Vec::new(),
-        })
-        .await
-        .expect("send test event");
+        tx.send(crate::api::ClientEventMessage { event })
+            .await
+            .expect("send test event");
     }
 
     // -----------------------------------------------------------------------

@@ -25,11 +25,9 @@ use moor_runtime_api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
         ClientReply, ClientRequest, RuntimeClient,
     },
+    api_codec::encode_client_event_bytes,
 };
-use moor_schema::{
-    common as moor_common_fb, convert::var_from_flatbuffer_ref, rpc as moor_rpc,
-    var as moor_var_schema,
-};
+use moor_schema::{convert::var_from_flatbuffer_ref, rpc as moor_rpc, var as moor_var_schema};
 use moor_var::{Obj, Var, v_str};
 use planus::ReadAsRoot;
 use std::{
@@ -81,22 +79,13 @@ pub struct PendingTask {
 }
 
 impl ClientSession {
-    /// Build a CredentialsUpdatedEvent as serialized FlatBuffer bytes
-    fn build_credentials_event(&self) -> Vec<u8> {
-        let event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::CredentialsUpdatedEvent(Box::new(
-                moor_rpc::CredentialsUpdatedEvent {
-                    client_id: Box::new(moor_common_fb::Uuid {
-                        data: self.client_id.as_bytes().to_vec(),
-                    }),
-                    client_token: Box::new(moor_rpc::ClientToken {
-                        token: self.client_token.0.clone(),
-                    }),
-                },
-            )),
+    /// Build a CredentialsUpdatedEvent as serialized FlatBuffer bytes.
+    fn build_credentials_event(&self) -> Result<Vec<u8>, moor_runtime_api::RpcMessageError> {
+        let event = ClientEvent::CredentialsUpdated {
+            client_id: self.client_id,
+            client_token: self.client_token.clone(),
         };
-        let mut builder = planus::Builder::new();
-        builder.finish(event, None).to_vec()
+        encode_client_event_bytes(&event)
     }
 
     pub async fn handle(&mut self, connect_type: moor_rpc::ConnectType, stream: WebSocket) {
@@ -106,7 +95,13 @@ impl ClientSession {
         // Send credentials at the start of every connection.
         // This ensures the client always has the correct credentials, even after
         // reattach fails and a new connection is created.
-        let credentials_bytes = self.build_credentials_event();
+        let credentials_bytes = match self.build_credentials_event() {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                error!("Failed to encode credentials update: {}", e);
+                return;
+            }
+        };
         if let Err(e) = ws_sender
             .send(Message::Binary(credentials_bytes.into()))
             .await
@@ -272,7 +267,14 @@ impl ClientSession {
                     }
                     let use_data_channel = dc_open && is_realtime;
 
-                    if !self.forward_event_bytes(event_msg.consume(), use_data_channel, &mut ws_sender).await {
+                    let event_bytes = match encode_client_event_bytes(&event_msg.event) {
+                        Ok(bytes) => bytes,
+                        Err(e) => {
+                            error!("Failed to encode client event for websocket: {}", e);
+                            break;
+                        }
+                    };
+                    if !self.forward_event_bytes(event_bytes, use_data_channel, &mut ws_sender).await {
                         break;
                     }
                 }

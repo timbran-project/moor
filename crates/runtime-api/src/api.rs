@@ -266,17 +266,10 @@ pub struct HistoryResponse {
     pub latest_event_id: Option<Uuid>,
 }
 
-/// A decoded per-client event plus the original wire payload.
+/// A decoded per-client event.
 #[derive(Debug, Clone)]
 pub struct ClientEventMessage {
     pub event: ClientEvent,
-    pub raw_bytes: Vec<u8>,
-}
-
-impl ClientEventMessage {
-    pub fn consume(self) -> Vec<u8> {
-        self.raw_bytes
-    }
 }
 
 /// Events the daemon publishes to one client session.
@@ -321,11 +314,10 @@ pub enum ClientEvent {
     },
 }
 
-/// A decoded broadcast event plus the original wire payload.
+/// A decoded broadcast event.
 #[derive(Debug, Clone)]
 pub struct BroadcastEventMessage {
     pub event: BroadcastEvent,
-    pub raw_bytes: Vec<u8>,
 }
 
 /// Broadcast events sent to all client hosts.

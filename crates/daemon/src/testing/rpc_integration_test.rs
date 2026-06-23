@@ -42,10 +42,12 @@ mod tests {
         testing::{MockEventLog, MockTransport},
     };
     use moor_runtime_api::{
-        RpcMessageError, mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg,
-        mk_detach_host_msg, mk_detach_msg, mk_host_pong_msg, mk_login_command_msg,
-        mk_properties_msg, mk_register_host_msg, mk_request_performance_counters_msg,
-        mk_request_sys_prop_msg, mk_requested_input_msg, mk_verbs_msg, obj_fb,
+        RpcMessageError,
+        api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
+        mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg, mk_detach_host_msg,
+        mk_detach_msg, mk_host_pong_msg, mk_login_command_msg, mk_properties_msg,
+        mk_register_host_msg, mk_request_performance_counters_msg, mk_request_sys_prop_msg,
+        mk_requested_input_msg, mk_verbs_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
     use moor_var::{Obj, SYSTEM_OBJECT};
@@ -1108,19 +1110,11 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         }
 
         // Step 4: Test client event capture
-        let system_message_event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::SystemMessageEvent(Box::new(
-                moor_rpc::SystemMessageEvent {
-                    player: obj_fb(&connection_obj),
-                    message: "System broadcast message".to_string(),
-                },
-            )),
+        let system_message_event = ClientEvent::SystemMessage {
+            player: connection_obj,
+            message: "System broadcast message".to_string(),
         };
-        let disconnect_event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::DisconnectEvent(Box::new(
-                moor_rpc::DisconnectEvent {},
-            )),
-        };
+        let disconnect_event = ClientEvent::Disconnect;
 
         env.transport
             .capture_client_event(client_id, system_message_event);
@@ -1142,23 +1136,15 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         }
 
         // Step 5: Test host broadcast event capture
-        let listen_event = moor_rpc::HostBroadcastEvent {
-            event: moor_rpc::HostBroadcastEventUnion::HostBroadcastListen(Box::new(
-                moor_rpc::HostBroadcastListen {
-                    handler_object: obj_fb(&SYSTEM_OBJECT),
-                    host_type: moor_rpc::HostType::Tcp,
-                    port: 8080,
-                    options: None,
-                },
-            )),
+        let listen_event = HostBroadcastEvent::Listen {
+            handler_object: SYSTEM_OBJECT,
+            host_type: moor_runtime_api::HostType::TCP,
+            port: 8080,
+            options: Vec::new(),
         };
-        let unlisten_event = moor_rpc::HostBroadcastEvent {
-            event: moor_rpc::HostBroadcastEventUnion::HostBroadcastUnlisten(Box::new(
-                moor_rpc::HostBroadcastUnlisten {
-                    host_type: moor_rpc::HostType::Tcp,
-                    port: 8080,
-                },
-            )),
+        let unlisten_event = HostBroadcastEvent::Unlisten {
+            host_type: moor_runtime_api::HostType::TCP,
+            port: 8080,
         };
 
         env.transport.send_host_event(listen_event.clone());
@@ -1172,13 +1158,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         );
 
         // Step 6: Test client broadcast event capture
-        let ping_pong_event = moor_rpc::ClientsBroadcastEvent {
-            event: moor_rpc::ClientsBroadcastEventUnion::ClientsBroadcastPingPong(Box::new(
-                moor_rpc::ClientsBroadcastPingPong {
-                    timestamp: systemtime_to_nanos(SystemTime::now()),
-                },
-            )),
-        };
+        let ping_pong_event = BroadcastEvent::PingPong;
 
         env.transport.send_client_broadcast_event(ping_pong_event);
 
@@ -1580,15 +1560,9 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         // Step 2: Simulate the daemon sending a RequestInput event to the client
         let request_id = Uuid::new_v4();
 
-        let request_input_event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::RequestInputEvent(Box::new(
-                moor_rpc::RequestInputEvent {
-                    request_id: Box::new(moor_rpc::Uuid {
-                        data: request_id.as_bytes().to_vec(),
-                    }),
-                    metadata: None,
-                },
-            )),
+        let request_input_event = ClientEvent::RequestInput {
+            request_id,
+            metadata: Vec::new(),
         };
 
         env.transport
@@ -1639,10 +1613,12 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
             *captured_client_id, client_id,
             "Event should be for correct client"
         );
-        match &captured_event.event {
-            moor_rpc::ClientEventUnion::RequestInputEvent(req) => {
-                let captured_request_id = Uuid::from_slice(&req.request_id.data).unwrap();
-                assert_eq!(captured_request_id, request_id, "Request ID should match");
+        match captured_event {
+            ClientEvent::RequestInput {
+                request_id: captured_request_id,
+                ..
+            } => {
+                assert_eq!(*captured_request_id, request_id, "Request ID should match");
             }
             other => panic!("Expected RequestInputEvent, got {other:?}"),
         }
@@ -1672,9 +1648,8 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         let mut request_ids_seen = std::collections::HashSet::new();
 
         for (_, event) in &client_events {
-            if let moor_rpc::ClientEventUnion::RequestInputEvent(req) = &event.event {
-                let id = Uuid::from_slice(&req.request_id.data).unwrap();
-                request_ids_seen.insert(id);
+            if let ClientEvent::RequestInput { request_id, .. } = event {
+                request_ids_seen.insert(*request_id);
             }
         }
 

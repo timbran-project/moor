@@ -19,7 +19,10 @@ use uuid::Uuid;
 use crate::rpc::{MessageHandler, Transport};
 use moor_common::tasks::NarrativeEvent;
 use moor_kernel::SchedulerClient;
-use moor_runtime_api::RpcMessageError;
+use moor_runtime_api::{
+    RpcMessageError,
+    api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
+};
 use moor_schema::rpc as moor_rpc;
 use moor_var::Obj;
 use planus::ReadAsRoot;
@@ -43,11 +46,11 @@ pub struct MockTransport {
     /// Captured narrative events
     pub narrative_events: Arc<Mutex<Vec<(Obj, NarrativeEvent)>>>,
     /// Captured host broadcast events
-    pub host_events: Arc<Mutex<Vec<moor_rpc::HostBroadcastEvent>>>,
+    pub host_events: Arc<Mutex<Vec<HostBroadcastEvent>>>,
     /// Captured client events
-    pub client_events: Arc<Mutex<Vec<(Uuid, moor_rpc::ClientEvent)>>>,
+    pub client_events: Arc<Mutex<Vec<(Uuid, ClientEvent)>>>,
     /// Captured client broadcast events
-    pub client_broadcast_events: Arc<Mutex<Vec<moor_rpc::ClientsBroadcastEvent>>>,
+    pub client_broadcast_events: Arc<Mutex<Vec<BroadcastEvent>>>,
     /// Captured host replies (message bytes and reply bytes)
     pub host_replies: Arc<Mutex<Vec<HostReply>>>,
     /// Captured client replies (message bytes and reply bytes)
@@ -122,17 +125,17 @@ impl MockTransport {
     }
 
     /// Get captured host events
-    pub fn get_host_events(&self) -> Vec<moor_rpc::HostBroadcastEvent> {
+    pub fn get_host_events(&self) -> Vec<HostBroadcastEvent> {
         self.host_events.lock().unwrap().clone()
     }
 
     /// Get captured client events
-    pub fn get_client_events(&self) -> Vec<(Uuid, moor_rpc::ClientEvent)> {
+    pub fn get_client_events(&self) -> Vec<(Uuid, ClientEvent)> {
         self.client_events.lock().unwrap().clone()
     }
 
     /// Get captured client broadcast events
-    pub fn get_client_broadcast_events(&self) -> Vec<moor_rpc::ClientsBroadcastEvent> {
+    pub fn get_client_broadcast_events(&self) -> Vec<BroadcastEvent> {
         self.client_broadcast_events.lock().unwrap().clone()
     }
 
@@ -226,7 +229,7 @@ impl MockTransport {
     }
 
     /// Manually capture a client event (for testing scenarios)
-    pub fn capture_client_event(&self, client_id: Uuid, event: moor_rpc::ClientEvent) {
+    pub fn capture_client_event(&self, client_id: Uuid, event: ClientEvent) {
         self.client_events.lock().unwrap().push((client_id, event));
     }
 
@@ -236,12 +239,12 @@ impl MockTransport {
     }
 
     /// Convenience method to send a host event (for testing)
-    pub fn send_host_event(&self, event: moor_rpc::HostBroadcastEvent) {
+    pub fn send_host_event(&self, event: HostBroadcastEvent) {
         self.host_events.lock().unwrap().push(event);
     }
 
     /// Convenience method to send a client broadcast event (for testing)
-    pub fn send_client_broadcast_event(&self, event: moor_rpc::ClientsBroadcastEvent) {
+    pub fn send_client_broadcast_event(&self, event: BroadcastEvent) {
         self.client_broadcast_events.lock().unwrap().push(event);
     }
 
@@ -341,26 +344,19 @@ impl Transport for MockTransport {
         Ok(())
     }
 
-    fn broadcast_host_event(&self, event: moor_rpc::HostBroadcastEvent) -> Result<(), eyre::Error> {
+    fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
         let mut captured = self.host_events.lock().unwrap();
         captured.push(event);
         Ok(())
     }
 
-    fn publish_client_event(
-        &self,
-        client_id: Uuid,
-        event: moor_rpc::ClientEvent,
-    ) -> Result<(), eyre::Error> {
+    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error> {
         let mut captured = self.client_events.lock().unwrap();
         captured.push((client_id, event));
         Ok(())
     }
 
-    fn broadcast_client_event(
-        &self,
-        event: moor_rpc::ClientsBroadcastEvent,
-    ) -> Result<(), eyre::Error> {
+    fn broadcast_client_event(&self, event: BroadcastEvent) -> Result<(), eyre::Error> {
         let mut captured = self.client_broadcast_events.lock().unwrap();
         captured.push(event);
         Ok(())

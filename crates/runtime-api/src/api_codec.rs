@@ -23,13 +23,13 @@ use crate::api::{
 };
 use crate::{
     AuthToken, HostType, RpcErr, RpcError, RpcMessageError, auth_token_fb, auth_token_from_ref,
-    client_token_from_ref, extract_field_rpc, extract_host_type, extract_obj, extract_obj_rpc,
-    extract_object_ref_rpc, extract_string_list_rpc, extract_string_rpc, extract_symbol,
-    extract_symbol_rpc, extract_uuid_rpc, extract_var, extract_var_rpc,
+    client_token_fb, client_token_from_ref, extract_field_rpc, extract_host_type, extract_obj,
+    extract_obj_rpc, extract_object_ref_rpc, extract_string_list_rpc, extract_string_rpc,
+    extract_symbol, extract_symbol_rpc, extract_uuid_rpc, extract_var, extract_var_rpc,
     mk_client_attribute_set_reply, mk_daemon_to_host_ack, mk_disconnected_reply,
     mk_new_connection_reply, mk_presentation_dismissed_reply, mk_thanks_pong_reply, obj_fb,
-    scheduler_error_from_ref, scheduler_error_to_flatbuffer_struct, uuid_fb, var_to_flatbuffer_rpc,
-    verb_program_error_to_flatbuffer_struct,
+    scheduler_error_from_ref, scheduler_error_to_flatbuffer_struct, symbol_fb, uuid_fb,
+    var_to_flatbuffer_rpc, verb_program_error_to_flatbuffer_struct,
 };
 use moor_common::model::{Named, ValSet};
 use moor_schema::{common, convert, rpc as moor_rpc};
@@ -176,6 +176,187 @@ pub fn encode_host_success_bytes(reply: HostReply) -> Vec<u8> {
     };
     let mut builder = planus::Builder::new();
     builder.finish(&reply_result, None).to_vec()
+}
+
+// ===========================================================================
+// Event encode: typed event enums -> FlatBuffer owned structs / bytes
+// ===========================================================================
+
+pub fn encode_client_event(event: &ClientEvent) -> Result<moor_rpc::ClientEvent, RpcMessageError> {
+    let event = match event {
+        ClientEvent::Narrative { player, event } => {
+            let event = convert::narrative_event_to_flatbuffer_struct(event)
+                .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
+            moor_rpc::ClientEventUnion::NarrativeEventMessage(Box::new(
+                moor_rpc::NarrativeEventMessage {
+                    player: obj_fb(player),
+                    event: Box::new(event),
+                },
+            ))
+        }
+        ClientEvent::RequestInput {
+            request_id,
+            metadata,
+        } => {
+            let metadata = if metadata.is_empty() {
+                None
+            } else {
+                let mut pairs = Vec::with_capacity(metadata.len());
+                for (key, value) in metadata {
+                    pairs.push(moor_rpc::MetadataPair {
+                        key: symbol_fb(key),
+                        value: Box::new(var_to_flatbuffer_rpc(value)?),
+                    });
+                }
+                Some(pairs)
+            };
+            moor_rpc::ClientEventUnion::RequestInputEvent(Box::new(moor_rpc::RequestInputEvent {
+                request_id: uuid_fb(*request_id),
+                metadata,
+            }))
+        }
+        ClientEvent::SystemMessage { player, message } => {
+            moor_rpc::ClientEventUnion::SystemMessageEvent(Box::new(moor_rpc::SystemMessageEvent {
+                player: obj_fb(player),
+                message: message.clone(),
+            }))
+        }
+        ClientEvent::Disconnect => {
+            moor_rpc::ClientEventUnion::DisconnectEvent(Box::new(moor_rpc::DisconnectEvent {}))
+        }
+        ClientEvent::TaskError { task_id, error } => {
+            let error = scheduler_error_to_flatbuffer_struct(error)
+                .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
+            moor_rpc::ClientEventUnion::TaskErrorEvent(Box::new(moor_rpc::TaskErrorEvent {
+                task_id: *task_id,
+                error: Box::new(error),
+            }))
+        }
+        ClientEvent::TaskSuccess { task_id, result } => {
+            moor_rpc::ClientEventUnion::TaskSuccessEvent(Box::new(moor_rpc::TaskSuccessEvent {
+                task_id: *task_id,
+                result: Box::new(var_to_flatbuffer_rpc(result)?),
+            }))
+        }
+        ClientEvent::TaskSuspended { task_id } => {
+            moor_rpc::ClientEventUnion::TaskSuspendedEvent(Box::new(moor_rpc::TaskSuspendedEvent {
+                task_id: *task_id,
+            }))
+        }
+        ClientEvent::PlayerSwitched {
+            new_player,
+            new_auth_token,
+        } => moor_rpc::ClientEventUnion::PlayerSwitchedEvent(Box::new(
+            moor_rpc::PlayerSwitchedEvent {
+                new_player: obj_fb(new_player),
+                new_auth_token: auth_token_fb(new_auth_token),
+            },
+        )),
+        ClientEvent::SetConnectionOption {
+            connection_obj,
+            option_name,
+            value,
+        } => moor_rpc::ClientEventUnion::SetConnectionOptionEvent(Box::new(
+            moor_rpc::SetConnectionOptionEvent {
+                connection_obj: obj_fb(connection_obj),
+                option_name: symbol_fb(option_name),
+                value: Box::new(var_to_flatbuffer_rpc(value)?),
+            },
+        )),
+        ClientEvent::CredentialsUpdated {
+            client_id,
+            client_token,
+        } => moor_rpc::ClientEventUnion::CredentialsUpdatedEvent(Box::new(
+            moor_rpc::CredentialsUpdatedEvent {
+                client_id: uuid_fb(*client_id),
+                client_token: client_token_fb(client_token),
+            },
+        )),
+    };
+    Ok(moor_rpc::ClientEvent { event })
+}
+
+pub fn encode_client_event_bytes(event: &ClientEvent) -> Result<Vec<u8>, RpcMessageError> {
+    let event = encode_client_event(event)?;
+    let mut builder = planus::Builder::new();
+    Ok(builder.finish(&event, None).to_vec())
+}
+
+pub fn encode_broadcast_event(event: &BroadcastEvent) -> moor_rpc::ClientsBroadcastEvent {
+    let event = match event {
+        BroadcastEvent::PingPong => moor_rpc::ClientsBroadcastEventUnion::ClientsBroadcastPingPong(
+            Box::new(moor_rpc::ClientsBroadcastPingPong { timestamp: 0 }),
+        ),
+    };
+    moor_rpc::ClientsBroadcastEvent { event }
+}
+
+pub fn encode_broadcast_event_bytes(event: &BroadcastEvent) -> Vec<u8> {
+    let event = encode_broadcast_event(event);
+    let mut builder = planus::Builder::new();
+    builder.finish(&event, None).to_vec()
+}
+
+pub fn encode_host_broadcast_event(
+    event: &HostBroadcastEvent,
+) -> Result<moor_rpc::HostBroadcastEvent, RpcMessageError> {
+    let event = match event {
+        HostBroadcastEvent::Listen {
+            handler_object,
+            host_type,
+            port,
+            options,
+        } => {
+            let options = if options.is_empty() {
+                None
+            } else {
+                let mut pairs = Vec::with_capacity(options.len());
+                for (key, value) in options {
+                    pairs.push(moor_schema::var::VarMapPair {
+                        key: Box::new(var_to_flatbuffer_rpc(&Var::mk_symbol(*key))?),
+                        value: Box::new(var_to_flatbuffer_rpc(value)?),
+                    });
+                }
+                Some(pairs)
+            };
+            let host_type = match host_type {
+                HostType::TCP => moor_rpc::HostType::Tcp,
+                HostType::WebSocket => moor_rpc::HostType::WebSocket,
+            };
+            moor_rpc::HostBroadcastEventUnion::HostBroadcastListen(Box::new(
+                moor_rpc::HostBroadcastListen {
+                    handler_object: obj_fb(handler_object),
+                    host_type,
+                    port: *port,
+                    options,
+                },
+            ))
+        }
+        HostBroadcastEvent::Unlisten { host_type, port } => {
+            let host_type = match host_type {
+                HostType::TCP => moor_rpc::HostType::Tcp,
+                HostType::WebSocket => moor_rpc::HostType::WebSocket,
+            };
+            moor_rpc::HostBroadcastEventUnion::HostBroadcastUnlisten(Box::new(
+                moor_rpc::HostBroadcastUnlisten {
+                    host_type,
+                    port: *port,
+                },
+            ))
+        }
+        HostBroadcastEvent::PingPong => moor_rpc::HostBroadcastEventUnion::HostBroadcastPingPong(
+            Box::new(moor_rpc::HostBroadcastPingPong { timestamp: 0 }),
+        ),
+    };
+    Ok(moor_rpc::HostBroadcastEvent { event })
+}
+
+pub fn encode_host_broadcast_event_bytes(
+    event: &HostBroadcastEvent,
+) -> Result<Vec<u8>, RpcMessageError> {
+    let event = encode_host_broadcast_event(event)?;
+    let mut builder = planus::Builder::new();
+    Ok(builder.finish(&event, None).to_vec())
 }
 
 // ===========================================================================

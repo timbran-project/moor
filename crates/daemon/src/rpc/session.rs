@@ -18,7 +18,7 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionError};
-use moor_schema::rpc as moor_rpc;
+use moor_runtime_api::api::ClientEvent;
 use moor_var::{Obj, Symbol, Var};
 
 use crate::event_log::{EventLogOps, logged_narrative_event_to_flatbuffer};
@@ -66,7 +66,7 @@ pub enum SessionActions {
     ),
     RequestClientAttributes(Uuid, Obj, oneshot::Sender<Result<Var, SessionError>>),
     SetClientAttribute(Uuid, Obj, Symbol, Var),
-    PublishTaskCompletion(Uuid, moor_rpc::ClientEvent),
+    PublishTaskCompletion(Uuid, ClientEvent),
 }
 
 impl RpcSession {
