@@ -591,3 +591,64 @@ component.
 `directions`, `corner_cutting`, and `max_nodes` have the same meaning as the `astar()` options.
 These searches consume the running task's normal tick budget and may raise `E_MAXREC` if the task
 runs out of ticks or `max_nodes` is reached.
+
+## Graph helper functions
+
+The graph helpers operate on directed graphs supplied entirely by the caller. Edges may be written
+as two-item lists, simple edge terms, or maps:
+
+```moo
+{from, to}
+{'edge, from, to}
+['from -> from, 'to -> to]
+```
+
+Node values may be any MOO value that can be compared as a map/list key. Edge order is preserved
+when traversing neighbors, so results are deterministic for a fixed input list.
+
+```moo
+LIST graph_shortest_path(LIST edges, ANY from, ANY to [, MAP options])
+```
+
+Returns an unweighted shortest path from `from` to `to`, including both endpoints. If no path
+exists, it returns `{}`.
+
+```moo
+graph_shortest_path({{'A, 'B}, {'B, 'C}, {'A, 'C}}, 'A, 'C)
+=> {'A, 'C}
+```
+
+```moo
+LIST graph_reachable(LIST edges, ANY from [, MAP options])
+```
+
+Returns every node reachable from `from`, excluding `from` itself.
+
+```moo
+graph_reachable({{'A, 'B}, {'A, 'C}, {'B, 'D}}, 'A)
+=> {'B, 'C, 'D}
+```
+
+```moo
+LIST graph_topsort(LIST edges [, MAP options])
+```
+
+Returns a topological ordering of the directed graph. If the graph contains a cycle,
+`graph_topsort()` raises `E_INVARG`.
+
+```moo
+graph_topsort({{'cook, 'eat}, {'shop, 'cook}})
+=> {'shop, 'cook, 'eat}
+```
+
+Graph helpers accept:
+
+```moo
+[
+  'max_steps -> 10000,
+  'max_nodes -> 1000
+]
+```
+
+They consume the running task's normal tick budget as they traverse the graph and may raise
+`E_MAXREC` when either explicit limit is reached.

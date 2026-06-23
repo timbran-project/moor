@@ -50,6 +50,9 @@ static DETAIL_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("detail"));
 static VISITED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("visited"));
 static FOUND_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("found"));
 static MAX_NODES_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_nodes"));
+static FROM_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("from"));
+static TO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("to"));
+static EDGE_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("edge"));
 
 const DEFAULT_TERM_MAX_DEPTH: usize = 64;
 const DEFAULT_TERM_MAX_BINDINGS: usize = 256;
@@ -178,6 +181,27 @@ impl Default for GridOptions {
             max_nodes: None,
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct GraphOptions {
+    max_nodes: Option<usize>,
+    max_steps: usize,
+}
+
+impl Default for GraphOptions {
+    fn default() -> Self {
+        Self {
+            max_nodes: None,
+            max_steps: DEFAULT_QUERY_MAX_STEPS,
+        }
+    }
+}
+
+struct Graph {
+    nodes: Vec<Var>,
+    adjacency: HashMap<Var, Vec<Var>>,
+    indegree: HashMap<Var, usize>,
 }
 
 #[inline]
@@ -402,6 +426,33 @@ fn parse_grid_options(value: Option<&Var>) -> Result<GridOptions, BfErr> {
         } else {
             return Err(BfErr::ErrValue(
                 E_INVARG.msg(format!("unknown grid helper option: {key}")),
+            ));
+        }
+    }
+
+    Ok(options)
+}
+
+fn parse_graph_options(value: Option<&Var>) -> Result<GraphOptions, BfErr> {
+    let mut options = GraphOptions::default();
+    let Some(value) = value else {
+        return Ok(options);
+    };
+    let Some(map) = value.as_map() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("graph builtin options must be a map"),
+        ));
+    };
+
+    for (key, value) in map.iter_ref() {
+        let key = option_key_symbol(key)?;
+        if key == *MAX_NODES_SYM {
+            options.max_nodes = Some(positive_usize_option(value, "max_nodes")?);
+        } else if key == *MAX_STEPS_SYM {
+            options.max_steps = positive_usize_option(value, "max_steps")?;
+        } else {
+            return Err(BfErr::ErrValue(
+                E_INVARG.msg(format!("unknown graph builtin option: {key}")),
             ));
         }
     }
@@ -1836,6 +1887,210 @@ fn grid_flood_points(
     Ok(result)
 }
 
+fn graph_edge(edge: &Var) -> Result<(Var, Var), BfErr> {
+    match edge.variant() {
+        Variant::List(list) if list.len() == 2 => Ok((list[0].clone(), list[1].clone())),
+        Variant::List(list) if list.len() >= 3 => {
+            if matches!(list[0].variant(), Variant::Sym(sym) if sym == *EDGE_SYM) {
+                Ok((list[1].clone(), list[2].clone()))
+            } else {
+                Err(BfErr::ErrValue(E_INVARG.msg(
+                    "graph edges must be {from, to}, {'edge, from, to}, or ['from -> from, 'to -> to]",
+                )))
+            }
+        }
+        Variant::Map(map) => {
+            let from = map
+                .get(&v_sym(*FROM_SYM))
+                .map_err(|_| BfErr::ErrValue(E_INVARG.msg("graph edge map missing 'from key")))?;
+            let to = map
+                .get(&v_sym(*TO_SYM))
+                .map_err(|_| BfErr::ErrValue(E_INVARG.msg("graph edge map missing 'to key")))?;
+            Ok((from, to))
+        }
+        _ => Err(BfErr::ErrValue(E_INVARG.msg(
+            "graph edges must be {from, to}, {'edge, from, to}, or ['from -> from, 'to -> to]",
+        ))),
+    }
+}
+
+fn graph_add_node(nodes: &mut Vec<Var>, seen: &mut HashSet<Var>, node: &Var) {
+    if seen.insert(node.clone()) {
+        nodes.push(node.clone());
+    }
+}
+
+fn parse_graph(edges: &Var) -> Result<Graph, BfErr> {
+    let Some(edges) = edges.as_list() else {
+        return Err(BfErr::ErrValue(E_TYPE.msg("graph edges must be a list")));
+    };
+
+    let mut nodes = Vec::new();
+    let mut seen = HashSet::new();
+    let mut adjacency = HashMap::<Var, Vec<Var>>::default();
+    let mut indegree = HashMap::<Var, usize>::default();
+    for edge in edges.iter_ref() {
+        let (from, to) = graph_edge(edge)?;
+        graph_add_node(&mut nodes, &mut seen, &from);
+        graph_add_node(&mut nodes, &mut seen, &to);
+        let targets = adjacency.entry(from.clone()).or_default();
+        if !targets.contains(&to) {
+            targets.push(to.clone());
+            *indegree.entry(to.clone()).or_default() += 1;
+        }
+        indegree.entry(from).or_default();
+    }
+
+    Ok(Graph {
+        nodes,
+        adjacency,
+        indegree,
+    })
+}
+
+fn graph_check_step(
+    steps: &mut usize,
+    visited: usize,
+    options: &GraphOptions,
+    tick_budget: &mut Option<BuiltinTickBudget<'_>>,
+) -> Result<(), BfErr> {
+    if let Some(tick_budget) = tick_budget.as_mut() {
+        tick_budget.consume_ticks(1)?;
+    }
+    *steps += 1;
+    if *steps > options.max_steps {
+        return Err(BfErr::ErrValue(
+            E_MAXREC.msg("graph builtin exceeded max_steps"),
+        ));
+    }
+    if let Some(max_nodes) = options.max_nodes
+        && visited >= max_nodes
+    {
+        return Err(BfErr::ErrValue(
+            E_MAXREC.msg("graph builtin exceeded max_nodes"),
+        ));
+    }
+    Ok(())
+}
+
+fn graph_shortest_path(
+    graph: &Graph,
+    start: &Var,
+    goal: &Var,
+    options: &GraphOptions,
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Vec<Var>, BfErr> {
+    if start == goal {
+        return Ok(vec![start.clone()]);
+    }
+
+    let mut queue = VecDeque::new();
+    let mut seen = HashSet::new();
+    let mut parent = HashMap::<Var, Var>::default();
+    let mut steps = 0usize;
+    queue.push_back(start.clone());
+    seen.insert(start.clone());
+
+    while let Some(node) = queue.pop_front() {
+        graph_check_step(&mut steps, seen.len(), options, &mut tick_budget)?;
+        let Some(targets) = graph.adjacency.get(&node) else {
+            continue;
+        };
+        for target in targets {
+            if !seen.insert(target.clone()) {
+                continue;
+            }
+            parent.insert(target.clone(), node.clone());
+            if target == goal {
+                let mut path = vec![goal.clone()];
+                let mut current = goal.clone();
+                while let Some(prev) = parent.get(&current) {
+                    path.push(prev.clone());
+                    if prev == start {
+                        break;
+                    }
+                    current = prev.clone();
+                }
+                path.reverse();
+                return Ok(path);
+            }
+            queue.push_back(target.clone());
+        }
+    }
+
+    Ok(Vec::new())
+}
+
+fn graph_reachable(
+    graph: &Graph,
+    start: &Var,
+    options: &GraphOptions,
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Vec<Var>, BfErr> {
+    let mut queue = VecDeque::new();
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+    let mut steps = 0usize;
+    queue.push_back(start.clone());
+    seen.insert(start.clone());
+
+    while let Some(node) = queue.pop_front() {
+        graph_check_step(&mut steps, seen.len(), options, &mut tick_budget)?;
+        let Some(targets) = graph.adjacency.get(&node) else {
+            continue;
+        };
+        for target in targets {
+            if !seen.insert(target.clone()) {
+                continue;
+            }
+            result.push(target.clone());
+            queue.push_back(target.clone());
+        }
+    }
+
+    Ok(result)
+}
+
+fn graph_topsort(
+    graph: &Graph,
+    options: &GraphOptions,
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Vec<Var>, BfErr> {
+    let mut indegree = graph.indegree.clone();
+    let mut queue = VecDeque::new();
+    let mut result = Vec::with_capacity(graph.nodes.len());
+    let mut steps = 0usize;
+
+    for node in &graph.nodes {
+        if indegree.get(node).copied().unwrap_or_default() == 0 {
+            queue.push_back(node.clone());
+        }
+    }
+
+    while let Some(node) = queue.pop_front() {
+        graph_check_step(&mut steps, result.len(), options, &mut tick_budget)?;
+        result.push(node.clone());
+        if let Some(targets) = graph.adjacency.get(&node) {
+            for target in targets {
+                let Some(count) = indegree.get_mut(target) else {
+                    continue;
+                };
+                *count -= 1;
+                if *count == 0 {
+                    queue.push_back(target.clone());
+                }
+            }
+        }
+    }
+
+    if result.len() != graph.nodes.len() {
+        return Err(BfErr::ErrValue(
+            E_INVARG.msg("graph_topsort() graph contains a cycle"),
+        ));
+    }
+    Ok(result)
+}
+
 /// Usage: `list|int|map astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles [, map options])`
 ///
 /// A* pathfinding on a tile grid. Returns a list of `{x, y}` waypoints from
@@ -2044,6 +2299,65 @@ fn bf_grid_flood(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_list_iter(points)))
 }
 
+/// Usage: `list graph_shortest_path(list edges, any from, any to [, map options])`
+///
+/// Returns an unweighted shortest node path, including the start and goal nodes.
+fn bf_graph_shortest_path(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 3 || bf_args.args.len() > 4 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("graph_shortest_path() takes 3 or 4 arguments"),
+        ));
+    }
+
+    let graph = parse_graph(&bf_args.args[0])?;
+    let options = parse_graph_options(bf_args.args.iter_ref().nth(3))?;
+    let path = graph_shortest_path(
+        &graph,
+        &bf_args.args[1],
+        &bf_args.args[2],
+        &options,
+        Some(bf_args.tick_budget()),
+    )?;
+    Ok(Ret(v_list(&path)))
+}
+
+/// Usage: `list graph_reachable(list edges, any from [, map options])`
+///
+/// Returns nodes reachable from the supplied start node, excluding the start node.
+fn bf_graph_reachable(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 3 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("graph_reachable() takes 2 or 3 arguments"),
+        ));
+    }
+
+    let graph = parse_graph(&bf_args.args[0])?;
+    let options = parse_graph_options(bf_args.args.iter_ref().nth(2))?;
+    let reachable = graph_reachable(
+        &graph,
+        &bf_args.args[1],
+        &options,
+        Some(bf_args.tick_budget()),
+    )?;
+    Ok(Ret(v_list(&reachable)))
+}
+
+/// Usage: `list graph_topsort(list edges [, map options])`
+///
+/// Returns a deterministic topological ordering for an acyclic directed graph.
+fn bf_graph_topsort(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 2 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("graph_topsort() takes 1 or 2 arguments"),
+        ));
+    }
+
+    let graph = parse_graph(&bf_args.args[0])?;
+    let options = parse_graph_options(bf_args.args.iter_ref().nth(1))?;
+    let sorted = graph_topsort(&graph, &options, Some(bf_args.tick_budget()))?;
+    Ok(Ret(v_list(&sorted)))
+}
+
 pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("astar")] = bf_astar;
     builtins[offset_for_builtin("grid_reachable")] = bf_grid_reachable;
@@ -2057,6 +2371,9 @@ pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("term_variables")] = bf_term_variables;
     builtins[offset_for_builtin("term_ground")] = bf_term_ground;
     builtins[offset_for_builtin("term_normalize")] = bf_term_normalize;
+    builtins[offset_for_builtin("graph_shortest_path")] = bf_graph_shortest_path;
+    builtins[offset_for_builtin("graph_reachable")] = bf_graph_reachable;
+    builtins[offset_for_builtin("graph_topsort")] = bf_graph_topsort;
 }
 
 #[cfg(test)]
@@ -2223,6 +2540,52 @@ mod tests {
         .unwrap();
 
         assert_eq!(points, vec![grid_coord(1, 1)]);
+    }
+
+    #[test]
+    fn graph_shortest_path_returns_bfs_path() {
+        let graph = parse_graph(&v_list(&[
+            v_list(&[v_sym("A"), v_sym("B")]),
+            v_list(&[v_sym("B"), v_sym("C")]),
+            v_list(&[v_sym("A"), v_sym("C")]),
+        ]))
+        .unwrap();
+        let path = graph_shortest_path(
+            &graph,
+            &v_sym("A"),
+            &v_sym("C"),
+            &GraphOptions::default(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(path, vec![v_sym("A"), v_sym("C")]);
+    }
+
+    #[test]
+    fn graph_reachable_uses_input_edge_order() {
+        let graph = parse_graph(&v_list(&[
+            v_list(&[v_sym("A"), v_sym("B")]),
+            v_list(&[v_sym("A"), v_sym("C")]),
+            v_list(&[v_sym("B"), v_sym("D")]),
+        ]))
+        .unwrap();
+        let reachable =
+            graph_reachable(&graph, &v_sym("A"), &GraphOptions::default(), None).unwrap();
+
+        assert_eq!(reachable, vec![v_sym("B"), v_sym("C"), v_sym("D")]);
+    }
+
+    #[test]
+    fn graph_topsort_rejects_cycles() {
+        let graph = parse_graph(&v_list(&[
+            v_list(&[v_sym("A"), v_sym("B")]),
+            v_list(&[v_sym("B"), v_sym("A")]),
+        ]))
+        .unwrap();
+        let err = graph_topsort(&graph, &GraphOptions::default(), None).unwrap_err();
+
+        assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_INVARG));
     }
 
     #[test]

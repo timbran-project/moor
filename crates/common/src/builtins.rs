@@ -1137,6 +1137,27 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Any, Typed(TYPE_LIST), Typed(TYPE_MAP), Typed(TYPE_MAP)],
             true,
         ),
+        mk_builtin(
+            "graph_shortest_path",
+            Q(3),
+            Q(4),
+            vec![Typed(TYPE_LIST), Any, Any, Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "graph_reachable",
+            Q(2),
+            Q(3),
+            vec![Typed(TYPE_LIST), Any, Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "graph_topsort",
+            Q(1),
+            Q(2),
+            vec![Typed(TYPE_LIST), Typed(TYPE_MAP)],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "algorithms");
