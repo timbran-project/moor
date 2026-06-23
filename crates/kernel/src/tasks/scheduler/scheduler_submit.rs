@@ -62,6 +62,13 @@ impl Scheduler {
             let mut tx = self.database.new_world_state().unwrap();
             let Ok(vloc) = match_object_ref(&player, &authority_principal, &vloc, tx.as_mut())
             else {
+                warn!(
+                    player = %player,
+                    authority_principal = %authority_principal,
+                    object_ref = %vloc,
+                    verb = %verb,
+                    "Could not resolve invoke-verb object reference"
+                );
                 return Err(CommandExecutionError(CommandError::NoObjectMatch));
             };
             v_obj(vloc)

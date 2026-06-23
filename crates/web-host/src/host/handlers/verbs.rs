@@ -306,7 +306,12 @@ pub async fn invoke_verb_handler(
             }
         }
         Err(e) => {
-            error!("TaskClient error: {}", e);
+            error!(
+                object = %object_path,
+                verb = %verb_name,
+                error = %e,
+                "Invoke verb request failed"
+            );
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };

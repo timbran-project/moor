@@ -35,7 +35,7 @@ use hickory_resolver::{TokioResolver, proto::rr::RData};
 use ipnet::IpNet;
 use moor_common::model::ObjectRef;
 use moor_runtime_api::{
-    AuthToken, ClientToken,
+    AuthToken, ClientToken, RpcError, RpcMessageError,
     api::{
         ClientReply, ClientRequest, ConnectType, HostReply, HostRequest, HostServices,
         RuntimeClient,
@@ -337,6 +337,8 @@ pub enum WsHostError {
     RpcError(eyre::Error),
     #[error("Authentication failed")]
     AuthenticationFailed,
+    #[error("stale connection hint")]
+    StaleConnection,
 }
 
 impl WebHost {
@@ -403,7 +405,7 @@ impl WebHost {
         auth_token: AuthToken,
         connect_type: Option<moor_rpc::ConnectType>,
         peer_addr: SocketAddr,
-    ) -> Result<(Obj, Uuid, ClientToken, Arc<dyn RuntimeClient>), WsHostError> {
+    ) -> Result<(Obj, Uuid, ClientToken, Arc<dyn RuntimeClient>, u16), WsHostError> {
         let client_id = Uuid::new_v4();
         let rpc_client = self.create_daemon_client();
 
@@ -452,15 +454,16 @@ impl WebHost {
             }
         };
 
-        let (client_token, player) = match reply {
+        let (client_token, player, player_flags) = match reply {
             ClientReply::AttachResult {
                 success: true,
                 client_token: Some(client_token),
                 player: Some(player),
+                player_flags,
                 ..
             } => {
                 debug!("Connection authenticated, player: {}", player);
-                (client_token, player)
+                (client_token, player, player_flags)
             }
             ClientReply::AttachResult { success: false, .. } => {
                 warn!("Connection authentication failed from {}", peer_addr);
@@ -474,7 +477,7 @@ impl WebHost {
             _ => return Err(WsHostError::RpcError(eyre!("Unexpected attach reply"))),
         };
 
-        Ok((player, client_id, client_token, rpc_client))
+        Ok((player, client_id, client_token, rpc_client, player_flags))
     }
 
     pub async fn reattach_authenticated(
@@ -483,7 +486,7 @@ impl WebHost {
         client_id: Uuid,
         client_token: ClientToken,
         peer_addr: SocketAddr,
-    ) -> Result<(Obj, Uuid, ClientToken, Arc<dyn RuntimeClient>), WsHostError> {
+    ) -> Result<(Obj, Uuid, ClientToken, Arc<dyn RuntimeClient>, u16), WsHostError> {
         let rpc_client = self.create_daemon_client();
 
         debug!(
@@ -522,19 +525,24 @@ impl WebHost {
 
         let reply = match rpc_client.client_call(client_id, request).await {
             Ok(reply) => reply,
+            Err(RpcError::Daemon(RpcMessageError::NoConnection)) => {
+                warn!(client_id = ?client_id, "Reattach hint is stale");
+                return Err(WsHostError::StaleConnection);
+            }
             Err(e) => {
                 error!("Unable to reattach: {}", e);
                 return Err(WsHostError::RpcError(eyre!(e)));
             }
         };
 
-        let (client_token, player) = match reply {
+        let (client_token, player, player_flags) = match reply {
             ClientReply::AttachResult {
                 success: true,
                 client_token: Some(client_token),
                 player: Some(player),
+                player_flags,
                 ..
-            } => (client_token, player),
+            } => (client_token, player, player_flags),
             ClientReply::AttachResult { success: false, .. } => {
                 warn!("Connection reattach failed from {}", peer_addr);
                 return Err(WsHostError::AuthenticationFailed);
@@ -547,7 +555,7 @@ impl WebHost {
             _ => return Err(WsHostError::RpcError(eyre!("Unexpected reattach reply"))),
         };
 
-        Ok((player, client_id, client_token, rpc_client))
+        Ok((player, client_id, client_token, rpc_client, player_flags))
     }
 
     /// Actually instantiate the connection now that we've validated the auth token.
@@ -829,6 +837,10 @@ async fn attach(
                 warn!(client_id = ?hint_id, "WebSocket reattach failed - will create new connection");
                 None
             }
+            Err(WsHostError::StaleConnection) => {
+                warn!(client_id = ?hint_id, "WebSocket reattach hint is stale - will create new connection");
+                None
+            }
             Err(e) => {
                 error!("Reattach attempt failed: {}", e);
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -881,7 +893,7 @@ async fn attach(
             is_initial_attach, effective_connect_type
         );
     }
-    let (player, client_id, client_token, rpc_client) = connection_details;
+    let (player, client_id, client_token, rpc_client, _player_flags) = connection_details;
 
     let Ok(mut connection) = host
         .start_client_session(

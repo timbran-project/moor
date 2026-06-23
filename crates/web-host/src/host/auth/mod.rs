@@ -34,6 +34,7 @@ use axum::{
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
+use moor_common::model::ObjectRef;
 use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{ClientReply, ClientRequest, RuntimeClient},
@@ -121,6 +122,8 @@ impl Drop for DetachGuard {
 /// the `EphemeralAuth` value is dropped (on handler return or early error).
 pub struct EphemeralAuth {
     pub auth_token: AuthToken,
+    pub player: moor_var::Obj,
+    pub player_flags: u16,
     pub client_id: Uuid,
     pub client_token: ClientToken,
     pub rpc_client: Arc<dyn RuntimeClient>,
@@ -147,7 +150,7 @@ impl FromRequestParts<WebHost> for EphemeralAuth {
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
-        let (_player, client_id, client_token, rpc_client) = state
+        let (player, client_id, client_token, rpc_client, player_flags) = state
             .attach_authenticated(
                 auth_token.clone(),
                 Some(moor_rpc::ConnectType::NoConnect),
@@ -156,6 +159,7 @@ impl FromRequestParts<WebHost> for EphemeralAuth {
             .await
             .map_err(|e| match e {
                 WsHostError::AuthenticationFailed => StatusCode::UNAUTHORIZED,
+                WsHostError::StaleConnection => StatusCode::UNAUTHORIZED,
                 WsHostError::RpcError(_) => StatusCode::SERVICE_UNAVAILABLE,
             })?;
 
@@ -167,6 +171,8 @@ impl FromRequestParts<WebHost> for EphemeralAuth {
 
         Ok(EphemeralAuth {
             auth_token,
+            player,
+            player_flags,
             client_id,
             client_token,
             rpc_client,
@@ -331,9 +337,20 @@ fn auth_token_from_login_reply(reply: &ClientReply) -> Result<AuthToken, StatusC
 ///   200 — token is valid
 ///   401 — token is invalid or expired
 ///   503 — daemon is unreachable
-pub async fn validate_auth_handler(_auth: EphemeralAuth) -> impl IntoResponse {
+pub async fn validate_auth_handler(auth: EphemeralAuth) -> impl IntoResponse {
     debug!("Auth token validated via daemon");
-    StatusCode::OK
+    match Response::builder()
+        .status(StatusCode::OK)
+        .header("X-Moor-Player", ObjectRef::Id(auth.player).to_curie())
+        .header("X-Moor-Player-Flags", auth.player_flags.to_string())
+        .body(Body::empty())
+    {
+        Ok(response) => response,
+        Err(e) => {
+            error!("Failed to build auth validation response: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 /// Explicit logout endpoint that notifies daemon that player is disconnecting

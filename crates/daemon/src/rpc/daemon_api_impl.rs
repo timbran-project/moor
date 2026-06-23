@@ -16,7 +16,7 @@
 //! decode FlatBuffer refs into these enums, dispatch here, and encode replies
 //! back, keeping FlatBuffer knowledge at the wire boundary.
 
-use moor_common::model::ObjectRef;
+use moor_common::model::{ObjFlag, ObjectRef};
 use moor_kernel::SchedulerClient;
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
@@ -27,7 +27,7 @@ use moor_runtime_api::{AuthToken, ClientToken, RpcMessageError};
 use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, Variant, v_empty_str, v_str, v_string};
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
@@ -37,6 +37,23 @@ use crate::rpc::message_handler::{
 };
 use crate::rpc::session::RpcSession;
 use crate::runtime::RuntimeApi;
+
+fn require_player_flags(
+    scheduler_client: &SchedulerClient,
+    player: &Obj,
+) -> Result<u16, RpcMessageError> {
+    let player_flags = scheduler_client.get_object_flags(player).map_err(|e| {
+        warn!(%player, error = ?e, "Unable to read authenticated principal flags");
+        RpcMessageError::PermissionDenied
+    })?;
+
+    if player_flags & (1 << ObjFlag::User as u8) == 0 {
+        warn!(%player, player_flags, "Authenticated principal is not a player");
+        return Err(RpcMessageError::PermissionDenied);
+    }
+
+    Ok(player_flags)
+}
 
 impl RuntimeApi for RpcMessageHandler {
     fn handle_host_request(
@@ -195,7 +212,7 @@ impl RuntimeApi for RpcMessageHandler {
                 let _ = self
                     .connections
                     .record_client_activity(client_id, connection);
-                let player_flags = scheduler_client.get_object_flags(&player).unwrap_or(0);
+                let player_flags = require_player_flags(&scheduler_client, &player)?;
                 Ok(ClientReply::AttachResult {
                     success: true,
                     client_token: Some(self.make_client_token(client_id)),
@@ -262,6 +279,7 @@ impl RuntimeApi for RpcMessageHandler {
                 acceptable_content_types,
             } => {
                 let player = self.validate_auth_token(auth_token, None)?;
+                let player_flags = require_player_flags(&scheduler_client, &player)?;
                 let acceptable_content_types =
                     acceptable_content_types.map(|v| v.into_iter().collect());
                 self.connections.new_connection(NewConnectionParams {
@@ -298,7 +316,6 @@ impl RuntimeApi for RpcMessageHandler {
                         error!(error = ?e, "Error submitting user_connected task");
                     }
                 }
-                let player_flags = scheduler_client.get_object_flags(&player).unwrap_or(0);
                 Ok(ClientReply::AttachResult {
                     success: true,
                     client_token: Some(client_token),
@@ -469,6 +486,15 @@ impl RuntimeApi for RpcMessageHandler {
             } => {
                 let (connection, player) =
                     self.verify_tokens(client_token, auth_token, client_id)?;
+                debug!(
+                    client_id = %client_id,
+                    connection = ?connection,
+                    player = %player,
+                    object = %object,
+                    verb = %verb,
+                    args = ?args,
+                    "Submitting invoke-verb request"
+                );
                 let session = Arc::new(RpcSession::new(
                     client_id,
                     connection,
@@ -909,7 +935,7 @@ impl RpcMessageHandler {
         }
 
         let auth_token = self.make_auth_token(&player);
-        let player_flags = scheduler_client.get_object_flags(&player).unwrap_or(0);
+        let player_flags = require_player_flags(&scheduler_client, &player)?;
 
         Ok(ClientReply::LoginResult {
             success: true,
