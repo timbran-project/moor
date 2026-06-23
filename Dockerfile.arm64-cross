@@ -89,6 +89,7 @@ WORKDIR /moor
 
 # Copy compiled ARM64 binaries
 COPY --from=backend-build /moor-build/target-final/moor-daemon /moor/moor-daemon
+COPY --from=backend-build /moor-build/target-final/moor /moor/moor
 COPY --from=backend-build /moor-build/target-final/moor-web-host /moor/moor-web-host
 COPY --from=backend-build /moor-build/target-final/moor-telnet-host /moor/moor-telnet-host
 COPY --from=backend-build /moor-build/target-final/moor-curl-worker /moor/moor-curl-worker
