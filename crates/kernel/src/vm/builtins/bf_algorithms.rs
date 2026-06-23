@@ -111,6 +111,25 @@ struct QueryRule {
     body: Vec<Var>,
 }
 
+#[derive(Clone, Copy)]
+struct MatchOptions {
+    term: TermOptions,
+    max_solutions: usize,
+    max_steps: usize,
+    dedupe: bool,
+}
+
+impl Default for MatchOptions {
+    fn default() -> Self {
+        Self {
+            term: TermOptions::default(),
+            max_solutions: DEFAULT_QUERY_MAX_SOLUTIONS,
+            max_steps: DEFAULT_QUERY_MAX_STEPS,
+            dedupe: true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum AstarReturn {
     Path,
@@ -261,6 +280,39 @@ fn parse_query_options(value: Option<&Var>) -> Result<QueryOptions, BfErr> {
         } else {
             return Err(BfErr::ErrValue(
                 E_INVARG.msg(format!("unknown term_query() option: {key}")),
+            ));
+        }
+    }
+
+    Ok(options)
+}
+
+fn parse_match_options(value: Option<&Var>) -> Result<MatchOptions, BfErr> {
+    let mut options = MatchOptions::default();
+    let Some(value) = value else {
+        return Ok(options);
+    };
+    let Some(map) = value.as_map() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("term_match() options must be a map"),
+        ));
+    };
+
+    for (key, value) in map.iter_ref() {
+        let key = option_key_symbol(key)?;
+        if key == *MAX_DEPTH_SYM {
+            options.term.max_depth = positive_usize_option(value, "max_depth")?;
+        } else if key == *MAX_BINDINGS_SYM {
+            options.term.max_bindings = positive_usize_option(value, "max_bindings")?;
+        } else if key == *MAX_SOLUTIONS_SYM {
+            options.max_solutions = positive_usize_option(value, "max_solutions")?;
+        } else if key == *MAX_STEPS_SYM {
+            options.max_steps = positive_usize_option(value, "max_steps")?;
+        } else if key == *DEDUPE_SYM {
+            options.dedupe = value.is_true();
+        } else {
+            return Err(BfErr::ErrValue(
+                E_INVARG.msg(format!("unknown term_match() option: {key}")),
             ));
         }
     }
@@ -581,6 +633,74 @@ fn bf_term_unify(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     } else {
         Ok(Ret(bf_args.v_bool(false)))
     }
+}
+
+fn term_match_values(
+    pattern: &Var,
+    values: &[Var],
+    initial_bindings: &TermBindings,
+    options: &MatchOptions,
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Vec<Var>, BfErr> {
+    let mut steps = 0usize;
+    let mut results = Vec::new();
+    let mut seen = HashSet::new();
+
+    for value in values {
+        if results.len() >= options.max_solutions {
+            break;
+        }
+        if let Some(tick_budget) = tick_budget.as_mut() {
+            tick_budget.consume_ticks(1)?;
+        }
+        steps += 1;
+        if steps > options.max_steps {
+            return Err(BfErr::ErrValue(
+                E_MAXREC.msg("term_match() exceeded max_steps"),
+            ));
+        }
+
+        let mut bindings = initial_bindings.clone();
+        if !term_unify_inner(pattern, value, &mut bindings, &options.term, 0)? {
+            continue;
+        }
+        let result = bindings_to_var(bindings);
+        if options.dedupe && !seen.insert(result.clone()) {
+            continue;
+        }
+        results.push(result);
+    }
+
+    Ok(results)
+}
+
+/// Usage: `list term_match(any pattern, list values [, map bindings [, map options]])`
+///
+/// Applies one pattern to each candidate value and returns successful binding maps.
+fn bf_term_match(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("term_match() takes 2 to 4 arguments"),
+        ));
+    }
+
+    let Some(values) = bf_args.args[1].as_list() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("term_match() values must be a list"),
+        ));
+    };
+    let options = parse_match_options(bf_args.args.iter_ref().nth(3))?;
+    let initial_bindings =
+        load_bindings(bf_args.args.iter_ref().nth(2), options.term.max_bindings)?;
+    let values = values.iter_ref().cloned().collect::<Vec<_>>();
+    let results = term_match_values(
+        &bf_args.args[0],
+        &values,
+        &initial_bindings,
+        &options,
+        Some(bf_args.tick_budget()),
+    )?;
+    Ok(Ret(v_list(&results)))
 }
 
 fn term_substitute_inner(
@@ -1931,6 +2051,7 @@ pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("grid_los")] = bf_grid_los;
     builtins[offset_for_builtin("grid_flood")] = bf_grid_flood;
     builtins[offset_for_builtin("term_unify")] = bf_term_unify;
+    builtins[offset_for_builtin("term_match")] = bf_term_match;
     builtins[offset_for_builtin("term_substitute")] = bf_term_substitute;
     builtins[offset_for_builtin("term_query")] = bf_term_query;
     builtins[offset_for_builtin("term_variables")] = bf_term_variables;
@@ -2213,6 +2334,42 @@ mod tests {
     fn term_unify_rejects_malformed_variable_marker() {
         let err = unify(v_list(&[v_sym("var"), v_str("X")]), v_int(1)).unwrap_err();
         assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_INVARG));
+    }
+
+    #[test]
+    fn term_match_returns_successful_bindings() {
+        let results = term_match_values(
+            &v_list(&[v_sym("edge"), v_int(1), var("To")]),
+            &[
+                v_list(&[v_sym("edge"), v_int(1), v_int(2)]),
+                v_list(&[v_sym("edge"), v_int(1), v_int(2)]),
+                v_list(&[v_sym("edge"), v_int(2), v_int(3)]),
+            ],
+            &TermBindings::default(),
+            &MatchOptions::default(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(results, vec![v_map(&[(v_sym("To"), v_int(2))])]);
+    }
+
+    #[test]
+    fn term_match_respects_max_steps() {
+        let options = MatchOptions {
+            max_steps: 1,
+            ..MatchOptions::default()
+        };
+        let err = term_match_values(
+            &var("X"),
+            &[v_int(1), v_int(2)],
+            &TermBindings::default(),
+            &options,
+            None,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));
     }
 
     #[test]

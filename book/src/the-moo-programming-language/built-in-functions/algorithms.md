@@ -23,10 +23,10 @@ That works for a handful of records. But when the list grows long, or the record
 complicated, the per-record check slows down and the code to pick apart each record gets harder to
 read.
 
-The `term_unify()`, `term_query()`, and `term_substitute()` builtins make that kind of
-structured-data work faster and simpler. Instead of pulling each record apart by hand, you write a
-pattern that describes what you are looking for. Use `term_unify()` to match one value, or pass a
-list of records to `term_query()`, which searches them for you:
+The `term_unify()`, `term_match()`, `term_query()`, and `term_substitute()` builtins make that kind
+of structured-data work faster and simpler. Instead of pulling each record apart by hand, you write
+a pattern that describes what you are looking for. Use `term_unify()` to match one value,
+`term_match()` to match a list of values, or `term_query()` when you also need rules:
 
 ```moo
 term_query({'exit, #10, {'var, 'Dir}, {'var, 'To}}, exit_records)
@@ -131,6 +131,29 @@ term_unify({'edge, {'var, 'From}, {'var, 'To}},
 
 Lists are compared item by item and must have equal length. Maps must have the same keys; values
 under those keys are compared recursively. Non-placeholder values compare with normal MOO equality.
+
+## `term_match`
+
+```moo
+LIST term_match(ANY pattern, LIST values [, MAP bindings [, MAP options]])
+```
+
+Applies one pattern to each value in a list and returns the binding maps for successful matches.
+This is the batch form of `term_unify()` for callers that have explicit candidate values and do not
+need `term_query()` rules.
+
+```moo
+term_match({'edge, #10, {'var, 'To}},
+           {
+             {'edge, #10, #11},
+             {'edge, #10, #12},
+             {'edge, #20, #21}
+           })
+=> {['To -> #11], ['To -> #12]}
+```
+
+Initial bindings are applied to each candidate independently. By default duplicate binding maps are
+removed.
 
 ## `term_query`
 
@@ -349,6 +372,18 @@ accept:
 ```moo
 ['unbound -> 'raise]  "default"
 ['unbound -> 'leave]
+```
+
+`term_match()` accepts:
+
+```moo
+[
+  'max_depth -> 64,
+  'max_bindings -> 256,
+  'max_solutions -> 256,
+  'max_steps -> 10000,
+  'dedupe -> true
+]
 ```
 
 `term_query()` accepts:
