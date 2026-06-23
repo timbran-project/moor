@@ -24,9 +24,9 @@ use std::{
 
 use axum::Router;
 use ipnet::IpNet;
+use moor_runtime_api::api::HostServices;
 use moor_var::Obj;
-use rpc_async_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
-use rpc_common::api::HostServices;
+use moor_zmq_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
 use tokio::{net::TcpListener, select};
 use tracing::{error, info, warn};
 use uuid::Uuid;

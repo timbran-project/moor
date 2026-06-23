@@ -28,6 +28,5 @@ Libraries:
   Pure types with no host/scheduler dependencies.
 - `kernel` - the kernel of the MOO driver: task scheduler, builtin functions, and host services that
   wire the VM into the transactional database
-- `rpc/rpc-common` - provides types & functions used by both `daemon` and each host binary, for the
-  RPC interface
-- `rpc/rpc-async-client` - provides an async RPC client for the `daemon`'s RPC interface
+- `runtime-api` - typed host/runtime API, shared message types, and wire codec helpers
+- `zmq-client` - ZeroMQ-backed runtime client and host service implementation

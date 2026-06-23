@@ -51,7 +51,7 @@ mod worker_rpc_client;
 /// # Example
 /// ```no_run
 /// use tmq::request;
-/// use rpc_async_client::configure_curve_client;
+/// use moor_zmq_client::configure_curve_client;
 ///
 /// let ctx = tmq::Context::new();
 /// let socket_builder = request(&ctx);

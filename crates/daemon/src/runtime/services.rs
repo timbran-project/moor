@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use rpc_common::{
+use moor_runtime_api::{
     RpcError,
     api::{
         ClientBroadcastSubscription, ClientEventSubscription, HostEventSubscription, HostServices,

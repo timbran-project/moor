@@ -45,12 +45,12 @@ use moor_kernel::{
 };
 
 use crate::runtime::RuntimeApi;
-use moor_schema::convert::var_to_flatbuffer;
-use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, v_sym};
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken, HostType, RpcMessageError, obj_fb, symbol_fb, uuid_fb,
     var_to_flatbuffer_rpc,
 };
+use moor_schema::convert::var_to_flatbuffer;
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, v_sym};
 use rusty_paseto::prelude::Key;
 use tracing::{error, warn};
 

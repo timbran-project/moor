@@ -22,10 +22,7 @@ use async_trait::async_trait;
 use eyre::Context;
 use moor_common::tasks::{Event, NarrativeEvent};
 use moor_kernel::SchedulerClient;
-use moor_schema::{convert::narrative_event_to_flatbuffer_struct, rpc as moor_rpc};
-use moor_var::Obj;
-use planus::ReadAsRoot;
-use rpc_common::{
+use moor_runtime_api::{
     RpcError,
     api::{
         BroadcastEventMessage, ClientBroadcastSubscription, ClientEventMessage,
@@ -36,6 +33,9 @@ use rpc_common::{
     },
     obj_fb, var_to_flatbuffer_rpc,
 };
+use moor_schema::{convert::narrative_event_to_flatbuffer_struct, rpc as moor_rpc};
+use moor_var::Obj;
+use planus::ReadAsRoot;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -279,11 +279,11 @@ fn encode_host_event(
 
 #[cfg(test)]
 mod tests {
-    use moor_schema::rpc as moor_rpc;
-    use rpc_common::api::{
+    use moor_runtime_api::api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
         HostBroadcastEvent, HostEventSubscription,
     };
+    use moor_schema::rpc as moor_rpc;
     use uuid::Uuid;
 
     use super::{LocalEventBus, Transport};

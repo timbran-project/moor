@@ -32,18 +32,18 @@ use axum::{
 };
 use moor_common::model::ObjectRef;
 use moor_common::tasks::NarrativeEvent;
+use moor_runtime_api::{
+    api::{ClientRequest, EntityType},
+    scheduler_error_to_flatbuffer_struct,
+};
 use moor_schema::{
     common as moor_common_fb,
     convert::{narrative_event_to_flatbuffer_struct, var_from_flatbuffer_ref, var_to_flatbuffer},
     rpc as moor_rpc, var as moor_var_schema,
 };
 use moor_var::Symbol;
+use moor_zmq_client::task_client::{SessionEvent, TaskResult};
 use planus::ReadAsRoot;
-use rpc_async_client::task_client::{SessionEvent, TaskResult};
-use rpc_common::{
-    api::{ClientRequest, EntityType},
-    scheduler_error_to_flatbuffer_struct,
-};
 use serde::Deserialize;
 use tracing::{debug, error};
 

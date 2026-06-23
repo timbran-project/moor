@@ -17,12 +17,12 @@ use crate::session::{BoxedAsyncIo, TelnetConnection, codec::ConnectionCodec};
 use eyre::bail;
 use futures_util::StreamExt;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
-use moor_var::{Obj, Symbol};
-use rpc_async_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
-use rpc_common::{
+use moor_runtime_api::{
     ClientToken,
     api::{ClientReply, ClientRequest, ConnectionAttribute, HostServices, RuntimeClient},
 };
+use moor_var::{Obj, Symbol};
+use moor_zmq_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
 use rustls_pemfile::{certs, private_key};
 use std::{
     collections::HashMap,

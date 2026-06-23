@@ -29,8 +29,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use moor_common::model::ObjectRef;
+use moor_runtime_api::api::{BatchAction, BatchActionEntry, ClientRequest};
 use moor_var::Symbol;
-use rpc_common::api::{BatchAction, BatchActionEntry, ClientRequest};
 use serde::Deserialize;
 use tracing::error;
 

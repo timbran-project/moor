@@ -24,7 +24,7 @@ use moor_daemon::{
     VERSION_BANNER_MSG, ensure_enrollment_token, generate_keypair,
     load_or_generate_daemon_curve_keypair, rotate_enrollment_token,
 };
-use rpc_common::load_keypair;
+use moor_runtime_api::load_keypair;
 
 #[path = "../args.rs"]
 mod args;

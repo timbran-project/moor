@@ -22,10 +22,10 @@ use moor_common::{
     },
     util::BitEnum,
 };
-use moor_schema::{convert, rpc as moor_rpc};
-use moor_var::Var;
-use rpc_common::api::{self, ClientReply, ClientRequest, HostReply, HostRequest, RuntimeClient};
-use rpc_common::{
+use moor_runtime_api::api::{
+    self, ClientReply, ClientRequest, HostReply, HostRequest, RuntimeClient,
+};
+use moor_runtime_api::{
     HostType, RpcError, auth_token_from_ref, client_token_from_ref, mk_attach_msg,
     mk_batch_world_state_msg, mk_call_system_verb_msg, mk_client_pong_msg, mk_command_msg,
     mk_connection_establish_msg, mk_delete_event_log_history_msg, mk_detach_host_msg,
@@ -38,6 +38,8 @@ use rpc_common::{
     mk_set_event_log_pubkey_msg, mk_update_property_msg, mk_verbs_msg, obj_fb, read_reply_result,
     rpc_message_error_from_ref, scheduler_error_from_ref, uuid_fb, verb_program_error_from_ref,
 };
+use moor_schema::{convert, rpc as moor_rpc};
+use moor_var::Var;
 use uuid::Uuid;
 
 use crate::rpc_client::RpcClient;
@@ -361,9 +363,9 @@ fn encode_client_request(
             actions,
             rollback,
         } => {
-            let batch_actions: Vec<rpc_common::BatchAction> = actions
+            let batch_actions: Vec<moor_runtime_api::BatchAction> = actions
                 .into_iter()
-                .map(|entry| rpc_common::BatchAction {
+                .map(|entry| moor_runtime_api::BatchAction {
                     id: entry.id,
                     action: encode_batch_action(entry.action),
                 })
@@ -1374,7 +1376,7 @@ fn encode_history_recall(recall: api::HistoryRecall) -> moor_rpc::HistoryRecall 
 }
 
 fn encode_batch_action(action: api::BatchAction) -> moor_rpc::WorldStateActionUnion {
-    use rpc_common::{
+    use moor_runtime_api::{
         ws_get_object_flags, ws_list_objects, ws_program_verb, ws_query_objects,
         ws_request_all_objects, ws_request_properties, ws_request_property,
         ws_request_system_property, ws_request_verb_code, ws_request_verbs, ws_resolve_object,

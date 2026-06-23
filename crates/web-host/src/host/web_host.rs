@@ -34,9 +34,7 @@ use eyre::eyre;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
 use ipnet::IpNet;
 use moor_common::model::ObjectRef;
-use moor_schema::rpc as moor_rpc;
-use moor_var::{Obj, Symbol};
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{
         ClientReply, ClientRequest, ConnectType, HostReply, HostRequest, HostServices,
@@ -44,6 +42,8 @@ use rpc_common::{
     },
     api_codec::{encode_client_success_bytes, encode_host_success_bytes},
 };
+use moor_schema::rpc as moor_rpc;
+use moor_var::{Obj, Symbol};
 use std::{
     net::{IpAddr, SocketAddr},
     sync::{
@@ -388,9 +388,9 @@ impl WebHost {
 
     pub fn task_client_config(
         &self,
-        auth_token: rpc_common::AuthToken,
-    ) -> rpc_async_client::task_client::TaskClientConfig {
-        rpc_async_client::task_client::TaskClientConfig {
+        auth_token: moor_runtime_api::AuthToken,
+    ) -> moor_zmq_client::task_client::TaskClientConfig {
+        moor_zmq_client::task_client::TaskClientConfig {
             zmq_context: Arc::new(self.zmq_context.clone()),
             rpc_addr: self.rpc_addr.clone(),
             pubsub_addr: self.pubsub_addr.clone(),
@@ -400,7 +400,7 @@ impl WebHost {
             local_port: self.local_port,
             curve_keys: self.curve_keys.as_ref().map(
                 |(client_secret, client_public, server_public)| {
-                    rpc_async_client::rpc_client::CurveKeys {
+                    moor_zmq_client::rpc_client::CurveKeys {
                         client_secret: client_secret.clone(),
                         client_public: client_public.clone(),
                         server_public: server_public.clone(),
@@ -413,12 +413,12 @@ impl WebHost {
 
     pub async fn task_client(
         &self,
-        auth_token: rpc_common::AuthToken,
+        auth_token: moor_runtime_api::AuthToken,
     ) -> Result<
-        rpc_async_client::task_client::TaskClient,
-        rpc_async_client::task_client::TaskClientError,
+        moor_zmq_client::task_client::TaskClient,
+        moor_zmq_client::task_client::TaskClientError,
     > {
-        rpc_async_client::task_client::TaskClient::connect_with_services(
+        moor_zmq_client::task_client::TaskClient::connect_with_services(
             self.task_client_config(auth_token),
             self.host_services.clone(),
         )

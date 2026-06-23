@@ -41,15 +41,15 @@ mod tests {
         rpc::{MessageHandler, RpcServer},
         testing::{MockEventLog, MockTransport},
     };
-    use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
-    use moor_var::{Obj, SYSTEM_OBJECT};
-    use planus::ReadAsRoot;
-    use rpc_common::{
+    use moor_runtime_api::{
         RpcMessageError, mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg,
         mk_detach_host_msg, mk_detach_msg, mk_host_pong_msg, mk_login_command_msg,
         mk_properties_msg, mk_register_host_msg, mk_request_performance_counters_msg,
         mk_request_sys_prop_msg, mk_requested_input_msg, mk_verbs_msg, obj_fb,
     };
+    use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
+    use moor_var::{Obj, SYSTEM_OBJECT};
+    use planus::ReadAsRoot;
 
     fn systemtime_to_nanos(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -75,7 +75,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
 -----END PUBLIC KEY-----
 "#;
 
-        let (private_key, public_key) = rpc_common::parse_keypair(VERIFYING_KEY, SIGNING_KEY)
+        let (private_key, public_key) = moor_runtime_api::parse_keypair(VERIFYING_KEY, SIGNING_KEY)
             .expect("Failed to parse test keypair");
         (public_key, private_key)
     }
@@ -245,7 +245,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         client_id: Uuid,
         peer_addr: &str,
         port: u16,
-    ) -> (rpc_common::ClientToken, Obj) {
+    ) -> (moor_runtime_api::ClientToken, Obj) {
         let establish_message = mk_connection_establish_msg(
             peer_addr.to_string(),
             7777,
@@ -266,7 +266,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         assert!(result.is_ok(), "Connection establishment should succeed");
         match result.unwrap().reply {
             moor_rpc::DaemonToClientReplyUnion::NewConnection(new_conn) => {
-                let token = rpc_common::ClientToken(new_conn.client_token.token.clone());
+                let token = moor_runtime_api::ClientToken(new_conn.client_token.token.clone());
                 let obj = match &new_conn.connection_obj.obj {
                     moor_rpc::ObjUnion::ObjId(obj_id) => Obj::mk_id(obj_id.id),
                     _ => panic!("Unexpected obj variant"),
@@ -282,8 +282,8 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
     fn login_wizard(
         env: &TestEnvironment,
         client_id: Uuid,
-        client_token: &rpc_common::ClientToken,
-    ) -> rpc_common::AuthToken {
+        client_token: &moor_runtime_api::ClientToken,
+    ) -> moor_runtime_api::AuthToken {
         // Step 1: Welcome message call (empty args, do_attach: false)
         let welcome_message =
             mk_login_command_msg(client_token, &SYSTEM_OBJECT, vec![], false, None, None);
@@ -364,7 +364,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
             Vec<u8>,
             Result<moor_rpc::DaemonToClientReply, RpcMessageError>,
         )],
-    ) -> rpc_common::AuthToken {
+    ) -> moor_runtime_api::AuthToken {
         client_replies
             .iter()
             .find_map(|(_, _, reply)| {
@@ -381,7 +381,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
                 login_result
                     .auth_token
                     .as_ref()
-                    .map(|t| rpc_common::AuthToken(t.token.clone()))
+                    .map(|t| moor_runtime_api::AuthToken(t.token.clone()))
             })
             .unwrap_or_else(|| {
                 panic!(
@@ -890,7 +890,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         let client_id = Uuid::new_v4();
 
         // Test: Invalid client token should generate error reply
-        let invalid_token = rpc_common::ClientToken("invalid_token".to_string());
+        let invalid_token = moor_runtime_api::ClientToken("invalid_token".to_string());
         let invalid_ping_message = mk_client_pong_msg(
             &invalid_token,
             systemtime_to_nanos(SystemTime::now()),
@@ -922,7 +922,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         let (_, _, reply) = &client_replies[0];
         assert!(reply.is_err(), "Captured reply should be an error");
         match reply {
-            Err(rpc_common::RpcMessageError::NoConnection) => {}
+            Err(moor_runtime_api::RpcMessageError::NoConnection) => {}
             other => panic!("Expected NoConnection error, got {other:?}"),
         }
     }
@@ -932,7 +932,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         let env = setup_test_environment();
 
         let client_id = Uuid::new_v4();
-        let invalid_token = rpc_common::ClientToken("invalid_token".to_string());
+        let invalid_token = moor_runtime_api::ClientToken("invalid_token".to_string());
         let message = mk_client_pong_msg(
             &invalid_token,
             systemtime_to_nanos(SystemTime::now()),
@@ -953,7 +953,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
             "Client pong with invalid token should fail"
         );
         match result.unwrap_err() {
-            rpc_common::RpcMessageError::NoConnection => {}
+            moor_runtime_api::RpcMessageError::NoConnection => {}
             other => panic!("Expected NoConnection error, got {other:?}"),
         }
     }
@@ -1288,7 +1288,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         // Test broadcast_listen
         let listen_result = env.message_handler.broadcast_listen(
             Obj::mk_id(100),
-            rpc_common::HostType::WebSocket,
+            moor_runtime_api::HostType::WebSocket,
             8080,
             vec![],
         );
@@ -1298,7 +1298,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         // Test broadcast_unlisten
         let unlisten_result = env
             .message_handler
-            .broadcast_unlisten(rpc_common::HostType::WebSocket, 8080);
+            .broadcast_unlisten(moor_runtime_api::HostType::WebSocket, 8080);
 
         assert!(unlisten_result.is_ok(), "Broadcast unlisten should succeed");
     }
@@ -1452,7 +1452,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
         );
 
         // Test invalid client token by sending a ping with bad token
-        let invalid_token = rpc_common::ClientToken("invalid".to_string());
+        let invalid_token = moor_runtime_api::ClientToken("invalid".to_string());
         let invalid_ping_message = mk_client_pong_msg(
             &invalid_token,
             systemtime_to_nanos(SystemTime::now()),
@@ -1498,7 +1498,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
 
         let verbs_processed = matches!(
             verbs_result,
-            Ok(_) | Err(rpc_common::RpcMessageError::EntityRetrievalError(_))
+            Ok(_) | Err(moor_runtime_api::RpcMessageError::EntityRetrievalError(_))
         );
         assert!(
             verbs_processed,
@@ -1521,7 +1521,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
 
         let props_processed = matches!(
             props_result,
-            Ok(_) | Err(rpc_common::RpcMessageError::EntityRetrievalError(_))
+            Ok(_) | Err(moor_runtime_api::RpcMessageError::EntityRetrievalError(_))
         );
         assert!(
             props_processed,
@@ -1619,7 +1619,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
             Ok(reply) if matches!(reply.reply, moor_rpc::DaemonToClientReplyUnion::InputThanks(_))
         ) || matches!(
             &response_result,
-            Err(rpc_common::RpcMessageError::InternalError(_))
+            Err(moor_runtime_api::RpcMessageError::InternalError(_))
         );
         assert!(
             input_processed,

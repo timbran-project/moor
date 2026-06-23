@@ -16,7 +16,7 @@ use std::{sync::LazyLock, sync::atomic::Ordering};
 use clap::Parser;
 use clap_derive::Parser;
 use moor_curl_worker::{CurlWorkerConfig, WorkerRuntime};
-use rpc_common::client_args::RpcClientArgs;
+use moor_runtime_api::client_args::RpcClientArgs;
 use tokio::{
     select,
     signal::unix::{SignalKind, signal},

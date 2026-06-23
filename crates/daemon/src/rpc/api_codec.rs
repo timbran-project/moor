@@ -11,4 +11,4 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use rpc_common::api_codec::*;
+pub use moor_runtime_api::api_codec::*;

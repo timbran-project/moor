@@ -19,18 +19,18 @@
 use eyre::{Result, eyre};
 use moor_common::model::ObjectRef;
 use moor_common::tasks::{Event, Exception, SchedulerError};
-use moor_schema::convert::{narrative_event_from_ref, var_from_flatbuffer_ref};
-use moor_schema::rpc as moor_rpc;
-use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
-use rpc_async_client::pubsub_client::{broadcast_recv, events_recv};
-use rpc_async_client::rpc_client::{CurveKeys, RpcClient};
-use rpc_async_client::zmq;
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, CLIENT_BROADCAST_TOPIC, ClientToken, RpcError, mk_client_pong_msg, mk_command_msg,
     mk_connection_establish_msg, mk_detach_msg, mk_eval_msg, mk_invoke_verb_msg,
     mk_list_objects_msg, mk_program_msg, mk_properties_msg, mk_resolve_msg, mk_retrieve_msg,
     mk_update_property_msg, mk_verbs_msg, read_reply_result, scheduler_error_from_ref,
 };
+use moor_schema::convert::{narrative_event_from_ref, var_from_flatbuffer_ref};
+use moor_schema::rpc as moor_rpc;
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
+use moor_zmq_client::pubsub_client::{broadcast_recv, events_recv};
+use moor_zmq_client::rpc_client::{CurveKeys, RpcClient};
+use moor_zmq_client::zmq;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
@@ -547,7 +547,7 @@ impl MoorClient {
             .as_ref()
             .ok_or_else(|| eyre!("Not connected - call connect() first"))?;
 
-        let login_msg = rpc_common::mk_login_command_msg(
+        let login_msg = moor_runtime_api::mk_login_command_msg(
             client_token,
             &self.handler_object,
             vec![

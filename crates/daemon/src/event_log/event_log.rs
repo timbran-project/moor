@@ -24,6 +24,7 @@ use fjall::config::CompressionPolicy;
 use fjall::{CompressionType, Database, Keyspace, KeyspaceCreateOptions};
 use flume::{Receiver, Sender};
 use moor_common::tasks::{EventLogPurgeResult, EventLogStats};
+use moor_runtime_api::StrErr;
 use moor_schema::convert::presentation_to_flatbuffer_struct;
 use moor_schema::{
     common::{ObjUnion, ObjUnionRef},
@@ -31,7 +32,6 @@ use moor_schema::{
     event_log::{LoggedNarrativeEvent, PlayerPresentations, StoredPresentation},
 };
 use moor_var::Obj;
-use rpc_common::StrErr;
 use tracing::{debug, error, info};
 
 /// Trait abstracting event log operations for testing

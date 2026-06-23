@@ -16,12 +16,12 @@ use std::sync::Arc;
 use clap::Parser;
 use clap_derive::Parser;
 
+use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
 use moor_web_host::{
     HostRuntime, WebHostConfig,
     host::{OAuth2Config, WebRtcConfig},
     routes::{CorsConfig, RateLimitConfig},
 };
-use rpc_common::client_args::{RpcClientArgs, RpcClientConfig};
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{LazyLock, atomic::AtomicBool};
 use tokio::{

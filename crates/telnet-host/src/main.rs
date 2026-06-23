@@ -14,8 +14,8 @@
 use clap::Parser;
 use clap_derive::Parser;
 use colored::control;
+use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
 use moor_telnet_host::{HostRuntime, TelnetHostConfig};
-use rpc_common::client_args::{RpcClientArgs, RpcClientConfig};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,

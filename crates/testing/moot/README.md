@@ -1,4 +1,15 @@
-# `.moot` file syntax
+# moor-moot
+
+TLDR: Text-driven MOO interaction test harness and `.moot` file parser used to exercise scheduler
+and network-facing behavior.
+
+Downstream uses:
+
+- Used by `moor-kernel`, `moor-telnet-host`, and `moorc` for regression suites and test runners.
+- Keep reusable test syntax and runner code here; crate-specific fixtures should stay beside the
+  crates that own them.
+
+## `.moot` file syntax
 
 | Syntax                       | Meaning                                                                            |
 | ---------------------------- | ---------------------------------------------------------------------------------- |

@@ -69,8 +69,8 @@ moor-var = { path = "../../var" }
 moor-compiler = { path = "../../compiler" }
 moor-kernel = { path = "../../kernel" }
 moor-schema = { path = "../../schema" }
-rpc-async-client = { path = "../../rpc/rpc-async-client" }
-rpc-common = { path = "../../rpc/rpc-common" }
+moor-zmq-client = { path = "../../zmq-client" }
+moor-runtime-api = { path = "../../runtime-api" }
 
 # Command Line & Configuration
 clap.workspace = true

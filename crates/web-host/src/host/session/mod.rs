@@ -19,19 +19,19 @@ mod websocket;
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use moor_common::tasks::Event as NarrativeEventKind;
-use moor_schema::{
-    common as moor_common_fb, convert::var_from_flatbuffer_ref, rpc as moor_rpc,
-    var as moor_var_schema,
-};
-use moor_var::{Obj, Var, v_str};
-use planus::ReadAsRoot;
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken, HostType,
     api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
         ClientReply, ClientRequest, RuntimeClient,
     },
 };
+use moor_schema::{
+    common as moor_common_fb, convert::var_from_flatbuffer_ref, rpc as moor_rpc,
+    var as moor_var_schema,
+};
+use moor_var::{Obj, Var, v_str};
+use planus::ReadAsRoot;
 use std::{
     collections::{HashSet, VecDeque},
     net::SocketAddr,

@@ -28,8 +28,8 @@ use crate::connections::{
 use eyre::{Error, bail};
 use fjall::{Database, Keyspace, KeyspaceCreateOptions};
 use moor_common::tasks::SessionError;
+use moor_runtime_api::RpcMessageError;
 use moor_var::{Obj, Symbol, Var};
-use rpc_common::RpcMessageError;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 use zerocopy::IntoBytes;

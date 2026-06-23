@@ -24,10 +24,10 @@ use std::{
 
 use eyre::{Result, eyre};
 use moor_common::tasks::WorkerError;
+use moor_runtime_api::client_args::RpcClientConfig;
 use moor_var::{Obj, Symbol, Var, Variant, v_int, v_list, v_list_iter, v_str};
+use moor_zmq_client::worker_loop_with_context;
 use reqwest::Url;
-use rpc_async_client::worker_loop_with_context;
-use rpc_common::client_args::RpcClientConfig;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -54,7 +54,7 @@ impl Default for WorkerRuntime {
 }
 
 pub async fn run(config: CurlWorkerConfig, runtime: WorkerRuntime) -> Result<()> {
-    let curve_keys = rpc_async_client::enrollment_client::setup_curve_auth(
+    let curve_keys = moor_zmq_client::enrollment_client::setup_curve_auth(
         &config.connection.rpc_address,
         &config.connection.enrollment_address,
         config.connection.enrollment_token_file.as_deref(),

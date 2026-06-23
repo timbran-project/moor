@@ -27,12 +27,12 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use moor_schema::rpc as moor_rpc;
-use planus::ReadAsRoot;
-use rpc_common::{
+use moor_runtime_api::{
     api::{BatchActionEntry, ClientRequest},
     api_codec::{decode_batch_action, decode_owned_batch_action},
 };
+use moor_schema::rpc as moor_rpc;
+use planus::ReadAsRoot;
 use tracing::error;
 
 pub async fn batch_handler(

@@ -19,10 +19,10 @@ use uuid::Uuid;
 use crate::rpc::{MessageHandler, Transport};
 use moor_common::tasks::NarrativeEvent;
 use moor_kernel::SchedulerClient;
+use moor_runtime_api::RpcMessageError;
 use moor_schema::rpc as moor_rpc;
 use moor_var::Obj;
 use planus::ReadAsRoot;
-use rpc_common::RpcMessageError;
 
 /// Type alias for captured host reply tuples
 type HostReply = (

@@ -1,7 +1,13 @@
 # lambdamoo-harness
 
-Test harness that embeds the original LambdaMOO C implementation for comparative testing and
-benchmarking against mooR.
+TLDR: Optional comparative test and benchmark harness around the original LambdaMOO C
+implementation.
+
+Downstream uses:
+
+- Leaf testing crate; no production crate should depend on it.
+- Used manually to compare mooR behavior and performance with LambdaMOO after fetching external
+  sources.
 
 This crate is **not built by default**. It requires fetching external LambdaMOO sources before it
 can be compiled.

@@ -34,12 +34,12 @@ use axum::{
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
-use moor_schema::rpc as moor_rpc;
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{ClientReply, ClientRequest, RuntimeClient},
     api_codec::encode_client_success_bytes,
 };
+use moor_schema::rpc as moor_rpc;
 use serde_derive::Deserialize;
 use std::{net::SocketAddr, sync::Arc};
 use tracing::{debug, error, warn};

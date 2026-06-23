@@ -29,12 +29,12 @@ use eyre::{Result, eyre};
 use host::{OAuth2Config, OAuth2Manager, WebRtcConfig};
 use ipnet::IpNet;
 use listeners::Listeners;
+use moor_runtime_api::{HostType, api::HostServices, client_args::RpcClientConfig};
 use moor_var::SYSTEM_OBJECT;
-use routes::{CorsConfig, RateLimitConfig};
-use rpc_async_client::{
+use moor_zmq_client::{
     ZmqHostServices, process_hosts_events_with_services, start_host_session_with_services,
 };
-use rpc_common::{HostType, api::HostServices, client_args::RpcClientConfig};
+use routes::{CorsConfig, RateLimitConfig};
 use tokio::select;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -67,7 +67,7 @@ impl Default for HostRuntime {
 }
 
 pub async fn run(config: WebHostConfig, runtime: HostRuntime) -> Result<()> {
-    let curve_keys = rpc_async_client::enrollment_client::setup_curve_auth(
+    let curve_keys = moor_zmq_client::enrollment_client::setup_curve_auth(
         &config.connection.rpc_address,
         &config.connection.enrollment_address,
         config.connection.enrollment_token_file.as_deref(),

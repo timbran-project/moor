@@ -217,7 +217,7 @@ impl AllowedHostsRegistry {
 /// Load a host public key from a file
 ///
 /// File format:
-/// ```
+/// ```text
 /// # Comment lines
 /// public=<Z85-encoded-key>
 /// ```

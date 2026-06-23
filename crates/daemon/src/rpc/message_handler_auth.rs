@@ -12,10 +12,10 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::rpc::message_handler::RpcMessageHandler;
-use moor_var::Obj;
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken, MOOR_AUTH_TOKEN_FOOTER, MOOR_SESSION_TOKEN_FOOTER, RpcMessageError,
 };
+use moor_var::Obj;
 use rusty_paseto::core::{
     Footer, Paseto, PasetoAsymmetricPrivateKey, PasetoAsymmetricPublicKey, Payload, Public, V4,
 };

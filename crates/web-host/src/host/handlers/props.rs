@@ -25,8 +25,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use moor_common::model::ObjectRef;
+use moor_runtime_api::api::{ClientRequest, EntityType};
 use moor_var::Symbol;
-use rpc_common::api::{ClientRequest, EntityType};
 use serde::Deserialize;
 
 #[derive(Deserialize)]

@@ -14,8 +14,8 @@
 //! Client for enrolling hosts/workers with the daemon
 
 use eyre::{Context, Result, eyre};
+use moor_runtime_api::{EnrollmentResponseRef, mk_enrollment_request};
 use planus::ReadAsRoot;
-use rpc_common::{EnrollmentResponseRef, mk_enrollment_request};
 use std::path::Path;
 use tracing::info;
 use uuid::Uuid;

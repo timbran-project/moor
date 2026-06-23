@@ -14,7 +14,7 @@
 use crate::rpc::message_handler::RpcMessageHandler;
 use moor_schema::{convert::uuid_from_ref, rpc as moor_rpc};
 use moor_var::Obj;
-use rpc_common::{RpcErr, RpcMessageError, uuid_fb};
+use moor_runtime_api::{RpcErr, RpcMessageError, uuid_fb};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::debug;
 use uuid::Uuid;

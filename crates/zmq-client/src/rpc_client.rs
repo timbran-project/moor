@@ -11,9 +11,9 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use moor_runtime_api::{RpcError, uuid_fb};
 use moor_schema::rpc as moor_rpc;
 use planus::Builder;
-use rpc_common::{RpcError, uuid_fb};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tmq::{Multipart, request_reply::RequestSender};

@@ -12,11 +12,11 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ListenersClient, ZmqHostServices, rpc_client::RpcClient};
-use moor_var::{Symbol, Var};
-use rpc_common::{
+use moor_runtime_api::{
     HostType, RpcError,
     api::{HostBroadcastEvent, HostReply, HostRequest, HostServices, ListenerInfo},
 };
+use moor_var::{Symbol, Var};
 use std::{
     net::SocketAddr,
     sync::{

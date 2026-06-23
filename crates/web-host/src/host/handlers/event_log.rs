@@ -25,7 +25,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use rpc_common::api::{ClientReply, ClientRequest, HistoryRecall};
+use moor_runtime_api::api::{ClientReply, ClientRequest, HistoryRecall};
 use serde_derive::Deserialize;
 use serde_json::json;
 use tracing::error;

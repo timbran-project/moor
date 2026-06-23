@@ -12,20 +12,20 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! [`RuntimeApi`] implementation for [`RpcMessageHandler`], operating on the
-//! typed [`rpc_common::api`] enums. The existing [`MessageHandler`] methods
+//! typed [`moor_runtime_api::api`] enums. The existing [`MessageHandler`] methods
 //! decode FlatBuffer refs into these enums, dispatch here, and encode replies
 //! back, keeping FlatBuffer knowledge at the wire boundary.
 
 use moor_common::model::ObjectRef;
 use moor_kernel::SchedulerClient;
-use moor_schema::rpc as moor_rpc;
-use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, Variant, v_empty_str, v_str, v_string};
-use rpc_common::api::{
+use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
     ObjectInfo, ServerFeatures, VerbCallResponse, VerbProgramResponse, WorldStateResult,
     WorldStateResultEntry,
 };
-use rpc_common::{AuthToken, ClientToken, RpcMessageError};
+use moor_runtime_api::{AuthToken, ClientToken, RpcMessageError};
+use moor_schema::rpc as moor_rpc;
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, Variant, v_empty_str, v_str, v_string};
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -104,7 +104,7 @@ impl RuntimeApi for RpcMessageHandler {
                         counters: counters_list
                             .into_iter()
                             .map(|(name_sym, count, cumulative_ns)| {
-                                rpc_common::api::CounterSample {
+                                moor_runtime_api::api::CounterSample {
                                     name: name_sym,
                                     count: count as i64,
                                     total_cumulative_ns: cumulative_ns as i64,
@@ -596,7 +596,7 @@ impl RuntimeApi for RpcMessageHandler {
                 let presentations = self.event_log.current_presentations(player);
                 let snapshots = presentations
                     .into_iter()
-                    .map(|p| rpc_common::api::PresentationSnapshot {
+                    .map(|p| moor_runtime_api::api::PresentationSnapshot {
                         id: p.id,
                         encrypted_blob: p.encrypted_content,
                     })
@@ -1039,13 +1039,15 @@ impl RpcMessageHandler {
             match receiver.recv() {
                 Ok((_, Ok(TaskNotification::Result(v)))) => {
                     break Ok(ClientReply::SystemHandlerResponseReply {
-                        response: rpc_common::api::SystemHandlerResponse::Success { result: v },
+                        response: moor_runtime_api::api::SystemHandlerResponse::Success {
+                            result: v,
+                        },
                     });
                 }
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
                 Ok((_, Err(e))) => {
                     break Ok(ClientReply::SystemHandlerResponseReply {
-                        response: rpc_common::api::SystemHandlerResponse::Error { error: e },
+                        response: moor_runtime_api::api::SystemHandlerResponse::Error { error: e },
                     });
                 }
                 Err(e) => {
@@ -1115,12 +1117,12 @@ impl RpcMessageHandler {
     fn build_history_response_typed(
         &self,
         player: Obj,
-        recall: rpc_common::api::HistoryRecall,
+        recall: moor_runtime_api::api::HistoryRecall,
     ) -> Result<ClientReply, RpcMessageError> {
         use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
         let (events, total_events_available, has_more_before) = match recall {
-            rpc_common::api::HistoryRecall::SinceEvent { event_id, limit } => {
+            moor_runtime_api::api::HistoryRecall::SinceEvent { event_id, limit } => {
                 let all_events = self
                     .event_log
                     .events_for_player_since(player, Some(event_id));
@@ -1133,7 +1135,7 @@ impl RpcMessageHandler {
                 };
                 (events, total_available, has_more)
             }
-            rpc_common::api::HistoryRecall::UntilEvent { event_id, limit } => {
+            moor_runtime_api::api::HistoryRecall::UntilEvent { event_id, limit } => {
                 let all_events = self
                     .event_log
                     .events_for_player_until(player, Some(event_id));
@@ -1151,7 +1153,7 @@ impl RpcMessageHandler {
                 };
                 (events, total_available, has_more)
             }
-            rpc_common::api::HistoryRecall::SinceSeconds { seconds_ago, limit } => {
+            moor_runtime_api::api::HistoryRecall::SinceSeconds { seconds_ago, limit } => {
                 let all_events = self
                     .event_log
                     .events_for_player_since_seconds(player, seconds_ago);
@@ -1169,7 +1171,7 @@ impl RpcMessageHandler {
                 };
                 (events, total_available, has_more)
             }
-            rpc_common::api::HistoryRecall::None => (Vec::new(), 0, false),
+            moor_runtime_api::api::HistoryRecall::None => (Vec::new(), 0, false),
         };
 
         let (earliest_time, latest_time) = if events.is_empty() {
@@ -1214,7 +1216,7 @@ impl RpcMessageHandler {
                 };
                 let player = moor_schema::convert::obj_from_flatbuffer_struct(&e.player)
                     .unwrap_or(SYSTEM_OBJECT);
-                rpc_common::api::HistoricalNarrativeEvent {
+                moor_runtime_api::api::HistoricalNarrativeEvent {
                     event_id,
                     timestamp: e.timestamp,
                     player,
@@ -1233,7 +1235,7 @@ impl RpcMessageHandler {
             .as_nanos() as u64;
 
         Ok(ClientReply::HistoryResponseReply {
-            response: rpc_common::api::HistoryResponse {
+            response: moor_runtime_api::api::HistoryResponse {
                 events: typed_events,
                 time_range_start,
                 time_range_end,
@@ -1250,7 +1252,7 @@ impl RpcMessageHandler {
         scheduler_client: SchedulerClient,
         client_id: Uuid,
         player: &Obj,
-        actions: Vec<rpc_common::api::BatchActionEntry>,
+        actions: Vec<moor_runtime_api::api::BatchActionEntry>,
         rollback: bool,
     ) -> Result<ClientReply, RpcMessageError> {
         use crate::rpc::output_capture_session::OutputCaptureSession;
@@ -1335,14 +1337,14 @@ impl RpcMessageHandler {
 /// player/authority_principal from the auth token.
 fn convert_batch_action_to_kernel(
     player: Obj,
-    action: rpc_common::api::BatchAction,
+    action: moor_runtime_api::api::BatchAction,
 ) -> moor_kernel::tasks::world_state_action::WorldStateAction {
     use moor_common::model::ObjectQuery;
     use moor_common::util::BitEnum;
     use moor_kernel::tasks::world_state_action::WorldStateAction;
 
     match action {
-        rpc_common::api::BatchAction::RequestProperty { obj, property } => {
+        moor_runtime_api::api::BatchAction::RequestProperty { obj, property } => {
             WorldStateAction::RequestProperty {
                 player,
                 authority_principal: player,
@@ -1350,7 +1352,7 @@ fn convert_batch_action_to_kernel(
                 property,
             }
         }
-        rpc_common::api::BatchAction::RequestProperties { obj, inherited } => {
+        moor_runtime_api::api::BatchAction::RequestProperties { obj, inherited } => {
             WorldStateAction::RequestProperties {
                 player,
                 authority_principal: player,
@@ -1358,14 +1360,14 @@ fn convert_batch_action_to_kernel(
                 inherited,
             }
         }
-        rpc_common::api::BatchAction::RequestSystemProperty { obj, property } => {
+        moor_runtime_api::api::BatchAction::RequestSystemProperty { obj, property } => {
             WorldStateAction::RequestSystemProperty {
                 player,
                 obj,
                 property,
             }
         }
-        rpc_common::api::BatchAction::RequestVerbs { obj, inherited } => {
+        moor_runtime_api::api::BatchAction::RequestVerbs { obj, inherited } => {
             WorldStateAction::RequestVerbs {
                 player,
                 authority_principal: player,
@@ -1373,7 +1375,7 @@ fn convert_batch_action_to_kernel(
                 inherited,
             }
         }
-        rpc_common::api::BatchAction::RequestVerbCode { obj, verb } => {
+        moor_runtime_api::api::BatchAction::RequestVerbCode { obj, verb } => {
             WorldStateAction::RequestVerbCode {
                 player,
                 authority_principal: player,
@@ -1381,15 +1383,17 @@ fn convert_batch_action_to_kernel(
                 verb,
             }
         }
-        rpc_common::api::BatchAction::ResolveObject { objref } => WorldStateAction::ResolveObject {
-            player,
-            obj: objref,
-        },
-        rpc_common::api::BatchAction::ListObjects => WorldStateAction::ListObjects { player },
-        rpc_common::api::BatchAction::RequestAllObjects => {
+        moor_runtime_api::api::BatchAction::ResolveObject { objref } => {
+            WorldStateAction::ResolveObject {
+                player,
+                obj: objref,
+            }
+        }
+        moor_runtime_api::api::BatchAction::ListObjects => WorldStateAction::ListObjects { player },
+        moor_runtime_api::api::BatchAction::RequestAllObjects => {
             WorldStateAction::RequestAllObjects { player }
         }
-        rpc_common::api::BatchAction::UpdateProperty {
+        moor_runtime_api::api::BatchAction::UpdateProperty {
             obj,
             property,
             value,
@@ -1400,7 +1404,7 @@ fn convert_batch_action_to_kernel(
             property,
             value,
         },
-        rpc_common::api::BatchAction::ProgramVerb {
+        moor_runtime_api::api::BatchAction::ProgramVerb {
             obj,
             verb_name,
             code,
@@ -1411,10 +1415,10 @@ fn convert_batch_action_to_kernel(
             verb_name,
             code,
         },
-        rpc_common::api::BatchAction::GetObjectFlags { obj } => {
+        moor_runtime_api::api::BatchAction::GetObjectFlags { obj } => {
             WorldStateAction::GetObjectFlags { obj }
         }
-        rpc_common::api::BatchAction::QueryObjects {
+        moor_runtime_api::api::BatchAction::QueryObjects {
             parent,
             location,
             owner,

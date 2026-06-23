@@ -11,13 +11,13 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! In-process [`rpc_common::api::RuntimeClient`] adapter.
+//! In-process [`moor_runtime_api::api::RuntimeClient`] adapter.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use moor_kernel::SchedulerClient;
-use rpc_common::{
+use moor_runtime_api::{
     RpcError,
     api::{ClientReply, ClientRequest, HostReply, HostRequest, RuntimeClient},
 };
@@ -84,7 +84,7 @@ impl RuntimeClient for LocalRuntimeClient {
 #[cfg(test)]
 mod tests {
     use moor_kernel::SchedulerClient;
-    use rpc_common::{
+    use moor_runtime_api::{
         HostType, RpcMessageError,
         api::{ClientRequest, HostReply, HostRequest},
     };
@@ -114,7 +114,7 @@ mod tests {
             _scheduler_client: SchedulerClient,
             _client_id: Uuid,
             _request: ClientRequest,
-        ) -> Result<rpc_common::api::ClientReply, RpcMessageError> {
+        ) -> Result<moor_runtime_api::api::ClientReply, RpcMessageError> {
             panic!("client request not used by this smoke test")
         }
     }
@@ -122,7 +122,7 @@ mod tests {
     #[tokio::test]
     async fn local_runtime_client_calls_host_api_directly() {
         let client = LocalRuntimeClient::host_only(std::sync::Arc::new(MockRuntimeApi));
-        let reply = rpc_common::api::RuntimeClient::host_call(
+        let reply = moor_runtime_api::api::RuntimeClient::host_call(
             &client,
             Uuid::new_v4(),
             HostRequest::RegisterHost {

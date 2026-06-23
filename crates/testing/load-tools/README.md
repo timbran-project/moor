@@ -1,4 +1,15 @@
-# Load Testing Tools
+# moor-model-checker
+
+TLDR: Load, benchmark, and model-checking tools for scheduler/database concurrency and host-level
+workloads.
+
+Downstream uses:
+
+- Leaf testing crate; no production crate should depend on it.
+- Uses DB, kernel, runtime API, and ZeroMQ client crates to generate stress workloads and histories
+  for external checkers.
+
+## Load Testing Tools
 
 Tools for testing the consistency and performance of the moor transaction system.
 

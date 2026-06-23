@@ -23,11 +23,11 @@
 
 use crate::allowed_hosts::AllowedHostsRegistry;
 use eyre::{Context, Result};
-use planus::ReadAsRoot;
-use rpc_common::{
+use moor_runtime_api::{
     EnrollmentRequestRef, EnrollmentResponse, mk_enrollment_response_failure,
     mk_enrollment_response_success,
 };
+use planus::ReadAsRoot;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

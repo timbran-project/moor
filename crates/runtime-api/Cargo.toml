@@ -1,5 +1,5 @@
 [package]
-name = "rpc-common"
+name = "moor-runtime-api"
 version = "2.0.0-dev"
 authors.workspace = true
 categories.workspace = true
@@ -9,13 +9,13 @@ license.workspace = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Common entities used for 0MQ based RPC communication with the daemon."
+description = "Typed host/runtime API and wire codec support for Moor runtime clients."
 
 [dependencies]
 # Internal Dependencies
-moor-common = { path = "../../common" }
-moor-schema = { path = "../../schema" }
-moor-var = { path = "../../var" }
+moor-common = { path = "../common" }
+moor-schema = { path = "../schema" }
+moor-var = { path = "../var" }
 
 # Command Line & Configuration
 clap.workspace = true

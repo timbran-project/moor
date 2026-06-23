@@ -44,10 +44,10 @@ use moor_kernel::{
     tasks::{NoopTasksDb, TasksDb, scheduler::Scheduler},
 };
 use moor_objdef::ObjectDefinitionLoader;
+use moor_runtime_api::api::RuntimeClient;
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_empty_str};
 use rand::RngExt;
-use rpc_common::api::RuntimeClient;
 use rusty_paseto::core::Key;
 use sha2::{Digest, Sha256};
 

@@ -36,14 +36,14 @@ use moor_common::{
     tasks::{AbortLimitReason, CommandError, Event, SchedulerError, VerbProgramError},
     util::parse_into_words,
 };
-use moor_var::{List, Obj, Symbol, Var, Variant, v_str, v_string};
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
         ClientReply, ClientRequest, ConnectType as ApiConnectType,
     },
 };
+use moor_var::{List, Obj, Symbol, Var, Variant, v_str, v_string};
 use socket2::{SockRef, TcpKeepalive};
 use std::pin::Pin;
 use tokio::{
@@ -121,7 +121,7 @@ pub(crate) struct TelnetConnection {
     pub(crate) broadcast_sub: Box<dyn ClientBroadcastSubscription>,
     pub(crate) narrative_sub: Box<dyn ClientEventSubscription>,
     pub(crate) auth_token: Option<AuthToken>,
-    pub(crate) daemon_client: Arc<dyn rpc_common::api::RuntimeClient>,
+    pub(crate) daemon_client: Arc<dyn moor_runtime_api::api::RuntimeClient>,
     pub(crate) pending_task: Option<PendingTask>,
 
     /// Output prefix for command-output delimiters
@@ -472,23 +472,23 @@ impl InputMetadata {
 impl TelnetConnection {
     async fn handle_client_rpc_error(
         &mut self,
-        error: rpc_common::RpcError,
+        error: moor_runtime_api::RpcError,
         fallback_message: &str,
     ) -> Result<(), eyre::Error> {
         match error {
-            rpc_common::RpcError::Daemon(rpc_common::RpcMessageError::TaskError(error)) => {
-                self.handle_task_error(error).await
-            }
-            rpc_common::RpcError::Daemon(rpc_common::RpcMessageError::PermissionDenied) => {
-                self.send_line("Permission denied.").await
-            }
-            rpc_common::RpcError::Daemon(rpc_common::RpcMessageError::InvalidRequest(_)) => {
-                self.send_line("Invalid request.").await
-            }
-            rpc_common::RpcError::Daemon(rpc_common::RpcMessageError::InternalError(_)) => {
-                self.send_line("Internal server error.").await
-            }
-            rpc_common::RpcError::Daemon(error) => {
+            moor_runtime_api::RpcError::Daemon(moor_runtime_api::RpcMessageError::TaskError(
+                error,
+            )) => self.handle_task_error(error).await,
+            moor_runtime_api::RpcError::Daemon(
+                moor_runtime_api::RpcMessageError::PermissionDenied,
+            ) => self.send_line("Permission denied.").await,
+            moor_runtime_api::RpcError::Daemon(
+                moor_runtime_api::RpcMessageError::InvalidRequest(_),
+            ) => self.send_line("Invalid request.").await,
+            moor_runtime_api::RpcError::Daemon(
+                moor_runtime_api::RpcMessageError::InternalError(_),
+            ) => self.send_line("Internal server error.").await,
+            moor_runtime_api::RpcError::Daemon(error) => {
                 error!("Unhandled daemon RPC error: {error:?}");
                 self.send_line(fallback_message).await
             }
@@ -904,7 +904,7 @@ impl TelnetConnection {
                                     client_token: self.client_token.clone(),
                                     client_sys_time: timestamp,
                                     player: self.connection_object,
-                                    host_type: rpc_common::HostType::TCP,
+                                    host_type: moor_runtime_api::HostType::TCP,
                                     socket_addr: self.peer_addr.to_string(),
                                 },
                             ).await?;
@@ -1095,7 +1095,7 @@ impl TelnetConnection {
                                     client_token: self.client_token.clone(),
                                     client_sys_time: timestamp,
                                     player: self.handler_object,
-                                    host_type: rpc_common::HostType::TCP,
+                                    host_type: moor_runtime_api::HostType::TCP,
                                     socket_addr: self.peer_addr.to_string(),
                                 },
                             ).await.expect("Unable to send pong to RPC server");
@@ -1166,30 +1166,32 @@ impl TelnetConnection {
 
                 match reply {
                     ClientReply::VerbProgramResponseReply { response } => match response {
-                        rpc_common::api::VerbProgramResponse::Success { obj, verb_name } => {
+                        moor_runtime_api::api::VerbProgramResponse::Success { obj, verb_name } => {
                             self.send_line(&format!(
                                 "0 error(s).\nVerb {verb_name} programmed on object {obj}"
                             ))
                             .await?;
                         }
-                        rpc_common::api::VerbProgramResponse::Failure { error } => match error {
-                            moor_common::tasks::SchedulerError::VerbProgramFailed(
-                                moor_common::tasks::VerbProgramError::CompilationError(ce),
-                            ) => {
-                                let error_str = describe_compile_error(ce);
-                                self.send_line(&format!("Compilation error: {error_str}"))
-                                    .await?;
+                        moor_runtime_api::api::VerbProgramResponse::Failure { error } => {
+                            match error {
+                                moor_common::tasks::SchedulerError::VerbProgramFailed(
+                                    moor_common::tasks::VerbProgramError::CompilationError(ce),
+                                ) => {
+                                    let error_str = describe_compile_error(ce);
+                                    self.send_line(&format!("Compilation error: {error_str}"))
+                                        .await?;
+                                }
+                                moor_common::tasks::SchedulerError::VerbProgramFailed(
+                                    moor_common::tasks::VerbProgramError::NoVerbToProgram,
+                                ) => {
+                                    self.send_line("That object does not have that verb.")
+                                        .await?;
+                                }
+                                _ => {
+                                    error!("Unhandled verb program error: {error:?}");
+                                }
                             }
-                            moor_common::tasks::SchedulerError::VerbProgramFailed(
-                                moor_common::tasks::VerbProgramError::NoVerbToProgram,
-                            ) => {
-                                self.send_line("That object does not have that verb.")
-                                    .await?;
-                            }
-                            _ => {
-                                error!("Unhandled verb program error: {error:?}");
-                            }
-                        },
+                        }
                     },
                     _ => {
                         bail!("Unexpected RPC reply type");

@@ -11,10 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! RPC common types and message builders for the moor distributed system
+//! Typed host/runtime API, message builders, and wire codec helpers.
 //!
-//! This crate provides shared types, message builders, and conversion functions
-//! for RPC communication between moor components (hosts, clients, workers, daemon).
+//! This crate provides transport-neutral request/reply/event types plus the
+//! FlatBuffer conversion helpers used by split-process ZeroMQ adapters.
 
 use moor_common::tasks::SchedulerError;
 use moor_schema::rpc;

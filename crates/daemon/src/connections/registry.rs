@@ -18,8 +18,8 @@ use uuid::Uuid;
 use crate::connections::fjall_registry::FjallConnectionRegistry;
 use eyre::Report as Error;
 use moor_common::tasks::SessionError;
+use moor_runtime_api::RpcMessageError;
 use moor_var::{Obj, Symbol, Var};
-use rpc_common::RpcMessageError;
 use std::path::Path;
 
 /// Parameters for creating a new connection

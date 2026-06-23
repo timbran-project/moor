@@ -14,11 +14,11 @@
 //! OAuth2 authentication support for web-host
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use moor_runtime_api::{AuthToken, ClientToken};
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl, basic::BasicClient,
 };
-use rpc_common::{AuthToken, ClientToken};
 use serde_derive::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;

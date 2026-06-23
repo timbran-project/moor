@@ -36,13 +36,13 @@ use moor_db::DatabaseConfig;
 use moor_kernel::config::{
     Config, FeaturesConfig, ImportExportConfig, ImportFormat, RuntimeConfig,
 };
+use moor_runtime_api::{api::HostServices, client_args::RpcClientConfig, load_keypair};
 use moor_telnet_host::{HostRuntime as TelnetHostRuntime, TelnetHostConfig};
 use moor_web_host::{
     WebHostConfig,
     host::{OAuth2Config, WebRtcConfig},
     routes::{CorsConfig, RateLimitConfig},
 };
-use rpc_common::{api::HostServices, client_args::RpcClientConfig, load_keypair};
 use serde::{Deserialize, Serialize};
 use tokio::{task::JoinHandle, time::timeout};
 

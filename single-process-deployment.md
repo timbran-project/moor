@@ -41,7 +41,7 @@ point is `crates/daemon/src/bin/moor-daemon.rs`.
 The current single-process path uses typed in-process services for host/runtime request-reply and
 event delivery:
 
-- `rpc_common::api::RuntimeClient` is the host-side typed request client trait.
+- `moor_runtime_api::api::RuntimeClient` is the host-side typed request client trait.
 - `crates/daemon/src/runtime/api.rs` defines the daemon-side `RuntimeApi`.
 - `LocalRuntimeClient`, `LocalEventBus`, and `LocalRuntimeServices` provide the in-process adapter.
 - `RpcClient` remains the ZeroMQ-backed split-process adapter and implements `RuntimeClient`.
@@ -79,8 +79,8 @@ The daemon already has a useful server-side abstraction:
 
 The host side is more tightly coupled to ZeroMQ:
 
-- `rpc_async_client::rpc_client::RpcClient` owns ZeroMQ request/reply sockets.
-- `rpc_async_client::pubsub_client` reads client and broadcast events from `tmq::Subscribe`.
+- `moor_zmq_client::rpc_client::RpcClient` owns ZeroMQ request/reply sockets.
+- `moor_zmq_client::pubsub_client` reads client and broadcast events from `tmq::Subscribe`.
 - Telnet and web sessions store `RpcClient` and `tmq::Subscribe` directly.
 - Host lifecycle uses `start_host_session()` and `process_hosts_events()`, which are
   ZeroMQ-specific.
@@ -190,7 +190,7 @@ through FlatBuffers.
 
 ### Request/Reply Client
 
-Add a client trait near `rpc-async-client` or a new small RPC API crate:
+The client trait lives in `moor-runtime-api`:
 
 ```rust
 #[async_trait]

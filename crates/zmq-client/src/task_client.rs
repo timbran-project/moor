@@ -24,14 +24,14 @@ use std::time::Duration;
 
 use moor_common::model::ObjectRef;
 use moor_common::tasks::{NarrativeEvent, SchedulerError};
-use moor_var::{Obj, Symbol, Var};
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken, RpcError,
     api::{
         ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, ConnectType,
         HostServices, RuntimeClient,
     },
 };
+use moor_var::{Obj, Symbol, Var};
 use tokio::sync::{broadcast, oneshot};
 use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
@@ -109,7 +109,7 @@ type WaiterMap = Mutex<HashMap<u64, oneshot::Sender<TaskResult>>>;
 ///
 /// # Example
 /// ```no_run
-/// use rpc_async_client::task_client::TaskClient;
+/// use moor_zmq_client::task_client::TaskClient;
 ///
 /// # async fn example(client: &TaskClient) {
 /// use moor_common::model::ObjectRef;
@@ -517,7 +517,7 @@ async fn dispatcher_loop(
 /// Extract task_id from a TaskSubmitted RPC reply.
 #[cfg(test)]
 fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
-    let reply = rpc_common::read_reply_result(reply_bytes)
+    let reply = moor_runtime_api::read_reply_result(reply_bytes)
         .map_err(|e| TaskClientError::UnexpectedReply(format!("bad flatbuffer: {e}")))?;
 
     let result_union = reply
@@ -553,7 +553,7 @@ fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
 /// Decode the attach reply, extracting the client token.
 #[cfg(test)]
 fn decode_attach_reply(reply_bytes: &[u8]) -> Result<ClientToken, TaskClientError> {
-    let reply = rpc_common::read_reply_result(reply_bytes)
+    let reply = moor_runtime_api::read_reply_result(reply_bytes)
         .map_err(|e| TaskClientError::AttachFailed(format!("bad flatbuffer: {e}")))?;
 
     let result_union = reply
@@ -707,14 +707,14 @@ mod tests {
     }
 
     struct TestSubscription {
-        rx: tokio::sync::mpsc::Receiver<rpc_common::api::ClientEventMessage>,
+        rx: tokio::sync::mpsc::Receiver<moor_runtime_api::api::ClientEventMessage>,
     }
 
     #[async_trait::async_trait]
     impl ClientEventSubscription for TestSubscription {
         async fn recv_client_event(
             &mut self,
-        ) -> Result<rpc_common::api::ClientEventMessage, RpcError> {
+        ) -> Result<moor_runtime_api::api::ClientEventMessage, RpcError> {
             self.rx
                 .recv()
                 .await
@@ -723,7 +723,7 @@ mod tests {
     }
 
     fn test_subscription() -> (
-        tokio::sync::mpsc::Sender<rpc_common::api::ClientEventMessage>,
+        tokio::sync::mpsc::Sender<moor_runtime_api::api::ClientEventMessage>,
         Box<dyn ClientEventSubscription>,
     ) {
         let (tx, rx) = tokio::sync::mpsc::channel(16);
@@ -731,10 +731,10 @@ mod tests {
     }
 
     async fn send_test_event(
-        tx: &tokio::sync::mpsc::Sender<rpc_common::api::ClientEventMessage>,
+        tx: &tokio::sync::mpsc::Sender<moor_runtime_api::api::ClientEventMessage>,
         event: ClientEvent,
     ) {
-        tx.send(rpc_common::api::ClientEventMessage {
+        tx.send(moor_runtime_api::api::ClientEventMessage {
             event,
             raw_bytes: Vec::new(),
         })

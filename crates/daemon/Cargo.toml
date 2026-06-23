@@ -9,14 +9,14 @@ license.workspace = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Server binaries for the Moor virtual machine."
+description = "Server binaries for the MooR virtual machine."
 
 [package.metadata.deb]
 maintainer = "Ryan Daum, operating as Timbran Consulting <ryan.daum@gmail.com>"
 depends = "$auto, systemd, openssl"
 conflicts = "moor"
 replaces = "moor"
-extended-description = "Daemon for the Moor virtual machine. This is the main process that runs the Moor VM and provides an RPC interface for clients to connect to."
+extended-description = "Daemon for the MooR virtual machine. This is the main process that runs the MooR VM and provides an RPC interface for clients to connect to."
 section = "net"
 license-file = ["../../LICENSE", "0"]
 priority = "optional"
@@ -42,7 +42,7 @@ name = "moor"
 depends = "$auto, systemd, openssl"
 conflicts = "moor-daemon"
 replaces = "moor-daemon"
-extended-description = "Single-process Moor server. This package runs the daemon runtime, telnet host, and web host in one process."
+extended-description = "Single-process MooR server. This package runs the daemon runtime, telnet host, and web host in one process."
 assets = [
     ["target/release/moor", "/usr/bin/moor", "755"],
     ["debian/moor.service", "/lib/systemd/system/moor.service", "644"],
@@ -80,7 +80,7 @@ moor-telnet-host = { path = "../telnet-host" }
 moor-textdump = { path = "../textdump" }
 moor-var = { path = "../var" }
 moor-web-host = { path = "../web-host" }
-rpc-common = { path = "../rpc/rpc-common" }
+moor-runtime-api = { path = "../runtime-api" }
 
 # Core Runtime & System
 mimalloc.workspace = true

@@ -28,13 +28,13 @@ use moor_common::{
     model::ObjectRef,
     threading::{ThreadClass, pin_current_thread_to_class},
 };
-use moor_schema::rpc as moor_rpc;
-use moor_var::{Obj, Symbol, Var, v_int};
-use rpc_async_client::{rpc_client::RpcClient, start_host_session};
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken, client_args::RpcClientArgs, mk_invoke_verb_msg,
     mk_request_performance_counters_msg, read_reply_result,
 };
+use moor_schema::rpc as moor_rpc;
+use moor_var::{Obj, Symbol, Var, v_int};
+use moor_zmq_client::{rpc_client::RpcClient, start_host_session};
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,

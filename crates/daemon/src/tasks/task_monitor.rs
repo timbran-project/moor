@@ -195,12 +195,14 @@ impl TaskMonitor {
                     }
                 }
                 Err(e) => {
-                    let scheduler_error = rpc_common::scheduler_error_to_flatbuffer_struct(&e)
-                        .unwrap_or_else(|_| moor_rpc::SchedulerError {
-                            error: moor_rpc::SchedulerErrorUnion::SchedulerNotResponding(Box::new(
-                                moor_rpc::SchedulerNotResponding {},
-                            )),
-                        });
+                    let scheduler_error = moor_runtime_api::scheduler_error_to_flatbuffer_struct(
+                        &e,
+                    )
+                    .unwrap_or_else(|_| moor_rpc::SchedulerError {
+                        error: moor_rpc::SchedulerErrorUnion::SchedulerNotResponding(Box::new(
+                            moor_rpc::SchedulerNotResponding {},
+                        )),
+                    });
                     let client_event = moor_rpc::ClientEvent {
                         event: moor_rpc::ClientEventUnion::TaskErrorEvent(Box::new(
                             moor_rpc::TaskErrorEvent {

@@ -1,5 +1,5 @@
 [package]
-name = "rpc-async-client"
+name = "moor-zmq-client"
 version = "2.0.0-dev"
 authors.workspace = true
 categories.workspace = true
@@ -9,14 +9,14 @@ license.workspace = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Utilities for connection to the 0MQ RPC server via tokio/async calls"
+description = "ZeroMQ-backed mooR runtime client and host service utilities."
 
 [dependencies]
 # Internal Dependencies
-moor-common = { path = "../../common" }
-moor-schema = { path = "../../schema" }
-moor-var = { path = "../../var" }
-rpc-common = { path = "../rpc-common" }
+moor-common = { path = "../common" }
+moor-schema = { path = "../schema" }
+moor-var = { path = "../var" }
+moor-runtime-api = { path = "../runtime-api" }
 
 # Serialization & Data Formats
 planus.workspace = true

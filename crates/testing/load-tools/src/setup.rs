@@ -15,20 +15,20 @@
 #[cfg_attr(coverage_nightly, coverage(off))]
 use eyre::{anyhow, bail};
 use moor_common::model::ObjectRef;
+use moor_runtime_api::{
+    AuthToken, CLIENT_BROADCAST_TOPIC, ClientToken, auth_token_from_ref, mk_client_pong_msg,
+    mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg, mk_program_msg, mk_verbs_msg,
+    read_reply_result,
+};
 use moor_schema::{
     convert::{obj_from_ref, var_from_flatbuffer_ref},
     rpc as moor_rpc,
 };
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
-use rpc_async_client::{
+use moor_zmq_client::{
     ListenersClient, ListenersMessage,
     pubsub_client::{broadcast_recv, events_recv},
     rpc_client::RpcClient,
-};
-use rpc_common::{
-    AuthToken, CLIENT_BROADCAST_TOPIC, ClientToken, auth_token_from_ref, mk_client_pong_msg,
-    mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg, mk_program_msg, mk_verbs_msg,
-    read_reply_result,
 };
 use std::{
     collections::HashMap,

@@ -21,8 +21,8 @@ use moor_schema::{
     rpc as moor_rpc,
 };
 
+use moor_runtime_api::WORKER_BROADCAST_TOPIC;
 use moor_var::{Obj, Symbol, Var};
-use rpc_common::WORKER_BROADCAST_TOPIC;
 use std::{
     future::Future,
     sync::{
@@ -42,7 +42,7 @@ pub enum WorkerRpcError {
     #[error("Unable to attach worker to daemon: {0}")]
     UnableToConnectToDaemon(TmqError),
     #[error("Unable processing worker event: {0}")]
-    RpcError(rpc_common::RpcError),
+    RpcError(moor_runtime_api::RpcError),
 }
 
 pub async fn worker_loop<ProcessFunc, Fut>(
@@ -108,7 +108,7 @@ where
 
     // Configure CURVE encryption if keys provided
     if let Some((client_secret, client_public, server_public)) = &curve_keys {
-        use rpc_common::RpcError;
+        use moor_runtime_api::RpcError;
         use tracing::info;
 
         // Decode Z85 keys to bytes
@@ -321,13 +321,17 @@ async fn process_fb<ProcessFunc, Fut>(
                 .iter()
                 .map(|var_ref_result| {
                     let var_ref = var_ref_result.map_err(|e| {
-                        rpc_common::RpcError::CouldNotDecode(format!("Failed to get var: {e}"))
+                        moor_runtime_api::RpcError::CouldNotDecode(format!(
+                            "Failed to get var: {e}"
+                        ))
                     })?;
                     var_from_flatbuffer_ref(var_ref).map_err(|e| {
-                        rpc_common::RpcError::CouldNotDecode(format!("Failed to decode var: {e}"))
+                        moor_runtime_api::RpcError::CouldNotDecode(format!(
+                            "Failed to decode var: {e}"
+                        ))
                     })
                 })
-                .collect::<Result<Vec<_>, rpc_common::RpcError>>()
+                .collect::<Result<Vec<_>, moor_runtime_api::RpcError>>()
             {
                 Ok(req) => req,
                 Err(e) => {

@@ -3393,10 +3393,10 @@ dependencies = [
  "color-eyre",
  "eyre",
  "moor-common",
+ "moor-runtime-api",
  "moor-var",
+ "moor-zmq-client",
  "reqwest",
- "rpc-async-client",
- "rpc-common",
  "tmq",
  "tokio",
  "tracing",
@@ -3429,6 +3429,7 @@ dependencies = [
  "moor-db",
  "moor-kernel",
  "moor-objdef",
+ "moor-runtime-api",
  "moor-schema",
  "moor-telnet-host",
  "moor-textdump",
@@ -3438,7 +3439,6 @@ dependencies = [
  "papaya",
  "planus",
  "rand 0.10.1",
- "rpc-common",
  "rusty_paseto",
  "semver",
  "serde",
@@ -3587,11 +3587,11 @@ dependencies = [
  "futures-util",
  "moor-common",
  "moor-compiler",
+ "moor-runtime-api",
  "moor-schema",
  "moor-var",
+ "moor-zmq-client",
  "planus",
- "rpc-async-client",
- "rpc-common",
  "serde",
  "serde_derive",
  "serde_json",
@@ -3619,12 +3619,12 @@ dependencies = [
  "moor-compiler",
  "moor-db",
  "moor-kernel",
+ "moor-runtime-api",
  "moor-schema",
  "moor-var",
+ "moor-zmq-client",
  "planus",
  "rand 0.10.1",
- "rpc-async-client",
- "rpc-common",
  "semver",
  "tabled",
  "tempfile",
@@ -3663,6 +3663,25 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
+ "uuid 1.23.3",
+]
+
+[[package]]
+name = "moor-runtime-api"
+version = "2.0.0-dev"
+dependencies = [
+ "async-trait",
+ "byteview",
+ "clap",
+ "clap_derive",
+ "ed25519-dalek",
+ "moor-common",
+ "moor-schema",
+ "moor-var",
+ "planus",
+ "rusty_paseto",
+ "serde",
+ "thiserror 2.0.18",
  "uuid 1.23.3",
 ]
 
@@ -3709,12 +3728,12 @@ dependencies = [
  "jotdown",
  "moor-common",
  "moor-moot",
+ "moor-runtime-api",
  "moor-schema",
  "moor-var",
+ "moor-zmq-client",
  "planus",
  "regex",
- "rpc-async-client",
- "rpc-common",
  "rustls-pemfile",
  "serde",
  "serial_test",
@@ -3799,13 +3818,13 @@ dependencies = [
  "ipnet",
  "moor-common",
  "moor-compiler",
+ "moor-runtime-api",
  "moor-schema",
  "moor-var",
+ "moor-zmq-client",
  "oauth2",
  "planus",
  "reqwest",
- "rpc-async-client",
- "rpc-common",
  "serde",
  "serde_derive",
  "serde_json",
@@ -3822,6 +3841,31 @@ dependencies = [
  "urlencoding",
  "uuid 1.23.3",
  "webrtc",
+]
+
+[[package]]
+name = "moor-zmq-client"
+version = "2.0.0-dev"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "eyre",
+ "futures-util",
+ "hostname",
+ "moor-common",
+ "moor-runtime-api",
+ "moor-schema",
+ "moor-var",
+ "planus",
+ "rusty_paseto",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tmq",
+ "tokio",
+ "tracing",
+ "uuid 1.23.3",
+ "zmq",
 ]
 
 [[package]]
@@ -5153,50 +5197,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "rustc-hash 1.1.0",
  "text-size",
-]
-
-[[package]]
-name = "rpc-async-client"
-version = "2.0.0-dev"
-dependencies = [
- "async-trait",
- "chrono",
- "eyre",
- "futures-util",
- "hostname",
- "moor-common",
- "moor-schema",
- "moor-var",
- "planus",
- "rpc-common",
- "rusty_paseto",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tmq",
- "tokio",
- "tracing",
- "uuid 1.23.3",
- "zmq",
-]
-
-[[package]]
-name = "rpc-common"
-version = "2.0.0-dev"
-dependencies = [
- "async-trait",
- "byteview",
- "clap",
- "clap_derive",
- "ed25519-dalek",
- "moor-common",
- "moor-schema",
- "moor-var",
- "planus",
- "rusty_paseto",
- "serde",
- "thiserror 2.0.18",
- "uuid 1.23.3",
 ]
 
 [[package]]

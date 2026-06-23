@@ -14,14 +14,14 @@
 //! Typed daemon-side API trait.
 //!
 //! [`RuntimeApi`] operates on the typed request/reply enums in
-//! [`rpc_common::api`], decoupled from the FlatBuffer wire format. The existing
+//! [`moor_runtime_api::api`], decoupled from the FlatBuffer wire format. The existing
 //! `MessageHandler` becomes an adapter that decodes FlatBuffer refs into these enums, calls
 //! `RuntimeApi`, and encodes
 //! the replies back.
 
 use moor_kernel::SchedulerClient;
-use rpc_common::RpcMessageError;
-use rpc_common::api::{ClientReply, ClientRequest, HostReply, HostRequest};
+use moor_runtime_api::RpcMessageError;
+use moor_runtime_api::api::{ClientReply, ClientRequest, HostReply, HostRequest};
 use uuid::Uuid;
 
 /// Runtime business logic operating on typed requests.

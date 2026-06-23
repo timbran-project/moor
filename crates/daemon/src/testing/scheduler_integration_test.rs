@@ -38,14 +38,14 @@ mod tests {
         config::Config,
         tasks::{NoopTasksDb, scheduler::Scheduler},
     };
-    use moor_schema::rpc as moor_rpc;
-    use moor_textdump::{TextdumpImportOptions, textdump_load};
-    use moor_var::{Obj, SYSTEM_OBJECT};
-    use rpc_common::{
+    use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
         mk_connection_establish_msg, mk_login_command_msg, ws_list_objects,
         ws_request_system_property, ws_resolve_object,
     };
+    use moor_schema::rpc as moor_rpc;
+    use moor_textdump::{TextdumpImportOptions, textdump_load};
+    use moor_var::{Obj, SYSTEM_OBJECT};
     use rusty_paseto::prelude::Key;
     use semver::Version;
 
@@ -175,7 +175,7 @@ MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
 -----END PUBLIC KEY-----
 "#;
 
-        let (private_key, public_key) = rpc_common::parse_keypair(VERIFYING_KEY, SIGNING_KEY)
+        let (private_key, public_key) = moor_runtime_api::parse_keypair(VERIFYING_KEY, SIGNING_KEY)
             .expect("Failed to parse test keypair");
         (public_key, private_key)
     }

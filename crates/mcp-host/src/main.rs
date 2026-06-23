@@ -57,7 +57,7 @@ use connection::{ConnectionConfig, ConnectionManager, Credentials};
 use eyre::Result;
 use mcp_server::McpServer;
 use moor_client::MoorClientConfig;
-use rpc_common::client_args::RpcClientArgs;
+use moor_runtime_api::client_args::RpcClientArgs;
 use serde_derive::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -203,7 +203,7 @@ async fn setup_curve_auth(args: &RpcClientArgs) -> Result<Option<(String, String
     }
 
     // Try to use the enrollment client to get keys
-    match rpc_async_client::enrollment_client::setup_curve_auth(
+    match moor_zmq_client::enrollment_client::setup_curve_auth(
         &args.rpc_address,
         &args.enrollment_address,
         args.enrollment_token_file.as_deref(),

@@ -23,8 +23,8 @@ use std::{
 };
 
 use moor_common::tasks::{EventLogPurgeResult, EventLogStats, SystemControl, WorkerInfo};
+use moor_runtime_api::HostType;
 use moor_var::{E_INVARG, E_QUOTA, Obj, Symbol, Var};
-use rpc_common::HostType;
 use tracing::warn;
 
 use crate::{enrollment, event_log::EventLogOps, rpc::MessageHandler};

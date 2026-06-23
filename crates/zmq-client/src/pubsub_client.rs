@@ -17,16 +17,16 @@ use futures_util::StreamExt;
 use tmq::subscribe::Subscribe;
 use uuid::Uuid;
 
+use moor_runtime_api::RpcError;
+use moor_runtime_api::api::{
+    ClientBroadcastSubscription, ClientEventSubscription, HostBroadcastEvent, HostEventSubscription,
+};
 use moor_schema::{
     convert::{obj_from_ref, var_from_flatbuffer_ref},
     rpc,
 };
 use moor_var::{Obj, Var};
 use planus::ReadAsRoot;
-use rpc_common::RpcError;
-use rpc_common::api::{
-    ClientBroadcastSubscription, ClientEventSubscription, HostBroadcastEvent, HostEventSubscription,
-};
 use std::time::Duration;
 
 /// Type alias for the complex return type of worker request extraction
@@ -162,10 +162,10 @@ impl ClientEventMessage {
         self.buffer
     }
 
-    pub fn decode(&self) -> Result<rpc_common::api::ClientEventMessage, RpcError> {
+    pub fn decode(&self) -> Result<moor_runtime_api::api::ClientEventMessage, RpcError> {
         let event = self.event()?;
-        let event = rpc_common::api_codec::decode_client_event_ref(event)?;
-        Ok(rpc_common::api::ClientEventMessage {
+        let event = moor_runtime_api::api_codec::decode_client_event_ref(event)?;
+        Ok(moor_runtime_api::api::ClientEventMessage {
             event,
             raw_bytes: self.buffer.clone(),
         })
@@ -224,10 +224,10 @@ impl BroadcastEventMessage {
             .map_err(|e| RpcError::CouldNotDecode(format!("Failed to parse flatbuffer: {e}")))
     }
 
-    pub fn decode(&self) -> Result<rpc_common::api::BroadcastEventMessage, RpcError> {
+    pub fn decode(&self) -> Result<moor_runtime_api::api::BroadcastEventMessage, RpcError> {
         let event = self.event()?;
-        let event = rpc_common::api_codec::decode_broadcast_event_ref(event)?;
-        Ok(rpc_common::api::BroadcastEventMessage {
+        let event = moor_runtime_api::api_codec::decode_broadcast_event_ref(event)?;
+        Ok(moor_runtime_api::api::BroadcastEventMessage {
             event,
             raw_bytes: self.buffer.clone(),
         })
@@ -287,7 +287,7 @@ impl HostBroadcastMessage {
     }
 
     pub fn decode(&self) -> Result<HostBroadcastEvent, RpcError> {
-        rpc_common::api_codec::decode_host_broadcast_event_ref(self.event()?)
+        moor_runtime_api::api_codec::decode_host_broadcast_event_ref(self.event()?)
     }
 }
 
@@ -307,7 +307,9 @@ impl ZmqClientEventSubscription {
 
 #[async_trait]
 impl ClientEventSubscription for ZmqClientEventSubscription {
-    async fn recv_client_event(&mut self) -> Result<rpc_common::api::ClientEventMessage, RpcError> {
+    async fn recv_client_event(
+        &mut self,
+    ) -> Result<moor_runtime_api::api::ClientEventMessage, RpcError> {
         events_recv(self.client_id, &mut self.subscribe)
             .await?
             .decode()
@@ -328,7 +330,7 @@ impl ZmqClientBroadcastSubscription {
 impl ClientBroadcastSubscription for ZmqClientBroadcastSubscription {
     async fn recv_client_broadcast(
         &mut self,
-    ) -> Result<rpc_common::api::BroadcastEventMessage, RpcError> {
+    ) -> Result<moor_runtime_api::api::BroadcastEventMessage, RpcError> {
         broadcast_recv(&mut self.subscribe).await?.decode()
     }
 }

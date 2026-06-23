@@ -22,11 +22,11 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use moor_common::model::ObjectRef;
-use moor_var::Obj;
-use rpc_common::{
+use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{ClientReply, ClientRequest, RuntimeClient},
 };
+use moor_var::Obj;
 use serde_derive::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tracing::{debug, error, info, warn};
@@ -128,7 +128,7 @@ async fn call_oauth_login(
     web_host: &WebHost,
     args: Vec<String>,
     do_attach: bool,
-) -> Result<ClientReply, rpc_common::RpcError> {
+) -> Result<ClientReply, moor_runtime_api::RpcError> {
     rpc_client
         .client_call(
             client_id,

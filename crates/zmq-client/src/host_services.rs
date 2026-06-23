@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use rpc_common::{
+use moor_runtime_api::{
     CLIENT_BROADCAST_TOPIC, HOST_BROADCAST_TOPIC, RpcError,
     api::{
         ClientBroadcastSubscription, ClientEventSubscription, HostEventSubscription, HostServices,
